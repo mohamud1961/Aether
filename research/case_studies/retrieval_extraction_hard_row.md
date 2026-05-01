@@ -1,0 +1,102 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_03_extract_moves_from_video
+- wave: wave_03_verification_completion_and_recovery
+- task_family: extract-moves-from-video
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - [private-source: deepagents/extract-moves-from-video-trajectory]
+  - [private-source: terminus-kira/extract-moves-from-video-trajectory]
+  - [private-source: BigAI/extract-moves-from-video-trajectory]
+- outcome_profile:
+  - `deepagents`: no usable completion evidence; the readable run aborts almost immediately with cancellation.
+  - `terminus-kira`: contested completion attempt; `/app/solution.txt` is produced and spot-checked, but unresolved count contradictions remain visible at the point of completion pressure.
+  - `BigAI`: inconclusive in the inspected slice; the run shows substantial OCR/extraction work but no visible terminal verification finish.
+- per_run_notes:
+  - `deepagents 67dc...`: the readable artifact contains almost no task-family signal beyond immediate failure. Step 2 is `[agent error] CancelledError: CancelledError()`, so this run cannot support either defended success or defended failure of extraction doctrine.
+  - `terminus-kira 3df8...`: this is the only readable slice with a visible output artifact. The run installs OCR/video tools, writes a long `/app/solution.txt`, inspects `head` and `tail`, and reaches repeated `mark_task_complete` prompts. But the same run also preserves unresolved disagreement between three counts: `201` from a transcription artifact, `230` from a Python script path, and `262` from a visible game counter on the last frame. A long OCR pass is interrupted with `KeyboardInterrupt` before those contradictions are fully reconciled.
+  - `BigAI 953d...`: the visible slice shows heavy setup and repeated OCR/extraction attempts, including installation of `ffmpeg`, `tesseract-ocr`, `yt-dlp`, and EasyOCR-related tooling. It also shows multiple parsing scripts and repeated writes to `/app/solution.txt` or alternate outputs. What is missing in the inspected text is decisive: there is no visible `finish_verification`, no visible `verification_result_status`, and no visible terminal completion marker.
+- cross_run_comparison:
+  - This task family is the weakest Wave 03 trajectory family by coverage quality.
+  - `deepagents` contributes almost nothing beyond a hard truncation/abort.
+  - `BigAI` contributes a visible extraction workflow but not a visible closure state in the inspected slice.
+  - `terminus-kira` contributes the only readable completion attempt, but it is valuable mainly as contradiction pressure rather than as a defended success exemplar.
+  - Because only one family provides a visible completion attempt, and that attempt preserves unresolved disagreement, this task family should not be used to claim stable cross-family completion doctrine.
+- failure_point_comparison:
+  - `deepagents`: the failure point is pure coverage loss. The run ends before any extraction, verification, or cleanup behavior becomes legible.
+  - `terminus-kira`: the decisive failure point is the gap between output-file existence and defended completion proof. The run has a plausible artifact and repeated completion pressure, but it never fully closes the contradiction between `201`, `230`, and `262`.
+  - `BigAI`: the decisive problem is truncation/incompleteness in the readable slice. The visible work may or may not have later converged, but the inspected trajectory does not show enough to classify the run as success.
+- source_or_architecture_links:
+  - `deepagents`: [private-source: codebase/deepagents], [private-source: codebase/deepagents]
+  - `terminus-kira`: [private-source: codebase/KIRA], [private-source: codebase/KIRA]
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- behavioral_reconstruction_caveats:
+  - `BigAI` is behavioral reconstruction only, and in this family even the behavioral picture is incomplete because the inspected slice never reaches a visible terminal verifier event.
+  - `terminus-kira` should not be upgraded from "contested completion attempt" to "defended success." The available evidence supports false-completion pressure more strongly than completion proof.
+  - `deepagents` should not be treated as negative evidence for the whole family; it is mainly evidence of unusable trajectory coverage for this task.
+- mechanism_implications:
+  - This family is the clearest warning against overgeneralizing from strong verification families like WAL recovery and cancellation cleanup.
+  - In perception-heavy extraction, completion pressure can outrun proof quality. An output file and spot checks can coexist with unresolved contradictions about whether the output is complete.
+  - The family also shows that role separation or strong orchestration scaffolding does not automatically yield visible completion proof when the readable slice is truncated or when proof surfaces remain weak.
+- failure_implications:
+  - Output-file existence is not a reliable proxy for completion in multimodal extraction tasks.
+  - OCR interruptions, overlapping frame artifacts, and disagreement between extracted-command counts create a high false-completion risk.
+  - Thin coverage must remain explicit. This family currently supports caution and open questions more than it supports promoted mechanism claims.
+- confidence_notes:
+  - High confidence: `deepagents` coverage is unusably thin, `terminus-kira` preserves unresolved count contradictions, `BigAI` is inconclusive in the inspected slice.
+  - Medium confidence: treating the KIRA slice as a reusable false-completion pressure case rather than a one-off task-difficulty artifact. The evidence is strong enough for caution, but not for family-wide certainty.
+- wave_01_literature_pressure_update_2026_04_10:
+  - observation: Formal multimodal and benchmark sources emphasize invalid-action suppression and contract-backed completion, warning against artifact-only success claims.
+  - inference: This case should remain a false-success pressure exemplar until command-count and output-validity contradictions are verifier-resolved.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/papers/papers_text/2603.00324.txt`
+    - `research/sources/papers/papers_text/2603.03329.txt`
+    - [private-source: paper/src_pap_f6aa42bfdc1a]
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - observations:
+    - this family remains the weakest for defended completion because coverage loss and unresolved contradictions dominate visible endings.
+    - KIRA's visible completion pressure without contradiction closure is a reusable false-success caution case for Wave 01.
+    - DeepAgents and BigAI slices are still too incomplete to attribute stable execution-control doctrine for this family.
+  - inference:
+    - treat this family as negative pressure against overconfident execution-control claims, not as a positive mechanism exemplar.
+  - confidence:
+    - high on evidence limits, medium on broader family generalization
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - added_wave_02_observations:
+    - required extract bundles are all failing at final gate (BigAI/deepagents/KIRA reward `0`).
+    - KIRA run shows strongest false-completion pressure (multiple completion attempts despite unresolved quality contradiction and final similarity failure).
+    - BigAI required run remains verifier-omission pressure in this family (no visible `finish_verification` closeout in trajectory).
+  - failure_taxonomy_implication:
+    - treat this family as core evidence for verifier omission + stale success signaling + acceptance mismatch, not as defended completion.
+  - evidence_paths:
+    - [private-source: BigAI/extract-moves-from-video-bundle]
+    - [private-source: deepagents/extract-moves-from-video-bundle]
+    - [private-source: terminus-kira/extract-moves-from-video-bundle]
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_pressure_observation:
+    - KIRA completion-gate source is insufficient in this family when proof-quality is weak; repeated completion prompts coexist with unresolved output-count contradictions.
+    - BigAI required extract run remains verifier-inconclusive in readable trajectory and fails bundled final quality checks.
+    - DeepAgents required extract run remains too truncated for reliable mechanism attribution.
+  - failure_taxonomy_implication:
+    - preserve this case as a high-risk `false completion under weak evidence` pressure slice, not a defended completion exemplar.
+  - confidence: high on evidence-limit claim, medium on family-level generalization
+  - evidence_paths:
+    - [private-source: codebase/KIRA]
+    - [private-source: terminus-kira/extract-moves-from-video-trajectory]
+    - [private-source: BigAI/extract-moves-from-video-bundle]
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - wave_04_relevance:
+    - strongest required case for `tool-gateway mismatch` and `timeout-heavy long-horizon degradation`.
+  - wave_04_observations:
+    - BigAI `953d...` shows prolonged still-running phases with repeated polling and explicit kill intervention near 300-second horizons.
+    - KIRA `3df8...` shows command-channel/tool-contract collapse (parse/syntax cascades, missing-script follow-on failures) and OCR-phase `KeyboardInterrupt` under timeout manager.
+  - wave_04_inference:
+    - in long-horizon multimodal tasks, interaction-contract fragility and runtime duration pressure mutually amplify rather than acting as separate rare failures.
+  - evidence_paths:
+    - [private-source: BigAI/extract-moves-from-video-trajectory]
+    - [private-source: terminus-kira/extract-moves-from-video-trajectory]
+  - confidence: high
