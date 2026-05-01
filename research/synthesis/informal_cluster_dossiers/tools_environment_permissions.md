@@ -1,0 +1,206 @@
+INFORMAL_CLUSTER_DOSSIER
+- cluster: `tools_environment_permissions`
+- source_families:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- primary_items:
+  - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+  - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_agent_computer_use.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+  - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_agent_computer_use.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_6bbe542bed6c/artifact.txt`
+  - `research/sources/issues/src_iss_f44f83f3fbc3/artifact.txt`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+- operator_claims:
+  - claim: `Approval-only safety degrades into friction loops unless the sandbox can absorb common commands without prompting.`
+    - evidence: `research/sources/informal/cursor_agent_sandboxing.md`, `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`, `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+    - confidence: `medium`
+  - claim: `Tool catalogs must be dynamically discoverable and state-fresh; static preload and stale cache behavior both produce operational failures.`
+    - evidence: `research/sources/informal/cursor_dynamic_context_discovery.md`, `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`, `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`, `research/sources/issues/src_iss_ad20a8115187/artifact.txt`, `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+    - confidence: `high`
+  - claim: `Browser-enabled autonomy increases throughput but introduces a distinct crash-recovery and approval-burst surface.`
+    - evidence: `research/sources/informal/cursor_agent_computer_use.md`, `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+    - confidence: `medium`
+  - claim: `Path normalization and workspace-boundary matching are still brittle across Windows, UNC, and absolute-vs-relative execution paths.`
+    - evidence: `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`, `research/sources/issues/src_iss_f68a2210a011/artifact.txt`, `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`, `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+    - confidence: `high`
+- issue_or_postmortem_evidence:
+  - cluster: `sandbox and approval doctrine drift`
+    - evidence: `research/sources/issues/src_iss_594e5f13600f/artifact.txt`, `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`, `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`, `research/sources/issues/src_iss_84bccb83da69/artifact.txt`, `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`, `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - cluster: `tool-gateway freshness and tool-sprawl pressure`
+    - evidence: `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`, `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`, `research/sources/issues/src_iss_ad20a8115187/artifact.txt`, `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`, `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`, `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - cluster: `browser substrate mismatch`
+    - evidence: `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`, `research/sources/informal/cursor_agent_computer_use.md`
+  - cluster: `cwd/workdir/path and environment mismatch`
+    - evidence: `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`, `research/sources/issues/src_iss_f68a2210a011/artifact.txt`, `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`, `research/sources/issues/src_iss_446b495f52a8/artifact.txt`, `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+- contradictions:
+  - `Claims of reduced approval burden via sandboxing coexist with repeated regressions where safe commands, Playwright actions, or policy-allowed commands still trigger prompts.`
+  - `Claims of unified sandbox behavior across OSes coexist with evidence that specific execution paths (for example Windows PTY unified_exec) can bypass intended enforcement.`
+  - `Claims of dynamic MCP/tool discovery coexist with direct stale-tool and stale-auth-cache reports that leave agents operating against outdated tool state.`
+  - `Cloud/browser autonomy claims coexist with direct browser-crash non-recovery reports, indicating the browser substrate is still a failure-prone runtime surface.`
+- likely_mechanism_pressure:
+  - `policy-to-runtime permission consistency checks`
+  - `sandbox-aware error surfacing and escalation guidance`
+  - `tool-catalog lazy loading plus freshness invalidation`
+  - `per-server or per-tool approval envelopes`
+  - `path canonicalization and cwd-root fence enforcement`
+  - `browser watchdog and resumable browser session handling`
+- likely_failure_pressure:
+  - `approval fatigue and repetitive prompt storms`
+  - `policy bypass or policy mismatch at execution time`
+  - `stale tools after auth or list_changed updates`
+  - `silent tool truncation leading to wrong edits`
+  - `wrong-target edits from path contamination`
+  - `hook/network drift that invalidates prompt cache and control flow`
+- confidence_notes:
+  - `High confidence that these clusters exist as operational pressure because multiple issue reports converge on each failure shape.`
+  - `Medium confidence on prevalence across all harness families due to vendor concentration and mixed issue status (open, duplicate, closed, stale).`
+  - `Low confidence on long-term fix durability because many reports are point-in-time regressions without longitudinal validation artifacts.`
+- downstream_relevance:
+  - `mechanism_map`: strengthens Wave 05 separation of tool gateway, sandbox/approval boundary, browser substrate, and cwd/path discipline into distinct mechanism cards.`
+  - `failure_taxonomy`: seeds families for policy-runtime mismatch, stale tool registry, browser runtime hang, and path-boundary corruption.`
+  - `trajectory_case_studies`: requests targeted reconciliation against `headless_terminal`, `extract_moves_from_video`, and `cancel_async_tasks` for browser/tool/permission manifestations in direct run behavior.`
+- wave_04_formal_pressure_update:
+  - linked_formal_output:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/literature_papers_docs_analyst.md`
+  - formal_alignment:
+    - Formal docs and OAP align with this cluster’s policy-runtime mismatch theme by separating authorization policy from containment/capability limits.
+    - MCP roots/tools specs align with this cluster’s path/cwd boundary failures by requiring explicit root validation and boundary-respecting operations.
+    - Terminal-agent formal sources align with this cluster’s environment-fragility reports by treating environment executability and verification as prerequisites.
+  - formal_tension:
+    - Formal doctrine describes robust safety/control surfaces, but issue and trajectory evidence still report prompt storms, policy bypass/mismatch, and stale tool state.
+    - Therefore formal guidance should constrain taxonomy naming, not be treated as proof that runtime enforcement is already reliable.
+  - confidence:
+    - high for alignment direction
+    - medium for prevalence transfer across all source families
+- wave_04_required_trajectory_reconciliation_2026_04_11:
+  - trajectory_alignment:
+    - required extract slices directly manifest informal-cluster pressure families: tool-gateway fragility, permission/runtime friction, and long-running tool-loop degradation.
+  - direct_references:
+    - `[private-source: trajectory]/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `[private-source: trajectory]/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `[private-source: trajectory]/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - inference:
+    - informal Wave 05 clusters are behavior-consistent with Wave 04 required trajectory pressure and should be carried as active failure-taxonomy priors.
+  - confidence: high
+- wave_04_failure_taxonomy_update:
+  - wave: `failure_taxonomy/wave_04_tools_environment_coordination_and_long_horizon_failures`
+  - objective: `Attribute contradiction pressure across tool-gateway, permission/runtime, path/cwd, process-lifecycle, and long-horizon tooling families without collapsing causes.`
+  - coverage_delta_used:
+    - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+    - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+    - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+    - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+    - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+    - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+    - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+  - failure_family_attribution:
+    - family: `permission_policy_runtime_mismatch`
+      - observation: User reports show both policy under-enforcement (hook bypass/sandbox mismatch) and over-enforcement (prompt storms despite permissive settings).
+      - inference: This family remains mixed-cause and should be tracked as a dual failure mode rather than one linear strictness axis.
+      - confidence: `high`
+      - evidence: `research/sources/issues/src_iss_594e5f13600f/artifact.txt`, `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`, `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`, `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`, `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`, `research/sources/issues/src_iss_84bccb83da69/artifact.txt`, `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+    - family: `tool_gateway_and_context_surface_integrity`
+      - observation: Stale tool catalogs, large tool metadata, and silent tool-result truncation recur across ecosystems.
+      - inference: Gateway failures are not only invocation errors; stale/truncated context surfaces directly drive wrong planning and edit selection.
+      - confidence: `high`
+      - evidence: `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`, `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`, `research/sources/issues/src_iss_ad20a8115187/artifact.txt`, `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`, `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`, `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+    - family: `cwd_path_workspace_contract_failure`
+      - observation: Wrong-target edits and UNC/absolute-path matching mismatches persist in longer sessions and Windows-heavy environments.
+      - inference: Path/cwd failures should remain distinct from planning quality failures because they occur even when task intent is correct.
+      - confidence: `high`
+      - evidence: `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`, `research/sources/issues/src_iss_f68a2210a011/artifact.txt`, `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`, `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+    - family: `process_lifecycle_and_browser_runtime_breakdown`
+      - observation: Browser-backed and extension-backed flows show non-recovery states (`stuck thinking`, crash-without-resume, long-running wait loops).
+      - inference: Process-lifecycle robustness is a separate failure family from permission and path failures, even when they co-occur in one run.
+      - confidence: `medium`
+      - evidence: `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`, `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - contradiction_pressure_additions:
+    - `Sandbox success narratives coexist with evidence of both bypass and friction regressions.`
+    - `Dynamic context-discovery claims coexist with stale MCP state and cache drift incidents.`
+    - `Cloud/browser autonomy claims coexist with browser crash non-recovery incidents in long-running tasks.`
+  - unresolved:
+    - `Cross-system prevalence remains uncertain because issue quality and maintainer follow-through vary.`
+    - `Single-reporter severe harm claims (for example hardware damage attribution) remain low-confidence until corroborated.`
+- wave_04_codebase_source_reconstruction_reconciliation_2026_04_11:
+  - source_reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_support_tool_environment_failure_map.md`
+  - observations:
+    - source-backed families confirm informal clusters around policy/runtime drift and path-root mismatch are mechanism-plausible, not only anecdotal issue noise.
+    - KIRA family includes explicit intra-family permission heterogeneity, reinforcing informal reports about governance drift across tool surfaces.
+    - deepagents and a-evolve both expose explicit timeout and shell capability controls that map to informal long-horizon tool pressure reports.
+  - inference:
+    - keep informal cluster pressure active for Wave 04 and preserve split between `permission-policy/runtime mismatch`, `tool gateway mismatch`, and `cwd/path contract failure`.
+  - confidence:
+    - high
+  - evidence_paths:
+    - `[private-source: deepagents]/libs/deepagents/deepagents/backends/local_shell.py`
+    - `[private-source: deepagents]/libs/cli/deepagents_cli/config.py`
+    - `[private-source: KIRA]/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+    - `[private-source: KIRA]/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/bash.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
