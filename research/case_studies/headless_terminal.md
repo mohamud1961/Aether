@@ -1,0 +1,77 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_01_headless_terminal_execution_control
+- wave: wave_01_execution_control_and_terminal_failures
+- task_family: headless-terminal
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - [private-source: deepagents/headless-terminal-trajectory]
+  - [private-source: terminus-kira/headless-terminal-trajectory]
+  - [private-source: BigAI/headless-terminal-trajectory]
+- outcome_profile:
+  - `deepagents`: partial execution-control failure followed by same-run repair and defended verification closure.
+  - `terminus-kira`: early false-success pressure after partial tests, then corrected by stronger interactive test and completion protocol re-check.
+  - `BigAI`: staged planner/executor/verifier loop with intermediate interactive-test failure, workspace cleanup checks, and explicit verifier pass.
+- per_run_notes:
+  - `deepagents 8359...`: verification initially surfaced a hard shutdown failure (`Fatal Python error ... daemon threads`, exit code `134`) after interactive terminal tests. The run then patched thread shutdown behavior, reran verification (bashrc sourcing, interactive REPL, Ctrl-C), and reached clean exit-code-0 verification output.
+  - `terminus-kira a2ae...`: early test suite passed several checks but failed interactive-program requirement with `FileNotFoundError: '/tmp/test_repl.txt'`. The run rewrote test/interaction approach, reran, reached full test pass, and only then advanced through repeated `mark_task_complete` completion checks.
+  - `BigAI cec7...`: executor iterations showed intermediate interactive test failures (`FileNotFoundError` for interactive file), then patched test method, performed verifier-specific checks and delivery cleanup (`mv /app/test_*.py`, `mv /app/test_*.txt`, `rm -rf /app/__pycache__`), and ended with `verification_result_status: "PASSED"`.
+- cross_run_comparison:
+  - All three families converge on the same failure shape: apparent completion before robust interactive-program verification is unstable.
+  - `deepagents` shows tight inline fix-and-reverify behavior inside one agent loop.
+  - `terminus-kira` shows stronger completion protocol friction (double-confirm style) but still requires good test design to avoid false success.
+  - `BigAI` shows the strongest explicit verifier-role closure and delivery-state hygiene gating, but remains behavioral reconstruction.
+- failure_point_comparison:
+  - `deepagents`: failure point was lifecycle teardown (`daemon thread` shutdown) rather than core terminal feature logic.
+  - `terminus-kira`: failure point was incomplete interactive test procedure despite passing simpler checks.
+  - `BigAI`: failure point was initially incorrect interactive test execution plus delivery-directory cleanliness requirements before verifier acceptance.
+- source_or_architecture_links:
+  - `deepagents`: [private-source: codebase/deepagents], [private-source: codebase/deepagents]
+  - `terminus-kira`: [private-source: codebase/KIRA], [private-source: codebase/KIRA]
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- behavioral_reconstruction_caveats:
+  - BigAI claims here are behavioral reconstruction only.
+  - KIRA and DeepAgents mechanism links are source-backed for control surfaces, but task-specific test script behavior is trajectory-level evidence.
+- mechanism_implications:
+  - Execution-control reliability for headless terminal tasks is dominated by lifecycle correctness and verification quality, not just API availability.
+  - Completion protocols reduce but do not eliminate false-success pressure when interactive tests are weak.
+  - Cleanup/hygiene gates can be a second completion axis after functional checks pass.
+- failure_implications:
+  - common failure family: `interactive_feature_pass_claim` without robust REPL/interrupt validation.
+  - common failure family: `teardown_or_cleanup_drift` causing verifier rejection or runtime instability.
+  - mitigation family: rerun with stronger edge-case checks plus explicit cleanup before completion closeout.
+- confidence_notes:
+  - High confidence on observed per-run failure/recovery sequence.
+  - Medium confidence on cross-family prevalence outside this task family because only one run per source-backed family is used here.
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - relevance_to_wave_02:
+    - retained as comparator for `cleanup-gated acceptance` and `false-success-before-strong-test` patterns.
+  - note:
+    - not a primary required trajectory slice for this lane packet, so no new run-level attribution was added beyond carry-forward comparator usage.
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_pressure_observation:
+    - this Wave 01 case remains useful Wave 02 carry-forward pressure because all three families required stronger verification after apparent early completion.
+    - local harness source remains interface-level only in `blocks/verification` and `runner/evaluator`, so this case is still a design target rather than locally implemented defense.
+  - failure_taxonomy_implication:
+    - maintain `interactive verification under teardown/cleanup pressure` as a recurring precursor family for Wave 02 completion failures.
+  - confidence: medium-high
+  - evidence_paths:
+    - `runner/evaluator.py`
+    - `blocks/verification/double_confirm.py`
+    - [private-source: deepagents/headless-terminal-trajectory]
+    - [private-source: terminus-kira/headless-terminal-trajectory]
+    - [private-source: BigAI/headless-terminal-trajectory]
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - wave_04_relevance:
+    - contributes directly to `process-lifecycle and cancellation breakdown` attribution.
+  - wave_04_observations:
+    - deepagents required run records teardown failure (`Fatal Python error ... daemon threads`, exit code `134`) before repaired closure.
+    - BigAI required run shows repeated long-running process management friction and ambiguous kill visibility before eventual completion narrative.
+  - wave_04_inference:
+    - terminal interaction success does not imply lifecycle correctness; teardown and signal semantics remain a distinct failure family.
+  - evidence_paths:
+    - [private-source: deepagents/headless-terminal-trajectory]
+    - [private-source: BigAI/headless-terminal-trajectory]
+  - confidence: high
