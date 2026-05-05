@@ -1,0 +1,51 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_04_custom_memory_heap_crash_context_state_memory_boundary
+- wave: wave_04_context_state_memory_workspace
+- task_family: custom-memory-heap-crash
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - [private-source: deepagents/custom-memory-heap-crash-trajectory]
+  - [private-source: terminus-kira/custom-memory-heap-crash-trajectory]
+  - [private-source: BigAI/custom-memory-heap-crash-trajectory]
+- outcome_profile:
+  - `deepagents`: strongest defended closure in this family; release crash reproduced, root-cause traced, `/app/user.cpp` modified, release/debug rerun, and valgrind moved to zero in-use-at-exit.
+  - `terminus-kira`: defended functional stabilization with thinner closure narrative; release/debug and valgrind checks are visible, with final reasoning emphasizing pre-initialization via `std::ostringstream` in `user_init()`.
+  - `BigAI`: visible multi-step diagnosis and verifier checks around release/debug, gdb/valgrind, and patch reasoning, but implementation remains behavioral reconstruction.
+- per_run_notes:
+  - `deepagents aa90...`: the run reproduces release-only failure, uses `gdb` backtrace pressure, inspects `/build` patch signals, and iterates `/app/user.cpp` through progressively tighter fixes. The visible final patch calls `std::_Facet_Register_impl()` in `user_init()` and `__gnu_cxx::__freeres()` in `user_cleanup()`, followed by release/debug reruns and valgrind showing `0 bytes in 0 blocks` at exit.
+  - `terminus-kira 3c17...`: the run reproduces the release/debug mismatch, reads `/build/patches` (including `locale_init.cc.patch`), and iterates user-level initialization strategies in `/app/user.cpp`. The visible final framing uses `std::ostringstream` pre-initialization in `user_init()` to force facet allocation before custom heap takeover, then rechecks release/debug and valgrind behavior.
+  - `BigAI 1183...`: the run shows planner/executor/verifier role separation with repeated release/debug/valgrind pressure and source-patch inspection around locale/facet lifecycle. Closure narrative remains tied to behavior traces and verifier summaries, not mirrored implementation source.
+- cross_run_comparison:
+  - All three runs frame this as lifecycle/state-ordering in C++ runtime allocation and teardown, not conversational memory retrieval.
+  - `deepagents` gives the clearest artifact-first closure trail: concrete `/app/user.cpp` deltas + explicit compile/run commands + leak checks.
+  - `terminus-kira` converges on the same class of fix surface (early facet initialization before custom heap), but with less explicit end-state detail than DeepAgents.
+  - `BigAI` shows similar diagnosis behaviorally, but cannot be promoted to source-backed mechanism due to missing mirrored code.
+  - Anti-collapse remains explicit: runtime allocator-memory state is not the same mechanism as coding-agent long-term memory.
+- failure_point_comparison:
+  - `deepagents`: decisive failure point is release-only shutdown ordering; mitigated by explicit initialization order control and explicit cleanup hook invocation.
+  - `terminus-kira`: decisive risk is stopping at “no crash” without full leak-state resolution narrative; run still provides meaningful release/debug + valgrind pressure, but closure detail remains thinner.
+  - `BigAI`: decisive risk is interpretive overreach; behavior shows sophisticated debugging flow, but missing source means mechanism causality must remain reconstruction-level.
+- source_or_architecture_links:
+  - `deepagents`: [private-source: codebase/deepagents], [private-source: codebase/deepagents], [private-source: codebase/deepagents]
+  - `terminus-kira`: [private-source: codebase/KIRA], [private-source: codebase/KIRA]
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/sources/docs/bigai/raw/sdk_documentation_memory.txt`
+  - supporting trajectory matrix: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+- behavioral_reconstruction_caveats:
+  - `BigAI` remains behavioral reconstruction for this case. No mirrored BigAI source is available to source-back allocator/facet cleanup claims.
+  - This task family must not be used as evidence of coding-agent long-term memory retrieval. It is runtime allocator/locale/exception-pool state management.
+  - The word `memory` is overloaded here; this case supports the Wave 04 anti-collapse boundary instead of broad memory-family promotion.
+- mechanism_implications:
+  - Strongest implication is boundary discipline: runtime memory-lifecycle bugs and agent memory mechanisms are distinct and should not share a single mechanism card.
+  - Artifact-first closure in this family is command-and-file anchored (`/app/user.cpp`, compile commands, gdb/valgrind traces), not retrieval from durable agent memory.
+  - No evidence from these runs promotes restart-safe resumability.
+- failure_implications:
+  - “Fixes crash” is insufficient without leak-state checks; release/debug asymmetry must be verified under both binaries plus valgrind.
+  - Overloaded terminology can cause taxonomy errors: treating allocator pool behavior as agent memory failure would contaminate mechanism mapping.
+  - Thin closure narratives (even when functionally successful) should be kept explicitly lower-confidence than runs with full artifact-backed verification loops.
+- confidence_notes:
+  - High confidence: anti-collapse rule is strongly supported in this family; runtime allocator-memory state is distinct from coding-agent long-term memory.
+  - High confidence: DeepAgents run provides strong artifact-backed closure.
+  - Medium confidence: KIRA final closure depth and BigAI mechanism interpretation beyond visible trajectory behavior.
