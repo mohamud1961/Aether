@@ -1,0 +1,82 @@
+INFORMAL_CLUSTER_DOSSIER
+- cluster: `verification_completion_and_recovery`
+- source_families:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - trajectory reconciliation anchors from `[private-source: trajectory]/`
+- primary_items:
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/openai_monitor_misalignment.md`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `[private-source: trajectory]/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `[private-source: trajectory]/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `[private-source: trajectory]/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_support_recovery_issue_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`
+- coverage_not_yet_used:
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+- operator_claims:
+  - claim: `Completion should be grounded in external evidence artifacts rather than self-asserted success.`
+    - evidence: `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`, `research/sources/informal/cursor_cursorbench.md`, `[private-source: trajectory]/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `[private-source: trajectory]/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+    - confidence: `high`
+  - claim: `Pause/resume and long-running orchestration are treated as baseline harness responsibilities by builders.`
+    - evidence: `research/sources/informal/humanlayer_12_factor_agents.md`, `research/sources/informal/cursor_long_running_agents.md`, `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+    - confidence: `medium`
+  - claim: `Monitoring and online evals are increasingly used to catch behavior that looks complete under a narrow grader but is still wrong in practice.`
+    - evidence: `research/sources/informal/openai_monitor_misalignment.md`, `research/sources/informal/cursor_cursorbench.md`
+    - confidence: `medium`
+- issue_or_postmortem_evidence:
+  - cluster: `false completion without target-side proof`
+    - evidence: `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - cluster: `stale or missing resume state`
+    - evidence: `research/sources/issues/src_iss_613424e145e5/artifact.txt`, `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - cluster: `crash leaves non-terminal stuck state`
+    - evidence: `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`, `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - cluster: `rewind or restore corrupts state`
+    - evidence: `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - cluster: `recovery hints are opaque to the model`
+    - evidence: `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+- contradictions:
+  - `Product and research writeups present long-running, supervised agent workflows as increasingly reliable, but issue evidence still shows stale resume state, crash hangs, and silent recovery failures.`
+  - `Worktree or VM isolation does not solve session/control-plane corruption on its own.`
+  - `KIRA-style completion discipline does not prevent false-completion pressure in the perception-heavy extract-video slice.`
+- likely_mechanism_pressure:
+  - `artifact-backed completion proof`
+  - `explicit terminal-state reconciliation after crashes or interrupted turns`
+  - `durable resume indexes and state snapshots`
+  - `checkpoint or rewind logic that preserves injected baseline state`
+  - `structured tool-error classification exposed to the model`
+- likely_failure_pressure:
+  - `false completion from host-side success without target-side verification`
+  - `resume picker drift or stale-snapshot restore`
+  - `threads or tasks stuck in non-terminal states after crashes`
+  - `rewind-induced state nullification`
+  - `retry loops caused by opaque error messages`
+- confidence_notes:
+  - `High confidence on the existence of the main failure families because multiple issue reports and direct trajectories align with the same tensions.`
+  - `Medium confidence on cross-family prevalence because the issue set is still vendor-skewed and several informal sources are self-reports.`
+  - `One capture mismatch (`src_iss_949d7288362a`) remains unresolved and should not be promoted.`
+- downstream_relevance:
+  - `mechanism_map`: strengthens the wave judgment that verification, completion, and recovery are related but not yet one stable family.
+  - `failure_taxonomy`: seeds false-completion, stale-resume, non-terminal-crash-state, and restore-corruption failure families without promoting them yet.
+  - `local harness implications`: points to minimal baseline candidates such as artifact-backed completion checks, terminal-state repair, and structured recovery hints.
