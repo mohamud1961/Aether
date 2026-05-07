@@ -1,0 +1,274 @@
+# Mechanism Map Accepted Claims
+
+Date: 2026-04-04
+
+Artifact status
+
+- These are accepted exploratory-anchor claims from `wave_01_exploratory_anchor`.
+- They are cumulative artifact state, but they do not imply artifact completion.
+
+MECHANISM_CARD
+- mechanism_id: terminal_pty_control_and_interrupt_recovery
+- name: PTY-backed terminal control and interrupt recovery
+- short_definition: The harness maintains reliable control over long-running interactive shell sessions through PTY-backed execution, explicit interrupt handling, and command-completion checks.
+- mechanism_family: execution_control
+- harness_area: execution
+- location_in_harness: shell backend, command runner, terminal controller
+- operational_shape: Run terminal commands in interactive shells, detect hangs or blocked output, recover with interrupts, and verify completion before continuing.
+- problem_it_addresses: Long-running terminal tasks fail if the harness cannot keep control of interactive shells or recover from blocked commands.
+- direct_observations:
+  - DeepAgents and KIRA `headless-terminal` traces visibly exercise PTY-like interactive shell handling and `^C` recovery.
+  - KIRA source and docs explicitly describe early command completion detection and native command execution.
+- inferred_behavior:
+  - Terminal realism is not optional for strong terminal-task performance. It behaves like a foundational execution-control mechanism rather than a specialized add-on.
+- evidence_paths:
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `<project_dir>/Downloads/harnesseng/research/sources/codebases/KIRA/README.md`
+  - `<project_dir>/Downloads/harnesseng/research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+- evidence_types:
+  - trajectory
+  - source_code
+  - official_doc
+- source_families:
+  - terminus-kira
+  - deepagents
+- task_regimes_observed:
+  - `headless-terminal`
+  - stateful recovery traces with shell interruption pressure
+- likely_failure_modes_addressed:
+  - shell wedging
+  - blocked interactive sessions
+  - false completion after incomplete command execution
+- failure_role:
+  - preventive
+  - recovery
+- contradictory_or_complicating_evidence:
+  - BigAI passes similar tasks, but Wave 01 does not expose the same PTY internals directly there.
+  - The evidence is concentrated in shared slices, not the long tail.
+- interaction_notes:
+  - Strong interaction with verification/completion and state-safe recovery.
+- likely_tradeoffs:
+  - More terminal realism adds complexity in shell management, interrupts, and environment coupling.
+- simplicity_note:
+  - Likely minimal sufficient for real terminal tasks; not prestige complexity.
+- likely_eval_implications:
+  - Need tasks that force long-running interactive shell control, interrupts, and completion checks.
+- likely_variant_axes:
+  - PTY vs non-PTY execution
+  - interrupt policy
+  - completion detection policy
+- confidence: high
+- open_questions:
+  - Which parts of terminal realism are truly required in the long-tail trajectory families?
+
+MECHANISM_CARD
+- mechanism_id: layered_completion_gating
+- name: Layered completion gating and external-verifier reconciliation
+- short_definition: Successful completion is determined through a layered process that includes in-trajectory verifier work, external grader artifacts, and final reward or test reconciliation.
+- mechanism_family: verification_and_completion
+- harness_area: verification
+- location_in_harness: verifier role, grader interface, post-run adjudication layer
+- operational_shape: The harness may perform internal verification steps, but final success requires reconciliation against external grader or verifier outputs.
+- problem_it_addresses: Internal self-report or verifier-status events can misclassify success without an external correctness check.
+- direct_observations:
+  - `cancel-async-tasks` shows internal verifier activity and a final failure outcome in external grader artifacts.
+  - Eval code in DeepAgents exposes replay, judge, and grader layers rather than a single success signal.
+- inferred_behavior:
+  - Completion doctrine is a multi-layer mechanism family. Good harnesses separate “I think I am done” from “the task is actually accepted.”
+- evidence_paths:
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+  - `<project_dir>/Downloads/harnesseng/research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+  - `<project_dir>/Downloads/harnesseng/research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+- evidence_types:
+  - trajectory
+  - eval_code
+- source_families:
+  - BigAI
+  - deepagents
+  - terminal-bench style benchmark captures
+- task_regimes_observed:
+  - `cancel-async-tasks`
+  - `headless-terminal`
+  - benchmark replay and scoring lanes
+- likely_failure_modes_addressed:
+  - false completion
+  - self-verification proxy error
+  - hidden grader mismatch
+- failure_role:
+  - detection
+  - containment
+- contradictory_or_complicating_evidence:
+  - Some trajectories make verifier structure much more visible than others, so trace style can distort perceived mechanism strength.
+- interaction_notes:
+  - Strong interaction with execution control, cleanup, and eval contract design.
+- likely_tradeoffs:
+  - More completion layers can add latency and complexity.
+- simplicity_note:
+  - Minimal sufficient form may be external-test reconciliation plus a simple internal completion checklist.
+- likely_eval_implications:
+  - Need evals that compare internal completion claims with final grader state.
+- likely_variant_axes:
+  - internal verifier role vs no explicit verifier role
+  - deterministic grader vs judge-assisted grader
+  - reward reconciliation strictness
+- confidence: high
+- open_questions:
+  - Which task families require strict binary gating versus softer or multi-stage scoring?
+
+MECHANISM_CARD
+- mechanism_id: cleanup_restore_repo_hygiene
+- name: Cleanup, restore, and repo hygiene as completion mechanisms
+- short_definition: The harness treats cleanup, restore, and repo-state hygiene as part of “done,” not as optional post-processing.
+- mechanism_family: state_and_workspace_hygiene
+- harness_area: state
+- location_in_harness: executor loop, verifier doctrine, workspace manager
+- operational_shape: Before finalizing, the harness restores damaged state, cleans repo artifacts, and ensures verification does not leave the delivered workspace in a mutated state.
+- problem_it_addresses: Many terminal tasks can appear solved while leaving the workspace or state in an invalid or grader-failing condition.
+- direct_observations:
+  - BigAI visibly restores files and cleans branches before final completion in branch-heavy and stateful tasks.
+  - DeepAgents and KIRA also show cleanup and post-change validation behavior in the selected trajectory slices.
+- inferred_behavior:
+  - Workspace hygiene is a mechanism family with direct benchmark impact, not just developer neatness.
+- evidence_paths:
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/BigAI/break-filter-js-from-html/4e6a3070-4a78-4c1a-ac1c-c0651045db08-traj.txt`
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+- evidence_types:
+  - trajectory
+- source_families:
+  - BigAI
+  - deepagents
+  - terminus-kira
+- task_regimes_observed:
+  - `db-wal-recovery`
+  - `break-filter-js-from-html`
+  - `git-multibranch`
+- likely_failure_modes_addressed:
+  - repo contamination
+  - broken delivery state
+  - verification-induced state damage
+- failure_role:
+  - preventive
+  - recovery
+- contradictory_or_complicating_evidence:
+  - It is not fully separated yet whether cleanup is owned by main controller logic, verifier doctrine, or task-local instructions.
+- interaction_notes:
+  - Strong interaction with verification/completion and state-safe recovery.
+- likely_tradeoffs:
+  - Can add extra runtime and complexity in stateful tasks.
+- simplicity_note:
+  - Often likely minimal sufficient rather than exotic complexity.
+- likely_eval_implications:
+  - Need evals that fail dirty workspaces and mutated delivery states, not just wrong final outputs.
+- likely_variant_axes:
+  - cleanup strictness
+  - backup-before-mutation policy
+  - restore-on-verification policy
+- confidence: high
+- open_questions:
+  - Which parts of this family should be standardized as doctrine and which should stay task-dependent?
+
+MECHANISM_CARD
+- mechanism_id: planner_executor_verifier_role_split
+- name: Planner or executor or verifier role separation
+- short_definition: The harness separates planning, action execution, and completion auditing into distinct roles or phases rather than collapsing them into one undifferentiated loop.
+- mechanism_family: workflow_and_architecture
+- harness_area: workflow
+- location_in_harness: planner/controller layer, executor loop, verifier role
+- operational_shape: Plans are written or updated separately from tool execution, and completion is audited by a distinct role or phase.
+- problem_it_addresses: Direct action without explicit planning or post-action auditing can increase false completion and poor recovery.
+- direct_observations:
+  - BigAI trajectories and trace-layer artifacts show visible planning, executor actions, and verifier completion behavior.
+  - Formal BigAI docs also describe plan-execute workflows.
+- inferred_behavior:
+  - Role separation is a credible mechanism family in the corpus, but Wave 01 only has source-backed support for some systems and behavior-only support for BigAI.
+- evidence_paths:
+  - `<project_dir>/Downloads/harnesseng/research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+  - `<project_dir>/Downloads/harnesseng/research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `<project_dir>/Downloads/harnesseng/research/sources/docs/bigai/translated/architecture_plan_execute.md`
+- evidence_types:
+  - trajectory
+  - official_doc
+  - relevant local analysis
+- source_families:
+  - BigAI
+- task_regimes_observed:
+  - `cancel-async-tasks`
+  - `db-wal-recovery`
+  - `git-multibranch`
+- likely_failure_modes_addressed:
+  - premature tool use
+  - poor recovery after failed verification
+  - unclear completion ownership
+- failure_role:
+  - mixed
+- contradictory_or_complicating_evidence:
+  - No mirrored BigAI source exists in-scope, so this remains `behavioral reconstruction`.
+  - Some formal sources describe similar goals with less explicit node separation, suggesting multiple architectural realizations.
+- interaction_notes:
+  - Interacts strongly with verification/completion and with context partitioning.
+- likely_tradeoffs:
+  - More roles can add coordination overhead and hidden complexity.
+- simplicity_note:
+  - Could be valuable, but not yet proven to outperform simpler single-loop baselines in all regimes.
+- likely_eval_implications:
+  - Need evals that distinguish real gains from mere role-count or coordination theater.
+- likely_variant_axes:
+  - explicit role split vs phase split inside one loop
+  - verifier independence level
+  - planner persistence level
+- confidence: medium
+- open_questions:
+  - How much of BigAI performance comes from this role split versus other hidden controller mechanisms?
+
+MECHANISM_CARD
+- mechanism_id: backend_policy_mismatch_risk
+- name: Tool-contract and backend-policy mismatch
+- short_definition: The visible tool or filesystem contract can diverge from the actual execution backend, creating mechanism claims that look cleaner at the prompt layer than they are in runtime reality.
+- mechanism_family: tool_gateway_and_environment
+- harness_area: sandboxing
+- location_in_harness: tool gateway, backend selector, execution environment
+- operational_shape: Surface language describes a disciplined or sandboxed tool contract, but runtime backend choice changes what actually happens.
+- problem_it_addresses: Harness design can appear safer or more bounded than it really is if backend selection is implicit or under-specified.
+- direct_observations:
+  - DeepAgents prompt/filesystem language suggests sandboxed execution, but source includes an unsandboxed `LocalShellBackend`.
+  - Formal docs across the corpus emphasize tool schemas and approval surfaces, increasing the importance of this mismatch.
+- inferred_behavior:
+  - Backend-policy mismatch is a real mechanism risk surface that should stay visible in the mechanism map rather than being collapsed into a generic “tooling” bucket.
+- evidence_paths:
+  - `<project_dir>/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+  - `<project_dir>/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+  - `<project_dir>/Downloads/harnesseng/research/sources/docs/src_doc_5438a826fc4c/artifact.txt`
+- evidence_types:
+  - source_code
+  - official_doc
+- source_families:
+  - deepagents
+  - OpenAI/Codex docs
+- task_regimes_observed:
+  - source-backed only in Wave 01
+- likely_failure_modes_addressed:
+  - unsafe environment assumptions
+  - false security confidence
+  - tool misuse or sandbox bypass
+- failure_role:
+  - unclear
+- contradictory_or_complicating_evidence:
+  - Wave 01 trajectories do not expose backend object selection directly, so runtime prevalence remains unresolved.
+- interaction_notes:
+  - Strong interaction with tool gateway, execution environment, and approval surfaces.
+- likely_tradeoffs:
+  - Stronger isolation can reduce flexibility or convenience.
+- simplicity_note:
+  - This is less a positive mechanism than a mechanism-risk lens the artifact must preserve.
+- likely_eval_implications:
+  - Need evals that distinguish policy-surface claims from actual environment behavior.
+- likely_variant_axes:
+  - backend selection policy
+  - approval strictness
+  - sandbox profile choice
+- confidence: medium
+- open_questions:
+  - Which historical DeepAgents runs actually used unsandboxed execution backends?
