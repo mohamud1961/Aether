@@ -1,0 +1,52 @@
+# Mechanism Map Contradiction Register
+
+Date: 2026-04-04
+
+- contradiction_id: harness_b_behavior_without_source
+  - summary: Harness B planner or executor or verifier separation is strongly supported by trajectories and local trace reconstruction, but there is no mirrored source to confirm implementation details.
+  - status: open
+  - related_paths:
+    - `research/analysis/harness_b_trace_layer/output/final_harness_reconstruction.md`
+    - `research/sources/trajectories/harness-b/`
+
+- contradiction_id: deepagents_sandbox_surface_vs_backend_reality
+  - summary: DeepAgents surface language and docs imply sandbox discipline, while mirrored source includes an unsandboxed `LocalShellBackend`.
+  - status: open
+  - related_paths:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+
+- contradiction_id: internal_verifier_status_vs_external_grader_outcome
+  - summary: Internal verifier events can show success while the external grader still returns failure.
+  - status: open
+  - related_paths:
+    - `research/sources/trajectories/harness-b/bench-task-03/<run-id>.tar.gz`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+
+- contradiction_id: kira_visible_verifier_weakness_vs_trace_rendering
+  - summary: KIRA looks less explicitly verifier-structured than Harness B in the sampled traces, but it is unclear how much of that is real harness difference versus trace-style or visibility difference.
+  - status: open
+  - related_paths:
+    - `research/sources/trajectories/terminus-kira/`
+    - `research/sources/codebases/KIRA/`
+
+- contradiction_id: formal_intent_vs_formal_content_access
+  - summary: The formal lane has strong doc-backed mechanism intent, but actual paper-content coverage is still weak because PDFs are not yet text-accessible.
+  - status: open
+  - related_paths:
+    - `research/sources/papers/`
+    - `research/sources/papers/papers_text/`
+
+- contradiction_id: context_and_output_offload_claims_without_enough_behavioral_confirmation
+  - summary: Informal and source lanes both point to file-backed context and output offload as important, but Wave 01 does not yet show enough direct trajectory evidence to promote that family confidently.
+  - status: open
+  - related_paths:
+    - `research/sources/informal/cursor_dynamic_context_discovery.md`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+
+- contradiction_id: wave_01_anchor_value_vs_artifact_completion
+  - summary: Wave 01 produced real and reusable mechanism anchors, but major unread path families mean it must be preserved as an exploratory anchor rather than treated as artifact completion.
+  - status: resolved_for_now_by_governance
+  - related_paths:
+    - `tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/principal_synthesis.md`
