@@ -1,0 +1,48 @@
+variant_id: v04_vc_01_layered_non_substitution_reason_codes
+block_family: VerificationBlock
+block_interface: VerificationBlock.check(task, workspace_state) -> verified: bool
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w03.artifact_backed_postcondition_proof
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: mm.w03.layered_verifier_grader_replay_separation
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: ft.w02.verifier_completion_vs_final_acceptance_divergence
+      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+    - claim_ref: vfs.w02.vf_pc_02_layered_acceptance_survives
+      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+observed_trace_or_eval_evidence:
+  - packet_03 eval card for ae_completion_layer_contract_guard reports layered non-substitution as required and promotion-relevant
+  - packet_03 closeout marks this surface accepted and usable now
+mechanism_claim: Harden layered completion acceptance so final acceptance cannot substitute for missing verifier/replay evidence; require stable missing-layer reason codes.
+target_failure: completion_false_positive
+anti_benchmarkifying_risk: variant may overfit to known missing-layer templates while still failing unseen layer omission patterns.
+expected_improvement: lower false-clean-pass rate and lower verifier/final divergence on deterministic completion contract fixtures.
+expected_failure_mode: overly strict layer checks may reject valid runs when optional metadata is absent but core evidence is present.
+complexity_cost: low_to_medium (new deterministic reason-code checks and envelope wiring in verification path).
+token_cost_expectation: negligible on deterministic required eval; no model dependency for required gate.
+changed_files:
+  - blocks/verification/layered_acceptance_guard.py
+  - blocks/verification/trust_model.py
+  - runner/evaluator.py
+required_atomic_eval: ae_completion_layer_contract_guard
+required_atomic_eval_status: accepted_packet_03_surface
+anticipated_interaction_eval: completion_x_tool_result_attribution_interaction_probe
+anticipated_interaction_eval_status: blocked_until_packet_05
+anticipated_transfer_eval: pressure_transfer_completion_integrity_set_v1
+anticipated_transfer_eval_status: anticipated
+promotion_threshold: beats reference baseline on required atomic eval and passes at least one sibling corroborating completion diagnostic with no substitution violations.
+retirement_condition: retire if gains disappear under adversarial perturbations or if transfer shows increased false-negative completion without reducing false positives.
+bounded_claims:
+  - atomic-first bounded claim only
+  - no system-level promotion claim in packet_04
+telemetry_required:
+  - verifier_final_contradiction_summary
+  - missing_layer_reason_code_counts
+  - score_envelope_layer_presence_vector
+  - run_header_settings_fingerprint
+model_policy:
+  screening_default: screening_model
+  promotion_tier: promotion-model
+  deterministic_eval_override: no_model
+  note: promotion-model is reserved for survivor confirmation and tie-break claims only.
