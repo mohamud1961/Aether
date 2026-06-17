@@ -1,0 +1,1 @@
+sh -lc 'cd /app && sh ./launch_win311.sh && nginx -c "$PWD/nginx.conf"'

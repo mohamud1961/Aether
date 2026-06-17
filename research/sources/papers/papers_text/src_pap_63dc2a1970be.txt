@@ -1,0 +1,1574 @@
+--- PAGE 1 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Xiaoxin Shi 1 2 Jiaxin Wan 2 Linkang Dong 2 Wei Jiang 2 Yue Liu2 Zengfeng Huang 2 3
+/githubGitHub:https://github.com/HaxxorCialtion/SimpleTool
+Hugging Face:https://huggingface.co/Cialtion/SimpleTool
+ModelScope:https://www.modelscope.cn/models/cialtion/SimpleTool
+cialtion737410@sjtu.edu.cn huangzf@fudan.edu.cn
+1Shanghai Jiao Tong University, Shanghai, China
+2Shanghai Innovation Institute, Shanghai, China
+3Fudan University, Shanghai, China
+Qwen2.5-0.5B-Instruct Qwen2.5-1.5B-Instruct Qwen2.5-3B-Instruct Qwen3-4B-Instruct Qwen2.5-7B-Instruct Qwen2.5-14B-Instruct
+0
+200
+400
+600
+800
+1000
+1200Inference Time P50 (ms)
+3.3 ×
+(32.1ms)
+4.8 ×
+(39.4ms)
+5.8 ×
+(53.9ms)
+6.3 ×
+(61.2ms)
+8.9 ×
+(73.2ms)
+9.6 ×
+(128.6ms)
+(a) Speed Comparison on RTX 4090
+vLLM+Vanilla vLLM+SimpleTool vLLM+SimpleTool+AWQ
+FunctionGemma
+(Zero-shot)
+FunctionGemma
+(Fine-tuned)
+ST-Qwen
+(Zero-shot)
+ST-Qwen
+(Fine-tuned)
+40
+50
+60
+70
+80
+90
+100Accuracy (%)
+58.0%
+85.0%
+69.3%
+86.2%
+(b) Compared on Mobile Actions with FunctionGemma
+FunctionGemma
+ST-Qwen (Ours)
+Simple Multiple Live
+Simple
+Live
+Multiple
+0
+20
+40
+60
+80
+100Accuracy (%)
+80.2 79.0
+62.3
+55.8
+(c) Compared on BFCL
+FunctionGemma
+Qwen2.5-0.5B
+ST-Qwen (Ours)
+FunctionGemma
+270M
+Qwen-0.5B
+Baseline
+ST-Qwen
+0.5B
+0
+100
+200
+300
+400
+500
+600
+700Latency P50 (ms)
+662 650
+121
+75.0
+107
+34.8
+5.4×
+3.1×
+(d) Compared on Inference Speed (RTX 4090)
+Transformers
+vLLM
+Figure 1.Performance Overview of SimpleTool.(a)End-to-end inference latency comparison across various Qwen model sizes
+on an RTX 4090. Our method achieves up to a9.6 × speedup.(b)Accuracy comparison against FunctionGemma on the Mobile
+Actions benchmark.(c)Accuracy comparison on the BFCL benchmark among FunctionGemma, the Qwen2.5-0.5B baseline, and
+our ST-Qwen-0.5B.(d)Inference latency comparison across different models and frameworks (Transformers vs. vLLM). Latency
+measurements were conducted on an RTX 4090 using vLLM with prefix caching enabled for the BFCL-v3 benchmark evaluation.
+Accuracy results for FunctionGemma are sourced from its official model card; all other results are obtained from our evaluation.
+Preprint. February 2026. 1Shanghai Jiao Tong Univer-
+sity, Shanghai, China 2Shanghai Innovation Institute, Shanghai,
+China 3Fudan University, Shanghai, China. Correspondence to:
+Xiaoxin Shi <cialtion737410@sjtu.edu.cn>, Zengfeng Huang
+<zfhuang@fudan.edu.cn>.
+Preprint. March 3, 2026.
+Abstract
+LLM-based function calling enables intelligent
+agents to interact with external tools and envi-
+ronments, yet autoregressive decoding imposes
+a fundamental latency bottleneck that limits real-
+time applications such as embodied intelligence,
+game AI, and interactive avatars (e.g., 10 Hz con-
+1
+arXiv:2603.00030v1  [cs.CL]  4 Feb 2026
+
+--- PAGE 2 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+trol frequency). We observe that function calling
+differs fundamentally from free-form text gener-
+ation: structured outputs exhibit substantial to-
+ken redundancy (delimiters, parameter names),
+and arguments exhibit weak causal dependen-
+cies. Crucially, these two properties must be ex-
+ploited jointly to achieve real-time performance.
+We present SimpleTool, which introduces spe-
+cial tokens that serve a dual role: compressing
+low-entropy tokens (4–6× reduction) while act-
+ing as mode selectors that enable independent par-
+allel generation of function name and arguments.
+This synergistic design achieves 3–6× end-to-end
+speedup (up to 9.6×) with only +8.2% paralleliza-
+tion overhead. Experiments on five benchmarks
+across Qwen-series models (0.5B–14B) demon-
+strate substantial speedup while maintaining com-
+petitive or improved accuracy. On Mobile Ac-
+tions, ST-Qwen-0.5B outperforms Google’s Func-
+tionGemma in both accuracy and latency consis-
+tency. With quantization on consumer-grade GPU,
+SimpleTool achieves 61.2ms P50 latency, en-
+abling 16 Hz real-time control at 4B model scale,
+bridging the gap between LLM function calling
+and latency-critical real-world deployment.
+1. Introduction
+Large Language Models (LLMs) have enabled function
+calling—the mechanism by which LLMs interact with ex-
+ternal tools and environments (Brown et al., 2020; O’Neill
+et al., 2024; Schick et al., 2023). However, a fundamental
+limitation persists: autoregressive decoding imposes a per-
+token latency floor that scales linearly with output length
+(Leviathan et al., 2023; Cai et al., 2024). While streaming
+masks this latency for conversational applications, function
+calling requirescomplete and valid output before execu-
+tion—a partial function call is semantically meaningless.
+This creates an end-to-end latency bottleneck that streaming
+cannot alleviate.
+1.1. The Real-Time Gap
+This bottleneck creates a significant gap between LLM capa-
+bilities and real-world deployment requirements (Figure 1a).
+Embodied AI & Game AI.Real-time control demands
+5–30 Hz response frequencies. Vision-language-action mod-
+els like OpenVLA (Kim et al., 2025) achieve only 6 Hz at
+166 ms latency (Yu et al., 2025)—far below the sub-100 ms
+threshold for responsive control. Game AI systems like Lu-
+mine (Tan et al., 2025) achieve 5 Hz only through extensive
+datacenter infrastructure.
+Edge Deployment.Mobile agents (Yang et al., 2025; Wang
+et al., 2024b) rely on cloud APIs with 500 ms–2 s latency per
+action. Google’s FunctionGemma (Google AI, 2025)—a
+270M model for edge function calling—trades capacity for
+speed, underscoring the need for efficient function calling
+methods.
+1.2. Rethinking Acceleration for Function Calling
+Function calling end-to-end latency determines the upper
+bound of LLM-based system capabilities, making acceler-
+ation critical. However, existing acceleration methods are
+not designed for this setting.
+Speculative and Parallel Decoding.Methods like Medusa
+(Cai et al., 2024), EAGLE (Li et al., 2024a), and draft-model
+approaches (Leviathan et al., 2023) accelerate per-token
+generation through speculation and verification. Though
+effective for long-form generation, their acceleration bene-
+fits are diminished by associated overhead in short-output
+scenarios such as function calls. We take a more funda-
+mental approach: exploiting the memory-bandwidth bottle-
+neck and idle compute capacity during decoding, combined
+with the inherent weak causal dependencies in function call-
+ing, to enable concurrent decoding of function name and
+arguments—achieving aggressive end-to-end acceleration.
+Moreover, these approaches areorthogonalto ours and
+can be combined: we validate this in Appendix J, showing
+that speculative decoding can achieve up to 3× additional
+forward pass reduction with >93% token acceptance rate
+when applied to SimpleTool models.
+Constrained Decoding.Grammar-guided frameworks like
+SGLang (Zheng et al., 2024), Outlines (Willard & Louf,
+2023), and XGrammar (Dong et al., 2024) ensure output
+validity and reduce some redundant tokens. Their methods
+can also reduce end-to-end latency in function calls. How-
+ever, they remain fundamentally autoregressive, generating
+tokens sequentially without addressing the core bottleneck:
+token-by-token decoding.
+Quantization & Compression.Model compression tech-
+niques (Dettmers et al., 2022; Frantar et al., 2023; Lin et al.,
+2025) provide general acceleration applicable to any task.
+Our method combines naturally with these approaches (Ta-
+ble 3).
+These methods make significant improvements in various
+aspects. However, they still cannot enable LLMs to make
+function calls in real time. To achieve this, we advocate
+a more radical approach that not only leverages parallel
+decoding but also drastically reduces the number of tokens
+to be decoded. Furthermore, these two aspects are mutually
+reinforcing.
+2
+
+--- PAGE 3 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+User Query
+What’s the weather in Tokyo tomorrow?
+Shared Prefix (Prompt + Tools)
+[Single Prefill]
+Head 0
+<content>checking.</content>
+Head 1
+<function>get_weather</function>
+Head 2
+<arg1>Tokyo</arg1>
+Head 3
+<arg2>tomorrow</arg2>
+Head 4
+<arg3>celsius</arg3>
+Assembled Output
+get_weather(city='Tokyo', date='tomorrow',
+unit='celsius')
+Latency: max(Thead) ≪  ∑ Ttokens
+Figure 2.Overview of SimpleTool. Given an input prompt with
+tool definitions, parallel heads generate function name and argu-
+ments independently while sharing the prefix KV cache.
+Baseline JSON Output
+{ "name" : "get_weather",
+"arguments" : {
+"city" : "Beijing",
+"date" : "tomorrow" } }
+■ structural (H≈0)  ■ keys (low H, copy)
+■ values (high H)
+compress
+SimpleTool Output
+<function> get_weather
+<arg1> Beijing
+<arg2> tomorrow
+<arg3-6> <|null|>
+■ special tokens  ■ null placeholder
+Figure 3.Token compression illustration. Baseline structured out-
+put contains ∼30 tokens spanning three entropy levels. SimpleTool
+compresses low-entropy tokens into special markers, retaining only
+high-entropy values for generation.
+1.3. Key Insight and Our Approach
+We observe that function calls generated by LLMs—
+typically in JSON or Python API format—exhibit two key
+properties: weak causal dependencies among arguments
+and substantial token redundancy. Based on this insight,
+we proposeSimpleTool, which achieves real-time function
+calling through two synergistic mechanisms (Figure 2):
+Special Tokens.We introduce special tokens specifically
+designed for function calling, which are injected into the
+vocabulary and can effectively compress redundant tokens.
+Figure 3 illustrates this mechanism. We demonstrate the
+effectiveness of special tokens in Table 1:4–6 × reduction
+compared with vanilla JSON output on samples where both
+models produce correct outputs. Moreover, these special
+tokens facilitate parallel decoding as described below.
+Parallel Decoding.Special tokens further weaken the
+causal dependencies inherent in function calling, allowing
+us to treat the function name and its arguments as indepen-
+dent streams. To achieve ultimate speedup, we decode the
+function name and arguments in parallel. These parallel
+streams share the same input prefix and differ only in the
+appended special token, requiring only a single prefill oper-
+ation with full reuse of the prefix KV cache. This drastically
+reduces memory overhead and enables full utilization of
+idle compute capacity. Consequently, negligible overhead is
+observed in the time per output token (TPOT) test presented
+in Appendix G.
+1.4. Results Overview and Contributions
+We conduct comprehensive evaluation on Qwen-series mod-
+els ranging from 0.5B to 14B parameters acrossfive bench-
+marks: BFCL-v3 (Patil et al., 2025), Mobile Actions
+(Google AI, 2025), SealTools (Wu et al., 2024), OpenFunc-
+tion (Patil et al., 2024), and ToolAlpaca (Tang et al., 2023),
+covering diverse function calling scenarios from API invo-
+cation to mobile device control.
+Results demonstrate that SimpleTool achieves3–6 ×
+speedupwith competitive or improved accuracy across
+all model sizes and benchmarks. Combined with quantiza-
+tion, our method enables sub-100ms function calling latency
+with 4B-scale models on consumer-grade GPUs, reaching
+real-time control frequencies previously infeasible with au-
+toregressive decoding. We additionally compare against
+Google’s recent model, FunctionGemma (Google AI, 2025),
+on the Mobile Actions benchmark. In both zero-shot and
+fine-tuned settings, our smallest model, ST-Qwen2.5-0.5B,
+demonstrates advantages in both accuracy and latency for
+edge deployment scenarios.
+Contributions.
+(1) We proposeSimpleTool, a parallel decoding frame-
+work that enables LLMs to call functions in real time,
+making it possible for LLM-based methods to control
+real-time interactive systems.
+(2) We design mutually reinforcing special tokens and a
+parallel decoding architecture that exploits idle com-
+pute capacity, conducting an in-depth exploration of
+redundant token compression and parallel decoding for
+function calling.
+(3) We train multiple SimpleTool models across the Qwen
+series (0.5B–14B) and evaluate them on five bench-
+marks, demonstrating substantial speedup with com-
+petitive accuracy.
+(4) We compare against Google’s FunctionGemma on Mo-
+bile Actions in both zero-shot and fine-tuned settings,
+showing more effective edge deployment capability.
+3
+
+--- PAGE 4 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Table 1.Token compression ratio across model sizes. CR = Base-
+line tokens / SimpleTool bottleneck-head tokens. Statistics com-
+puted on samples where both models produce correct outputs.
+Per-benchmark breakdown in Appendix H.
+Model CR (Mean) CR (P50) CR (P90)
+Qwen2.5-0.5B 5.06×6.00×4.06×
+Qwen2.5-1.5B 4.32×4.71×3.20×
+Qwen2.5-3B 4.38×4.71×3.20×
+Qwen3-4B 4.32×4.86×3.42×
+Qwen2.5-7B 5.35×5.00×3.40×
+Qwen2.5-14B 4.51×4.86×3.47×
+Average 4.66×5.02×3.46×
+2. Methodology
+Building on the insight that function calling exhibits struc-
+tural redundancy and weak causal dependencies (Section 1),
+this section presents the technical realization of SimpleTool.
+The key challenge is that these two properties must be ex-
+ploitedjointly: compressing redundant tokens alone does
+not break sequential decoding, while parallelizing without
+compression leaves substantial latency unreduced.
+We describe how special tokens and parallel decoding work
+synergistically: special tokens not only compress output
+length (4–6× reduction) but also serve asmode selectors
+that enable independent generation of function name and
+arguments (Section 2.1). The training strategy then ensures
+the model learns to leverage both mechanisms effectively
+(Section 2.2).
+2.1. Special Tokens Enable Parallel Decoding
+2.1.1. FROMREDUNDANCY TOCOMPRESSION
+Intuitively, conventional function call outputs contain three
+token categories with distinct entropy characteristics. (Fig-
+ure 3):
+• Structural tokens( {, }, :, ,): Fully predictable given
+the output format, near-zero entropy.
+• Key tokens(“name”, “arguments”, parameter names):
+Copied from tool definitions, low entropy.
+• Value tokens(function names, argument values): Re-
+quire actual LLM reasoning, high entropy.
+We introduce special tokens ( <function>, <arg1>–
+<arg6> e.g.) that absorb all low-entropy information,
+achieving 4–6× compression (Table 1). Crucially, these
+tokens serve a dual purpose: beyond compression, each
+token acts as amode selector, signaling which component
+(function name, specific argument or even content) to gener-
+ate. This dual role—compressionandmode selection—is
+what enables parallel decoding.
+2.1.2. FROMWEAKDEPENDENCIES TOPARALLEL
+DECODING
+With special tokens serving as mode selectors, we can ex-
+ploit the weak causal dependencies among function argu-
+ments: since each argument can be inferred largely indepen-
+dently from the input context, we decode them asparallel
+streamsrather than sequentially.
+Architecture.As illustrated in Figure 2, SimpleTool decou-
+ples function calling intoHindependent decoding streams
+(1 for function name, up to 6 for arguments, more if needed
+in training), each initialized by appending a distinct special
+token (<function>, <arg1>, ..., <arg6>) to the shared
+input prefix. We also reserve a content head (<content>)
+for chatting, which can be optionally used alongside func-
+tion calls. All streams share the same prefix KV cache; only
+the head-specific special token differs. This design directly
+leverages the dual role of special tokens: they compress the
+outputandspecify which component to generate.
+Latency Analysis.For conventional autoregressive decod-
+ing, end-to-end latency is:
+Tbaseline =T p +N·T d (1)
+where Tp is prefill time, N is total output tokens, and Td
+is per-token decode latency. With SimpleTool, the latency
+becomes:
+Tours ≈T p + max
+i∈{1,...,H}
+(Ni)·T d (2)
+where H is the number of parallel decoding heads, Ni is the
+token count for head i, and some insignificant overhead may
+exist. End-to-end latency is thus dominated by thelongest
+single head, not the sum of all heads.
+2.1.3. PARALLELDECODING AS ANEAR-FREE
+OPERATION
+One might expect H parallel decoding streams to incur
+proportional computational overhead. We argue—and em-
+pirically validate—that this cost is negligible due to the
+memory-bandwidth-boundnature of autoregressive de-
+coding.
+During the decode phase, each token generation requires
+loading the full model weights from GPU memory, while
+the actual computation (a single matrix-vector product per
+layer) utilizes only a fraction of available FLOPS. This
+creates substantial idle compute capacity. Batching mul-
+tiple sequences—in our case, parallel heads within the
+same request—increases arithmetic intensity without pro-
+portionally increasing memory traffic, effectively utilizing
+otherwise-idle compute.
+We validate this through batch scaling experiments (shown
+in Appendix G). Across six model configurations from 0.5B
+4
+
+--- PAGE 5 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+to 14B parameters with the same prefix and one different
+token, 8-head parallel decoding achieves93.0% average
+TPOT efficiency, with efficiency only dropping markedly
+at extremely large batch sizes, demonstrating that Simple-
+Tool’s parallel heads operate well within the memory-bound
+bottleneck and idle compute capacity.
+KV Cache Efficiency.All parallel heads share the input
+prefix, enabling full KV cache reuse. For an input of L
+tokens and H heads each appending a single special token,
+the KV cache overhead is only H tokens beyond the shared
+prefix—negligible compared to typical prompt lengths. In
+high-frequency control scenarios where the tool schema
+remains fixed, this shared prefix can be persistently cached,
+further amortizing prefill cost (see Section 3.4 for empirical
+validation).
+2.2. Training for Parallel Generation
+The synergistic design described above requires the model
+to learn a fundamentally different output behavior: generat-
+ing function name and arguments asindependent streams
+conditioned on distinct special tokens, while maintaining
+reasoning capability.
+2.2.1. SPECIALTOKENDESIGN
+We introduce 17 special tokens organized into four func-
+tional groups:
+Content head: <content>, </content> for natural
+language responses.
+Function head: <function>, </function> for func-
+tion name generation.
+Argument heads: <argk>, </argk> for k∈ {1, ...,6} ,
+each selecting a positional argument.
+Placeholder: <|null|> for unused argument slots, en-
+abling early termination of inactive heads.
+Each special token encodes all structural information (de-
+limiters, parameter names, positional ordering) into its se-
+mantics, eliminating the need to generate them explicitly
+while simultaneously specifying the generation mode.
+2.2.2. TRAININGCHALLENGES
+Achieving high-quality parallel decoding is non-trivial. Un-
+like standard fine-tuning where the model learns a single
+output distribution, SimpleTool requires the model to learn
+eight distinct output modesthat share the same input but
+produce semantically different outputs. This poses two key
+challenges:
+Capacity Requirements.Learning multiple output modes
+demands sufficient model plasticity. We find that standard
+LoRA configurations underperform for this task; signifi-
+cantly larger adapter capacity is required to capture the
+diverse output patterns without interference between heads
+(see ablation in Section 3.5). Moreover, the introduction of
+special tokens necessitates unfreezing the embedding layer—
+a departure from standard parameter-efficient fine-tuning
+that requires careful optimization to balance learning new
+token representations against preserving pretrained knowl-
+edge.
+Data Distribution Balance.Existing function calling
+datasets exhibit skewed argument count distributions, with
+most samples concentrated around 2–3 arguments. For Sim-
+pleTool’s multi-head architecture, underrepresented argu-
+ment counts (0, 5, 6 arguments) lead to poorly trained heads
+that fail to generalize. We address this through targeted data
+augmentation using synthetic samples that balance argument
+count distribution (see ablation in Section 3.5).
+2.2.3. TRAININGPIPELINE
+We adopt parameter-efficient fine-tuning with LoRA (Hu
+et al., 2022), targeting the MLP layers to maximize the ca-
+pacity for learning head-specific output patterns. Training
+samples are formatted as parallel sequences sharing iden-
+tical prefixes but differing in the appended special token
+and corresponding target output. The loss is computed in-
+dependently for each head with head-specific weighting to
+address output length imbalance. Hyperparameter details
+are provided in Appendix F.
+3. Experiments
+We evaluate SimpleTool from four perspectives: (1)accu-
+racyon multiple benchmarks (Section 3.2), (2)inference
+speedup(Section 3.3), (3)domain adaptationcompar-
+ing with FunctionGemma (Section 3.4), and (4)ablation
+studies(Section 3.5).
+3.1. Experimental Setup
+Models.We evaluate on Qwen2.5-Instruct series (0.5B–
+14B) (Qwen Team, 2024) and Qwen3-4B-Instruct (Yang
+et al., 2025). All models are fine-tuned using LoRA (Hu
+et al., 2022) with a relatively large rank (we explore this
+setting in Section 3.5). We set the number of parallel argu-
+ment heads to 6, which already covers95.2%of function
+calls across all evaluation benchmarks (see Appendix C for
+detailed statistics).
+Benchmarks.We evaluate on five benchmarks covering
+diverse function calling scenarios: BFCL-v3 (Patil et al.,
+2024) (single-turn subsets), Mobile Actions (Google AI,
+2025), SealTools (Wu et al., 2024), OpenFunction-v1 (Patil
+et al., 2024), and ToolAlpaca (Tang et al., 2023). The last
+three benchmarks are combined into an “Others” group for
+aggregate evaluation.
+5
+
+--- PAGE 6 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Metrics.Overall Accuracy (complete correctness including
+function name and all arguments) and Function Accuracy
+(function name selection only).
+Hardware.Inference latency is measured on RTX 4090
+and H100 GPUs.
+3.2. Accuracy Evaluation
+Table 2 and Figure 4 present comprehensive accuracy evalu-
+ation across model scales and benchmarks.
+Consistent improvement across model scales.All model
+sizes show overall accuracy gains ranging from +0.5%
+(1.5B) to +3.5% (7B), with an average improvement of
++2.9%. This consistency suggests that models have learned
+these new output modes effectively.
+Substantial function accuracy gains.Average function
+accuracy increases +7.1% over baselines, with several con-
+figurations achieving near-perfect scores. We attribute this
+to special tokens acting as mode selectors: by explicitly
+conditioning each head on its target component, the model
+avoids ambiguity in output structure. Additionally, the com-
+pressed output format means fewer tokens and thus fewer
+opportunities for errors—particularly important in function
+calling where a single incorrect token invalidates the entire
+output.
+Strongest gains on Mobile Actions.Improvements range
+from +7.3% to +13.3% across model sizes. Notably, this
+benchmark was released in December 2025 (Google AI,
+2025), after both baseline models and our training data were
+finalized, demonstrating strong generalization to unseen
+domains.
+3.3. Speedup Evaluation
+Figure 5 presents speedup evaluation in different settings,
+demonstrating the effectiveness of SimpleTool’s accelera-
+tion strategies.
+Basic Parallelization(Figure 5a): With the Transformers
+backend, SimpleTool achieves 2.8–5.4× speedup on RTX
+4090 and 3.0–6.4×on H100. Smaller models benefit more
+due to their decode-bound characteristics.
+Prefix Caching(Figure 5b): vLLM’s KV cache sharing
+across parallel streams yields 2.7–4.4× speedup, with larger
+models showing improved ratios as prefix caching amortizes
+shared computation more effectively.
+Quantization(Figure 5c): AWQ 4-bit quantization achieves
+the lowest absolute latency. Qwen3-4B reaches61.2msP50,
+corresponding to 16 Hz control frequency—exceeding the
+10 Hz threshold typically required for real-time applications.
+Parallelization Overhead(Figure 5d): As active heads
+increase from 2 to 8, speedup remains stable, confirming
+that parallelization overhead is negligible—consistent with
+our analysis that parallel streams utilize otherwise-idle com-
+pute capacity within the memory-bandwidth-bound decode
+phase. Note that Figure 5d reflects end-to-end measure-
+ments where varying output lengths across heads introduce
+additional variance; controlled experiments isolating batch
+size effects are provided in Appendix G.
+Table 3 summarizes results across the acceleration hierarchy.
+Models up to 7B achieve sub-100ms latency on consumer-
+grade RTX 4090, enabling real-time deployment without
+datacenter infrastructure.
+3.4. Case Study: Comparison with FunctionGemma
+We compare against FunctionGemma (Google AI, 2025),
+Google’s 270M model released in December 2025 specif-
+ically for edge function calling, to evaluate whether Sim-
+pleTool can compete with industry solutions designed for
+on-device deployment.
+Setup.We evaluate on the Mobile Actions dataset released
+alongside FunctionGemma, containing ∼9,600 samples cov-
+ering 7 smartphone operations. This benchmark comple-
+ments BFCL-v3 by focusing on mobile device control—a
+scenario closely aligned with our target real-time applica-
+tions. For domain adaptation, we fine-tune ST-Qwen-0.5B
+on the official training split using LoRA (r= 64 ), requiring
+less than 3 H100-hours. Latency is measured on the full test
+split (1,283 samples) using vLLM with prefix caching.
+Results(Tables 4–5): ST-Qwen-0.5B achieves 69.3% zero-
+shot (+11.3% vs FunctionGemma) and 86.2% after fine-
+tuning, surpassing both FunctionGemma (85.0%) and the
+8× larger Qwen3-4B (83.7%). Despite 1.8× more param-
+eters, ST-Qwen-0.5B achieves faster inference (51.0ms vs
+61.1ms P50) with substantially better tail latency (74.5ms
+vs 139.5ms P90)—critical for real-time applications where
+worst-case latency determines reliability.
+3.5. Ablation Studies
+We conduct ablation studies on Qwen3-4B evaluated on
+BFCL-v3 (Table 6).
+LoRA Rank.Performance improves with larger ranks,
+reaching 87.0% at rank 1024, suggesting that learning eight
+distinct output modes benefits from increased adapter capac-
+ity. We adopt rank 512 as default.
+Training Data.Using only public xLAM data (Zhang
+et al., 2025), SimpleTool achieves 85.3%—demonstrating
+strong performance without proprietary data. Synthetic
+augmentation via Qwen3-235B yields +1.0% improvement.
+6
+
+--- PAGE 7 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+BFCL Non-Live BFCL Live BFCL Exec Mobile-Actions Others A VG40
+50
+60
+70
+80
+90
+100Overall Accuracy (%)
+89.6
+70.0
+91.6
+65.3
+81.8 79.7
+89.5
+69.5
+90.6
+78.6
+84.7 82.6
+Baseline
+simpletool
+Figure 4.Average accuracy comparison between Baseline and SimpleTool across benchmark groups (macro average). BFCL-v3 is
+evaluated on single-turn subsets; Mobile Actions parallel calls are converted to multi-turn format; “Others” combines SealTools, OpenFunc,
+and ToolAlpaca.
+Table 2.Performance comparison on five benchmarks. Each cell shows overall (function) accuracy, e.g., 78.3 (98.3). Speedup ratio after
+model name indicates inference acceleration on RTX 4090 with vLLM (P50 latency).Bold= best, underline = second best within each
+column (applied separately to overall and function accuracy).
+Model BFCL Non-Live BFCL Live BFCL Exec Mobile Actions Others A VG
+Baseline Models
+Qwen2.5-0.5B (1×) 78.3 (98.3) 49.9 (86.4) 88.6 (96.6) 56.7 (74.4) 80.9 (95.2) 70.9 (90.2)
+Qwen2.5-1.5B (1×) 86.3 (98.3) 67.4 (90.4) 91.9 (98.0) 65.5 (74.9) 82.2 (95.3) 78.7 (91.4)
+Qwen2.5-3B (1×) 92.5 (99.7 ) 73.0 (94.3) 86.6 (96.0) 66.2 (75.0) 84.3 (95.9) 80.5 (92.2)
+Qwen3-4B (1×) 93.7 (99.3)77.9(94.5)94.6(97.3) 68.0 (75.0) 82.0 (91.8) 83.2 (91.6)
+Qwen2.5-7B (1×) 93.0 (99.7 ) 75.4 (95.2) 94.0 (99.3) 68.4 (77.2) 83.4 (94.9) 82.8 (93.3)
+Qwen2.5-14B (1×)94.0(99.3) 76.6 (95.9) 94.0 (98.7) 67.0 (75.0) 78.3 (89.5) 82.0 (91.7)
+SimpleTool (Ours)
+ST-Qwen2.5-0.5B (3.1×) 79.8 (99.8) 57.2 (91.6) 87.9 (100.0) 69.3 (99.3) 82.2 (99.1) 75.3 (98.0)
+ST-Qwen2.5-1.5B (3.5×) 88.8 (99.8) 63.6 (94.3) 90.6 (100.0) 72.8 (100.0) 80.2 (99.3) 79.2 (98.7)
+ST-Qwen2.5-3B (3.8×) 90.3 (99.8) 68.0 (95.4) 91.3 (100.0) 81.4 (99.9 ) 85.5 (99.5 ) 83.3 (98.9)
+ST-Qwen3-4B (3.9×) 92.5 (99.5) 76.4 (96.3) 89.9 (100.0)84.5(99.9 ) 86.6 (99.7) 86.0 (99.1)
+ST-Qwen2.5-7B (4.5×) 93.5 (99.8) 75.8 (96.7 ) 92.6 (100.0) 83.2 (100.0) 86.2 (99.5 )86.3(99.2 )
+ST-Qwen2.5-14B (4.4×) 92.2 (99.7 ) 75.9 (97.1) 91.3 (100.0) 80.5 (100.0)87.4(99.7) 85.5 (99.3)
+Table 3.Speedup and latency summary on RTX 4090.
+Model Trans. vLLM A WQ (ms)
+Qwen2.5-0.5B 5.35×3.07×32.1
+Qwen2.5-1.5B 3.32×3.46×39.4
+Qwen2.5-3B 2.93×3.78×53.9
+Qwen3-4B 2.83×3.88×61.2
+Qwen2.5-7B – – 89.3
+Qwen2.5-14B – – 142.5
+4. Limitations
+Argument Independence.SimpleTool assumes func-
+tion arguments can be generated independently—valid for
+well-designed APIs with unordered key-value parameters.
+When semantic dependencies exist (e.g., file path and
+line number), dependent parameters can be consolidated
+into a single head, trading parallelism for correctness.
+Fixed Head Count.The 6-argument head configuration
+covers 95.2% of functions in our benchmarks. APIs ex-
+ceeding this limit can concatenate overflow parameters into
+the final head, preserving functionality with reduced paral-
+Table 4.Accuracy on Mobile Actions.
+Model Zero-shot Fine-tuned
+Qwen3-4B-Instruct 83.7 –
+FunctionGemma (270M) 58.0 85.0
+ST-Qwen-0.5B (Ours)69.3 86.2
+∆vs FunctionGemma +11.3 +1.2
+Table 5.Latency on Mobile Actions (vLLM, RTX 4090).
+Model P50 (ms) P90 (ms) Speedup
+Qwen3-4B (Baseline) 468.5 667.0 1.0×
+Qwen2.5-0.5B (Baseline) 110.1 154.0 4.3×
+FunctionGemma (270M) 61.1 139.5 7.7×
+ST-Qwen-0.5B (Ours) 51.0 74.5 9.2×
+lelism.
+Training Cost.Processing each head as an independent
+sequence incurs computational overhead compared to stan-
+dard fine-tuning, acceptable for one-time model preparation
+but limiting rapid iteration.
+7
+
+--- PAGE 8 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Qwen2.5-0.5B Qwen2.5-1.5B Qwen2.5-3B Qwen3-4B Qwen2.5-7BQwen2.5-14B
+0
+200
+400
+600
+800
+1000Inference Time P50 (ms)
+5.4× 6.4×
+3.3×
+4.5×
+2.9×
+4.3×
+2.8×
+4.1× 3.4×
+3.0×
+(a)
+Transformers Implementation
+4090 SimpleTool
+4090 Baseline
+H100 SimpleTool
+H100 Baseline
+Qwen2.5-0.5B Qwen2.5-1.5B Qwen2.5-3B Qwen3-4B Qwen2.5-7BQwen2.5-14B
+0
+100
+200
+300
+400Inference Time P50 (ms)
+3.1× 2.7× 3.5× 3.0×
+3.8×
+3.3×
+3.9×
+3.4× 4.0×
+4.4×
+(b)
+vLLM Implementation
+4090 SimpleTool
+4090 Baseline
+H100 SimpleTool
+H100 Baseline
+Qwen2.5-0.5BQwen2.5-1.5B Qwen2.5-3B Qwen3-4B Qwen2.5-7B Qwen2.5-14B
+0
+20
+40
+60
+80
+100
+120Inference Time P50 (ms)32.1
+39.4
+53.9
+61.2
+73.2
+128.6
+(c)
+AWQ (W4A16) + vLLM (RTX 4090)
+1 2 3 4 5 6
+Number of Active Heads
+0
+10
+20
+30
+40
+50
+60
+70
+80Inference Time P50 (ms)
+49.6
+55.5 52.4 56.5
+62.3
+69.6
+(d)
+Inference Time by NumHeads (Qwen3-4B, AWQ)
+Trend
+P50 Time
+Figure 5.Inference speedup evaluation.(a)–(b) Stacked bars show baseline time partitioned into SimpleTool time (dark) and time saved
+(light); speedup ratios labeled at boundary. (a) Transformers backend on RTX 4090 (blue) and H100 (green). (b) vLLM backend with
+prefix caching. (c) Absolute latency with AWQ quantization on RTX 4090. (d) Latency scaling with number of active heads (Qwen3-4B,
+AWQ in 4090). All measurements on BFCL-v3 single-turn cases.
+Table 6.Ablation studies on BFCL-v3 (Qwen3-4B).
+LoRA Rank Acc. (%) Training Data Acc. (%)
+64 85.5 xLAM only (public) 85.3
+256 86.4 xLAM + Synthetic86.3
+512 85.3
+102487.0
+5. Future Work
+Open Source and Real-World Deployment.We plan to re-
+lease training code and model weights to facilitate adoption
+in latency-critical applications: robotic control systems re-
+quiring sub-100ms actions, real-time avatars, and interactive
+coding assistants.
+Vision-Language Extension.Extending SimpleTool to
+VLMs would enable real-time Vision-Language-Action sys-
+tems for embodied AI, with the key challenge being efficient
+visual token handling while maintaining parallel action de-
+coding.
+On-Device Deployment.Bridging server-side speedup to
+edge deployment requires optimization for mobile frame-
+works (LiteRT, Core ML, ExecuTorch) and adapting parallel
+decoding to device constraints.
+Adaptive Heads.Dynamically adjusting active head count
+based on tool schemas at inference time would improve
+flexibility for diverse APIs.
+Scaling.Investigating behavior on 30B+ models remains
+important—whether accuracy gains persist at scale or
+stronger baselines reduce the relative benefit.
+6. Conclusion
+We presented SimpleTool, a parallel decoding framework
+for real-time LLM function calling. Our key insight is
+that structured function outputs exhibit structural redun-
+dancy and weak causal dependencies among arguments—
+two properties that must be exploited jointly. We intro-
+duced special tokens that serve a dual role: compressing
+predictable tokens (4–6× reduction) while acting as mode
+selectors that enable independent generation of function
+name and arguments. This synergistic design allows parallel
+decoding streams to share the prefix KV cache with negli-
+gible overhead, achieving 3–6× end-to-end speedup while
+maintaining competitive accuracy across five benchmarks.
+8
+
+--- PAGE 9 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Combined with quantization, SimpleTool enables 4B-scale
+models to achieve 16+ Hz real-time function calling on con-
+sumer GPUs, bridging the gap between LLM capabilities
+and latency-critical applications such as embodied AI, game
+AI, and interactive agents.
+Impact Statement
+This paper advances real-time LLM function calling, en-
+abling latency-critical applications such as embodied AI,
+game AI, and interactive agents. We foresee positive soci-
+etal impacts including more responsive assistive robotics,
+accessible AI tutoring systems, and democratized deploy-
+ment of capable AI on consumer hardware.
+Potential risks include misuse in autonomous systems oper-
+ating without adequate human oversight. We recommend
+that practitioners deploying SimpleTool in safety-critical do-
+mains implement appropriate safeguards, monitoring mech-
+anisms, and human-in-the-loop controls. The authors have
+no conflicts of interest to disclose.
+References
+Ankner, Z., Parthasarathy, R., Nrusimha, A., Rinard, C.,
+Ragan-Kelley, J., and Brandon, W. Hydra: Sequentially-
+dependent draft heads for Medusa decoding.CoRR, 2024.
+Black, K., Brown, N., Driess, D., et al. π0: A vision-
+language-action flow model for general robot control.
+arXiv preprint arXiv:2410.24164, 2024.
+Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D.,
+Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G.,
+Askell, A., et al. Language models are few-shot learners.
+Advances in Neural Information Processing Systems, 33:
+1877–1901, 2020.
+Cai, T., Li, Y ., Geng, Z., Peng, H., Lee, J. D., Chen, D.,
+and Dao, T. Medusa: Simple LLM inference acceleration
+framework with multiple decoding heads. InInterna-
+tional Conference on Machine Learning, pp. 5209–5235.
+PMLR, 2024.
+Chen, C., Borgeaud, S., Irving, G., Lespiau, J.-B., Sifre,
+L., and Jumper, J. Accelerating large language model
+decoding with speculative sampling.arXiv preprint
+arXiv:2302.01318, 2023.
+Dettmers, T., Lewis, M., Belkada, Y ., and Zettlemoyer, L.
+GPT3.int8(): 8-bit matrix multiplication for transformers
+at scale.Advances in Neural Information Processing
+Systems, 35:30318–30332, 2022.
+Dong, Y ., Ruan, C. F., Cai, Y ., Lai, R., Xu, Z., Zhao, Y ., and
+Chen, T. XGrammar: Flexible and efficient structured
+generation engine for large language models.Proceedings
+of Machine Learning and Systems 7, 2024.
+Frantar, E., Ashkboos, S., Hoefler, T., and Alistarh, D.
+GPTQ: Accurate post-training quantization for generative
+pre-trained transformers. InInternational Conference on
+Learning Representations (ICLR), 2023.
+Gim, I., Lee, S.-s., and Zhong, L. Asynchronous llm func-
+tion calling.arXiv preprint arXiv:2412.07017, 2024.
+Gloeckle, F., Idrissi, B. Y ., Rozi `ere, B., Lopez-Paz, D.,
+and Synnaeve, G. Better & faster large language mod-
+els via multi-token prediction. InProceedings of the
+41st International Conference on Machine Learning, pp.
+15706–15734, 2024.
+Gong, J., Huang, Y ., Yuan, B., Zhu, M., Liao, Z., Liang, J.,
+Zhan, J., Wang, J., Shu, H., Xiong, M., et al. Ghostshell:
+Streaming llm function calls for concurrent embodied
+programming.arXiv preprint arXiv:2508.05298, 2025.
+Google AI. FunctionGemma: Bringing bespoke function
+calling to the edge. https://blog.google/
+technology/developers/functiongemma/,
+December 2025. Accessed: 2026-01-07.
+Guo, Z., Cheng, S., Wang, H., Liang, S., Qin, Y ., Li, P.,
+Liu, Z., Sun, M., and Liu, Y . StableToolBench: To-
+wards stable large-scale benchmarking on tool learning
+of large language models. InFindings of the Association
+for Computational Linguistics: ACL 2024, pp. 11143–
+11156, Bangkok, Thailand, 2024. Association for Compu-
+tational Linguistics. doi: 10.18653/v1/2024.findings-acl.
+664. URL https://aclanthology.org/2024.
+findings-acl.664/.
+Hu, E. J., Shen, Y ., Wallis, P., Allen-Zhu, Z., Li, Y ., Wang,
+S., Wang, L., and Chen, W. LoRA: Low-rank adaptation
+of large language models. InInternational Conference
+on Learning Representations, 2022. URL https://
+openreview.net/forum?id=nZeVKeeFYf9.
+Kim, M. J., Pertsch, K., Karamcheti, S., Xiao, T., Balakr-
+ishna, A., Nair, S., Rafailov, R., Foster, E. P., Sanketi,
+P. R., Vuong, Q., et al. OpenVLA: An open-source vision-
+language-action model. InConference on Robot Learning,
+pp. 2679–2713. PMLR, 2025.
+Kim, S., Moon, S., Tabrizi, R., Lee, N., Mahoney, M. W.,
+Keutzer, K., and Gholami, A. An llm compiler for parallel
+function calling. InInternational Conference on Machine
+Learning, pp. 24370–24391. PMLR, 2024.
+Kwon, W., Li, Z., Zhuang, S., Sheng, Y ., Zheng, L., Yu,
+C. H., Gonzalez, J., Zhang, H., and Stoica, I. Efficient
+memory management for large language model serving
+9
+
+--- PAGE 10 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+with PagedAttention. InProceedings of the 29th Sym-
+posium on Operating Systems Principles, pp. 611–626,
+2023.
+Leviathan, Y ., Kalman, M., and Matias, Y . Fast inference
+from transformers via speculative decoding. InInter-
+national Conference on Machine Learning, pp. 19274–
+19286. PMLR, 2023.
+Li, Y ., Wei, F., Zhang, C., and Zhang, H. EAGLE: Specula-
+tive sampling requires rethinking feature uncertainty. In
+International Conference on Machine Learning, 2024a.
+Li, Y ., Wei, F., Zhang, C., and Zhang, H. EAGLE-2: Faster
+inference of language models with dynamic draft trees.
+InEmpirical Methods in Natural Language Processing,
+2024b.
+Li, Y ., Wei, F., Zhang, C., and Zhang, H. EAGLE-3: Scal-
+ing up inference acceleration of large language models
+via training-time test. InAnnual Conference on Neural
+Information Processing Systems, 2025.
+Lin, J., Tang, J., Tang, H., Yang, S., Xiao, G., and Han,
+S. AWQ: Activation-aware weight quantization for on-
+device LLM compression and acceleration.GetMobile:
+Mobile Computing and Communications, 28(4):12–17,
+2025.
+Ning, X., Lin, Z., Zhou, Z., Wang, Z., Yang, H., and Wang,
+Y . Skeleton-of-thought: Prompting LLMs for efficient
+parallel generation. InThe Twelfth International Confer-
+ence on Learning Representations, 2024. URL https:
+//openreview.net/forum?id=mqVgBbNCm9.
+O’Neill, A., Rehman, A., Maddukuri, A., Gupta, A.,
+Padalkar, A., Lee, A., Pooley, A., Gupta, A., Mandlekar,
+A., Jain, A., et al. Open X-Embodiment: Robotic learning
+datasets and RT-X models: Open X-Embodiment collab-
+oration0. In2024 IEEE International Conference on
+Robotics and Automation, ICRA 2024, pp. 6892–6903. In-
+stitute of Electrical and Electronics Engineers Inc., 2024.
+Patil, S. G., Zhang, T., Wang, X., and Gonzalez, J. E. Go-
+rilla: Large language model connected with massive APIs.
+Advances in Neural Information Processing Systems, 37:
+126544–126565, 2024.
+Patil, S. G., Mao, H., Yan, F., Ji, C. C.-J., Suresh, V ., Stoica,
+I., and Gonzalez, J. E. The berkeley function calling
+leaderboard (BFCL): From tool use to agentic evaluation
+of large language models. InForty-second International
+Conference on Machine Learning, 2025. URL https:
+//openreview.net/forum?id=2GmDdhBdDk.
+Qin, Y ., Liang, S., Ye, Y ., Zhu, K., Yan, L., Lu, Y ., Lin,
+Y ., Cong, X., Tang, X., Qian, B., Zhao, S., Hong, L.,
+Tian, R., Xie, R., Zhou, J., Gerstein, M., Li, D., Liu,
+Z., and Sun, M. ToolLLM: Facilitating large language
+models to master 16000+ real-world APIs. InThe Twelfth
+International Conference on Learning Representations,
+2024. URL https://openreview.net/forum?
+id=dHng2O0Jjr.
+Qwen Team. Qwen2.5: A party of foundation models,
+September 2024. URL https://qwenlm.github.
+io/blog/qwen2.5/.
+Schick, T., Dwivedi-Yu, J., Dess`ı, R., Raileanu, R., Lomeli,
+M., Hambro, E., Zettlemoyer, L., Cancedda, N., and
+Scialom, T. Toolformer: Language models can teach
+themselves to use tools.Advances in Neural Information
+Processing Systems, 36:68539–68551, 2023.
+SIMA Team, Raad, M. A., Ahuja, A., Barros, C., Besse,
+F., Bolt, A., Bolton, A., Brownfield, B., Buttimore, G.,
+Cant, M., Chakera, S., Chan, S. C. Y ., Clune, J., Collister,
+A., Copeman, V ., Cullum, A., Dasgupta, I., de Cesare,
+D., Di Trapani, J., Donchev, Y ., Dunleavy, E., Engelcke,
+M., Faulkner, R., Garcia, F., Gbadamosi, C., Gong, Z.,
+Gonzales, L., Gupta, K., Gregor, K., Hallingstad, A. O.,
+Harley, T., Haves, S., Hill, F., Hirst, E., Hudson, D. A.,
+Hudson, J., Hughes-Fitt, S., Rezende, D. J., Jasarevic, M.,
+Kampis, L., Ke, R., Keck, T., Kim, J., Knagg, O., Koppa-
+rapu, K., Lampinen, A., Legg, S., Lerchner, A., Limont,
+M., Liu, Y ., Loks-Thompson, M., Marino, J., Cussons,
+K. M., Matthey, L., Mcloughlin, S., Mendolicchio, P.,
+Merzic, H., Mitenkova, A., Moufarek, A., Oliveira, V .,
+Oliveira, Y ., Openshaw, H., Pan, R., Pappu, A., Platonov,
+A., Purkiss, O., Reichert, D., Reid, J., Richemond, P. H.,
+Roberts, T., Ruscoe, G., Elias, J. S., Sandars, T., Sawyer,
+D. P., Scholtes, T., Simmons, G., Slater, D., Soyer, H.,
+Strathmann, H., Stys, P., Tam, A. C., Teplyashin, D.,
+Terzi, T., Vercelli, D., Vujatovic, B., Wainwright, M.,
+Wang, J. X., Wang, Z., Wierstra, D., Williams, D., Wong,
+N., York, S., and Young, N. Scaling instructable agents
+across many simulated worlds, 2024.
+Tan, W., Li, X., Fang, Y ., Yao, H., Yan, S., Luo, H., Ao, T.,
+Li, H., Ren, H., Yi, B., et al. Lumine: An open recipe
+for building generalist agents in 3D open worlds.arXiv
+preprint arXiv:2511.08892, 2025.
+Tang, Q., Deng, Z., Lin, H., Han, X., Liang, Q., and Sun,
+L. ToolAlpaca: Generalized tool learning for language
+models with 3000 simulated cases, 2023.
+Wang, G., Xie, Y ., Jiang, Y ., Mandlekar, A., Xiao, C., Zhu,
+Y ., Fan, L., and Anandkumar, A. V oyager: An open-ended
+embodied agent with large language models.Transac-
+tions on Machine Learning Research, 2024a. ISSN 2835-
+8856. URL https://openreview.net/forum?
+id=ehfRiF0R3a.
+10
+
+--- PAGE 11 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Wang, J., Xu, H., Ye, J., Yan, M., Shen, W., Zhang, J.,
+Huang, F., and Sang, J. Mobile-agent: Autonomous
+multi-modal mobile device agent with visual perception.
+CoRR, 2024b.
+Wen, H., Li, Y ., Liu, G., Zhao, S., Yu, T., Li, T. J.-J., Jiang,
+S., Liu, Y ., Zhang, Y ., and Liu, Y . AutoDroid: LLM-
+powered task automation in Android. InProceedings
+of the 30th Annual International Conference on Mobile
+Computing and Networking, pp. 543–557, 2024.
+Willard, B. T. and Louf, R. Efficient guided generation for
+large language models.arXiv preprint arXiv:2307.09702,
+2023.
+Wu, M., Zhu, T., Han, H., Tan, C., Zhang, X., and Chen, W.
+SEAL-Tools: Self-instruct tool learning dataset for agent
+tuning and detailed benchmark. InCCF International
+Conference on Natural Language Processing and Chinese
+Computing, pp. 372–384. Springer, 2024.
+Xia, H., Yang, Z., Dong, Q., Wang, P., Li, Y ., Ge, T., Liu,
+T., Li, W., and Sui, Z. Unlocking efficiency in large
+language model inference: A comprehensive survey of
+speculative decoding. InFindings of the Association
+for Computational Linguistics: ACL 2024, pp. 7655–
+7671, Bangkok, Thailand, 2024. Association for Compu-
+tational Linguistics. doi: 10.18653/v1/2024.findings-acl.
+456. URL https://aclanthology.org/2024.
+findings-acl.456/.
+Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B.,
+Yu, B., Gao, C., Huang, C., Lv, C., et al. Qwen3 technical
+report.arXiv preprint arXiv:2505.09388, 2025.
+Yang, N., Ge, T., Wang, L., Jiao, B., Jiang, D., Yang, L.,
+Majumder, R., and Wei, F. Inference with reference:
+Lossless acceleration of large language models.arXiv
+preprint arXiv:2304.04487, 2023.
+Yu, Z., Wang, B., Zeng, P., Zhang, H., Zhang, J., Gao,
+L., Song, J., Sebe, N., and Shen, H. T. A survey on
+efficient vision-language-action models.arXiv preprint
+arXiv:2510.24795, 2025.
+Zhang, J., Lan, T., Zhu, M., Liu, Z., Hoang, T. Q., Kokane,
+S., Yao, W., Tan, J., Prabhakar, A., Chen, H., et al. xLAM:
+A family of large action models to empower AI agent
+systems. InProceedings of the 2025 Conference of the
+Nations of the Americas Chapter of the Association for
+Computational Linguistics: Human Language Technolo-
+gies (Volume 1: Long Papers), pp. 11583–11597, 2025.
+Zheng, L., Yin, L., Xie, Z., Sun, C. L., Huang, J., Yu,
+C. H., Cao, S., Kozyrakis, C., Stoica, I., Gonzalez, J. E.,
+et al. SGLang: Efficient execution of structured language
+model programs.Advances in Neural Information Pro-
+cessing Systems, 37:62557–62583, 2024.
+Zitkovich, B., Yu, T., Xu, S., Xu, P., Xiao, T., Xia, F.,
+Wu, J., Wohlhart, P., Welker, S., Wahid, A., et al. RT-2:
+Vision-language-action models transfer web knowledge
+to robotic control. InConference on Robot Learning, pp.
+2165–2183. PMLR, 2023.
+11
+
+--- PAGE 12 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+A. Other Related Work
+LLM Function Calling and Tool Use.The ability of LLMs to interact with external tools has been extensively studied.
+Toolformer (Schick et al., 2023) explored self-supervised tool learning, while Gorilla (Patil et al., 2024) and ToolLLM (Qin
+et al., 2024) improved accuracy through retrieval-augmented approaches. xLAM (Zhang et al., 2025) addresses function
+calling through data augmentation strategies. At the orchestration level, several works explore parallelism and scheduling:
+LLM Compiler (Kim et al., 2024) investigates parallel function calling, Skeleton-of-Thought (Ning et al., 2024) explores
+parallel generation via prompting strategies, AsyncLM (Gim et al., 2024) proposes asynchronous execution patterns, and
+GhostShell (Gong et al., 2025) addresses concurrent tool execution in embodied settings. LLMA (Yang et al., 2023) explores
+reference-based acceleration techniques. For evaluation, BFCL (Patil et al., 2024) and StableToolBench (Guo et al., 2024)
+provide standardized benchmarks, while Mobile Actions (Google AI, 2025) targets edge deployment scenarios. Google’s
+FunctionGemma (Google AI, 2025) represents industry efforts toward compact, edge-deployable models.
+Speculative and Parallel Decoding.Speculative decoding (Leviathan et al., 2023; Chen et al., 2023) accelerates inference
+using draft-and-verify mechanisms. Medusa (Cai et al., 2024) and the EAGLE series (Li et al., 2024a;b; 2025) introduce
+parallel decoding heads, while Hydra (Ankner et al., 2024) explores sequentially-dependent draft heads. Multi-token
+prediction (Gloeckle et al., 2024) trains models to predict multiple future tokens. A comprehensive survey is provided by
+Xia et al. (2024). Unlike these general-purpose methods, SimpleTool exploits the structural properties of function calling,
+achieving parallelism without additional parameters or draft models.
+Structured Output Generation.SGLang (Zheng et al., 2024) optimizes structured output generation through techniques
+such as jump-forward decoding for deterministic tokens. Grammar-constrained approaches include Outlines (Willard &
+Louf, 2023) and XGrammar (Dong et al., 2024). While these methods improve output validity and efficiency, they remain
+fundamentally sequential. SimpleTool takes an orthogonal approach by reducing the output representation itself while
+enabling parallel generation across independent streams.
+Efficient LLM Serving.Modern serving systems have improved LLM inference efficiency through various techniques.
+vLLM (Kwon et al., 2023) introduced PagedAttention for KV cache management, while SGLang (Zheng et al., 2024)
+proposed RadixAttention for prefix sharing. Quantization techniques such as AWQ (Lin et al., 2025) and GPTQ (Frantar
+et al., 2023) enable deployment on resource-constrained devices. SimpleTool is compatible with these optimizations and can
+be combined with existing serving infrastructure.
+Real-Time LLM Applications.Vision-language-action models such as ST-2 (Zitkovich et al., 2023), OpenVLA (Kim
+et al., 2025), and π0 (Black et al., 2024) have demonstrated promising capabilities for robotic control. In game AI, V oyager
+(Wang et al., 2024a) and SIMA (SIMA Team et al., 2024) explore open-world control capabilities. For GUI automation,
+AutoDroid (Wen et al., 2024) and Mobile-Agent (Wang et al., 2024b) explore LLM-powered device control. These
+application domains commonly face latency challenges that motivate our work on parallel decoding.
+B. Special Token Definitions
+SimpleTool introduces 17 special tokens organized into four functional groups. New tokens are appended to the vocabulary
+with IDs|V base|through|V base|+ 16. Embeddings are initialized by averaging semantically similar existing tokens.
+Table 7.Special token definitions and their functions.
+Group Tokens Count
+Content Control<content>,</content>2
+Function Control<function>,</function>2
+Argument Control<argk>,</argk>fork∈ {1, . . . ,6}12
+Placeholder<|null|>1
+Total 17
+Example output format:
+12
+
+--- PAGE 13 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+<content>I’ll check the weather for you.</content>
+<function>get_weather</function>
+<arg1>Beijing</arg1>
+<arg2>2024-12-24</arg2>
+<arg3>celsius</arg3>
+<arg4><|null|></arg4>
+<arg5><|null|></arg5>
+<arg6><|null|></arg6>
+C. Parameter Count Statistics
+We analyze the distribution of function parameter counts across all evaluation benchmarks to justify our design choice of 6
+parallel argument heads.
+C.1. Distribution Analysis
+Table 8 presents the number of samples with more than 6 parameters across all evaluation datasets (excluding SealTools 1–6
+tools subsets, which are designed for controlled parameter count evaluation).
+Table 8.Parameter count distribution across benchmarks. Samples with >6 parameters require sequential handling for additional
+arguments.
+Dataset Total>6 params Ratio Max Params
+BFCL-v3 Exec Multiple 50 0 0.00% 6
+BFCL-v3 Exec Simple 100 0 0.00% 6
+BFCL-v3 Live Multiple 1,053 167 15.86% 21
+BFCL-v3 Live Simple 258 14 5.43% 10
+BFCL-v3 Multiple 200 0 0.00% 6
+BFCL-v3 Simple 400 0 0.00% 6
+SealTools (in-domain) 199 4 2.01% 8
+SealTools (out-domain) 94 0 0.00% 6
+Mobile Actions 1,283 0 0.00% 4
+OpenFunctions 109 0 0.00% 4
+ToolAlpaca (real) 92 0 0.00% 6
+ToolAlpaca (simulated) 51 0 0.00% 6
+Total 3,889 185 4.76%–
+C.2. Conclusion
+Our default configuration of 6 parallel argument heads covers 95.2% of all function calls in the evaluated benchmarks.
+The 4.76% of cases with >6 parameters are concentrated in BFCL-v3 Live datasets, which contain real-world APIs with
+extensive optional parameters (e.g., REST APIs with many query parameters). For these cases, our model generates the first
+6 arguments in parallel; additional arguments—typically optional—can be handled through sequential generation or omitted
+based on the tool schema’srequiredfield specification.
+Notably, all synthetic and controlled benchmarks (BFCL Non-Live, SealTools, Mobile Actions, OpenFunctions, ToolAlpaca)
+have a maximum of 6 parameters, confirming that our head count aligns with common API design practices.
+D. Training Data Statistics
+Argument distribution after augmentation:1 arg: 18%, 2 args: 20%, 3 args: 18%, 4 args: 17%, 5 args: 15%, 6 args: 12%.
+This balanced distribution addresses the natural imbalance where most real-world APIs use 1–2 arguments.
+13
+
+--- PAGE 14 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Table 9.Training data composition and statistics.
+Source Samples Percentage
+xLAM-60K (filtered) 48,000 40%
+Synthetic (Qwen3-235B generated) 70,000 58%
+Special (pass-through functions) 2,000 2%
+Total Groups 120,000 100%
+Total Samples (×8 heads) 960,000–
+E. Experimental Details
+E.1. Handling Parallel Tool Invocations
+E.1.1. PROBLEMSTATEMENT
+Some benchmarks (e.g., Mobile Actions) contain samples withparallel tool invocations, where multiple functions are
+called simultaneously within a single turn. For example, a user request “Turn on my flashlight and show me the nearest
+bookstore on the map” expects two independent function calls:
+tool_calls: [
+{"function": {"name": "turn_on_flashlight", "arguments": "{}"}},
+{"function": {"name": "show_map", "arguments": "{\"query\": \"nearest bookstore\"}"}}
+]
+Since SimpleTool generatesone function call per inference pass, we convert parallel invocations into sequential single-step
+evaluations using a history-based decomposition strategy.
+E.1.2. CONVERSIONSTRATEGY
+ForKparallel tool calls{c 1, c2, ..., cK}, we generateKtraining/evaluation samples. Each sampleireceives:
+• The original user query
+• Ahistoryfield containing preceding calls{c 1, ..., ci−1}(empty for the first entry)
+• Ground truth expecting only callc i
+Key design choice for training:During training data preparation, we applyrandom shufflingto the prefix calls for
+each version. This teaches the model that parallel calls have no inherent order dependency, which aligns with our parallel
+decoding assumption.
+E.1.3. EXAMPLE
+Original(2 parallel calls:turn on flashlight,show map):
+Training Version 1(target:show map):
+User: "Turn on flashlight and show nearest bookstore"
+History: [turn_on_flashlight()]
+Assistant: -> show_map(query="nearest bookstore") [TARGET]
+Training Version 2(target:turn on flashlight):
+User: "Turn on flashlight and show nearest bookstore"
+History: [show_map(query="nearest bookstore")] [SHUFFLED]
+Assistant: -> turn_on_flashlight() [TARGET]
+E.1.4. IMPLEMENTATION
+Algorithm 1 illustrates the conversion process.
+14
+
+--- PAGE 15 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Algorithm 1Parallel Tool Call Decomposition
+Require:Sample with queryq, tool definitionsT, parallel callsC={c 1, ..., cK}
+Ensure:Evaluation entriesE={e 1, ..., eK}
+1:E← ∅
+2:fori= 1toKdo
+3:pref ix← {c 1, ..., ci−1}
+4:pref ix←Shuffle(pref ix){Random order for training}
+5:history←Format(pref ix)
+6:query i ←Concat(environment, history, q)
+7:gt i ←CreateGroundTruth(c i, T)
+8:e i ←(query i, T, gti)
+9:E←E∪ {e i}
+10:end for
+11:returnE
+E.1.5. BENEFITS
+1.Data augmentation:Kparallel calls→Ktraining samples
+2.Order invariance: Random shuffling teaches the model that parallel calls have no causal dependencies
+3.Complete coverage: Every function in the parallel set is learned as a prediction target
+4. Consistent evaluation: Each decomposed entry is evaluated independently; a parallel invocation is considered fully
+correct only if allKindividual entries are correctly predicted
+E.2. Parameter Normalization
+To ensure consistent evaluation across all benchmarks, we normalize tool definitions to have at most 6 parameters per
+function. Parameters are ordered as follows:
+1. Required parameters in their original specification order
+2. Optional parameters in alphabetical order
+This normalization aligns with SimpleTool’s 6-argument head design and ensures that ground truth parameter ordering
+matches the tool definitions provided to the model.
+E.3. Latency Measurement Methodology
+We measure inference latency using consistent methodology across all models and frameworks to ensure fair comparison.
+Measurement Protocol.
+•Metric: End-to-end wall-clock time from request submission to completion, including all framework overhead.
+•Warmup: 5 requests discarded before measurement to ensure stable GPU state and cache initialization.
+•Sample size: Full test split (1,283 samples for Mobile Actions) to capture latency distribution.
+•Statistics: P50 (median) and P90 reported; P50 reflects typical performance while P90 captures tail latency.
+Framework Configuration.All vLLM experiments use:
+•enable prefix caching=True
+•gpu memory utilization=0.85
+•tensor parallel size=1
+• Single request per batch (serial mode) to measure per-request latency rather than throughput
+Stop Token Configuration.For SimpleTool models, we configure both string-based and token-ID-based stopping to ensure
+immediate termination on special tokens:
+15
+
+--- PAGE 16 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+stop = ["<|null|>", "</function>", "</arg1>", ..., "<|im_end|>"]
+stop_token_ids = [tokenizer.encode(s)[-1] for s in stop]
+This dual configuration is critical for achieving optimal latency, as token-ID-based stopping triggers immediately upon
+generation without the 1-step delay inherent in string matching.
+E.4. Mobile Actions Latency Benchmark Details
+Table 10 provides comprehensive latency statistics for the Mobile Actions benchmark discussed in Section 3.4.
+Table 10.Full latency statistics on Mobile Actions (1,283 samples, RTX 4090).
+Model P50 (ms) P90 (ms) P95 (ms) P99 (ms) Mean (ms) Avg Tok
+Qwen3-4B (Baseline) 468.5 667.0 731.2 845.3 489.7 39.2
+Qwen2.5-0.5B (Baseline) 110.1 154.0 166.2 188.6 97.7 40.2
+FunctionGemma (270M) 61.1 139.5 149.4 173.7 71.7 30.3
+ST-Qwen-0.5B (Ours) 51.0 74.5 82.2 90.0 50.1∼8
+Key Observations.
+• ST-Qwen-0.5B achieves the lowest latency across all percentiles.
+• The P90/P50 ratio for ST-Qwen-0.5B (1.27) is significantly lower than FunctionGemma (2.27), indicating more
+consistent performance.
+• Average output tokens for ST-Qwen-0.5B (∼8) are 3–5× fewer than baselines (30–40), directly contributing to reduced
+decode time.
+E.5. Hardware Specifications
+All experiments were conducted on the following hardware:
+Table 11.Hardware configurations used in experiments.
+Component Specification
+GPU NVIDIA RTX 4090 (24GB VRAM)
+GPU NVIDIA H100/H200 (80GB/141GB VRAM)
+CUDA 12.9
+PyTorch 2.8.0
+vLLM 0.12.0
+Training experiments were conducted on H100/H200 GPUs. ST-Qwen-0.5B converges in approximately 3–4 H100-hours
+for initial training, and∼1 GPU-hour for domain adaptation on Mobile Actions.
+F. Training Hyperparameters
+Table 12 presents the complete training configuration used for SimpleTool models. We highlight several key design choices:
+LoRA Configuration.We target MLP layers (gate proj, up proj, down proj) rather than attention layers, as we find
+this provides greater capacity for learning the distinct output modes required by parallel heads. The relatively high rank
+(r= 512) is necessary to capture diverse head-specific patterns without interference (see ablation in Section 3.5).
+Head Loss Weighting.We apply higher weights to the function head ( w1 = 2.0 ) since correct function selection is
+critical—an incorrect function name invalidates the entire output regardless of argument quality. Argument heads receive
+progressively increasing weights (w2 through w7) to counteract the natural data imbalance where higher-indexed arguments
+appear less frequently.
+Focal Weights.For argument heads, we apply token-level focal weights that increase with head index. This addresses the
+challenge that later argument slots (arg4–arg6) have fewer training examples due to the skewed distribution of argument
+counts in real-world APIs.
+16
+
+--- PAGE 17 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Table 12.Complete training hyperparameters for SimpleTool in ST-Qwen3-4B
+Parameter Value
+LoRA Configuration
+Rank (r) 512
+Alpha (α) 1024
+Dropout 0.05
+Target Modules gate proj, up proj, down proj
+Learning Rates
+Embedding1×10 −6
+LoRA1×10 −5
+LM Head1×10 −6
+Scheduler Cosine with warmup
+Warmup Ratio 0.02
+Training
+Sequence Length 2048 tokens
+Batch Size (per device) 8 groups
+Gradient Accumulation 4 steps
+Effective Batch Size 32 groups (256 samples)
+Epochs 3–4
+Precision bfloat16
+Flash Attention Enabled (v2)
+Head Loss Weights (wh)
+w0 (content) 0.01
+w1 (function) 2.0
+w2..7 (arg1–arg6) 1.1, 1.2, 1.3, 1.4, 1.5, 1.6
+Token-Level Focal Weights (γ, non-null only)
+γ2,3 (arg1–arg2) 1.0
+γ4 (arg3) 1.5
+γ5 (arg4) 2.0
+γ6 (arg5) 2.5
+γ7 (arg6) 3.0
+G. Batch Scaling Analysis
+This appendix validates SimpleTool’s core assumption that parallel decoding incurs negligible overhead due to the memory-
+bandwidth-bound nature of autoregressive decoding.
+G.1. Experimental Setup
+We measure per-token decode latency across varying batch sizes (1, 2, 4, 8, 16, 32, 64, 128) for six model configurations:
+Qwen2.5-0.5B, 1.5B, 3B, 7B, 14B, and Qwen3-4B. All experiments use identical input prompts and measure wall-clock
+time for the decode phase only, excluding prefill. We defineefficiencyas:
+Efficiency(B) = T (B=1)
+d
+T (B)
+d
+(3)
+where T (B)
+d is the per-token decode latency at batch size B. An efficiency of 100% indicates perfect scaling (no overhead
+from batching); lower values indicate compute saturation.
+17
+
+--- PAGE 18 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+G.2. Results
+Table 13 presents efficiency across batch sizes. The key finding is that8-head parallel decoding (corresponding to B=8)
+achieves 93.0% average efficiency, with per-token overhead of only +8.2% compared to single-sequence decoding.
+Table 13.Batch scaling efficiency (%) across model sizes. Higher values indicate better utilization of idle compute capacity. SimpleTool
+uses 8 heads, corresponding to B=8.
+Model B=1 B=2 B=4 B=8 B=16 B=32 B=64 B=128
+Qwen2.5-0.5B 100.0 96.4 95.6 90.6 81.4 67.3 52.8 37.1
+Qwen2.5-1.5B 100.0 98.3 97.5 92.7 86.5 78.7 64.7 47.1
+Qwen2.5-3B 100.0 99.1 98.4 93.5 89.8 83.5 72.1 56.2
+Qwen3-4B 100.0 98.7 96.3 92.5 83.7 74.4 58.1 45.8
+Qwen2.5-7B 100.0 87.2 91.5 91.5 90.9 84.4 75.0 62.0
+Qwen2.5-14B 100.0 99.3 98.4 97.4 95.2 90.6 78.1 66.5
+Average100.0 96.5 96.393.087.9 79.8 66.8 52.5
+Table 14 presents the same data as wall-clock overhead relative to B=1.
+Table 14.Wall-clock overhead (%) relative to single-sequence decoding (B=1). Lower values indicate less overhead from parallel
+execution.
+Model B=1 B=2 B=4 B=8 B=16 B=32 B=64 B=128
+Qwen2.5-0.5B +0.0 +3.7 +4.6 +10.3 +19.6 +34.5 +62.7 +125.3
+Qwen2.5-1.5B +0.0 +1.7 +2.6 +7.6 +15.6 +23.9 +44.4 +93.2
+Qwen2.5-3B +0.0 +0.9 +1.6 +6.9 +10.0 +19.1 +37.0 +76.9
+Qwen3-4B +0.0 +1.3 +3.9 +5.5 +10.4 +23.2 +37.6 +68.0
+Qwen2.5-7B +0.0 +12.8 +15.7 +16.3 +21.6 +26.6 +41.1 +68.7
+Qwen2.5-14B +0.0 +0.8 +1.7 +2.7 +4.7 +10.1 +23.2 +44.9
+Average+0.0 +3.5 +5.0+8.2+13.7 +22.9 +41.0 +79.5
+G.3. Analysis
+Memory-Bound Regime.The high efficiency at B=8 confirms that autoregressive decoding operates in a memory-
+bandwidth-bound regime for typical model sizes. The GPU’s compute units remain underutilized during single-sequence
+decoding, allowing additional sequences to be processed with minimal latency increase.
+Efficiency Inflection Point.Efficiency drops below 80% at B≥32 for most models, indicating the transition from memory-
+bound to compute-bound regime. SimpleTool’s 8 parallel heads remain well within the “comfort zone” where parallelization
+overhead is negligible.
+Model Size Effect.Larger models (7B, 14B) maintain higher efficiency at larger batch sizes, as their higher memory
+bandwidth requirements keep the system memory-bound for longer. This suggests SimpleTool’s parallel decoding strategy
+scales favorably with model size.
+Implications for SimpleTool.With 8 parallel heads and +8.2% average overhead, the scheduling term To(H) in Equation 2
+is effectively absorbed into a small multiplicative factor onT d:
+Tours ≈T p + max
+i
+(Ni)·(1.08·T d)(4)
+Combined with the 4–6×token compression (Table 1), this yields the 3–6×end-to-end speedup observed in Section 3.3.
+H. Token Compression Details
+This appendix provides detailed token compression statistics supporting the analysis in Section 2.1.
+18
+
+--- PAGE 19 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Table 15.Detailed token compression analysis. BL = Baseline tokens, ST = ST bottleneck-head tokens, CR = Compression Ratio. All
+statistics computed on samples where both Baseline and ST models produce correct outputs.
+Mean P50 (Median) P90
+Model BL ST CR BL ST CR BL ST CR N
+Qwen2.5-0.5B 44.1 8.7 5.06× 36.0 6.0 6.00× 69.0 17.0 4.06× 3328
+Qwen2.5-1.5B 38.3 8.9 4.32× 33.0 7.0 4.71× 64.0 20.0 3.20× 3590
+Qwen2.5-3B 39.2 8.9 4.38× 33.0 7.0 4.71× 64.0 20.0 3.20× 3939
+Qwen3-4B† 38.4 8.9 4.32× 34.0 7.0 4.86× 65.0 19.0 3.42× 4074
+Qwen2.5-7B 48.3 9.0 5.35× 35.0 7.0 5.00× 68.0 20.0 3.40× 4094
+Qwen2.5-14B 40.2 8.9 4.51× 34.0 7.0 4.86× 66.0 19.0 3.47× 3946
+†: Qwen3 backbone. N = number of both-correct samples.
+H.1. Methodology
+We measure token compression by comparing output lengths between baseline models (generating full JSON-formatted
+function calls) and SimpleTool models (generating only value tokens across parallel heads). For SimpleTool, we report
+thebottleneck headtoken count—the maximum across all parallel heads—as this determines end-to-end latency per
+Equation 2.
+Statistics are computed exclusively on samples wherebothbaseline and SimpleTool models produce correct outputs,
+ensuring fair comparison on equivalent task difficulty. The compression ratio (CR) is defined as:
+CR= Baseline tokens
+ST bottleneck-head tokens (5)
+H.2. Overall Results
+Table 15 presents detailed statistics across model sizes, including mean, median (P50), and 90th percentile (P90) for both
+baseline and SimpleTool token counts.
+Key observations:
+• Consistent compression across scales: All models achieve 4.3–5.4× mean compression, indicating that the structural
+redundancy in function call outputs is model-agnostic.
+• Higher median than mean: P50 compression (4.7–6.0×) exceeds mean compression, suggesting that outliers with
+longer outputs (complex nested arguments) pull down the average.
+• Stable RT token counts: SimpleTool bottleneck-head tokens remain remarkably stable (8.7–9.0 mean) across model
+sizes, reflecting the consistent information content of function calls regardless of baseline verbosity.
+H.3. Per-Benchmark Breakdown
+Table 16 presents compression ratios by benchmark group, revealing how compression varies across task types.
+Key observations:
+• Highest compression on simple APIs: BFCL Non-Live and OpenFunc achieve 5.7–7.9 × compression, as these
+benchmarks feature functions with fewer, simpler arguments.
+• Lower compression on execution tasks: BFCL Exec and MobileAct show 3.2–4.5× compression, reflecting more
+complex argument structures (e.g., nested objects, longer string values).
+• Outlier in ToolAlpaca: Qwen2.5-7B achieves 20.54× compression on ToolAlpaca, likely due to baseline verbosity on
+specific samples; this outlier does not significantly affect overall conclusions.
+H.4. Relationship to End-to-End Speedup
+The token compression ratio provides atheoretical upper boundon decode-phase speedup. The actual end-to-end speedup
+(3–6×, Section 3.3) is lower due to:
+19
+
+--- PAGE 20 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Table 16.Token compression ratio by benchmark group. CR = Compression Ratio (Baseline / RT). Results on both-correct samples.
+BFCL-NL = BFCL Non-Live, BFCL-L = BFCL Live, BFCL-E = BFCL Exec.
+Model BFCL-NL BFCL-L BFCL-E SealTools MobileAct OpenFunc ToolAlpaca Overall
+Qwen2.5-0.5B 7.05×5.52×4.53×5.16×4.17×7.91×5.14× 5.06×
+Qwen2.5-1.5B 5.67×5.00×3.85×4.51×3.38×5.19×6.04× 4.32×
+Qwen2.5-3B 5.73×4.83×3.55×4.53×3.73×5.20×4.48× 4.38×
+Qwen3-4B† 5.71×4.89×3.16×4.55×3.54×5.17×4.47× 4.32×
+Qwen2.5-7B 6.77×6.43×3.91×5.97×3.46×5.29×20.54× 5.35×
+Qwen2.5-14B 5.81×5.44×3.38×4.91×3.31×5.17×6.16× 4.51×
+†: Qwen3 backbone.
+1.Prefill overhead:T p is identical for both methods and does not benefit from token compression.
+2.Parallelization overhead: The +8.2% overhead from 8-head parallel decoding (Appendix G).
+3.Framework overhead: Scheduling, memory allocation, and other system-level costs in inference frameworks.
+Despite these factors, SimpleTool achieves 70–80% of the theoretical compression-based speedup in practice, demonstrating
+efficient translation of token reduction into latency improvement.
+I. Limitations: Parameter Independence Assumption
+I.1. The Independence Assumption
+Our parallel decoding assumes that function arguments areconditionally independentgiven the user query and function
+name:
+P(arg 1, ...,arg k|q, f)≈
+kY
+i=1
+P(arg i|q, f)(6)
+This assumption is justified by the design philosophy of JSON-based function calling: parameters are defined as unordered
+key-value pairs, and well-designed APIs treat each parameter as capturing an independent aspect of the request.
+I.2. Empirical Validation
+Our benchmark results provide strong empirical support for this assumption:
+• Accuracy improvement: SimpleTool achieves equal or higher accuracy than sequential baselines across all benchmarks
+(Table 2). If parameter dependencies were prevalent and important, removing sequential conditioning shoulddecrease
+accuracy—the opposite of what we observe.
+• Order invariance in training: Our parallel-to-multi-turn conversion (Appendix E.1) shuffles parameter order during
+training. The model’s strong performance indicates it learns to predict parameters independently of their presentation
+order.
+I.3. Theoretical Edge Cases
+We acknowledge that some API designs could introduce parameter dependencies:
+Example 1: Runtime-dependent validation
+read_file_range(file_path, start_line, end_line)
+Here, end line’s validity depends on the actual file length. However, this is aruntimeconstraint, not ageneration
+dependency—a sequential model would also generate end line=100 if the user requests it, regardless of whether the file
+has 100 lines.
+Example 2: Cascading inference
+20
+
+--- PAGE 21 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+format_convert(input_string, detected_format, output_format)
+Ifdetected formatmust be inferred frominput string, this creates a true dependency. However:
+1. This is poor API design— detected format should be computed internally by the function, not passed as a
+parameter.
+2. In practice, both values can often be inferred independently from context (e.g., “convert 2024-01-15 to MM/DD/YYYY”
+allows inferring both the input format and the input value).
+I.4. Handling True Dependencies
+For the rare cases where genuine parameter dependencies exist, SimpleTool supports two fallback strategies:
+1. Consolidation: Dependent parameters can be combined into a single head as a structured value (e.g., a list or nested
+object).
+2. Multi-turn refinement: For complex cases, the model can generate a partial call first, then refine in subsequent turns
+based on execution feedback.
+I.5. Conclusion
+The parameter independence assumption is both theoretically grounded (JSON’s key-value design) and empirically validated
+(accuracy improvements). While edge cases exist, they represent either poor API design or runtime constraints that affect
+sequential models equally. Our 95.2% benchmark coverage with 6 heads (Appendix C) further confirms that real-world
+APIs align with this assumption.
+J. Compatibility with Speculative Decoding
+As discussed in Section 1, speculative decoding methods are orthogonal to SimpleTool: they accelerate per-token generation
+through draft-and-verify mechanisms, while we reduce the total number of tokens to generate. This appendix validates that
+these approaches can be combined for additional benefits.
+J.1. Experimental Setup
+We evaluate speculative decoding on SimpleTool-trained models using the standard draft-model approach (Leviathan et al.,
+2023). The target model is ST-Qwen2.5-14B, with ST-Qwen2.5-0.5B and ST-Qwen2.5-1.5B serving as draft models. All
+models share the same special token vocabulary and output format, enabling direct speculation without format conversion.
+We test speculation depths N∈ {2,3,4} (number of tokens drafted per step) across all BFCL-v3 subsets and report forward
+pass reduction (vanilla forwards / speculative forwards) and token acceptance rate (accepted tokens / drafted tokens).
+J.2. Results
+Table 17 summarizes the results across draft model sizes and speculation depths.
+Table 17.Speculative decoding results with ST-Qwen2.5-14B as target. Speedup = forward pass reduction (higher is better). Accept Rate
+= proportion of drafted tokens accepted by target model.
+Draft Model N Avg Speedup Avg Accept Rate
+ST-Qwen-0.5B
+2 2.35×95.0%
+3 2.83×94.0%
+4 3.22×93.6%
+ST-Qwen-1.5B
+2 2.37×96.1%
+3 2.87×95.5%
+4 3.24×95.1%
+Table 18 provides per-dataset breakdown for the best-performing configuration (ST-Qwen-1.5B draft,N= 4).
+21
+
+--- PAGE 22 ---
+SimpleTool: Parallel Decoding for Real-Time LLM Function Calling
+Table 18.Per-dataset speculative decoding results (ST-Qwen-1.5B draft,N= 4).
+Dataset Samples Vanilla Fwds Spec Fwds Speedup Accept Rate
+BFCL-v3 Simple 400 6,578 2,031 3.24×95.3%
+BFCL-v3 Live Simple 244 4,698 1,401 3.35×93.0%
+BFCL-v3 Multiple 200 3,333 1,096 3.04×96.1%
+BFCL-v3 Live Multiple 886 17,196 6,593 2.61×90.0%
+BFCL-v3 Exec Simple 100 1,844 489 3.77×98.2%
+BFCL-v3 Exec Multiple 50 986 285 3.46×98.1%
+Total/Average1,880 34,635 11,8953.24×95.1%
+J.3. Analysis
+High acceptance rates.Both draft models achieve >93% token acceptance rates across all configurations, significantly
+higher than typical speculative decoding scenarios on general text generation (70–85%). This is because SimpleTool’s
+simplified output format—consisting primarily of function names and argument values—exhibits lower entropy and higher
+predictability than free-form text, making smaller models more effective as drafters.
+Consistent speedup across datasets.Forward pass reduction ranges from 2.6 × to 3.8× depending on dataset complexity.
+Simpler datasets (Exec Simple/Multiple) achieve higher speedup due to more predictable outputs, while Live Multiple shows
+lower speedup due to greater output diversity.
+Draft model size trade-off.The 1.5B draft model achieves slightly higher acceptance rates (+1–2%) than the 0.5B model,
+translating to marginally better speedup. However, the 0.5B model may be preferable for memory-constrained deployments
+where loading a larger draft model is impractical.
+Speculation depth trade-off.Increasing N from 2 to 4 improves speedup from ∼2.4× to ∼3.2×, with only minor
+degradation in acceptance rate (∼1%). This suggestsN= 4as a practical default for SimpleTool models.
+J.4. Combined Speedup Potential
+The total theoretical speedup when combining SimpleTool with speculative decoding is multiplicative:
+Speedupcombined =CR×Speedup spec (7)
+where CR is the token compression ratio from SimpleTool (4–6×, Table 1) and Speedupspec is the forward pass reduction
+from speculative decoding (2–3×).
+For ST-Qwen2.5-14B with CR ≈ 4.5× (Table 1) and 1.5B draft model at N= 4 (3.24× forward reduction), the combined
+theoretical speedup reaches approximately14.6 × in forward passes compared to vanilla autoregressive decoding of the
+baseline 14B model.
+Practical considerations.While forward pass reduction provides a useful proxy for latency improvement, actual wall-clock
+speedup depends on additional factors: draft model inference overhead, verification batch size, and memory bandwidth
+utilization. For memory-bound inference on consumer GPUs, SimpleTool’s token compression alone often saturates
+available bandwidth, making speculative decoding most beneficial for larger models or datacenter deployments where
+compute becomes the bottleneck. We leave detailed wall-clock benchmarking of combined approaches to future work.
+J.5. Conclusion
+These results confirm that SimpleTool and speculative decoding are complementary acceleration strategies operating on
+different axes: SimpleTool reduceswhatto generate (fewer tokens through compression and parallelization), while specula-
+tive decoding accelerateshowto generate (fewer sequential forward passes through draft-and-verify). The exceptionally
+high acceptance rates (>93%) suggest that SimpleTool’s simplified output format is particularly amenable to speculative
+approaches, opening promising directions for further optimization.
+22

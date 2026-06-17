@@ -1,0 +1,57 @@
+{
+  "action_types": [
+    "raw_bash",
+    "raw_bash",
+    "raw_bash",
+    "search_receipts",
+    "plan_update"
+  ],
+  "artifact_states": [
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A running QEMU process launched against /app/isos/win311.img",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    },
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A VNC listener on 127.0.0.1:5901 or equivalent :1 binding",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    }
+  ],
+  "commands": [
+    "set -euo pipefail\ncd /app\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU_BIN=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU_BIN=qemu-system-x86_64; else echo 'QEMU not installed' >&2; exit 1; fi\nmkdir -p /app/run /app/www\ncat > /app/www/index.html <<'EOF'\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\nEOF\npython3 - <<'PY'\nimport os, socket, threading, http.server, socketserver\nos.chdir('/app/www')\nclass Handler(http.server.SimpleHTTPRequestHandler):\n    def log_message(self, fmt, *args):\n        pass\nwith socketserver.TCPServer(('0.0.0.0', 80), Handler) as httpd:\n    print('nginx-equivalent-listener:80')\n    httpd.serve_forever()\nPY",
+    "set -euo pipefail\ncd /app\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU_BIN=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU_BIN=qemu-system-x86_64; else echo 'QEMU not installed' >&2; exit 1; fi\nnohup \"$QEMU_BIN\" -snapshot -m 64 -hda /app/isos/win311.img -vnc 127.0.0.1:1 -monitor unix:/app/run/qemu-monitor.sock,server,nowait -serial mon:stdio -display none > /app/run/qemu.log 2>&1 &\necho $! > /app/run/qemu.pid\nsleep 2\nps -p \"$(cat /app/run/qemu.pid)\" -o pid=,cmd=\nss -ltnp | grep -E ':5901\\b|:80\\b' || true\n",
+    "set -euo pipefail\ncd /app\nprintf 'info status\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\nprintf 'sendkey ret\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\nprintf 'sendkey ctrl-alt-delete\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\n"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 4,
+  "facts": [
+    "Required artifact(s) missing: A running QEMU process launched against /app/isos/win311.img, A VNC listener on 127.0.0.1:5901 or equivalent :1 binding"
+  ],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [
+    "A running QEMU process launched against /app/isos/win311.img",
+    "A VNC listener on 127.0.0.1:5901 or equivalent :1 binding"
+  ],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [
+    "A running QEMU process launched against /app/isos/win311.img",
+    "A VNC listener on 127.0.0.1:5901 or equivalent :1 binding"
+  ],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 15
+}

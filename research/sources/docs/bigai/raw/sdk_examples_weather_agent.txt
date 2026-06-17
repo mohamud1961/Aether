@@ -1,0 +1,81 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/weather_agent/?q=
+================================================================================
+
+天气查询智能体示例¶
+
+TongAgent 提供了开箱即用的 ReAct 智能体和天气查询工具。通过两者的结合，可以方便地进行天气查询。
+
+环境准备¶
+安装TongAgents SDK，参考安装
+配置模型服务，参考模型
+申请高德地图 API Key，并设置环境变量AMAP_TOKEN，以使用天气查询工具，参考高德地图
+
+所需环境变量：
+
+MODEL_NAME：模型名称
+MODEL_URL：模型URL
+MODEL_API_KEY：模型API密钥
+AMAP_TOKEN：高德地图API密钥
+代码示例¶
+examples/weather_agent/weather_agent.py
+import os
+
+
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm.messages import UserPromptMessage
+
+from tongagents.agents.llm_agent import (
+
+    LLMInputEvent,
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+from tongagents.tools.common_tool.amap_weather import AmapWeather
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY", "fake_api"),
+
+    ),
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[AmapWeather()],
+
+)
+
+
+
+# 运行agent
+
+result = agent.step(LLMInputEvent(input=UserPromptMessage("北京现在天气怎么样？")))
+
+print("".join(msg.content for msg in result))
+
+# 北京现在的天气是多云，温度是18度。

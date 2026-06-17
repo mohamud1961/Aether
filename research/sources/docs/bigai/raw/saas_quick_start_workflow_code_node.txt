@@ -1,0 +1,149 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/saas/quick_start/workflow/code_node/?q=
+================================================================================
+
+代码执行节点¶
+
+代码执行节点允许用户通过编写自定义代码来处理输入参数并生成返回值。TongAgents 提供了安全的代码执行环境，支持多种编程语言，让您能够灵活地实现复杂的业务逻辑。
+
+节点配置¶
+基本配置项¶
+
+代码执行节点的配置包含以下核心参数：
+
+配置项	功能说明
+输入参数	定义代码执行时需要的输入变量。每个输入参数包含参数名称和对应的值，值可以是上游节点的输出结果（暂不支持固定值）。
+在您自定义的代码中，可以通过params['']访问您设置的参数
+编程语言	选择代码执行的编程语言环境。目前支持 Python3 。
+代码内容	需要执行的核心代码逻辑。代码必须定义一个 main 函数作为入口点，并且main函数的参数名必须为params。详情可见后文示例
+注意，只定义一个main函数即可，不需要主动调用main()，也不需要在main函数之外写任何代码
+执行限制¶
+超时限制：单次代码执行最长支持 15 秒
+异常处理机制¶
+
+默认情况下，当代码执行超时或发生异常时，工作流会立即中断并返回错误信息。
+
+输入参数引用格式¶
+
+如果您是TongAgents网站的用户，可以直接在界面给出的选择框中选择要引用的上游节点输出
+
+如果您通过编程/从json创建workflow, 应该为代码执行节点设置一个名为input_schema的参数，用于指定上游节点输出，比如：
+
+input_schema={"input": "sys.query"}
+
+
+其中字典的键为自定义变量名称，值为上游节点输出结果（格式为节点名称.参数名称)
+
+支持的编程语言¶
+Python3 环境¶
+运行环境：基于 Python 3.11.3 标准库
+内置依赖：requests_async、numpy
+限制说明：
+不支持以下模块：curses、dbm、ensurepip、fcntl、grp、idlelib、lib2to3、msvcrt、pwd、resource、syslog、termios、tkinter、turtle.py、turtledemo、venv、winreg、winsound、multiprocessing、threading、sockets、pty、tty
+
+Python 代码示例：
+
+假设您设置了以下输入变量：
+
+变量名称	值
+city	node1.param1
+weather	node2.param2
+days	node2.param3
+# 定义一个 main 函数，传入 params 参数。params 中包含了节点配置的输入变量。
+
+# 需要定义一个字典作为输出变量
+
+# 引用节点定义的变量：params['变量名']
+
+# 运行环境 Python3；预置 Package：NumPy
+
+# 以city, days, weather变量为例
+
+
+
+def main(params):# main函数必须定义，且参数名必须为params
+
+
+
+    # 创建一个字典作为输出变量
+
+    output_object ={
+
+
+
+        # 引用节点定义的 city 变量
+
+        "key0": params['city'],
+
+
+
+        # 引用节点定义的 weather，city 和 days 变量
+
+        # 拼接为字符串赋值到 ”key1“
+
+        "key1": "it will " + params['weather'] + " in " + params['city'] + " in the next " + str(params['days']) + " days",
+
+
+
+        # 为 “key2” 赋值一个浮点列表
+
+        "key2": [1.1, 2.1, 3.0],
+
+
+
+        # 为 “key3" 赋值一个字典，包含多种类型数据
+
+        "key3": {
+
+            "key3_1": "text",
+
+            "key3_2": 12.88,
+
+            "key3_3": ["word1","word2"],
+
+            "key3_4": {
+
+                "key3_4_1": "text"
+
+            }
+
+        }
+
+    }
+
+
+
+    # 返回输出字典类型变量 output_object，包含代码节点所需的输出数据
+
+    return output_object
+
+编程使用sdk示例¶
+code_execution_node = CodeExecutionNode(
+
+    CodeExecutionNodeConfig(
+
+        name="code_execution_node",
+
+        type="code_execution_node",
+
+        code="def main(params):\n    return {'key0': params['input']}",
+
+        language="python3",
+
+        input_schema={"input": "sys.query"},
+
+    )
+
+)
+
+代码编辑器功能¶
+
+TongAgents 提供了功能完善的在线代码编辑器，支持语法高亮、代码补全等功能，让您能够专注于业务逻辑的实现。
+
+常见问题解答¶
+代码节点支持哪些第三方依赖库？¶
+
+代码执行环境仅支持以下内置依赖库：
+
+requests_async、numpy
+
+如有特殊需要，可以联系我们添加。

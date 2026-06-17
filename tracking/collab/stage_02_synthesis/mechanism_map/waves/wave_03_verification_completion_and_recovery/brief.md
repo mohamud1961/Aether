@@ -1,0 +1,266 @@
+# Mechanism Map Wave 03 Verification Completion and Recovery Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- wave: wave_03_verification_completion_and_recovery
+- wave_focus_domain: verification_completion_and_recovery
+- objective: Build behavior-anchored mechanism cards for verification doctrine, completion proof, false-completion prevention, cleanup confirmation, rollback, restart, resumability, and recovery across the major harness families.
+- exact_question: How do the in-scope systems decide a task is actually complete, verify that claimed completion against direct evidence, recover when completion or execution goes wrong, and preserve restart or rollback safety across trajectories, source, eval surfaces, and operational reports?
+- new_resolution_goal: Resolve whether verification, completion, and recovery are stable cross-system mechanism families with visible behavior/source/eval reconciliation, or whether they are still thinly evidenced, regime-local, or falsely merged together.
+- why_prior_waves_were_not_enough: `wave_01_exploratory_anchor` only surfaced candidate verification and recovery themes, and `wave_02_execution_control_and_terminal_grounding` focused on control, PTY realism, and terminal grounding. Neither wave forced a serious-domain pass on completion proof, false-completion defense, cleanup confirmation, rollback behavior, and replay or verifier coupling as the central question.
+- why_now: The compressed wave plan explicitly makes `verification_completion_and_recovery` the next mechanism-domain wave. This is also the first mechanism wave where verifier, grader, replay, and completion-contract logic are load-bearing enough to activate the optional fifth main lane.
+- lane_completion_rule: First-pass lane outputs are not wave-sufficient by default. A lane only becomes wave-sufficient if contradiction review plus principal synthesis say it is sufficient for this domain.
+- eval_fifth_lane_activated: `yes`
+- support_track_dependencies:
+  - `coverage_register`
+  - `trajectory_case_studies`
+  - `source_system_dossiers`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+  - `eval_benchmark_dossiers`
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+- required_case_study_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+- what_can_remain_unfinished_without_blocking_contradiction_review:
+  - second-tier paper/theme grouping beyond the wave-selected anchors
+  - long-tail issue clustering outside the selected verification/recovery families
+  - non-load-bearing benchmark captures not tied to verifier, grader, replay, or completion-contract questions
+  - deeper dossier polish after the wave if the current wave can still cite the updated support artifacts honestly
+- inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md`
+  - `prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md`
+  - `prompts/deep_synthesis_eval_benchmark_analyst_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `prompts/deep_synthesis_checklist_adjudicator_prompt.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/inputs/support_subagent_rules.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/analysis/bigai_trace_layer/output/`
+  - `research/sources/trajectories/`
+  - `research/sources/codebases/`
+  - `research/sources/benchmarks/`
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - `blocks/`
+  - `runner/`
+  - `evals/`
+  - `MECHANISM_CARD_SCHEMA.md`
+  - `TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md`
+- preflight_requirements:
+  - confirm this is a vertical mechanism-domain wave centered on verification, completion, and recovery rather than generic execution control
+  - confirm `trajectory/failure` is the primary empirical anchor and `codebase/source reconstruction` is the primary implementation anchor
+  - state explicitly why the optional `eval/benchmark` fifth lane is activated for this wave
+  - list the planned read order across trajectories, source, eval/replay/verifier surfaces, formal literature, and informal contradiction pressure
+  - name the critical trajectory slices, source systems, benchmarks, and contradiction-pressure sources selected for the wave
+  - identify at least one simple or minimal-sufficient completion or recovery pattern that must stay visible against more elaborate verifier architectures
+  - say which support artifacts are required before the lane can claim strong coverage
+  - stop and hand control back to the principal if the wave lacks enough trajectory visibility, verifier visibility, or source visibility to support honest cross-lane synthesis
+- scope_anchor_paths:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- evidence_classes_in_scope:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - eval repos
+  - benchmark captures
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `research/sources/trajectories/BigAI/db-wal-recovery/`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/`
+  - verifier-heavy slices surfaced in `research/analysis/bigai_trace_layer/output/exemplar_runs.json` or `question_answers.json`, especially `adaptive-rejection-sampler`
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/codebases/src_cod_e231561a3d69/capture.json`
+  - `research/sources/codebases/src_cod_18ba360eb4b2/capture.json`
+  - `research/sources/codebases/src_cod_564b05dcc95b/capture.json`
+  - `research/sources/codebases/src_cod_a1e1a27e13a1/capture.json`
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to completion, verification, recovery, and resumability
+- behavior_reconstruction_targets:
+  - `research/sources/trajectories/BigAI/`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+- eval_and_benchmark_targets:
+  - `research/sources/codebases/deepagents/libs/evals/`
+  - `research/sources/codebases/langchain/agentevals/`
+  - `research/sources/codebases/langchain/openevals/`
+  - `research/sources/codebases/src_cod_e231561a3d69/capture.json`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/capture.json`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/capture.json`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/capture.json`
+  - local `evals/`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - recovery, false-completion, resume, and cleanup-focused issue clusters
+- required_case_slices:
+  - `completion proof versus false completion`
+  - `verification and replay coupling`
+  - `cleanup confirmation and rollback`
+  - `restart, resumability, and recovery discipline`
+- extraction_level_cap: `L4`
+- citation_contract:
+  - every `L3` or `L4` claim must cite repo-local paths
+  - behavior claims must anchor in trajectories first
+  - implementation claims must anchor in visible source first
+  - verifier or benchmark claims must anchor in direct evaluator or benchmark surfaces first
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- support_subagent_policy:
+  - bounded support sub-agents are standard infrastructure for this wave
+  - use them for inventories, matrices, route maps, subsystem maps, archive triage, verifier extraction, paper grouping, and issue clustering
+  - support outputs must be saved explicitly and cited by the owning lane
+  - support outputs do not count as promoted mechanism claims on their own
+- contradiction_hand_off:
+  - route the first-pass lane outputs and any material follow-ups to `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - attack unsupported completion-proof claims, weak verifier coupling, fake recovery coverage, source/trajectory mismatch, and over-read benchmark logic
+- gate_review_plan:
+  - primary contradiction:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - optional external breadth review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__gemini.md`
+  - optional external adversarial contradiction or acceptance review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__opus.md`
+  - primary checklist adjudication:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/adjudication/checklist_adjudicator.md`
+  - optional external checklist reviews:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/adjudication/checklist_adjudicator__opus.md`
+- carry_forward_operating_rules:
+  - update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` after the wave
+  - update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` after principal synthesis and again after checklist adjudication if the gate changes the accepted status
+  - keep `coverage_access` caveats visible rather than pretending they are closed
+  - do not let formal intent outrank observed completion or recovery behavior
+  - do not let benchmark or verifier prestige override stronger trajectory or source evidence
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+  - `support_artifacts_used`
+  - `support_artifacts_requested_or_deferred`
+  - `coverage_register_updates_needed`
+  - `required_dossier_updates`
+  - `coverage_used` must list concrete repo-local paths or path globs actually read in the current wave
+- exclusions:
+  - do not treat this wave as `mechanism_map` completion
+  - do not produce final failure-taxonomy, eval-policy, or variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - primary main-lane outputs should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`
+  - support outputs should land in the same wave outputs directory with descriptive names such as:
+    - `trajectory_support_verification_matrix.md`
+    - `trajectory_support_false_completion_cases.md`
+    - `trajectory_support_recovery_restart_table.md`
+    - `codebase_support_verifier_recovery_map.md`
+    - `eval_support_verifier_grader_replay_matrix.md`
+    - `literature_support_verification_cluster.md`
+    - `informal_support_recovery_issue_cluster.md`
+  - follow-up outputs should use:
+    - `__followup_01`
+    - `__followup_02`
+    - `__revision_01`
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - interaction analysis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/interaction_analysis.md`
+  - wave principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/adjudication/checklist_adjudicator.md`
+  - cumulative artifact state must be updated at:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - coverage register must be updated at:
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis must include explicit sections for:
+    - `what_this_wave_resolved`
+    - `what_still_requires_another_wave`
+    - `local_harness_implications`
+    - `coverage_not_yet_used`
+    - `priority_sources_not_yet_read`
+    - `support_track_updates`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, plus the activated eval/benchmark fifth lane, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. This is the next governed multi-agent `mechanism_map` wave under the compressed 14-wave model.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - eval/benchmark analyst
+  - contradiction analyst
+  - checklist adjudicator
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`
+- handoff_requirements:
+  - do not emit the cross-artifact `failure_taxonomy` handoff from this wave alone
+  - instead update the artifact-level cumulative synthesis and keep downstream handoff for artifact-level acceptance
+- evidence_expectations:
+  - trajectories are the primary empirical anchor for this wave
+  - source pressure should explain implementation shape where visible
+  - eval and benchmark evidence are load-bearing for this wave because verifier, replay, and completion-contract logic are central
+  - formal literature should sharpen definitions or challenge claims, not dominate them
+  - informal sources should surface operational tensions and contradiction pressure
+  - preserve disagreements between observed completion behavior and source or provider intent
+  - protect simple baselines and minimal-sufficient completion or recovery mechanisms from being crowded out by prestige verifier stacks
+  - treat non-agentic structural code as in scope when it materially shapes verification or recovery behavior
+  - leave interaction, downstream-effect, or mitigation fields unresolved when evidence is weak instead of inventing certainty
+- decision_needed_from_human: none beyond the already accepted Deep Synthesis wave-plan redesign; this is the next governed multi-agent serious wave.
+- done_condition: this wave produces evidence-backed verification, completion, and recovery mechanism updates; updates the required support artifacts and coverage register; completes contradiction plus checklist gates; and strengthens `cumulative_synthesis.md` without pretending the full `mechanism_map` artifact is complete.

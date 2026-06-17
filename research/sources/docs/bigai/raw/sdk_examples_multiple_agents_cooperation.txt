@@ -1,0 +1,219 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/multiple_agents_cooperation/?q=
+================================================================================
+
+Workflow Group 示例¶
+
+TongAgents 提供了多智能体协同工作流的功能，能够将不同角色的 Agent 组合成一个任务处理组，实现产品设计、研发和运维等多环节协作。该示例展示了如何构造多个 Agent 并将其放入一个工作流组中，共同处理复杂业务请求。
+
+环境准备¶
+安装 TongAgents SDK，请参考安装指南
+配置模型服务，请参考模型配置
+确保各智能体角色（如产品设计、研发、运维）已经定义并配置好对应的 AgentSettings
+代码示例¶
+
+下面代码演示了如何构造三个分别负责设计、代码开发和服务部署的智能体，并将它们组合成一个工作流组。工作流组接收到的请求会按各自职责依次处理，最终输出协同处理后的结果。
+
+examples/office_cooperation/workflow_group.py
+import os
+
+import time
+
+
+
+from multiple_agent.workflow_group import Group
+
+from tongagents.agents.assistant.agent_settings import TongAgentSettings
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.base_agent import WorkflowAgent
+
+from tongagents.workflow.nodes.simple_node_base import END, START
+
+from tongagents.workflow.simple_workflow import node_declare
+
+
+
+
+
+class TestAgent(WorkflowAgent):
+
+    def __init__(self, agent_setting):
+
+        super().__init__(agent_settings=agent_setting)
+
+
+
+    @node_declare(edges=[(START, "step"), ("step", END)])
+
+    def step(self, event):
+
+        msg = "任务处理完毕，产出了设计图：design.prd"
+
+        print(msg)
+
+        return msg
+
+
+
+
+
+class Test2Agent(TestAgent):
+
+    def __init__(self, agent_setting):
+
+        super().__init__(agent_setting=agent_setting)
+
+
+
+    @node_declare(edges=[(START, "step"), ("step", END)])
+
+    def step(self, event):
+
+        msg = "前端研发任务处理完毕，代码实现完毕"
+
+        print(msg)
+
+        time.sleep(5)
+
+        return msg
+
+
+
+
+
+class Test4Agent(TestAgent):
+
+    def __init__(self, agent_setting):
+
+        super().__init__(agent_setting=agent_setting)
+
+
+
+    @node_declare(edges=[(START, "step"), ("step", END)])
+
+    def step(self, event):
+
+        msg = "后端研发任务处理完毕，代码实现完毕"
+
+        print(msg)
+
+        time.sleep(5)
+
+        return msg
+
+
+
+
+
+class Test3Agent(TestAgent):
+
+    def __init__(self, agent_setting):
+
+        super().__init__(agent_setting=agent_setting)
+
+
+
+    @node_declare(edges=[(START, "step"), ("step", END)])
+
+    def step(self, event):
+
+        msg = "任务处理完毕，服务已部署"
+
+        print(msg)
+
+        return msg
+
+
+
+
+
+agent1 = TestAgent(
+
+    agent_setting=TongAgentSettings(
+
+        character_profile="产品设计师，可以完成产品设计文档和相关设计图",
+
+    )
+
+)
+
+
+
+agent2 = Test2Agent(
+
+    agent_setting=TongAgentSettings(
+
+        character_profile="前端研发工程师，可以完成产品的前端代码开发",
+
+    )
+
+)
+
+
+
+agent4 = Test4Agent(
+
+    agent_setting=TongAgentSettings(
+
+        character_profile="后端研发工程师，可以完成产品的后端代码开发",
+
+    )
+
+)
+
+
+
+agent3 = Test3Agent(
+
+    agent_setting=TongAgentSettings(
+
+        character_profile="运维工程师，可以完成服务部署功能",
+
+    )
+
+)
+
+
+
+# Create a group with the agents
+
+group = Group(
+
+    agents=[agent1, agent2, agent3, agent4],
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY", "fake_api"),
+
+    ),
+
+)
+
+
+
+# Test with a sample query
+
+resp = group.stream(
+
+    "请帮我设计一个游戏，并完成研发，"
+
+    "研发需要分前端研发任务和后端研发任务，最终帮我把相关服务部署上线"
+
+)
+
+for result in resp:
+
+    print("FINAL RESULT: ", result)
+
+    # group.stop()
+
+说明¶
+本示例展示了如何利用 Workflow Group 将多个智能体整合成一个协同处理单元，实现任务分工与串联。
+每个 Agent 根据自身角色完成部分任务，工作流组会顺序聚合各环节的处理结果，体现了 TongAgents 框架在复杂业务场景下的高效整合能力。
+
+通过本示例，你可以快速构建和验证多智能体协作的工作流，实现从产品设计到研发再到运维全环节的自动化任务处理

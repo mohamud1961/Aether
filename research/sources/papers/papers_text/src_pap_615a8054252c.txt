@@ -1,0 +1,716 @@
+--- PAGE 1 ---
+1
+A Blockchain-Based Trust Framework for Resilient
+Cross-Domain UA V Service Orchestration
+Yao Wu, Ziye Jia,Member, IEEE, Jingjing Zhao,Senior Member, IEEE, Haoyang Wang,
+Qihui Wu,Fellow, IEEE, and Zhu Han,Fellow, IEEE
+Abstract—Unmanned aerial vehicle (UA V) networks are in-
+creasingly deployed for complex missions, including disaster re-
+sponse, intelligent logistics, and environmental monitoring. These
+missions generally require coordinated collaboration among
+multiple UA Vs across distinct administrative domains. To support
+such cross-domain cooperation, service function chains (SFCs)
+are constructed, where complex workflows are decomposed into
+ordered service functions assigned to appropriate UA Vs along
+the mission path. However, it is challenging to ensure secure,
+trustworthy, and low-latency cross-domain SFC orchestration
+in identity management, authentication, and resilience to node
+failures. To address these issues, this paper proposes a con-
+sortium blockchain-based trust architecture for cross-domain
+decentralized identity verification, auditable task execution, and
+dynamic service-aware orchestrator selection. The framework
+employs a hierarchical four-phase cross-domain authentication
+protocol covering the credential pre-verification, intra-domain
+execution, secure relay, and audit logging. The use case analysis
+confirms that the proposed framework achieves substantial re-
+ductions in authentication latency and significant improvements
+in system throughput against centralized and static schemes.
+The open challenges in scalability, adaptive trust assessment,
+interoperability, and energy efficiency are discussed, thereby
+providing directions for future researches on secure and efficient
+cross-domain UA V service orchestration.
+Index Terms—Unmanned aerial vehicle (UA V), service func-
+tion chain (SFC), blockchain, trust framework.
+I. INTRODUCTION
+Unmanned aerial vehicle (UA V) networks are rapidly evolv-
+ing from isolated single-unit deployments into coordinated
+multi-agent systems that provide significant advantages in
+disaster response, intelligent logistics, and precision agricul-
+ture [1], [2]. The complex missions frequently surpass the
+This work was supported in part by National Natural Science Foundation
+of China under Grant 62231015, in part by the Open Project Program of
+State Key Laboratory of CNS/ATM (No.2025B11), in part by the Jiangsu
+Provincial Key Research and Development Program under Grant BE2022068
+and under Grant BE2022068-1, in part by the Young Elite Scientists Spon-
+sorship Program by CAST 2023QNRC001, and in part by the Postgraduate
+Research & Practice Innovation Program of Jiangsu Province under Grant
+SJCX25_0152. (Corresponding author: Ziye Jia).
+Yao Wu, Ziye Jia, Haoyang Wang and Qihui Wu are with the College of
+Electronic and Information Engineering, Nanjing University of Aeronautics
+and Astronautics, Nanjing 211106, China, (e-mail: wu_yao@nuaa.edu.cn,
+jiaziye@nuaa.edu.cn, wanghaoyang@nuaa.edu.cn, wuqihui@nuaa.edu.cn).
+Jingjing Zhao is with the School of Electronics and Information En-
+gineering, Beihang University, 100191, Beijing, China, and also with
+the State Key Laboratory of CNS/ATM, 100191, Beijing, China, (e-
+mail:jingjingzhao@buaa.edu.cn).
+Zhu Han is with the University of Houston, Houston, TX 77004 USA, and
+also with the Department of Computer Science and Engineering, Kyung Hee
+University, Seoul 446-701, South Korea, (e-mail: hanzhu22@gmail.com).
+operational limits of a single UA V functioning alone in sens-
+ing, computation, communication, and endurance, requiring
+collaborations among multiple heterogeneous platforms across
+distinct administrative domains [3]. The service function chain
+(SFC) establishes a structured approach for these coopera-
+tive missions by decomposing complex tasks into ordered
+sequences of functional components including sensing, data
+processing, and relaying, with each component assigned to an
+appropriate node [4]. By mapping sensing, processing, and
+relaying functions onto different UA Vs in an ordered man-
+ner, SFCs integrate distributed sensing and computation into
+an end-to-end mission workflow, thereby improving mission
+flexibility and operational efficiency [5].
+However, the secure and reliable SFC execution in dynamic
+open airspace introduces a distinct set of challenges that stem
+from the rapid spatial mobility of UA Vs and the absence of
+stable trust anchors [6]. The continuous topology variation
+degrades the persistence of trust relationships, and the short-
+lived communication sessions make timely credential valida-
+tion more difficult. These factors complicate the establish-
+ment of reliable end-to-end trust and create conditions where
+conventional credential management fails to ensure uninter-
+rupted SFC execution. The exposed inter-UA V communication
+channels are susceptible to eavesdropping, message tamper-
+ing, and impersonation attacks. The frequent mobility and
+dynamic joining or departure of nodes further complicate the
+authentication, access control, and behavior verification [7].
+The traditional centralized authentication frameworks, which
+typically rely on the trusted authority (TA) for credential
+management, provide administrative simplicity but exhibit
+limited scalability, slow responsiveness to frequent topology
+changes, and an inherent single point of failure [8]. As the
+UA V networks scale, these limitations increasingly undermine
+the mission resilience and continuity.
+The challenge becomes more intricate when an SFC tra-
+verses multiple autonomous domains since the trust establish-
+ment must span administrative boundaries. The lack of shared
+credential governance forces each domain to verify external
+identities and authorize tasks under heterogeneous policies.
+It increases the coordination overhead and necessitates a
+mechanism able to maintain the trust continuity during the
+domain transitions. In the cross-domain orchestration, three
+interrelatedchallengesemerge.First, the absence of a shared,
+and decentralized trust foundation hinders reliable credential
+transfer and identity verification across administrative bound-
+aries [9].Second, the static or pre-assigned orchestrators fail
+to adapt effectively to evolving mission contexts or network
+arXiv:2603.00456v1  [cs.CR]  28 Feb 2026
+
+--- PAGE 2 ---
+2
+…
+Main SFC Orchestrator
+Block Registration
+TA
+Block RegistrationBlock Registration
+System
+Initialization
+Certificate
+ Issuance
+SFC
+Consortium
+Blockchain
+…
+Domain Domain Domain
+ES ES ES
+Fig. 1. Architecture of the proposed consortium blockchain-enabled cross-domain UA V SFC trust framework.
+topologies, resulting in coordination inefficiencies and vulner-
+ability to orchestrator failures [10].Third, the existing cross-
+domain authentication procedures often rely on the repeated
+global verification, which elevates the communication latency
+and jeopardizes real-time service continuity [11]. Thus, an ef-
+fective solution must integrate distributed trust establishment,
+adaptive orchestration, and secure, low-latency inter-domain
+authentication within a unified framework [12].
+To address these challenges, this paper proposes a
+blockchain-anchored trust framework for resilient cross-
+domain UA V SFC orchestration. The proposed architecture
+leverages a consortium blockchain as a decentralized trust
+anchor, enabling immutable recording of credential events
+and auditable verification without dependence on a central
+authority [13]. On this basis, a lightweight, service-aware
+orchestrator election algorithm dynamically selects optimal
+coordinators based on the mission context and resource avail-
+ability, thereby enhancing the adaptability and fault toler-
+ance. Additionally, a hierarchical four-stage authentication
+and handover protocol is designed to facilitate the rapid
+and secure inter-domain credential migration while preserving
+the end-to-end integrity and verifiability. These components
+constitute an integrated architecture that unifies the distributed
+trust management, adaptive orchestration, and efficient cross-
+domain authentication for mission-critical UA V operations. In
+short, the key contributions of this work are summarized as
+follows.
+•We propose a blockchain-anchored trust framework that
+establishes a consortium blockchain as a decentralized
+root of trust, enabling the tamper-evident credential man-
+agement and verifiable SFC coordination across multiple
+domains.
+•We design a service-aware orchestrator election algo-
+rithm that dynamically selects orchestrators according to
+real-time mission requirements and network conditions,
+effectively mitigating the single-node bottlenecks and
+improving the orchestration efficiency.
+•We develop a four-stage cross-domain authentication and
+handover protocol that secures the inter-domain service
+transitions, achieving low-latency credential transfer and
+comprehensive post-mission accountability through im-
+mutable on-chain records.
+II. BLOCKCHAIN-ENABLEDTRUSTFRAMEWORK:
+ARCHITECTUREOVERVIEW
+The proposed framework leverages a consortium blockchain
+as an immutable and distributed trust anchor. Built on
+this foundation, a dynamic orchestration algorithm and a
+lightweight cross-domain authentication protocol are jointly
+designed. By replacing the vulnerable centralized control with
+decentralized collaboration, the framework ensures reliable
+trust transfer and efficient coordination across administrative
+
+--- PAGE 3 ---
+3
+boundaries. As shown in Fig. 1, the architecture comprises
+four primary entities that collaborate to maintain the global
+trust and ensure the secure inter-domain service execution.
+A. Core Entities
+1) UAV:The UA Vs serve as service execution nodes within
+the framework. Each UA V is equipped with lightweight virtu-
+alized network function modules that support mission-specific
+operations such as traffic filtering, packet forwarding, data
+compression, format conversion, encryption and decryption,
+and onboard inference for target detection. After receiving the
+service credentials, a UA V verifies the authenticity, executes
+its assigned function, and securely forwards the corresponding
+authorization token to the next node in the SFC chain. Each
+UA V is provisioned with a globally unique identifier and
+hardware-protected cryptographic keys to ensure the authen-
+ticity, traceability, and non-repudiation.
+2) Edge Server (ES):Each ES operates as the domain
+controller in its administrative region and undertakes two
+principal responsibilities. It manages the UA V identity regis-
+tration, operational-state maintenance, and revocation within
+its domain. It also serves as a consortium blockchain node
+participating in Practical Byzantine Fault Tolerance consensus
+and maintaining the distributed ledger that stores identity
+data and operational logs. During the SFC execution, the ES
+validates the inter-domain credentials and issues the authoriza-
+tion certificates to UA Vs in its domain, thereby supporting
+the secure trust propagation across multiple administrative
+boundaries.
+3) Consortium Blockchain:The authorized ES nodes col-
+laboratively maintain the consortium blockchain, which serves
+as the underlying trust foundation. It provides a semi-
+decentralized verifiable environment for storing UA V iden-
+tities, public keys, and mission-related events such as ser-
+vice initiation, completion timestamps, and cross-domain han-
+dover logs. By replacing traditional centralized databases,
+the blockchain provides tamper-resistant storage and supports
+peer-to-peer trust establishment. The trust queries and iden-
+tity verification can be performed directly on-chain without
+reliance on a central authority.
+4) TA:The TA serves as an offline and strictly controlled
+root of trust responsible for the system initialization. It
+generates global cryptographic parameters and grants root
+certificates that authorize ESs within each domain. After
+the initialization, the TA remains offline while the domain
+enrollment, UA V registration, and credential management are
+executed collaboratively by the consortium blockchain and
+ESs. This design follows the principle of centralized initializa-
+tion and decentralized operation to minimize the attack surface
+of the core trust authority.
+B. Framework Workflow
+As illustrated in Fig. 1, the workflow begins when a mission
+requester such as a ground control station issues an SFC
+task request to the ES cluster. A dynamic election algorithm
+selects an appropriate orchestrator from the ES cluster. The
+orchestrator queries the consortium blockchain to verify the
+legitimacy of participating UA Vs and then issues a secure
+authorization credential (SAC). During the task execution, the
+SAC serves as a digital service token that is propagated among
+UA Vs across multiple domains. Its validity is verified through
+blockchain-based signatures and public-key cryptography. In
+this manner, a continuous and verifiable chain of trust is
+established throughout the mission.
+The distributed ledger eliminates the single-point-of-failure
+risk inherent in centralized authentication. The dynamic or-
+chestrator election enhances the scalability, load balancing,
+and fault tolerance. The lightweight cross-domain authentica-
+tion protocol enables low-latency service handover in dynamic
+environments. These capabilities provide a secure, efficient,
+and trustworthy foundation for the large-scale cross-domain
+UA V collaboration.
+III. DYNAMIC ANDSERVICE-AWAREORCHESTRATOR
+ELECTION
+The orchestrator serves as the core control entity respon-
+sible for initiating and coordinating each cross-domain SFC
+task. The conventional architectures typically designate a fixed
+high-performance ES as a permanent orchestrator [14]. While
+this configuration simplifies the management overhead, it
+poses several notable limitations. First, it creates a single point
+of failure that jeopardizes the reliability of the entire work-
+flow. If the orchestrator becomes unavailable due to network
+disruption or hardware malfunction, the entire SFC operation
+is interrupted. Moreover, a static orchestrator cannot adapt to
+variations in the network topology or mission requirements
+[15], resulting in inconsistent service latency across domains.
+To overcome these constraints, a dynamic and service-
+aware orchestrator election algorithm is developed. The al-
+gorithm allocates orchestration responsibilities to the most
+suitable node to enhance the system resilience and oper-
+ational efficiency. The principal concept is to replace tra-
+ditional hardware-based selection criteria that depends on
+the computational capacity or memory resources with task-
+oriented evaluation that reflects the characteristics of each
+SFC instance. The selected orchestrator must demonstrate suf-
+ficient computational capability and advantageous topological
+placement. It is expected to be located near most participating
+UA Vs and to minimize the cost of inter-domain authentication.
+Fig. 2 illustrates the lightweight election process that is
+automatically triggered when a new SFC request is generated.
+The procedure comprisesthree operational phases.
+1) Candidate Filtering:Upon detecting or receiving an
+SFC request, the ES broadcasts the request to other domain
+servers rather than processing it immediately. The request
+includes administrative domain metadata consisting of the do-
+main identifiers of all domains traversed by the planned SFC.
+Each receiving server conducts a local evaluation by checking
+whether its managed domain identifier appears in this identi-
+fier list. Only servers with matched domain identifiers register
+as candidates. This initial filtering step ensures that only
+relevant nodes participate in the election, thereby minimizing
+the unnecessary communication and computational overhead.
+
+--- PAGE 4 ---
+4
+winner
+loser
+loser
+• SFC request triggered, cross-domain broadcast
+• Filter candidate nodes based on domain overlap
+• Eligible servers register as orchestrator candidates
+• Reduce unnecessary communication and computation
+• Candidate nodes locally calculate composite scores
+based on topological centrality and path coverage
+• Combined with adjustable coefficients, relying only on
+local information, fast and scalable
+• Candidate nodes broadcast scores within the
+contention window
+• Decentralized cutoff rule determines the winner, no
+complex consensus, fast convergence
+  Candidate Filtering Distributed Lightweight Scoring Decision Making
+1 2 3
+loser
+loser
+loser
+93
+81
+72
+66
+51
+42
+Candidate Node
+Filtered Out Filtered Out
+Candidate Node Score Reflects
+Selection Priority
+Highest Score
+Not Selected
+​
+Fig. 2. Workflow of the proposed dynamic and service-aware orchestrator election algorithm for cross-domain UA V SFC.
+2) Distributed Lightweight Scoring:Each candidate inde-
+pendently evaluates its suitability by calculating a composite
+score based on two performance metrics, topological centrality
+and path coverage. The topological centrality represents the
+relative position of the server within the network. The pref-
+erence is assigned to candidates that act as communication
+hubs. Moreover, the topological centrality metric incorporates
+the operational weights of domains along the SFC path, so that
+domains handling heavier service loads contribute proportion-
+ally. This design ensures that the servers located in network-
+efficient positions are prioritized. The path coverage measures
+the proportion of UA Vs associated with the task managed by
+a given candidate. A higher value indicates that the server
+can directly coordinate more UA Vs involved in the operation,
+thereby reducing the inter-domain control overhead. The final
+score is computed by combining the two metrics with ad-
+justable weighting coefficients, allowing flexible optimization
+according to specific mission objectives. These coefficients
+are set according to mission priorities and network condi-
+tions, where latency-sensitive missions assign higher weight
+to topological centrality, and coordination-sensitive missions
+assign higher weight to path coverage to reduce inter-domain
+control overhead. The computation depends exclusively on the
+local topology information and task parameters and does not
+require real-time global synchronization. This feature enables
+fast and scalable execution in dynamic environments.
+3) Decision Making:After completing the scoring process,
+all candidates enter a short decision interval. During this
+defined time window, each server broadcasts its score to
+other participants. A decentralized cutoff rule determines the
+outcome. A server declares itself as the elected orchestrator if
+it receives no higher score from peers during the interval. If a
+higher score is detected, the server withdraws from contention
+Query
+Pre-Verification and
+Credential Issuance
+Auditing and
+Traceability
+Intra-Domain
+ Execution
+Secure Cross-Domain
+Service Relay
+...
+HC
+HC
+Blockchain
+Query
+Notarize on-chain
+Fig. 3. Four-phase cross-domain SFC authentication protocol.
+and acknowledges the superior candidate as the orchestrator.
+This method avoids multi-round message exchanges or com-
+plex consensus protocols. It enables rapid convergence and
+is particularly effective for dynamic and time-sensitive edge
+environments.
+IV. CROSS-DOMAINAUTHENTICATIONPROCESS
+After dynamically electing the optimal orchestrator, the sys-
+tem proceeds to the core stage of secure SFC execution, which
+involves cross-domain authentication. Achieving a reliable
+end-to-end trust chain in open wireless environments, without
+compromising continuity or latency, presents a substantial
+technical challenge. To address these issues, a hierarchical
+four-phase authentication protocol is designed. This protocol
+combines a one-time global verification with localized cre-
+dential handovers, achieving a balance between the security
+and operational efficiency. As illustrated in Fig. 3, the pro-
+tocol consists of four stages: pre-verification and credential
+
+--- PAGE 5 ---
+5
+issuance, secure initialization, secure cross-domain relay, and
+auditing and traceability.
+1) Pre-Verification and Credential Issuance:The objective
+of this phase is to perform a system-wide security verification
+before initiating the SFC task and to issue a global access
+credential that eliminates delays caused by sequential au-
+thentication. The elected orchestrator queries the consortium
+blockchain to confirm that all UA Vs along the planned SFC
+path are properly registered and authorized for the mission.
+The query is executed atomically, meaning that the verification
+of all UA Vs along the planned SFC path is treated as an
+indivisible operation that either succeeds completely or fails
+completely. Upon successful verification, the orchestrator gen-
+erates an SAC, which serves as a cryptographically protected
+and time-limited mission token containing essential metadata,
+including the task identifier and validity period. The full SFC
+path is encrypted using the public key of the first UA V to
+ensure that only the intended recipient can access the path
+information. The orchestrator signs the SAC with its private
+key to guarantee authenticity and prevent tampering. The
+signed SAC is then transmitted to the first UA V in the chain.
+2) Intra-Domain Execution:Upon receiving the SAC, the
+first UA V initiates local verification. The UA V verifies the
+digital signature issued by the orchestrator to ensure the
+integrity and authenticity of the received credential. It then
+decrypts the encrypted portion of the SAC using its private
+key to retrieve the full SFC path and verify its role as the
+initiating node. The UA V also checks the validity period of
+the credential to prevent replay attacks. Once the verification
+is completed, the UA V is granted execution authorization
+and begins performing its assigned virtual network function,
+such as data filtering or format conversion. This step securely
+launches the SFC task under the cryptographic control.
+3) Secure Cross-Domain Service Relay:This phase es-
+tablishes the core of cross-domain trust propagation. After
+completing its local virtual network function, a UA V transfers
+the task securely to the subsequent node, which may belong
+to a different administrative domain. To achieve this, the UA V
+generates a handover credential (HC), which is a lightweight
+digital token containing the task identifier, the identity of
+the subsequent recipient, and a fresh timestamp. The HC is
+protected by two layers of cryptography. First, it is digitally
+signed by the edge server of the sender domain using the
+domain’s private key, providing the domain-level attestation.
+Second, it is encrypted with the public key of the recipient
+UA V to ensure confidentiality and correct reception. The
+signed and encrypted HC is transmitted to the target UA V
+over an open channel. Upon receiving the HC, the target UA V
+verifies the digital signature from the sender domain, decrypts
+the HC using its private key, and confirms both identity
+and credential freshness. If the verification is successful, the
+UA V obtains execution authorization, performs the designated
+virtual network function, and generates a new HC for the next
+node. This iterative process establishes a secure trust chain
+that extends across multiple domains until the task completion.
+4) Auditing and Traceability:After the final UA V in the
+SFC path completes its assigned function, the system enters
+the auditing phase. To ensure the accountability, failure anal-
+Fig. 4. Authentication latency comparison under varying SFC length.
+ysis, and post-mission verification, the participating domains
+submit essential handover logs to the Consortium Blockchain.
+These logs typically include immutable records such as task
+identifiers, node identities, timestamps, and operation types.
+The blockchain maintains a verifiable and tamper-evident
+record of the entire SFC execution lifecycle. The authorized
+regulators or domain administrators can query the ledger to
+reconstruct mission progress, enabling transparent supervision
+and forensic verification. This immutable audit layer enhances
+the integrity and credibility of the overall system.
+V. CASESTUDIES
+To evaluate the effectiveness of the proposed blockchain-
+enabled trust framework in practical UA V SFC scenarios,
+we conduct a comparative study with two representative
+baselines. The evaluation considers two critical performance
+indicators for cross-domain UA V operations: authentication
+latency and system throughput. The compared schemes in-
+clude the centralized-TA method, which depends on a single
+trusted authority for all authentication activities, the static-
+config method, which employs a fixed orchestrator without dy-
+namic selection, and the proposed method, which introduces
+a blockchain-enabled dynamic trust algorithm.
+A. Authentication Latency Analysis
+The authentication latency refers to the elapsed time from
+the initiation of an SFC task to the point when all participating
+nodes are successfully verified. This metric directly affects
+service responsiveness and mission continuity. Fig. 4 illus-
+trates the latency patterns of the three schemes as the SFC path
+length increases. All methods show longer latency as the SFC
+path length increases. The centralized-TA method exhibits the
+highest latency, because each UA V is required to interact
+repeatedly with a remote trust authority. This design leads
+to substantial cross-domain communication delay. The static-
+config method provides moderate improvement by removing
+repeated trust authority interactions. However, its fixed or-
+chestrator is unable to adapt to path variations, and latency
+
+--- PAGE 6 ---
+6
+still increases rapidly for extended chains. In contrast, the
+proposed method demonstrates consistently lower and more
+stable latency. This advantage comes from two mechanisms.
+First, the pre-verification process enables the orchestrator to
+complete a one-time global validation of all UA V entities
+through a single blockchain query, which removes the need
+for sequential verification. Second, the cross-domain task
+relay relies on lightweight HC. Most validation is completed
+within or near each domain, which reduces the cross-domain
+signalling overhead. The experimental data confirm that the
+proposed method meets strict latency requirements for long-
+chain and large-scale SFC operations.
+B. System Throughput Analysis
+The system throughput denotes the number of SFC au-
+thentication tasks successfully completed within a given time
+interval. It reflects the capability of a system to support
+concurrent service requests. Fig. 5 shows that the proposed
+method consistently achieves the highest throughput as the
+number of UA V nodes increases. The centralized-TA method
+performs poorly, because all authentication activities must be
+executed by a single central authority. This design reaches
+saturation quickly and forms a major bottleneck. The static-
+config method achieves moderate performance. Although the
+orchestrator is located at the network edge, the absence of dy-
+namic selection causes imbalanced scheduling that constrains
+scalability. The proposed method provides superior throughput
+due to its distributed and adaptive structure. The dynamic
+election distributes orchestration responsibility among mul-
+tiple edge servers, which prevents overload at a single co-
+ordination point. In addition, the streamlined authentication
+workflow reduces both computation cost and communication
+overhead during the cross-domain relay. These features enable
+the system to manage a large number of simultaneous SFC
+requests and demonstrate strong scalability in dense UA V
+environments.
+The experimental results verify that the proposed
+blockchain-enabled trust framework significantly outperforms
+both the centralized-TA and static-config methods in authenti-
+cation latency and system throughput. The evaluation confirms
+the advantage of combining distributed trust, dynamic orches-
+trator election, and lightweight cross-domain authentication.
+The proposed framework eliminates performance bottlenecks
+in traditional solutions while maintaining strong security guar-
+antees. This framework therefore provides a practical founda-
+tion for scalable and resilient UA V collaborative networks.
+VI. CHALLENGES ANDFUTURERESEARCHDIRECTIONS
+This section explores the key technical challenges in con-
+sortium blockchain-based trust frameworks for UA V networks
+and outlines potential future research directions to advance
+their development. A summary of the primary issues and
+corresponding research trends is provided in Table I.
+A. Challenges
+The consortium blockchain-based cross-domain authentica-
+tion frameworks hold significant promise for UA V networks,
+Fig. 5. System throughput comparison under varying UA V count.
+yet several technical hurdles must be overcome to enable
+large-scale practical deployment. A central challenge is ensur-
+ing scalability as the numbers of UA V nodes and transactions
+continue to increase. The expanding blockchain ledger can
+lead to increased storage and synchronization demands, par-
+ticularly for edge servers and UA Vs with constrained computa-
+tional resources. Additionally, the high mobility and dynamic
+topology of UA V networks complicate timely trust evaluation
+and adaptive access control in rapidly evolving contexts,
+potentially causing discrepancies between the recorded trust
+states and real-time conditions.
+Privacy protection is another critical challenge in con-
+sortium blockchain-enabled cross-domain UA V orchestration.
+Since the ledger records identity-related events and service
+handover traces across domains, long-term linkage of identi-
+fiers and correlated access to time-stamped handover records
+may allow inference of behavioral patterns and mission rela-
+tionships. Therefore, privacy-aware logging and access gover-
+nance are necessary to balance auditability and confidentiality
+in cross-domain deployments.
+The interoperability and energy efficiency also pose notable
+challenges. The UA V systems across domains and manu-
+facturers often utilize diverse communication standards and
+management policies, hindering seamless cross-domain iden-
+tity verification and service coordination. Furthermore, the
+cryptographic operations and frequent message exchanges in
+blockchain and authentication processes can impose substan-
+tial energy demands on resource-limited UA Vs. The need for
+lightweight cryptographic primitives and efficient consensus
+algorithms tailored to distributed edge environments remains
+critical. Addressing the above issues requires comprehensive
+optimization across network, computational, and energy di-
+mensions.
+B. Future Research Directions
+The future research should prioritize advancements in
+scalability, adaptability, and efficiency for the blockchain-
+assisted UA V authentication systems. A key direction involves
+creating lightweight blockchain architectures with off-chain or
+
+--- PAGE 7 ---
+7
+TABLE I
+CHALLENGES ANDCORRESPONDINGRESEARCHDIRECTIONS
+Challenge Research Direction
+Scalability and ledger
+growth
+- Lightweight blockchain architectures
+- Efficient off-chain data management
+- Reduced synchronization overhead
+Dynamic trust and
+real-time security
+- Intelligent trust assessment
+- Adaptive authentication algorithms
+- Mobility-aware security monitoring
+Privacy protection and
+data governance
+- Dynamic pseudonyms
+- Off-chain logs with on-chain hash
+- Fine-grained query access control
+Cross-domain
+interoperability
+- Standardized blockchain interfaces
+- Secure cross-chain operations
+- Unified identity management
+Energy consumption in
+constrained devices
+- Low-power cryptographic primitives
+- Hardware acceleration
+- Communication overhead reduction
+sharded storage solutions to minimize the ledger size while
+preserving security and auditability. The adaptive trust man-
+agement frameworks could incorporate artificial intelligence-
+based anomaly detection models for real-time, risk-aware
+authentication and policy adjustments. These approaches can
+enable UA V networks to respond dynamically to shifting
+operational environments and security landscapes, fostering
+a more resilient cross-domain trust infrastructure.
+Moreover, efforts should be focused on the cross-domain
+standardization and energy optimization. Developing open in-
+terfaces and standardized protocols for consortium blockchain
+interoperability will facilitate the integration of heterogeneous
+UA V systems on a broader scale. For lightweight cryptog-
+raphy, elliptic-curve signatures and authenticated encryption
+can secure credentials with low computation and compact
+tokens. For energy efficiency, verification and auditing can
+be offloaded to edge servers, while UA V-side signaling is
+reduced through localized handover checks and on-chain hash
+logging. Exploring hardware-assisted acceleration and co-
+designed software-hardware authentication frameworks offers
+further potentials for enhancing the computational efficiency.
+In summary, the future research aims to achieve an optimal
+balance of security, performance, and sustainability.
+VII. CONCLUSIONS
+In this work, we have proposed a consortium blockchain-
+based trust framework for resilient cross-domain UA V SFC
+orchestration. Specifically, the framework has combined dy-
+namic, service-aware orchestrator election with a four-phase
+cross-domain authentication protocol, thereby ensuring secure,
+efficient, and auditable collaboration among UA Vs across
+multiple domains. The case study results have demonstrated
+substantial improvements in authentication latency and system
+throughput compared to centralized and static orchestration
+schemes. Meanwhile, challenges and future directions related
+to scalability, adaptability, interoperability, and energy effi-
+ciency have been assessed to highlight key limitations and
+inform further research. Accordingly, future researches should
+prioritize lightweight consortium blockchain designs to reduce
+ledger overhead in our framework, together with adaptive trust
+management frameworks and energy-aware security solutions,
+to further enhance the performance and resilience of cross-
+domain UA V service orchestration.
+REFERENCES
+[1] Y . Zeng, R. Zhang, and T. J. Lim, “Wireless communications with un-
+manned aerial vehicles: Opportunities and challenges,”IEEE Commun.
+Mag., vol. 54, no. 5, pp. 36–42, May 2016.
+[2] C. Yan, C. Wang, H. Zhou, X. Xiang, X. Wang, and L. Shen, “Multi-
+agent reinforcement learning with spatial–temporal attention for flock-
+ing with collision avoidance of a scalable fixed-wing UA V fleet,”IEEE
+Trans. Intell. Transp. Syst., vol. 26, no. 2, pp. 1769–1782, Feb. 2025.
+[3] Y . Lu, C. Jiang, L. Tan, J. Zhang, P. Zhang, and C. Rong, “UA V dynamic
+service function chains deployment based on security considerations:
+A reinforcement learning method,”IEEE Internet Things J., vol. 11,
+no. 24, pp. 39 731–39 743, Dec. 2024.
+[4] Y . Wu, Z. Jia, Q. Wu, and Z. Lu, “Adaptive QoE-aware SFC orchestra-
+tion in UA V networks: A deep reinforcement learning approach,”IEEE
+Trans. Network Sci. Eng., vol. 11, no. 6, pp. 6052–6065, Aug. 2024.
+[5] F. Wei, G. Feng, S. Qin, Y . Peng, and Y . Liu, “Hierarchical network
+slicing for UA V-assisted wireless networks with deployment optimiza-
+tion,”IEEE J. Sel. Areas Commun., vol. 42, no. 12, pp. 3705–3718,
+Dec. 2024.
+[6] J. Yang, X. Liu, X. Jiang, Y . Zhang, S. Chen, and H. He, “Toward
+trusted unmanned aerial vehicle swarm networks: A blockchain-based
+approach,”IEEE Veh. Technol. Mag., vol. 18, no. 2, pp. 98–108, Jun.
+2023.
+[7] Y . Tan, J. Liu, and N. Kato, “Blockchain-based lightweight authenti-
+cation for resilient UA V communications: Architecture, scheme, and
+future directions,”IEEE Wirel. Commun., vol. 29, no. 3, pp. 24–31,
+Jun. 2022.
+[8] S. Hafeez, A. R. Khan, M. M. Al-Quraan, L. Mohjazi, A. Zoha, M. A.
+Imran, and Y . Sun, “Blockchain-assisted UA V communication systems:
+A comprehensive survey,”IEEE Open J. Veh. Technol., vol. 4, pp. 558–
+580, Jul. 2023.
+[9] J. Chen, Z. Zhan, K. He, R. Du, D. Wang, and F. Liu, “XAuth:
+Efficient privacy-preserving cross-domain authentication,”IEEE Trans.
+Dependable Secure Comput., vol. 19, no. 5, pp. 3301–3311, Sep. 2022.
+[10] B. Gong, G. Zheng, M. Waqas, S. Tu, and S. Chen, “LCDMA:
+Lightweight cross-domain mutual identity authentication scheme for
+internet of things,”IEEE Internet Things J., vol. 10, no. 14, pp. 12 590–
+12 602, Jul. 2023.
+[11] C. Pu, C. Warner, K.-K. R. Choo, S. Lim, and I. Ahmed, “liteGAP:
+Lightweight group authentication protocol for internet of drones sys-
+tems,”IEEE Trans. Veh. Technol., vol. 73, no. 4, pp. 5849–5860, Apr.
+2024.
+[12] Y . Tan, J. Wang, J. Liu, and N. Kato, “Blockchain-assisted distributed
+and lightweight authentication service for industrial unmanned aerial
+vehicles,”IEEE Internet Things J., vol. 9, no. 18, pp. 16 928–16 940,
+Sep. 2022.
+[13] B. Mao, Y . Liu, Z. Wei, H. Guo, Y . Xun, J. Wang, J. Liu, and N. Kato,
+“A blockchain-enabled cold start aggregation scheme for federated
+reinforcement learning-based task offloading in zero trust LEO satellite
+networks,”IEEE J. Sel. Areas Commun., vol. 43, no. 6, pp. 2172–2182,
+Jun. 2025.
+[14] Z. Zhou, Q. Wu, and X. Chen, “Online orchestration of cross-edge
+service function chaining for cost-efficient edge computing,”IEEE J.
+Sel. Areas Commun., vol. 37, no. 8, pp. 1866–1880, Aug. 2019.
+[15] M. Dolati, S. H. Rastegar, A. Khonsari, and M. Ghaderi, “Layer-aware
+containerized service orchestration in edge networks,”IEEE Trans.
+Netw. Service Manag., vol. 20, no. 2, pp. 1830–1846, Jun. 2023.

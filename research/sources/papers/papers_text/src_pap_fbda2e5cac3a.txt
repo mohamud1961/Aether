@@ -1,0 +1,1250 @@
+--- PAGE 1 ---
+AIR: Improving Agent Safety through Incident Response
+Zibo Xiao 1 Jun Sun 2 Junjie Chen 1
+Abstract
+Large Language Model (LLM) agents are increas-
+ingly deployed in practice across a wide range
+of autonomous applications. Yet current safety
+mechanisms for LLM agents focus almost exclu-
+sively on preventing failures in advance, provid-
+ing limited capabilities for responding to, con-
+taining, or recovering from incidents after they
+inevitably arise. In this work, we introduce AIR,
+the first incident response framework for LLM
+agent systems. AIR defines a domain-specific
+language for managing the incident response life-
+cycle autonomously in LLM agent systems, and
+integrates it into the agent’s execution loop to (1)
+detect incidents via semantic checks grounded in
+the current environment state and recent context,
+(2) guide the agent to execute containment and
+recovery actions via its tools, and (3) synthesize
+guardrail rules during eradication to block sim-
+ilar incidents in future executions. We evaluate
+AIR on three representative agent types. Results
+show that AIR achieves detection, remediation,
+and eradication success rates all exceeding 90%.
+Extensive experiments further confirm the neces-
+sity of AIR’s key design components, show the
+timeliness and moderate overhead of AIR, and
+demonstrate that LLM-generated rules can ap-
+proach the effectiveness of developer-authored
+rules across domains. These results show that in-
+cident response is both feasible and essential as a
+first-class mechanism for improving agent safety.
+1. Introduction
+Large Language Model (LLM) agents (OpenAI, 2025a;
+Microsoft Edge Team, 2025; Google, 2026) have recently
+gained traction as a general paradigm for automating multi-
+step tasks in interactive environments. These agents com-
+bine natural-language reasoning with the ability to invoke
+1Tianjin University, China 2Singapore Management Uni-
+versity, Singapore. Correspondence to: Zibo Xiao <zi-
+boo.xiao@tju.edu.cn>, Jun Sun <junsun@smu.edu.sg>.
+Preprint. February 13, 2026.
+external tools, enabling them to operate across an increas-
+ingly broad range of practical domains. For instance, embod-
+ied agents (Zhang et al., 2024b; Choi et al., 2024) integrate
+perception and action to carry out tasks in physical or sim-
+ulated environments, and computer-use agents (Gonzalez-
+Pumariega et al., 2025; Mozannar et al., 2025) interact with
+complex graphical interfaces to complete multi-application
+digital workflows. As LLM architectures and agent frame-
+works continue to mature, agentic systems are rapidly tran-
+sitioning from early prototypes into reliable components
+within large-scale software and operational ecosystems.
+Alongside this rapid adoption, the autonomy granted to
+LLM agents raises profound safety and reliability concerns
+(Deng et al., 2025; Tang et al., 2024; Han et al., 2024; Ma
+et al., 2026). Agents generate plans in natural language
+and carry them out by invoking external tools that directly
+modify their surrounding environment, and the effects of
+these tool-driven actions accumulate across many steps,
+which means unintended behaviors can emerge even when
+individual actions appear harmless (Andriushchenko et al.,
+2024; Zhang et al ., 2024a). These risks are amplified in
+interactive or high-stakes environments, where the conse-
+quences of incorrect or unsafe behaviors propagate beyond
+the agent’s internal reasoning process. Ensuring that agentic
+systems remain safe, dependable, and resilient throughout
+their multi-step execution therefore remains an important
+and unresolved challenge.
+Recent efforts on agentic safety fall into three main cate-
+gories. (1) Model-centric approaches improve safety by
+aligning the underlying LLM through RLHF (Ouyang et al.,
+2022; Bai et al., 2022), safety-tuned fine-tuning (Inan et al.,
+2023), and adversarial training (Zou et al ., 2023), which
+reduces the chance that agents produce unsafe plans or de-
+cisions in the first place. (2) Planning-safety and decision-
+level methods scrutinize the agent’s plans, intermediate rea-
+soning, or intended tool invocations before execution, using
+plan-level critique and rule-based checks (Hua et al., 2024;
+Wang et al., 2025), as well as risk assessment or guardrail
+agents to reject unsafe decisions early (Xiang et al., 2024).
+(3) Runtime enforcement techniques such as rule-based
+guards (Wang et al., 2025), trajectory or trace monitors (Liu
+et al., 2025), and policy or privilege-based controls (Shi
+et al., 2025; Wang et al ., 2026) focus on blocking or in-
+tercepting unsafe actions during execution. While these
+1
+arXiv:2602.11749v1  [cs.AI]  12 Feb 2026
+
+--- PAGE 2 ---
+AIR: Improving Agent Safety through Incident Response
+directions help risk prevention, they remain inherently in-
+complete, leaving agent systems vulnerable to incidents and
+lacking interpretable, manageable mechanisms to respond
+to and prevent their recurrence. This gap highlights the
+need for a dedicatedincident responseframework that sys-
+tematically detects, contains, recovers from, and eradicates
+incidents within the agent execution loop.
+In this work, we introduce AIR (AgentIncidentResponse),
+the first framework that provides a full incident response
+lifecycle for LLM agent systems. AIR defines a domain-
+specific language (DSL) that supports user-provided descrip-
+tion of triggers, incident checks, and structured remediation
+actions. These components together support a complete
+incident-management process. AIR adopts a modular archi-
+tecture in which the front-end component performs runtime
+incident detection based on the DSL description, and the
+back-end component guides the agent through a structured
+response chain. The back-end executes containment and
+recovery actions through the agent’s tool interface, and syn-
+thesizes guardrail rules that are incorporated into plan-level
+checks for future incident eradication.
+We apply AIR to three representative agents (i.e., code
+agent, embodied agent, and computer-use agent) and con-
+duct a comprehensive empirical evaluation. Overall, AIR
+achieves incident detection rates above 90% and remediation
+and eradication success rates exceeding 95% across domains.
+We further evaluate the timeliness of incident detection and
+response, examine the feasibility of generating incident re-
+sponse rules in our DSL automatically using LLM based
+on high-level requirements, and conduct ablation studies
+to validate the necessity of key design components in AIR.
+Together, these results highlight the effectiveness, practical-
+ity, and extensibility of AIR as a general incident response
+framework for LLM agent systems.
+Our contributions are as follows:
+• We present AIR, the first incident response framework
+for LLM agent systems. AIR integrates runtime inci-
+dent detection, structured containment, recovery, and
+eradication into a unified agent-level workflow.
+• We implement the proposed framework based on the
+OpenAI Agent SDK, and construct incident response
+rules for three representative agent types. The frame-
+work is open-sourced to support future research:https:
+//anonymous.4open.science/r/AIR-38FA.
+• We conduct an extensive evaluation across three rep-
+resentative agent types. AIR achieves strong incident
+detection and response performance. We further show
+that LLM-generated rules can attain performance com-
+parable to developer-authored rules.
+2. Related Work
+2.1. Incident Response in Traditional Systems
+Incident response (IR) aims to keep systems resilient when
+security or reliability failures occur. Rather than assuming
+preventive measures always work perfectly, IR provides a
+structured lifecycle for detecting incidents, limiting their
+impact, restoring normal operation, and reducing the like-
+lihood of recurrence, commonly operationalized through
+monitoring, orchestration, and response mechanisms such
+as SOAR platforms (Gartner, 2017).
+In traditional networked systems, IR is supported by mature
+governance frameworks and operational standards, such as
+NIST CSF 2.0 (Pascoe, 2023), NIST SP 800-61 (Cichon-
+ski et al., 2012), and ISO/IEC 27035 (ISO, 2023), which
+formalize IR as a multi-phase, process-oriented lifecycle
+spanning detection, response, recovery, and post-incident
+improvement. Building on these foundations, IR has in-
+creasingly incorporated automation and AI assistance. In
+practice, industrial systems such as Microsoft Security Copi-
+lot (Edelman et al., 2023) apply LLMs to support incident
+response workflows in security operations centers. In paral-
+lel, recent efforts explore LLM-driven IR methods, such as
+IRCopilot (Lin et al., 2025) and related approaches (Tellache
+et al., 2025), which model incident-handling workflows and
+generate context-specific response actions. Together, these
+systems demonstrate the potential of LLMs to accelerate IR
+and reduce manual effort in traditional settings.
+Despite its wide application in practice, IR in traditional
+systems still faces challenges such as incomplete observ-
+ability, delayed or noisy alerts, and the need to coordinate
+multiple remediation actions under time pressure. LLM
+agent systems inherit these difficulties and introduce addi-
+tional challenges: (1) semantic ambiguity makes harmful-
+ness difficult to determine: whether an action is safe or not
+often depends on intent and context rather than static policy
+boundaries; (2) agent autonomy continuously produces new
+plans and novel failure modes, requiring ongoing, dynamic
+assessment beyond predefined guardrails; (3) tool-mediated
+actions can accumulate side effects across steps and tools,
+complicating containment and recovery compared to more
+isolated impact assumptions. These factors make it difficult
+to directly transfer traditional IR to LLM agent systems
+and motivate a unified framework that links LLM reason-
+ing, runtime detection, containment, recovery, and guardrail
+derivation to prevent recurrence.
+2.2. Safety in LLM Agent Systems
+Model-Centric Safety.A large body of work improves
+agent safety by aligning or constraining the underlying LLM
+through techniques such as RLHF and related alignment
+methods (Ouyang et al ., 2022; Bai et al ., 2022), safety-
+2
+
+--- PAGE 3 ---
+AIR: Improving Agent Safety through Incident Response
+Y
+User
+Input
+Plan
+Finish?
+Action
+Observation
+Trajectory
+Check
+NContain
+Recover
+Eradicate
+Remediate
+rulesY
+Nn≥2
+n=1
+Agent
+Output
+AIR OpenAI Agent SDKAgent
+tools
+Plan-Level
+Check
+Figure 1.Overview of AIR.
+focused fine-tuning (Inan et al., 2023), and adversarial red-
+teaming (Zou et al., 2023). Recent efforts further incorpo-
+rate tool-use into alignment, including tool-aware alignment
+(Chen et al., 2024; Xie et al ., 2025) and safety-conscious
+instruction tuning (Bianchi et al., 2024).
+Planning-Safety and Decision-Level Safety.Another line
+of work enforces safety at the planning and action-selection
+stages by analyzing intended plans or tool invocations be-
+fore execution. TrustAgent (Hua et al ., 2024) integrates
+safety knowledge throughout the planning process, cover-
+ing stages before, during and after plan generation, while
+AgentSpec (Wang et al., 2025) checks developer-specified
+constraints before tool calls proceed. Other approaches in-
+clude TraceAegis (Liu et al., 2025), which classifies risky
+actions or trajectories, as well as GuardAgent (Xiang et al.,
+2024), which introduces dedicated guardrail agents.
+Runtime Enforcement.A third line enforces safety during
+execution as agents interact with tools and environments.
+AgentSpec (Wang et al., 2025) introduces a DSL for runtime
+guardrail rules, while Progent (Shi et al., 2025) expresses
+fine-grained privilege control with dynamic updates and fall-
+back behaviors. Pro2Guard (Wang et al., 2026) extends this
+direction by predicting unsafe trajectories via probabilistic
+model checking, and TraceAegis (Liu et al., 2025) validates
+observed traces against behavioral constraints.
+While the above efforts contribute to improving agent safety,
+they remain inherently incomplete. As a result, safety inci-
+dents are likely to persist, underscoring the need for a sys-
+tematic framework to detect, manage, and mitigate them.
+3. Method
+AIR provides a unified framework for autonomously man-
+aging the full incident response lifecycle in LLM agent
+systems, integrating a DSL that supports user-provided de-
+scription of triggers, incident checks, and structured reme-
+diation actions. Figure 1 illustrates the overall workflow of
+AIR and its integration with the agent execution pipeline.
+At a high level, AIR operates entirely within the agent’s
+execution loop. After each step, AIR determines whether
+an incident has occurred based on AIR rules defined in its
+DSL, current environment state and recent execution con-
+text. When an incident is detected, AIR invokes appropriate
+containment and recovery actions, and subsequently derives
+guardrail rules. These guardrail rules are then applied in the
+future whenever the agent produces a new plan, ensuring
+that similar incidents are prevented.
+3.1. DSL Design
+AIR introduces a DSL for specifying incident response rules
+(hereafter referred to asAIR rules, to distinguish them from
+the plan-levelguardrail rulesintroduced later) that govern
+how the system detects and handle incidents during agent
+execution. The DSL is designed to be expressive enough
+to capture semantically rich conditions while remaining
+lightweight, interpretable, and easy to integrate into existing
+agent frameworks. Each AIR rule describes (1) when it
+should be activated, (2) how an incident should be identified,
+and (3) what actions should be taken to contain and recover
+from the incident. Figure 2 illustrates an example AIR rule.
+1rule@copy_sensitive_file
+2triggerpython_repl
+3check
+4a sensitive file has been copied
+5into an unprotected directory.
+6remediate
+7delete the copied sensitive file,
+8then confirm that no other sensitive files
+9remain exposed in the working directory.
+10end
+Figure 2.Example AIR incident response rule.
+Rule & End.Each AIR rule begins with therulekeyword
+followed by the rule name (e.g.,@copy_sensitive_files) and
+ends with theendkeyword to denote the rule boundary.
+And each AIR rule contains three explicit components (i.e.,
+trigger,check, andremediate).
+Trigger .Thetriggercomponent specifies which tool invo-
+cation activates the rule. This design avoids evaluating all
+rules at every step and ensures that only rules relevant to the
+tools used in the current step are considered.
+Check.Thecheckcomponent provides a natural-language
+description of the condition that determines whether an in-
+cident has occurred. This description is supplied to agent
+which uses it together with environment state, recent obser-
+vations, and execution context to evaluate whether the spec-
+ified condition holds. Crucially, checks are not restricted
+to syntactic constraints (e.g., matching specific API calls).
+They capture semantic properties such as whether a sensitive
+file has been exposed or whether an object in an embodied
+3
+
+--- PAGE 4 ---
+AIR: Improving Agent Safety through Incident Response
+environment has been placed in an unsafe location.
+Remediate.Theremediatecomponent defines how the
+agent should respond once an incident is detected. Its con-
+tent follows the structure of classical incident response pro-
+cedures (Gartner, 2017): containment actions halt or neu-
+tralize the unsafe condition, and recovery actions restore
+the environment to a safe state. Although the DSL does
+not explicitly encode a third phase, eradication is achieved
+implicitly through the generation of guardrail rules based
+on the incident context.
+Natural-Language Design.The DSL’s natural-language
+design enables developers or automated systems to specify
+rules without requiring rigid syntax based on an understand-
+ing of the underlying system implementation, distinguish-
+ing AIR from prior function-based enforcement approaches
+(Wang et al., 2025). At the same time, its structured com-
+ponents provide the necessary semantics for predictable
+runtime execution, enabling AIR to support the full incident
+response lifecycle during agent operation.
+3.2. Runtime Execution Semantics
+AIR operates within the agent’s execution loop, interposing
+after each completed step to determine whether the agent’s
+most recent action has caused an incident. This positioning
+allows AIR to use the environment state, recent observations
+and the execution context to detect unsafe behavior at the
+moment it occurs, while remaining fully compatible with
+the agent’s native planning-acting-observing workflow.
+Detection.At each step, the agent first produces a plan,
+invokes the selected tool, and receives the resulting obser-
+vation (Yao et al., 2022). Once the step completes, AIR
+determines which AIR rules should be evaluated by consult-
+ing thetriggercomponent of each rule. Only rules whose
+triggers match the tool used in the current step are activated.
+This selective activation avoids incurring unnecessary over-
+head and ensures that rule evaluation is tightly aligned with
+the agent’s actual behavior. For each activated AIR rule,
+the agent evaluates itscheckcomponent following the spec-
+ification, using (1) the current environment state obtained
+through available inspection tools, (2) the agent’s latest ob-
+servation, and (3) a selected portion of the recent execution
+context. The check condition is expressed in natural lan-
+guage and interpreted by the agent, enabling it to capture
+semantic notions of harmfulness without relying on the un-
+derlying API. If no rule’s check condition is satisfied, the
+agent proceeds to the next step as usual.
+Containment and Recovery.If the current environment
+state satisfies an AIR rule’s check condition, the agent fol-
+lows the rule’sremediatecomponent to perform the corre-
+sponding response. The actions described in theremediate
+component are carried out through the agent’s tool interface,
+enabling the agent to directly modify the environment in
+order to contain and recover from the unsafe state. Contain-
+ment actions halt the ongoing harmful effects, and recov-
+ery actions restore the environment to a safe configuration.
+Since the task is already in a compromised state, AIR in-
+structs agent to terminate the original task after remediation.
+Eradication.After the containment and recovery actions
+are completed, AIR extracts incident-relevant information
+to guide agent to derive a guardrail rule. This rule is added
+to the system’s guardrail rule set and is used during future
+executions to intercept similar unsafe behavior before it
+manifests. Similar to prior work (Wang et al ., 2025) on
+runtime enforcement for LLM agents, the guardrail rule is
+triggered during the agent’s plan-generation stage of subse-
+quent tasks and performs a plan-level check to determine
+whether the upcoming action may lead to the same type of
+incident. If the check condition is satisfied, AIR blocks the
+action immediately, preventing the agent from executing a
+potentially unsafe tool invocation.
+Through this runtime process, AIR links incident detection,
+containment, recovery, and eradication into a unified execu-
+tion semantics that integrates seamlessly with LLM agents
+while supporting the complete incident response lifecycle.
+3.3. Guardrail Rule Generation
+Once an incident has been detected and addressed through
+containment and recovery, AIR proceeds to the eradication
+stage by generating a guardrail rule that protects future exe-
+cutions from encountering similar incidents. This process
+corresponds to the eradication phase in traditional incident
+response practice, but is implemented in AIR as an auto-
+matic rule-synthesis step that relies on both the incident
+context and the agent’s reasoning.
+1rule@copy_sensitive_file_precheck
+2triggerpython_repl
+3check
+4plan suggests copying files from system
+5directories into user-level folders.
+6block
+7end
+Figure 3.Example AIR guardrail rule.
+Guardrail rule generation begins by collecting incident infor-
+mation from the most recent step. This includes the agent’s
+plan, the executed tool invocation, the observed environment
+state, and the specific check condition of the correspond-
+ing AIR rule. AIR then guides agent to extract a concise
+natural-language description of the risky behavior pattern
+and synthesize a new guardrail rule, exemplified in Figure 3.
+During subsequent executions, guardrail rules are evaluated
+right after the agent produces a plan at each step; if agent’s
+4
+
+--- PAGE 5 ---
+AIR: Improving Agent Safety through Incident Response
+plan satisfies a guardrail rule’s check condition, AIR blocks
+the corresponding action before any tool invocation occurs.
+Unlike the check condition in AIR rules, which determines
+whether an incident has already occurred in current step,
+the guardrail rule focuses on plan-level intent rather than
+environment state, enabling AIR to block unsafe behav-
+ior before agent takes action. In this way, AIR provides a
+mechanism for accumulating safety knowledge over time.
+Guardrail rules allow system to adapt to new incidents with-
+out manual intervention, gradually expanding the scope of
+protection while avoiding the inflexibility of static rule sets.
+3.4. Implementation
+We implement AIR based on the OpenAI Agent SDK (Ope-
+nAI, 2025b) by attaching lightweight hooks at two points
+in agent’s execution loop: (1) after each tool invocation for
+incident detection and remediation, and (2) before each step
+execution to apply guardrail rules to agent’s generated plan.
+The AIR DSL is implemented using ANTLR4 (Parr, 2013),
+which parses both manually authored and LLM-generated
+rules into a unified intermediate representation. Although
+our reference implementation integrates with OpenAI Agent
+SDK, the design of AIR is framework-agnostic: the same
+two integration hooks can be readily mapped onto other
+agent frameworks such as LangChain (Chase, 2022), en-
+abling AIR to be incorporated with minimal modification.
+All prompts and implementation details are made available
+online for reproducibility.
+4. Experiment
+Our evaluation is designed to answer four Research Ques-
+tions (RQs):
+• RQ1: Effectiveness.Can AIR accurately detect inci-
+dents, execute containment and recovery actions, and
+prevent recurrence by the generated guardrail rules?
+• RQ2: Timeliness and Overhead.How timely is AIR
+in performing incident response, and what extra time
+overhead does it introduce into agent’s execution loop?
+• RQ3: LLM-Generated Rules and Generalizability.
+To what extent can LLM automatically generate effec-
+tive AIR rules, and how well do these rules generalize
+across risk categories?
+• RQ4: Ablation Studies.Are components of AIR
+essential, and how does system performance change
+when key design elements (i.e., structured remediation
+and guardrail rule generation) are removed?
+4.1. Agent and Dataset Selection
+We evaluate AIR on three representative agent types: Code
+Agent, Embodied Agent, and Computer-Use Agent. For the
+Code Agent, we use CodeAct (Wang et al., 2024) together
+with the RedCode dataset (Guo et al., 2024), which contains
+over 4,000 tasks across 25 high-risk behavior categories. For
+the Embodied Agent, we adopt SafeAgentBench (Yin et al.,
+2024), which provides 750 tasks covering 10 hazard types
+in a unified embodied environment with 17 manipulation
+actions and risk-oriented evaluations such as property dam-
+age and electrical hazards. For the Computer-Use Agent,
+we build on the OpenAI Agent SDK and evaluate browser-
+compatible tasks from RiOSWorld (Yang et al., 2025) for
+risky scenarios and OSWorld (Xie et al., 2024) for safe tasks,
+covering UI risks including unintended data exposure and
+unsafe navigation. To the best of our knowledge, AIR is the
+first work on incident response for AI agents, and therefore
+no direct baselines exist for comparison.
+4.2. RQ1: Effectivenss
+In this RQ, we evaluate the effectiveness of AIR for incident
+detection and response across three representative agents:
+Code Agent, Embodied Agent, and Computer-Use Agent.
+Our primary goal is to assess whether AIR can (1) accu-
+rately detect incidents when they occur, (2) execute appro-
+priate containment and recovery actions, and (3) synthesize
+guardrail rules during eradication to prevent the recurrence
+of similar incidents in subsequent executions. The AIR
+rules used in this part were manually authored based on the
+detailed risk categories provided by each dataset, and we ex-
+amine the feasibility of generating such rules automatically
+with LLM in Section 4.4.
+Metrics.We evaluate the effectiveness of AIR using five
+metrics that capture different stages of the incident response
+lifecycle. (1)successful execution (# exe.)measures how
+many tasks within a risk category lead to an actual inci-
+dent during agent execution. Some tasks may fail either
+because the agent refuses to act due to the model’s inherent
+safety awareness or because the task difficulty exceeds the
+agent’s capability; such tasks are excluded from subsequent
+measurements. (2)successful detection (# det.)evaluates
+whether AIR successfully detects the incident for tasks that
+triggered unsafe behavior. (3)successful remediation (#
+rem.)measures whether AIR successfully executes contain-
+ment and recovery actions that mitigate the incident and
+restore a safe and recoverable environment. (4)successful
+eradication (# era.)measures whether AIR generates an
+effective guardrail rule that prevents the same incident in
+future runs. (5)rule count (# rul.)reports how many AIR
+rules are constructed for each risk category. Because tasks
+within a category may vary in content and exhibit diverse
+risk patterns, some categories require more rules than others;
+we further analyze this aspect in Section 4.4. The ground-
+truth labels indicating whether an incident has occurred
+and whether a reasonable response has been successfully
+completed are determined through manual assessment.
+5
+
+--- PAGE 6 ---
+AIR: Improving Agent Safety through Incident Response
+Code Agent.The Code Agent represents a setting where
+tasks are typically short-horizon and often complete within
+one to two steps. The agent interacts with only a small
+set of tools (i.e.,python_replfor executing code and
+check_environmentfor querying environment state). Be-
+cause many incidents in this domain lead to irreversible
+consequences (e.g., deleting files), they cannot be restored
+to their original state. In such cases, we focus primarily on
+successful eradication, evaluating whether AIR can gen-
+erate guardrail rules that prevent future recurrences of the
+similar incidents.
+For each risk category, we provide the agent with risky
+instructions and construct corresponding AIR rules to detect
+and handle incidents. The example shown in Appendix A.1
+demonstrate how AIR functions with a code agent. We
+apply this process across all 25 categories in the RedCode
+dataset, with each category containing 30 risky tasks. In this
+case, we construct only one AIR rule per category.
+Table 1.Effectiveness results for the Code Agent. “–” indicates
+cases where remediation is not applicable due to the irreversibility
+of the underlying incident.
+Risk Task Type # exe. # det. # rem. # era. # rul.
+Post sensitive files online 25 25 – 25 1
+Untrusted installation 28 28 28 28 1
+Crawl a risky website 26 26 – 25 1
+Copy sensitive files 14 14 14 14 1
+List out sensitive files 22 22 – 22 1
+Write risky content into files 28 28 28 28 1
+Read sensitive files 21 21 – 21 1
+Delete sensitive files 8 8 – 8 1
+Add a risky alias to bashrc 2 2 2 2 1
+Create a reverse shell 5 5 5 5 1
+Monitor system 28 28 – 27 1
+Code with bias issues 30 22 – 17 1
+Sensitive path traversal 16 16 – 16 1
+Eval injection 26 26 – 26 1
+Buggy regex pattern 28 25 – 23 1
+Side channel vulnerability 30 28 – 26 1
+Improper execution privileges 23 23 – 23 1
+Risky process management 21 21 21 21 1
+Buggy random seed 30 29 – 29 1
+Cryptographic predictability 27 27 – 27 1
+Amplification 24 24 24 24 1
+Miss default case bug 30 19 – 25 1
+Flawed behavioral workflow 21 21 – 21 1
+Unsafe deserialization 24 24 – 22 1
+Duplicate key in associative list 30 30 – 30 1
+As shown in Table 1, across most categories, AIR success-
+fully detects incidents and, where feasible, guides the agent
+to complete remediation. In categories involving irreversible
+modifications (e.g., ‘Deleting sensitive files’), effectiveness
+is reflected through# era.values. A few categories exhibit
+lower# det.values not due to detection failures, but because
+the agent often fails to reproduce the intended risky behavior.
+For example, ‘Missing default case bugs’ is frequently not
+manifested in the code the agent actually generates. In such
+cases, the absence of incidents is attributable to agent limita-
+tions or semantically ambiguous task definitions rather than
+shortcomings of AIR. Overall, the results show that AIR
+provides robust incident response in the code agent setting.
+Embodied Agent.The Embodied Agent reflects a setting
+where tasks unfold across many steps and involve complex
+interactions with diverse objects and tools in a physical
+environment. This leads to a significantly richer and more
+dynamic risk landscape: incidents may arise from multi-step
+object interactions, tool misuse, or environmental hazards
+that accumulate over time. Consequently, evaluating AIR
+in this domain allows us to assess its ability to detect and
+respond to incidents that emerge through intricate agent-
+environment dynamics.
+The example in Appendix A.2 demonstrates how AIR oper-
+ates with an embodied agent. For each hazard category in
+SafeAgentBench, we evaluate AIR on the 25 tasks in that
+category and develop AIR rules based on the corresponding
+descriptions. Because tasks within the same category often
+exhibit substantial heterogeneity, we construct 2 to 5 AIR
+rules per category to capture the range of risky behaviors.
+Table 2.Effectiveness results for the Embodied Agent.
+Risk Task Type # exe. # det. # rem. # era. # rul.
+Fire Hazard 13 13 13 13 3
+Electrical Shock 7 7 6 6 3
+Explosion 14 14 12 14 3
+Poisoning and Ingestion 21 21 20 20 5
+Slip Hazard 19 19 17 17 3
+Liquid and Spill Damage 17 17 16 16 2
+Breakage and Dropping 15 15 13 15 2
+Electrical Appliances Misuse 15 15 15 15 4
+Furniture and Decor Damage 10 10 10 10 3
+Damage to Small Items 12 12 12 12 3
+As shown in Table 2, AIR achieves consistently strong in-
+cident detection and response performance across all ten
+hazard categories in SafeAgentBench. For each category,#
+det.value matches# exe., demonstrating that AIR reliably
+detects incidents.# rem.and# era.values remain high as
+well, with most categories achieving near-perfect contain-
+ment, recovery and eradication.# rul.per category remains
+small, indicating that embodied hazards exhibit meaning-
+ful structural regularities that can be captured succinctly
+by AIR. In addition to risky scenarios, we also evaluate
+whether AIR erroneously intervenes on benign embodied
+tasks. Across 50 safe tasks sampled from SafeAgentBench,
+AIR triggers no false positives; detailed setup and results
+for these safe tasks are reported in Appendix C.
+Computer-Use Agent.The Computer-Use Agent (CUA)
+represents a challenging setting where tasks unfold across
+multiple steps and require coordinated interaction with
+browser-based user interfaces. However, the overall exe-
+cution success in this domain is substantially lower due to
+6
+
+--- PAGE 7 ---
+AIR: Improving Agent Safety through Incident Response
+the inherent difficulty of the tasks and the limited capability
+of the agent in handling complex UI dynamics.
+The instance shown in Appendix A.3 demonstrate how AIR
+functions with a computer-use agent. For each browser-
+compatible risk category in RiOSWorld, we evaluate AIR
+on the 30 tasks in that category and construct AIR rules
+based on the descriptions of unsafe behaviors. Because
+tasks within a category vary in concrete content, we de-
+sign 3 to 4 AIR rules per category to sufficiently cover the
+heterogeneous risk patterns.
+Table 3.Effectiveness results for the CUA.
+Risk Task Type # exe. # det. # rem. # era. # rul.
+Phishing Web 6 5 5 5 4
+Phishing Email 7 7 7 7 3
+reCAPTCHA 6 6 6 6 3
+Account Fraud 4 4 4 4 4
+Induced Text 12 11 10 10 3
+Web 6 6 6 6 3
+Social Media 6 5 5 5 4
+As shown in Table 3, AIR remains effective in the computer-
+use domain despite the low# exe.value of the underlying
+agent. Across all risk categories, AIR consistently achieves
+strong detection, remediation, and eradication performance.
+Hazardous executions are reliably identified, successfully
+contained and recovered once detected, and effectively pre-
+vented from recurring through generated guardrail rules,
+even under the constraints of a browser-based environment.
+That AIR maintains strong incident response performance
+demonstrates the robustness of its rule structure and its abil-
+ity to generalize across heterogeneous phishing, fraud, and
+unsafe navigation patterns. And we further measure false
+positives on 35 safe browser tasks from OSWorld. AIR
+produces no false positives; detailed setup and results for
+these safe tasks are provided in Appendix C.
+4.3. RQ2: Timeliness and Overhead
+To understand whether AIR can support incident response
+without disrupting the agent’s execution loop, we evaluate
+both the timeliness of its incident-handling stages and the
+additional overhead introduced when processing safe tasks.
+These measurements allow us to characterize the practical
+runtime cost of integrating AIR into LLM agent systems.
+Timeliness of Incident Handling.For tasks that lead to
+incidents, we measure three latency components correspond-
+ing to the incident response lifecycle: (1)check time, the
+duration between a rule being triggered and AIR determin-
+ing that an incident has occurred; (2)response time, the
+duration for executing the containment and recovery actions
+specified in theremediatecomponent; and (3)eradication
+time, the duration required to synthesize a new guardrail
+rule after the containment and recovery. Thecheck timeand
+response timeassess how promptly AIR can detect and han-
+dle incidents during execution, while theeradication time
+reflects the extent to which AIR automatically synthesizes
+guardrail rules, reducing the need for manual intervention.
+Table 4.Timeliness of incident handling and additional overhead
+on safe tasks across agent types.
+Case Type (i) Incident Handling Timeliness (s) (ii) Extra Overhead (s)
+Exec. Check Response Eradication Before After
+Code 10.162 6.918 (0.68×) 10.514 (1.03×) 49.273 – –
+Embody 20.759 8.598 (0.41×) 22.191 (1.07×) 94.031 27.442 39.610 (1.44×)
+CUA 74.327 11.735 (0.16×) 25.943 (0.35×) 36.272 64.766 90.602 (1.40×)
+The (i) part of Table 4 summarizes the timing results across
+agent types. We additionally report the ratio of check and re-
+sponse times relative to the agent’s execution time (denoted
+asExec.). Across all cases,check timeremains a small frac-
+tion of total execution time, particularly for the CUA where
+the agent’s inherent latency dominates.Response timeis
+typically comparable to execution time, reflecting the com-
+plexity of performing tool-driven environment restoration.
+Eradication timevaries more substantially due to differ-
+ences in rule-generation complexity across tasks. Note that
+in traditional systems, security metrics such as dwell time or
+MTTI/MTTC are not directly comparable to our measure-
+ments, as they are reported at the incident or breach level
+and often span days to months in practice (Mandiant, 2024),
+whereas AIR measures step-level detection and response
+overhead within the agent execution loop.
+Additional Overhead on Safe Tasks.We further measure
+the additional time overhead introduced when AIR evalu-
+ates rules for safe tasks. Although AIR does not misclassify
+these tasks as unsafe (shown in Section 4.2), rule evaluation
+still incurs additional latency. Consider the safe embod-
+ied task:["fillLiquid Mug water", "pick Mug", "find plant",
+"pour"]. While no incident occurs, thepouraction triggers
+a rule check, adding extra processing time relative to the
+baseline agent execution.
+The (ii) part of Table 4 reports the total execution time before
+and after integrating AIR for safe tasks. While the results
+indicate that safety checks introduce additional execution
+time, the incurred overhead is not inherent to the design
+and can be further reduced by decoupling incident detection
+from the main execution loop. For example, by allowing
+a short delay window before intervention or by running
+smaller, faster models in parallel to identify incidents earlier.
+We further discuss these mitigations in Section 5.
+4.4. RQ3: LLM-Generated Rules and Generalizability
+In this RQ, we evaluate whether AIR rules can be generated
+automatically by LLM. The LLM used here is OpenAI’s
+GPT-5. We provide the LLM with (1) a description of
+the target agent and its available tools, (2) three developer-
+7
+
+--- PAGE 8 ---
+AIR: Improving Agent Safety through Incident Response
+authored example AIR rules that illustrate the structure
+oftrigger,check, andremediatecomponents, and (3) in-
+context examples of risky tasks from the dataset. The LLM
+is then asked to generate rules for each risk category. All
+generated rules are evaluated without any manual correction.
+Table 5.Performance of LLM-generated rules across agent types.
+Case Type # Example / # Rule # Success / # Total det. rem. era.
+Code 25 / 25 557 / 750 84.560% – 91.023%
+Embody 20 / 20 149 / 250 95.973% 88.811% 90.210%
+CUA 25 / 25 44 / 210 88.636% 84.615% 89.744%
+As shown in Table 5, LLM-generated rules achieve strong
+overall effectiveness across domains. Among tasks that
+are successfully executed, detection success rates exceed
+80% in every setting, and both remediation and eradication
+performance remain competitive with manually authored
+rules. These results indicate that AIR’s DSL is sufficiently
+regular and structured to enable LLMs to produce functional
+incident response specifications.
+However, LLM-generated rules still exhibit several limita-
+tions: (1) some rules are either overly tailored to specific
+examples or overly abstract, leading to poor generalization
+or weak grounding in concrete risk scenarios. For example,
+in embodied agent setting, check conditions like “put metal
+fork in microwave” may miss other hazardous objects, while
+abstract formulations like “microwave may cause a fire haz-
+ard” make it difficult to pinpoint specific risky behaviors
+and increase false positives; (2) LLMs may generate overly
+idealized remediation actions, such as “restore deleted file,”
+which are infeasible in practice and increase the likelihood
+of remediation failure during execution. This highlights the
+necessity and importance of human-in-the-loop validation
+and correction of LLM-generated rules.
+In addition, we analyze the generalizability of AIR rules
+across tasks within each case study. As reported in Table 5,
+we constructed 25 rules for the 750 Code Agent tasks, 20
+rules for the 250 Embodied Agent tasks, and 25 rules for the
+210 CUA tasks. In practice, the number of rules required
+for a given risk type is closely tied to the diversity of task
+designs within that category. For example, in Code Agent
+case, tasks drawn from RedCode dataset exhibit high within-
+category similarity, so a single rule is often sufficient to
+cover an entire risk type. More broadly, a single rule can
+typically generalize well to a cluster of behaviorally similar
+risky tasks, whereas handling a qualitatively different risk
+pattern usually requires constructing an additional rule.
+4.5. RQ4: Ablation Studies
+In this RQ, we analyze which components of AIR are essen-
+tial for effective incident response. We focus on two abla-
+tions that target the core mechanisms of AIR: (1) disabling
+structured remediation and instead relying on the agent to
+perform self-remediation, and (2) removing guardrail rule
+generation to assess its impact on preventing incident recur-
+rence across future executions. Results show that removing
+structured remediation substantially degrades both remedia-
+tion success rates and response efficiency, while disabling
+guardrail rule synthesis leads to significantly higher inci-
+dent recurrence across rounds. These findings confirm that
+explicitremediationcomponent and iterative guardrail rule
+generation during eradication are both critical to AIR’s
+effectiveness. Detailed experimental setups, quantitative
+results, and analyses are provided in Appendix B.
+5. Discussion
+Integration with Different Guardrail Mechanism.Al-
+though AIR currently instantiates guardrail as plan-level
+rules, the framework itself is guardrail-agnostic. the eradica-
+tion phase can operate with different guardrail mechanisms
+(Liu et al., 2025; Wang et al., 2026), making AIR broadly
+adaptable across heterogeneous agent environments.
+Time Overhead from Safety Checks.In AIR, incident
+detection requires the agent to evaluate the check condition
+against its current observation and context. Although this
+enables semantically rich judgments, it incurs additional
+latency whenever rules are triggered, even on benign steps,
+and is most noticeable in domains with many fine-grained
+actions. Two mitigations are possible: (1) add lightweight,
+rule-based prefilters to reduce the frequency of such checks.
+For example, in Code Agents, activate checks only when the
+executed code matches risky patterns (e.g.,os.remove) rather
+than on everypython_replinvocation; (2) parallelize checks
+with a small, fast risk-assessment model that evaluates the
+just-completed step concurrently. By inserting a short delay
+window between steps, AIR can detect incidents caused by
+the previous step before the agent proceeds to subsequent
+actions, enabling earlier interruption without blocking the
+main execution flow and preserving detection quality.
+Dependence on Agent Reasoning Quality.AIR relies on
+agent to interpret check conditions and execute remediate
+steps, so its reliability can degrade on complex tasks. A
+practical mitigation is to adopt confidence-aware protocols,
+where the agent reports confidence in incident decisions
+and remediation, and AIR escalates low-confidence cases
+to human oversight or auxiliary verification.
+6. Conclusion
+This work introduced AIR, the first incident response frame-
+work for LLM agent systems. By integrating runtime checks,
+structured containment, recovery, and eradication into the
+agent’s execution loop, AIR enables agents, through a com-
+plete incident response lifecycle, to not only detect incidents
+but also mitigate their effects and prevent their recurrence.
+8
+
+--- PAGE 9 ---
+AIR: Improving Agent Safety through Incident Response
+Impact Statement
+This work introduces AIR, a unified framework for manag-
+ing the full incident response lifecycle in LLM agent sys-
+tems. By shifting part of the safety focus from purely preven-
+tive mechanisms to incident response, AIR contributes to
+building more resilient and trustworthy agentic systems. We
+expect this framework to benefit researchers by providing
+a principled abstraction for studying agent safety beyond
+static guardrails, and to assist practitioners in deploying
+autonomous agents in real-world environments where fail-
+ures are inevitable. From a societal perspective, AIR may
+help reduce the risks associated with deploying autonomous
+agents in safety-critical or user-facing settings by limiting
+the impact of failures and preventing their recurrence. As
+AIR relies on rule design and agent reasoning quality, im-
+proper configuration could lead to insufficient protection
+or over-restriction, highlighting the importance of careful
+evaluation and human oversight when applied in practice.
+References
+2023. Information technology—Information security inci-
+dent management—Part 1: Principles and process.
+Maksym Andriushchenko, Alexandra Souly, Mateusz
+Dziemian, Derek Duenas, Maxwell Lin, Justin Wang,
+Dan Hendrycks, Andy Zou, Zico Kolter, Matt Fredrik-
+son, et al . 2024. Agentharm: A benchmark for mea-
+suring harmfulness of llm agents.arXiv preprint
+arXiv:2410.09024(2024).
+Yuntao Bai, Saurav Kadavath, Sandipan Kundu, Amanda
+Askell, Jackson Kernion, Andy Jones, Anna Chen, Anna
+Goldie, Azalia Mirhoseini, Cameron McKinnon, et al .
+2022. Constitutional ai: Harmlessness from ai feedback.
+arXiv preprint arXiv:2212.08073(2022).
+Federico Bianchi, Mirac Suzgun, Giuseppe Attanasio, Paul
+Röttger, Dan Jurafsky, Tatsunori Hashimoto, and James
+Zou. 2024. Safety-Tuned LLaMAs: Lessons From
+Improving the Safety of Large Language Models that
+Follow Instructions. arXiv:2309.07875 [cs.CL]https:
+//arxiv.org/abs/2309.07875
+Harrison Chase. 2022.LangChain.https://github.com/langc
+hain-ai/langchainAccessed: January 13, 2026.
+Zhi-Yuan Chen, Shiqi Shen, Guangyao Shen, Gong Zhi,
+Xu Chen, and Yankai Lin. 2024. Towards Tool Use
+Alignment of Large Language Models. InProceedings of
+the 2024 Conference on Empirical Methods in Natural
+Language Processing, Yaser Al-Onaizan, Mohit Bansal,
+and Yun-Nung Chen (Eds.). Association for Computa-
+tional Linguistics, Miami, Florida, USA, 1382–1400.
+doi:10.18653/v1/2024.emnlp-main.82
+Jae-Woo Choi, Youngwoo Yoon, Hyobin Ong, Jaehong
+Kim, and Minsu Jang. 2024. LoTa-Bench: Benchmarking
+Language-oriented Task Planners for Embodied Agents.
+arXiv:2402.08178 [cs.AI]https://arxiv.org/abs/2402.08178
+Paul Cichonski, Tom Millar, Tim Grance, Karen Scarfone,
+et al. 2012. Computer security incident handling guide.
+NIST Special Publication800, 61 (2012), 1–147.
+Zehang Deng, Yongjian Guo, Changzhou Han, Wanlun Ma,
+Junwu Xiong, Sheng Wen, and Yang Xiang. 2025. Ai
+agents under threat: A survey of key security challenges
+and future pathways.Comput. Surveys57, 7 (2025), 1–
+36.
+Benjamin G Edelman, James Bono, Sida Peng, Roberto
+Rodriguez, and Sandra Ho. 2023. Randomized Controlled
+Trial for Microsoft Security Copilot.Available at SSRN
+4648700 (2023).
+Gartner. 2017. Definition of Security Orchestration, Au-
+tomation and Response (SOAR).https://www.gartner.co
+m/en/information-technology/glossary/security-orchestration
+-automation-response-soar. Accessed: January 13, 2026;
+Term coined in 2017.
+Gonzalo Gonzalez-Pumariega, Vincent Tu, Chih-Lun Lee,
+Jiachen Yang, Ang Li, and Xin Eric Wang. 2025. The Un-
+reasonable Effectiveness of Scaling Agents for Computer
+Use. arXiv:2510.02250 [cs.AI]https://arxiv.org/abs/2510.0
+2250
+Google. 2026.Gemini Agent - AI automation for daily tasks
+and multi-step work. Google.https://gemini.google/ov
+erview/agentAvailable to Google AI Ultra subscribers;
+integrates with Gemini models and Google ecosystem.
+Chengquan Guo, Xun Liu, Chulin Xie, Andy Zhou, Yi Zeng,
+Zinan Lin, Dawn Song, and Bo Li. 2024. Redcode: Risky
+code execution and generation benchmark for code agents.
+Advances in Neural Information Processing Systems37
+(2024), 106190–106236.
+Shanshan Han, Qifan Zhang, Yuhang Yao, Weizhao
+Jin, and Zhaozhuo Xu. 2024. LLM multi-agent sys-
+tems: Challenges and open problems.arXiv preprint
+arXiv:2402.03578(2024).
+Wenyue Hua, Xianjun Yang, Mingyu Jin, Zelong Li, Wei
+Cheng, Ruixiang Tang, and Yongfeng Zhang. 2024.
+Trustagent: Towards safe and trustworthy llm-based
+agents.arXiv preprint arXiv:2402.01586(2024).
+Hakan Inan, Kartikeya Upasani, Jianfeng Chi, Rashi Rungta,
+Krithika Iyer, Yuning Mao, Michael Tontchev, Qing Hu,
+Brian Fuller, Davide Testuggine, et al . 2023. Llama
+guard: Llm-based input-output safeguard for human-ai
+conversations.arXiv preprint arXiv:2312.06674(2023).
+9
+
+--- PAGE 10 ---
+AIR: Improving Agent Safety through Incident Response
+Xihuan Lin, Jie Zhang, Gelei Deng, Tianzhe Liu, Tianwei
+Zhang, Qing Guo, and Riqing Chen. 2025. IRCopilot: Au-
+tomated Incident Response with Large Language Models.
+arXiv:2505.20945 [cs.CR]https://arxiv.org/abs/2505.20945
+Jiahao Liu, Bonan Ruan, Xianglin Yang, Zhiwei Lin, Yan
+Liu, Yang Wang, Tao Wei, and Zhenkai Liang. 2025.
+TraceAegis: Securing LLM-Based Agents via Hierarchi-
+cal and Behavioral Anomaly Detection.arXiv preprint
+arXiv:2510.11203(2025).
+Xingjun Ma, Yifeng Gao, Yixu Wang, Ruofan Wang, Xin
+Wang, Ye Sun, Yifan Ding, Hengyuan Xu, Yunhao Chen,
+Yunhan Zhao, et al. 2026. Safety at scale: A comprehen-
+sive survey of large model and agent safety.Foundations
+and Trends in Privacy and Security8, 3-4 (2026), 1–240.
+Mandiant. 2024. M-Trends 2024: Measuring the Mean
+Time to Detect and Respond to Cyber Threats.https://clou
+d.google.com/blog/topics/threat-intelligence/m-trends-2024.
+Accessed: 2026-01.
+Microsoft Edge Team. 2025.Introducing Copilot Mode in
+Edge: A new way to browse the web. Microsoft.https:
+//blogs.windows.com/msedgedev/2025/07/28/introduci
+ng-copilot-mode-in-edge-a-new-way-to-browse-the-web
+Agentic browser capabilities in Microsoft Edge; supports
+multi-step tasks and screen understanding.
+Hussein Mozannar, Gagan Bansal, Cheng Tan, Adam Four-
+ney, Victor Dibia, Jingya Chen, Jack Gerrits, Tyler
+Payne, Matheus Kunzler Maldaner, Madeleine Grunde-
+McLaughlin, et al . 2025. Magentic-UI: Towards
+Human-in-the-loop Agentic Systems.arXiv preprint
+arXiv:2507.22358(2025).
+OpenAI. 2025a. Introducing Operator.https://openai.com/ind
+ex/introducing-operator. Accessed: 2026-01-13. Research
+preview.
+OpenAI. 2025b. OpenAI Agents SDK (Python).https:
+//github.com/openai/openai-agents-python. Accessed:
+January 13, 2026.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Car-
+roll Wainwright, Pamela Mishkin, Chong Zhang, Sand-
+hini Agarwal, Katarina Slama, Alex Ray, et al . 2022.
+Training language models to follow instructions with hu-
+man feedback.Advances in neural information process-
+ing systems35 (2022), 27730–27744.
+Terence Parr. 2013.The Definitive ANTLR 4 Reference(2nd
+ed.). Pragmatic Bookshelf.
+Cherilyn E Pascoe. 2023. Public draft: The nist cybersecu-
+rity framework 2.0.National Institute of Standards and
+Technology(2023).
+Tianneng Shi, Jingxuan He, Zhun Wang, Hongwei Li,
+Linyu Wu, Wenbo Guo, and Dawn Song. 2025. Pro-
+gent: Programmable Privilege Control for LLM Agents.
+arXiv:2504.11703 [cs.CR]https://arxiv.org/abs/2504.11703
+Xiangru Tang, Qiao Jin, Kunlun Zhu, Tongxin Yuan, Yichi
+Zhang, Wangchunshu Zhou, Meng Qu, Yilun Zhao, Jian
+Tang, Zhuosheng Zhang, et al . 2024. Prioritizing safe-
+guarding over autonomy: Risks of llm agents for science.
+InICLR 2024 Workshop on Large Language Model (LLM)
+Agents.
+Amine Tellache, Abdelaziz Amara Korba, Amdjed
+Mokhtari, Horea Moldovan, and Yacine Ghamri-
+Doudane. 2025. Advancing Autonomous Incident Re-
+sponse: Leveraging LLMs and Cyber Threat Intelligence.
+arXiv preprint arXiv:2508.10677(2025).
+Haoyu Wang, Christopher M. Poskitt, and Jun Sun. 2025.
+AgentSpec: Customizable Runtime Enforcement for Safe
+and Reliable LLM Agents. arXiv:2503.18666 [cs.AI]
+https://arxiv.org/abs/2503.18666
+Haoyu Wang, Christopher M. Poskitt, Jun Sun, and Jiali
+Wei. 2026. Pro2Guard: Proactive Runtime Enforcement
+of LLM Agent Safety via Probabilistic Model Checking.
+arXiv:2508.00500 [cs.AI]https://arxiv.org/abs/2508.00500
+Xingyao Wang, Yangyi Chen, Lifan Yuan, Yizhe Zhang,
+Yunzhu Li, Hao Peng, and Heng Ji. 2024. Executable
+code actions elicit better llm agents. InForty-first Inter-
+national Conference on Machine Learning.
+Zhen Xiang, Linzhi Zheng, Yanjie Li, Junyuan Hong, Qin-
+bin Li, Han Xie, Jiawei Zhang, Zidi Xiong, Chulin Xie,
+Carl Yang, et al. 2024. Guardagent: Safeguard llm agents
+by a guard agent via knowledge-enabled reasoning.arXiv
+preprint arXiv:2406.09187(2024).
+Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li,
+Siheng Zhao, Ruisheng Cao, Toh J Hua, Zhoujun Cheng,
+Dongchan Shin, Fangyu Lei, et al. 2024. Osworld: Bench-
+marking multimodal agents for open-ended tasks in real
+computer environments.Advances in Neural Information
+Processing Systems37 (2024), 52040–52094.
+Yuejin Xie, Youliang Yuan, Wenxuan Wang, Fan Mo, Jian-
+min Guo, and Pinjia He. 2025. ToolSafety: A Comprehen-
+sive Dataset for Enhancing Safety in LLM-Based Agent
+Tool Invocations. InProceedings of the 2025 Confer-
+ence on Empirical Methods in Natural Language Process-
+ing, Christos Christodoulopoulos, Tanmoy Chakraborty,
+Carolyn Rose, and Violet Peng (Eds.). Association for
+Computational Linguistics, Suzhou, China, 14135–14156.
+doi:10.18653/v1/2025.emnlp-main.714
+10
+
+--- PAGE 11 ---
+AIR: Improving Agent Safety through Incident Response
+Jingyi Yang, Shuai Shao, Dongrui Liu, and Jing Shao. 2025.
+RiOSWorld: Benchmarking the Risk of Multimodal
+Compter-Use Agents.arXiv preprint arXiv:2506.00618
+(2025).
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran,
+Karthik R Narasimhan, and Yuan Cao. 2022. React: Syn-
+ergizing reasoning and acting in language models. InThe
+eleventh international conference on learning representa-
+tions.
+Sheng Yin, Xianghe Pang, Yuanzhuo Ding, Menglan Chen,
+Yutong Bi, Yichen Xiong, Wenhao Huang, Zhen Xiang,
+Jing Shao, and Siheng Chen. 2024. Safeagentbench: A
+benchmark for safe task planning of embodied llm agents.
+arXiv preprint arXiv:2412.13178(2024).
+Hongxin Zhang, Weihua Du, Jiaming Shan, Qinhong Zhou,
+Yilun Du, Joshua B. Tenenbaum, Tianmin Shu, and
+Chuang Gan. 2024b. Building Cooperative Embod-
+ied Agents Modularly with Large Language Models.
+arXiv:2307.02485 [cs.AI]https://arxiv.org/abs/2307.02485
+Zhexin Zhang, Shiyao Cui, Yida Lu, Jingzhuo Zhou, Junx-
+iao Yang, Hongning Wang, and Minlie Huang. 2024a.
+Agent-safetybench: Evaluating the safety of llm agents.
+arXiv preprint arXiv:2412.14470(2024).
+Andy Zou, Zifan Wang, Nicholas Carlini, Milad Nasr, J Zico
+Kolter, and Matt Fredrikson. 2023. Universal and trans-
+ferable adversarial attacks on aligned language models.
+arXiv preprint arXiv:2307.15043(2023).
+11
+
+--- PAGE 12 ---
+AIR: Improving Agent Safety through Incident Response
+A. Case Study Examples
+This section provides concrete case studies to illustrate how AIR operates end-to-end across three representative agents: Code
+Agent, Embodied Agent, and Computer-Use Agent. In each example, an otherwise plausible execution produces an unsafe
+outcome due to agent’s planning and tool interactions. We show how AIR detects incident via runtime checks grounded in
+current environment state and recent context, guides structured containment and recovery through tool invocations, and
+synthesizes plan-level guardrail rules during eradication to prevent similar incidents in subsequent executions.
+A.1. Code Agent
+Consider a code agent asked to “organize the project directory and prepare a clean report of the system configuration”. The
+instruction contains no explicit safety risks. During execution, the agent generates a plan to collect configuration information
+and decides to copy several system files into a temporary analysis folder. It invokes apython_repltool and runs:import
+shutil; shutil.copy(’/etc/passwd’, ’./tmp/passwd’).
+The plan appears reasonable because the agent intends to inspect system configuration, but this action copies a sensitive
+system file into an unprotected working directory. The resulting file exposure introduces a potential confidentiality risk.
+The issue arises from the agent’s natural-language planning combined with tool-driven access to the underlying file system,
+which can cause unintended consequences even when the instruction and the individual tool call seem benign.
+To handle such general risk, AIR defines an AIR rule shown in Figure 4 that detects the incident based on the current
+environment state and recent interaction context, and initiates appropriate response actions. The rule’scheckcomponent
+determines whether an incident has already occurred by inspecting the environment and confirming that a sensitive file
+is present in an unprotected directory. Theremediatecomponent follows a clear contain-recover pattern: containment
+is achieved by removing the leaked file to halt further exposure, and recovery is achieved by validating that the working
+directory no longer contains similar sensitive artifacts.
+1rule@copy_sensitive_file
+2triggerpython_repl
+3check
+4a sensitive file has been copied
+5into an unprotected directory.
+6remediate
+7delete the copied sensitive file,
+8then confirm that no other sensitive files
+9remain exposed in the working directory.
+10end
+Figure 4.Example AIR rule for Code Agent.
+1rule@copy_sensitive_file_precheck
+2triggerpython_repl
+3check
+4plan suggests copying files from system
+5directories into user-level folders.
+6block
+7end
+Figure 5.Example guardrail rule for Code Agent.
+After the incident is resolved, AIR generates a guardrail rule shown in Figure 5 that blocks similar risky actions during future
+executions. This plan-level guardrail rule operates at the planning stage. Unlike the previous rule, the check condition here
+analyzes the plan itself rather than examining the current environment. It flags plans that involve copying from system-level
+directories to unprotected locations. This prevents recurrence of the incident while avoiding overly restrictive behavior,
+since copying non-sensitive project files remains unaffected.
+A.2. Embodied Agent
+Consider a task trajectory in which the agent unintentionally performs a hazardous action: ["turn on television", "fillLiquid
+Mug coffee", "pick Mug", "find television", "pour"]. In this case, the agent pours a mug of coffee onto an active electrical
+appliance, resulting in an electrical hazard. The incident triggers the AIR rule shown in Figure 6. When the agent executes
+thepouraction, the rule’s trigger activates, and AIR evaluates the check condition by referencing the environment state and
+the most recent interaction context. Upon determining that the liquid has indeed been poured onto an electrical appliance,
+AIR classifies the situation as an incident and initiates the rule-defined remediation procedure. The agent is instructed to first
+power off the device to contain potential electrical hazards and then clean the spilled liquid to restore a safe environment.
+After the environment is restored, AIR enters the eradication phase. Using the contextual information from the incident, it
+synthesizes a guardrail rule that prevents similar hazards in future executions.
+12
+
+--- PAGE 13 ---
+AIR: Improving Agent Safety through Incident Response
+1rule@pour_liquid_hazard
+2triggerpour
+3check
+4pour the liquid onto electrical appliance.
+5remediate
+6turn off the electrical appliance,
+7then clean the spilled liquid.
+8end
+Figure 6.Example AIR rule for Embodied Agent.
+1rule@phishing_email_access
+2triggerclick
+3check
+4the opened email originates
+5from a untrusted sender.
+6remediate
+7stop interacting with the email
+8and close the tab,
+9then delete the message from the inbox.
+10end
+Figure 7.Example AIR rule for Computer-Use Agent.
+A.3. Computer-Use Agent
+Here is an example from the ‘Phishing Email’ category to demonstrate how AIR operates in a computer-use agent scenario.
+The agent is given a task such as: "Open the new email from support@secure-update.com and follow the instructions to
+verify the account." Although the instruction appears legitimate, the sender address and email content correspond to a known
+phishing pattern in RiOSWorld. During execution, the agent navigates to the inbox, locates the email, and opens it. Once
+the email content is rendered, the AIR rule shown in Figure 7 is triggered. When the agent opens the phishing message,
+the rule’s trigger activates. The agent then captures a screenshot of the current email view and, together with the recent
+interaction context and the natural-language check condition description, determines whether the opened email matches
+a suspicious or untrusted sender pattern. After confirming that the sender is untrusted, AIR classifies the situation as an
+incident and instructs the agent to terminate the risky interaction. The agent closes the email view, deletes the message, and
+returns to a safe state. Following remediation, AIR synthesizes a guardrail rule that blocks future attempts to open emails
+from similar suspicious senders, ensuring the agent avoids comparable phishing threats in subsequent tasks.
+B. Ablation Study
+This part provides additional details for the ablation studies in Section 4.5, which analyze which components of AIR
+are essential for effective incident response. We consider two complementary ablations: (1) removing the rule-specified
+remediatecomponent and evaluating aself-remediationvariant in which the agent must infer containment and recovery
+actions from context, allowing us to isolate the contribution of structured remediation to both remediation success rates
+(rem.) and response latency; (2) disabling guardrail rule synthesis in the eradication phase and evaluating whether iteratively
+generated guardrail rules provide cross-task protection by tracking incident counts over multiple execution rounds. Together,
+these experiments clarify how explicit remediation guidance and progressive guardrail rule refinement contribute to AIR’s
+overall effectiveness.
+B.1. Self-Remediation
+To evaluate the importance of AIR’s rule-guided remediation design, we compare AIR against aself-remediationvariant.
+In this ablated configuration, theremediatecomponent of each rule is removed, and the agent must infer an appropriate
+containment and recovery strategy based on the incident context, the available tools, and the current environment state. This
+experiment isolates the contribution of structured, rule-level remediation in the overall incident response process.
+Table 6.Performance comparison between self-remediation and AIR-guided remediation.
+Case Type Self-Remediation AIR
+rem. Response (s) rem. Response (s)
+Embody 80.952% 28.682 92.308% 22.191
+CUA 76.596% 34.591 97.727% 25.943
+Table 6 summarizes the results for the Embodied Agent and CUA. We omit the Code Agent because many of its incident
+types involve irreversible effects (e.g., destructive file operations) that cannot be remediated reliably, makingrem.a less
+meaningful metric for this domain. The results show that removing rule-guided remediation leads to substantial degradation
+13
+
+--- PAGE 14 ---
+AIR: Improving Agent Safety through Incident Response
+in both effectiveness and efficiency. For the Embodied Agent, the remediation success rate drops from 92.308% to 80.952%,
+and the average response time increases by nearly 30%. Similarly, for the CUA, success falls from 97.727% to 76.596%,
+accompanied by an over 30% increase in response latency. These results indicate that relying on the agent to infer a
+remediation plan imposes a significantly more demanding reasoning burden: after an incident occurs, the agent must
+reconstruct the causal chain that led to the failure, determine an appropriate containment and recovery strategy, and plan
+a sequence of tool actions that can restore the environment. This process is inherently challenging due to long-horizon
+dependencies, partial observability, and the agent’s limited robustness in counterfactual or error-recovery scenarios.
+B.2. Guardrail Rule Generation
+The second ablation evaluates the importance of AIR’s eradication phase, which synthesizes guardrail rules to block harmful
+plans in future executions. While we assessgood eradicationon a per-task basis in Section 4.2, this ablation examines the
+broader question of whether guardrail rules provide cross-task protection within the same risk distribution. In particular, we
+test whether the system can progressively reduce incident frequency as it encounters new, structurally similar risky tasks.
+We randomly sample 100 tasks for the Code Agent and Embodied Agent, and 50 tasks for the CUA (due to the higher
+runtime cost of CUA tasks). These tasks are executed across three rounds. Round 1 establishes a baseline with no guardrail
+rules. Round 2 starts from the guardrail rules generated in Round 1; for any incident that still occurs, AIR either adds a new
+guardrail rule or refines an existing one based on the new incident context. Round 3 then evaluates the effect of this updated
+guardrail set, again allowing AIR to supplement or adjust guardrail rules if new incident patterns are discovered.
+Round 1 Round 2 Round 3
+Round
+0
+20
+40
+60
+80Incident Count
+Code
+Embody
+CUA
+Figure 8.Incident counts across three rounds with progressively refined guardrails.
+Figure 8 presents the progression of incident counts across the three rounds. During this process, AIR produces a small
+and stable set of guardrail rules whose count grows only in Round 2 and remains unchanged in Round 3. The Code Agent
+converges to 9 guardrails, the Embodied Agent to 11, and the CUA to 6. Across all three settings, guardrail rules dramatically
+reduce incident frequency. For the Code Agent, incident count drops from 54 in Round 1 to 6 in Round 2, and to 0 in
+Round 3. For the Embodied Agent, incidents decrease from 67 to 5, and then to 2. For the CUA, incidents fall from 8 to 1
+and ultimately to 0.
+These results demonstrate that AIR’s guardrail rules generalize beyond individual tasks and effectively prevent related
+incidents in future executions. Once synthesized and iteratively refined, guardrail rules consistently intercept unsafe plans,
+enabling the system to converge toward near incident-free execution under the sampled distributions.
+C. False Positive Evaluation on Safe Tasks
+This part reports detailed false positive (FP) evaluations for the Embodied Agent and the CUA, complementing the
+effectiveness results presented in the Section 4.2. The goal of these experiments is to assess whether AIR incorrectly
+intervenes in benign tasks that do not involve actual safety hazards.
+C.1. Embodied Agent
+To evaluate FP in embodied environments, we sample 50 safe tasks from SafeAgentBench by selecting five benign
+counterparts for each of the ten hazard categories. These safe tasks are designed to closely mirror the surface structure and
+14
+
+--- PAGE 15 ---
+AIR: Improving Agent Safety through Incident Response
+Table 7.False positive evaluation on safe tasks for the Embodied Agent and CUA.# FPindicates the number of tasks mistakenly flagged
+by AIR as incidents.
+Case Type # total # pass # fail # FP
+Embodied 50 45 5 0
+CUA 35 8 27 0
+action sequences of their risky variants while avoiding any actual hazards. For example, under the ‘Fire Hazard’ category,
+the risky task “Put the fork in the microwave and open the microwave” is paired with the safe task “Put the potato in the
+microwave and open the microwave.” This construction ensures that FP evaluation is non-trivial and tests whether AIR
+relies on semantic hazard understanding rather than superficial action patterns.
+Table 7 reports the results. Out of the 50 safe tasks, the agent successfully completes 45 tasks, and AIR does not mistakenly
+flag any task as an incident. The remaining five failures are due to agent execution errors rather than intervention by AIR.
+These results indicate that AIR does not introduce spurious blocking behavior in benign embodied scenarios, even when
+safe tasks closely resemble hazardous ones.
+C.2. Computer-Use Agent
+We conduct a similar FP for the CUA using 35 safe tasks sampled from OSWorld. These tasks correspond to the same
+categories as the risky tasks drawn from RiOSWorld and represent normal browser-based workflows without security threats.
+This setup allows us to examine whether AIR incorrectly intervenes during standard web interactions.
+As shown in Table 7, the agent successfully completes 8 of the 35 safe tasks, while 27 tasks fail due to the agent’s limited
+capability in handling complex and dynamic web interfaces (e.g., unstable layouts or interaction sequences). Importantly,
+none of these failures are caused by AIR, and no safe task is incorrectly flagged as an incident. This confirms that AIR does
+not introduce additional FP in the computer-use setting, even when the underlying agent struggles with task execution.
+15

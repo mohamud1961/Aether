@@ -1,0 +1,228 @@
+# Mechanism Map Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- objective: Produce the first evidence-backed map of recurrent harness mechanisms across the full frozen corpus so downstream failure, eval, and variant work share one mechanism spine.
+- exact_question: Which harness mechanisms recur across the in-scope systems, how do they actually operate in trajectories and source, where are they only behaviorally reconstructed, and which mechanisms are strong enough to become explicit mechanism cards?
+- why_now: This is the first Deep Synthesis execution artifact. The plan, setup rules, reusable prompt pack, and launch packet now exist, so approval can be granted against a concrete execution surface instead of an implied one.
+- inputs:
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - prompts/deep_synthesis_shared_policy_prompt.md
+  - prompts/deep_synthesis_support_subagent_prompt.md
+  - prompts/deep_synthesis_trajectory_failure_analyst_prompt.md
+  - prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md
+  - prompts/deep_synthesis_eval_benchmark_analyst_prompt.md
+  - prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md
+  - prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md
+  - prompts/deep_synthesis_contradiction_analyst_prompt.md
+  - prompts/deep_synthesis_checklist_adjudicator_prompt.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - research/analysis/lego_dimensions.md
+  - research/analysis/bigai_trace_layer/output/
+  - research/sources/trajectories/
+  - research/sources/codebases/
+  - research/sources/benchmarks/
+  - research/sources/papers/
+  - research/sources/docs/
+  - research/sources/informal/
+  - research/sources/issues/
+  - research/sources/postmortems/
+  - blocks/
+  - runner/
+  - evals/
+  - MECHANISM_CARD_SCHEMA.md
+  - TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md
+- preflight_requirements:
+  - confirm the active scope against `scope_anchor_paths` and the organizer before making claims
+  - confirm the active packet is a vertical mechanism-domain wave, not a source-only or trajectory-only horizontal pass
+  - list the planned read order across trajectories, source, eval, formal literature, and informal evidence
+  - name critical sources selected for the first pass
+  - state explicitly how the wave is behavior-centered; if trajectories are not a co-equal primary lane, justify that narrowing before analysis starts
+  - identify at least one corpus-expansion path family beyond the organizer starting points when major unread evidence remains
+  - identify candidate simple baselines or minimal-sufficient mechanisms that should not be crowded out by prestige architecture
+  - surface coverage risks and likely blind spots before synthesis claims
+  - stop and hand control back to the principal if structural blockers prevent honest coverage
+- scope_anchor_paths:
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- organizer_paths:
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md
+- evidence_classes_in_scope:
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - trajectories
+  - mirrored codebases
+  - eval repos
+  - benchmark captures
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `headless-terminal` triad across `BigAI`, `deepagents`, and `terminus-kira`
+  - `cancel-async-tasks` triad across `BigAI`, `deepagents`, and `terminus-kira`
+  - `db-wal-recovery` triad across `BigAI`, `deepagents`, and `terminus-kira`
+  - `break-filter-js-from-html` plus `git-multibranch` for branching, coordination, and repo-state control
+- mirrored_source_targets:
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/codebases/src_cod_086db5a6312e/capture.json`
+  - `research/sources/codebases/src_cod_564b05dcc95b/capture.json`
+  - `research/sources/codebases/src_cod_ad409dc1ebde/capture.json`
+  - `research/sources/codebases/src_cod_e231561a3d69/capture.json`
+  - `research/sources/codebases/src_cod_18ba360eb4b2/capture.json`
+  - `research/sources/codebases/src_cod_87b73c75d11a/capture.json`
+  - `research/sources/codebases/src_cod_a1e1a27e13a1/capture.json`
+  - `research/sources/codebases/src_cod_c7b08f87aeac/capture.json`
+- behavior_reconstruction_targets:
+  - `research/sources/trajectories/BigAI/`
+  - no-source or partial-source mechanism inference anchored in direct trajectories
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- eval_and_benchmark_targets:
+  - `research/sources/codebases/deepagents/libs/evals/`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/capture.json`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/capture.json`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- required_case_slices:
+  - `Terminal-control triad`
+  - `Recovery/process-control triad`
+  - `Stateful recovery triad`
+  - `Branching / repo-state comparison`
+- extraction_level_cap: `L4`
+- wave_focus_domain:
+  - defined by the active wave-local packet
+  - examples include execution/control, verification/recovery, context/state/memory/workspace, tooling/environment/permissions, or planning/orchestration/subagents
+- serious_wave_default_main_lanes:
+  - `trajectory/failure analyst`
+  - `codebase/source-reconstruction analyst`
+  - `literature/papers/docs analyst`
+  - `informal/issues/postmortems analyst`
+- optional_fifth_lane_rule:
+  - activate `eval/benchmark analyst` only when the active wave says verifier, grader, replay, or benchmark contract logic is materially shaping the mechanism judgment
+- support_track_dependencies:
+  - `coverage_register`
+  - `source_system_dossiers`
+  - `trajectory_case_studies`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+  - `eval_benchmark_dossiers` when the fifth lane is activated or verifier/replay logic is central
+- coverage_register_rule:
+  - every serious wave must read `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis and checklist adjudication must say what changed, what remains thin, and which carry-forward warnings stay live
+- gate_review_usage:
+  - primary contradiction and checklist files are canonical GPT gate outputs
+  - optional Gemini breadth or Claude contradiction checks should be written as model-suffixed sibling files, never as replacements
+- required_dossier_updates:
+  - the active wave packet must say which system dossiers, case studies, or thematic dossiers should be updated directly
+  - if no dossier update is required, the packet must say why explicitly
+- citation_contract:
+  - every `L3` or `L4` claim must cite repo-local paths
+  - cross-source mechanism claims should cite more than one evidence class when possible
+  - source-backed implementation claims must cite visible code paths
+  - no-source mechanism inference must be labeled `behavioral reconstruction`
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` mechanism claim must say what weakens it
+- contradiction_hand_off:
+  - route the first-pass outputs to `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`
+  - attack unsupported mechanisms, missed evidence classes, weak reconciliation, and fake coverage
+- adversarial_checkpoint:
+  - contradiction analyst runs after first-pass outputs and before principal synthesis is accepted
+- carry_forward_operating_rules:
+  - stay on `corpus__captured_for_synthetic_prep.json` as the intake integrity anchor
+  - keep organizer-routed non-intake evidence in scope
+  - do not treat organizer matrices as substitute evidence
+  - confirm placeholder matrix tags against underlying artifacts
+  - label no-source-agent mechanism inference as `behavioral reconstruction`
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+  - `support_artifacts_used`
+  - `support_artifacts_requested_or_deferred`
+  - `coverage_register_updates_needed`
+  - `required_dossier_updates`
+  - `coverage_used` must list concrete repo-local paths or path globs actually read in the current wave
+- exclusions:
+  - do not open `failure_taxonomy` from inside this artifact
+  - do not produce final eval-policy conclusions
+  - do not produce final variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - first-pass outputs for new waves should normally land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/informal_issues_postmortems_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/eval_benchmark_analyst.md` when the sidecar is activated
+  - if an external companion model is also run for the same role in the same wave, store it in a model-suffixed sibling file instead of overwriting the primary role output
+  - legacy Wave 01 flat outputs remain valid only for the preserved exploratory anchor wave
+  - contradiction review for new waves should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/contradiction_analyst.md`
+  - interaction analysis for new waves should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/interaction_analysis.md`
+  - wave-local principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/synthesis/principal_synthesis.md`
+  - checklist adjudication for new waves should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/adjudication/checklist_adjudicator.md`
+  - optional external gate reviews for new waves should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/contradiction_analyst__gemini.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/outputs/contradiction_analyst__opus.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_<nn>_<slug>/adjudication/checklist_adjudicator__opus.md`
+  - cumulative accepted state should be maintained in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - artifact-level principal synthesis should remain at:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/principal_synthesis.md`
+  - the principal synthesis must emit mechanism cards using `MECHANISM_CARD_SCHEMA.md`
+  - the principal synthesis must emit an explicit interaction map or interaction analysis artifact that names the highest-leverage cross-bucket interactions surfaced in the wave
+  - every output must include `coverage_used`, `coverage_not_yet_used`, `evidence_classes_touched`, and `priority_sources_not_yet_read`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, plus optional eval/benchmark fifth lane when grader or verifier structure is load-bearing, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: no. This artifact-level packet defines the governed envelope; actual multi-agent launches should use the active wave-local packet under `tracking/collab/stage_02_synthesis/mechanism_map/waves/`.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - eval/benchmark analyst (fifth main lane when needed)
+  - contradiction analyst
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+- handoff_requirements:
+  - after artifact-level completion, emit a structured handoff to `failure_taxonomy`
+  - store it at `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/handoff_to_failure_taxonomy.md`
+  - use `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md`
+- evidence_expectations:
+  - mechanisms must be anchored in direct behavior or source, not only in prose
+  - trajectory evidence is a co-equal primary lane for mechanism work, not a secondary add-on
+  - no-source families must still be analyzed through trajectories as `behavioral reconstruction`
+  - keep formal and informal evidence lanes separate
+  - keep source, benchmark, and local harness-code comparisons visible
+  - preserve contradictions between behavior and source rather than harmonizing them away
+  - protect simple baselines and minimal-sufficient mechanisms from being crowded out by prestige architecture
+  - treat non-agentic structural code as in scope when it materially shapes behavior
+  - when interaction, tradeoff, or failure-role fields are weakly supported, keep them explicitly unresolved instead of inventing certainty
+- decision_needed_from_human: none at the artifact-brief level beyond the already accepted Deep Synthesis wave-plan redesign; execution should use the active wave-local packet.
+- done_condition: The planned `mechanism_map` waves defined in the current Deep Synthesis wave plan are complete or their remaining gaps are explicitly accepted by the human owner, required dossier and case-study layers are materially in place, contradiction review is complete, and principal synthesis plus cumulative state files produce evidence-backed mechanism cards with explicit coverage accounting, visible uncertainty, and explicit `exploratory` versus `emerging` versus `decision_ready` saturation status for promoted mechanism families.

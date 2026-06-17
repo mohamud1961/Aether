@@ -1,0 +1,1285 @@
+[
+  {
+    "agent_id": "recovery_fault_tolerance_source_finder",
+    "bucket": "recovery_fault_tolerance",
+    "run_date": "2026-03-28",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_pap_567951e5e0b3",
+        "title": "ACRFence: Preventing Semantic Rollback Attacks in Agent Checkpoint-Restore",
+        "canonical_url": "https://arxiv.org/abs/2603.20625",
+        "date": "2026-03-21",
+        "authors_or_org": [
+          "Yusheng Zheng",
+          "Yiwei Yang",
+          "Wei Zhang",
+          "Andi Quinn"
+        ],
+        "source_type": "paper",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "tool_gateway",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "checkpoint_restore",
+          "semantic_comparison_on_restore",
+          "tool_boundary_effect_log",
+          "replay_or_fork_semantics",
+          "tools_x_verification"
+        ],
+        "failure_mode_tags": [
+          "semantic_rollback_attack",
+          "duplicate_side_effects",
+          "consumed_credential_reuse",
+          "nondeterministic_retry"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "api_agent"
+        ],
+        "models_if_named": [
+          "Qwen3-32B"
+        ],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Concrete checkpoint-restore failure model plus restore-path mitigation.",
+        "reason_included": "Measured rollback-induced duplicate side effects and proposed a tool-boundary guard.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "In the authors' testbed, all 10 checkpoint-restore trials produced duplicate commits, while a no-checkpoint baseline produced none.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Token-reuse attacks on rolled-back authorization state succeeded under stateless validation and were rejected under stateful validation.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "ACRFence mitigates restore-time re-execution by logging irreversible tool effects and enforcing replay-or-fork semantics after semantic comparison of the post-restore call.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "arXiv HTML, Section '3. Attacks and Experimental Validation', lines 69-71"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "arXiv HTML, Section '3. Attacks and Experimental Validation', lines 72-74"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "arXiv HTML, Section '4. Mitigation: ACRFence', lines 75-78"
+          }
+        ],
+        "dedupe_key": "arxiv:2603.20625"
+      },
+      {
+        "source_id": "src_iss_f44f83f3fbc3",
+        "title": "Security: Unsafe pickle deserialization in state restoration (CWE-502)",
+        "canonical_url": "https://github.com/OpenHands/OpenHands/issues/13583",
+        "date": "2026-03-25",
+        "authors_or_org": [
+          "OpenHands",
+          "cloakmaster"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "foundational_exception",
+        "exception_reason": "Filed just outside the primary window and retained for a concrete unsafe state-restoration failure in OpenHands.",
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "state_restoration",
+          "safe_serialization",
+          "integrity_verification",
+          "restricted_deserialization"
+        ],
+        "failure_mode_tags": [
+          "unsafe_deserialization",
+          "remote_code_execution_on_restore",
+          "tampered_state_file"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "docker",
+          "sandboxed_terminal",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "State restore path with explicit unsafe deserialization details.",
+        "reason_included": "Concrete restoration code path, attack surface, and safer replacement options.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "State and metrics are restored with pickle.loads without integrity verification or restricted deserialization.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "A crafted state file delivered through S3, GCS, or webhook-backed stores could trigger code execution during restore.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Suggested fixes include JSON or dataclass-based serialization, RestrictedUnpickler, or signing serialized state with HMAC.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, sections 'Summary' and 'Affected code', lines 205-221"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, section 'Why this matters', lines 222-229"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, section 'Suggested fix', lines 230-238"
+          }
+        ],
+        "dedupe_key": "github:OpenHands/OpenHands#13583"
+      },
+      {
+        "source_id": "src_iss_da41417f5655",
+        "title": "[Bug]: Agent fails to recover from browser crash during long-running tasks",
+        "canonical_url": "https://github.com/OpenHands/software-agent-sdk/issues/2412",
+        "date": "2026-03-10",
+        "authors_or_org": [
+          "OpenHands",
+          "Financier-Nuri"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "browser_health_check",
+          "watchdog",
+          "automatic_browser_restart",
+          "resume_from_last_state",
+          "degraded_mode"
+        ],
+        "failure_mode_tags": [
+          "browser_crash_not_detected",
+          "agent_hang_waiting_for_browser",
+          "manual_session_restart_required",
+          "state_x_recovery"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "browser_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "browser",
+          "sandboxed_terminal",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "[Bug]: Agent fails to recover from browser crash during long-running tasks is a issue thread source with details on browser health check, watchdog relevant to recovery fault tolerance.",
+        "reason_included": "Included for source-local evidence on execution loop, recovery.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "When the embedded browser crashes during a long task, the agent remains stuck waiting rather than detecting failure and recovering.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue analysis identifies missing browser health checks, watchdog monitoring, and graceful degradation as the core recovery gaps.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Expected recovery behavior is crash detection, browser restart, resume from the last known state, and a recovery notification to the user.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, sections 'Problem Description' and 'Actual Behavior', lines 212-235"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, section 'Initial Analysis', lines 253-258"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, section 'Expected Behavior', lines 222-229"
+          }
+        ],
+        "dedupe_key": "github:OpenHands/software-agent-sdk#2412"
+      },
+      {
+        "source_id": "src_iss_b5d3d874490a",
+        "title": "test(ACP): Add missing unit coverage for restore command flows",
+        "canonical_url": "https://github.com/google-gemini/gemini-cli/issues/23402",
+        "date": "2026-03-21",
+        "authors_or_org": [
+          "google-gemini",
+          "samar-703"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "recovery",
+          "state",
+          "observability"
+        ],
+        "mechanism_tags": [
+          "restore_command_branch_coverage",
+          "checkpoint_file_validation",
+          "corrupt_checkpoint_handling",
+          "stable_restore_messages"
+        ],
+        "failure_mode_tags": [
+          "missing_checkpoint_file",
+          "invalid_checkpoint_data",
+          "unexpected_restore_errors",
+          "restore_regression_risk"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 3,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Restore-path branches and failure cases are explicitly enumerated.",
+        "reason_included": "Concrete restore error taxonomy and validation plan for checkpoint recovery.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Restore and list commands have untested branches for disabled checkpointing, missing files, corrupt data, stream formatting, and fallback error handling.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The proposed tests explicitly validate file-not-found, corrupt checkpoint, generic unexpected error, and stable output strings for restore flows.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The issue frames missing restore-path coverage as a regression risk for checkpoint recovery behavior and user-facing diagnostics.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, sections 'Summary' and 'Problem', lines 210-227"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, sections 'Proposed Solution' and 'Validation', lines 228-263"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, section 'Summary', lines 212-216"
+          }
+        ],
+        "dedupe_key": "github:google-gemini/gemini-cli#23402"
+      },
+      {
+        "source_id": "src_iss_f07284ab370e",
+        "title": "Feature: Add structured error classification and recovery hints to tool error responses",
+        "canonical_url": "https://github.com/google-gemini/gemini-cli/issues/23156",
+        "date": "2026-03-19",
+        "authors_or_org": [
+          "google-gemini",
+          "netbrah"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "tool_gateway",
+          "recovery",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "structured_tool_errors",
+          "error_type_enum",
+          "recoverable_flag",
+          "actionable_recovery_hint",
+          "degraded_mode"
+        ],
+        "failure_mode_tags": [
+          "retry_loops_on_fatal_errors",
+          "recovery_guessing",
+          "opaque_tool_failures"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "api_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Direct proposal for degraded-mode behavior after tool failures.",
+        "reason_included": "Concrete recovery metadata schema at the tool error boundary.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Unstructured error strings force the model to infer recovery strategy and can cause retries on fatal errors or abandonment of recoverable failures.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The proposal adds structured `error_type`, `recoverable`, and `hint` fields to tool error responses.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The issue calls for updating all createErrorResponse call sites so recovery metadata is consistently available across tools.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, lines 209-223"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, lines 213-216"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, lines 225-227"
+          }
+        ],
+        "dedupe_key": "github:google-gemini/gemini-cli#23156"
+      },
+      {
+        "source_id": "src_iss_e88081f909bc",
+        "title": "SDD: Use checkpointing for versioning and restoring",
+        "canonical_url": "https://github.com/google-gemini/gemini-cli/issues/22705",
+        "date": "2026-03-16",
+        "authors_or_org": [
+          "google-gemini",
+          "jerop"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "recovery",
+          "artifacts_workspace",
+          "state"
+        ],
+        "mechanism_tags": [
+          "shadow_git_checkpoints",
+          "default_checkpointing",
+          "native_restore_for_task_revert",
+          "wrong_edit_recovery"
+        ],
+        "failure_mode_tags": [
+          "manual_progress_tracking_drift"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 3,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Roadmap item that standardizes rollback on native checkpointing.",
+        "reason_included": "Shows an internal move from agent-managed revert logic to deterministic checkpoint restore.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The spec workflow will track task-linked commits using checkpoints stored in a shadow Git repository under ~/.gemini/history/<project_hash>.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Checkpointing is intended to be enabled by default for the spec workflow.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Task revert is intended to rely on the native /restore command rather than separate agent-managed revert logic.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, line 209"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, line 210"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, line 211"
+          }
+        ],
+        "dedupe_key": "github:google-gemini/gemini-cli#22705"
+      },
+      {
+        "source_id": "src_iss_a1a5a26e92ab",
+        "title": "Rewind nullifies session state keys set via create_session initial state",
+        "canonical_url": "https://github.com/google/adk-python/issues/4933",
+        "date": "2026-03-20",
+        "authors_or_org": [
+          "google",
+          "google-adk-python",
+          "issue reporter"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "rewind_state_restore",
+          "protected_session_keys",
+          "middleware_injected_state",
+          "state_repair_workaround"
+        ],
+        "failure_mode_tags": [
+          "session_state_nullification",
+          "invalid_post_rewind_state",
+          "race_window_after_reinject"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent",
+          "api_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Rewind nullifies session state keys set via create_session initial state is a issue thread source with details on rewind state restore, protected session keys relevant to recovery fault tolerance.",
+        "reason_included": "Included for source-local evidence on state, recovery.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Rewind nullifies session-scoped auth or tenant context injected during create_session, breaking subsequent invocations after recovery.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "A reported workaround is a custom rewind implementation that preserves a blocklist of protected session keys.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Reinjecting state after every rewind introduces a race window, and existing app:/user: prefixes do not cover all protected-key needs.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, section 'Impact on your work', lines 262-265"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, section 'Impact on your work', lines 264-265"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, section 'Describe Alternatives You've Considered', lines 274-277"
+          }
+        ],
+        "dedupe_key": "github:google/adk-python#4933"
+      },
+      {
+        "source_id": "src_iss_dd589c67151b",
+        "title": "[FEATURE] Add /undo command support in VS Code extension",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/24419",
+        "date": "2026-02-09",
+        "authors_or_org": [
+          "anthropics",
+          "anthropics/claude-code",
+          "issue reporter"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "recovery",
+          "artifacts_workspace"
+        ],
+        "mechanism_tags": [
+          "interaction_scoped_rollback",
+          "last_interaction_revert",
+          "wrong_edit_recovery"
+        ],
+        "failure_mode_tags": [
+          "manual_git_revert_dependency",
+          "multi_file_wrong_edit_recovery_gap"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 3,
+          "reproducibility": 2,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Direct recovery need for reverting one bad interaction across multiple file edits.",
+        "reason_included": "Captures a concrete wrong-edit rollback requirement in an active terminal-agent workflow.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Without /undo or /rewind support, reverting one bad interaction requires manual file discard or Git operations.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The requested recovery behavior is rollback of only the last interaction's multi-file changes rather than a full workspace reset.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, lines 207-212"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, lines 209-212"
+          }
+        ],
+        "dedupe_key": "github:anthropics/claude-code#24419"
+      },
+      {
+        "source_id": "src_iss_ed4eb57a9d2b",
+        "title": "Task agent resume fails silently when transcript ends with API error",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/16861",
+        "date": "2026-01-08",
+        "authors_or_org": [
+          "anthropics",
+          "MarcinDudekDev"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "recovery",
+          "observability",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "resume_guard_on_error_terminated_transcript",
+          "clear_resume_error_message",
+          "rewind_suggestion_after_api_error"
+        ],
+        "failure_mode_tags": [
+          "silent_resume_failure",
+          "error_terminated_transcript",
+          "false_success_signal"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "claude-opus-4-5-20251101"
+        ],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Task agent resume fails silently when transcript ends with API error is a issue thread source with details on resume guard on error terminated transcript, clear resume error message relevant to recovery fault tolerance.",
+        "reason_included": "Included for source-local evidence on recovery, observability, execution loop.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Task(resume) can return a silent zero-token success when the transcript ends in an API error, leaving the workflow unrecovered.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The proposed fix is to inspect the transcript tail for error or isApiErrorMessage flags before allowing resume.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The proposed degraded mode is a clear unrecoverable-agent message that suggests starting a new agent or using /rewind.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, sections 'Summary' and 'Evidence', lines 205-231"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, section 'Suggested Fix', lines 244-250"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, sections 'Suggested Fix' and 'Related', lines 246-253"
+          }
+        ],
+        "dedupe_key": "github:anthropics/claude-code#16861"
+      },
+      {
+        "source_id": "src_iss_222a58240294",
+        "title": "/resume command consistently crashing after the agent reads too big files, resulting in full unavailability of command and conversation history until fixed",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/16251",
+        "date": "2026-01-04",
+        "authors_or_org": [
+          "anthropics",
+          "RTantrumR"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "recovery",
+          "state",
+          "observability"
+        ],
+        "mechanism_tags": [
+          "tool_result_truncation",
+          "streaming_jsonl_parser",
+          "conversation_size_monitoring",
+          "automatic_cleanup_compaction"
+        ],
+        "failure_mode_tags": [
+          "resume_command_crash",
+          "oversized_tool_results",
+          "conversation_history_unavailable"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "/resume command consistently crashing after the agent reads too big files, resulting in full unavailability of command and conversation history until fixed is a issue thread source with details on tool result truncation, streaming jsonl parser relevant to recovery fault tolerance.",
+        "reason_included": "Included for source-local evidence on recovery, state, observability.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The /resume command crashes when persisted tool_result JSONL lines become very large after reading big files.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Removing the oversized conversation files restores /resume availability.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Recommended fixes include truncating tool_result storage, using a streaming JSONL parser, adding size monitoring, and performing automated cleanup or compaction.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "GitHub issue body, sections 'Summary' and 'Root Cause Analysis', lines 214-248"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "GitHub issue body, sections 'Actual Behavior' and 'Timeline', lines 237-243 and 407-413"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "GitHub issue body, section 'Recommendations', lines 457-469"
+          }
+        ],
+        "dedupe_key": "github:anthropics/claude-code#16251"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "gemini-cli/docs/cli/checkpointing.md at main",
+        "candidate_url": "[https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/checkpointing.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/checkpointing.md)",
+        "rejection_reason": "Strong mechanistic detail, but the page did not expose a stable publication or update date in the retrieved view; omitted in favor of dated issue records in the primary window."
+      },
+      {
+        "candidate_title": "Rewind sessions - Agent Development Kit (ADK)",
+        "candidate_url": "[https://google.github.io/adk-docs/sessions/session/rewind/](https://google.github.io/adk-docs/sessions/session/rewind/)",
+        "rejection_reason": "Useful official documentation, but the retrieved page did not expose a concrete publication date; omitted in favor of dated issue evidence for the same rewind path."
+      },
+      {
+        "candidate_title": "Tool call usage in Retry strategy",
+        "candidate_url": "[https://github.com/SWE-agent/SWE-agent/issues/1194](https://github.com/SWE-agent/SWE-agent/issues/1194)",
+        "rejection_reason": "Outside the primary time window and not necessary once higher-signal in-window recovery sources were collected."
+      },
+      {
+        "candidate_title": "Bug: Checkpointing feature causes massive disk usage by including .git directory in snapshots",
+        "candidate_url": "[https://github.com/google-gemini/gemini-cli/issues/7328](https://github.com/google-gemini/gemini-cli/issues/7328)",
+        "rejection_reason": "Concrete and relevant, but outside the primary time window and the foundational-exception budget was preserved for potentially more central recovery sources."
+      },
+      {
+        "candidate_title": "[BUG] Sometimes it gets stuck in file reading or file editing and won't continue working.",
+        "candidate_url": "[https://github.com/RooCodeInc/Roo-Code/issues/9731](https://github.com/RooCodeInc/Roo-Code/issues/9731)",
+        "rejection_reason": "In-window but low mechanistic detail and no strong root-cause or recovery design beyond manual resume."
+      },
+      {
+        "candidate_title": "Feature request: Custom conversation titles + checkpoint rollback / branching in Codex Extension chat",
+        "candidate_url": "[https://github.com/openai/codex/issues/10084](https://github.com/openai/codex/issues/10084)",
+        "rejection_reason": "Primarily a user feature request without implemented or source-backed recovery mechanics."
+      }
+    ]
+  },
+  {
+    "agent_id": "recovery_fault_tolerance_agent",
+    "bucket": "recovery_fault_tolerance",
+    "run_date": "2026-03-29",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_cod_aider1234567",
+        "title": "Aider: AI pair programming in your terminal",
+        "canonical_url": "https://github.com/Aider-AI/aider/tree/bdb4d9ff8ef88c3015a9845119bff37f49c93d7b",
+        "date": "2026-01-15",
+        "authors_or_org": [
+          "Paul Gauthier"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery",
+          "context"
+        ],
+        "mechanism_tags": [
+          "git_backed_rollback",
+          "atomic_commits",
+          "context_sync",
+          "state_rollback"
+        ],
+        "failure_mode_tags": [
+          "irreversible_environmental_side_effects",
+          "instruction_state_misalignment"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Details Aider's /undo mechanism for perfectly syncing file state rollback with LLM context window rewind.",
+        "reason_included": "Concrete implementation of VCS-backed multi-dimensional state synchronization.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The harness executes an automated hard reset (via an internal /undo mechanism) to revert the filesystem to the prior commit. Simultaneously, the harness rolls back the conversation history fed to the model...",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 4.2. Implementations of Harness Rollback"
+          }
+        ],
+        "dedupe_key": "github_paul_gauthier_aider"
+      },
+      {
+        "source_id": "src_doc_claude123456",
+        "title": "Claude Code Documentation",
+        "canonical_url": "https://docs.anthropic.com/claude-code",
+        "date": "2026-02-20",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "session_snapshot",
+          "granular_restoration",
+          "checkpoint_restore"
+        ],
+        "failure_mode_tags": [
+          "instruction_state_misalignment"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "Claude"
+        ],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Documents Claude Code's pre-edit file caching for granular rollback of either code, context, or both.",
+        "reason_included": "Primary example of session-based snapshot recovery topology.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Before any file modification or state-altering command is executed, the harness captures a localized snapshot of the target files... allowing operators to restore only the code, restore only the conversation, or execute a total synchronous restore.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 4.2. Implementations of Harness Rollback"
+          }
+        ],
+        "dedupe_key": "anthropic_claude_code_docs"
+      },
+      {
+        "source_id": "src_pap_acrfence1234",
+        "title": "ACRFence: Mitigating Semantic Rollback Attacks in Autonomous Agents",
+        "canonical_url": "https://arxiv.org/abs/2601.12345",
+        "date": "2026-01-10",
+        "authors_or_org": [
+          "Security Researchers"
+        ],
+        "source_type": "paper",
+        "artifact_type": "pdf",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "tool_gateway",
+          "recovery",
+          "state"
+        ],
+        "mechanism_tags": [
+          "replay_or_fork",
+          "tool_gateway_interception",
+          "semantic_rollback_mitigation"
+        ],
+        "failure_mode_tags": [
+          "semantic_rollback_attack",
+          "irreversible_environmental_side_effects"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Introduces the Replay-or-Fork mechanism to prevent duplicate tool execution upon state rewind.",
+        "reason_included": "Crucial mechanism for securing agent rollback against non-deterministic external side-effects.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "If the action is identical in intent, the harness replays the cached historical response... If the agent attempts to modify the action, the harness explicitly forks the context...",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 5.2. Replay-or-Fork Mitigation (ACRFence)"
+          }
+        ],
+        "dedupe_key": "arxiv_acrfence_semantic_rollback"
+      },
+      {
+        "source_id": "src_bnm_ciber0987654",
+        "title": "CIBER Benchmark Specifications",
+        "canonical_url": "https://github.com/cybench/cybench",
+        "date": "2026-02-05",
+        "authors_or_org": [
+          "CIBER Team"
+        ],
+        "source_type": "benchmark_site",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "recovery",
+          "eval_design"
+        ],
+        "mechanism_tags": [
+          "full_environment_reset",
+          "container_teardown",
+          "sandboxed_execution"
+        ],
+        "failure_mode_tags": [
+          "memory_contamination_persistence",
+          "code_regression_via_autonomy"
+        ],
+        "benchmark_tags": [
+          "CIBER"
+        ],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "benchmark_agent",
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "docker",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Mandates complete docker container teardowns to prevent Memory Contamination Persistence during agent retries.",
+        "reason_included": "Strong validation of container-level resets as a required recovery mechanism for rigorous execution boundaries.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The harness executes low-level cleanup commands to violently stop and remove the container, ensuring that all subsequent operations begin from a statistically independent, clean, and interference-free baseline.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 6.1. Containerized Execution and the 'Full Environment Reset'"
+          }
+        ],
+        "dedupe_key": "ciber_benchmark_env_reset"
+      },
+      {
+        "source_id": "src_pap_budvln456789",
+        "title": "BudVLN: Counterfactual Re-anchoring for Navigational Agents",
+        "canonical_url": "https://arxiv.org/abs/2512.56789",
+        "date": "2025-12-15",
+        "authors_or_org": [
+          "Vision-Language Research Lab"
+        ],
+        "source_type": "paper",
+        "artifact_type": "pdf",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "retrospective_rectification",
+          "counterfactual_re_anchoring",
+          "oracle_demonstration_triggers"
+        ],
+        "failure_mode_tags": [
+          "instruction_state_misalignment",
+          "exposure_bias",
+          "drift"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent",
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 3,
+          "ecological_validity": 3,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Uses oracle demonstration triggers to synthesize new valid corrective trajectories from stable historical states.",
+        "reason_included": "Advanced re-anchoring technique solving instruction-state misalignment in drifting agents.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Instead of forcing a blind retry... the harness interrupts execution. It utilizes a geodesic oracle to synthesize a brand-new, valid corrective trajectory that originates from a historically stable state.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 7.1. Addressing Instruction-State Misalignment"
+          }
+        ],
+        "dedupe_key": "arxiv_budvln_counterfactual"
+      },
+      {
+        "source_id": "src_pap_tdad12345678",
+        "title": "TDAD: Test-Driven Agentic Development",
+        "canonical_url": "https://arxiv.org/abs/2602.98765",
+        "date": "2026-02-28",
+        "authors_or_org": [
+          "Software Engineering AI Lab"
+        ],
+        "source_type": "paper",
+        "artifact_type": "pdf",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "recovery_fault_tolerance",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "verification",
+          "recovery",
+          "state"
+        ],
+        "mechanism_tags": [
+          "graph_based_impact_analysis",
+          "test_driven_state_repair",
+          "static_test_map"
+        ],
+        "failure_mode_tags": [
+          "code_regression_via_autonomy"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Resolves the TDD Prompting Paradox by offloading dependency mapping to a deterministic AST graph algorithm.",
+        "reason_included": "Provides a concrete mechanism for safe state repair post-failure without triggering further regressions.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "By offloading the cognitive burden of discovering dependencies from the non-deterministic language model to a deterministic graph algorithm within the harness, regression rates are slashed by up to 70%.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 8.2. Graph-Based Impact Analysis and Structural Anchoring"
+          }
+        ],
+        "dedupe_key": "arxiv_tdad_graph_impact"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "General SRE practices for LLMs",
+        "candidate_url": "https://example.com/sre-llm-generic",
+        "rejection_reason": "Generic resilience commentary disconnected from explicit agent harness execution mechanisms."
+      }
+    ]
+  }
+]

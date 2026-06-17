@@ -1,0 +1,128 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/features/framework/mcp_skill/?q=
+================================================================================
+
+MCP 与 Skill 支持¶
+
+TongAgents 提供对 MCP (Model Context Protocol) 和 Skill 的原生支持。
+
+MCP 支持¶
+什么是 MCP¶
+
+MCP (Model Context Protocol) 是一个开放协议，允许 AI 模型与外部工具和服务进行标准化交互。
+
+使用 MCP¶
+from tongagents import Agent
+
+from tongagents.mcp import MCPClient
+
+
+
+# 连接 MCP 服务器
+
+mcp_client = MCPClient("http://mcp-server:8080")
+
+
+
+agent = Agent(
+
+    mcp_clients=[mcp_client]
+
+)
+
+
+
+# 使用 MCP 工具
+
+result = await agent.run("帮我查一下今天的天气")
+
+内置 MCP 工具¶
+工具	功能
+文件系统	读取、写入、删除文件
+Git	Git 操作
+数据库	数据库查询和操作
+API	HTTP 请求
+Skill 支持¶
+什么是 Skill¶
+
+Skill 是预定义的提示词模板，封装了特定领域的处理能力。
+
+内置 Skills¶
+from tongagents.skills import Skill
+
+
+
+# 使用内置 Skill
+
+skill = Skill.get("code_review")
+
+result = await skill.execute(code="...")
+
+自定义 Skill¶
+from tongagents import Skill, SkillConfig
+
+
+
+class MySkill(Skill):
+
+    name = "my_skill"
+
+    description = "我的自定义技能"
+
+
+
+    prompt_template = """
+
+    你是一个{role}，请帮我完成任务。
+
+
+
+    输入：{input}
+
+    要求：{requirements}
+
+    """
+
+
+
+    async def execute(self, context):
+
+        prompt = self.render_prompt(context)
+
+        result = await self.llm.call(prompt)
+
+        return result
+
+Skill 注册¶
+from tongagents import TongAgents
+
+
+
+app = TongAgents()
+
+
+
+# 注册 Skill
+
+app.register_skill(MySkill())
+
+
+
+# 列出可用 Skills
+
+skills = app.list_skills()
+
+组合使用¶
+
+MCP 和 Skill 可以组合使用，构建强大的 Agent：
+
+from tongagents import Agent
+
+
+
+agent = Agent(
+
+    mcp_clients=[mcp_client],
+
+    skills=[code_review_skill, doc_gen_skill]
+
+)

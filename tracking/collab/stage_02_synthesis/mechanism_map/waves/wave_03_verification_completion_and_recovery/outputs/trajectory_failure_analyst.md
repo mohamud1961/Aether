@@ -1,0 +1,150 @@
+TRAJECTORY_FAILURE_OUTPUT
+- artifact: mechanism_map
+- role: trajectory/failure analyst
+- preflight_scope_confirmed:
+  - This wave is a vertical mechanism-domain pass on verification, completion, false-completion defense, cleanup confirmation, rollback, restart, resumability, and recovery rather than a generic execution-control pass. Primary control anchors read this turn: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`.
+  - The trajectory lane is the primary empirical anchor for this wave, while codebase/source reconstruction is the primary implementation anchor. This output stays behavior-grounded and does not upgrade controller speculation into implementation fact.
+  - The optional eval/benchmark fifth lane is activated because verifier, replay, grader, and completion-contract logic are load-bearing in the wave brief, and BigAI routing aids show verifier-mediated closure is common enough to materially shape this domain: `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`.
+  - A minimal-sufficient completion pattern must remain visible against more elaborate verifier stacks. The clearest example in the selected slices is DeepAgents `db-wal-recovery`, where completion is established by direct artifact production plus schema/value checks against the recovered database rather than by a separate prestige verifier layer: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`.
+  - Strong coverage for this lane required at least one reusable support artifact before promoting cross-family claims. That requirement is now partially satisfied by `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`.
+- preflight_planned_read_order:
+  - Wave controls and carry-forward constraints: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`, `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`.
+  - Primary trajectory slices for the three required task families across DeepAgents, Terminus-KIRA, and BigAI.
+  - BigAI reconstruction routing aids to identify verifier-heavy slices without treating derived indexes as substitute evidence: `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`.
+  - Bounded support artifact for run-by-run verification/completion/recovery inventory: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`.
+  - Source, eval, literature, and informal reconciliation are intentionally left to their lanes for this first-pass trajectory output.
+- preflight_critical_sources_selected:
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - Contradiction-pressure slice inside the selected families: unresolved count disagreement and interrupted OCR in `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+- preflight_coverage_risks:
+  - DeepAgents `extract-moves-from-video` is effectively absent as completion evidence because the readable run cancels at step 2 with `CancelledError`: `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`.
+  - BigAI `extract-moves-from-video` remains incomplete in the visible slice. Strong orchestration is visible, but no terminal verifier finish or final completion marker was read: `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`.
+  - Terminus-KIRA `db-wal-recovery` is heavily failure-weighted and may be truncated relative to the full run, so it is strong negative evidence for visible recovery discipline but weaker evidence for absolute non-recoverability: `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`.
+  - BigAI remains behavioral reconstruction in this lane because the implementation source is not the anchor here. Trajectory evidence can support behavior claims, not source-backed mechanism fact.
+  - Restart, resumability, and rollback safety are less saturated than verification and cancellation cleanup in the selected slices.
+- preflight_likely_blind_spots:
+  - External benchmark/verifier contract logic was not directly read in this lane, so any benchmark-coupling claim here is provisional pending the eval lane.
+  - Source-visible restart/resume implementation paths were not read in this lane, so restart discipline claims remain behavior-only.
+  - Literature and informal operational reports were not read here, so contradiction pressure is limited to trajectories plus BigAI routing aids.
+  - Long-tail tasks outside the selected three families were not sampled in this lane.
+- preflight_blockers:
+  - none; trajectory visibility is sufficient for first-pass behavior synthesis on WAL recovery and cancellation cleanup, but not for high-confidence cross-family video-extraction completion claims
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - `research/analysis/bigai_trace_layer/output/exemplar_runs.json`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+- coverage_not_yet_used:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/sources/benchmarks/**`
+  - `research/sources/codebases/**`
+  - `research/sources/papers/**`
+  - `research/sources/docs/**`
+  - `research/sources/informal/**`
+  - `research/sources/issues/**`
+  - `research/sources/postmortems/**`
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+- evidence_classes_touched:
+  - trajectories
+  - relevant local analysis
+  - support artifact infrastructure
+- priority_sources_not_yet_read:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/capture.json`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/capture.json`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/capture.json`
+  - `research/sources/codebases/deepagents/**`
+  - `research/sources/codebases/KIRA/**`
+  - `research/sources/codebases/a-evolve/**`
+  - `research/sources/informal/**`
+  - `research/sources/issues/**`
+  - `research/sources/postmortems/**`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+- support_artifacts_requested_or_deferred:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_false_completion_cases.md` deferred
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_recovery_restart_table.md` deferred
+  - run-to-source link map deferred pending source lane reconciliation
+- coverage_register_updates_needed:
+  - Mark Wave 03 trajectory lane as first-pass drafted with strong coverage for WAL recovery and cancellation cleanup, but partial or weak coverage for restart/resumability and video-extraction completion.
+  - Keep visible caveat that BigAI remains behavioral reconstruction on this lane and that DeepAgents `extract-moves-from-video` does not provide usable completion evidence.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+- direct_behavior_observations:
+  - Observation: DeepAgents `db-wal-recovery` writes `/app/recovered.json`, prints `rows 11`, then runs a verification block that reports `json_length 11`, `db_length 11`, `json_sorted_by_id True`, `keys_ok True`, and `match_db True`; it also explicitly notes that `/app/main.db-wal` no longer exists after checkpointing. Confidence: high. Evidence: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`.
+  - Observation: DeepAgents `cancel-async-tasks` verifies `max_running 2`, confirms cleanup for cancelled running tasks with `cleaned [0, 1]`, and separately confirms exception cleanup with `cleaned ['fail', 'ok-1', 'ok-2']`. Confidence: high. Evidence: `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`.
+  - Observation: DeepAgents `extract-moves-from-video` ends almost immediately with `[agent error] CancelledError: CancelledError()` and provides no readable completion or solution-file evidence. Confidence: high. Evidence: `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`.
+  - Observation: Terminus-KIRA `cancel-async-tasks` shows an initial false fix, then a stronger diagnosis cycle. One run segment reports `Max concurrent: 2` and `Cleanups executed: 0`; a later five-task case exposes `BaseException during cleanup: CancelledError()` with `Cleanups executed: 0`; after implementation changes and retesting, `test_suite.py` reports `PASS: Concurrency and Success`, `PASS: Cancellation Cleanup`, and `PASS: Exception Propagation`. Confidence: high. Evidence: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`.
+  - Observation: Terminus-KIRA `db-wal-recovery` repeatedly searches overlay and device state, hits permission denial on `mount /dev/md1 /mnt/host`, fails to surface a visible recovered JSON artifact, and drifts into infrastructure spelunking rather than visible task closure. Confidence: high for visible behavior, medium for whole-run outcome because the visible text may be incomplete. Weakener: no proof that later unseen steps did or did not recover the WAL. Evidence: `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`.
+  - Observation: Terminus-KIRA `extract-moves-from-video` installs OCR/video tooling, experiences an interrupted OCR pass, records conflicting counts including 201, 230, and 262, inspects `head` and `tail` of `/app/solution.txt`, and still proceeds toward `mark_task_complete`. Confidence: high. Evidence: `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+  - Observation: BigAI `db-wal-recovery` shows planner/executor/verifier-style layering, explicit backup-first behavior, verifier scripts that inspect `recovered.json`, and final `PASSED` verification outcomes tied to 11 recovered rows plus delivery cleanup. Confidence: high for behavior, medium for mechanism details because this family is still behavioral reconstruction in this lane. Weakener: no source read here. Evidence: `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`.
+  - Observation: BigAI `cancel-async-tasks` uses verifier-mediated closure that includes cleanup and directory hygiene, not just functional test success. In `d799...`, verification initially fails because the delivery directory is dirty, then passes only after extraneous files are moved aside and tests rerun successfully. Confidence: high for visible behavior, medium for broader doctrine generalization. Weakener: still behavioral reconstruction. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`.
+  - Observation: BigAI `extract-moves-from-video` shows heavy extraction work and repeated output rewriting, but the visible slice does not show a final verifier finish or terminal completion marker. Confidence: high. Evidence: `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`.
+- workflow_patterns:
+  - Observation: The strongest completion pattern in the selected slices is artifact-backed completion proof rather than self-asserted completion text. This appears in DeepAgents `db-wal-recovery` via direct DB-vs-JSON checks and in BigAI WAL/cancellation runs via explicit verifier pass states. Confidence: high. Evidence: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`.
+  - Observation: Cancellation cleanup is treated as a first-class workflow stage rather than an incidental side effect in both DeepAgents and BigAI, while KIRA shows how a seemingly successful cancellation story can still fail under stronger cases before retest closure. Confidence: high. Evidence: `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`.
+  - Inference: Verification, completion, and recovery are not one merged workflow primitive across families. The visible workflow families are at least: direct self-audited completion proof (DeepAgents), iterative repair plus retest closure (KIRA), and planner/executor/verifier gating with delivery-hygiene enforcement (BigAI behavioral reconstruction). Confidence: high. Evidence: same files as above plus `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`.
+- verification_and_recovery_patterns:
+  - Observation: DeepAgents preserves a simple baseline in which completion proof comes from direct postcondition checks against the produced artifact and live data source, without requiring a separate verifier role. Confidence: high. Evidence: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`.
+  - Observation: BigAI visibly couples completion to verifier-mediated proof and, in cancellation runs, to cleanup of the delivery directory itself. Confidence: high for behavior, medium for generality because only selected slices were read. Weakener: sample is narrow relative to the full family. Evidence: `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`.
+  - Observation: KIRA trajectories show strong evidence for recovery as iterative debugging and retesting in cancellation, but much weaker visible proof for robust recovery in WAL reconstruction and for defensible completion in extraction. Confidence: high. Evidence: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+  - Inference: Cleanup confirmation and rollback-ish hygiene are not secondary niceties in this wave; they are part of what some systems treat as task completion. This is strongest in BigAI cancellation runs and visible, though simpler, in DeepAgents cancellation and WAL runs. Confidence: high. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`.
+  - Inference: Restart and resumability remain under-evidenced in the selected trajectories. The visible data supports cleanup and iterative retry more strongly than durable restart-safe resumption. Confidence: medium. Weakener: source and eval surfaces for restart/replay were not read in this lane. Evidence: selected trajectory set overall plus absence of strong restart markers in `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`.
+- failure_candidates:
+  - Failure candidate: false completion under unresolved extraction uncertainty. Observation: KIRA `extract-moves-from-video` records conflicting command counts and an interrupted OCR path, yet still proceeds toward completion. Inference: this is a plausible false-completion pattern where file existence and spot inspection substitute for a stable completion proof. Confidence: medium. Weakener: trajectory-only view; source and benchmark contract not yet reconciled. Evidence: `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+  - Failure candidate: recovery collapse into environment spelunking. Observation: KIRA `db-wal-recovery` loses grounding in artifact restoration and expands into device/overlay probing without visible task closure. Inference: when the target artifact path is missing or inaccessible, recovery may degrade into host-environment search rather than bounded rollback/restart discipline. Confidence: medium. Weakener: visible run may be incomplete. Evidence: `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`.
+  - Failure candidate: apparent fix before adversarial retest. Observation: KIRA `cancel-async-tasks` appears fixed after a two-task check, then fails under a five-task case before later passing a stronger suite. Inference: lightweight confirmation can overstate recovery success unless the harness re-verifies under a more representative case. Confidence: high. Evidence: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`.
+  - Failure candidate: lack of usable completion evidence due to truncation or cancellation. Observation: DeepAgents `extract-moves-from-video` terminates immediately with cancellation and BigAI `extract-moves-from-video` remains inconclusive in the visible slice. Inference: for this task family, coverage absence must not be mistaken for failure absence or success. Confidence: high. Evidence: `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`, `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`.
+- cross_family_comparisons:
+  - Observation: WAL recovery is the clearest cross-family domain where verification/completion mechanisms diverge visibly. DeepAgents uses direct postcondition checking; BigAI uses a layered verifier-mediated closure with cleanup expectations; KIRA shows failure-heavy environment search with no visible successful closure in the inspected run. Confidence: high. Evidence: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`.
+  - Observation: Cancellation cleanup is comparatively stable across families, but the proof style differs. DeepAgents demonstrates compact self-audit; KIRA demonstrates failure-repair-retest; BigAI demonstrates verifier-gated completion plus delivery-hygiene enforcement. Confidence: high. Evidence: selected cancellation files across all three families.
+  - Inference: False-completion defense is uneven across families. BigAI is strongest in the read slices because visible verifier passes block completion after cleanup or directory-state failures; DeepAgents is next because it performs concrete postcondition checks; KIRA is weakest in the extraction slice because completion pressure overtakes unresolved count contradictions. Confidence: medium. Weakener: evaluation surfaces and source logic are pending other lanes, and the extraction evidence is thin for DeepAgents/BigAI. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+- contradiction_notes:
+  - The selected trajectories support a strong claim that verification and cleanup can be load-bearing completion mechanisms, but they do not support a strong claim that restart/resume safety is already a stable cross-family mechanism family.
+  - BigAI trajectory evidence suggests strong verifier-mediated completion, but this lane must continue to label it behavioral reconstruction until source and eval lanes reconcile the observed behavior with visible code and benchmark contracts.
+  - KIRA `extract-moves-from-video` contradicts any simple story that visible output-file production equals defensible completion.
+  - DeepAgents `extract-moves-from-video` contradicts any claim that the selected three-task family set already provides balanced completion evidence across all families.
+- confidence_notes:
+  - High-confidence claims: DeepAgents simple completion proof in WAL recovery; DeepAgents cancellation cleanup checks; KIRA cancellation false-fix then retest closure; BigAI verifier-mediated cleanup gating in cancellation; KIRA visible recovery collapse in the inspected WAL run.
+  - Medium-confidence claims: BigAI family-level verifier doctrine beyond the sampled runs; KIRA extract-moves false-completion framing as a reusable mechanism-family pattern; cross-family ranking of false-completion defenses.
+  - Low-confidence claims were avoided because the selected evidence does not justify stronger restart/resume or benchmark-coupling conclusions.
+- open_questions:
+  - Which source-visible verifier or replay paths explain the BigAI-style pass/fail loops and cleanup gating seen in the trajectories?
+  - Do benchmark or evaluator contracts explicitly require the delivery-directory hygiene that BigAI trajectories enforce, or is that a family-local doctrine?
+  - Is KIRA `extract-moves-from-video` an isolated weak-completion run or a broader family-level tendency once more slices are read?
+  - Are there trajectory or source-visible cases that show true restart-safe resumability rather than iterative retry and manual recovery?
+  - Do additional BigAI verifier-heavy slices such as `adaptive-rejection-sampler` change the apparent separation between minimal-sufficient completion proof and layered verifier architectures?
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`

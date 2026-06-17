@@ -1,0 +1,96 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/agent/execute/retrieve/?q=
+================================================================================
+
+获取会话
+
+会话查询接口¶
+请求URL¶
+POST /api/v1/conversation/retrieve
+
+请求参数¶
+Header¶
+参数	取值	说明
+Content-Type	application/json	解释请求正文的方式
+X-TraceId	string	traceId
+Body¶
+字段	类型	是否必选	说明
+agent_id	string	是	app_id，来源于个人空间-应用-应用ID
+conversation_id	string	是	会话id，可通过新建会话接口创建
+limit	int	是	限制获取会话内最近消息offset的条数，默认100条
+offset	int	是	偏移值
+请求示例¶
+{
+
+    "agent_id": "agent_1234567890",
+
+    "conversation_id": "conv_0987654321",
+
+    "limit": 10,
+
+    "offset": 0
+
+}
+
+响应参数¶
+字段	类型	是否必选	说明
+code	int	是	错误码 0代表正常
+msg	string	是	错误消息
+conversation_id	string	是	会话id，可通过新建会话接口创建
+retrieve_data	[]Data	是	消息列表
+Data.data_type	string	是	消息类型 text":文本 "voice"音频 "image"图片 "video" 视频 "action" 操作指令（如avator动作） "file" 其他文件类型
+Data.role	int	是	消息角色 0 -- user 1 -- system
+Data.content	string	是	反馈数据 type为文本和指令时使用，直接读取
+Data.file_list	string[]	是	type为其他时使用，代表传输文件id列表（文件必须为upload上传的文件id）
+Data.timestamp	int64	是	数据的时间戳（单位：毫秒）
+Data.chat_id	string	是	对话id
+Data.message_id	string	是	消息id
+响应示例¶
+{
+
+    "code": 0,
+
+    "msg": "success",
+
+    "conversation_id": "conv_0987654321",
+
+    "retrieve_data": [
+
+        {
+
+            "data_type": "text",
+
+            "role": 0,
+
+            "content": "Hello, how are you?",
+
+            "file_list": [],
+
+            "timestamp": 1633072800000,
+
+            "chat_id": "chat_0987654321",
+
+            "message_id": "msg_12345"
+
+        },
+
+        {
+
+            "data_type": "text",
+
+            "role": 1,
+
+            "content": "I'm doing well, thank you! How can I assist you today?",
+
+            "file_list": [],
+
+            "timestamp": 1633072801000,
+
+            "chat_id": "chat_0987654321",
+
+            "message_id": "msg_67890"
+
+        }
+
+    ]
+
+}

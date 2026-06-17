@@ -1,0 +1,55 @@
+CODEBASE_SUPPORT_ARTIFACT
+- artifact: failure_taxonomy/wave_04_tools_environment_coordination_and_long_horizon_failures
+- role: codebase/source-reconstruction analyst (support mapping)
+- purpose: bounded source map for delegation, role handoff, replanning, and long-horizon coordination failure attribution
+- map:
+  - family: delegation_and_role_handoff_mismatch
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+      - `research/sources/codebases/KIRA/KIRA-Slack/app/main.py`
+      - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/conversation_manager.py`
+    - implication:
+      - Families expose different delegation contracts (ephemeral subagents, background sessions, MCP tool delegation), so role-handoff failures need family-specific attribution instead of one generic orchestration bucket.
+    - confidence: high
+  - family: replanning_stall_and_interaction_contract_breakdown
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/code_executor.py`
+    - implication:
+      - Stop conditions, polling contracts, and re-entry paths are encoded differently; failure cards should preserve replanning and interaction-contract breakdown as separate from permission/path classes.
+    - confidence: high
+  - family: timeout_heavy_long_horizon_degradation
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+      - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/bash.py`
+      - `research/sources/codebases/a-evolve/seed_workspaces/swe/tools/bash.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/code_executor.py`
+    - implication:
+      - Time-budget and output-truncation controls are explicit and heterogeneous; long-horizon degradation should stay a dedicated failure family with explicit benchmark-pressure linkage.
+    - confidence: high
+- baseline_comparator_note:
+  - Local harness files (`blocks/execution/flat_loop.py`, `blocks/tools/raw_bash.py`, `runner/agent.py`) currently define interfaces and intent but not operational orchestration logic; keep terminal-first single-agent baseline active and avoid over-attribution to local code not yet implemented.
+- limitations:
+  - BigAI remains behavioral reconstruction only and cannot be used for source-backed orchestration claims.
+  - claw-code remains quarantine pressure; snapshot hints are not runtime-equivalent orchestration proof.
+- handoff:
+  - Use this support artifact as support evidence for `outputs/codebase_source_reconstruction_analyst.md`.

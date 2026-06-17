@@ -1,0 +1,253 @@
+SOURCE_SYSTEM_DOSSIER
+- system: KIRA
+- dossier_status: wave_03_repair_pass_first_complete
+- source_scope:
+  - Primary KIRA source surfaces read for this dossier: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/api.py`, `research/sources/codebases/KIRA/KiraClaw/scripts/verify_bridge_release.sh`, `research/sources/codebases/KIRA/KiraClaw/docs/bridge-release-checklist.md`.
+  - Behavior pressure used to keep the dossier honest: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`.
+- architectural_core:
+  - KIRA contains two related but distinct architectural layers. `TerminusKira` is a native tool-calling terminal agent built on Harbor's `Terminus2` and `TmuxSession`, while KiraClaw is a broader daemonized runtime that wraps agent execution, channel delivery, memory tooling, process management, and session persistence (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/api.py`).
+  - Wave 03 matters most for the seam between them: TerminusKira contributes the explicit completion doctrine, while KiraClaw contributes the longer-running session-state, replay, and operational verification substrate (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`).
+- tool_calling_and_execution:
+  - TerminusKira exposes three native tools: `execute_commands`, `task_complete`, and `image_read`. Execution is terminal-first and tmux-mediated, with marker-based command completion polling so the agent can stop waiting as soon as the shell returns rather than burning the full duration budget (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`).
+  - KiraClaw broadens the execution surface beyond terminal keystrokes. `engine.py` wires `BashTool`, skill tools, memory tools, process tools, speak tools, and MCP tools into a single agent runtime; this is a much richer operational surface than bare TerminusKira (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`).
+- workflow_and_control_doctrine:
+  - The clearest architectural doctrine in KIRA is not "verifier after the fact" but "make completion hard to assert lightly." The prompt template requires minimal-state-change review before completion, and `TerminusKira` turns `task_complete` into a two-step process where the first call triggers a confirmation checklist and only the second marks the task complete (`research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`, `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`).
+  - KiraClaw adds a queue-and-lane workflow on top: `SessionLane` moves runs through `queued`, `running`, `completed`, or `failed` states and invokes explicit update and completion hooks, making run lifecycle part of the runtime surface rather than a side effect (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`).
+- context_and_state_model:
+  - TerminusKira's prompt model is explicit about sensory limits. The agent is told it has no eyes or ears and must use programmatic or AI tools for multimedia, which directly explains why `image_read` is part of the core tool contract and why perception-heavy tasks put unusual pressure on its completion doctrine (`research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`, `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`).
+  - KiraClaw's session manager maintains short conversation context and optional memory context per session lane, then threads those into `engine.run()`. The result is a more persistent conversational state model than bare TerminusKira, even though Wave 03 does not yet prove restart-safe task resumption behaviorally (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`).
+- memory_or_persistence_model:
+  - KiraClaw has a visible persistence and replay surface. `RunLogStore` writes JSONL records that retain prompt, timestamps, tool events, trace events, internal summary, public response text, and live-vs-final state, and can tail both persisted and live rows (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`).
+  - `SessionManager` also contains explicit auto-memory heuristics keyed to durable signals, tool usage, and long-form interactions, which means memory write policy is encoded in the runtime rather than left entirely to prompting (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`).
+- verification_and_completion:
+  - KIRA's strongest source-backed Wave 03 mechanism is completion gating. In `TerminusKira`, the first completion attempt only sets pending completion and returns a checklist prompt; only a second completion call can finish the run (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`).
+  - KiraClaw also shows that KIRA-family verification is not only agent-internal. The bridge-release verifier script enforces config invariants, syntax checks, `pytest`, packaged resource layout, and release identity before declaring the bridge artifact ready, and the companion checklist spells out runtime and compatibility gates (`research/sources/codebases/KIRA/KiraClaw/scripts/verify_bridge_release.sh`, `research/sources/codebases/KIRA/KiraClaw/docs/bridge-release-checklist.md`).
+  - Behaviorally, the completion gate is real but not sufficient. In `cancel-async-tasks`, KIRA progresses from an apparent early fix to stronger retesting and then successful completion. In `extract-moves-from-video`, the same family still moves toward completion with unresolved `201` versus `230` versus `262` command-count tension, so the source doctrine is stronger than the hardest observed behavior (`research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`).
+- recovery_and_resumability:
+  - Recovery in KIRA is split. TerminusKira itself is strong on bounded waiting and iterative command execution through tmux markers, but it does not expose a rich rollback/versioning surface comparable to A-Evolve (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`).
+  - KiraClaw provides stronger state-management substrate: session lanes, run-state transitions, log persistence, and daemon/API resources all support replay, observation, and possibly later restart tooling (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/api.py`).
+  - Behaviorally, Wave 03 only strongly supports iterative repair and retest. `cancel-async-tasks` shows recovery through stronger adversarial tests, while `db-wal-recovery` shows recovery collapse into environment spelunking and mount probing rather than visible bounded restore or replay discipline (`research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`).
+- environment_and_permissions:
+  - TerminusKira is a terminal-native agent operating through a tmux session. The tool contract is about keystrokes, wait durations, and image reads, not direct structured filesystem APIs (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`).
+  - KiraClaw makes permissions policy explicit in code: `BashTool` is configured with deny patterns, allow commands, default prompting behavior, and output limits from settings, so environment access is policy-shaped rather than unconstrained (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`).
+- what_the_agent_sees:
+  - TerminusKira sees the task description and current terminal state through the prompt template, plus explicit instructions that it cannot rely on human intervention and must verify minimal state changes before completion (`research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`).
+  - KiraClaw agents see a system prompt assembled from available tools, skills, MCP tools, and persona settings, which means the modern runtime exposes a much richer self-description than the legacy terminal-only loop (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`).
+- relevant_trajectory_links:
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+- contradictions_or_unknowns:
+  - KIRA carries two truths that later waves must preserve simultaneously: the two-step completion gate is source-backed and real, and the family still exhibits strong false-completion pressure on perception-heavy tasks (`research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`).
+  - KiraClaw's replay/session substrate is stronger in source than in current behavior evidence. This dossier should not be cited as proof that KIRA already has stable restart-safe resumability across tasks (`research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`).
+  - Harbor `TmuxSession` internals were not directly read in this repair pass, so the lowest-level PTY/session behavior remains partially hidden.
+- confidence_notes:
+  - High confidence: TerminusKira completion gate, minimal-state-change doctrine, KiraClaw session-state and run-log substrate, KIRA's iterative retest pattern in cancellation.
+  - Medium confidence: any stronger resumability claim, and any claim that KIRA's completion doctrine reliably prevents false completion in multimedia-heavy tasks.
+- downstream_relevance:
+  - KIRA is the clearest source family for built-in completion gating rather than external grader control. It should anchor later work on double-confirmation blocks, cleanup-aware completion review, and session-log replay surfaces.
+  - This dossier should also be reused in later session-control and long-running-agent waves because KiraClaw shows that the KIRA family is more than a tmux loop; it also contains an emerging daemon/session substrate.
+- wave_06_formal_pressure_update:
+  - Formal planner/executor/replan doctrine is consistent with KIRA’s explicit completion-gate and iterative retest surfaces, but does not remove the existing contradiction that protocol language can still coexist with false-completion behavior in difficult slices.
+  - Formal role-separation guidance supports keeping TerminusKira and KiraClaw as distinct orchestration surfaces (terminal-first loop vs broader daemon/session/runtime substrate) rather than flattening them into one role claim.
+  - Wave 06 implication: KIRA remains a high-value role-contract exemplar, with explicit caution that contract existence is not equivalent to proved behavioral reliability.
+- wave_06_planning_orchestration_and_interactions_update:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/protein-assembly/e8d52c49-8861-414f-9675-966c4e3c6398-traj.txt`
+    - `research/sources/trajectories/terminus-kira/large-scale-text-editing/8d411246-71ae-4a44-8f8b-af985026bd5a-traj.txt`
+  - observations:
+    - sampled Wave 06 pressure runs are terminal-command batch loops from a single active agent role; no explicit planner/executor/verifier role packets appear in these trajectories.
+    - orchestration discipline is encoded as strict prompt-side JSON command protocol and repeated checklist instructions rather than explicit multi-role handoff objects.
+  - inference:
+    - KIRA sampled pressure supports an interaction-contract family centered on structured command-batch protocol compliance, distinct from BigAI's role-separated delegation contract.
+  - confidence:
+    - medium (two sampled tasks, no full run-family sweep in this lane)
+  - open_limit:
+    - this update does not cover KIRA's broader lane/session orchestration source internals for Wave 06; source-lane reconciliation remains required.
+- wave_06_informal_pressure_update:
+  - observation: Role-split and terminal-first doctrine does not eliminate handoff/resume fragility when context compaction or delegated policy routing fails.
+  - inference: Wave 06 synthesis should treat KIRA-style role contracts as necessary but insufficient without explicit resume-integrity and delegated-policy checks.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+    - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+    - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+    - `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+- wave_06_codebase_source_reconstruction_update:
+  - source_scope_delta:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_slack_handlers.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/answer_aggregator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/agent.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/prove-plus-comm/790cd7ff-9610-46c7-bd4d-b86abf611418.tar.gz`
+    - `research/sources/trajectories/terminus-kira/cobol-modernization/8da60a45-3657-4a7c-99d3-d9f0cf7de3dd-traj.txt`
+    - `research/sources/trajectories/terminus-kira/openssl-selfsigned-cert/07019853-bc0d-4433-b366-91a8275acfef-traj.txt`
+  - observations:
+    - TerminusKira still provides the strongest source-visible planner contract among source-backed families in this wave (`analysis` + `plan` + `commands`, plus two-step completion confirmation).
+    - KiraClaw and KIRA-Slack extend orchestration into queue/lane/scheduler and multi-role messaging pipelines.
+    - sampled KIRA-Slack role-agent configs continue to show `permission_mode="bypassPermissions"`, which weakens blanket governance claims.
+  - inference:
+    - keep KIRA as a strong interaction-contract family, but treat delegation-governance guarantees as subsystem-conditional rather than uniform.
+  - confidence:
+    - medium
+  - open_limit:
+    - full KIRA-Slack role graph was not exhaustively audited in this lane pass.
+- wave_01_literature_pressure_update_2026_04_10:
+  - context: formal Wave 01 pressure applied to execution-control and terminal-failure attribution.
+  - observation: Terminal-benchmark and control-loop papers treat cancellation/cleanup and postcondition verification as load-bearing closure doctrine.
+  - inference: KIRA runs should be classified with explicit `cleanup-confirmed closure` checks; successful command execution without defended postcondition proof remains insufficient.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/2603.05344.txt`
+    - `research/sources/papers/papers_text/2602.07274.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - source_scope_delta:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+    - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - observations:
+    - source-level command control combines marker polling + block timeouts + two-step completion confirmation, making false-success prevention explicit but procedural.
+    - process and background session controls (`SIGTERM` -> `SIGKILL`, process list/poll/log/kill) are first-class in source.
+    - headless-terminal run shows classic false-success pressure: early passes followed by interactive-file failure, then correction and re-verification before completion.
+  - inference:
+    - KIRA has strong execution-control primitives, but reliability still depends on test quality and cross-surface handoff integrity.
+  - confidence:
+    - high on source claims, medium on cross-task behavioral prevalence
+  - open_limit:
+    - scheduler/lane-attribution to repo-state drift is plausible but still under-sampled behaviorally.
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - bundled verifier outputs in matching `*.tar.gz` artifacts.
+  - observations:
+    - `db-wal-recovery` required run fails with reward `0`; verifier output shows cwd invalidation (`getcwd`/`Current directory does not exist`) instead of bounded closure.
+    - `extract-moves-from-video` repeatedly marks completion despite unresolved OCR/quality contradictions and fails similarity check at final gate.
+    - `cancel-async-tasks` is a positive control in this slice (reward `1`) and does not erase the two failure surfaces above.
+  - inference:
+    - KIRA source-level completion protocol remains real, but Wave 02 trajectories show protocol friction can still end in false completion or environment-state recovery breakdown.
+  - confidence:
+    - medium-high for false-completion pressure in extraction
+    - medium for root-cause attribution in db-wal-recovery (single required run)
+  - evidence_paths:
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2.tar.gz`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd.tar.gz`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/{engine.py,session_manager.py,run_log_store.py}`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - observations:
+    - source-visible two-step completion gate and minimal-state-change checklist are real completion-control doctrine.
+    - KiraClaw runtime persists run states and trace events, giving explicit post-run forensic/replay surface.
+    - trajectory pressure shows contested completion still possible in multimodal extraction despite repeated completion checks (unresolved `201/230/262` disagreement remains visible).
+  - inference:
+    - KIRA should be attributed as `protocol-gated completion`, but Wave 02 failures should preserve a separate `proof-quality` axis because checklist confirmation can still outrun true closure.
+    - replay/log substrate is stronger than demonstrated resumability correctness in required Wave 02 slices.
+  - confidence:
+    - high on source-backed completion and logging mechanisms
+    - medium on broad behavioral prevalence of contested completion beyond inspected slices
+  - evidence_paths:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+- wave_03_context_state_memory_workspace_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_runtime.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_store.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_retriever.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_tools.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+    - `research/sources/trajectories/terminus-kira/break-filter-js-from-html/eaf5da17-d140-4652-bd00-3e6a83bf66cf-traj.txt`
+    - `research/sources/trajectories/terminus-kira/custom-memory-heap-crash/3c178f63-b5da-4ffa-b4c3-225d919b72ec-traj.txt`
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - observations:
+    - TerminusKira has an explicit overflow path: attempt summary handoff first, then degrade to limited screen context when summarization cannot be used.
+    - KiraClaw memory/session stack is bounded and failure-tolerant (queue limits, clipped retrieval payloads, warning-on-error behavior), so stale/missing memory can degrade runs without immediate fail-stop.
+    - required Wave 03 db-wal trajectory still shows workspace/path drift pressure despite this substrate, so mechanism availability and successful recovery remain separate claims.
+  - inference:
+    - Wave 03 attribution should keep KIRA-family classes split across `overflow fallback truncation`, `memory retrieval clipping/staleness`, and `workspace/session drift under environment pressure`.
+    - do not collapse runtime allocator-memory task failures into memory-subsystem taxonomy for KIRA.
+  - confidence:
+    - high on source-backed mechanism presence
+    - medium on run-family prevalence for each failure branch
+  - evidence_paths:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_runtime.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_store.py`
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+    - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - observations:
+    - cancellation slice includes explicit cleanup failure under stronger scenario prior to redesign.
+    - extract slice exhibits tool/command gateway mismatch bursts (parse/syntax cascades, missing script files, interrupted OCR path).
+  - inference:
+    - KIRA Wave 04 pressure is dominated by interaction-contract fragility and remediation loops rather than pure model-output failure.
+  - confidence:
+    - high
+- wave_04_codebase_source_reconstruction_update_2026_04_11:
+  - source_scope_delta:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - observations:
+    - KIRA source has explicit command lifecycle controls (marker polling, process sessions, kill/clear flow, schedule runtime).
+    - KiraClaw and KIRA-Slack expose heterogeneous permission governance (`allow/deny/ask` vs `bypassPermissions`).
+    - required trajectories show gateway and cancellation remediation pressure consistent with these control surfaces.
+  - inference:
+    - Wave 04 KIRA attribution should retain separate classes for `tool gateway mismatch`, `lifecycle/cancellation breakdown`, and `permission governance inconsistency`.
+    - do not treat KIRA permission behavior as one uniform policy.
+  - confidence:
+    - high on source-backed control and heterogeneity claims
+    - medium-high on cross-subsystem prevalence
+  - evidence_paths:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`

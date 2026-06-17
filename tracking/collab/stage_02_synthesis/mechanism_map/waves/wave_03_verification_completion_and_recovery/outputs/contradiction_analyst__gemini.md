@@ -1,0 +1,67 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: mechanism_map
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - This gate review confirms that all 5 lanes (trajectory, codebase, literature, informal, and eval) executed their first-pass analysis on the verification, completion, and recovery mechanisms.
+  - The trajectory lane correctly anchored on behavior, preserving the minimal-sufficient completion baseline seen in DeepAgents while contrasting it with BigAI's verifier-mediated cleanup.
+  - Coverage registers and bounding scope were respected, and support sub-agent artifacts were generated and utilized.
+- preflight_planned_read_order:
+  - Review trajectory baseline claims and cross-family differences.
+  - Review codebase implementation mappings.
+  - Evaluate eval/benchmark grader contracts vs. behavior.
+  - Compare formal literature design intent against observed informal/operator reality.
+- preflight_critical_sources_selected:
+  - `trajectory_failure_analyst.md`
+  - `codebase_source_reconstruction_analyst.md`
+  - `eval_benchmark_analyst.md`
+  - `literature_papers_docs_analyst.md`
+  - `informal_issues_postmortems_analyst.md`
+- preflight_coverage_risks:
+  - BigAI claims remain limited to behavioral reconstruction as source code is not visible.
+  - `evidence_inventory/outputs/organizer.md` was reported empty by the informal lane, risking incomplete issue routing.
+- preflight_likely_blind_spots:
+  - Restart and resumability behavior lacks deep empirical trajectory backing, despite heavy presence in informal issue requests and formal literature.
+- preflight_blockers:
+  - None. The first-pass analysis provides sufficient visibility to identify structural mechanism patterns and pass with warnings.
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/*analyst.md`
+- coverage_not_yet_used:
+  - Long-tail task families outside WAL recovery, cancellation, and video extraction.
+  - BigAI internal evaluator source code (not accessible).
+- evidence_classes_touched:
+  - Trajectories (DeepAgents, KIRA, BigAI)
+  - Mirrored codebases (DeepAgents, KIRA, A-Evolve)
+  - Formal Literature/Papers
+  - Informal/Issues/Postmortems
+  - Eval/Benchmark repositories
+- priority_sources_not_yet_read:
+  - Additional BigAI verifier-heavy slices (e.g., `adaptive-rejection-sampler`) to validate verifier-mediated completion patterns.
+- support_artifact_gaps:
+  - Restart and resume paths are weakly mapped; the codebase support artifact maps verifier recovery but lacks deep coverage of checkpoint/restore state validation.
+- coverage_register_consistency:
+  - Consistent. The lanes appropriately flagged areas where evidence was thin (e.g., KIRA extraction completion, restart/resume trajectories).
+- supported_findings:
+  - Verification and completion are not a single monolith. DeepAgents proves that direct artifact postcondition checks (e.g., database verification) can serve as a minimal-sufficient completion pattern without a prestige verifier stack.
+  - Cancellation cleanup is a first-class workflow stage, not a side-effect, as evidenced by DeepAgents and BigAI cleanup gating.
+  - BigAI uses a verifier-mediated closure pattern with strict delivery-directory hygiene enforcement (behavioral reconstruction).
+- unsupported_or_overclaimed_findings:
+  - Restart and Resumability: Formal literature and informal issues claim strong restart/restore primitives, but trajectory and source evidence do not support this as a stable, cross-family capability. Trajectories show iterative retry/cleanup rather than durable restart-safe resumption.
+- missing_evidence_classes:
+  - Direct benchmark evaluator code for some targets (often relying on README-level contracts).
+  - Source implementation for BigAI's verifier gating.
+- reconciliation_failures:
+  - Formal Intent vs. Operator Reality: Literature (`Sessions`, `LangGraph`) specifies clear checkpoint/restore architectures, but trajectory and informal lanes report brittle recovery collapsing into environment spelunking (e.g., KIRA WAL recovery) or false completion (KIRA extraction).
+  - Benchmark Contracts vs. Trajectory Reality: Eval contracts emphasize strict fair-comparison grading, but trajectory behaviors show verifiers sometimes passing while overall results fail, or completion being asserted despite unresolved internal contradictions.
+- coverage_blind_spots:
+  - The informal lane noted that the organizer output was empty, meaning some long-tail issue clusters on recovery/resume may have been missed if not manually located.
+- required_repairs_before_acceptance:
+  - BigAI claims MUST strictly retain the `behavioral reconstruction` label in the principal synthesis, as source implementation remains unseen.
+  - The principal synthesis must explicitly decouple "verification/cleanup" (strongly evidenced) from "restart/resumability" (weakly evidenced) rather than grouping them as a single mature capability.
+- optional_pressure_tests:
+  - Test KIRA's two-step completion confirmation against more extraction tasks to see if the false-completion pattern is systemic or slice-specific.
+- gate_review_recommendations:
+  - Proceed to Principal Synthesis. The divergence between formal literature's robust resumability claims and the trajectory lane's observed fragility is a strong synthesis finding, not a defect in the analysis.
+- confidence:
+  - High for verification and cleanup findings.
+  - Medium for cross-family restart/resumability claims (due to lack of trajectory evidence).
+  - Medium for BigAI verifier mechanisms (due to reliance on behavioral reconstruction).

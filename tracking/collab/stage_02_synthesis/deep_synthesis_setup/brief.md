@@ -1,0 +1,56 @@
+# Deep Synthesis Setup Brief
+
+TASK_PACKET
+- stage: Deep Synthesis execution setup maintenance
+- artifact: deep_synthesis_setup
+- objective: Keep the bounded operational setup for Deep Synthesis aligned with the current stage model, wave staffing pattern, and support-track workflow.
+- exact_question: What concrete specialist roster, model-role mapping, collaboration pattern, prompt-pack requirement, task-packet structure, tracing rule set, adversarial checkpoint sequence, support-sub-agent pattern, and gate-review model should govern Deep Synthesis execution now?
+- why_now: The stage is already executing, but the owner requested a setup upgrade after the Wave 02 experience so the execution surface matches the compressed plan.
+- inputs:
+  - AGENTS.md
+  - GOVERNED_MULTI_AGENT_OPERATING_MODEL.md
+  - PRINCIPAL_AGENT_WORKFLOW.md
+  - SYNTHESIS_TEAM_SPEC.md
+  - prompts/README.md
+  - prompts/principal_project_agent_prompt.md
+  - tracking/collab/TASK_PACKET_TEMPLATE.md
+  - tracking/collab/stage_02_synthesis/README.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/brief.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/decision.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/red_team.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/synthesis/principal_synthesis.md
+- exclusions:
+  - do not produce final mechanism or failure claims
+  - do not edit canonical ledger files
+- output_contract:
+  - write one setup artifact to `tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md`
+  - return:
+    - current_judgment
+    - recommended_setup_artifacts
+    - specialist_roster
+    - model_role_mapping
+    - per_artifact_collaboration_mode
+    - prompt_pack_plan
+    - prompt_pack_files
+    - task_packet_structure
+    - initial_task_packets
+    - coverage_reporting_requirements
+    - tracing_policy
+    - adversarial_checkpoints
+    - tracing_readiness_decision
+    - approval_boundary
+    - exact_next_wave_or_artifact_after_setup_refresh
+- collaboration_mode: principal-led bounded setup artifact, then human owner review
+- external_agent_action: Run external agent now: no. This is a principal-owned setup artifact.
+- assigned_roles:
+  - principal project steward
+- evidence_expectations:
+  - treat deep synthesis as a full-corpus multi-agent analysis operation
+  - keep the captured synthesis manifest as the integrity anchor
+  - keep organizer-routed non-intake evidence classes in scope explicitly
+  - require adversarial review for important artifacts by default
+  - use the actual available models for role mapping
+- decision_needed_from_human: approve or refine the current Deep Synthesis execution setup when major execution-surface changes are proposed.
+- done_condition: The setup artifact exists, the reusable Deep Synthesis prompt pack and workflow surfaces exist, the staffing and model guidance are explicit, and the setup stays aligned with the binding wave plan.

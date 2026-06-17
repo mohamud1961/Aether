@@ -1,0 +1,44 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/gui_chatbot/?q=
+================================================================================
+
+办公助理互动示例¶
+
+本示例展示了如何利用 TongAgents 和 Gradio 构建一个虚拟办公助理界面，实现 LLM 驱动的实时对话交互和工具调用。
+
+环境准备¶
+安装 TongAgents SDK，参考安装指南
+配置模型服务，详见模型配置
+安装 Gradio 及其它依赖
+示例概述¶
+
+示例关键部分包括：
+
+创建智能体：调用 create_react_agent 构造一个 React 类型智能体，并注册本地工具（例如 multiply）。
+虚拟形象展示：通过 Gradio 显示定制的 2D 办公助理图片，利用自定义 CSS 保证图像样式。
+对话交互：绑定 Gradio 按钮，用户输入消息后，智能体调用 LLM 生成回复，并更新对话记录。
+
+下面代码摘录展示了与虚拟形象交互关键逻辑：
+
+examples/gui_assistant/assistant_web.py
+def interact_with_character(raw_user_input, raw_chat_history):
+
+    logging.info(f"user_input:{raw_user_input}")
+
+    result = agent.step(
+
+        LLMInputEvent(input=UserPromptMessage(content=raw_user_input))
+
+    )
+
+    raw_chat_history.append((raw_user_input, result.response))
+
+    return raw_chat_history
+
+Gradio 的布局将虚拟形象、对话框和输入控件整合到一起，提供直观的用户体验。
+
+说明¶
+交互体验：借助实时对话和图像展示，实现虚拟助理式办公互动。
+工具集成：通过注册本地工具，智能体不仅能对话，还能执行简单计算等任务。
+模块化设计：框架支持灵活扩展，方便集成更多功能或定制专用交互界面。
+
+本示例充分展示了 TongAgents 在构建交互式智能系统方面的优势，助力快速开发和验证办公场景下的智能对话应用。

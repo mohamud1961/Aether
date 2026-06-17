@@ -1,0 +1,49 @@
+# Deep Synthesis Wave Plan Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: deep_synthesis_wave_plan
+- objective: Define the binding Deep Synthesis execution shape so coverage depth, speed, support artifacts, and downstream inheritance are all explicit.
+- exact_question: What is the final compressed Deep Synthesis structure, which support tracks make coverage real, how many core waves remain, how should serious waves be staffed, and what current completion state should be marked after the Wave 02 review cycle?
+- why_now: The earlier 24-wave plan was too heavy, Wave 02 surfaced the real execution bottlenecks, and the owner requested a full-stage upgrade before more waves continue.
+- inputs:
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/adjudication/checklist_adjudicator.md
+  - research/sources/papers/papers_text/review_summary.md
+- preflight_requirements:
+  - preserve the full-corpus Deep Synthesis goal
+  - preserve behavior-first discipline
+  - compress governance checkpoints without weakening coverage guarantees
+  - mark actual completed state instead of assumed state
+  - stop if the new plan would quietly trade away source depth or coverage honesty
+- exclusions:
+  - do not draft prompts here
+  - do not produce final mechanism or failure claims here
+  - do not edit canonical ledger files
+- output_contract:
+  - canonical wave-plan synthesis:
+    - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - decision summary:
+    - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/decision.md
+  - related stage docs should be updated to reference the compressed 14-wave model, the support tracks, and the new completion state
+- collaboration_mode: principal-led methodology artifact
+- external_agent_action: Run external agent now: no.
+- assigned_roles:
+  - principal project steward
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_01_exploratory_anchor/
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/
+- handoff_requirements:
+  - all serious Deep Synthesis packets should cite this wave plan
+  - the workflow guide and execution protocol should match it
+- evidence_expectations:
+  - cite current repo-local state, not only earlier planning intent
+  - mark completed waves explicitly
+  - keep support tracks load-bearing rather than decorative
+- decision_needed_from_human: none beyond the owner-requested plan-upgrade pass that triggered this update
+- done_condition: the stage has one canonical compressed wave plan, one explicit support-track model, one explicit completion state, and one aligned execution/workflow surface.

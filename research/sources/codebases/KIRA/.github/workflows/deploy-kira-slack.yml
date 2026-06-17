@@ -1,0 +1,253 @@
+# KiraClaw Desktop GitHub Actions Workflow
+# Tag pushes publish the current manual-install KiraClaw desktop builds.
+
+name: "KiraClaw: Build and Deploy"
+
+on:
+  push:
+    tags:
+      - 'v*'  # Runs only when a tag is pushed (e.g., v0.9.16)
+
+env:
+  NODE_VERSION: "22"
+  CLAW_WORKING_DIR: KiraClaw
+  CLAW_DESKTOP_DIR: KiraClaw/apps/desktop
+  DOCS_WORKING_DIR: KIRA-Slack/vitepress-app
+
+jobs:
+  # ===========================
+  # Job 1: macOS Build
+  # ===========================
+  deploy-mac:
+    name: Build and Deploy macOS KiraClaw App
+    runs-on: self-hosted  # macOS self-hosted runner (requires Apple code signing)
+    timeout-minutes: 120  # Allows time for notarization
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Load nvm and verify Node.js
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          node --version
+          npm --version
+
+      - name: Unlock Keychain
+        run: |
+          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" ~/Library/Keychains/login.keychain-db
+          security set-keychain-settings -t 7200 ~/Library/Keychains/login.keychain-db
+
+      - name: Setup AWS CLI
+        run: |
+          which aws || brew install awscli
+          aws --version
+
+      - name: Setup Python and uv
+        run: |
+          python3 --version
+          python3 -m pip install --user uv
+          export PATH="$HOME/.local/bin:$PATH"
+          uv --version
+
+      - name: Install dependencies
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          cd ${{ env.CLAW_WORKING_DIR }} && npm ci
+
+      - name: Sync KiraClaw Python environment
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          cd ${{ env.CLAW_WORKING_DIR }}
+          uv sync --extra dev
+
+      - name: Extract version from tag and update KiraClaw package versions
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "📦 Version: $VERSION"
+          VERSION="$VERSION" node -e 'const fs=require("fs"); const version=process.env.VERSION; const files=process.argv.slice(1); for (const file of files) { const pkg=JSON.parse(fs.readFileSync(file,"utf8")); pkg.version=version; fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`); }' "${{ env.CLAW_WORKING_DIR }}/package.json" "${{ env.CLAW_DESKTOP_DIR }}/package.json"
+
+      - name: Clean public output
+        run: |
+          rm -rf "${{ env.CLAW_DESKTOP_DIR }}/dist-public"
+
+      - name: Verify desktop release preflight
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          cd ${{ env.CLAW_DESKTOP_DIR }}
+          npm run verify:bridge
+
+      - name: Build and Deploy macOS Public KiraClaw App
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-northeast-2
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          cd ${{ env.CLAW_DESKTOP_DIR }}
+          npm run build:public:mac
+
+      - name: Verify macOS packaged app layout
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          APP_BUNDLE="${{ env.CLAW_DESKTOP_DIR }}/dist-public/mac-arm64/KiraClaw.app"
+          APP_ASAR="$APP_BUNDLE/Contents/Resources/app.asar"
+          APP_DEFAULT_SKILLS_DIR="$APP_BUNDLE/Contents/Resources/kiraclaw/defaults/skills"
+          test -f "$APP_ASAR"
+          npx --yes @electron/asar list "$APP_ASAR" | grep -q '^/lib/constants\.js$'
+          test -f "$APP_DEFAULT_SKILLS_DIR/pptx/SKILL.md"
+          test -f "$APP_DEFAULT_SKILLS_DIR/pdf/SKILL.md"
+          test -f "$APP_DEFAULT_SKILLS_DIR/channel-setup/SKILL.md"
+          test -f "${{ env.CLAW_DESKTOP_DIR }}/dist-public/latest-mac.yml"
+
+      - name: Upload macOS public release to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-northeast-2
+        run: |
+          aws s3 sync "${{ env.CLAW_DESKTOP_DIR }}/dist-public" "s3://kira-releases/download/kiraclaw" \
+            --exclude "*" \
+            --include "*.dmg" \
+            --include "*.zip" \
+            --include "*.yml" \
+            --include "*.blockmap" \
+            --acl public-read
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-${{ github.ref_name }}
+          path: |
+            ${{ env.CLAW_DESKTOP_DIR }}/dist-public/*.dmg
+            ${{ env.CLAW_DESKTOP_DIR }}/dist-public/*.zip
+          retention-days: 30
+
+  # ===========================
+  # Job 2: Windows Build
+  # ===========================
+  deploy-windows:
+    name: Build and Deploy Windows KiraClaw App
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd ${{ env.CLAW_WORKING_DIR }}
+          npm ci
+
+      - name: Extract version from tag and update KiraClaw package versions
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "📦 Version: $VERSION"
+          VERSION="$VERSION" node -e 'const fs=require("fs"); const version=process.env.VERSION; const files=process.argv.slice(1); for (const file of files) { const pkg=JSON.parse(fs.readFileSync(file,"utf8")); pkg.version=version; fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`); }' "${{ env.CLAW_WORKING_DIR }}/package.json" "${{ env.CLAW_DESKTOP_DIR }}/package.json"
+
+      - name: Clean public output
+        shell: bash
+        run: |
+          rm -rf "${{ env.CLAW_DESKTOP_DIR }}/dist-public"
+
+      - name: Build and Deploy Windows Public KiraClaw App
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-northeast-2
+          CSC_IDENTITY_AUTO_DISCOVERY: false  # Skip code signing
+        run: |
+          cd ${{ env.CLAW_DESKTOP_DIR }}
+          npm run build:public:win
+
+      - name: Upload Windows public release to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-northeast-2
+        shell: bash
+        run: |
+          aws s3 sync "${{ env.CLAW_DESKTOP_DIR }}/dist-public" "s3://kira-releases/download/kiraclaw" \
+            --exclude "*" \
+            --include "*.exe" \
+            --include "*.yml" \
+            --include "*.blockmap" \
+            --acl public-read
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-${{ github.ref_name }}
+          path: |
+            ${{ env.CLAW_DESKTOP_DIR }}/dist-public/*.exe
+          retention-days: 30
+
+  # ===========================
+  # Job 3: VitePress Documentation
+  # ===========================
+  deploy-docs:
+    name: Build and Deploy Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [deploy-mac, deploy-windows]  # Runs after app builds complete (ensures download links are valid)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd ${{ env.DOCS_WORKING_DIR }}
+          npm ci
+
+      - name: Extract version and update docs
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "📦 Version: $VERSION"
+          cd ${{ env.DOCS_WORKING_DIR }}
+          node scripts/sync-version.js $VERSION
+
+      - name: Build VitePress docs
+        run: |
+          cd ${{ env.DOCS_WORKING_DIR }}
+          npm run docs:build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Deploy to S3
+        run: |
+          cd ${{ env.DOCS_WORKING_DIR }}
+          aws s3 sync .vitepress/dist s3://kira-releases --delete --exclude 'download/*' --exclude 'videos/*'
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id EU03W5ZNSG0E --paths "/*"

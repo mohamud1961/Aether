@@ -1,0 +1,173 @@
+# Mechanism Map Wave 02 Execution Control and Terminal Grounding Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- wave: wave_02_execution_control_and_terminal_grounding
+- wave_focus_domain: execution_control_and_terminal_grounding
+- objective: Build behavior-anchored mechanism cards for execution control, terminal grounding, interrupts, replanning, stop rules, and repo-state-safe action execution across the major harness families.
+- exact_question: How do the harnesses actually control shell and PTY sessions, sequence actions, regain control when execution goes wrong, decide when to stop, and keep execution grounded in real task state across trajectories and source?
+- new_resolution_goal: Resolve whether execution-control and terminal-grounding mechanisms are genuinely cross-system harness families with stable behavior/source reconciliation, or whether the strongest apparent patterns from the exploratory anchor were still regime-local, under-read, or overfit to the cleanest cases.
+- why_prior_waves_were_not_enough: The preserved `wave_01_exploratory_anchor` established useful candidate themes, but it did not yet force the active domain through the vertical same-wave quartet with explicit source pressure, contradiction pressure, cumulative-state compounding, and long-tail execution slices strong enough to treat the domain as more than exploratory.
+- why_now: This is the first vertical mechanism-domain wave after the preserved exploratory anchor. It reopens `mechanism_map` under the blind-parallel quartet using trajectories as the empirical anchor and same-wave source, formal, and informal pressure.
+- lane_completion_rule: The role outputs for this wave are first-pass only unless the principal explicitly marks a lane as wave-sufficient after contradiction review and wave synthesis. No lane should be treated as complete merely because a first-pass file exists.
+- trajectory_deeper_coverage_requirements:
+  - per-run analysis across the wave-selected readable runs, with promoted archive rescues when unread variants could materially change the execution-control judgment
+  - shared-task cross-system comparison for the wave-selected task families
+  - pass/fail divergence analysis and failure-point comparison where the same task family shows meaningful behavioral spread
+  - mechanism hypotheses anchored in trajectories first and reconciled against visible source where available
+  - explicit no-source caveats for BigAI or any behavior-only claims
+- governed_followup_rule: If the first-pass quartet leaves packet-required depth unresolved in any lane, open a governed `__followup_XX` output or carry the unresolved work forward into a later vertical wave. Do not silently assume lane completion.
+- inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/brief.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/decision.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_01_exploratory_anchor/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/lane_followup_plan.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_access/decision.md
+  - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_02_source_system_promotion_and_map/brief.md
+  - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_03_trajectory_run_inventory/brief.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md
+  - prompts/deep_synthesis_shared_policy_prompt.md
+  - prompts/deep_synthesis_trajectory_failure_analyst_prompt.md
+  - prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md
+  - prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md
+  - prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md
+  - prompts/deep_synthesis_eval_benchmark_analyst_prompt.md
+  - prompts/deep_synthesis_contradiction_analyst_prompt.md
+  - MECHANISM_CARD_SCHEMA.md
+- preflight_requirements:
+  - confirm that this is a vertical mechanism-domain wave and not a source-only or trajectory-only pass
+  - confirm trajectory/failure as the primary empirical anchor for this wave
+  - name the critical trajectory slices, source systems, and contradiction-pressure sources selected for this domain
+  - state the planned read order across trajectories, source, formal literature, informal sources, and eval sidecar evidence if used
+  - identify one simple or minimal-sufficient contender that should remain visible against more complex control architectures
+  - return a blocker only if the active domain lacks enough trajectory visibility or source visibility to support honest cross-lane synthesis
+- scope_anchor_paths:
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- evidence_classes_in_scope:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - eval repos
+  - benchmark captures
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `research/sources/trajectories/deepagents/headless-terminal/`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/`
+  - `research/sources/trajectories/BigAI/headless-terminal/`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/`
+  - `research/sources/trajectories/deepagents/break-filter-js-from-html/`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/`
+  - comparable repo-state and branching slices where available
+- mirrored_source_targets:
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/codebases/a-evolve/`
+  - top-tier `src_cod_*` captures relevant to execution control, terminal IO, loop control, stop rules, or orchestration
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to execution control and verification coupling
+- behavior_reconstruction_targets:
+  - `research/sources/trajectories/BigAI/`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- eval_and_benchmark_targets:
+  - `research/sources/benchmarks/`
+  - eval or benchmark surfaces only when verifier, replay, judge, or completion-contract logic materially shapes execution-control interpretation
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- required_case_slices:
+  - `PTY and interactive shell control`
+  - `interrupt and stuck-process recovery`
+  - `repo-state-safe branching and cleanup`
+  - `replanning versus direct execution control`
+- extraction_level_cap: `L4`
+- citation_contract:
+  - every `L3` or `L4` claim must cite repo-local paths
+  - behavior claims must anchor in trajectories first
+  - implementation claims must anchor in visible source first
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- contradiction_hand_off:
+  - route the first-pass outputs to `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/contradiction_analyst.md`
+  - attack unsupported control-loop claims, missed behavior evidence, source/trajectory mismatch, and fake coverage
+- adversarial_checkpoint:
+  - contradiction analyst runs after the first-pass quartet and before wave synthesis is accepted
+- carry_forward_operating_rules:
+  - update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` after the wave
+  - keep `coverage_access` gaps visible rather than pretending they are closed
+  - do not treat formal-paper incompleteness as a reason to ignore stronger behavior or source evidence
+  - do not let source intent outrank observed execution behavior for this domain
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+- exclusions:
+  - do not treat this wave as `mechanism_map` completion
+  - do not produce final eval-policy conclusions
+  - do not produce final variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - first-pass outputs should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/informal_issues_postmortems_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/eval_benchmark_analyst.md` when the sidecar is activated
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/contradiction_analyst.md`
+  - interaction analysis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/interaction_analysis.md`
+  - wave principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`
+  - wave principal synthesis must include explicit sections for:
+    - `what_this_wave_resolved`
+    - `what_still_requires_another_wave`
+    - `local_harness_implications`
+    - `coverage_not_yet_used`
+    - `priority_sources_not_yet_read`
+  - cumulative artifact state must be updated at:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, plus optional eval/benchmark fifth lane when completion-contract or verifier structure is load-bearing, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. This is the next governed multi-agent `mechanism_map` wave.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - eval/benchmark analyst (fifth main lane when needed)
+  - contradiction analyst
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_01_exploratory_anchor/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_access/decision.md`
+- handoff_requirements:
+  - do not emit the cross-artifact `failure_taxonomy` handoff from this wave alone
+  - instead update the artifact-level cumulative synthesis and keep downstream handoff for artifact-level acceptance
+- evidence_expectations:
+  - trajectories are the primary empirical anchor for this wave
+  - source pressure should explain implementation shape where visible
+  - formal literature should sharpen definitions or challenge claims, not dominate them
+  - informal sources should surface operational tensions and contradiction pressure
+  - preserve disagreements between observed execution behavior and source or provider intent
+- decision_needed_from_human: none beyond the already accepted Deep Synthesis redesign; this is the next governed multi-agent wave.
+- done_condition: this wave produces evidence-backed execution-control and terminal-grounding mechanism updates, explicit interaction notes, honest coverage accounting, and an updated `cumulative_synthesis.md` without pretending the full `mechanism_map` artifact is complete.

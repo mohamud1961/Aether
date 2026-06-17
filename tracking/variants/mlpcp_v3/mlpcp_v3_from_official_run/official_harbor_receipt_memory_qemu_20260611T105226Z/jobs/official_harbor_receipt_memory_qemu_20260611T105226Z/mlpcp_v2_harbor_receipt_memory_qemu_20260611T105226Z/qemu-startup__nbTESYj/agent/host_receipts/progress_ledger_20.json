@@ -1,0 +1,51 @@
+{
+  "action_types": [
+    "raw_bash"
+  ],
+  "artifact_states": [
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A running qemu process using /app/alpine.iso",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    },
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A reachable telnet service on 127.0.0.1:6665",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    }
+  ],
+  "commands": [
+    "cd /app && (nohup qemu-system-x86_64 -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -cdrom /app/alpine.iso -boot d >/tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid) && sleep 2 && (python3 - <<'PY'\nimport socket,sys,time\nhost='127.0.0.1'; port=6665\nfor i in range(60):\n    try:\n        s=socket.create_connection((host,port),timeout=1)\n        s.settimeout(2)\n        data=b''\n        t=time.time()+5\n        while time.time()<t and len(data)<4096:\n            try:\n                chunk=s.recv(4096)\n                if not chunk:\n                    break\n                data+=chunk\n                if b'login:' in data.lower():\n                    break\n            except socket.timeout:\n                pass\n        s.close()\n        sys.stdout.buffer.write(data)\n        sys.exit(0)\n    except Exception:\n        time.sleep(1)\nprint('PORT_NOT_READY', file=sys.stderr)\nsys.exit(1)\nPY\n)"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 1,
+  "facts": [
+    "Required artifact(s) missing: A running qemu process using /app/alpine.iso, A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [
+    "A running qemu process using /app/alpine.iso",
+    "A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [
+    "A running qemu process using /app/alpine.iso",
+    "A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 20
+}

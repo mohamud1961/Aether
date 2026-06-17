@@ -1,0 +1,111 @@
+{
+  "source_id": "src_iss_c07dfa2bcbb3",
+  "title": "[BUG] Edit tool gets stuck targeting wrong file in a loop (path contamination)",
+  "canonical_url": "https://github.com/anthropics/claude-code/issues/35576",
+  "date": "2026-03-18",
+  "authors_or_org": [
+    "DoubleBroSeven",
+    "Anthropic"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "issue",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "execution_control",
+  "bucket_secondary": [
+    "recovery_fault_tolerance",
+    "artifact_workspace"
+  ],
+  "decision_targets": [
+    "execution_loop",
+    "state",
+    "recovery",
+    "verification"
+  ],
+  "mechanism_tags": [
+    "wrong_target_detection",
+    "error_surface_feedback",
+    "localization_x_state"
+  ],
+  "failure_mode_tags": [
+    "wrong_target_edit",
+    "path_contamination",
+    "retry_loop",
+    "state_x_recovery"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "coding_agent",
+    "terminal_agent"
+  ],
+  "models_if_named": [
+    "Opus"
+  ],
+  "environment_type": [
+    "local_fs"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 4,
+    "reproducibility": 2,
+    "ecological_validity": 5,
+    "decision_relevance": 5,
+    "recency": 5
+  },
+  "relevance_note": "Captures a concrete wrong-file failure after long multi-file editing sessions.",
+  "reason_included": "Direct evidence for wrong-target avoidance and re-anchor requirements.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "After receiving repeated `No changes to make` errors, the model retries the identical wrong-path Edit call 15+ times without correcting the path.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "The model repeatedly sends Edit calls to a recently edited file path instead of the intended file, even while its text output names the intended target correctly.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The bug was observed deep in a long conversation (~40+ tool calls), where the intended MEMORY.md path was far from the project files edited earlier in the session.",
+      "claim_status": "anecdotal"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Issue description, 'Error Messages/Logs' and repro steps, lines 215-229"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Issue description, 'What's Wrong?', lines 208-213"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Issue description, lines 220-232"
+    }
+  ],
+  "dedupe_key": "github_issue:anthropics/claude-code#35576",
+  "canonical_locator": "github_issue:anthropics/claude-code#35576",
+  "discovered_in_batches": [
+    "2026-03-30__problem_localization_exploration_strategy_sweep.json#obj1.2",
+    "2026-03-30__problem_localization_exploration_strategy_sweep.json#obj2|bucket=|run_date=2026-03-29|agent=problem_localization_exploration_strategy_sweep_agent"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_c07dfa2bcbb3::github:anthropics/claude-code/issues/35576::2026-03-30__problem_localization_exploration_strategy_sweep.json#obj2::r3"
+  ],
+  "origin_buckets": [
+    "execution_control"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_c07dfa2bcbb3/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/anthropics/claude-code/issues/35576",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "origin_batch_buckets": [],
+  "artifact_relpath": "research/sources/issues/src_iss_c07dfa2bcbb3"
+}

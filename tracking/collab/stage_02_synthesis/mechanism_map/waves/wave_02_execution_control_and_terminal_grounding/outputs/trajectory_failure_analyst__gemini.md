@@ -1,0 +1,56 @@
+TRAJECTORY_FAILURE_OUTPUT
+- artifact: mechanism_map
+- role: trajectory_failure_analyst
+- preflight_scope_confirmed: Confirmed vertical mechanism-domain wave focusing on execution control and terminal grounding, using trajectory/failure as empirical anchor.
+- preflight_planned_read_order: 1. BigAI headless-terminal, cancel-async-tasks, git-multibranch trajectories, 2. deepagents headless-terminal, cancel-async-tasks, git-multibranch, 3. terminus-kira headless-terminal, cancel-async-tasks, git-multibranch trajectories.
+- preflight_critical_sources_selected: 
+  - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+  - `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+- preflight_coverage_risks: Truncated trajectory readings could obscure final verification outcomes. BigAI relies heavily on behavioral reconstruction due to lack of visible source.
+- preflight_likely_blind_spots: Non-Python execution control paradigms (e.g., Node.js or Rust runtimes) are not visible in this slice.
+- preflight_blockers: None.
+- coverage_used: 
+  - `research/sources/trajectories/BigAI/headless-terminal/*`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/*`
+  - `research/sources/trajectories/BigAI/git-multibranch/*`
+  - `research/sources/trajectories/deepagents/headless-terminal/*`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/*`
+  - `research/sources/trajectories/deepagents/git-multibranch/*`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/*`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/*`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/*`
+- coverage_not_yet_used: `research/sources/codebases/`, `research/sources/papers/`, `research/sources/docs/`, `research/sources/issues/`, `research/sources/benchmarks/`
+- evidence_classes_touched: trajectories
+- priority_sources_not_yet_read: `research/sources/codebases/` for mirrored source implementations.
+- direct_behavior_observations:
+  - [Confidence: high] [behavioral reconstruction] Both BigAI and Terminus-Kira establish headless terminal execution control using `pexpect.spawn('bash', ['-i'], echo=False)` to guarantee sourcing of `~/.bashrc` and support for interactive repls. (Cite: `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`, `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`)
+  - [Confidence: high] Terminal output is continuously collected via a daemonized background thread performing non-blocking reads (`read_nonblocking`) to prevent execution loop hang. (Cite: `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`)
+  - [Confidence: high] [behavioral reconstruction] For async task cancellation, agents shift from simple `asyncio.gather` to explicit worker pool models (`asyncio.Queue` + `asyncio.wait(return_when=asyncio.FIRST_EXCEPTION)`) to handle partial execution state and `KeyboardInterrupt` via the `BaseException` base class. (Cite: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`, `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`)
+- workflow_patterns:
+  - [Confidence: high] Out-of-band empirical verification: Agents systematically test `SIGINT` and `KeyboardInterrupt` recovery by spawning independent test subprocesses (e.g., `subprocess.Popen`) and sending `signal.SIGINT` to the child process to confirm cleanup blocks execute. (Cite: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`, `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`)
+  - [Confidence: high] Iterative state unblocking: When agents encounter locked PTY output buffers or double exceptions, they write tiny diagnostic scripts into `/tmp/` to isolate the `asyncio` or `pexpect` mechanism behavior. (Cite: `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`)
+- verification_and_recovery_patterns:
+  - [Confidence: high] Queue purge recovery: To recover from a global `BaseException` (like SIGINT), agents manually drain the `asyncio.Queue` via `queue.get_nowait()` to prevent unstarted tasks from executing while the system shuts down. (Cite: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`)
+  - [Confidence: high] Strict termination gating: Agents explicitly check `if not task.done(): task.cancel()` and force `asyncio.wait(workers, return_when=asyncio.ALL_COMPLETED)` inside exception handlers before re-raising, verifying that all resources are reclaimed. (Cite: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`)
+- failure_candidates:
+  - [Confidence: high] Double-Cancellation Trap: Python 3.9+ raises a secondary `CancelledError` if an agent calls `.cancel()` on a task that `gather` has already canceled internally, which breaks the cleanup loop. (Cite: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`)
+  - [Confidence: high] Bare Repository Index Corruption: In `git-multibranch`, running `git checkout -f` inside a bare repository's `post-receive` hook without isolating the index causes `fatal: this operation must be run in a work tree` or detached HEAD states that agents struggle to recover from. (Cite: `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`)
+  - [Confidence: high] StrictHostKeyChecking Locks: Agents using `sshpass` fail authentication loops when they forget to pass `-o StrictHostKeyChecking=no`, causing the command to hang or fail silently because `sshpass` cannot handle interactive host verification prompts. (Cite: `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`)
+- cross_family_comparisons:
+  - [Confidence: high] **Git Hook Execution Grounding (Pass vs Fail):** In the `git-multibranch` task, BigAI fails verification because its planner and executor loop indefinitely over Git push errors (`refusing to delete the current branch`) and SSH authentication locks. In contrast, **Terminus-Kira passes** by proactively identifying the architectural risk of checking out files in a bare repo. Terminus-Kira intentionally avoids `git checkout -f` entirely, instead using `git archive $newrev | tar -x -C /var/www/main`. This demonstrates superior architectural grounding: Terminus-Kira's harness allows it to reason about index corruption and deploy a safer POSIX piping strategy, whereas BigAI gets trapped in state-dependent git errors. DeepAgents also passes, but does so by meticulously managing environment variables (`GIT_WORK_TREE="$MAIN_DIR" git --git-dir="$GIT_DIR" checkout -f`), highlighting a different but effective approach to state isolation. (Cite: `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`, `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`, `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`)
+  - [Confidence: high] **Asyncio Architecture (Pass vs Fail nuances):** All three families (BigAI, Deepagents, Terminus-Kira) struggle with Python's `asyncio.gather` error propagation. Deepagents manages to pass using `return_exceptions=True` and `asyncio.Semaphore` to cap concurrency, while BigAI and Terminus-Kira pivot to building robust `asyncio.Queue` worker models to prevent tasks from starting during shutdown. The architectural link here is that harnesses forcing agents into pure Python string generation (without a tight verification loop) cause the agent to fail on double-cancellation, whereas harnesses that allow rapid `subprocess.Popen` script testing (like Terminus-Kira and BigAI's executor) allow the agent to incrementally patch the `TaskGroup` cancellation logic until it passes. (Cite: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`)
+- contradiction_notes:
+  - [Confidence: medium] BigAI and Terminus-Kira prefer `pexpect.spawn` for PTY control, whereas Deepagents in `headless-terminal` directly implements low-level `os.kill(pid, signal.SIGHUP)` and `os.waitpid`. This suggests a split in mechanism preference (high-level library vs. posix primitives). Weakened by the small sample size of `headless-terminal` tasks. (Cite: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`, `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`)
+- confidence_notes: Confidence is annotated per claim inline, fulfilling the confidence contract. `high` confidence applies to patterns seen repeating identically or explicitly verified by the agent in multiple steps.
+- open_questions:
+  - Do the mirrored codebases (e.g., KIRA, deepagents) actually implement the explicit Queue-drain and double-cancellation-prevention mechanisms discovered in the trajectories, or is this emergent behavior unique to the trial-and-error trajectory runs?
+  - Does the reliance on `pexpect` for PTY grounding introduce implicit timeout bottlenecks that native Rust/Go harnesses avoid?
+  - Why did BigAI's planner/executor multi-agent setup fail to recover from the git-push error loop, while Terminus-Kira's single-agent (or more cohesive) loop successfully reasoned out the `git archive` bypass?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/contradiction_analyst.md`

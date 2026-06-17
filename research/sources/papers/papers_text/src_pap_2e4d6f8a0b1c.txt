@@ -1,0 +1,1038 @@
+--- PAGE 1 ---
+Agile asymmetric multi-legged locomotion: contact
+planning via geometric mechanics and spin model
+duality
+Jackson Habala 1, Gabriel B. Margolis 2, Tianyu Wang3, Pratyush Bhatt 1, Juntao He 3, Naheel Naeem 1,
+Zhaochen Xu 3, Pulkit Agrawal 2, Daniel I. Goldman 3, Di Luo 4,∗, Baxi Chong 1,∗
+1Department of Mechanical Engineering, Pennsylvania State University, University Park, PA 16802, USA
+2MIT Improbable AI Lab, Maschusetts Institute of Technology, Cambridge, MA 02139, USA
+3Department of Physics, Georgia Institute of Technology, Atlanta, GA 30332, USA
+4Department of Physics, Tsinghua University, Beijing 10084, P.R. China
+Abstract—Legged robot research is presently focused primarily
+on bipedal or quadrupedal robots, despite longstanding capabil-
+ities to build robots with many more legs to potentially improve
+locomotion performance. This imbalance is not necessarily due
+to hardware limitations, but rather to the absence of principled
+control frameworks that explain when and how additional
+legs improve locomotion performance. In multi-legged systems,
+coordinating many (redundant) simultaneous contacts introduces
+a severe curse of dimensionality that challenges existing modeling
+and control approaches. As an alternative, multi-legged robots
+are typically controlled using low-dimensional gaits originally
+developed for bipeds or quadrupeds. These strategies fail to
+exploit the new symmetries and control opportunities that
+emerge in higher-dimensional systems, leading to only marginal
+performance gains despite substantially increased morphological
+complexity. In this work, we develop a principled framework for
+discovering new control structures in multi-legged locomotion.
+We use geometric mechanics to reduce contact-rich locomotion
+planning to a graph optimization problem, and propose a spin
+model duality framework from statistical mechanics to exploit
+symmetry breaking and guide optimal gait reorganization. Using
+this approach, we identify an asymmetric locomotion strategy
+for a hexapod robot that achieves a forward speed of 0.61
+body lengths per cycle (a 50% improvement over conventional
+gaits). The resulting asymmetry appears at both the control
+and hardware levels. At the control level, the body orienta-
+tion oscillates asymmetrically between fast clockwise and slow
+counterclockwise turning phases for forward locomotion. At the
+hardware level, two legs on the same side remain unactuated and
+can be replaced with rigid parts without degrading performance.
+Numerical simulations and robophysical experiments validate the
+framework and reveal novel locomotion behaviors that emerge
+from symmetry reforming in high-dimensional embodied systems.
+I. Introduction
+As the cost of motors and sensors continues to decline,
+building robots with redundant actuation has become in-
+creasingly feasible [38]. However, feasibility alone does not
+establish necessity. While adding actuators can intuitively
+improve stability and robustness, similar benefits can often
+be achieved through advances in perception and control. In-
+deed, recent progress has demonstrated highly capable bipedal
+*Corresponding authors.
+Fig. 1.Multi-legged robot: a hexapod model.(a) Geometric and (b)
+robophysical hexapod model. (c) Two physics-informed alternative designs
+in which two legs are replaced by non-actuated rigid appendages, achieving
+forward locomotion performance identical to the fully actuated hexapod. (d)
+Field deployment under a tomato plant.
+and quadrupedal locomotion using data-driven methods [23,
+2, 20] and model-based control algorithms [10, 7]. Despite
+the prevalence of hexapods in biology (more than half of
+all known species possess 6 legs [25]), robotic research in
+academia and industry remains largely focused on few-legged
+systems [18]. This disparity raises a fundamental question:
+Given the demonstrated success of few-legged robots, what
+functional advantages, if any, do additional legs provide?
+We attribute our limited understanding of multi-legged
+robots to the lack of scalable tools to coordinate and con-
+trol these systems. Simply adding legs does not guarantee
+improved locomotion; capturing their benefits requires con-
+trollers that effectively coordinate the additional degrees of
+freedom [8, 9]. Multi-legged locomotion entails coordinating
+many appendages that make and break contact with the envi-
+ronment, giving rise to contact-rich dynamics [4]. The number
+of possible contact sequences grows rapidly with leg count,
+arXiv:2602.09123v1  [cs.RO]  9 Feb 2026
+
+--- PAGE 2 ---
+leading to an explosive increase in coordination complexity.
+For example, a hexapod can employ on the order of 10 89
+distinct contact sequences (see SI, Sec. S1), making exhaustive
+planning or control impractical. Consequently, most existing
+approaches to hexapod locomotion rely on gait principles
+adapted from bipedal or quadrupedal robots, which limit our
+exploration of multi-legged functionality [35, 6].
+Gait principles developed for bipedal and quadrupedal
+robots typically rely on strict assumptions of symmetry that are
+essential for few-legged locomotion [9, 15, 14, 1]. The most
+common is contralateral symmetry, in which left and right legs
+on the same body segment perform identical motions subject
+to a phase offset. Under this assumption, whole-body yaw
+moments generated from the left and right sides are balanced,
+resulting in straight-line motion. While contralateral symmetry
+may be necessary for achieving straight-line locomotion in
+few-legged systems, multi-legged robots, such as hexapods,
+contain a richer set of symmetries. For example, diagonal
+and middle-leg reflection symmetries can also generate net
+forward motion without relying on strict left–right pairing [37].
+Existing control methods have largely failed to exploit these
+additional symmetries [30, 17, 13], leaving the benefits of
+deliberately breaking contralateral symmetry unexplored.
+In this paper, we develop a physics-informed framework to
+answer this question: What benefits arise from the new sym-
+metries available in redundant leg systems? We choose a hexa-
+pod robot with two body-bending joints as a representative
+system. To break down the large contact space of the hexapod,
+we employ geometric mechanics (a framework rooted in differ-
+ential geometry and geometric phase) to transform the contact-
+planning problem of multiple legs into a graph optimization
+problem. Leveraging spatiotemporal symmetries in locomo-
+tion, we further map this graph optimization problem to a
+special class of spin models, which allow us to obtain globally
+optimal gaits in polynomial time. Using this framework, we
+identify gait patterns that generate net forward motion through
+asymmetric left–right leg coordination. The observed gaits
+produce short-and-rapid clockwise rotation paired with long-
+and-gradual counterclockwise rotation to achieve straight-line
+forward locomotion. Experiments show that the resulting gaits
+achieve speeds up to 0.61 body lengths per cycle (BL/cyc),
+outperforming conventional approaches, including extended
+quadrupedal gaits, reinforcement learning–based controllers,
+and bio-inspired gaits. Additionally, the observed gaits allow
+for two legs to be replaced with rigid parts without reducing lo-
+comotion performance (Fig. I(c)). More broadly, our approach
+provides a principled tool to analyze multi-legged locomotion
+without relying on ad hoc dimensionality reduction, and offers
+a quantitative framework for revealing when and why addi-
+tional legs fundamentally enhance locomotion performance.
+II. Background
+Consider a regime of locomotion in which inertial forces
+are negligible compared with frictional forces. We refer to this
+regime asgeometric locomotion. Prior work has shown that the
+relative importance of inertia can be quantified by thecoasting
+numberC, defined as the ratio between the coasting time
+Fig. 2.Geometric mechanics of hexapod locomotion.(a) Geometric
+illustration of hexapod body bending anglesα 1 andα 2 and body velocity
+(ξx,ξ y, andξ θ) (b) Shape space of the geometric model parameterized
+byα 1, α2. (c.1) Local connection vector field mapping infinitesimal shape
+velocities to body-frame velocities. (c.2) Height function over shape space,
+given by the curl of the divergence-free component of the connection vector
+field; the net displacement for a closed gait is approximated by the signed
+area integral of the height function over the enclosed loop. (c.3) Potential
+function computed from the curl-free component of the connection vector
+field. The displacement associated with a shape change (e.g., from shape A
+to shape B) is gait-path-independent and determined by differences in function
+values between endpoints. An order-of-magnitude separation exists between
+the height function and the potential function over the same shape space.
+All panels share identical axes. (d) Experiment trajectory of a hexapod robot
+with body undulation evolving without contact changes. In the absence of
+contact modulation, the robot undergoes oscillatory body motion with peak-
+to-peak displacement of approximately 0.27 body lengths (BL), while the net
+displacement over one cycle remains negligible (<0.06 BL).
+(the time required for a locomotor to come to rest after self-
+deformation ceases) and a characteristic locomotion timescale
+(typically the gait cycle period) [33]. In the low-coasting-
+number regime (C ≪1), inertial effects can be safely neglected
+and locomotion is well described by geometric models. This
+regime encompasses a broad class of biological and robotic
+systems, including centipede and snake locomotion, and it
+remains applicable even at speeds of multiple body lengths
+per second [32].
+Low-coasting-number locomotion shares a key property
+with low-Reynolds-number fluid locomotion [29]: the net
+displacement over a gait cycle is determined solely by the
+sequenceof shape changes, not by the rate at which those
+shape changes are executed. Consequently, the system dynam-
+ics depend only on the evolution of body shapes and not on
+absolute time scaling. Under this approximation, the equations
+of motion [24] reduce to
+ξ=A(r) ˙r,(1)
+whereξ=[ξ x, ξy, ξθ]T denotes the body velocity in the
+forward, lateral, and rotational directions (Fig. 2(a));rdenotes
+the internal shape variables (joint angles, e.g.,r=[α 1, α 2] in
+Fig. 2);A(r) is the local connection matrix, which encodes
+environmental constraints and the conservation of momentum.
+
+--- PAGE 3 ---
+The local connection matrixAcan be numerically derived
+using resistive force theory (RFT) to model the ground reaction
+forces (GRF) [19, 36, 39]. Specifically, the net GRF experi-
+enced by the locomotor is the sum of the GRF experienced
+by all segments in stance phase (we define a segment to be
+in the stance phase if it is in contact with the ground, see
+SI, Sec. S1). From the geometry and physics of GRF, reaction
+forces of each foot can be calculated from the body velocityξ,
+reduced body shaper, and reduced shape velocity ˙r[31, 27].
+Assuming quasi-static motion, we consider the total net force
+applied to the system is zero at any instant in time [5]:
+F=
+X
+i∈I
+Fi (ξ,r, ˙r) =0,(2)
+whereIis the collection of all stance-phase feet. Per a given
+body shaper, Eq. (2) connects the shape velocity ˙rto the body
+velocityξ. Therefore, by the implicit function theorem and
+the linearization process, we can numerically derive the local
+connection matrixA(r). In our implementation, we compute
+the solution of Eq. (2) using the MATLAB functionfsolve.
+Importantly, the local connection matrixA(r) is dependent on
+the contact patternI.
+We then consider the relationship between a gait (a periodic
+sequence of shape changes, represented as a closed loop in
+Fig. 2(b)) and the resulting body displacement. The displace-
+ment along the gait pathχcan be approximated by [12]:
+g(T)≈
+Z χ(T)
+χ(0)
+A(r)dr=
+Z χ(T)
+χ(0)
+
+Ax(r)
+Ay(r)
+Aθ(r)
+
+dr,(3)
+whereA x(r),A y(r),A θ(r) are the three rows of the local
+connections, corresponding to forward, lateral, and rotational
+vector fields. The accuracy of the approximation in Eq. (3) can
+be optimized by properly choosing the body frame [12, 21].
+An example vector field (A x) is shown in Fig. 2(c.1). With the
+above derivation, the net displacement over a gait period can
+be approximated with the line integral along the gait path in
+the local connection vector field. Accordingly, we record the
+step length in our experiments, defined as the body lengths
+traveled per cycle (BL/cyc), to match the per-cycle gait path
+optimization.
+III. Methods
+A. Contact sequence optimization
+In the prior section, we only considered the locomotion
+problem with a fixed contact pattern, i.e.,Iis independent
+of shape variables. Now we consider the locomotion problem
+where the contact pattern changes. First, we will explore the
+contact planning problem with a known shape change se-
+quence. Specifically, letQ= ri,i∈ {1,2, ...M} |r i ∈R 2	 be
+a collection of sequenced shape variables. We restrict contact
+switches to occur only in one of the designated shape variables
+inQ. Considering a gait pathχsequentially connecting all
+shapes inQ, we aim to identify the optimal contact sequence
+and gait pathχthat maximizes forward displacement.
+We first decompose the closed-loop gait pathχinto piece-
+wise curvesχ i connectingr i tor i+1. The forward displacement
+fromχis then:
+∆x=
+MX
+i=1
+Z
+χi
+Ax
+I(i)(r)dr,(4)
+whereI(i) is the contact pattern along the piece-wise curves
+χi, andA x
+I(i) is the forward vector field evaluated at the contact
+patternI(i). Note that the optimization in Eq. (4) can be
+decoupled and separately optimized:
+max
+χ,I(χ)
+∆x=max
+χ,I(χ)
+MX
+i=1
+Z
+χi
+Ax
+I(i)(r)dr(5)
+We now consider the decoupled optimization problem.
+Specifically, we seek to optimize
+R
+χi
+Ax
+I(i)(r)·dr. We argue that,
+in most practical applications (particularly in environments
+governed by dry Coulomb friction), the vector fieldA x
+I(i) can be
+well approximated as conservative. Under this approximation,
+the resulting displacement is independent of the specific path
+χi taken in the shape space and depends only on the endpoints
+of the path (Fig. 2(c.3),Shape A to Shape B).
+To test this assumption, we use the Hodge-Helmholtz de-
+composition theorem [11] to decompose the original vector
+field into an irrotational (curl-free) component and a solenoidal
+(divergence-free) component:A x
+I(i) =A x,i
+I(i) +A x,s
+I(i). The mag-
+nitude ofA x,i
+I(i) is characterized by its associated potential
+functionP, satisfyingA x,i
+I(i) =∇P, such that
+R
+χi
+Ax
+I(i)(r)·dr=
+P(rend)−P(r start), which is independent of the pathχ i. In
+contrast, the magnitude ofA x,s
+I(i) is characterized by the height
+functionH=∇ ×A x,s
+I(i), for which the displacement generated
+by a closed-loop pathχcan be estimated by the signed area
+enclosed byχweighted byH.
+We compute the vector field of the hexapod (lifting front-
+left and mid-right legs, Fig. 2(c.1)), along with the corre-
+sponding height function (Fig. 2(c.2)) and potential function
+(Fig. 2(c.3)). In both gaits, we observe that the scale of the
+potential function exceeds that of the height function by more
+than an order of magnitude, justifying the approximation of
+the vector field as predominantly conservative. Practically,
+this implies that although large back-and-forth oscillations in
+forward displacement may occur during a gait cycle, the cycle-
+average net displacement remains negligible when the contact
+pattern is held fixed (illustrated in Fig. 2(c.2) by the path along
+the circle). To validate this hypothesis, we track the forward
+displacement of a physical hexapod executing a standard body
+undulation gait with no contact changes. Despite substantial
+oscillatory motion, reaching amplitudes of up to 0.26 body
+lengths (BL), the net displacement over one gait cycle remains
+negligible (less than 0.06 BL).
+Under this approximation, letP x
+I(i) denote the potential
+function associated with the curl-free component ofA x,i
+I(i).
+Equation 5 can then be simplified to
+max
+χ,I(χ)
+∆x=max
+χ,I(χ)
+MX
+i=1
+
+Px
+I(i)(ri)−P x
+I(i)(ri+1)
+
+.(6)
+Thus, with linear and decoupled terms, Eq. (6) simplifies the
+contact planning problem to a linear optimization problem.
+
+--- PAGE 4 ---
+Fig. 3.Gait path mapping.(a) We sample the shape space with a collection
+of shape variables{r i}.χ 3 is an example path connection ofr 3 tor 4, only a
+fraction of a closed-loop gait path. (b) An example of a cheating gait path
+is colored in black. The unique non-cheating gait path is illustrated in red.
+(c)(top)Mapping between robot contact pattern and Potts model.(bottom)
+Duality between Potts model and Ising model.
+B. Shape change sequence optimization
+In the previous section, we assumed a pre-fixed shape
+change sequence and formulated a linear optimization problem
+for contact planning. Here, we explore the shape change
+sequence optimization. First, we sample shapes in the shape
+space. LetQ all = ri,i∈ {1,2, ...M} |r i ∈R 2	 be
+a collection of sampled shape variables (Fig. 3(a)). LetI all
+(withNelements) be a collection of contact states of a multi-
+legged locomotor. The maximized displacement∆x(C) can be
+approximated as:
+∆x(C)=max
+C,I(C)
+X
+i∈C
+
+Px
+I(i)(rc(i))−P x
+I(i)(rc(i+1))
+
+,(7)
+whereC⊂Mis the sequence of shape changes, and∆x(C)
+is the resulting displacement. Note thatCspecifies not only
+the shape elements, but also the sequence of shape changes.
+In other words, even with the same elements, there could
+still be different combinations of sequences inC. However,
+many combinations can be considered as ‘cheating’. For
+example, consider a collection of shapes in Fig. 3(b) with two
+combinations of sequences colored in red and black. In our
+framework, we seek to maximize the displacement withinone
+period. Therefore, the black path in Fig. 3(b) has an unfair
+advantage over the red path, because the black path winds
+around the origin twice in one period. To avoid ‘cheating’, we
+define that the shapes can only change in one direction (e.g.,
+clockwise). Thus, given elements inC, there is only one valid
+path connecting all elements.
+In practice, it will always cost finite time and energy to
+change contact patterns. To account for this cost, we introduce
+some penalties in contact switching to the cost function.
+max
+C,I(C)
+
+−λS I(C) +
+X
+i∈C
+
+Px
+I(i)(rc(i))−P x
+I(i)(rc(i+1))
+
+,(8)
+whereS I(C) is the number of contact switches over one period,
+andλis some penalty coefficient. We can further simplify the
+above optimization problem as a graph optimization problem.
+DefineVas a collection of nodesv i j, where the indexjdenotes
+the shape and the indexidenotes the contact pattern. At each
+time step, we can either change the contact pattern or shape.
+Thus, an edge exists connecting two verticesv i j andv kl (ifi=k
+andj=l). LetDbe a set of weights on the edges. For an edge
+connectingv i j andv il, its weightd i jil =P I(i)(r j)−P I(i)(rl)∈
+D. Note that the weightd i jil can be negative. For an edge
+connectingv i j andv k j, its weightd i jk j is 0, i.e., changing the
+contact pattern at a fixed shape will not cause displacement.
+With the above notation, the optimization problem in Eq. (8)
+can be reformulated to find a cycle (V,D), such that the sum
+of weights along all edges together with−λS I(C) is maximal.
+Owing to the path-independence of the connection vec-
+tor field, the displacement termd i jil satisfies the following
+properties: (1)Antisymmetry:d i jil =−d ili j; and (2)Additivity:
+di jil+dilik =d i jik. We exploit these properties to reformulate the
+optimization problem using tools from statistical mechanics.
+C. Spin model mappings and solutions
+In general, the coupled contact planning and the shape
+change optimization problem requires a search in a space of
+sizeN M, whereNis the number of contact patterns andMis
+the number of shape variables. A brute-force search will scale
+poorly as the number of legs and joints increases. To obtain
+a solution efficiently, we develop a connection between the
+gait optimization problem and two well-known spin models
+from statistical physics, the Potts model [28] and the Ising
+model [26]. In this framework, the optimal shape sequence
+is equivalent to the ground state of the spin models. In the
+following sections, we describe the mappings to the Potts
+model and the Ising model and how it exploits the special
+structure of the problem to enable efficient gait optimization.
+We start with mapping the shape sequence problem to a
+ZN-spin model. A Z N-spin model considers an array ofM
+spins sitting onMsites, where each spin hasNinternal
+states. Each spin can interact with other spins or experience an
+onsite magnetic field. This model is well-known to describe
+magnetism in physics, where each spin can be thought of as
+a small magnet. In particular, forN=2, it is reduced to the
+famous Ising model [26]. It is known that Ising models have
+deep connections to graph optimization problems and provide
+equivalent formulations of many NP-complete and NP-hard
+problems [22].
+D. Potts model
+If we treat the shape variabler j as the site indexjand the
+contact patternI j as the spin internal state, the pair (r j,I j)
+can be mapped to a spin variables i
+j (or equivalentlys Ii
+j in
+Fig. 3(c)) at sitej. The displacementP x
+I(i)(rc(j) )−P x
+I(i)(rc(j+1) )
+
+--- PAGE 5 ---
+can be associated with the onsite magnetic field energy
+d′
+i j(j+1) si
+j of the spin variable by definings i
+j =e 2πi/N and
+d′
+i j(j+1) =d i j(j+1) e−2πi/N. Hered ′
+i jl is interpreted as the onsite
+magnetic field for the Z N-spin model. Since the shape se-
+quence optimization problem is defined on a loop, the problem
+can be mapped to a Z N-spin model with periodic boundary
+conditions as follows:
+H=−
+X
+j
+d′
+i j(j+1) si
+j (9)
+The optimal shape sequence that maximizes Eq. (7) is
+equivalent to the ground state of the Hamiltonian, i.e., the con-
+figuration that minimizes the energy. In this case, the ground
+state is achieved by each individual spin:s i
+j follows the largest
+di j(j+1). This is also known as the greedy solution. Translating
+back to the shape sequence language, the greedy algorithm
+chooses theI(i) that maximizesP x
+I(i)(rc(i))−P x
+I(i)(rc(i+1)) for
+eachr c(i).
+If we further consider the cost of changing contact pattern
+with penaltyλin Eq. (8), it is equivalent to introducing a
+nearest spin interaction with couplingλ, which gives rise to a
+Potts model [28] with a nonuniform magnetic field
+Hs =−
+X
+j
+d′
+i j(j+1) si
+j −λδ si
+j,si
+j+1
+(10)
+whereδ si
+j,si
+j+1
+=1 ifs i
+j =s i
+j+1 and 0 otherwise.
+The mapping between the shape sequence and the Potts
+model is also described in the upper part of Fig. 3(c). For
+this model, the search complexity isN M. The ground state
+is expected to have different phenomena depending onλ. For
+smallλ, it is disordered, where each spin follows the local
+field, and the optimal shape sequence is close to the greedy
+solution. For largeλ, the spins align, and it is ferromagnetic.
+The optimal shape sequence approaches a uniform gait pattern
+or a gait pattern with only a small number of jumps.
+E. Ground state duality to Ising model
+For the Potts model in Eq. (10), we further define a domain
+wallc j+1 to be the existence of a different spin configuration
+betweens j ands j+1, wherec j+1 =1 if the domain wall exists
+and otherwise 0. The mapping between the Potts model and
+the Ising model is shown in the bottom part of Fig. 3(c). It
+follows that we can establish the ground state duality between
+the Potts model and a long-range Ising model using the domain
+wall mapping and the additive property ofd i jl.
+Theorem 1.The Potts model in Eq.(10) with d i jl satisfying
+the additive property has the same ground state energy as the
+following Ising model with long-range couplings J jl.
+Hc =−
+X
+j
+J jlc jcl −λ
+X
+i
+ci (11)
+where J jl =max idi jl.
+Proof.See SI, Sec. S2
+In general, the Potts model would not be dual to the Ising
+model due to the fact that they have different spin symmetries.
+However, duality exists because we only study the ground state
+and additive property ofd i jl, which is special in the robotic
+contact problem. The mapping reduces the complexity of the
+original problem fromN M to 2 M. Based on the Ising model
+Hamiltonian, we develop a domain-wall search algorithm.
+Domain-wall search algorithm.Specify the number of
+domain-walls or jumpsKto be searched. Compute the energy
+−P Ji jc jci of allM-site spin configurations that haveK
+numbers ofc j =1. Choose the lowest energy configuration
+among all as the solution and translate it back to the shape
+sequence according to the mapping.
+There are several advantages of the duality and the domain-
+wall search algorithm. First, it is independent of the number
+of shape variablesNso that one can always work with a
+lower degree representation Z 2-spin instead of a Z N-spin.
+This is particularly helpful for generalization to a multi-
+legged robot with many shape variables. Second, the domain
+wall has a natural interpretation as the jump in the shape
+sequence problem. In practice, if we would like to have a small
+number of jumpsK, it is equivalent to imposing total spin
+symmetry number or magnetizationKto the model. Without
+such symmetry, the original model in Eq. (11) lives in a Hilbert
+space of size 2 M whereMis the number of shape variables.
+The symmetry constraint helps to reduce the Hilbert space
+complexity to Cr(M,K). We can also ignore the penalty term
+λin this dual formulation within a fixed spin symmetric sector,
+because the penalty will only contribute a constant shift to the
+energy in the same sector. Therefore, the domain-wall search
+algorithm can reach the optimal solution of the problem in
+polynomial time whenKis finite. This approach provides
+the foundation for designing optimal locomotion with physics-
+informed gaits.
+IV . ExperimentalSetup
+To test our method, we employ a hexapod robot (which
+we will refer to as the robophysical model) featuring two
+rotational degrees of freedom in the body and one rotational
+degree of freedom in each leg. The elongated body, measuring
+26.5 cm in length, is segmented by bending joints that allow
+for rotations of up to±5π/16 without causing self-collision.
+Each segment is equipped with limbs on both sides, which
+can be lifted and landed through control of the rotational
+joint at the shoulder. All rotational joints are actuated by Dy-
+namixel XL430-W250-T servo motors, and the body linkages
+and appendages are 3D-printed from PLA. Experiments were
+conducted on a flat, hard surface and were based on the as-
+sumption of dry Coulomb kinetic friction. Servo motors were
+directed using position commands executed by onboard PD
+control. All gaits were tested with three repeated trials. Each
+trial consisted of five complete gait cycles. Unless otherwise
+noted, values are reported as mean±standard deviation (SD)
+across the three repeated trials. Robot motion was captured
+using a Vicon motion capture system, comprised of six Vero
+optical motion capture cameras.
+V . Results
+We demonstrate the effectiveness of gaits generated by
+our optimization framework through both simulation and
+robophysical experiments (Sec. V-A), with particularly strong
+performance at high speeds (Sec. V-B). The resulting gaits
+
+--- PAGE 6 ---
+Fig. 4.Comparison of hexapod forward locomotion.(Left) Time-lapse
+snapshots of the robot executing the prescribed gaits. (Right) Corresponding
+commanded leg–ground contact patterns. (a) Physics-informed asymmetric
+gait exhibiting slow, long-duration counterclockwise whole-body yaw (from
+t=0 to≈0.66T) followed by rapid, short-duration clockwise yaw, resulting
+in net forward translation. Hind legs remain in contact throughout gait cycle.
+(b) Alternative physics-informed gait in which the front-left and hind-left
+legs remain in continuous contact throughout the cycle, yet still achieve
+high forward performance. Similar long-duration counterclockwise and short-
+duration clockwise whole-body yaw to (a). (c) Best bio-inspired gait based on
+an alternating tripod contact pattern. (d) Best learned open-loop gait obtained
+via reinforcement learning. (e) Best extended quadrupedal gait, in which the
+third body segment follows the same kinematics as the first two segments
+(effectively reducing the system to a quadruped). Corresponding toϕ α =π.
+outperform reference baselines, including bio-inspired tripod
+gaits (Sec. V-C), extended quadrupedal gaits (Sec. V-C), and
+a PPO-trained reinforcement learning policy (Sec. V-D).
+A. Physics-informed Gait
+We use geometric mechanics and the Ising model domain-
+wall search algorithm to identify new symmetries in hexapod
+robots for forward locomotion. With six legs, the hexapod
+has 64 different contact states; however, over half of these
+states are unstable and cannot be achieved (e.g., no legs
+in stance phase). For simplicity, we restrict the search to
+stable contact patterns with at least four legs in stance (22
+total contact patterns). We additionally include two three-leg
+patterns corresponding to the alternating tripod contact states.
+Thus, in total, we consider 24 contact states as the stable
+contact space of the hexapod. We sample the shape space by
+a circular prescription:α 1 =A α sin (τ), α2 =A α cos (τ), andτ
+is uniformly sampled over a period.
+We observe that the identified optimal gaits (following our
+methods in Sec. III-E) are sensitive to our choice of amplitude
+Aα. For a range ofA α, the optimization converges to two gaits,
+corresponding to the optimization forA α <7π/18 rad and
+Aα >7π/18 rad. We will refer to them as the physics-informed
+low-amplitude gait and the physics-informed high-amplitude
+gait. Note that the actual amplitude of the sinusoidal motion
+is set to 5π/16 due to hardware limitations. However, because
+the hardware-limit amplitude is near the boundary for physics-
+informed low-amplitude and high-amplitude gaits, we test both
+gaits. Snapshots of our robot implementing these gaits are
+illustrated in Fig. 4(left). We also illustrate the contact map
+in Fig. 4(right).
+We observe that in both gaits, two legs on the hexapod
+remain in full contact throughout a gait period. In the short-
+amplitude gait, the hind limbs remain unchanged, and in
+the large-amplitude gait, the front left and hind left limbs
+remain in full contact (Fig. 4(a-b)). We tested our identified
+gaits on a robophysical hexapod model and recorded speeds
+greater than bio-inspired gaits. The small-amplitude (with both
+hind limbs unactuated) produces a step length of 0.61±0.01
+BL/cyc, whereas the large-amplitude gait (FL and HL limbs
+unactuated) produces a step length of 0.56±0.03 BL/cyc.
+Notably, because two of the legs are not actuated throughout
+the locomotion, they can be replaced by non-actuated rigid
+parts. To test this, we construct non-actuated limbs and observe
+no change in forward displacement (Fig. I(c) and SI movie).
+B. Impact of Frequency
+During gait transitions in the physics-informed gaits, we
+observe that there is a substantial amount of whole-body
+pitch during locomotion (see SI movie). We quantify this by
+measuring the whole-body pitch angle, which is defined as the
+difference between the initial body vector and current body
+vector projected onto the forward and vertical axes (a positive
+pitch corresponds to the body vector pointing up). We posit
+that this unstable pitch oscillation can be avoided when the
+robot is operating at a higher frequency, and thus the physics-
+informed gait should achieve better performance at high speed.
+To test this hypothesis, we record the speed dependence
+of the physics-informed small-amplitude gait (Fig. 5(a)). Ex-
+perimental results reveal robot step length (BL/cyc) increases
+linearly with gait frequency. Thus, there is a quadratic rela-
+tionship between absolute speed and frequency (|v physics |=
+0.559f+0.068f 2,R 2 =0.9920,p<0.05). Notably, data
+above 1 Hz are excluded from quantitative analysis due to
+the disparity between commanded and actual position caused
+by motor limitations (see SI, Sec. S3).
+Next, we analyze the effect of frequency on body pitch to
+understand the increasing speed relationship for our physics-
+informed gait. Comparing two trials at high and low gait
+frequency, total-body pitch exhibits higher oscillations with
+lower frequency (Fig. 5(c)). This relationship is attributed
+to reduced static stability near unstable configurations. In
+contrast, higher gait frequencies introduce dynamic stability
+
+--- PAGE 7 ---
+Fig. 5.Agile locomotion at high speed.(a) (a.1) Absolute speed and (a.2)
+step length (displacement per gait cycle) for the bio-inspired and physics-
+informed gaits as a function of gait frequency. Data above 1 Hz are excluded
+from quantitative analysis due to motor limitations that cause substantial
+deviation between commanded and executed position (see SI, Sec. S3); shown
+as hollow markers. We excluded outliers from each data set with studentized
+residuals>3. Because step length increases approximately linearly with
+frequency, the absolute speed scales quadratically with frequency for both
+gaits. Panels share identical x-axes. (b.1) Mean standard deviation of pitch
+angle as a function of frequency for the physics-informed gait and (b.2) for the
+bio-inspired gait. Panels share identical axes. (c) Experimental measurements
+of whole-body pitch for the physics-informed gait at low and high frequencies
+over two cycles. At low frequencies, the robot exhibits large pitch oscillations
+due to loss of static stability near unstable configurations. At high frequencies,
+dynamically acquired stability compensates for these perturbations, resulting
+in substantially reduced pitch oscillations. (d) Illustration of the effect of gait
+frequency on duty factor: as frequency increases, duty factor decreases, which
+may partially account for the larger step length observed for the bio-inspired
+gait at higher frequencies.
+that reduces perturbations from unstable configurations (i.e.,
+increasing frequency reduces the time spent falling in an
+unstable configuration). Analysis of the average mean standard
+deviation at increasing gait frequencies supports this idea
+Fig. 5(b.1-2).
+C. Baseline: bio-inspired gait
+Inspired by insect locomotion, we prescribe the leg–ground
+contact pattern using an alternating tripod gait, in which the
+front-right (FR), middle-left (ML), and hind-right (HR) legs
+form one tripod, while the front-left (FL), middle-right (MR),
+and hind-left (HL) legs form the other. Each tripod config-
+uration is statically stable. To avoid unstable configurations
+during contact switching, we introduce an intermediate all-
+contact phase in which all six legs remain in contact with the
+ground. As a result, the overall duty factor (defined as the
+average fraction of a gait cycle during which a leg remains
+in contact with the ground) is 66.6%. Consistent with prior
+studies, duty factor plays a critical role in determining the
+locomotion performance of alternating-tripod gaits [16, 3]. The
+prescribed contact function is illustrated in Fig. 6(b).
+To simplify our analysis, we prescribe sinusoidal functions
+to upper and lower body links,α 1 =A α sin(t) andα 2 =
+Aα sin(t+ϕ α), respectively (Fig. 6(a)).A α is the joint angle
+limit on the robot, andϕ α is the phase shift between the upper
+and lower body joints (α 1 andα 2) (Fig. 6(b)). Additionally,
+we defineϕ β as the phase difference between the upper body
+joint and the contact sequence (Fig. 6(b)). Thus, we form a
+parameter space spanned byϕ α andϕ β.
+We test how these two parameters affect hexapod loco-
+motion through robophysical experimentation and RFT-based
+model predictions. The RFT-based model agrees well with
+experimental results subject to a phase shift ofπ/8 onϕ β
+(Fig. 6(c)). We attribute this phase shift to the finite time it
+takes for contact switching in robophysical experiments. We
+observe that the parameter set ofϕ α =11π/8 andϕ β =0
+produces the highest step length of 0.48±0.01 BL/cyc, which
+we will refer to as the best bio-inspired gait.
+Additionally, whenϕ α =π, the hexapod gait is effectively
+reduced to a quadruped gait (the conventional gait) because
+the additional pair of legs only contributes to stability. We
+refer to this gait as the extended quadrupedal gait (step length
+of 0.41±0.01 BL/cyc).
+Finally, we record the speed dependence of the best bio-
+inspired gait (Fig. 5(a)). Similarly to the physics-informed gait,
+the robot step length increases linearly with gait frequency.
+The bio-inspired gait has a quadratic fit of|v bio|=0.362f+
+0.177f 2,R 2 =0.9969,p<0.05. To explain the quadratic
+relationship of speed and frequency in the bio-inspired gait,
+we analyze the actual duty factor of the bio-inspired gait
+illustrated in Fig. 5(d). Bio-inspired gaits are assigned a 66.6%
+duty factor. As frequency increases, duty factor decreases
+because of the finite time it takes to switch contact, which
+we attribute as the mechanism for increased speed of the bio-
+inspired gait. We observe increasing gait frequency has no
+impact on the bio-inspired pitch standard deviation due to the
+stable static gait configurations and imposed duty factor.
+D. Comparison to Reinforcement Learning
+For many applications requiring quadrupedal or bipedal
+locomotion, reinforcement learning has become a promising
+approach to design robust, agile gaits for these systems [23,
+2, 20]; however, these approaches struggle to uncover new
+or improved gaits for higher-dimensional systems, partially
+because we lack a principled understanding of multi-legged
+robot locomotion. To test this, we perform deep reinforcement
+learning in Isaac Lab on our hexapod model to produce
+an open-loop gait for forward locomotion. We train a PPO
+policy for forward-velocity tracking. The action space is
+continuous joint position commands: at timet, the policy
+outputsa t ∈R 8, which specifies desired positions for the 8
+actuated joints. The policy is conditioned on a continuous,
+
+--- PAGE 8 ---
+Fig. 6.Bio-inspired hexapod gait.(a) Sinusoidal prescriptions of (top) upper
+body jointα 1, (middle) lower body jointα 2, and (bottom) alternating tripod
+contact patternβ. Legs in stance and aerial phases are indicated by red and
+open circles, respectively. (b) Definition of gait parameters:ϕ α, the phase shift
+betweenα 1 andα 2; andϕ β, the phase shift betweenα 1 and the contact pattern
+β. Legs are labeled by position: F (front), M (middle), H (hind), R (right),
+and L (left). (c.1) Experimental measurements and (c.2) RFT-based model
+predictions over the gait parameter space spanned by (ϕ α, ϕβ). Experimental
+results exhibit an effective contact phase shift ofπ/8 relative to simulation,
+attributed to finite leg touchdown time following contact commands.
+singular forward-velocity commandv cmd
+t ∈R(horizontal and
+turning commands are set to 0), and the reward penalizes
+tracking error between the measured forward velocityv x
+t and
+vcmd
+t . The observation is restricted to an action history of
+lengtho t = at−1;a t−2;. . .;a t−14
+ ∈R 112, to produce an open-
+loop gait pattern. The resulting reward curve is illustrated in
+Fig. 7(a). We used standard reward functions from prior work
+on learning locomotion [34] (see SI, Sec. S4 for learning
+parameters).
+To reduce the sim-to-real gap, we identify the motor dynam-
+ics of the robophysical model qualitatively through comparison
+of motor response curves (see SI, Sec. S4). Additionally, we
+analyze the displacement of the learned gait through simula-
+tion in Isaac Sim and on our robophysical model (Fig. 7(b)).
+The displacement was fitted to 5 cycles of the learned gait
+in the simulation, because the deployed gait frequency on
+the robophysical model was slower than that of simulation.
+The displacement results show a low sim-to-real gap of our
+learned gait. Our open-loop reinforcement learning approach
+achieves an experimentally tested step length of 0.38 BL/cyc,
+underperforming both bio-inspired and physics-informed gaits
+(Fig. 4(d)). The learned gait produces a gait pattern similar
+to that of the extended quadrupedal gait, in which the front
+and hind sets of limbs were used in a quadrupedal trotting
+fashion while the middle pair provided stability (see SI movie).
+Our analysis reveals an increased difficulty for reinforcement
+Fig. 7.Open loop RL gait training and sim-to-real transfer .(a) Plot
+of mean reward during open-loop reinforcement learning training. Training
+was conducted over 9,800 steps with 4096 parallel environments per step.
+(Illustrated) Hexapod model in Isaac Sim performing learned gait. (b)
+Comparison of simulation and experiment displacement of learned RL gait.
+The plot compares 5 cycles of the gait with fitted time scales. Real-world
+deployment of RL gait consisted of gait cycles≈20% longer than simulation.
+The results show low sim-to-real gap of the learned gait.
+learning to take advantage of all pairs of legs.
+VI. Discussion andConclusion
+In this paper, we develop a framework to capture and apply
+the additional symmetries available in many-legged systems
+to provide agile forward locomotion. To do this, we design
+a geometric mechanics model for multi-legged locomotion
+and make carefully chosen simplifications to translate the
+model into a graph optimization problem. Furthermore, we
+provide an approach to use the duality of Ising and Potts
+spin models to solve this optimization problem in polynomial
+time and explore the complex gait space of a hexapod robot.
+Results of our approach provide significant improvements
+in forward translation for hexapod robots, verified through
+simulation and robophysical experiments. Our work provides a
+general approach for studying the locomotion of multi-legged
+robots and motivates future integration of machine learning to
+improve the optimization.
+We note that although our physics-informed approach is
+primarily aimed at deriving principled control strategies for
+multi-legged robots, the same framework can also be used
+to guide robot design. For example, it enables the systematic
+design of novel morphologies, such as a hexapod robot in
+which certain legs are replaced by non-actuated body parts.
+Beyond solving the associated graph optimization problem,
+our method provides a framework to reason about which ver-
+tices in the graph can be added or removed without degrading
+locomotion performance. In robotic terms, this framework
+allows us to quantify how adding, removing, or relocating
+legs affects overall locomotion, thereby enabling co-design of
+morphology and control for highly redundant robotic systems.
+We acknowledge several limitations of the present frame-
+work. Our approach assumes that an environment model has
+been established a priori; specifically, we consider (1) flat,
+noise-free terrain and (2) full knowledge of the environment. In
+many real-world deployment scenarios, such information may
+be incomplete or unavailable. To address these limitations,
+future work will extend the framework in two directions. First,
+we will evaluate graph edges using experimentally measured
+performance rather than numerically computed models. Sec-
+ond, we will explicitly introduce uncertainty in contact switch-
+ing and map this uncertainty to finite-temperature effects in
+
+--- PAGE 9 ---
+the corresponding Ising model, enabling principled reasoning
+under environmental and actuation uncertainty.
+Finally, our model provides physical insight into robo-
+physical systems (simple robots designed to test fundamental
+locomotion principles). An open question remains as to how
+these physics-based principles can be scaled to more complex,
+full-scale robotic platforms. We posit that physics-informed
+gaits derived from our framework can serve as effective priors
+or initialization seeds for learning-based controllers, such as
+reinforcement learning. This strategy would enable robots to
+adapt to environmental variability while retaining a physically
+grounded structure. This hybrid approach offers a promising
+pathway toward an advanced hexapod and, more broadly,
+highly redundant robots that can outperform their few-legged
+counterparts.
+References
+[1] R. McN. Alexander. The Gaits of Bipedal and
+Quadrupedal Animals.The International Journal of
+Robotics Research, 3(2):49–59, 1984. doi: 10.1177/
+027836498400300205.
+[2] Suyoung Choi, Gwanghyeon Ji, Jeongsoo Park,
+Hyeongjun Kim, Juhyeok Mun, Jeong Hyun Lee, and
+Jemin Hwangbo. Learning quadrupedal locomotion on
+deformable terrain.Science Robotics, 8(74):eade2256,
+2023.
+[3] Baxi Chong, Yasemin O Aydin, Jennifer M Rieser, Guil-
+laume Sartoretti, Tianyu Wang, Julian Whitman, Abdul
+Kaba, Enes Aydin, Ciera McFarland, Kelimar Diaz Cruz,
+et al. A general locomotion control framework for multi-
+legged locomotors.Bioinspiration&Biomimetics, 17(4):
+046015, 2022.
+[4] Baxi Chong, Juntao He, Shengkai Li, Eva Erick-
+son, Kelimar Diaz, Tianyu Wang, Daniel Soto, and
+Daniel I Goldman. Self-propulsion via slipping: frictional
+swimming in multi-legged locomotors.arXiv preprint
+arXiv:2207.10604, 2022.
+[5] Baxi Chong, Juntao He, Shengkai Li, Eva Erickson,
+Kelimar Diaz, Tianyu Wang, Daniel Soto, and Daniel I
+Goldman. Self-propulsion via slipping: Frictional swim-
+ming in multilegged locomotors.Proceedings of the
+National Academy of Sciences, 120(11):e2213698120,
+2023.
+[6] Joana Coelho, Fernando Ribeiro, Bruno Dias, Gil Lopes,
+and Paulo Flores. Trends in the control of hexapod
+robots: a survey.Robotics, 10(3):100, 2021.
+[7] Ewen Dantec, Maximilien Naveau, Pierre Fernbach,
+Nahuel Villa, Guilhem Saurel, Olivier Stasse, Michel
+Taix, and Nicolas Mansard. Whole-body model predic-
+tive control for biped locomotion on a torque-controlled
+humanoid robot. In2022 IEEE-RAS 21st International
+Conference on Humanoid Robots (Humanoids), pages
+638–644. IEEE, 2022.
+[8] Sascha Freyberg and Helmut Hauser. The morphological
+paradigm in robotics.Studies in History and Philosophy
+of Science, 100:1–11, 2023.
+[9] Robert J Full and Daniel E Koditschek. Templates and
+anchors: neuromechanical hypotheses of legged locomo-
+tion on land.Journal of experimental biology, 202(23):
+3325–3332, 1999.
+[10] Ruben Grandia, Fabian Jenelten, Shaohui Yang, Farbod
+Farshidian, and Marco Hutter. Perceptive locomotion
+through nonlinear model-predictive control.IEEE Trans-
+actions on Robotics, 39(5):3402–3421, 2023.
+[11] Qinghong Guo, Mrinal K Mandal, and Micheal Y Li. Ef-
+ficient hodge–helmholtz decomposition of motion fields.
+Pattern Recognition Letters, 26(4):493–501, 2005.
+[12] Ross L Hatton and Howie Choset. Nonconservativity and
+noncommutativity in locomotion.The European Physical
+Journal Special Topics, 224(17-18):3141–3174, 2015.
+[13] Juntao He, Baxi Chong, Zhaochen Xu, Sehoon Ha,
+and Daniel I Goldman. Learning to enhance multi-
+legged robot on rugged landscapes.arXiv preprint
+arXiv:2409.09473, 2024.
+[14] Milton Hildebrand. Symmetrical gaits of horses.Science,
+150(3697):701–708, 1965.
+[15] Milton Hildebrand. Symmetrical gaits of primates.Amer-
+ican Journal of Physical Anthropology, 26(2):119–130,
+1967.
+[16] Milton Hildebrand. The quadrupedal gaits of vertebrates.
+Bioscience, 39(11):766, 1989.
+[17] Taesoo Kim, Minjun Choi, Seunguk Choi, Taeuan Yoon,
+and Dongil Choi. Deep reinforcement learning control
+of a hexapod robot. InActuators, volume 15, page 33.
+MDPI, 2026.
+[18] Joonho Lee, Jemin Hwangbo, Lorenz Wellhausen,
+Vladlen Koltun, and Marco Hutter. Learning quadrupedal
+locomotion over challenging terrain.Science robotics, 5
+(47):eabc5986, 2020.
+[19] Chen Li, Tingnan Zhang, and Daniel I Goldman. A
+terradynamics of legged locomotion on granular media.
+Science, 339(6126):1408–1412, 2013.
+[20] Zhongyu Li, Xue Bin Peng, Pieter Abbeel, Sergey
+Levine, Glen Berseth, and Koushil Sreenath. Rein-
+forcement learning for versatile, dynamic, and robust
+bipedal locomotion control.The International Journal
+of Robotics Research, 44(5):840–888, 2025.
+[21] Bo Lin, Baxi Chong, Yasemin Ozkan-Aydin, Enes Aydin,
+Howie Choset, Daniel I Goldman, and Greg Blekherman.
+Optimizing coordinate choice for locomotion systems
+with toroidal shape spaces. In2020 IEEE/RSJ In-
+ternational Conference on Intelligent Robots and Sys-
+tems (IROS), pages 7501–7506, 2020. doi: 10.1109/
+IROS45743.2020.9341476.
+[22] Andrew Lucas. Ising formulations of many np problems.
+Frontiers in physics, 2:5, 2014.
+[23] Gabriel B Margolis, Ge Yang, Kartik Paigwar, Tao Chen,
+and Pulkit Agrawal. Rapid locomotion via reinforcement
+learning.The International Journal of Robotics Research,
+43(4):572–587, 2024.
+[24] Jerrold E Marsden and Tudor S Ratiu.Introduction to
+mechanics and symmetry: a basic exposition of classical
+
+--- PAGE 10 ---
+mechanical systems, volume 17. Springer Science &
+Business Media, 2013.
+[25] Peter J Mayhew. Why are there so many insect species?
+perspectives from fossils and phylogenies.Biological
+Reviews, 82(3):425–454, 2007.
+[26] LW McKeehan. A contribution to the theory of ferro-
+magnetism.Physical Review, 26(2):274, 1925.
+[27] Richard M Murray.A mathematical introduction to
+robotic manipulation. CRC press, 2017.
+[28] Renfrey Burnard Potts. Some generalized order-disorder
+transformations. InMathematical proceedings of the
+cambridge philosophical society, volume 48, pages 106–
+109. Cambridge University Press, 1952.
+[29] Edward M Purcell. Life at low reynolds number. In
+Physics and our world: reissue of the proceedings of a
+symposium in honor of Victor F Weisskopf, pages 47–67.
+World Scientific, 2014.
+[30] Tomson Qu, Dichen Li, Avideh Zakhor, Wenhao Yu, and
+Tingnan Zhang. Versatile locomotion skills for hexapod
+robots. In2024 IEEE/RSJ International Conference on
+Intelligent Robots and Systems (IROS), pages 6885–6892,
+2024. doi: 10.1109/IROS58592.2024.10801714.
+[31] Jennifer M Rieser, Chaohui Gong, Henry C Astley,
+Perrin E Schiebel, Ross L Hatton, Howie Choset, and
+Daniel I Goldman. Geometric phase and dimensionality
+reduction in locomoting living systems.arXiv preprint
+arXiv:1906.11374, 2019.
+[32] Jennifer M Rieser, Jessica L Tingle, Daniel I Goldman,
+Joseph R Mendelson, et al. Functional consequences of
+convergently evolved microscopic skin features on snake
+locomotion.Proceedings of the National Academy of
+Sciences, 118(6), 2021.
+[33] Jennifer M Rieser, Baxi Chong, Chaohui Gong, Henry C
+Astley, Perrin E Schiebel, Kelimar Diaz, Christopher J
+Pierce, Hang Lu, Ross L Hatton, Howie Choset, et al.
+Geometric phase predicts locomotion performance in un-
+dulating living systems across scales.Proceedings of the
+National Academy of Sciences, 121(24):e2320517121,
+2024.
+[34] Nikita Rudin, David Hoeller, Philipp Reist, and Marco
+Hutter. Learning to walk in minutes using massively
+parallel deep reinforcement learning. InConference on
+robot learning, pages 91–100. PMLR, 2022.
+[35] Uluc Saranli, Martin Buehler, and Daniel E. Koditschek.
+RHex: A Simple and Highly Mobile Hexapod Robot.
+The International Journal of Robotics Research, 20(7):
+616–631, 2001. doi: 10.1177/02783640122067570.
+[36] Sarah S Sharpe, Stephan A Koehler, Robyn M Kuckuk,
+Miguel Serrano, Patricio A Vela, Joseph Mendelson,
+and Daniel I Goldman. Locomotor benefits of being a
+slender and slick sand swimmer.Journal of Experimental
+Biology, 218(3):440–450, 2015.
+[37] Siddharth Shrivastava, Andras Karsai, Yasemin Ozkan
+Aydin, Ross Pettinger, William Bluethmann, Robert O
+Ambrose, and Daniel I Goldman. Material remodeling
+and unconventional gaits facilitate locomotion of a robo-
+physical rover over granular terrain.Science robotics, 5
+(42):eaba3499, 2020.
+[38] Tom Verstraten, Raphael Furn ´emont, Pablo Lopez-
+Garcia, David Rodriguez-Cianca, Bram Vanderborght,
+and Dirk Lefeber. Kinematically redundant actuators, a
+solution for conflicting torque–speed requirements.The
+International Journal of Robotics Research, 38(5):612–
+629, 2019.
+[39] Tingnan Zhang and Daniel I Goldman. The effectiveness
+of resistive force theory in granular locomotion a.Physics
+of Fluids, 26(10):101308, 2014.

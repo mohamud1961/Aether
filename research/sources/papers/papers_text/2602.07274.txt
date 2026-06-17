@@ -1,0 +1,1400 @@
+--- PAGE 1 ---
+TermiGen: High-Fidelity Environment and Robust Trajectory Synthesis for
+Terminal Agents
+Kaijie Zhu 1 Yuzhou Nie1 Yijiang Li 2 Yiming Huang 2 Jialian Wu 3 Jiang Liu 3 Ximeng Sun 3 Zhenfei Yin 4
+Lun Wang 5 Zicheng Liu 3 Emad Barsoum 3 William Yang Wang1 Wenbo Guo 1
+Abstract
+Executing complex terminal tasks remains a sig-
+nificant challenge for open-weight LLMs, con-
+strained by two fundamental limitations. First,
+high-fidelity, executable training environments
+are scarce: environments synthesized from real-
+world repositories are not diverse and scalable,
+while trajectories synthesized by LLMs suffer
+from hallucinations. Second, standard instruc-
+tion tuning uses expert trajectories that rarely ex-
+hibit simple mistakes common to smaller mod-
+els. This creates a distributional mismatch,
+leaving student models ill-equipped to recover
+from their own runtime failures. To bridge
+these gaps, we introduceTermiGen, an end-to-
+end pipeline for synthesizing verifiable environ-
+ments and resilient expert trajectories. Termi-
+Gen first generates functionally valid tasks and
+Docker containers via an iterative multi-agent
+refinement loop. Subsequently, we employ a
+Generator-Criticprotocol that actively injects er-
+rors during trajectory collection, synthesizing data
+rich inerror-correctioncycles. Fine-tuned on
+this TermiGen-generated dataset, our TermiGen-
+Qwen2.5-Coder-32B achieves a 31.3% pass rate
+on TerminalBench. This establishes a new open-
+weights state-of-the-art, outperforming existing
+baselines and notably surpassing capable propri-
+etary models such as o4-mini. Dataset is avaiable
+at https://github.com/ucsb-mlsec/
+terminal-bench-env.
+1. Introduction
+Recent advancements have empowered LLMs with agen-
+tic scaffolding and tool-use capabilities, enabling them to
+1UC, Santa Barbara 2UC, San Diego 3AMD 4University
+of Oxford 5Google. Correspondence to: Kaijie Zhu <kai-
+jiezhu@ucsb.edu>.
+Preprint. February 10, 2026.
+62
+64
+66
+Apex2 + Claude-4.5-SonnetProprietary Models
+General-purpose Base Models
+Fine-tuned Models
+22B 30B 32B 120B 235B N/A
+Model Size (Billions of parameters)
+0
+10
+20
+30
+40
+Reptile + Devstral-2505-22B
+T erminus 2 + LiteCoder-30a3b
+BashAgent + Qwen3-32B
+BashAgent + Qwen2.5-Coder-32B
+BashAgent + TermiGen-Qwen2.5-Coder-32B
+BashAgent + TermiGen-Qwen3-32B
+T erminus 2 + T erminalAgent-32B
+BashAgent + GPT-OSS-120B
+BashAgent + Qwen3-235B-A30B
+T erminus 1 + Qwen3-235B-A30B
+Codex CLI + GPT-5-Codex
+Claude Code + Claude-3.7-Sonnet
+Codex CLI + o4-mini
+Avg Pass Rate (%)
+Figure 1.Average pass rate on Terminal Bench (%) vs. model size.
+TermiGen models (bold) outperform other open-source baselines
+and approach proprietary system performance at 32B scale. Blue
+refers to proprietary models, green refers to general-purpose base
+models, and red refers to fine-tuned models.
+tackle complex tasks through interaction with real-world
+environments (Zhou et al., 2023; Jimenez et al., 2023; Xie
+et al., 2024; Terminal-Bench Team, 2025). Among these
+domains, executing software engineering and system admin-
+istration tasks via the terminal (i.e., terminal tasks) stands
+out as one of the most fundamental yet challenging fron-
+tiers (Terminal-Bench Team, 2025). Distinct from standard
+code generation (Chen, 2021; Huang et al., 2024) or math
+reasoning (Cobbe et al., 2021), terminal tasks pose two core
+challenges and have thus far been dominated by large pro-
+prietary models backed by extensive private training data.
+First, scalable construction of executable training en-
+vironments remains a major bottleneck.Unlike indi-
+vidual code snippets, terminal tasks require a complete,
+executable specification of system architecture, file depen-
+dencies, and dynamic runtime status. Constructing such
+complex and verifiable environments necessitates substan-
+tial effort from domain experts. TerminalBench (Terminal-
+Bench Team, 2025), for instance, required extensive manual
+curation to produce merely 200 tasks. Existing data syn-
+thesis approaches generally fall into two paradigms, each
+with significant limitations. The first paradigm adapts exist-
+1
+arXiv:2602.07274v1  [cs.AI]  6 Feb 2026
+
+--- PAGE 2 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+ing software repositories (e.g., mining GitHub issues (Yang
+et al., 2025b)). While grounded in real code, these sources
+often lack diversity and are biased towards debugging and
+issue resolving (Liu et al., 2024). They also require exten-
+sive manual effort to define verifiable success criteria for
+each task. The second paradigm involves purely LLM-based
+synthesis, where models are prompted to generate hypothet-
+ical execution logs without access to a live runtime (Chen
+et al., 2025; Kimi Team, 2025). However, as our experi-
+ments reveal (Section 4.3), this approach suffers from severe
+hallucinations: without grounded execution, the synthesizer
+invents plausible but technically incorrect outcomes (e.g., re-
+porting successful installation despite dependency conflicts),
+which can mislead student models during training.
+Second, long-horizon terminal execution worsens ex-
+posure bias.Completing a terminal task often requires
+executing long command sequences where a single inter-
+mediate mistake can cascade into an irreversible failure.
+Standard distillation methods typically perform rejection
+sampling (Mitra et al., 2024) on expert models to harvest op-
+timal execution paths. However, for long-horizon terminal
+tasks, we find that success crucially depends on the ability
+to detect, critique, and correct one’s own errors. Since ex-
+pert models rarely make simple mistakes, standard datasets
+suffer from adistributional mismatch, leaving student mod-
+els ill-equipped to handle runtime failures. Consequently,
+student models suffer from a distribution shift during de-
+ployment, they frequently encounter trivial errors (e.g., de-
+pendency conflicts) that were absent during training, lacking
+the requisite supervision to recover from these failure states.
+We aim to close the significant gap between open-weight
+agents and large proprietary models in the terminal tasks.
+We approach this challenge from a data-centric perspec-
+tive, i.e., an automated, scalable pipeline for high-fidelity
+environment synthesis is the foundational prerequisite for
+effective training. Guided by this insight, we proposeTer-
+miGen, an end-to-end data generation recipe specifically
+designed for developing robust terminal agents. At a high
+level, TermiGen bridges the data scarcity gap by first syn-
+thesizing verifiable tasks via a multi-stage framework, and
+subsequently employing a controlled error-correction mech-
+anism to collect realistic expert trajectories that facilitate
+resilient learning. Specifically, for environment synthesis,
+we employ a multi-agent system to decompose the gener-
+ation process, ensuring coverage across diverse task cate-
+gories. Crucially, to eliminate the hallucinations common
+in simulation-based approaches, we introduce an interac-
+tive execution loop that validates environment correctness
+and task solvability within a real Docker container before
+data collection begins. Following environment generation,
+we propose a novel trajectory collection protocol designed
+to mitigate the distributional mismatch in the standard dis-
+tillation process. To incentivize resiliency, we employ a
+Generator-Criticarchitecture to generate error-correction
+trajectories in a controlled manner. At each action step,
+we stochastically inject realistic faults into the trajectory
+and condition the agent to diagnose the failure and recover
+the system state subsequently. This process yields training
+data rich in expliciterror → diagnosis → correctioncycles,
+teaching the model how to recover from runtime mistakes.
+We conduct extensive evaluations to validate our framework.
+First, our TermiGen-Qwen2.5-Coder-32B model achieves a
+pass rate of31.3%on TerminalBench,establishing a new
+state-of-the-art for open-weights modelsand outperforming
+existing fine-tuning baselines like Reptile by over12%. No-
+tably, it even surpasses capable proprietary models such as
+o4-mini with Codex CLI, demonstrating that high-quality
+data can enable smaller models to rival larger counterparts
+in specialized domains. Second, we demonstrate that train-
+ing on grounded, verifiable environments significantly out-
+performs simulation-based baselines. Third, our ablation
+studies reveal that the inclusion of error-correction trajecto-
+ries improves pass rates by a substantial margin compared
+to training solely on standard expert trajectories. Last, we
+show that including error trajectories which fail to reach the
+task goal also improves performance. To the best of our
+knowledge, TermiGen is the first end-to-end recipe for train-
+ing terminal agents that integrates a high-fidelity, robust,
+and scalable data synthesis pipeline.
+2. Existing Works and Limitations
+Environment for Agentic Training.At a high level,
+existing works for constructing agent environments fall
+into two primary categories. The first line of methods
+focuses on automatically constructing executable environ-
+ments from existing code repositories, utilizing either a
+semi-automated pipeline (Yang et al., 2025b) or a fully
+automated pipeline (Zhang et al., 2025). However, the de-
+pendency on pre-existing projects constrains their generaliz-
+ability to more diverse and unseen tasks and environment
+settings. Another line of work employs LLMs as simulated
+environments to directly generate feedback (Chen et al.,
+2025; Kimi Team, 2025; Li et al., 2025; Wang et al., 2025),
+thereby facilitating large-scale data synthesis and reinforce-
+ment learning. While simulation reduces reliance on real en-
+vironments, the generated feedback can be inconsistent with
+actual execution (e.g., state-tracking errors or hallucinated
+effects), which may mislead agent training. In contrast, our
+framework generates task-specific Docker-based environ-
+ments that support actual execution, ensuring that agents are
+trained in diverse, grounded, and realistic environments.
+Agentic Supervised Fine-Tuning and Learning from Fail-
+ure.Standard approaches for training agentic small models
+typically rely on SFT over expert trajectories distilled from
+frontier models (Chen et al., 2023; Zeng et al., 2024). While
+2
+
+--- PAGE 3 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Categoriesand Seed TasksInput Synthetic Training DataOutput
+1. Task Creation
+Task
+Description
+File
+Analyzer
+File Content
+Generator
+Dockerfile
+Generator
+Unit Test
+Generator
+Required
+Files List
+Source
+Files
+(code, data,
+etc.)
+Dockerfile
+Unit Tests
+Software Build
+& Compilation
+Task
+Description
+Source
+Files Dockerfile Unit
+Tests
+2. Environment Synthesis
+Data
+Processing
+Porting &
+Bug Fixing
+Other
+Categories
+System
+Administration
+Config Linux
+Kernel
+CUDA Toolkit
+Install
+Ghidra
+Decompilation
+Other
+seeds
+Seed
+3. Env & Task Validation
+Execution
+Judge
+Synthetic
+Training Data
+Input
+Target Agent
+80%
+Correct Step
+Generation
+20%
+Incorrect Step
+Generation
+Candidate
+Step
+(Correct)
+Candidate
+Step
+(Incorrect)
+Judge Agent
+(Validator) Finish?Yes
+Yes
+Distilled
+Trajectory
+Output
+No
+Discard &
+Retry
+Phase I: High-fidelity Task and Environment Synthesis Phase II: Controlled Error-
+Correction Traj Collection
+Judge
+Figure 2.The overall pipeline of TermiGen. Phase I generates diverse, functionally valid tasks within Docker containers via iterative
+refinement (Section 3.2). Phase II synthesizes robust expert trajectories by actively injecting errors into the execution flow, enabling the
+model to learn error diagnosis and recovery (Section 3.3).
+effective for cloning optimal behaviors, this paradigm suf-
+fers fromexposure bias(Ross et al., 2011; Bengio et al.,
+2015): since experts rarely make simple mistakes, the result-
+ing datasets lack failure states and corresponding recovery
+phases. Consequently, student models trained solely on
+expert trajectories become fragile, failing catastrophically
+when they inevitably encounter runtime exceptions. To ad-
+dress this, recent works utilize execution feedback or lever-
+age iterative self-refinement to guide self-correction (Shinn
+et al., 2023; Madaan et al., 2023). However, these methods
+predominantly focus oninference-timerefinement rather
+than model training. Although some efforts explicitly train
+on error-correction data (Zheng et al., 2024), they are often
+limited to single-turn, static code repair tasks. Our frame-
+work advances this direction by integrating active error in-
+jection into the trajectory synthesis pipeline, enabling the
+model to internalize the fullerror → diagnosis → recovery
+cycle within complex, multi-turn terminal interactions.
+3. Key Technique
+3.1. Overview
+Technical Challenges.Training agentic small models for
+terminal agents has two unique challenges compared to
+standard code and math reasoning tasks.
+❶Scarcity of Diverse, Executable Environments. Unlike
+self-contained coding tasks (e.g., LeetCode), terminal tasks
+areenvironment-dependent, requiring specific OS configura-
+tions and runtime dependencies. Constructing such environ-
+ments manually is prohibitively expensive, forcing existing
+benchmarks to focus narrowly on code debugging while
+leaving critical domains like system administration, secu-
+rity forensics, and infrastructure management unaddressed.
+Models trained on these limited tasks exhibit restricted rea-
+soning capabilities for broader tasks and fail to utilize a
+diverse range of terminal operations. Attempts to bypass
+this viasimulated executionface a fundamentalfidelity gap,
+as the synthesized trajectories may not represent the real
+execution traces and may contain hallucinations. A typi-
+cal issue isstate inconsistency. For example, if an agent
+modifies a file (e.g., changing a threshold in config.py),
+simulators often fail to track this persistent change, halluci-
+nating outcomes based on the original version. This neces-
+sitates a pipeline that ensures bothexecutability(to avoid
+hallucinations) andscalability(to cover diverse domains).
+❷Necessity of Error-correction Training. Software and
+system-related terminal tasks typically require long action
+sequences (often >20 steps), whereany single step can fail.
+However, standard expert demonstrations used for training
+are typically sparse in errors, as strong teacher models rarely
+make the trivial mistakes that smaller student models en-
+counter. Consequently, agents trained on such data suffer
+fromexposure bias: they lack the resilience to correct run-
+time exceptions. When an error occurs during deployment,
+the resulting failure state (e.g., confusing stderr, corrupted
+file systems) represents an out-of-distribution (OOD) sce-
+nario relative to the training data. Self-correction is partic-
+ularly critical for such agentic tasks, as external tool calls
+induce state changes that are inherently more difficult to
+reverse than internal reasoning errors. This necessitates
+training onimperfect expert demonstrationsthat explicitly
+include error-correction sequences, which show not only
+correct execution paths, but also how to recognize mistakes
+and patch them through self-correction.
+3
+
+--- PAGE 4 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Insight of TermiGen.In this work, we propose TermiGen,
+the first end-to-end framework for training effective termi-
+nal agents with the self-refinement capability. Our method
+consists of the following two phases, designed to address
+the aforementioned challenges. Figure 2 shows an overview
+of TermiGen pipeline.
+Phase I: High-fidelity Task and Environment Synthesis.
+We implement a multi-agent framework to decompose the
+generation process into controllable stages. Guided by a
+structured taxonomy (spanning 11 categories across three
+tiers), we first instruct an LLM to generate distinct task
+seeds to ensure broad coverage across domains. These seeds
+are concise, high-level objective descriptions. Subsequently,
+we employ aProposer-Evaluatorarchitecture to expand
+these seeds into fully specified tasks (e.g., adding detailed
+input/output requirements). In this loop, the Evaluator
+validates the generated content against predefined criteria,
+providing feedback to guide iterative refinement. We
+then leverage a structured workflow to translate these
+textual descriptions into executable Dockerfiles. Given
+the complexity of these domains, ensuring environment
+correctness and task validity is non-trivial. We ensure data
+quality through a two-stage automated validation pipeline.
+First, to guarantee environment executability, we implement
+an iterative Docker build loop where build failures are
+automatically diagnosed and corrected. Second, to verify
+task solvability, we employ aGenerator-Judgeframework:
+a Generator Agent synthesizes initial unit tests, which are
+then iteratively validated and refined by a Judge Agent to
+ensure they accurately capture task objectives and provide
+reliable execution feedback.
+Phase II: Controlled Error-Correction Trajectory Collection.
+Following environment verification, we proceed to tra-
+jectory synthesis. To address the exposure bias inherent
+in standard distillation (as discussed in Challenge ❷),
+we introduce an active error injection mechanism. We
+employ aGenerator-Criticarchitecture that stochastically
+injects controlled failures sampled from a taxonomy of
+five common failure modes (Section 3.3). The generator
+operates under a mixed policy: at each step, it probabilis-
+tically determines whether to pursue the optimal path
+or intentionally deviate to commit a specific error (e.g.,
+invoking non-existent arguments in a command). ACritic
+Agentvalidates the alignment between actions and intents,
+ensuring that injected errors trigger informative feedback
+(stderr) while correct steps meaningfully advance the task.
+Crucially, whenever the policy dictates a return to generate
+a correct step, the generator is conditioned to diagnose the
+preceding failure and synthesize a corrective solution. This
+process yields trajectories enriched with expliciterror →
+diagnosis→recoverycycles.
+3.2. High-Fidelity Task and Environment Synthesis
+We now zoom into the technical details of our task and
+environment synthesis pipeline, which generates diverse,
+executable terminal tasks and environments at scale. The
+pipeline consists of three stages: 1)Task Definition and
+Generation, generating diverse and verifiable tasks; 2)Au-
+tomated Environment Synthesis, generating required files
+and Docker containers; and 3)Environment and Task valida-
+tion, where we iteratively test and validate the correctness
+of the environments and the resolvability of the tasks. The
+workflow is shown in Figure 2 Phase I.
+Stage 1: Task Generation.To ensure comprehensive
+coverage, we construct a hierarchical taxonomy (Ap-
+pendix Table 5) that spans the full spectrum of termi-
+nal usage: from low-level system operations to high-
+level application workflows. The taxonomy is struc-
+tured into three tiers comprising 11 distinct categories:
+1) Tier 1: Infrastructure and core systems focuses on low-
+level system interactions, the corresponding categories
+range frombuild systems(e.g., resolving gcc dependency
+for Linux kernels) tosystem administration(e.g., con-
+figuring Docker). 2) Data and algorithm applications cov-
+ers data-centric workflows (e.g., merging parquet files),
+MLOps (e.g., resolving CUDA out-of-memory), and algo-
+rithmic reasoning tasks (e.g., implementing A* algorithm).
+3) Specialized development targets advanced engineering
+scenarios such as software development (e.g., debugging
+PostgreSQL deadlock), scientific computing (e.g., fixing
+RDKit molecule sanitization), etc. Guided by this taxonomy,
+we prompt an LLM to generate distinct task seeds, defined
+as concise, high-level abstracts such as “Resolving gcc
+-l library not found errors ”, aiming to ensure
+broad and non-overlapping coverage within each category.
+Since these seeds are merely high-level directives, we em-
+ploy aTask Proposal Agentto instantiate each seed into
+a concrete definition. The agent is prompted to synthe-
+size a structured specification, comprising the detailed
+objective, input/output requirements, and success crite-
+ria. However, unconstrained generation often yields tasks
+that are infeasible or non-reproducible (e.g., “optimize
+server latency to<10ms ”, which is hardware-
+dependent). To mitigate this, we introduce aTask Eval-
+uator Agent, establishing a Proposer-Evaluator architecture
+for iterative refinement. The Evaluator critiques task pro-
+posals based on three feasibility metrics (scored 1–5): 1)
+Environment Complexity: Prioritizing tasks using standard
+packages (e.g., apt, pip) over those requiring special hard-
+ware or obscure dependencies. 2) Data Generatability: En-
+suring input artifacts (e.g., logs, configs) can be synthesized
+by LLMs without requiring external production dumps. 3)
+Verification Determinism: Favoring tasks verifiable via de-
+terministic rules (e.g., pytest) rather than ambiguous state
+4
+
+--- PAGE 5 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+checks. We enforce a strict quality threshold: only tasks
+scoring >4 in all dimensions are accepted. Low-scoring
+proposals trigger a feedback-guided refinement loop (max 3
+rounds) until the criteria are met.
+Stage 2: Environment Synthesis.Given the detailed task
+description from Stage 1, we employ a sequential workflow
+where specialized agents collaborate to materialize the en-
+vironment: 1) Structural Planning: AFile Planner Agent
+analyzes the description to decompose it into a concrete file
+system blueprint, outlining the directory structure and spe-
+cific requirements for each artifact. 2) Content Generation:
+Guided by this blueprint, aConstruct Agentinstantiates
+the actual content for each file separately (e.g., synthesiz-
+ing faulty Python scripts, configuration logs, or Makefiles).
+3) Dockerfile Generation: Finally, anEnv Agentgenerates
+a Dockerfile to encapsulate these artifacts. Crucially,
+the agent is instructed to explicitly resolve system-level de-
+pendencies (e.g., installing libssl-dev for compilation),
+ensuring the environment is fully self-contained.
+Stage 3: Environment and Task Validation.We note that
+the generated Dockerfiles often contain subtle errors (e.g.,
+deprecated packages, version mismatches). We implement
+an iterative refinement loop: every generated environment is
+submitted to the Docker daemon. If Docker build fails, the
+stderrlog (e.g., E: Unable to locate package )
+is captured and fed back toEnv Agentas a prompt for cor-
+rection. This cycle repeats (up to N= 5 iterations) until the
+build succeeds. This process filters out non-executable con-
+figurations, ensuring that100% of our training environments
+are functionally valid.
+We further proposed aUnit Test Generation and Validation
+process for verifying that the generated tasks are solvable.
+We first instruct aUnit Test Generator Agentto generate unit
+tests for each task. However, generating reliable unit tests is
+inherently challenging, even more so than solving the tasks
+themselves (M¨undler et al., 2024; Tang et al., 2026). A valid
+unit test must correctly distinguish ground-truth solutions
+(which pass) from plausible but incorrect attempts (which
+fail), requiring a precise understanding of success criteria
+and edge cases. This difficulty is compounded in our setting
+as we lack ground-truth solutions to verify against. Never-
+theless, unit tests are critical for both trajectory collection
+(providing execution feedback) and reinforcement learning
+(defining reward signals). To address this, we further em-
+ploy aJudge Agentthat validates each generated unit test
+through iterative refinement: it verifies that unit tests cor-
+rectly capture task objectives, provide adequate coverage of
+success conditions, and execute without errors. Tests failing
+validation receive detailed feedback and are regenerated by
+theUnit Test Generatoruntil theJudge Agentapproves.
+3.3. Error-Correction Trajectory Collection
+Following the verification of environments, we proceed to
+trajectory synthesis. To mitigate the exposure bias discussed
+in Challenge ❷, we move beyond standard distillation by
+actively injecting failures into the training data. We imple-
+ment this via aGenerator-Criticframework (as shown in
+Figure 2 Phase II). At each time step t, framework operates
+through three sequential steps.
+Step 1: Intent Sampling.To control the trajectory gen-
+eration, we explicitly sample anintent signal It from a
+Bernoulli distribution parameterized by an injection rateϵ:
+It ∼
+(
+Icorrect with probability1−ϵ
+Ierror with probabilityϵ (1)
+where we set ϵ= 0.2 . If It =I correct, the agent aims to
+advance the task state st efficiently. We note that the term
+“correct” in this context does not necessarily imply that the
+step is entirely accurate. Rather, it signifies that the agent is
+attempting to advance the task, as opposed to deliberately
+introducing errors. Conversely, if It =I error, the agent is
+instructed to commit asophisticated error.
+Step 2: Context-Aware Generation.Guided by the sam-
+pled intent, theStep Generatorproduces a ReAct-style ac-
+tion at conditioned on the current system state st and task
+context. Crucially, when It =I error, the agent is prompted
+to synthesizeplausibledomain-specific mistakes rather than
+random noise. To ensure comprehensive coverage, we taxon-
+omize agent failures into five categories:1) Analysis Errors:
+misinterpretation of environment states or data structures;
+2) Command Errors:syntactic or formatting failures in tool
+execution;3) Hallucinations, where agents assume the exis-
+tence of absent tools or services;4) Requirement Violations:
+neglecting explicit task constraints;5) Verification Failures:
+lack of self-check steps before concluding tasks. For exam-
+ple, in a system administration context, it might attempt a
+privileged operation without sudo (a commonPermission
+Oversight), ensuring the error reflects realistic user behavior.
+Step 3: Critic Validation.Finally, aCritic Agentvalidates
+the alignment between the generated action at and the in-
+tent It to ensure data quality. Forerror steps, it filters out
+low-quality error injections by verifying that the action is
+syntactically plausible and will triggerinformative feedback
+(e.g., a specific stderr message) upon execution. Foropti-
+mal steps, it confirms that the action effectively advances
+the task state. Any step failing this validation triggers a
+regeneration loop guided by theCritic Agent’s feedback.
+Handling Cumulative Errors and Recovery.The stochas-
+tic nature of our intent sampling enables the emergence of
+diverse recovery patterns. When an error action at is ex-
+ecuted, the environment transitions to a failure state st+1,
+typically accompanied by execution feedback ostderr (e.g.,
+5
+
+--- PAGE 6 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+RuntimeError). In the subsequent steps, if the sampled
+intent reverts to Icorrect, we enforce arecovery behavior:
+the Step Generator is conditioned to analyze the preceding
+error feedback and synthesize a corrective action (e.g., de-
+bugging constraints or attempting an alternative command).
+Crucially, since sampling is independent step-by-step, the
+system naturally allows forconsecutive errors. This ex-
+poses the model tocascading failure modes, teaching it not
+only to fix isolated mistakes but also to maintain diagnos-
+tic coherence across multi-turn, noisy interaction histories.
+Note that these injected errors do not necessarily result in
+a failed trajectory, as the agent is required to recover from
+failures whenever a correct step is sampled in subsequent
+steps. These injected errors also do not reduce the success
+rate of completing task goals.
+3.4. Implementation and Data Statistics
+Implementation Details.We utilized Claude-4.5-
+Sonnet (Anthropic, 2025b) as the backbone model for agents
+in both Phase I and Phase II. For trajectory collection, we
+implemented a minimal terminal-based agent framework,
+BashAgent, following the architecture of Terminus (Termi-
+nus, 2025). The agent interacts with a Docker container
+via a raw bash shell, generating a ReAct-style (Yao et al.,
+2022) response at each turn (a reasoning trace followed by
+a bash command). We deliberately exclude complex agent
+scaffolding (e.g., RAG or multi-agent debate) to ensure the
+collected data reflects the intrinsic reasoning capabilities
+required for fine-tuning. A detailed task example and a
+visualization of the error-correction loop are in Appendix C.
+Dataset Statistics.Our synthesis pipeline yielded a final
+set of over 3,500 verified environments, balanced across
+the From these environments, we curated a corpus of 3,291
+trajectories. This dataset includes both successful solutions
+and unresolved attempts. As we will show in Section 4.3,
+these unresolved trajectories remain valuable for training.
+Notably, these trajectories exhibit along-horizon character-
+istic, spanning an average of 25.5 turns and 8,722 tokens,
+reflecting the complexity of real-world system tasks.
+Tool Diversity.The dataset demonstrates broad cover-
+age of terminal operations, utilizing a total of 420 unique
+command-line tools. These tools span 16 functional do-
+mains, ranging from standard utilities (e.g., file and text
+processing) to specialized software in security forensics, net-
+work operations, and HPC environments. Figure 3 illustrates
+the distribution of tool usage, highlighting the dataset’s cov-
+erage of both foundational and domain-specific skills.
+4. Experiments
+We first validate the effectiveness of TermiGen by com-
+paring our fine-tuned models against three categories of
+Shell & System
+echo,
+ps,
+bash
+...
+(51 tools)
+Sysadmin
+journalctl,
+lsof,
+sysctl
+...
+(39 tools)
+File & Directory
+cat,
+ls,
+find
+...
+(38 tools)
+Programming
+python,
+gcc,
+java
+...
+(33 tools)
+Debug & Binary
+gdb,
+strace,
+valgrind
+...
+(30 tools)
+Text Processing
+grep,
+sed,
+awk
+...
+(28 tools)
+Build & Package
+make,
+pip,
+cmake
+...
+(28 tools)
+Scientific
+samtools,
+blender,
+gdalinfo
+...
+(27 tools)
+Other
+yamllint,
+borg,
+scrapy
+...
+(26 tools)
+DevOps & Cloud
+docker,
+kubectl,
+git
+...
+(20 tools)
+Security
+hashcat,
+yara,
+gpg
+...
+(20 tools)
+/glyph1197etwork & Web
+curl,
+wget,
+nginx
+...
+(17 tools)
+Database
+sqlite3,
+psql,
+redis-cli
+...
+(17 tools)
+Data & ML
+jupyter,
+spark-submit,
+ray
+...
+(16 tools)
+HPC & Runtime
+mpirun,
+qemu,
+wasmtime
+...
+(16 tools)
+Formal Methods
+z3,
+cvc5,
+minisat
+...
+(14 tools)
+Figure 3.Distribution of 420 command-line tools across 16 func-
+tional categories. Bubble sizes are proportional to the logarithm of
+the number of tools in each category.
+baselines: 1) proprietary frontier models, 2) general-
+purpose open-weights models, and 3) specialized mod-
+els fine-tuned for terminal tasks. Then, we answer the
+following research questions with rigorous ablation stud-
+ies: RQ1: Verifiable Environments vs. Simulation. Does
+training on trajectories from physically verifiable en-
+vironments (Phase I) yield better generalization than
+training on synthetic trajectories from simulated envi-
+ronments? RQ2: Error-Correction vs. Standard Trajectory.
+Does our controlled error injection strategy (Phase II)
+effectively improve the agent’s self-correction capabili-
+ties compared to standard training on golden trajectories?
+RQ3: The Value of Negative Trajectories.How does the in-
+clusion ofunresolved error trajectories(attempts that failed
+to reach a solution) during SFT affect the model’s ability?
+4.1. Experiment Setup
+Models.For the student models, we select theQwen-2.5-
+Coder-32B-Instruct(Hui et al., 2024) andQwen3-32B(Yang
+et al., 2025a). We choose these open-weight models as
+they represent the current state-of-the-art in code reasoning
+and general instruction following. Training involves full-
+parameter supervised fine-tuning with a sequence length of
+20,000 for 5 epochs to accommodate long interaction histo-
+ries. Hyperparameter details are provided in Appendix B.
+Baselines.We evaluate TerminalBench against a com-
+prehensive suite of models and frameworks, categorized
+into three distinct groups. First, we include proprietary
+frontiers and top-performing agent systems, Claude-4.5-
+sonnet (Anthropic, 2025b), Claude-3.7-Sonnet (Anthropic,
+2025a), GPT-5 (OpenAI, 2025b), o4-mini (OpenAI, 2025d),
+6
+
+--- PAGE 7 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Claude Code (Anthropic, 2025a), Codex (OpenAI, 2025a),
+and Apex2, which establish the performance ceiling for au-
+tonomous terminal operations. Second, we assess agents
+built on general-purpose base models without task-specific
+fine-tuning, specifically Qwen3-235B-A30B (Hui et al.,
+2024), Qwen3-32B (Hui et al., 2024), Qwen-2.5-Coder-
+32B (Yang et al., 2025a), and GPT-OSS-120B (OpenAI,
+2025c), paired with BashAgent (described in Section 3.4).
+Finally, we compare against specialized models that have
+been explicitly fine-tuned for terminal-based tasks using
+supervised fine-tuning or reinforcement learning, including
+Reptile (Dou et al., 2025), LiteCoder-Terminal (Peng et al.,
+2025), and TerminalAgent (Austin, 2025).
+Benchmarks and Evaluation Metrics.To assess
+the agent’s real-world capability, we employ Terminal-
+Bench 1.0 (Terminal-Bench Team, 2025) as our primary
+benchmark. TerminalBench evaluates agents on a curated
+set of realistic terminal tasks proposed by various domain
+experts within isolated Docker containers. Consistent with
+its standard evaluation protocol, we define the pass rate as
+our core metric. For each task, the benchmark executes a
+dedicated verification script (test.sh), an agent is consid-
+ered successful only if it passes all test cases defined in the
+verification script. We set the generation temperature as 0.6
+for our fine-tuned models and base models. To account for
+generation variance, we report theAverage Pass@1across
+three independent runs to ensure reliability.
+4.2. Main Comparisons
+Table 1 benchmarks our framework against both open-
+weights state-of-the-art (SOTA) and proprietary frontier
+models. Our TermiGen-Qwen2.5-32B achieves a pass rate
+of 31.3%, establishing a new open-weights SOTA. It sig-
+nificantly outperforms existing fine-tuned agents such as
+Reptile (18.9%) and TerminalAgent (15.5%) by a substan-
+tial margin. Crucially, compared to the untuned base models,
+TermiGen yields a nearly 25% performance gain. Remark-
+ably, our 32B model surpasses capable proprietary models
+like o4-mini (20.0%) by 11.3%, despite having significantly
+fewer parameters and no access to other tools such as web
+browsing or memory. While a gap remains compared to the
+apex of proprietary reasoning (e.g., Apex2 with Claude-4.5-
+Sonnet at 64.5%), TermiGen-Coder-32B reaches 73.1% of
+the performance of GPT-5-Codex. This result suggests that
+a specialized model, when trained on high-fidelityerror-
+correctiondata, can effectively approach the reasoning ca-
+pabilities of much larger frontier models in domain-specific
+execution environments.
+4.3. Ablation Studies
+RQ1: Verifiable Environments vs. Simulation.To quan-
+tify the necessity of physical execution, we investigate
+Table 1.Comparison of TermiGen and baselines on Terminal-
+Bench 1.0. Results are sorted by pass rate in descending order.
+The * indicates results are reported by the authors.
+Agent Framework Base Model Avg Pass Rate (%)
+Proprietary Models
+Apex2 Claude-4.5-Sonnet 64.5±1.1
+Codex CLI GPT-5-Codex 42.8±4.2
+Claude Code Claude-3.7-Sonnet 35.2±2.6
+Codex CLI o4-mini 20.0±2.9
+General-purpose Base Models
+BashAgent GPT-OSS-120B 19.2±2.4
+BashAgent Qwen3-235B-A30B 15.4±0.6
+BashAgent Qwen3-32B 10.4±1.2
+BashAgent Qwen2.5-Coder-32B-Instruct 4.5±0.7
+Terminus 1 Qwen3-235B-A30B 6.6±2.8
+Fine-tuned Models
+BashAgentTermiGen-Qwen2.5-Coder-32B 31.3±1.8
+BashAgentTermiGen-Qwen3-32B 27.5±1.3
+Reptile Devstral-2505-22B 18.9 ∗
+Terminus 2 LiteCoder-30a3b 18.8 ∗
+Terminus 2 TerminalAgent-32B 15.5±2.2
+Table 2.Comparison of average Pass@1 scores between synthe-
+sized observation (Simulation) and real observation (TermiGen),
+controlled for data size (N= 800).
+Observation Source Avg Pass@1 (%)
+Simulation 22.5
+TermiGen 25.0
+whether training on simulated observations yields compa-
+rable performance to training on real execution feedback.
+We construct a baseline simulation dataset comprising 800
+trajectories. To ensure a fair comparison, we maintain two
+identical experimental conditions to our main pipeline: 1)
+Tasks: The simulation uses the exact same task seeds and
+prompts as our verifiable dataset. 2) Strategy: We apply the
+sameError-Correctionstrategy with a 20% error injection
+probability. The sole difference lies in the execution layer.
+Instead of executing commands in a Docker container, an
+Observation Synthesis Agent(prompted with the current
+context) generates the hypotheticalstdout,stderr.
+As shown in Table 2, training on verifiable environments
+yields a performance advantage ( 2.5%) over the simu-
+lation baseline. With 800 samples, the Verifiable
+model achieves a Pass Rate of 25.0%, improving the
+Simulation baseline by a relative improvement of ≈
+11%. This result suggests that while simulation serves as
+a strong proxy, the fidelity of grounded execution provides
+the critical signals necessary to resolve complex edge cases.
+To provide a rigorous explanation for the performance gap,
+we employ Claude-4.5-Sonnet to conduct an empirical audit
+of 50 randomly sampled trajectories from the simulation
+dataset. Our analysis reveals that 26% of these trajectories
+contain observation errors with three systemic issues. The
+most prevalent issue,Spurious Verbosity, accounts for 53%
+7
+
+--- PAGE 8 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Table 3.Performance comparison between the baseline model
+(trained on standard trajectories) and our TermiGen method, con-
+trolled for data size (N= 800).
+Training Strategy Avg Pass@1 (%)
+Standard 21.8
+TermiGen 25.0
+of the identified errors. This occurs when the simulator hal-
+lucinates explicit confirmation outputs for commands that
+are natively silent, such as file redirections or heredocs. Ad-
+ditionally, 35% of errors involveSemantic Deviation, where
+the simulator fails to faithfully replicate standard shell logic.
+For instance, it may misattribute the root cause of a per-
+mission error or return incorrect exit codes. This deviation
+is particularly detrimental as it instills flawed diagnostic
+logic: the agent learns to associate specific error messages
+with incorrect root causes (e.g., applying sudo to fix a path
+error), resulting in ineffective debugging loops during real-
+world deployment. Lastly,State Inconsistency( 12%). For
+example, an agent first use cat to create a configuration
+file and receive a success signal, while in later steps, when
+the agent tries to read the config file, the simulator responds
+with File not found . Such discontinuities break the
+logical chain of reasoning, making it impossible for the
+agent to debug effectively.
+RQ2: Error-Correction vs. Standard Trajectory.Next,
+we isolate the impact of ourError-Correctionstrategy by
+comparing it against a model trained on standard trajec-
+tories. We construct a standard baseline dataset with 800
+standard trajectories, which collected in the same verifiable
+environments but without active error injection. Note that
+this baseline is not strictly error-free, the agent may still
+commit a few incidental mistakes.
+As illustrated in Table 3, our TermiGen model achieves a
+Pass@1 of 25.0%, consistently outperforming the baseline
+model ( 21.8%) fine-tuned on standard trajectories. This
+performance gap indicates that high-density exposure to
+diverse failure modes generalizes effectively, improving
+end-to-end reasoning capabilities for small models.
+To explain this gain, we conducted a granular analysis of the
+error distributions using the five-category taxonomy defined
+in Section 3.3. We employ Claude-4.5-Sonnect to inspect50
+trajectories from the baseline dataset and reveals a critical
+skewness in naturally occurring errors: they are dominated
+byVerification Failures( ≈50% ), where agents typically
+fail simply by omitting a final check, followed byAnalysis
+Errors( ≈19% ). Complex failure modes such asHalluci-
+nationsandRequirement Violationsare rare. In contrast,
+our strategy (ϵ= 0.2 )actively forcesthe agent to navigate
+a diverse spectrum of failure modes. We further present a
+comparative case study in Appendix D to demonstrate the
+error-correction capabilities acquired through our training.
+Table 4.Performance comparison when varying the inclusion
+threshold (τ) based on trajectory unit test pass rates.
+Inclusion Threshold (τ) Data Size Avg Pass@1 (%)
+≥100% 2,040 25.0
+≥50% 2,696 26.3
+≥0%3,291 31.3
+RQ3: The Value of Negative Trajectories.Standard
+SFT protocols typically enforce a strict quality filter, re-
+taining only trajectories that achieve a 100% pass rate
+on verification unit tests (e.g., reject sampling). We con-
+duct an ablation study by varying the inclusion thresholdτ
+based on the trajectory’s unit test completion rate. Specifi-
+cally, we train Qwen-2.5-Coder-32B on trajectories where
+Test Pass Rate≥τ , with τ∈ {100%,50%,0%} ). Counter-
+intuitively, as shown in Table 4, we observe that strict data
+filtering is detrimental in our setting: the model trained with
+τ= 0% achieves the highest performance, surpassing the
+strictτ= 100%baseline by a noticeable margin.
+We attribute this performance gain to two factors. First,
+Task Complexity Coverage.We hypothesize that trajectories
+achieving a 100% pass rate are statistically skewed towards
+easier tasks. Strictly filtering out imperfect runs inadver-
+tently discards valuable exposure to complex, high-difficulty
+scenarios where the agent demonstrated valid reasoning
+logic but fell short of a perfect score. Second,Local Recov-
+ery Supervision.Due to ourError-Correctionmechanism,
+even a trajectory that ultimately fails the final evaluation, it
+still contains validlocalrepairs of injected errors. These
+segments provide high-quality supervision for the mechan-
+ics of diagnosis and correction, independent of the global
+task outcome. Together, these factors suggest that imperfect
+data is essential for learning resilience in complex domains.
+5. Conclusion and Limitations
+In this work, we present a framework for synthesizing ver-
+ifiable terminal environments and an error-injection distil-
+lation strategy. Our empirical results demonstrate that this
+approach closes the gap between open-weights and propri-
+etary models. Despite these advancements, we acknowledge
+three key limitations that outline future directions.
+First, our current training relies exclusively on SFT. Since
+our environment provides deterministic verification signals
+via automated tests, a natural next step is to apply reinforce-
+ment learning. This would allow agents to explore novel
+solutions and learn from trial-and-error beyond the fixed
+distribution of the training data. Second, we currently im-
+plement a simple agent without a memory component to
+mainly test the effectiveness of generated environments and
+trajectories. Future work could design more sophisticated
+agents with memory to leverage interaction histories. Third,
+while our taxonomy spans diverse domains, our environ-
+8
+
+--- PAGE 9 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+ments are inherently synthetic and isolated. They cannot
+fully replicate the stochasticity and scale, especially for real-
+world production systems (e.g., distributed clusters, high-
+concurrency traffic). Future research should investigate how
+agents trained on these controlled sandbox environments
+transfer to open-ended, large-scale infrastructure tasks.
+Impact Statement
+This paper presents TermiGen, a framework that improves
+the reliability of autonomous agents in software engineering
+and system administration. By enabling open-source models
+to effectively use terminal tools, we make advanced DevOps
+capabilities more accessible to the community, lowering the
+barrier for complex software tasks.
+However, we acknowledge that giving agents the power to
+execute terminal commands comes with risks.Safety Risks:
+An autonomous agent might accidentally cause data loss or
+system crashes (e.g., deleting the wrong files). Our focus
+error correction helps reduce this risk. By teaching agents to
+identify and fix their own mistakes, we prevent simple errors
+from leading to larger failures.Malicious Use:The tech-
+niques described could theoretically be misused to automate
+cyber-attacks. To address these risks, we emphasize that
+such agents must be deployed in isolated environments (e.g.,
+Docker containers) and always under human supervision.
+References
+Anthropic. Claude 3.7 sonnet and claude code. Tech-
+nical announcement, Anthropic, February 2025a.
+URL https://www.anthropic.com/news/
+claude-3-7-sonnet.
+Anthropic. Introducing claude sonnet 4.5, September
+2025b. URL https://www.anthropic.com/
+news/claude-sonnet-4-5.
+Austin, D. Terminal-bench-rl: Training long-horizon
+terminal agents with reinforcement learning, 2025.
+URL https://github.com/Danau5tin/
+terminal-bench-rl.
+Bengio, S., Vinyals, O., Jaitly, N., and Shazeer, N. Sched-
+uled sampling for sequence prediction with recurrent neu-
+ral networks.Advances in neural information processing
+systems, 28, 2015.
+Chen, B., Shu, C., Shareghi, E., Collier, N., Narasimhan, K.,
+and Yao, S. Fireact: Toward language agent fine-tuning.
+arXiv preprint arXiv:2310.05915, 2023.
+Chen, M. Evaluating large language models trained on code.
+arXiv preprint arXiv:2107.03374, 2021.
+Chen, Z., Zhao, Z., Zhang, K., Liu, B., Qi, Q., Wu, Y .,
+Kalluri, T., Cao, S., Xiong, Y ., Tong, H., et al. Scaling
+agent learning via experience synthesis.arXiv preprint
+arXiv:2511.03773, 2025.
+Cobbe, K., Kosaraju, V ., Bavarian, M., Chen, M., Jun, H.,
+Kaiser, L., Plappert, M., Tworek, J., Hilton, J., Nakano,
+R., et al. Training verifiers to solve math word problems.
+arXiv preprint arXiv:2110.14168, 2021.
+Dou, L., Du, C., Li, S., Wang, T., Zhang, T., Liu, T.,
+Chen, X., Tang, C., Zhao, Y ., and Lin, M. Reptile:
+Terminal-agent with human-in-the-loop learning, 2025.
+URL https://github.com/terminal-agent/
+reptile. GitHub repository.
+Huang, Y ., Lin, Z., Liu, X., Gong, Y ., Lu, S., Lei, F., Liang,
+Y ., Shen, Y ., Lin, C., Duan, N., et al. Competition-level
+problems are effective llm evaluators. InFindings of the
+Association for Computational Linguistics: ACL 2024,
+2024.
+Hui, B., Yang, J., Cui, Z., Yang, J., Liu, D., Zhang, L.,
+Liu, T., Zhang, J., Yu, B., Lu, K., et al. Qwen2. 5-coder
+technical report.arXiv preprint arXiv:2409.12186, 2024.
+Jimenez, C. E., Yang, J., Wettig, A., Yao, S., Pei, K., Press,
+O., and Narasimhan, K. Swe-bench: Can language mod-
+els resolve real-world github issues?arXiv preprint
+arXiv:2310.06770, 2023.
+Kimi Team. Kimi k2: Open agentic intelligence.arXiv
+preprint arXiv:2507.20534, 2025.
+Li, Y . et al. Simulating environments with reasoning mod-
+els for agent training.arXiv preprint arXiv:2511.01824,
+2025.
+Liu, J., Wang, K., Chen, Y ., Peng, X., Chen, Z., Zhang,
+L., and Lou, Y . Large language model-based agents
+for software engineering: A survey.arXiv preprint
+arXiv:2409.02977, 2024.
+Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao,
+L., Wiegreffe, S., Alon, U., Dziri, N., Prabhumoye, S.,
+Yang, Y ., et al. Self-refine: Iterative refinement with self-
+feedback.Advances in Neural Information Processing
+Systems, 36:46534–46594, 2023.
+Mitra, A., Del Corro, L., Zheng, G., Mahajan, S., Rouhana,
+D., Codas, A., Lu, Y ., Chen, W.-g., Vrousgos, O., Rosset,
+C., et al. Agentinstruct: Toward generative teaching with
+agentic flows.arXiv preprint arXiv:2407.03502, 2024.
+M¨undler, N., M ¨uller, M., He, J., and Vechev, M. Swt-
+bench: Testing and validating real-world bug-fixes with
+code agents.Advances in Neural Information Processing
+Systems, 37:81857–81887, 2024.
+9
+
+--- PAGE 10 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+OpenAI. Codex. OpenAI Product Page, 2025a. URL
+https://openai.com/codex/.
+OpenAI. Introducing gpt-5. OpenAI Blog, Au-
+gust 2025b. URL https://openai.com/index/
+introducing-gpt-5/.
+OpenAI. Introducing gpt-oss. OpenAI Blog, Au-
+gust 2025c. URL https://openai.com/index/
+introducing-gpt-oss/.
+OpenAI. Introducing openai o3 and o4-mini. OpenAI Blog,
+April 2025d. URL https://openai.com/index/
+introducing-o3-and-o4-mini/.
+Peng, X., Lu, X., Zhang, K., Fang, T., Cao, B., and Lu,
+Y . Litecoder: Advancing small and medium-sized code
+agents, 2025.
+Ross, S., Gordon, G., and Bagnell, D. A reduction of imita-
+tion learning and structured prediction to no-regret online
+learning. InProceedings of the fourteenth international
+conference on artificial intelligence and statistics, pp.
+627–635. JMLR Workshop and Conference Proceedings,
+2011.
+Shinn, N., Cassano, F., Gopinath, A., Narasimhan, K., and
+Yao, S. Reflexion: Language agents with verbal rein-
+forcement learning.Advances in Neural Information
+Processing Systems, 36:8634–8652, 2023.
+Tang, Y ., Zhu, K., Ruan, B., Zhang, C., Yang, M., Li, H.,
+Guo, S., Shi, T., Li, Z., Kruegel, C., et al. Devops-gym:
+Benchmarking ai agents in software devops cycle.arXiv
+preprint arXiv:2601.20882, 2026.
+Terminal-Bench Team. Terminal-bench: A benchmark
+for ai agents in terminal environments, 2025. URL
+https://github.com/laude-institute/
+terminal-bench.
+Terminus. Terminus: A research-preview agent for terminal-
+bench, May 2025. URL https://www.tbench.ai/
+terminus.
+Wang, Y . et al. Llms as scalable, general-purpose simula-
+tors for evolving digital agent training.arXiv preprint
+arXiv:2510.14969, 2025.
+Xie, T., Zhang, D., Chen, J., Li, X., Zhao, S., Cao, R., Hua,
+T. J., Cheng, Z., Shin, D., Lei, F., et al. Osworld: Bench-
+marking multimodal agents for open-ended tasks in real
+computer environments.Advances in Neural Information
+Processing Systems, 37:52040–52094, 2024.
+Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B.,
+Yu, B., Gao, C., Huang, C., Lv, C., et al. Qwen3 technical
+report.arXiv preprint arXiv:2505.09388, 2025a.
+Yang, J., Lieret, K., Jimenez, C. E., Wettig, A., Khandpur,
+K., Zhang, Y ., Hui, B., Press, O., Schmidt, L., and Yang,
+D. Swe-smith: Scaling data for software engineering
+agents.arXiv preprint arXiv:2504.21798, 2025b.
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan,
+K. R., and Cao, Y . React: Synergizing reasoning and
+acting in language models. InThe eleventh international
+conference on learning representations, 2022.
+Zeng, A., Liu, M., Lu, R., Wang, B., Liu, X., Dong, Y .,
+and Tang, J. Agenttuning: Enabling generalized agent
+abilities for llms. InFindings of the Association for
+Computational Linguistics: ACL 2024, pp. 3053–3077,
+2024.
+Zhang, L., He, S., Zhang, C., Kang, Y ., Li, B., Xie, C.,
+Wang, J., Wang, M., Huang, Y ., Fu, S., et al. Swe-bench
+goes live!arXiv preprint arXiv:2505.23419, 2025.
+Zheng, T., Zhang, G., Shen, T., Liu, X., Lin, B. Y ., Fu, J.,
+Chen, W., and Yue, X. Opencodeinterpreter: Integrating
+code generation with execution and refinement.arXiv
+preprint arXiv:2402.14658, 2024.
+Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar, A.,
+Cheng, X., Ou, T., Bisk, Y ., Fried, D., et al. Webarena:
+A realistic web environment for building autonomous
+agents.arXiv preprint arXiv:2307.13854, 2023.
+10
+
+--- PAGE 11 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Table 5.Hierarchical Domain Taxonomy.Our dataset covers three tiers spanning 11 sub-categories, ranging from low-level infrastructure
+to high-level specialized development. We list representative competencies and specific task seeds for each category.
+Sub-Category Competencies (Goals & Skills) Representative Task Seeds
+Tier I: Infrastructure & Core Systems
+1.1 Software Build &
+Compilation
+Goal:Resolve dependency hell, linker errors, and
+cross-compilation issues.
+Skills: gcc, cmake, makefile, rustc,
+autotools,ld.
+gcc cannot find library,
+cmake cuda toolkit not found,
+rust cargo linker failure,
+makefile missing separator
+1.2 System Administration
+& DevOps
+Goal:Manage containers, orchestrate clusters, and
+debug system services.
+Skills: docker, kubernetes, systemd, nginx,
+terraform.
+kubernetes pod crashloop backoff,
+docker layer caching broken,
+nginx upstream keepalive connections,
+systemd unit fails on boot
+1.3 Security, Forensics &
+Reverse Engineering
+Goal:Exploit analysis, binary reversing, and digital
+forensics.
+Skills: ghidra, wireshark, metasploit, gdb,
+volatility.
+buffer overflow exploit development,
+wireshark pcap analysis,
+ghidra reverse engineering workflow,
+sqlmap automated injection
+Tier II: Data & Algorithm Applications
+2.1 Data Processing &
+ETL
+Goal:Transform large-scale datasets and handle
+schema evolution.
+Skills: pandas, spark, kafka, sql, parquet,
+jq.
+parquet schema evolution,
+kafka avro schema registry,
+pandas merge asof timeseries,
+spark dataframe schema inference
+2.2 Machine Learning &
+MLOps
+Goal:Debug training instability, optimize inference,
+and manage pipelines.
+Skills: pytorch, cuda, huggingface,
+scikit-learn.
+cuda out of memory,
+pytorch dataloader workers,
+transformers token limit,
+gradient explosion detection
+2.3 Algorithms &
+Logic Puzzles
+Goal:Implement classic algorithms and solve competi-
+tive programming tasks.
+Skills:Graph theory, Dynamic Programming, Search
+(A*), CSP.
+n queens placement,
+shortest path dijkstra,
+alpha beta pruning minimax,
+knapsack dynamic programming
+Tier III: Specialized Domains & Advanced Development
+3.1 Software Dev,
+Porting & Bug Fixing
+Goal:Full-stack debugging, framework configuration,
+and legacy porting.
+Skills:react,django,git,rest-api,ci/cd.
+react hooks dependency array,
+django csrf token missing,
+git merge conflict binary,
+rest api pagination cursor
+3.2 Scientific &
+Domain Computing
+Goal:Computational biology, chemistry simulations,
+and statistical modeling.
+Skills: bioconductor, rdkit, gromacs, stan,
+numpy.
+rdkit mol sanitization error,
+stan divergent transitions,
+bioconductor annotation mismatch,
+gromacs topology atom mismatch
+3.3 Interactive
+Environments
+Goal:Handle real-time protocols, REPLs, and interac-
+tive debugging sessions.
+Skills: websocket, ssh, gdb-interactive,
+jupyter.
+websocket chat server,
+interactive sql repl,
+gdb interactive debugging,
+jupyter kernel connection
+3.4 Distributed &
+Parallel Computing
+Goal:Debug race conditions, deadlocks, and dis-
+tributed consensus issues.
+Skills:mpi,openmp,ray,dask,slurm.
+mpi deadlock collective ops,
+spark executor out of memory,
+ray actor died unexpectedly,
+openmp race condition shared
+3.5 Formal Verification
+& Graphics
+Goal:Theorem proving, SAT solving, and rendering
+pipeline debugging.
+Skills:coq,z3,opengl,vulkan,blender.
+coq universe inconsistency,
+opengl context creation headless,
+z3 timeout optimization,
+vulkan validation layer error
+A. Detailed Task Categories
+Table 5 shows the task taxonomy.
+11
+
+--- PAGE 12 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Algorithms & Logic Puzzles
+Data Processing & ETL
+Distributed & Parallel Computing
+Formal Verification & Graphics
+Interactive Environments & Games
+Machine Learning & MLOps
+Scientific & Domain-Specific Computing
+Security, Reverse Engineering & Forensics
+Software Build & Compilation
+Software Development, Porting & Bug Fixing
+System Administration & DevOps
+Figure 4.t-SNE visualization of≈3,500tasks across11categories, showing semantic clustering by task type.
+B. Implementation Details
+Our training pipeline is built upon the LLaMA-Factory framework. We perform full-parameter supervised fine-tuning
+(SFT) on the base model using the synthetically generated dataset. To accommodate the extensive context requirements of
+multi-turn terminal interactions, we set the maximum sequence length to 20,000 tokens. The training is optimized using
+AdamW with a learning rate of 5.0×10 −6, employing a cosine learning rate scheduler with a warmup ratio of 0.1 and zero
+weight decay. We train the model for 5 epochs with a per-device batch size of 1 and 8 gradient accumulation steps. All
+experiments were conducted on the compute nodes equipped with 8× AMD MI325X GPUs. To ensure memory efficiency
+and scalability across these accelerators, we utilize DeepSpeed ZeRO-3 with BF16 precision enabled.
+C. Task and Error-Correction Trajectory
+C.1. Synthetic Dataset Samples
+In this case study, we present a representative synthetic task directory, to illustrate the structure and content of our benchmark.
+Task Description.This task targets macOS automation using AppleScript. The high-level goal is to locate all application
+bundles (.app packages) within the /Applications directory (including subdirectories) and extract their version
+information from Info.plist files. The task requires handling edge cases such as: (1) Application bundles nested in
+subdirectories; (2) Missing or malformed Info.plist files; (3) Applications without readable version information.
+The solution must generate a JSON file at /tmp/app inventory.json containing: (1) total apps: Total
+number of .app bundles found; (2) apps with version: Number of apps with readable version information (3)
+apps without version: Number of apps where version info couldn’t be extracted.
+Directory Structure.The directory is organized as follows:
+|-- task.yaml # Task description and metadata
+|-- Dockerfile # Docker environment configuration
+|-- docker-compose.yaml # Docker Compose configuration
+12
+
+--- PAGE 13 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+|-- run-tests.sh # Test execution script
+|-- Applications/ # Test data directory
+| |-- TextEditor.app/
+| | |-- Contents/
+| | | |-- Info.plist
+| |-- Utils/
+| | |-- Calculator.app/
+| | | |-- Contents/
+| | | | |-- Info.plist
+| |-- DevTools/
+| | |-- CodeEditor.app/
+| | | |-- Contents/
+| | | | |-- Info.plist
+| | |-- Terminal.app/
+| | | |-- Contents/
+| | | | |-- Info.plist
+|-- tests/
+|-- test_outputs.py # Automated test suite
+Evaluation Framework.The evaluation is performed through a comprehensive pytest-based test suite
+(tests/test outputs.py) that validates: (1) Output file existence at the specified path; (2) Valid JSON format;
+(3) Presence of all three required fields; (4) Exactly three fields (no extra fields); (4) Correct data types (all integers); (5)
+Accurate count of total applications (must equal 4).
+C.2. An Error-Correction Example in Training Trajectories
+We present a representative example illustrating theerror analysis and correction loopin our generated trajectories.
+(Goal):
+Solve the SMT constraints in /workspace/password policies.smt2 using CVC5.
+Goal: Determine satisfiability and extract a valid password model if one
+exists. Output: Save the result to /workspace/result.txt in the exact
+format: satisfiable: yes followed by password: <value> on the next line
+(or just satisfiable: no if impossible).
+(Action 1):
+...
+(Output 1):
+...
+(Action 2):
+...
+(Output 2):
+...
+(Action 3):
+Looking at the current state, I have:
+•Confirmed the /workspace/password policies.smt2 file exists and contains
+valid SMT-LIB2 constraints
+•Verified that CVC5 is available at /usr/local/bin/cvc5
+•Understood the password constraints from the SMT file
+The next logical step is to run CVC5 on the SMT file to determine if the
+13
+
+--- PAGE 14 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+constraints are satisfiable and, if so, get a model (example password) that
+satisfies all constraints.
+<tool call>{cvc5 --lang smt2 --strings-exp /workspace/password policies.smt2}
+</tool call>
+⇒This command is intentionally incorrect to inject an error.
+(Output 3):
+Parse Error: /workspace/password policies.smt2:6.33: Symbol ’>=’ not
+declared as a variable
+(Action 4):
+The error persists - CVC5 is still reporting that ’>=’ is not declared as a
+variable. This is happening because the SMT-LIB2 file declares the logic
+as ‘QF S‘ (quantifier-free strings only), but then uses integer comparison
+operators (‘>=‘, ‘<=‘) with ‘str.len‘, which requires integer arithmetic
+support.
+The issue is that QF S logic doesn’t include integer arithmetic. The
+correct logic should be ‘QF SLIA‘ (Quantifier-Free Strings and Linear Integer
+Arithmetic) or just let CVC5 auto-detect it.
+⇒In this step, it reflects and refines previous error command.
+However, I notice the task says ¨The file contains a complete, valid SMT-LIB2
+problem statement ¨- this suggests the file should work as-is. Let me check
+if there’s a way to make CVC5 more lenient or if I need to use a different
+approach.
+Let me try running CVC5 without specifying the logic strictly, by using the
+‘--force-logic‘ option to override the declared logic:
+<tool call>{cvc5 --force-logic=QF SLIA /workspace/password policies.smt2}
+</tool call>
+D. Case Study: Learned Error-Correction Capabilities in TermiGen
+To demonstrate the robust error-correction capabilities of TermiGen, we conduct a comparative case study against the
+baseline model (Qwen2.5-Coder-32B) and our fine-tuned model (TermiGen-Qwen2.5-Coder-32B) on a challenging formal
+verification task: proving the commutativity of addition (n + m = m + n) in Coq.
+Baseline Failure: Premature Conclusion.As summarized in Appendix D, the baseline model attempts a standard proof
+using induction and reflexivity. However, it suffers from a silent failure mode: upon generating the code, it assumes
+correctness without verifying the generation of the compiled object file (‘.vo‘). Lacking a verification loop, it fails to detect
+that the proof is mathematically incomplete, resulting in a failed trajectory despite a confident termination.
+TermiGen Success: Reasoning-Driven Recovery.In contrast, TermiGen exhibits a distinctiterative debuggingbehavior. In
+the initial attempt, TermiGen encounters a compilation error:Unable to unify "m + 0" with "0 + m" . Instead
+of hallucinating or giving up, the model analyzes the stderr output and correctly identifies the root cause:reflexivity
+only handles definitional equality, whereas the goal requires propositional equality via rewriting. Guided by this diagnosis,
+TermiGen applies the necessary lemmas (rewrite plus 0 r and plus Snm) across two correction steps, ultimately
+producing a verified, compiling proof.
+This comparison highlights that our error-injection training has endowed TermiGen with the critical ability to treat execution
+feedback as a navigational signal rather than a terminal state.
+14
+
+--- PAGE 15 ---
+TermiGen : High-Fidelity Environment and Robust Trajectory Synthesis for Terminal Agents
+Table 6.Qualitative Comparison on Coq Theorem Proving.The baseline model fails due to a lack of verification, TermiGen successfully
+navigates multiple error states through iterative diagnosis and correction.
+Aspect Baseline (Qwen2.5-Coder-32B) TermiGen (Ours)
+Behavior One-shot attempt.Wrote a proof and exited immedi-
+ately without checks.
+Iterative refinement.Engaged in a multi-turn debug loop
+(20 episodes).
+Error Handling None.Ignored potential compilation issues and as-
+sumed success.
+Active Diagnosis.Analyzed stderr ( Unable to
+unify...) to distinguish definitional vs. propositional
+equality.
+Key ActionFailed to verify the output artifact (‘.vo‘ file). Applied specific fixes: rewrite plus 0 r and
+rewrite plus Snm.
+Outcome Failed(Incomplete proof)Success(Verified proof)
+15

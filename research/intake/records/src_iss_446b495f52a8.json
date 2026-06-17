@@ -1,0 +1,108 @@
+{
+  "source_id": "src_iss_446b495f52a8",
+  "title": "HTTP hook intermittently fails with ECONNREFUSED (despite healthy local server) \u2014 cache invalidation and wrong tool behavior",
+  "canonical_url": "https://github.com/anthropics/claude-code/issues/29963",
+  "date": "2026-03-02",
+  "authors_or_org": [
+    "anthropics/claude-code"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "issue",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "cost_token_management",
+  "bucket_secondary": [
+    "recovery",
+    "context"
+  ],
+  "decision_targets": [
+    "cost_budget",
+    "context",
+    "recovery"
+  ],
+  "mechanism_tags": [
+    "hook_output_stability",
+    "cache_key_stability",
+    "prompt_caching",
+    "prefix_stability",
+    "state_x_recovery"
+  ],
+  "failure_mode_tags": [
+    "cache_invalidation_from_nondeterministic_hook_text",
+    "intermittent_hook_failure",
+    "recompute_cost_spike"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "terminal_agent",
+    "coding_agent"
+  ],
+  "models_if_named": [],
+  "environment_type": [
+    "sandboxed_terminal",
+    "local_fs"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 4,
+    "reproducibility": 4,
+    "ecological_validity": 4,
+    "decision_relevance": 5,
+    "recency": 5
+  },
+  "relevance_note": "Real long-context cost spike caused by nondeterministic hook-side text entering the prefix.",
+  "reason_included": "Captures a cache invalidation path outside the model and tool schema layer.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "The UserPromptSubmit hook is reported to fail intermittently about 1 in 10 to 20 prompts with ECONNREFUSED even though the local server is healthy and receives no incoming request during the failures.",
+      "claim_status": "measured"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "When the hook alternates between success and failure text, the prefix seen by the model changes and previously cached tokens are invalidated on long sessions.",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The reporter states that one cache-invalidation event on a million-context session caused roughly $45 of recomputation cost.",
+      "claim_status": "anecdotal"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Reproduction and server-health evidence, lines 223-237"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Impact: Cache Invalidation, lines 238-245"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Impact: Cache Invalidation, lines 240-245"
+    }
+  ],
+  "dedupe_key": "github_issue:anthropics/claude-code#29963",
+  "canonical_locator": "github_issue:anthropics/claude-code#29963",
+  "discovered_in_batches": [
+    "2026-03-25__cost_token_management.json#obj1.2"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_446b495f52a8::https://github.com/anthropics/claude-code/issues/29963::2026-03-25__cost_token_management.json#obj2::r4"
+  ],
+  "origin_buckets": [
+    "cost_token_management"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_446b495f52a8/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/anthropics/claude-code/issues/29963",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "origin_batch_buckets": [],
+  "artifact_relpath": "research/sources/issues/src_iss_446b495f52a8"
+}

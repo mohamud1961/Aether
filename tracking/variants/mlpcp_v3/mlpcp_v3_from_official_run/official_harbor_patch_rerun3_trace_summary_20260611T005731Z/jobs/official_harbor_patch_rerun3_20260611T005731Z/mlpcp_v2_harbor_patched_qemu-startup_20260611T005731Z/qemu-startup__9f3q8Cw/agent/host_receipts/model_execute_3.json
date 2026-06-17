@@ -1,0 +1,47 @@
+{
+  "call_id": "qemu-startup__9f3q8Cw_execute_3",
+  "status": "success",
+  "content": "{\"actions\":[{\"action\":\"success_contract\",\"contract\":{\"objective\":\"Start /app/alpine.iso in QEMU in the background so that telnet to 127.0.0.1:6665 reaches the guest login prompt, and keep it running until ready.\",\"required_artifacts\":[\"A running QEMU process using /app/alpine.iso\",\"A host TCP listener on 127.0.0.1:6665 forwarded to the guest console/login prompt\"],\"required_behaviors\":[\"QEMU starts successfully in the background\",\"Port 6665 is reachable locally via telnet\",\"Connecting with telnet shows the guest login prompt\",\"The VM remains running after readiness is confirmed\"],\"known_invalid_patterns\":[\"Only verifying that the ISO file exists\",\"Only starting QEMU without confirming the telnet-accessible login prompt\",\"Only checking that a process exists without confirming port 6665 readiness\",\"Any smoke check that does not demonstrate the original telnet/login behavior\"],\"verification_plan\":[\"Inspect the environment for available QEMU/telnet tooling and any existing receipts before running equivalent commands\",\"Launch QEMU with serial/console forwarding to TCP port 6665 in the background\",\"Measure readiness by confirming the TCP listener is up and that a telnet connection reaches the login prompt\",\"Keep the VM running and report readiness only after receipt-backed evidence is collected\"],\"finalization_evidence_required\":[\"Receipt-backed command output showing QEMU launched with the ISO and port forwarding to 127.0.0.1:6665\",\"Receipt-backed evidence that the TCP port is listening\",\"Receipt-backed evidence from a telnet connection showing the login prompt\"],\"notes\":[\"Prerequisites like tool availability are not success by themselves; they only inform implementation.\"]}},{\"action\":\"plan_update\",\"plan\":{\"objective\":\"Start /app/alpine.iso in QEMU in the background so that telnet to 127.0.0.1:6665 reaches the guest login prompt, and keep it running until ready.\",\"current_focus\":\"Discover available tooling and launch QEMU with telnet-accessible console forwarding.\",\"implementation_approach\":[\"Check for existing receipts to avoid repeating work.\",\"Inspect available commands for qemu and telnet/nc.\",\"Start QEMU in the background with a TCP serial console on port 6665.\",\"Verify readiness by connecting to the port and observing the login prompt.\"],\"validation_strategy\":[\"Use receipt-backed command output for launch details.\",\"Use a live connection test to 127.0.0.1:6665 to confirm the login prompt appears.\",\"Do not finalize until both listener readiness and prompt visibility are evidenced.\"],\"verification_test_strategy\":[\"Prefer a direct telnet session or equivalent TCP client if telnet is unavailable.\",\"If needed, use a short timeout connection to capture the prompt without consuming the session.\",\"Confirm the VM remains running after readiness is established.\"],\"known_bad_behavior\":[\"Treating ISO presence or process existence as sufficient.\",\"Re-running equivalent checks without consulting receipts.\",\"Finalizing without evidence of the telnet-visible login prompt.\"],\"evidence_gaps\":[\"Need confirmation of available QEMU invocation and port-forwarding method.\",\"Need receipt-backed proof of listener readiness and login prompt.\"],\"risks\":[\"QEMU may not be installed or may require a different console/serial configuration.\",\"The ISO may boot slowly, requiring a readiness wait.\",\"Telnet may be absent; an equivalent TCP client may be needed for verification.\"],\"next_steps\":[\"Inspect receipts and available tools.\",\"Launch QEMU if possible.\",\"Measure readiness and capture prompt evidence.\"],\"finalization_requirements\":[\"Receipt-backed launch evidence\",\"Receipt-backed listener evidence\",\"Receipt-backed login prompt evidence\"]}}]}\n{\"actions\":[{\"action\":\"search_receipts\",\"query\":\"qemu alpine.iso 6665 telnet login prompt\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "action": "search_receipts",
+        "query": "qemu alpine.iso 6665 telnet login prompt"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 1638,
+    "cached_input_tokens": 0,
+    "output_tokens": 771,
+    "total_tokens": 2409,
+    "provider_usage_raw": {
+      "completion_tokens": 771,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 6,
+        "engine_ttft_ms": 56,
+        "engine_ttlt_ms": 4704,
+        "pre_inference_ms": 84,
+        "service_tbt_ms": 6,
+        "service_ttft_ms": 587,
+        "service_ttlt_ms": 5233,
+        "total_duration_ms": 5162,
+        "user_visible_ttft_ms": 503
+      },
+      "prompt_tokens": 1638,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 2409
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

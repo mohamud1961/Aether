@@ -1,0 +1,75 @@
+# Red Team Review Brief
+
+TASK_PACKET
+- stage: Stage 2A synthesis prep
+- artifact: red_team_review
+- objective: Conduct one adversarial repo-local review of the full pipeline so far, from source-finding and intake through dedup, QC, capture backfill, corpus demotions, eval metadata repair, and frozen synthetic-prep manifests.
+- exact_question: What could still be wrong, overstated, under-validated, or silently fragile in the current research-to-synthesis-prep pipeline, even after the latest QC pass and metadata repairs?
+- why_now: The project is about to trust the frozen synthetic-prep corpus as the basis for deep synthesis. This is the last good time to challenge pipeline assumptions, corpus integrity, provenance quality, capture coverage, duplicate handling, and eval-prep decisions before conclusions are built on top of them.
+- inputs:
+  - research/source_finder_prompt_pack/
+  - research/intake/inbox/
+  - research/intake/records/
+  - research/intake/normalized/
+  - research/intake/rejected/
+  - research/sources/
+  - tracking/collab/stage_02_synthesis/evidence_inventory/
+  - tracking/collab/stage_02_synthesis/eval_inventory/
+  - tracking/ledger/inbox/2026-03-31/
+  - tracking/ledger/inbox/2026-04-01/
+  - AGENTS.md
+  - GOVERNED_MULTI_AGENT_OPERATING_MODEL.md
+- exclusions:
+  - no new web research
+  - no source discovery
+  - no architecture ranking
+  - no mechanism synthesis
+  - no benchmark recommendations beyond review findings
+  - do not edit the accepted corpus, manifests, or canonical ledger files in this pass
+- review_focus:
+  - source-finder prompt design gaps or drift risks
+  - raw intake contract violations that may still be hidden
+  - dedup or normalization mistakes that may have survived local fixes
+  - QC blind spots or false-confidence failure modes
+  - capture backfill weaknesses, malformed capture metadata, or capture-to-record mismatches
+  - manual demotion mistakes, duplicate quarantine mistakes, or unjustified accepted blocked exceptions
+  - eval metadata repair mistakes, especially unsafe backfills or weakly supported record creation
+  - mismatches between `corpus__deduped.json`, `corpus__captured_for_synthetic_prep.json`, accepted records, and blocked-exception manifests
+  - places where synthesis prep may still overstate what is truly openable, reproducible, or trustworthy
+- explicit_checks:
+  - verify that captured-source counts, accepted-source counts, blocked-exception counts, and duplicate quarantine counts reconcile
+  - spot-check whether any newly backfilled eval records rely on over-inferred metadata rather than capture-supported evidence
+  - verify that demoted or quarantined source ids do not leak back into active synthesis inputs
+  - verify that accepted blocked exceptions are explicit and not accidentally included in the captured synthesis input manifest
+  - check whether any repo-local code mirrors or trajectory assets materially contradict the current eval inventory conclusions
+  - treat prior QC pass results as evidence, not as immunity from further criticism
+- output_contract:
+  - write one RED_TEAM_REVIEW_OUTPUT to `tracking/collab/stage_02_synthesis/red_team_review/outputs/red_team_review.md`
+  - findings must come first, ordered by severity
+  - each finding must include:
+    - severity: `critical|high|medium|low`
+    - title
+    - repo evidence paths
+    - direct observation
+    - why it matters
+    - minimum fix
+  - also include:
+    - `confirmed_strengths`
+    - `residual_risks_if_proceeding_now`
+    - `must_fix_before_deep_synthesis`
+    - `safe_to_proceed_judgment`
+    - `recommended_next_hand_off_target`
+- collaboration_mode: single-agent repo-access reviewer under principal routing
+- external_agent_action: Run external agent now: yes. This is a repo-access red-team review pass that should inspect local evidence and write one review artifact only.
+- assigned_roles:
+  - principal project steward
+  - red-team reviewer
+- evidence_expectations:
+  - use repo-local evidence only
+  - prefer concrete file-path evidence over general impressions
+  - distinguish confirmed defects from plausible but unproven concerns
+  - do not smooth over uncertainty
+  - if no findings exist in a category, say so explicitly
+  - review the whole pipeline, not just the latest eval repair slice
+- decision_needed_from_human: None to run the review. Human review is needed only if the red-team pass calls for reopening source intake or changing the frozen synthesis-prep scope materially.
+- done_condition: The review artifact exists, findings are evidence-backed and severity-ordered, and the project has a clear answer on whether it is truly safe to proceed into deep synthesis.

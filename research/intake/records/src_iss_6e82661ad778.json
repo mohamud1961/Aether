@@ -1,0 +1,112 @@
+{
+  "source_id": "src_iss_6e82661ad778",
+  "title": "Context caching not working with Agent Engine (VertexAiSessionService drops cache_metadata) #4698",
+  "canonical_url": "https://github.com/google/adk-python/issues/4698",
+  "date": "2026-03-03",
+  "authors_or_org": [
+    "google/adk-python",
+    "GitHub issue author: muzna-naeem"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "issue",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "context_engineering",
+  "bucket_secondary": [],
+  "decision_targets": [
+    "context",
+    "state",
+    "cost_budget",
+    "observability"
+  ],
+  "mechanism_tags": [
+    "context_cache_metadata_round_trip",
+    "session_service_persistence",
+    "context_cache_request_processor",
+    "cache_reuse_by_cache_name"
+  ],
+  "failure_mode_tags": [
+    "cache_metadata_dropped_by_session_service",
+    "cache_recreated_each_invocation",
+    "fingerprint_changes_each_turn",
+    "no_cache_name_reuse"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "workflow_agent",
+    "api_agent",
+    "mixed"
+  ],
+  "models_if_named": [
+    "gemini-2.5-pro"
+  ],
+  "environment_type": [
+    "mixed"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 4,
+    "reproducibility": 4,
+    "ecological_validity": 4,
+    "decision_relevance": 4,
+    "recency": 5
+  },
+  "relevance_note": "Concrete failure report showing how session persistence bugs can break context caching, forcing repeated cache creation and higher token/cost.",
+  "reason_included": "Includes named ADK components (VertexAiSessionService, ContextCacheRequestProcessor) and a precise non-reuse failure mode tied to metadata persistence.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "The reporter claims this has \"never worked\" with VertexAiSessionService (tested ADK 1.19.0 and 1.25.1).",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "The issue provides a repro where in-memory sessions reuse a `cache_name` on the second turn, while Agent Engine sessions create a new cache each turn with a different fingerprint and no `cache_name` reuse.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The issue reports `VertexAiSessionService` does not persist `cache_metadata` or `usage_metadata` when round-tripping Event objects to/from Agent Engine, causing `ContextCacheRequestProcessor` to create a new cache on every invocation instead of reusing an existing cache.",
+      "claim_status": "anecdotal"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Issue body: 'Regression' section"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Issue body: 'Steps to Reproduce' and 'Observed Behavior' (in-memory vs Agent Engine cache metadata differences)"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Issue body: 'Describe the Bug' section (mentions VertexAiSessionService, cache_metadata/usage_metadata, ContextCacheRequestProcessor)"
+    }
+  ],
+  "dedupe_key": "github_issue:google/adk-python#4698",
+  "canonical_locator": "github_issue:google/adk-python#4698",
+  "discovered_in_batches": [
+    "2026-03-25__context_engineering.json#obj1.1",
+    "2026-03-25__context_engineering.json#obj1|bucket=context_engineering|run_date=2026-03-24|agent=context_engineering_source_finder"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_6e82661ad778::github:google/adk-python#4698::2026-03-25__context_engineering.json#obj1::r11"
+  ],
+  "origin_buckets": [
+    "context_engineering"
+  ],
+  "origin_batch_buckets": [
+    "context_engineering"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_6e82661ad778/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/google/adk-python/issues/4698",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "artifact_relpath": "research/sources/issues/src_iss_6e82661ad778"
+}

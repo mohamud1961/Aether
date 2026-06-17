@@ -1,0 +1,439 @@
+--- PAGE 1 ---
+AgentTrace: A Structured Logging Framework for Agent System Observability
+Adam AlSayyad*, Kelvin Yuxiang Huang*, Richik Pal*
+University of California, Berkeley
+alsayyad@berkeley.edu, yxkelvinhuang@berkeley.edu, richik.pal@berkeley.edu
+Abstract
+Despite the growing capabilities of autonomous agents pow-
+ered by large language models (LLMs), their adoption in
+high-stakes domains remains limited. A key barrier is secu-
+rity: the inherently nondeterministic behavior of LLM agents
+defies static auditing approaches that have historically under-
+pinned software assurance. Existing security methods, such
+as proxy-level input filtering and model glassboxing, fail
+to provide sufficient transparency or traceability into agent
+reasoning, state changes, or environmental interactions. In
+this work, we introduce AgentTrace, a dynamic observabil-
+ity and telemetry framework designed to fill this gap. Agent-
+Trace instruments agents at runtime with minimal overhead,
+capturing a rich stream of structured logs across three sur-
+faces: operational, cognitive, and contextual. Unlike tradi-
+tional logging systems, AgentTrace emphasizes continuous,
+introspectable trace capture, designed not just for debugging
+or benchmarking, but as a foundational layer for agent secu-
+rity, accountability, and real-time monitoring. Our research
+highlights how AgentTrace can enable more reliable agent
+deployment, fine-grained risk analysis, and informed trust
+calibration, thereby addressing critical concerns that have so
+far limited the use of LLM agents in sensitive environments.
+Introduction
+The deployment of autonomous agents built on large lan-
+guage models (LLMs) has shown early promise across a
+wide spectrum of domains, including software engineering,
+scientific analysis, and complex decision-making workflows
+(7; 9). However, despite the functional competence of these
+systems in isolated tasks, their adoption in safety-critical or
+high-integrity environments remains severely limited. A pri-
+mary constraint is the absence of structured and dynamic
+observability frameworks that can account for the stochas-
+tic reasoning behaviors of LLM agents and enable reliable
+diagnosis, security assessment, and governance.
+Conventional methods for securing AI systems, such as
+static input filtering, prompt hardening, and API bound-
+ary control, are insufficient for LLM-based agents that act
+through long-running, multi-step reasoning cycles in open-
+ended environments. These agents dynamically compose
+*Equal contribution.
+Copyright © 2026, Association for the Advancement of Artificial
+Intelligence (www.aaai.org). All rights reserved.
+tool invocations, retrieve external knowledge, and revise
+goals during execution, producing behaviors that are diffi-
+cult to trace or explain post hoc. Current security and au-
+diting tools remain constrained by assumptions of determin-
+ism, procedural transparency, or bounded action space, as-
+sumptions that do not hold in LLM-based settings. As a
+result, the dominant paradigm has centered on proxy-level
+defenses (e.g., PromptArmor) and glassbox introspection of
+static prompts and outputs (11). These approaches offer lim-
+ited insight into agent intent, decision provenance, or oper-
+ational context, especially in the presence of tool-use chain-
+ing, memory operations, or multi-agent collaboration.
+Crucially, the undeterministic nature of agentic reasoning
+introduces a novel challenge for security and governance:
+threats and failures can emerge not merely from malicious
+inputs or faulty tools, but from the emergent behavior of
+the agent’s cognitive trajectory. As observed in recent red-
+teaming and adversarial prompting research (4; 11), even
+well-scoped agents may deviate from expectations when
+their reasoning states are not explicitly monitored. To ad-
+dress this, a shift is required from static, perimeter-oriented
+security architectures toward dynamic, semantic observabil-
+ity of the agent’s internal execution process.
+Our contributions are as follows. We presentAgentTrace,
+a structured, schema-based logging framework that instru-
+ments LLM agents at runtime without requiring code modi-
+fications. We introduce a three-surface taxonomy: cognitive,
+operational, and contextual, that enables multi-level intro-
+spection into an agent’s reasoning, execution, and environ-
+ment. Finally, we demonstrate how AgentTrace integrates
+with existing telemetry infrastructures such as OpenTeleme-
+try to provide scalable, real-time observability. Through this
+design, AgentTrace establishes a foundation for transparent,
+accountable, and reproducible agentic systems, paving the
+way for future research in alignment, evaluation, and safety.
+Related Work
+Agent Observability and Tracing Frameworks.Re-
+cent agent-oriented observability tools instrument execution
+flows to support debugging and monitoring.AgentOpsin-
+troduces a hierarchical span taxonomy that organizes rea-
+soning, planning, workflow, task, tool, and LLM spans to
+trace artifacts and processes throughout the agent lifecy-
+cle (1).LADYBUGcomplements this with post-hoc de-
+arXiv:2602.10133v1  [cs.SE]  7 Feb 2026
+
+--- PAGE 2 ---
+bugging that combines execution tracing and LLM-aided
+self-reflection (6). However, these systems primarily target
+single-surfacetraces and lack a schema that unifies cogni-
+tive artifacts with operational and contextual signals. In con-
+trast, AgentTrace introduces aschema-based,multi-surface
+observability model linkingoperational,cognitive, andcon-
+textualtraces under a unified envelope, realized at runtime
+via lightweight instrumentation.
+System-Level Telemetry and Distributed Tracing.
+System-centric approaches provide horizontal visibility into
+API calls and service dependencies, often via kernel/OS
+boundary tracing and OpenTelemetry-style pipelines.
+AgentSight, for example, correlates LLM prompts with
+kernel events using eBPF to bridge intent and execution
+at system boundaries, and has been applied to boundary
+tracing and anomaly detection (10). Yet these methods
+are largely semantics-agnostic to agent intent and internal
+reasoning, offering limitedcausallinkage between what
+the agent infers and what the system executes.AgentTrace
+complements them byembedding cognitive semantics into
+the telemetry stream: cognitive spans arenestedwithin
+operational and contextual spans and exported through stan-
+dard backends, preserving interoperability while enabling
+reasoning-aware, end-to-end traces.
+Cognitive Interpretability and Textual Traceability.
+Work on cognitive observability and agentic interpretabil-
+ity models reasoning traces and human–agent alignment.
+Watsonsurfaces implicit reasoning errors in LLM-powered
+agents without altering agent architecture (5), while concur-
+rent work frames explanation as interactive mental-model
+building with LLM-driven proactive clarification (3). These
+efforts enhance understanding of internal reasoning but re-
+main decoupled from runtime observability and structured,
+composable telemetry.AgentTracebridges this gap by
+treating cognition as a first-class telemetry surface: reason-
+ing steps, plans, and reflections are captured in a machine-
+readable schema andcausally linkedto operational actions
+and contextual I/O at runtime, enabling unified, schema-
+consistent analysis across surfaces.”
+Methodology
+Schema
+We present a principled, schema-based methodology for
+capturing rich, interpretable traces of autonomous LLM-
+agent behavior. At the core of our logging framework is a
+formalized representation of logs as transformations of run-
+time events into structured records:
+L(S:E:C)→R,
+where S denotes the surface (cognitive, operational, or con-
+textual), E is the event content, C represents metadata con-
+text, and R is a structured record that satisfies four crit-
+ical properties: consistency (schema-compliant representa-
+tion), causality (temporal fidelity), fidelity (faithful to the
+agent’s internal and external behavior), and interoperabil-
+ity (analysis-ready, framework-agnostic). This schema de-
+sign builds on recent efforts in AI observability frame-
+works (2) and structured introspection mechanisms for LLM
+agents (5), extending them with a formal schema for high-
+fidelity, surface-level trace capture. However, our schema
+uniquely emphasizes semantically enriched introspection in
+LLM agents, encompassing not just control flow and system
+I/O, but also the agent’s cognitive deliberations and interac-
+tions with external APIs and data stores.
+Surface Taxonomy and Extraction Procedure
+We operationalize the schema across three disjoint but
+composable surfaces of agent execution, each instrumented
+through techniques designed for transparent, non-intrusive
+logging.
+Operational Surface: Method-Level Execution
+Tracing
+The operational surface captures all explicit agent method
+calls, argument structures, return values, and execution tim-
+ing. Through Python introspection and function wrapping,
+we automatically intercept all public methods on the agent
+class. Each method invocation produces a pair of events
+- start and complete - enriched with span-level metadata
+such as argument count, result type, and execution duration.
+Events are written to both structured JSONL logs and Open-
+Telemetry spans, preserving trace and span relationships for
+end-to-end visibility.
+This approach is functionally equivalent to distributed
+tracing as used in service-oriented architectures (8), but
+adapted for fine-grained agent-level observability. All logs
+conform to a fixed schema to enable downstream consump-
+tion, and trace linkage ensures coherent propagation across
+multiple layers of abstraction.
+Cognitive Surface: LLM Interaction Introspection
+The cognitive surface is designed to capture the internal de-
+liberations of the agent’s reasoning engine, primarily inter-
+actions with LLMs. These include raw prompts, comple-
+tions, extracted reasoning chains (e.g., Chain-of-Thought),
+and confidence estimates. When supported by the LLM API
+(e.g., OpenAI or Anthropic), this surface also parses semi-
+structured outputs to extract<thinking>segments, step-
+by-step reasoning, and structured JSON fields such as plan
+or reflection.
+Span metadata is derived from instrumented LLM API
+calls, and cognitive spans are nested within operational
+traces to maintain full trace context.
+Extraction relies on a set of generalizable strategies:
+marker-based pattern detection, XML tag parsing, and JSON
+field extraction. This design supports multiple reasoning
+formats and enables comparative analysis across different
+model outputs and prompt templates.
+Contextual Surface: External System I/O
+The contextual surface tracks all outbound agent inter-
+actions with external systems, including HTTP APIs,
+SQL/NoSQL databases, cache layers, vector stores, and file
+systems. Rather than requiring agent authors to manually
+
+--- PAGE 3 ---
+Initialization/SetupConfig logger/tracerEnable TelemetryRegisterauto-instrumentation hooks
+RuntimeInstrumentationBefore CallAfterCallOnError
+Cognitive ExtractionCognitive Events
+OperationalEventsLoggingPipelineEncodingSurface routingStreaming / Persistence
+StorageFileSinks(JSONL)OpenTelemetry ExporterIndex / Retention(future)Privacy / Redaction(future)
+VisualizationStep Log TimelineError Chain Graph(future)Trace Viewer (Jaeger)
+DashboardReports(future)OTel Attributes on Contextual Spans
+Trace/span ID generation
+Figure 1:AgentTrace system flow.End-to-end runtime architecture showing initialization (logger setup, OpenTelemetry en-
+ablement, and auto-instrumentation hooks), runtime instrumentation with trace/span ID generation and cognitive extraction,
+logging pipeline for event encoding and routing, and downstream storage and visualization. Contextual spans are enriched with
+OpenTelemetry attributes via auto-instrumentation.
+log these operations, we leverage OpenTelemetry’s auto-
+instrumentation capabilities to monkey-patch standard li-
+braries (e.g., requests, sqlalchemy, redis) at runtime. How-
+ever, we also include the option for manual instrumentation
+in order to capture more granular and cohesive log struc-
+tures.
+Each contextual interaction produces a span enriched with
+resource-specific metadata: URLs and headers for HTTP,
+query structure and row counts for SQL, and key/value op-
+erations for cache or vector DBs. These events are stored ex-
+clusively as OTel spans to avoid redundancy with file-based
+logging. Temporal nesting under the same trace context en-
+ables causal analysis across layers of computation and I/O.
+This surface bridges the agent’s cognitive operations and
+their environmental grounding, providing a unified view of
+how internal plans translate to external effects (cf. Paxton et
+al. 2023).
+Unified Representation and Trace Semantics
+All three surfaces emit logs that conform to a shared enve-
+lope schema. Each log event includes:
+• a UUID identifier
+• surface type (cognitive, operational, or contextual)
+• trace ID and span ID
+• precise UTC timestamp
+• event body (structured per surface)
+Logs are stored in two complementary formats:
+• JSONL files (line-delimited JSON for offline inspection,
+streaming, or replay)
+• OpenTelemetry spans (for real-time distributed tracing
+and integration with tools like Jaeger or Tempo)
+This dual-path storage ensures both low-latency local de-
+bugging and scalable remote observability. Logs are append-
+only and schema-validated at write time to preserve consis-
+tency and support batch analytics and visualization.
+Implementation
+To operationalize the proposed schema, we implemented
+AgentTrace as a modular runtime system that instantiates
+the three observability surfaces introduced in the Methodol-
+ogy section. This implementation translates the theoretical
+framework into concrete runtime mechanisms for capturing,
+structuring, and exporting agent logs.
+Overview.AgentTrace is a lightweight Python package
+that (i) injects runtime instrumentation without modifying
+agent code, (ii) emits schema-consistent records acrossop-
+erational,cognitive, andcontextualsurfaces, and (iii) ex-
+ports telemetry to an OpenTelemetry (OTel) backend for dis-
+tributed tracing. Our design goals are non-intrusiveness, low
+overhead, and graceful degradation (i.e., falling back to local
+logging when remote export fails) when external telemetry
+is unavailable.
+Python Module Layout and Initialization
+AgentTraceexposes a minimal API:
+•init(...)configures local sinks and toggles OTel ex-
+port or auto-instrumentation.
+•instrument agent(obj, name,
+methods=None)wraps selected public callables
+for runtime tracing.
+•ALoggerrecords surface-specific events and optionally
+exports to OTel.
+Initialization loads configuration, prepares append-only
+JSONL outputs, and, when enabled, activates OTel auto-
+instrumentation for common I/O libraries.
+
+--- PAGE 4 ---
+Algorithm 1: AgentTrace Runtime Instrumentation Wrapper
+Input: agent instanceA, namen, optional allowlistM
+Output: instrumented agentA
+1:foreach public methodm∈select(A,M)do
+2:letf←original implementation ofm
+3:define wrapperwwith preserved signature
+4:functionw(x)
+5:(trace id,span id)←new IDs (or propa-
+gate)
+6:RECORDOPERATIONAL(status=start,n, m,
+args=summary(x))
+7:t 0 ←now()
+8:try
+9:y←f(x)
+10:(y, θ)←maybe extract cognitive(y)
+11:ifθ̸=∅thenRECORDCOGNITIVE(θ)
+12:RECORDOPERATIONAL(dur=now()−t 0,
+status=complete,result=summary(y))
+13:returny
+14:catchexceptione
+15:RECORDOPERATIONAL(status=error,
+dur=now()−t0,err=repr(e))
+16:rethrowe
+17:end function
+18:replacemonAwithw
+19:end for
+20:returnA
+Instrumentation via Decorator Injection
+AgentTrace uses a runtime observer pattern. For each target
+method, it installs an in-place wrapper that:
+1. emits astartevent (method name, argument summary,
+timestamp),
+2. records acompleteevent on success (duration, result
+summary), and
+3. records anerrorevent on exception while re-raising to
+preserve semantics.
+Wrappers preserve function signatures, and each event car-
+ries a freshspan idunder a sharedtrace id. Span
+nesting and context propagation enforce temporal causality
+across reasoning, tool, and workflow events.
+Cognitive trace extraction.When completions include
+a delimited reasoning segment, AgentTrace returns the
+cleaned answer and logs the segment as acognitiveevent;
+otherwise, results pass through unmodified.
+Log Schema and Local Sinks
+All surfaces share a common envelope with
+identifiers, timestamps, agent name,surface
+∈ {operational,cognitive,contextual}, level,trace id,
+andspan id. Surface payloads are concise:Operational
+includes method, status, duration, and result summary
+(optionally token or latency metadata);Cognitivestores
+thought, plan, and reflection excerpts with model and
+token counts;Contextualcaptures operation type, source,
+query or response summaries, and provenance. Crucially,
+contextual traces manage tool invocations and data access
+operations (reads and writes), linking agent reasoning
+with its external interactions. Operational and cognitive
+events are persisted to JSONL, while contextual events are
+primarily exported via OTel with optional file mirroring
+for offline workflows. All records are validated at emission
+time against the schema to maintain consistency.
+OpenTelemetry Export and Auto-Instrumentation
+When enabled, AgentTrace converts each event into an OTel
+span and exports via a batch processor. Attributes are pop-
+ulated defensively, i.e., with type checks and safe conver-
+sions: scalars are set directly, structured values are JSON-
+stringified when necessary, and unknown objects fall back to
+string representations. Exporter failures gracefully degrade
+to local JSONL.
+Contextual I/O capture.OTel auto-instrumentation
+patches common HTTP, database, and cache libraries to
+emit contextual spans (URLs, queries, status, counts, laten-
+cies) without manual logging. In tracing UIs (e.g., Jaeger),
+method-level operational spans appear alongside contextual
+spans, providing end-to-end visibility complementary to
+local files.
+Engineering Considerations
+Non-intrusiveness.Decorators enable tracing without
+changing agent logic.
+Low overhead.Typical success paths emit two events per
+call; export is batched asynchronously.
+Robustness.Serialization and export are defensive; failures
+never block execution.
+Composability.A stable, analysis-ready schema supports
+JSONL and OTel; contextual I/O is auto-instrumented with
+optional file mirroring.
+Conclusion
+In this paper, we present AgentTrace, a research frame-
+work that establishes the first open standard for structured
+agent logging through a schema-based protocol spanning
+cognitive, operational, and contextual traces. By transform-
+ing logging into a semantically rich, introspectable substrate,
+AgentTrace elevates observability from an engineering util-
+ity to a core enabler of agent safety, reproducibility, and ac-
+countability. This design closes critical gaps in existing ob-
+servability systems by enabling fine-grained debugging, reli-
+able failure attribution, and transparent governance of LLM-
+based agents.
+Looking ahead, the structured and interpretable traces
+generated by AgentTrace pave the way for security and eval-
+uation research. They allow for dynamic threat modeling,
+real-time risk detection, and post-hoc forensic analysis of
+adversarial or misaligned behaviors. Beyond security, these
+logs provide the groundwork for agent evaluation, enabling
+new metrics for reasoning stability, goal fidelity, and cross-
+agent behavioral benchmarking.
+
+--- PAGE 5 ---
+References
+[1] Dong, L.; Lu, Q.; and Zhu, L. 2024. AgentOps: En-
+abling Observability of LLM Agents.arXiv preprint
+arXiv:2411.05285.
+[2] Goyal, S.; Hira, M.; Mishra, S.; Goyal, S.; Goel, A.;
+Dadu, N.; DB, K.; Mehta, S.; and Madaan, N. 2024.
+LLMGuard: Guarding Against Unsafe LLM Behavior.
+InProceedings of the AAAI Conference on Artificial
+Intelligence (AAAI-24), 23790–23792. Demonstration
+Track.
+[3] Kim, B.; Hewitt, J.; Nanda, N.; Fiedel, N.; and Tafjord,
+O. 2025. Because we have LLMs, we Can and Should
+Pursue Agentic Interpretability.
+[4] Liu, Y .; Lo, S.; Lu, Q.; Zhu, L.; Zhao, D.; Xu, X.;
+Harrer, S.; and Whittle, J. 2024. Agent Design Pat-
+tern Catalogue: A Collection of Architectural Patterns
+for Foundation Model Based Agents.arXiv preprint
+arXiv:2405.10467.
+[5] Rombaut, B.; Masoumzadeh, S.; Vasilevski, K.; Lin,
+D.; and Hassan, A. E. 2024. Watson: A Cognitive
+Observability Framework for the Reasoning of LLM-
+Powered Agents.
+[6] Rorseth, J.; Godfrey, P.; Golab, L.; Srivastava, D.; and
+Szlichta, J. 2025. LADYBUG: an LLM Agent De-
+BUGger for data-driven applications. InProceed-
+ings of the 28th International Conference on Extending
+Database Technology (EDBT), 1082–1085. Demon-
+stration Paper.
+[7] Schick, T.; Dwivedi-Yu, J.; Dess `ı, R.; Raileanu, R.;
+Lomeli, M.; Hambro, E.; Zettlemoyer, L.; Cancedda,
+N.; and Scialom, T. 2023. Toolformer: Language
+Models Can Teach Themselves to Use Tools. InAd-
+vances in Neural Information Processing Systems 36
+(NeurIPS 2023).
+[8] Sigelman, B. H.; Barroso, L. A.; Burrows, M.;
+Stephenson, P.; Plakal, M.; Beaver, D.; Jaspan, S.; and
+Shanbhag, C. 2010. Dapper, a Large-Scale Distributed
+Systems Tracing Infrastructure. Google Technical Re-
+port.
+[9] Weng, L. 2023. LLM Powered Autonomous Agents.
+Online blog post, https://lilianweng.github.io/posts/
+2023-06-23-agent/.
+[10] Zheng, Y .; Hu, Y .; Yu, T.; and Quinn, A. 2025.
+AgentSight: System-Level Observability for AI Agents
+Using eBPF. InProceedings of the 4th Workshop
+on Practical Adoption Challenges of ML for Systems,
+SOSP ’25, 110–115. ACM.
+[11] Zou, A.; Wang, Z.; Carlini, N.; Nasr, M.; Kolter, J. Z.;
+and Fredrikson, M. 2023. Universal and Transfer-
+able Adversarial Attacks on Aligned Language Mod-
+els.CoRRabs/2307.15043.

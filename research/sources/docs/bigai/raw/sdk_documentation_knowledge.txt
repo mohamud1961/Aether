@@ -1,0 +1,374 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/documentation/knowledge/?q=
+================================================================================
+
+知识库¶
+概述¶
+
+TongAgents SDK 的知识库接口具备扩展性，用户可基于知识库API 开发和扩展自定义知识库类型
+
+本文面向有经验的用户，希望基于TongAgents SDK 实现知识库的功能定制和扩展。本文将对知识库的概念和其API 进行介绍，用户可通过TongAgents SDK 知识库模块的统一抽象定义，包括其元数据表达，知识库抽象类等实现自定制的知识库。
+
+概念¶
+
+知识库是一层抽象概念，任何包含文档信息，可对信息进行存储、可做搜索和召回的实体对象皆可被定义为知识库。我们希望通过统一的知识库定义兼容多种知识库实现和检索形式（向量索引，全文检索，混合检索等）。
+
+SDK¶
+知识库元信息¶
+
+知识库元信息定义和标识知识库的类型、依赖、实现以及相应参数。
+
+@dataclass
+
+class KnowledgeStoreInfo:
+
+    """Metadata information about the knowledge store."""
+
+
+
+    type: str
+
+    endpoint: str
+
+    name: str | None = None
+
+    description: str | None = None
+
+    params: dict | None = None
+
+    id: str | None = None
+
+
+知识库抽象类¶
+
+KnowledgeStore 作为抽象接口，目标对接各种知识 、数据库表达，如向量检索，倒排索引，全文检索等
+
+其定义如下：
+
+class KnowledgeStore(ABC):
+
+
+
+    _DEFAULT_COLLECTION_NAME = "default_collection"
+
+
+
+    @property
+
+    def metadata(self) -> KnowledgeStoreInfo | None:
+
+        return None
+
+
+
+    @abstractmethod
+
+    def add_documents(self, documents: list[Document], **kwargs) -> None:
+
+        """Add documents to the knowledge store.
+
+
+
+        Args:
+
+            documents (list[Document]): Input documents.
+
+        """
+
+
+
+    @abstractmethod
+
+    def search(self, query: str, limit: int | None, **kwargs) -> list[SearchResult]:
+
+        """Search for documents in the knowledge store.
+
+
+
+        Args:
+
+            query (str): Input query
+
+            limit (int): Number of documents to return
+
+
+
+        Returns:
+
+            list[SearchResult]: A list of SearchResult objects
+
+        """
+
+
+
+    @abstractmethod
+
+    def delete(self, doc_ids: list):
+
+        """Delete documents from the knowledge store.
+
+
+
+        Args:
+
+            doc_ids (list): Document IDs to delete
+
+        """
+
+
+
+    @abstractmethod
+
+    def clear(self):
+
+        """Delete all documents from the knowledge store and
+
+        drop the knowledge store.
+
+        """
+
+
+知识库的语义为：对输入的query（多为自然语言），进行前处理（分词、符号化或embedding），数据库查询，返回相应文档
+
+知识库依照实现，可使用多种存储介质和引擎：本地磁盘，内存，远端数据库服务等。从SDK 用户角度，不同配置和实现带来的用户层面感知应尽可能小。
+知识库接口可扩展为混合查询——复杂KnowledgeStore可在初始化和search() 的实现中包装更多细节，具体实现无需、不应对外暴露
+知识库query 和add_documents 函数中调用embedding 模块 SDK 或服务
+知识库具体实现¶
+
+TongAgents SDK 知识库默认支持的数据库类型有：
+
+Milvus
+ChromaDB
+ElasticSearch
+MilvusVectorStore¶
+
+Milvus是一个开源的向量数据库，支持高效的向量检索。MilvusVectorStore基于Milvus实现知识库的向量检索功能。
+
+使用方式：
+
+from tongagents.knowledge.vectorstore.milvus import MilvusVectorStore
+
+
+
+vector_store = MilvusVectorStore()
+
+构造函数参数：
+
+collection_name：指定要存储数据的集合名称，默认为 "default_collection"。
+uri：Milvus 服务的 URI，默认为 "./local_milvus.db"。
+embedding_function：用于生成文本嵌入向量的函数，默认为 SentenceTransformerEmbedding。
+overwrite：如果设置为 True，则在集合已存在时会覆盖原有集合，默认为 False。
+index_type：指定索引类型，默认为 "IVF_FLAT"。
+metric_type：指定度量类型，默认为 "COSINE"。
+search_limit：指定搜索时返回的最大结果数，默认为 5。
+
+参数补充说明：
+
+metric_type	Description
+L2	欧氏距离
+IP	内积
+COSINE（默认值）	余弦相似度
+index_type	场景
+FLAT	数据集相对较小；需要 100% 的召回率
+IVF_FLAT（默认值）	高速查询；要求尽可能高的召回率
+IVF_SQ8	极高速查询；内存资源有限；可接受召回率略有下降
+IVF_PQ	高速查询；内存资源有限；可略微降低召回率
+HNSW	极高速查询；要求尽可能高的召回率；内存资源大
+DISKANN	磁盘上索引算法。DiskANN 基于 Vamana 图，能在大型数据集中进行高效搜索。
+
+更多关于 metric_type 和 index_type 的细节，请以 Milvus 官方文档为准。
+
+embedding_function是一个BaseEmbedding的具体实例，可选值为：
+
+SentenceTransformerEmbedding（默认值）
+FlagEmbedding
+OpenAIEmbedding
+AzureOpenAIEmbedding
+或者其他自定义的BaseEmbedding实现类的实例，具体参见【数据处理】模块。
+
+Note
+
+SentenceTransformerEmbedding 默认使用的是 all-MiniLM-L6-v2，该模型较小且对中文支持较差。召回文档的相关性得不到保证，建议仅用于流程验证。 实际场景下，可以通过构造函数修改模型名，或者使用其他 BaseEmbedding 实例。
+
+MilvusBGEHybridSearchEngine¶
+
+基于Milvus和BAAI/bge-m3嵌入模型实现的支持混合检索的知识库。
+
+联合使用BAAI/bge-m3 模型返回的稠密和稀疏向量进行混合查找，并对结果进行重排序，以更好的结合语义模糊查找、关键词精确查找的检索优势。
+
+使用方式：
+
+from tongagents.knowledge.vectorstore.milvus import MilvusBGEHybridSearchEngine
+
+
+
+hybrid_store = MilvusBGEHybridSearchEngine()
+
+构造函数参数：
+
+collection_name：指定要存储数据的集合名称，默认为 "default_hybrid_collection"。
+uri：Milvus 服务的 URI，默认为 "./local_milvus.db"。
+bge_embedding_model：用于生成嵌入向量的bge-m3 模型实例，参考tongagents.knowledge.embedding.bge_embedding.BGEM3Embedding，默认为None，在本地加载bge-m3 模型进行向量生成。
+model_name：如使用本地bge-m3 模型，则使用此模型名或路径进行模型加载。
+overwrite：如果设置为 True，则在集合已存在时会覆盖原有集合，默认为 False。
+index_type：指定索引类型，默认为 "IVF_FLAT"。
+metric_type：指定度量类型，默认为 "COSINE"。
+search_limit：指定搜索时返回的最大结果数，默认为 5。
+ChromaVectorStore¶
+
+ChromaVectorStore基于ChromaDB实现知识库的向量检索功能。
+
+使用方式：
+
+from tongagents.knowledge.vectorstore.chroma import ChromaVectorStore
+
+
+
+chroma_store = ChromaVectorStore()
+
+构造函数参数：
+
+collection_name：指定要存储数据的集合名称，默认为 "default_collection"。
+persist_dir：指定持久化存储的目录路径，默认为 None，表示使用内存存储。
+client_setting：ChromaDB 客户端的配置设置，默认为 None。
+embedding_function：用于生成文本嵌入向量的函数，默认为 SentenceTransformerEmbedding。
+distance_function：指定距离度量函数，默认为 "cosine"。
+search_limit：指定搜索时返回的最大结果数，默认为 5。
+overwrite：如果设置为 True，则在集合已存在时会覆盖原有集合，默认为 False。
+
+参数补充说明：
+
+通过默认值已经可以快速连接并访问一个 ChromaDB 实例。如果有一些特殊的配置需求，也可以通过client_setting来实现，具体支持的参数可以参考Chroma的官方仓库 以下基于官方文档和源代码的分析，列出可配参数，具体以 Chroma 官方文档为准。
+
+参数名	描述	默认值	可能值/约束
+chroma_db_impl	指定数据库实现方式。	"duckdb+parquet"	例如 "duckdb+parquet", "clickhouse"
+IS_PERSISTENT	是否将数据持久化到磁盘。	False	True, False
+PERSIST_DIRECTORY	数据持久化的目录。	"./chroma"	可写相对或绝对路径
+ALLOW_RESET	是否允许重置索引。	False	True, False
+CHROMA_OTEL_COLLECTION_ENDPOINT	OpenTelemetry 追踪服务的端点。	None	有效 URL
+CHROMA_OTEL_SERVICE_NAME	追踪服务中使用的服务名称。	"chroma"	任意字符串
+CHROMA_OTEL_COLLECTION_HEADERS	每个追踪/跨度的发送头。	None	头字典
+CHROMA_OTEL_GRANULARITY	追踪的粒度。	"none"	"none", "operation", "operation_and_segment", "all"
+CHROMA_PRODUCT_TELEMETRY_IMPL	产品遥测的实现（不建议更改）。	"chromadb.telemetry.product.posthog.Posthog"	特定实现字符串
+CHROMA_TELEMETRY_IMPL	与 CHROMA_PRODUCT_TELEMETRY_IMPL 相同，保留向后兼容性。	同上	同上
+ANONYMIZED_TELEMETRY	是否启用匿名产品遥测。	True	True, False
+MIGRATIONS	定义如何处理架构迁移。	"apply"	"none", "validate", "apply"
+MIGRATIONS_HASH_ALGORITHM	用于哈希迁移的算法。	"md5"	"md5", "sha256"
+chroma_server_host	远程服务器的主机地址。	"localhost"	有效主机名或 IP
+chroma_server_http_port	远程服务器的端口。	8000	有效端口号
+chroma_server_ssl_enabled	是否启用 HTTPS。	False	True, False
+chroma_server_headers	服务器请求的可选头（例如认证头）。	None	头字典
+EsVectorStore¶
+
+EsVectorStore基于ElasticSearch实现知识库的全文检索功能。
+
+使用方式：
+
+from tongagents.knowledge.vectorstore.elastic_search import EsVectorStore
+
+
+
+es_store = EsVectorStore()
+
+构造函数参数：
+
+index_name：指定要存储数据的索引名称，默认为 "default_collection"。
+es_client：已配置的 Elasticsearch 客户端实例，默认为 None。
+es_url：Elasticsearch 服务的 URL，默认为 None。
+es_cloud_id：Elasticsearch 云 ID，默认为 None。
+es_user：Elasticsearch 用户名，默认为 None。
+es_password：Elasticsearch 密码，默认为 None。
+es_api_key：Elasticsearch API 密钥，默认为 None。
+embedding_function：用于生成文本嵌入向量的函数，默认为 SentenceTransformerEmbedding。
+query_field：指定查询字段的名称，默认为 "content"。
+vector_query_field：指定向量查询字段的名称，默认为 "embedding"。
+distance_strategy：指定距离度量策略，默认为 DistanceMetric.COSINE。
+retrieval_strategy：指定检索策略，默认为 DenseVectorStrategy。
+search_limit：指定搜索时返回的最大结果数，默认为 5。
+overwrite：如果设置为 True，则在索引已存在时会覆盖原有索引，默认为 False。
+
+开发者也可基于KnowledgeStore 抽象类实现自定义知识库。
+
+示例¶
+
+下面将以ChromaVectorStore为例，展示如何使用TongAgents SDK知识库模块的基本功能。
+
+from tongagents.knowledge.vectorstore.chroma import ChromaVectorStore
+
+from tongagents.tools.loader.directory_loader import DirectoryLoader
+
+from tongagents.tools.splitter.impl import default_text_splitter
+
+
+
+# load documents
+
+pdf_files = [
+
+    "/path/to/doc1.pdf",
+
+    "/path/to/doc2.pdf",
+
+]
+
+documents = DirectoryLoader(input_files=pdf_files).load()
+
+splitted_documents = default_text_splitter.split_document(documents)
+
+
+
+# init
+
+chroma_store = ChromaVectorStore()
+
+
+
+# add documents
+
+chroma_store.add_documents(splitted_documents)
+
+
+
+# query
+
+query = "Hello World"
+
+search_results = chroma_store.search(query)
+
+distance = search_results[0].score
+
+
+
+# delete
+
+chroma_store.delete([search_results[0].document.id])
+
+search_results = chroma_store.search(query)
+
+
+
+# clear all
+
+chroma_store.clear()
+
+
+文档 Document¶
+
+Document 作为抽象接口，包含用于加入知识库的文档内容和相应元数据，是可被召回的最小单元。
+
+SearchResult 是搜索结果的数据模型，包含当前召回文档内容和相似度分数，由0-1 浮点数标识。
+
+class Document:
+
+  id: str
+
+  metadata: dict
+
+  content: any
+
+
+
+class SearchResult:
+
+  score: float
+
+  document: Document

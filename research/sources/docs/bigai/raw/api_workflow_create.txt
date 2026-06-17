@@ -1,0 +1,202 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/workflow/create/?q=
+================================================================================
+
+创建工作流
+
+创建Workflow接口¶
+请求URL¶
+POST /api/v1/workflow/create
+
+请求参数¶
+Header¶
+参数	取值	说明
+Content-Type	application/json	指定请求正文的数据格式。当值为 application/json 时，表明请求体（Body）内容以 JSON 格式组织，服务端将按 JSON 规范解析请求参数。
+X-TraceId	string	traceId
+Authorization	Bearer $AccessToken	用于验证客户端身份的访问令牌
+Body¶
+参数	类型	是否必填	参数说明	备注
+workflow	object	是	工作流配置对象	
+workflow.nodes	array	是	节点列表	
+workflow.nodes[].id	string	是	节点唯一标识	
+workflow.nodes[].type	string	是	节点类型	如"base"、"embody"等
+workflow.nodes[].data	object	是	节点的具体配置	根据节点类型不同，配置内容不同
+workflow.edges	array	是	边列表（节点间的连接关系）	
+workflow.edges[].source	object	是	源节点信息	
+workflow.edges[].source.cell	string	是	源节点ID	
+workflow.edges[].source.port	string	是	源节点端口	格式为"out.{节点ID}"
+workflow.edges[].target	object	是	目标节点信息	
+workflow.edges[].target.cell	string	是	目标节点ID	
+workflow.edges[].target.port	string	是	目标节点端口	格式为"in.{节点ID}"
+请求示例¶
+{
+
+    "edges": [
+
+        {
+
+            "source": {
+
+                "cell": "input",
+
+                "port": "out.input"
+
+            },
+
+            "target": {
+
+                "cell": "beb1ef73-8268-4c25-b57a-ed7cfb465fc8",
+
+                "port": "in.beb1ef73-8268-4c25-b57a-ed7cfb465fc8"
+
+            }
+
+        },
+
+        {
+
+            "source": {
+
+                "cell": "beb1ef73-8268-4c25-b57a-ed7cfb465fc8",
+
+                "port": "out.beb1ef73-8268-4c25-b57a-ed7cfb465fc8"
+
+            },
+
+            "target": {
+
+                "cell": "0576c2ed-d6cf-4217-a5a8-4815378cdcea",
+
+                "port": "in.0576c2ed-d6cf-4217-a5a8-4815378cdcea"
+
+            }
+
+        },
+
+        {
+
+            "source": {
+
+                "cell": "0576c2ed-d6cf-4217-a5a8-4815378cdcea",
+
+                "port": "out.0576c2ed-d6cf-4217-a5a8-4815378cdcea"
+
+            },
+
+            "target": {
+
+                "cell": "4c86a5fd-e353-4361-b89b-4081b6d94e43",
+
+                "port": "in.4c86a5fd-e353-4361-b89b-4081b6d94e43"
+
+            }
+
+        }
+
+    ],
+
+    "nodes": [
+
+        {
+
+            "id": "input",
+
+            "data": {
+
+                "desc": "",
+
+                "type": "input",
+
+                "title": "输入"
+
+            },
+
+            "type": "base"
+
+        },
+
+        {
+
+            "id": "beb1ef73-8268-4c25-b57a-ed7cfb465fc8",
+
+            "data": {
+
+                "desc": "",
+
+                "type": "web_search",
+
+                "query": "{{#sys.query#}}",
+
+                "title": "web搜索"
+
+            },
+
+            "type": "tool"
+
+        },
+
+        {
+
+            "id": "0576c2ed-d6cf-4217-a5a8-4815378cdcea",
+
+            "data": {
+
+                "desc": "",
+
+                "type": "llm",
+
+                "title": "大模型",
+
+                "prompt_template": "{{#beb1ef73-8268-4c25-b57a-ed7cfb465fc8.tool_result#}}  {{#sys.query#}}",
+
+                "数据源/API工具": ""
+
+            },
+
+            "type": "base"
+
+        },
+
+        {
+
+            "id": "4c86a5fd-e353-4361-b89b-4081b6d94e43",
+
+            "data": {
+
+                "desc": "",
+
+                "type": "output",
+
+                "title": "输出",
+
+                "answer": "{{#0576c2ed-d6cf-4217-a5a8-4815378cdcea.text#}}"
+
+            },
+
+            "type": "base"
+
+        }
+
+    ]
+
+}
+
+响应参数¶
+参数称	类型	描述	备注
+code	int	状态码	0代表成功
+message	string	响应消息	
+data	object	响应数据	
+data.workflow_id	string	创建的工作流ID	
+响应示例¶
+{
+
+    "code": 0,
+
+    "message": "success",
+
+    "data": {
+
+        "workflow_id": "687970893524049920"
+
+    }
+
+}

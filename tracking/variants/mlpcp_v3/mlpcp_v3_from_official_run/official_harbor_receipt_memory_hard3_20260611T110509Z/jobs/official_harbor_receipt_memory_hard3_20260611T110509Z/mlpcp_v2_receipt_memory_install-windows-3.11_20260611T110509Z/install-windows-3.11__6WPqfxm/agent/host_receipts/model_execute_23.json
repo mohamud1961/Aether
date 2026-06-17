@@ -1,0 +1,74 @@
+{
+  "call_id": "install-windows-3.11__6WPqfxm_execute_23",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"search_receipts\",\"query\":\"QEMU win311.img VNC 5901 nginx 80 keyboard injection desktop\",\"limit\":10},{\"type\":\"search_files\",\"query\":\"launch scripts configs qemu nginx win311\",\"path\":\"/app\",\"limit\":50},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif ! command -v qemu-system-i386 >/dev/null 2>&1; then echo 'MISSING:qemu-system-i386'; exit 0; fi\\nif ! command -v nginx >/dev/null 2>&1; then echo 'MISSING:nginx'; exit 0; fi\\nmkdir -p /app/run /app/www\\ncat > /app/www/index.html <<'EOF'\\n<!doctype html><html><body><h1>Windows 3.11 VM Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\\nEOF\\ncat > /app/run/start-win311.sh <<'EOF'\\n#!/bin/bash\\nset -euo pipefail\\nexec qemu-system-i386 \\\\\\n  -m 64 \\\\\\n  -hda /app/isos/win311.img \\\\\\n  -snapshot \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/app/run/qemu-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -net none\\nEOF\\nchmod +x /app/run/start-win311.sh\\ncat > /app/run/nginx.conf <<'EOF'\\nworker_processes  1;\\npid /app/run/nginx.pid;\\nevents { worker_connections  1024; }\\nhttp {\\n  access_log /app/run/nginx-access.log;\\n  error_log /app/run/nginx-error.log info;\\n  server {\\n    listen 80;\\n    server_name _;\\n    root /app/www;\\n    index index.html;\\n  }\\n}\\nEOF\\nnohup nginx -c /app/run/nginx.conf >/app/run/nginx.out 2>&1 &\\nnohup /app/run/start-win311.sh >/app/run/qemu.out 2>&1 &\\nsleep 3\\nss -ltnp | awk 'NR==1 || /:80 |:5901 /'\\nps -ef | grep -E 'qemu-system-i386|nginx: master' | grep -v grep\\n\",\"timeout\":120000},{\"type\":\"probe_service\",\"service\":\"vnc\",\"target\":\"127.0.0.1:5901\"},{\"type\":\"probe_service\",\"service\":\"http\",\"target\":\"127.0.0.1:80\"},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nprintf 'info status\\\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\\nprintf 'sendkey ret\\\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\\n\",\"timeout\":120000}]}\n{\"actions\":[{\"type\":\"search_receipts\",\"query\":\"QEMU win311.img VNC 5901 nginx 80 keyboard injection desktop\",\"limit\":10},{\"type\":\"search_files\",\"query\":\"launch scripts configs qemu nginx win311\",\"path\":\"/app\",\"limit\":50},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif ! command -v qemu-system-i386 >/dev/null 2>&1; then echo 'MISSING:qemu-system-i386'; exit 0; fi\\nif ! command -v nginx >/dev/null 2>&1; then echo 'MISSING:nginx'; exit 0; fi\\nmkdir -p /app/run /app/www\\ncat > /app/www/index.html <<'EOF'\\n<!doctype html><html><body><h1>Windows 3.11 VM Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\\nEOF\\ncat > /app/run/start-win311.sh <<'EOF'\\n#!/bin/bash\\nset -euo pipefail\\nexec qemu-system-i386 \\\\\\n  -m 64 \\\\\\n  -hda /app/isos/win311.img \\\\\\n  -snapshot \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/app/run/qemu-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -net none\\nEOF\\nchmod +x /app/run/start-win311.sh\\ncat > /app/run/nginx.conf <<'EOF'\\nworker_processes  1;\\npid /app/run/nginx.pid;\\nevents { worker_connections  1024; }\\nhttp {\\n  access_log /app/run/nginx-access.log;\\n  error_log /app/run/nginx-error.log info;\\n  server {\\n    listen 80;\\n    server_name _;\\n    root /app/www;\\n    index index.html;\\n  }\\n}\\nEOF\\nnohup nginx -c /app/run/nginx.conf >/app/run/nginx.out 2>&1 &\\nnohup /app/run/start-win311.sh >/app/run/qemu.out 2>&1 &\\nsleep 3\\nss -ltnp | awk 'NR==1 || /:80 |:5901 /'\\nps -ef | grep -E 'qemu-system-i386|nginx: master' | grep -v grep\\n\",\"timeout\":120000},{\"type\":\"probe_service\",\"service\":\"vnc\",\"target\":\"127.0.0.1:5901\"},{\"type\":\"probe_service\",\"service\":\"http\",\"target\":\"127.0.0.1:80\"},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nprintf 'info status\\\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\\nprintf 'sendkey ret\\\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\\n\",\"timeout\":120000}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "search_receipts",
+        "query": "QEMU win311.img VNC 5901 nginx 80 keyboard injection desktop",
+        "limit": 10
+      },
+      {
+        "type": "search_files",
+        "query": "launch scripts configs qemu nginx win311",
+        "path": "/app",
+        "limit": 50
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\nif ! command -v qemu-system-i386 >/dev/null 2>&1; then echo 'MISSING:qemu-system-i386'; exit 0; fi\nif ! command -v nginx >/dev/null 2>&1; then echo 'MISSING:nginx'; exit 0; fi\nmkdir -p /app/run /app/www\ncat > /app/www/index.html <<'EOF'\n<!doctype html><html><body><h1>Windows 3.11 VM Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\nEOF\ncat > /app/run/start-win311.sh <<'EOF'\n#!/bin/bash\nset -euo pipefail\nexec qemu-system-i386 \\\n  -m 64 \\\n  -hda /app/isos/win311.img \\\n  -snapshot \\\n  -vnc 127.0.0.1:1 \\\n  -monitor unix:/app/run/qemu-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -net none\nEOF\nchmod +x /app/run/start-win311.sh\ncat > /app/run/nginx.conf <<'EOF'\nworker_processes  1;\npid /app/run/nginx.pid;\nevents { worker_connections  1024; }\nhttp {\n  access_log /app/run/nginx-access.log;\n  error_log /app/run/nginx-error.log info;\n  server {\n    listen 80;\n    server_name _;\n    root /app/www;\n    index index.html;\n  }\n}\nEOF\nnohup nginx -c /app/run/nginx.conf >/app/run/nginx.out 2>&1 &\nnohup /app/run/start-win311.sh >/app/run/qemu.out 2>&1 &\nsleep 3\nss -ltnp | awk 'NR==1 || /:80 |:5901 /'\nps -ef | grep -E 'qemu-system-i386|nginx: master' | grep -v grep\n",
+        "timeout": 120000
+      },
+      {
+        "type": "probe_service",
+        "service": "vnc",
+        "target": "127.0.0.1:5901"
+      },
+      {
+        "type": "probe_service",
+        "service": "http",
+        "target": "127.0.0.1:80"
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\nprintf 'info status\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\nprintf 'sendkey ret\\n' | socat - UNIX-CONNECT:/app/run/qemu-monitor.sock || true\n",
+        "timeout": 120000
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3285,
+    "cached_input_tokens": 2304,
+    "output_tokens": 1329,
+    "total_tokens": 4614,
+    "provider_usage_raw": {
+      "completion_tokens": 1329,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 4,
+        "engine_ttft_ms": 44,
+        "engine_ttlt_ms": 4943,
+        "pre_inference_ms": 185,
+        "service_tbt_ms": 4,
+        "service_ttft_ms": 718,
+        "service_ttlt_ms": 5607,
+        "total_duration_ms": 5430,
+        "user_visible_ttft_ms": 533
+      },
+      "prompt_tokens": 3285,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 2304
+      },
+      "total_tokens": 4614
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

@@ -1,0 +1,88 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/env/web/?q=
+================================================================================
+
+Web Env
+
+WebEnv 是 TongEnv 中提供的一个复杂场景，它模拟了一个Web页面，用户可以在这个页面中进行交互。避免开发者投入环境开发的时间和精力，可以快速验证Agent的性能和表现。
+
+开箱即用的Web页面，交互和分享。
+支持音频输入和输出，提供多种音色。
+支持形象，丰富的面部表情和动作。
+
+通过WebEnv，开发者可以一键将自己基于TongAgent的Agent部署到产品级的Web页面上，并进行调试或与人分享。
+
+命令行启动¶
+
+假设开发者基于TongAgent开发了一个语音聊天机器人VoiceChatbot，并希望将其部署到WebEnv上，可以通过以下命令启动：
+
+tongenv run --env web voice_chatbot.py
+
+
+根据输出提示，打开浏览器访问对应的URL，即可看到WebEnv的页面。
+
+此外，WebEnv提供了一系列参数以修改形象和音色。
+
+VoiceChatbot --env web --avatar avatar_2d_real_girl_1 --voice voice_1
+
+
+形象和音色详见创建智能体
+
+代码启动¶
+import os
+
+
+
+from dotenv import load_dotenv
+
+
+
+from examples.gui_audio_chat.knowledge import create_knowledge_store
+
+from examples.gui_audio_chat.web_env import WebEnv
+
+from tongagents.agents.voice_chatbot import VoiceChatbotSettings
+
+from tongagents.agents.voice_chatbot_with_tool import VoiceChatbotWithTool
+
+from tongagents.tools.common_tool.amap_weather import AmapWeather
+
+
+
+if __name__ == "__main__":
+
+    load_dotenv()
+
+    web_env = WebEnv()
+
+    store = create_knowledge_store(
+
+        list_of_docs=["小明喜欢打篮球，小李喜欢打羽毛球，小张喜欢打乒乓球"]
+
+    )
+
+
+
+    agent = VoiceChatbotWithTool(
+
+        agent_setting=VoiceChatbotSettings(
+
+            llm_model_name=os.getenv("MODEL_NAME"),
+
+            llm_api_base=os.getenv("MODEL_URL"),
+
+            llm_api_key=os.getenv("MODEL_API_KEY"),
+
+        ),
+
+        tools=[store.as_tool(), AmapWeather],
+
+    )
+
+
+
+    agent.run_with_env_in_thread(web_env)
+
+    web_env.launch()
+
+
+这种方式更易于在IDE中调试，并对输入和输出进行修改和优化。

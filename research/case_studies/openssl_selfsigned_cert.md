@@ -1,0 +1,64 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_06_openssl_selfsigned_cert
+- wave: wave_06_planning_orchestration_and_interactions
+- task_family: openssl-selfsigned-cert
+- systems_compared:
+  - `BigAI`
+- run_paths:
+  - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/ede4695e-37a5-4e1b-b1ac-187903ef0e29.json`
+  - [private-source: BigAI/openssl-selfsigned-cert-trajectory]
+- outcome_profile:
+  - single sampled run, final outcome pass
+  - single executor with verifier-gated closure
+  - one initial plan, no plan updates, one verifier pass
+- per_run_notes:
+  - planner sets a five-todo direct-action plan and delegates to `executor-0`.
+  - execution phase includes failed certificate checks before eventual closure (`error_count=2`), indicating local trial-and-repair inside a linear branch.
+  - planner marks `task_finished=true` before verifier packet, then verifier finalizes `PASSED`.
+- cross_run_comparison:
+  - this task exhibits the leanest orchestration shape among required Wave 06 slices.
+  - despite simple topology, it still follows the same planner-first and verifier-gated interaction contract seen in most required runs.
+- failure_point_comparison:
+  - failure pressure is local command correctness (certificate verification calls), not delegation drift.
+  - there is no visible multi-executor branching or verifier rejection loop in this sample.
+- source_or_architecture_links:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_support_planning_timeline.md`
+- behavioral_reconstruction_caveats:
+  - single-run evidence and behavioral-only visibility limit generalization.
+- mechanism_implications:
+  - confirms that verifier-gated orchestration can remain lightweight when task complexity is lower.
+  - reinforces split between planner completion signal and verifier acceptance gate.
+- failure_implications:
+  - even linear single-executor flows still need explicit recovery tolerance for command-level mistakes.
+- confidence_notes:
+  - high confidence for observed run-level sequencing.
+  - low-to-medium confidence for broader family conclusions due single-run sample.
+- wave_06_codebase_source_reconstruction_addendum:
+  - additional_systems_compared:
+    - `deepagents`
+    - `terminus-kira`
+  - additional_run_paths:
+    - [private-source: deepagents/openssl-selfsigned-cert-trajectory]
+    - [private-source: terminus-kira/openssl-selfsigned-cert-trajectory]
+  - source_reconciliation_links:
+    - [private-source: codebase/deepagents]
+    - [private-source: codebase/KIRA]
+  - observations:
+    - deepagents run remains single-agent with explicit verification prompt injection before closure.
+    - terminus-kira run uses analysis/plan command batches plus two-step completion confirmation.
+    - BigAI run is lightweight but still follows planner-first plus verifier closure in sampled trace.
+  - inference:
+    - even in a low-complexity task family, orchestration contract differences remain visible and should not be flattened.
+  - confidence:
+    - medium
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - wave_04_relevance:
+    - low-complexity comparator for role-handoff stability under limited long-horizon pressure.
+  - wave_04_observations:
+    - sampled run remains planner-first, single-executor, verifier-present, with local command-level recovery (`error_count=2`) and no explicit delegation fanout.
+  - wave_04_inference:
+    - this family is useful as a baseline showing that Wave 04 failure families are less visible when task duration and tool coordination complexity are lower.
+  - evidence_paths:
+    - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/ede4695e-37a5-4e1b-b1ac-187903ef0e29.json`
+  - confidence: medium

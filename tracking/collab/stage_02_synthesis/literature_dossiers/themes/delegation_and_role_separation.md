@@ -1,0 +1,143 @@
+LITERATURE_DOSSIER
+- dossier_type: theme
+- topic: delegation_and_role_separation
+- wave: `wave_06_planning_orchestration_and_interactions`
+- role: `literature/papers/docs analyst`
+- scope:
+  - Formal-source synthesis for delegation, role-separation contracts, and interaction protocol quality.
+  - Restricted to papers/docs lane evidence and cross-checked against prior-wave direct-evidence cautions.
+- coverage_used:
+  - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+  - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+  - `research/sources/papers/papers_text/src_pap_31598764f98d.txt`
+  - `research/sources/papers/papers_text/src_pap_09faf60ce915.txt`
+  - `research/sources/papers/papers_text/src_pap_9f39aad8d403.txt`
+  - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+  - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+  - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+  - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+  - `research/sources/docs/bigai/translated/framework_multi_agent.md`
+  - `research/sources/docs/bigai/translated/sdk_workflow.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/papers_text/src_pap_1af43872aeda.txt`
+  - `research/sources/papers/papers_text/src_pap_ac7924226b83.txt`
+  - `research/sources/docs/src_doc_1069e67c4fe5/artifact.txt`
+  - `research/sources/docs/src_doc_a3afc1e8c7c2/artifact.txt`
+- evidence_classes_touched:
+  - papers
+  - docs
+  - prior_wave_conflict_pressure
+- formal_claims:
+  - claim_id: `delegation_needs_boundary_contracts`
+    - observation: Formal docs consistently encode delegation as bounded transfer with scoped context, tools, policy, and ownership, not just task splitting.
+    - inference: Delegation quality should be modeled as boundary-contract integrity (handoff completeness plus scope discipline).
+    - confidence: `high`
+    - evidence:
+      - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+      - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+      - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+      - `research/sources/docs/bigai/translated/sdk_workflow.md`
+  - claim_id: `role_count_is_not_quality_proxy`
+    - observation: Formal papers disagree on optimal topology; some show gains from planner/executor/verifier separation, others report stronger results with self-organizing or single-agent skill structures in certain regimes.
+    - inference: Mechanism map should optimize for role-contract quality and information gain, not role multiplication.
+    - confidence: `medium`
+    - weakener: Task distributions and benchmarks differ across studies.
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+      - `research/sources/papers/papers_text/src_pap_31598764f98d.txt`
+      - `research/sources/papers/papers_text/src_pap_09faf60ce915.txt`
+      - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+  - claim_id: `interaction_protocol_failure_surfaces_are_explicit`
+    - observation: Formal risk-focused work identifies role drift, communication loss, non-termination, and policy-boundary violations as recurring orchestration failures.
+    - inference: Interaction protocol quality is a first-class reliability surface for Wave 06, not optional implementation detail.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9f39aad8d403.txt`
+      - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+      - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+- conflicts_or_limits:
+  - Formal role-contract language does not prove behavioral adherence in local trajectories; preserve prior caution against over-promoting architecture rhetoric.
+  - BigAI remains partly behavioral reconstruction in accepted state; keep that caveat explicit when mapping formal delegation claims.
+- confidence_notes:
+  - High confidence that boundary semantics are formally load-bearing.
+  - Medium confidence on universally optimal role topology.
+  - Low confidence on formal-only claims about robust long-horizon reliability.
+- open_questions:
+  - Which boundary field failures (scope, context, policy, ownership) are most predictive of observed Wave 06 trajectory regressions?
+  - What minimum delegation handoff schema should be required for reproducible failure attribution?
+- downstream_use:
+  - Feed Wave 06 mechanism cards for delegation and interaction contracts.
+  - Feed failure taxonomy families for role drift, handoff corruption, and non-termination.
+- wave_06_codebase_source_recon_pressure_update:
+  - source_reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_support_subagent_delegation_map.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - observations:
+    - deepagents has the clearest source-visible delegation boundary contract (state filtering, stateless sync task calls, async lifecycle API).
+    - KIRA has practical role separation but heterogeneous governance due subsystem-specific permission modes.
+    - a-evolve delegation is primarily tool-scope routing and context-preservation, not BigAI-style teammate fanout.
+    - BigAI shows rich role handoff behavior but remains behavioral reconstruction.
+  - inference:
+    - delegation and role-separation cards should be scored on boundary contract quality and governance consistency, not raw role count.
+  - confidence:
+    - medium
+  - limitation:
+    - this update contributes source-reconciliation pressure and does not close formal-lane synthesis requirements.
+- wave_04_failure_taxonomy_formal_pressure_update_2026_04_11:
+  - context: Wave 04 failure taxonomy lane update focused on delegation mismatch and role-handoff breakdown.
+  - observations:
+    - Formal reliability and assurance papers repeatedly identify role drift, circular delegation, deadlock/non-termination, and coordination collapse as recurrent workflow failures.
+    - Decision-theoretic work shows adding roles without new exogenous signals can increase coordination cost without guaranteed reliability gains.
+    - Docs on subagents/agent teams explicitly call out limitations around session resumption, coordination, and shutdown behavior.
+  - inferences:
+    - Wave 04 should attribute delegation failures to boundary-contract integrity (context/authority/policy/handoff), not role count.
+    - `coordination collapse` and `delegation mismatch` should remain distinct from permission-policy and path-root failures.
+    - role-separated architectures should not be treated as reliability proof without direct trajectory corroboration.
+  - confidence:
+    - high for formal failure-surface existence
+    - medium for universal topology claims
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+    - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+    - `research/sources/papers/papers_text/src_pap_31598764f98d.txt`
+    - `research/sources/papers/papers_text/src_pap_09faf60ce915.txt`
+    - `research/sources/papers/papers_text/src_pap_9f39aad8d403.txt`
+    - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+    - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/literature_papers_docs_analyst.md`
+- wave_04_trajectory_lane_reconciliation_2026_04_11:
+  - trajectory_alignment:
+    - role-separated orchestration is behavior-strong in required BigAI slices but not uniformly exercised in required deepagents/KIRA trajectories for this wave packet.
+  - inference:
+    - delegation quality should remain tied to observable handoff/recovery behavior and mixed-cause failure traces, not role-count rhetoric.
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - confidence: medium
+- wave_04_codebase_source_reconstruction_reconciliation_2026_04_11:
+  - source_reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_support_orchestration_failure_map.md`
+  - observations:
+    - deepagents source has explicit delegation boundary controls (state exclusion and async task lifecycle contracts).
+    - KIRA source exposes role and runtime orchestration surfaces with subsystem policy heterogeneity.
+    - a-evolve source emphasizes tool-scope and context-gating style delegation rather than broad multi-role fanout.
+  - inference:
+    - source evidence supports keeping delegation-quality and handoff-contract integrity ahead of role-count rhetoric in Wave 04 failure attribution.
+  - confidence:
+    - high
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/main.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`

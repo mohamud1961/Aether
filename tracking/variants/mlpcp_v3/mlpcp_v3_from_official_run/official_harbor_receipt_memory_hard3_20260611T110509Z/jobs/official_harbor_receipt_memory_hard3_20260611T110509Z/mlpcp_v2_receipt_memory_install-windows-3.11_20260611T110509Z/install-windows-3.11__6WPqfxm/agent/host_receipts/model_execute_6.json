@@ -1,0 +1,58 @@
+{
+  "call_id": "install-windows-3.11__6WPqfxm_execute_6",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"search_receipts\",\"query\":\"QEMU win311.img VNC 5901 nginx 80 keyboard injection desktop\",\"limit\":10},{\"type\":\"search_files\",\"query\":\"**/*\",\"limit\":200},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif ! command -v qemu-system-i386 >/dev/null 2>&1; then echo 'MISSING:qemu-system-i386'; exit 0; fi\\nif ! command -v nginx >/dev/null 2>&1; then echo 'MISSING:nginx'; exit 0; fi\\nmkdir -p /app/run /app/www\\ncat > /app/www/index.html <<'EOF'\\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\\nEOF\\ncat > /app/run/qemu-win311.sh <<'EOF'\\n#!/bin/sh\\nset -eu\\nexec qemu-system-i386 \\\\\\n  -m 32 \\\\\\n  -hda /app/isos/win311.img \\\\\\n  -snapshot \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/app/run/qemu-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -rtc base=localtime \\\\\\n  -net none\\nEOF\\nchmod +x /app/run/qemu-win311.sh\\ncat > /app/run/nginx.conf <<'EOF'\\nworker_processes  1;\\npid /app/run/nginx.pid;\\nevents { worker_connections  1024; }\\nhttp {\\n  access_log /app/run/nginx-access.log;\\n  error_log /app/run/nginx-error.log info;\\n  server {\\n    listen 80;\\n    location / { root /app/www; index index.html; }\\n  }\\n}\\nEOF\\nnohup nginx -c /app/run/nginx.conf >/app/run/nginx.out 2>/app/run/nginx.err &\\nnohup /app/run/qemu-win311.sh >/app/run/qemu.out 2>/app/run/qemu.err &\\nsleep 3\\nss -ltnp | grep -E ':(80|5901)\\\\b' || true\\nps -ef | grep -E 'qemu-system-i386|nginx: master' | grep -v grep || true\\n\",\"timeout\":120000}]}\n{\"actions\":[{\"type\":\"search_receipts\",\"query\":\"QEMU win311.img VNC 5901 nginx 80 keyboard injection desktop\",\"limit\":10},{\"type\":\"search_files\",\"query\":\"**/*\",\"limit\":200},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif ! command -v qemu-system-i386 >/dev/null 2>&1; then echo 'MISSING:qemu-system-i386'; exit 0; fi\\nif ! command -v nginx >/dev/null 2>&1; then echo 'MISSING:nginx'; exit 0; fi\\nmkdir -p /app/run /app/www\\ncat > /app/www/index.html <<'EOF'\\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\\nEOF\\ncat > /app/run/qemu-win311.sh <<'EOF'\\n#!/bin/sh\\nset -eu\\nexec qemu-system-i386 \\\\\\n  -m 32 \\\\\\n  -hda /app/isos/win311.img \\\\\\n  -snapshot \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/app/run/qemu-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -rtc base=localtime \\\\\\n  -net none\\nEOF\\nchmod +x /app/run/qemu-win311.sh\\ncat > /app/run/nginx.conf <<'EOF'\\nworker_processes  1;\\npid /app/run/nginx.pid;\\nevents { worker_connections  1024; }\\nhttp {\\n  access_log /app/run/nginx-access.log;\\n  error_log /app/run/nginx-error.log info;\\n  server {\\n    listen 80;\\n    location / { root /app/www; index index.html; }\\n  }\\n}\\nEOF\\nnohup nginx -c /app/run/nginx.conf >/app/run/nginx.out 2>/app/run/nginx.err &\\nnohup /app/run/qemu-win311.sh >/app/run/qemu.out 2>/app/run/qemu.err &\\nsleep 3\\nss -ltnp | grep -E ':(80|5901)\\\\b' || true\\nps -ef | grep -E 'qemu-system-i386|nginx: master' | grep -v grep || true\\n\",\"timeout\":120000}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "search_receipts",
+        "query": "QEMU win311.img VNC 5901 nginx 80 keyboard injection desktop",
+        "limit": 10
+      },
+      {
+        "type": "search_files",
+        "query": "**/*",
+        "limit": 200
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\nif ! command -v qemu-system-i386 >/dev/null 2>&1; then echo 'MISSING:qemu-system-i386'; exit 0; fi\nif ! command -v nginx >/dev/null 2>&1; then echo 'MISSING:nginx'; exit 0; fi\nmkdir -p /app/run /app/www\ncat > /app/www/index.html <<'EOF'\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC :1 on 5901</p></body></html>\nEOF\ncat > /app/run/qemu-win311.sh <<'EOF'\n#!/bin/sh\nset -eu\nexec qemu-system-i386 \\\n  -m 32 \\\n  -hda /app/isos/win311.img \\\n  -snapshot \\\n  -vnc 127.0.0.1:1 \\\n  -monitor unix:/app/run/qemu-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -rtc base=localtime \\\n  -net none\nEOF\nchmod +x /app/run/qemu-win311.sh\ncat > /app/run/nginx.conf <<'EOF'\nworker_processes  1;\npid /app/run/nginx.pid;\nevents { worker_connections  1024; }\nhttp {\n  access_log /app/run/nginx-access.log;\n  error_log /app/run/nginx-error.log info;\n  server {\n    listen 80;\n    location / { root /app/www; index index.html; }\n  }\n}\nEOF\nnohup nginx -c /app/run/nginx.conf >/app/run/nginx.out 2>/app/run/nginx.err &\nnohup /app/run/qemu-win311.sh >/app/run/qemu.out 2>/app/run/qemu.err &\nsleep 3\nss -ltnp | grep -E ':(80|5901)\\b' || true\nps -ef | grep -E 'qemu-system-i386|nginx: master' | grep -v grep || true\n",
+        "timeout": 120000
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3265,
+    "cached_input_tokens": 2304,
+    "output_tokens": 1113,
+    "total_tokens": 4378,
+    "provider_usage_raw": {
+      "completion_tokens": 1113,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 4,
+        "engine_ttft_ms": 48,
+        "engine_ttlt_ms": 4598,
+        "pre_inference_ms": 106,
+        "service_tbt_ms": 4,
+        "service_ttft_ms": 676,
+        "service_ttlt_ms": 5210,
+        "total_duration_ms": 5122,
+        "user_visible_ttft_ms": 570
+      },
+      "prompt_tokens": 3265,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 2304
+      },
+      "total_tokens": 4378
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

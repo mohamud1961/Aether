@@ -1,0 +1,732 @@
+--- PAGE 1 ---
+ADAPTIVE ROTARY STEERING WITH JOINT AUTOREGRESSION FOR ROBUST
+EXTRACTION OF CLOSELY MOVING SPEAKERS IN DYNAMIC SCENARIOS
+Jakob Kienegger, Timo Gerkmann
+Signal Processing (SP), University of Hamburg, Germany
+ABSTRACT
+Latest advances in deep spatial filtering for Ambisonics demonstrate
+strong performance in stationary multi-speaker scenarios by rotat-
+ing the sound field toward a target speaker prior to multi-channel
+enhancement. For applicability in dynamic acoustic conditions with
+moving speakers, we propose to automate this rotary steering us-
+ing an interleaved tracking algorithm conditioned on the target’s
+initial direction. However, for nearby or crossing speakers, robust
+tracking becomes difficult and spatial cues less effective for en-
+hancement. By incorporating the processed recording as additional
+guide into both algorithms, our novel joint autoregressive frame-
+work leverages temporal-spectral correlations of speech to resolve
+spatially challenging speaker constellations. Consequently, our pro-
+posed method significantly improves tracking and enhancement
+of closely spaced speakers, consistently outperforming compara-
+ble non-autoregressive methods on a synthetic dataset. Real-world
+recordings complement these findings in complex scenarios with
+multiple speaker crossings and varying speaker-to-array distances.
+Index Terms—Ambisonics, direction of arrival (DoA), moving
+source, multi-channel speech enhancement, speaker extraction.
+1. INTRODUCTION
+Speech enhancement is dedicated to improving the clarity and com-
+prehensibility of a recorded speech signal by removing noise and
+reverberation. In challenging acoustic environments with multiple
+talkers, known as thecocktail party scenario[1], target speaker ex-
+traction (TSE) aims to isolate and enhance the speech of one partic-
+ular person. Provided that recordings from a microphone array are
+available, spatial cues can be used to resolve the inherent ambiguity
+which speaker to enhance and which to suppress. If the speakers are
+distinguishable by their orientation to the array, referred to as direc-
+tion of arrival (DoA), a spatially selective filter (SSF) can be steered
+toward the target to extract their voice. Recent deep, non-linear SSFs
+achieve outstanding enhancement performance while retaining com-
+putationally efficient neural network (NN) architectures [2–5].
+Spherical microphone arrays are able to capture the sound field
+in the spherical harmonics representation known as Ambisonics [6].
+The underlying property of rotational invariance enables to re-orient
+the encoded sound field without physically moving the array. Instead
+of an explicit conditioning mechanism to guide a SSF toward the
+target speaker, Wang et al. propose to utilize this feature and center
+the recording about the desired direction prior to processing [7]. This
+This work was supported by the Deutsche Forschungsgemeinschaft
+(DFG) under Grant 508337379. Computational resources were provided by
+the Regional Computer Center (RRZ) of the University of Hamburg and the
+Erlangen National High Performance Computing Center (NHR@FAU) under
+Project f104ac. NHR is funded by the Federal Government and Bavaria. Both
+facilities received DFG funding under Grants 440719683 and 498394658.
+so-calledrotary steeringis capable of converting widely used but not
+natively steerable multi-channel enhancement architectures such as
+McNet [8] or SpatialNet [9] into SSFs without any modification.
+Recording scenarios such as a seated conference meeting [10]
+may legitimize the assumption that the positions of the speakers re-
+main fixed throughout a recording. However, in more general set-
+tings like the dinner party considered in [11], the movement of the
+speakers becomes non-negligible. To keep using SSFs for TSE, ei-
+ther continuous directional information has to be provided, denoted
+asstrongguidance, or estimated, e.g., based on the target’s initial di-
+rection using a tracking algorithm, which we refer to asweakguid-
+ance [12, 13]. However, when speakers are closely spaced or cross
+paths, accurate tracking becomes very challenging and the spatial
+guidance itself loses efficacy in disentangling the speech signals.
+While real-time capability is often a performance-limiting factor
+for speech enhancement [14, 15], recent works have capitalized on
+the enforced sequential processing style. By incorporating the en-
+hanced recording as additional NN input, such autoregressive (AR)
+architectures exploit thetemporal-spectralcorrelations of speech to
+achieve improved robustness [16–18]. Recently, Shen et al. demon-
+strated the effectiveness of utilizing autoregression for multi-channel
+speech enhancement in a stationary single-speaker scenario [18].
+In this work, we generalize rotary steering from stationary to dy-
+namic scenarios by continuously centering the sound field on a mov-
+ing target speaker. Using an interleaved tracking algorithm, we auto-
+mate this adaptive alignment based solely on the target’s initial ori-
+entation. Our novel approach leverages rotary steering as a universal
+conditioning mechanism for both tracking and enhancement and is
+thereby independent of specific subsystem implementations. By in-
+troducing temporal feedback, we demonstrate on a synthetic three-
+speaker dataset how the additional guidance from the enhanced sig-
+nal improves both tracking and enhancement, especially for closely
+spaced sources. As a result, our method outperforms comparable,
+non-AR approaches across different architectures, while maintain-
+ing robust enhancement in challenging real-world recordings.
+2. PROBLEM SETUP
+2.1. Ambisonics signal model for target speaker extraction
+We assume availability of a recording from a spherical microphone
+array, capturing the sound field in the spherical harmonics represen-
+tation known as Ambisonics [6]. The observationYcontains the
+vectorized coefficients according to canonical Ambisonics channel
+number ordering (ACN) [19], which commonly correspond to a real-
+valued spherical harmonics basisB N with truncated basis functions
+at ordern= N[19]. In this work, we use the harmonics defined as
+bm
+n (θ, ϕ) =N |m|
+n P |m|
+n (sin(ϕ))
+(
+sin(|m|θ), m <0
+cos(m θ), m≥0 (1)
+arXiv:2601.12345v2  [eess.AS]  21 Jan 2026
+
+--- PAGE 2 ---
+Yt
+θ0,ϕ0
+D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0 SSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSF
+bSt
+(a) Fixed rotary steering.
+Yt
+D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0 TSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTST +
+bD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+tbD⊤
+t
+∆bϕt
+∆bθt
+bθt , bϕt
+θ0,ϕ0
+SSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSF
+bSt
+(b) Adaptive rotary steering utilizing tracking (TST).
+Yt
+D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0D⊤
+0
+TSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTSTTST +
+bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1bD⊤
+t 1
+∆bθt 1
+∆bϕt 1
+bθt 1 bϕt 1
+θ0,ϕ0
+SSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSFSSF
+bSt
+z−1
+z−1z−1z−1z−1
+AR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TSTAR-TST
+AR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSFAR-SSF
+(c) Integrating the processed signal bSt 1 as additional guide.
+Fig. 1: Weakly guided speaker extraction pipelines conditioned on the target’s initial DoA(θ0, ϕ0). Rotary steering is used to direct the spatial
+filter (SSF) either constantly toward the initial DoA (fixed) or use tracking (TST) to adjust the steering to the speaker’s movement (adaptive).
+for spherical coordinates azimuthθand elevationϕwith associated
+Legendre functionsP m
+n [6] and−n≤m≤n. Depending on
+the definition of normalization factorN m
+n ,B N is either an orthog-
+onal [19] or orthonormal [20] basis w.r.t. the surface integral inner
+product on the unit sphere. For analysis, we decompose observation
+Yinto an additive mixture of Ambisonics coefficients correspond-
+ing to anechoic target speechSand noiseV. Under the assumption
+of a reverberant, multi-speaker scenario, the latter contains interfer-
+ing speech signals and reflected components of the target speech.
+Withtandkdenoting frame and frequency bins, this acoustic setup
+is represented in the short-time Fourier transform (STFT) domain as
+Ytk =S tk +V tk .(2)
+In this work we set the goal of reconstructing the monopole coeffi-
+cient of the anechoic target speech signalS tk, which we indicate as
+Stk. Thus, the task of TSE lies in recoveringS tk from the noisy ob-
+servationsY tk conditioned on a speaker-specific characteristic.
+2.2. Rotary steering for stationary speaker extraction
+Spatially selective filters (SSFs) differentiate the target’s speech sig-
+nal from interfering sources based on spatially discriminative cues.
+In this work, we restrain the cue modality to the target speaker’s rel-
+ative orientation to the array, commonly referred to as DoA. In order
+to inform deep SSFs of the DoA, a variety of conditioning mecha-
+nisms have been proposed [2–5]. Alternatively, when processing in
+the Ambisonics domain, the properties of the underlying spherical
+harmonics basisB N can be exploited for this purpose. Due to clo-
+sure under rotation in SO(3) for any order N [20,21], the sound field
+can be aligned toward the target direction by linear transformation as
+a means of guiding a downstream SSF. This non-intrusive steering
+mechanism, introduced by Wang et al. asrotary steering[7], is capa-
+ble of converting arbitrary multi-channel enhancement architectures
+into SSFs without any further modification. The rotational trans-
+formation is represented by Wigner-D matrices parametrizable, e.g.,
+using classical Euler anglesα,β,γ. For a complex-valued spherical
+harmonics basis eBN, their entries can be compactly expressed as
+eDn
+mm′(α, β, γ) =e −jmαdn
+mm′(β)e−jm′γ ,(3)
+with transcendental Wigner-d functionsd n
+mm′ andZYZconvention
+for the Euler angles [20, 21]. Following ACN vectorization, these
+block-diagonal, unitary Wigner-D matrices eDcan be converted via
+change of basis into their orthogonal real-valued counterpartsD[20]
+to match the spherical harmonics definition in eq. (1). The alignment
+of the sound fieldY tk used in rotary steering is thus achieved by
+multiplication with the inverse (i.e., the transpose in this case) ofD,
+representing the orientation of target speaker toward array. Leverag-
+ing the rotational invariance of Ambisonics signals as input condi-
+tioning for spatial audio algorithms sets the foundation of our work.
+3. PROPOSED METHOD
+3.1. Adaptive and fixed rotary steering for dynamic scenarios
+Rotary steering was originally introduced for a stationary scenario
+with static speakers [7]. In this work, we generalize this concept to
+dynamic acoustic conditions by continuously aligning the observa-
+tionY tk with the direction of a moving target. Thisadaptiverotary
+steering is performed using time-dependent Wigner-D matricesD t
+parameterized by the target’s DoA(θ t, ϕt). Using theZYZEuler
+angle convention, this corresponds to an initial rotation aboutY(el-
+evation,β=ϕ t) followed byZ(azimuth,α=θ t), yielding
+Dt =D(θ t, ϕt,0).(4)
+If continuous ground truth directional guidance is available, adaptive
+rotary steering can be readily employed to condition a downstream
+SSF for TSE. However, in dynamic scenarios with moving speakers,
+relying on oracle directional cues throughout the recording signifi-
+cantly limits practical applicability. As an alternative, weakly guided
+TSE uses only the target’s initial DoA(θ0, ϕ0)[12, 13]. Opposed to
+adaptive rotary steering, we definefixedrotary steering as continu-
+ously centering the sound fieldY tk at this starting direction using
+D0, see fig. 1a. This approach provides a one-time spatial cue, al-
+lowing the downstream enhancement algorithm to learn the target’s
+temporal-spectral characteristics at the beginning of the recording.
+3.2. Weakly guided adaptive rotary steering framework
+Instead of using temporal-spectral cues throughout the recording, re-
+cent works such as [2, 3] underline the significant performance po-
+tential of spatial guidance under well defined conditions. Thus, in
+our own previous work for TSE but also for the related task of speech
+separation in [3], an upstream tracking algorithm is included to esti-
+mate the missing temporal evolution of the directional cues and pro-
+vide continuous guidance to a downstream SSF. However, instead of
+adapting existing deep sound source localization (SSL) architectures
+for target speaker tracking (TST), we propose employing fixed ro-
+tary steering by centering the NN input at the target’s initial direction
+(θ0, ϕ0). As with the SSF, this approach can be applied to any SSL
+method without the need for integrating an additional conditioning
+mechanism. The alignment with the target’s initial direction turns
+the task of the TST algorithm into estimating the time-dependent
+angular deviation
+ 
+∆bθt,∆bϕt
+
+. After unification with the starting
+direction, the downstream SSF can now be continuously steered via
+bDt =D
+
+θ0+∆bθt, ϕ0+∆bϕt,0
+
+,(5)
+yielding the weakly guided TSE pipeline displayed in fig. 1b.
+
+--- PAGE 3 ---
+3.3. Additional guidance via temporal-spectral autoregression
+While directionally guided SSFs achieve outstanding enhancement
+for sufficiently spaced speakers, as they move closer or cross, the
+DoA becomes increasingly difficult to estimate and less discrimina-
+tive. We propose to exploit thetemporal-spectralpattern of speech
+to improve the differentiation of speakers under such challenging
+conditions, which is beneficial for both tracking and enhancement.
+AR-SSFUnder the assumption of a sequential processing style,
+the previously enhanced signal bSt 1 can be utilized as an additional
+input to a deep speech enhancement architecture. Whereas prior
+work has focused on multi-channel, single-speaker scenarios [18],
+we generalize this approach to TSE, arguing that the temporal cor-
+relation between the spectral structure ofbSt 1 and observationY t is
+particularly useful to disentangle spatially ambiguous constellations,
+such as when speakers cross. Figure 1c illustrates our proposed AR
+modification of the SSF, denoted asAR-SSF, in which we concate-
+natebSt 1 as an additional channel to the rotated noisy inputY t.
+AR-TSTPrevious works could demonstrate the potential of us-
+ing a pre-processed recording for DoA estimation. By extracting
+the direct-path propagation of the target signal prior to localization,
+computationally lightweight, statistics-based algorithms achieve
+dramatic performance improvements [13, 22]. However, due to con-
+tinuously centering the sound field in adaptive rotary steering, the
+target signal’s anechoic propagation is trivial and bears no spatial
+information. Instead, just as for the AR-SSF, we propose to provide
+the processed speech signalbSt 1 as supplementary conditioning to a
+deep tracking algorithm. By approximating the rotation matrices as
+bDt ≈ bDt 1 ,(6)
+the input modalitiesbSt 1 andY t 1 are aligned in time, providing the
+TST algorithm with the matched spectral pattern of the target speech
+to the noisy recording. We propose that this helps consistent tracking
+of the target and minimizes speaker confusions for spatially close
+interferer. Figure 1c displays the resulting AR interconnection from
+processed signal to TST algorithm, which we denote asAR-TST.
+4. EXPERIMENTAL SETUP
+4.1. Dataset
+Synthetic datasetIn order to facilitate NN training and evalua-
+tion in a controlled acoustic scenario, we create a synthetic dataset
+consisting of reverberant three-speaker mixtures. Each simulated
+recording consists of utterances from the LibriSpeech corpus [23]
+paired according to Libri3Mix [24]. We use the image method [25]
+to spatialize the speech signals for shoe-box shaped rooms with re-
+verberation times between 0.2 s and 0.5 s. In particular, our imple-
+mentation builds upon gpuRIR [26] and computes the Ambisonics
+coefficients of the image sources by expanding their Green’s func-
+tion into the harmonics in eq. (1) under far-field assumptions [27].
+Together with ACN, we choose the normalization factorsN m
+n to be
+compliant with the ambiX format [19] and restrain the simulation to
+first order Ambisonics (FOA), thus,N = 1. The movement of the
+speakers is modeled via randomized, sinusoidal trajectories accord-
+ing to Diaz et al. in [28], which are able to generate diverse motion
+patterns as demonstrated in fig. 2 and our project webpage 1. At the
+start, the speakers are separated by at least 15° and their distance to
+the microphone array remains in the range of 1 m to 3 m throughout
+the recording. The step-size for the temporal discretization of the
+trajectories is aligned with the STFT parametrization, for which we
+use a square-root Hann window of length32 msand16 mshop-size.
+0 2 4 6
+-180
+0
+180
+0 3 6 9
+0
+3
+6
+0 2 4 6
+0 3 6
+0 2 4 6
+0 3 6
+0 2 4 6
+0 3 6
+time [s]
+room width [m]
+DoAθ t [°]
+length [m]
+mic. array oracle trajectory / start/stop
+Fig. 2: Synthetic three-speaker ( / / ) dataset modeling continuous
+motion [28]. Tracking performance is shown for azimuth DoAθ t
+using non-AR ( ) and our AR modification ( ) of SELDnet [30].
+Recorded datasetTo test generalizability and robustness in real-
+world scenarios, we also include recordings with human speakers for
+evaluation. We use a FOA microphone array, which we place cen-
+tered in a room measuring9.5 m×5.1 m×2.4 m, with a reverber-
+ation time of 0.35 s. Two male and one female non-native English
+speakers are instructed to simultaneously read out segments from the
+Rainbow Passage [29] while randomly moving in the frontal plane
+of the array, resulting in multiple speaker crossings and significantly
+varying speaker-to-array distances per recording. We split the Rain-
+bow Passage into 3 segments of roughly equal length and permute
+these among all three speakers, yielding 3 recordings of about 30 s
+each. Videos of all recordings can be found on our project page1.
+4.2. Algorithm implementation and optimization details
+Spatially selective filterWe demonstrate the generalizability of
+our methods using the two established multi-channel enhancement
+models McNet [8] and SpatialNet [9]. Although lacking directional
+conditioning, rotary steering enables their use as SSFs by applying
+a network-agnostic pre-processing step to the noisy Ambisonics in-
+put. We adopt causal variants of both, employing the Mamba state-
+space models for narrow-band processing in SpatialNet [31]. Table 1
+compares model size and computational cost measured in multiply-
+accumulate operations (MACs) between the two NNs. In both cases,
+the additional input channel for the AR-SSFs only lead to a minimal
+increase of less than 1 % in model parameters and 1.5 % in MACs.
+Target speaker trackingWe choose the convolutional-recurrent
+architecture SELDnet [32] as baseline model for TST. Originally
+proposed for the composite sound event localization and detec-
+tion (SELD) task, we adapt it for our setup by removing the sound
+event detection output and employing the causal implementation
+from [30]. The resulting lightweight model has less than 300 k pa-
+rameters and 70 M/s MACs for both non-AR and AR versions.
+Training strategyTo guarantee a robust interplay between track-
+ing and enhancement algorithms, a joint training approach is neces-
+sary [12,13]. Instead of fine-tuning, we use a dual-optimization strat-
+egy with a single forward pass through the full pipeline, followed
+by backpropagation via individual optimizers for SSF and TST. To
+avoid the inherent non-parallelizability of the AR methods, we use
+recurrent deep stacking as pseudo-AR training framework [18]. We
+adhere to the original loss functions and learning rate schedulers for
+optimizing McNet [8], SpatialNet [31] and SELDnet [32]. Training
+runs for up to 100 epochs or until convergence, which we define as
+no improvement for 10 consecutive epochs with either optimizer.
+1 https://sp-uhh.github.io/adaptive-rotary-steering/
+
+--- PAGE 4 ---
+Pipeline[McNet/SpatialNet]Performance
+IDTracking AR-SSF AR-TST Params [M] MACs [G/s] PESQ↑ESTOI [%]↑
+− − − − −1.08 31.6
+Oracle✗−1.84/1.74 29.9/18.7 2.08/2.27 77.7/83.0
+Oracle✓−1.86/1.74 30.3/18.82.21/2.38 80.4/84.7
+−✗−1.84/1.74 29.9/18.7 1.97/2.11 75.1/80.3
+−✓−1.86/1.74 30.3/18.82.08/2.21 78.5/82.2
+SELDnet✗ ✗2.13/2.03 30.0/18.8 1.98/2.11 75.5/80.6
+SELDnet✗ ✓2.13/2.03 30.0/18.8 2.03/2.18 76.6/81.6
+SELDnet✓ ✓2.15/2.03 30.3/18.82.17/2.27 79.5/82.7
+Table 1: Model complexity and performance on our synthetic data-
+set for various speaker extraction approaches and implementations.
+5. RESULTS
+We use our synthetic dataset for a detailedanalysisand lab record-
+ings to assess real-worldgeneralizability. In both cases, we focus on
+perceptual quality and intelligibility as key performance measures.
+Synthetic datasetWith paired ground truth anechoic speech
+signals, we use the standard intrusive metrics PESQ [33] and
+ESTOI [34] to measure speech quality and intelligibility, respec-
+tively. Table 1 and fig. 4 summarize the speaker extraction results
+for all evaluated methods, with the strongly guided serving as an
+upper bound for their weakly guided counterparts. Both McNet and
+SpatialNet demonstrate the effectiveness of continuous ground truth
+directional conditioning (
+ ,
+ ), achieving significant improvements
+over solely using the initial DoA (
+ ,
+ ). However, guidance with
+SELDnet as tracking algorithm (
+ ) yields only marginal benefits
+over fixed rotary steering (
+ ). As shown in fig. 3 (
+ ) with utterance-
+wise mean angular error (MAE), SELDnet performs especially
+poorly for closely spaced speakers, likely due to limited model ca-
+pacity. Although resulting in only a negligible increase in complex-
+ity, the AR integration of the enhanced speech using our proposed
+AR-TST framework substantially improves tracking of SELDnet for
+nearby speakers, see fig. 3 (
+ ) complemented by the sample trajec-
+tories in fig. 2 and our project page1. Consequently, the downstream
+SSF is able to leverage directional guidance to a greater extent, fa-
+cilitating superior extraction quality. By incorporating the processed
+speech signal as input to the SSF, AR-SSF (
+ ) yields even greater
+improvements over tracking-based methods (
+ ,
+ ) in these scenar-
+ios. This is most evident for McNet, suggesting that input concate-
+nation at each sublayer [8] strongly facilitates temporal-spectral cue
+integration. The results for both AR-TST and AR-SSF underline the
+critical role of spectral cues in spatially challenging speaker scenar-
+ios. Combining these approaches into a novel,jointAR framework
+(
+ ) yields consistent improvements across all other weakly guided
+methods (
+ ,
+ ,
+ ,
+ ). As a result, our proposed joint AR approach
+(
+ ) achieves parity for SpatialNet and substantial improvements for
+McNet over their non-AR, but strongly guided counterparts (
+ ).
+Average angular distance to closest interfering speaker [◦]
+[0, 15) [45, 90) [135, 180]
+MAE [◦]←
+0
+2
+4
+6
+8
+10
+[0, 15) [45, 90) [135, 180]
+PESQ→
+1.4
+1.6
+1.8
+2.0
+2.2
+2.4
+Fig. 3: Tracking (MAE) and enhancement (PESQ) performance de-
+pendency of McNet on the distance to the closest interfering speaker.
+We report the sample mean with 95% confidence interval error bars.
+McNet SpatialNet
+∆PESQ→
+0.8
+1.0
+1.2
+1.4
+McNet SpatialNet
+∆ESTOI [%]→40
+44
+48
+52
+Fig. 4: Strongly guided (
+ ,
+ ), fixed (
+ ,
+ ) and adaptive (
+ ,
+ ,
+ )
+weakly guided extraction using different enhancement algorithms.
+We report the sample mean with 95% confidence interval error bars.
+Recorded datasetDue to the lack of paired ground truth speech
+for our lab recordings, we employ a non-intrusive metric to as-
+sess perceptual enhancement quality. In particular, we choose
+NISQA [35], a data-driven estimator of the subjective mean opinion
+score, which is trained on labeled datasets with human listening test
+results. As a measure of intelligibility, we leverage the transcrip-
+tion of a downstream automatic speech recognition (ASR) system
+to compute the word error rate (WER) relative to the Rainbow Pas-
+sage reference segments. We employ the lightweight ASR model
+QuartzNet15x5Base-Enfrom the NeMo toolkit [36], which is
+trained solely on clean and telephony conversational English speech
+and therefore particularly sensitive to signal distortions. Figure 5
+presents the enhancement results in terms of perceptual quality
+(NISQA) and intelligibility (WER) using weakly guided speaker
+extraction methods employing adaptive rotary steering. Overall,
+the lab recordings complement the trends observed on the synthetic
+dataset, showing clear improvements from the non-AR approach
+(
+ ), through the integration of AR-TST (
+ ), to the combined joint
+AR pipeline (
+ ). Listening tests, which are accessible on our project
+page1, reveal that the performance differences are especially evident
+in the latter portion of the 30 s samples. While our proposed joint
+AR pipeline (
+ ) robustly recovers from speaker crossings and large
+signal-to-noise variations, the non-AR approach (
+ ) frequently loses
+the target speaker, resulting in spectral leakage and speaker confu-
+sions. Thus, by deliberately including a large number of crossings
+and consistently close distances between speakers, the benefits from
+jointtemporal-spectralguidance become particularly apparent.
+NISQA→
+1.0
+2.0
+3.0
+4.0
+− McNet SpatialNet
+WER [%]←0
+25
+50
+75
+100
+− McNet SpatialNet
+Fig. 5: Sample means of unprocessed (
+ ) and adaptive, weakly
+guided extraction methods (
+ ,
+ ,
+ ) evaluated on real-world record-
+ings regarding speech quality (NISQA) and intelligibility (WER).
+6. CONCLUSION
+In this work, we proposed a novel speaker extraction approach in
+the Ambisonics domain for dynamic scenarios with moving speak-
+ers. By introducingfixedandadaptiverotary steering, we could
+leverage the rotational invariance of Ambisonics for both track-
+ing and enhancement, ensuring broad applicability across algorith-
+mic implementations.Autoregressivelyincorporating the processed
+speech signal, we achieved substantial improvements particularly
+for closely spaced speakers. As a result, our method outperformed
+comparable non-autoregressive approaches and demonstrated robust
+enhancement in challenging real-world recordings with multiple
+speaker crossings and varying distance between speakers and array.
+
+--- PAGE 5 ---
+7. REFERENCES
+[1] E. C. Cherry, “Some experiments on the recognition of speech,
+with one and two ears,”J. Acoust. Soc. Am., vol. 25, 1953.
+[2] K. Tesch and T. Gerkmann, “Multi-channel speech separation
+using spatially selective deep non-linear filters,”IEEE/ACM
+TASLP, vol. 32, 2024.
+[3] A. Bohlender, A. Spriet, W. Tirry, and N. Madhu, “Spatially
+selective speaker separation using a DNN with a location de-
+pendent feature extraction,”IEEE/ACM TASLP, vol. 32, 2024.
+[4] A. Pandey, S. Lee, J. Azcarreta, D. Wong, and B. Xu, “All neu-
+ral low-latency directional speech extraction,” inInterspeech,
+2024.
+[5] R. Gu and Y . Luo, “ReZero: Region-customizable sound ex-
+traction,”IEEE/ACM TASLP, vol. 32, 2024.
+[6] F. Zotter and M. Frank,Ambisonics: A Practical 3D Audio
+Theory for Recording, Studio Production, Sound Reinforce-
+ment, and Virtual Reality. Springer, 2019.
+[7] S. Wang, H. Qiu, X. Song, M. Wang, and F. Yao, “Ambison-
+ics neural speech extraction with directional feature and rotary
+steering,”Applied Acoustics, vol. 228, 2025.
+[8] Y . Yang, Q. Changsheng, and X. li, “McNet: Fuse multiple
+cues for multichannel speech enhancement,” inIEEE ICASSP,
+2023.
+[9] C. Quan and X. Li, “SpatialNet: Extensively learning spatial
+information for multichannel joint speech separation, denois-
+ing and dereverberation,”IEEE/ACM TASLP, vol. 32, 2024.
+[10] Z. Chen, T. Yoshioka, L. Lu, T. Zhou, Z. Meng, Y . Luo, J. Wu,
+X. Xiao, and J. Li, “Continuous speech separation: Dataset and
+analysis,” inIEEE ICASSP, 2020.
+[11] J. Barker, S. Watanabe, E. Vincent, and J. Trmal, “The
+fifth ’CHiME’ speech separation and recognition challenge:
+Dataset, task and baselines,” inInterspeech, 2018.
+[12] J. Kienegger and T. Gerkmann, “Steering deep non-linear spa-
+tially selective filters for weakly guided extraction of moving
+speakers in dynamic scenarios,” inInterspeech, 2025.
+[13] J. Kienegger, A. Mannanova, H. Fang, and T. Gerkmann, “Self-
+steering deep non-linear spatially selective filters for efficient
+extraction of moving speakers under weak guidance,” inIEEE
+WASPAA, 2025.
+[14] Y . Luo and N. Mesgarani, “Conv-TasNet: Surpassing ideal
+time–frequency magnitude masking for speech separation,”
+IEEE/ACM TASLP, vol. 27, 2019.
+[15] R. Chao, W.-H. Cheng, M. L. Quatra, S. M. Siniscalchi, C.-
+H. H. Yang, S.-W. Fu, and Y . Tsao, “An investigation of in-
+corporating Mamba for speech enhancement,” inIEEE Spoken
+Language Tech. Workshop, 2024.
+[16] P. Andreev, N. Babaev, A. Saginbaev, I. Shchekotov, and
+A. Alanov, “Iterative autoregression: A novel trick to improve
+your low-latency speech enhancement model,” inInterspeech,
+2023.
+[17] Z. Pan, G. Wichern, F. G. Germain, K. Saijo, and J. Le
+Roux, “PARIS: Pseudo-autoregressive siamese training for on-
+line speech separation,” inInterspeech, 2024.
+[18] P. Shen, X. Zhang, and Z.-Q. Wang, “ARiSE: Auto-regressive
+multi-channel speech enhancement,” inInterspeech, 2025.
+[19] C. Nachbar, F. Zotter, E. Deleflie, and A. Sontacchi, “ambiX
+- A suggested Ambisonics format,” inAmbisonics Symposium,
+2011.
+[20] Z. Su and P. Coppens, “Rotation of real spherical harmonics,”
+Foundations of Crystallography, vol. 50, 1994.
+[21] B. Rafaely and M. Kleider, “Spherical microphone array beam
+steering using Wigner-D weighting,”IEEE Signal Proc. Let-
+ters, vol. 15, 2008.
+[22] S. S. Battula, H. Taherian, A. Pandey, D. Wong, B. Xu, and
+D. Wang, “Robust frame-level speaker localization in rever-
+berant and noisy environments by exploiting phase difference
+losses,” inIEEE ICASSP, 2025.
+[23] V . Panayotov, G. Chen, D. Povey, and S. Khudanpur, “Lib-
+rispeech: An ASR corpus based on public domain audio
+books,” inIEEE ICASSP, 2015.
+[24] J. Cosentino, M. Pariente, S. Cornell, A. Deleforge, and E. Vin-
+cent, “Librimix: An open-source dataset for generalizable
+speech separation,” preprint arXiv:2005.11262, 2020.
+[25] J. Allen and D. Berkley, “Image method for efficiently simulat-
+ing small-room acoustics,”J. Acoust. Soc. Am., vol. 65, 1979.
+[26] D. Diaz-Guerra, A. Miguel, and J. R. Beltr ´an, “gpuRIR: A
+Python library for room impulse response simulation with GPU
+acceleration,”Multimedia Tools and Applications, vol. 80,
+2018.
+[27] B. Rafaely,Fundamentals of Spherical Array Processing.
+Springer, 2019.
+[28] D. Diaz-Guerra, A. Miguel, and J. R. Beltran, “Robust sound
+source tracking using SRP-PHAT and 3D convolutional neural
+networks,”IEEE/ACM TASLP, vol. 29, 2021.
+[29] G. Fairbanks,Voice and Articulation Drillbook. Harper, 1960.
+[30] M. Yasuda, S. Saito, A. Nakayama, and N. Harada, “6DoF
+SELD: Sound event localization and detection using micro-
+phones and motion tracking sensors on self-motioning human,”
+inIEEE ICASSP, 2024.
+[31] C. Quan and X. Li, “Multichannel long-term streaming neu-
+ral speech enhancement for static and moving speakers,”IEEE
+Signal Proc. Letters, vol. 31, 2024.
+[32] S. Adavanne, A. Politis, J. Nikunen, and T. Virtanen, “Sound
+event localization and detection of overlapping sources using
+convolutional recurrent neural networks,”IEEE J. Sel. Topics
+Signal Proc., vol. 13, 2019.
+[33] A. Rix, J. Beerends, M. Hollier, and A. Hekstra, “Perceptual
+evaluation of speech quality (PESQ)-a new method for speech
+quality assessment of telephone networks and codecs,” inIEEE
+ICASSP, 2001.
+[34] J. Jensen and C. H. Taal, “An algorithm for predicting the in-
+telligibility of speech masked by modulated noise maskers,”
+IEEE/ACM TASLP, vol. 24, 2016.
+[35] G. Mittag, B. Naderi, A. Chehadi, and S. M ¨oller, “NISQA: A
+deep CNN-self-attention model for multidimensional speech
+quality prediction with crowdsourced datasets,” inInterspeech,
+2021.
+[36] O. Kuchaiev, J. Li, H. Nguyen, O. Hrinchuk, R. Leary, B. Gins-
+burg, S. Kriman, S. Beliaev, V . Lavrukhin, J. Cook, P. Cas-
+tonguay, M. Popova, J. Huang, and J. M. Cohen, “NeMo:
+A toolkit for building AI applications using neural modules,”
+2019.

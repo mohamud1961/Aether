@@ -1,0 +1,48 @@
+{
+  "action_types": [
+    "raw_bash",
+    "search_receipts",
+    "raw_bash",
+    "raw_bash",
+    "probe_service",
+    "probe_service",
+    "run_verifier"
+  ],
+  "artifact_states": [
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A running QEMU process using /app/isos/win311.img in snapshot mode",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    }
+  ],
+  "commands": [
+    "set -euo pipefail\nprintf 'Inspecting environment...\\n'\ncommand -v qemu-system-i386 || true\ncommand -v nginx || true\nls -l /app/isos/win311.img\nps -ef | grep -E 'qemu-system|nginx' | grep -v grep || true\nss -ltnp | grep -E ':5901|:80' || true",
+    "set -euo pipefail\ncat >/tmp/start_win311.sh <<'EOF'\n#!/usr/bin/env bash\nset -euo pipefail\n# Start nginx web interface if available\nif command -v nginx >/dev/null 2>&1; then\n  nginx -g 'daemon on;'\nfi\n# Start QEMU in snapshot mode with VNC :1 and a monitor socket for programmatic control\nexec qemu-system-i386 \\\n  -m 32 \\\n  -hda /app/isos/win311.img \\\n  -snapshot \\\n  -vnc :1 \\\n  -monitor unix:/tmp/win311-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -rtc base=localtime \\\n  -boot c\nEOF\nchmod +x /tmp/start_win311.sh\nnohup /tmp/start_win311.sh >/tmp/win311.log 2>&1 &\nsleep 2\nps -ef | grep -E 'qemu-system-i386.*win311.img|start_win311.sh' | grep -v grep || true\nss -ltnp | grep -E ':5901|:80' || true\nprintf '--- qemu log ---\\n'\nsed -n '1,120p' /tmp/win311.log || true",
+    "set -euo pipefail\n# Evidence of programmatic keyboard input capability via QEMU monitor socket\nprintf 'info status\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\nprintf 'sendkey ctrl-alt-delete\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\nprintf 'info status\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 7,
+  "facts": [
+    "Required artifact(s) missing: A running QEMU process using /app/isos/win311.img in snapshot mode"
+  ],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [
+    "A running QEMU process using /app/isos/win311.img in snapshot mode"
+  ],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [
+    "A running QEMU process using /app/isos/win311.img in snapshot mode"
+  ],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 7
+}

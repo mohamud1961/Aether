@@ -1,0 +1,199 @@
+# Failure Taxonomy Wave 01 Execution Control And Terminal Failures Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: failure_taxonomy
+- wave: wave_01_execution_control_and_terminal_failures
+- wave_focus_domain: execution_control_and_terminal_failures
+- objective: Build behavior-anchored failure cards for execution-control breakdowns, terminal-grounding loss, cancellation and timeout failures, false-success pressure, and repo-state/control drift across the major harness families.
+- exact_question: Which recurring failure patterns appear when agents lose execution control, terminal grounding, process lifecycle control, or task-state truth during command-line work, where do those failures come from, and which mitigations are real versus merely rhetorical?
+- new_resolution_goal: Resolve whether execution-control and terminal failures form stable cross-system failure families with clear mechanism linkage, or whether current failure talk is still too mixed across model weakness, harness weakness, environment fragility, and benchmark blindness.
+- why_prior_waves_were_not_enough: `mechanism_map` Waves 02 through 06 established the mechanism spine for execution control, verification, state, tools, and orchestration, but they did not center failure attribution as the primary object. This wave inherits that mechanism spine and asks where the systems actually break.
+- why_now: `mechanism_map` is now accepted through Wave 06, so failure work can inherit a stable mechanism surface instead of improvising its own ontology.
+- lane_completion_rule: First-pass lane outputs are not wave-sufficient by default. A lane only becomes wave-sufficient if contradiction review plus principal synthesis say it is sufficient for this failure domain.
+- eval_fifth_lane_activated: `no`
+- eval_reactivation_rule: Activate the optional `eval/benchmark` fifth lane only if benchmark contracts, grader blindness, replay assumptions, or verifier omissions become necessary to explain failure attribution in-scope.
+- support_track_dependencies:
+  - `coverage_register`
+  - `source_system_dossiers`
+  - `trajectory_case_studies`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+  - `eval_benchmark_dossiers` when the fifth lane is reactivated
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/verification_and_replay.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/execution_control_and_terminal_failures.md`
+- required_case_study_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+- what_can_remain_unfinished_without_blocking_contradiction_review:
+  - second-tier formal papers beyond the selected execution-control and benchmark-blindness anchors
+  - long-tail timeout clusters outside the named in-scope tasks
+  - deeper local harness implementation beyond current `blocks/`, `runner/`, and `evals/` evidence
+  - extra benchmark repo drilling unless the eval fifth lane is reactivated
+- inputs:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md`
+  - `prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `prompts/deep_synthesis_checklist_adjudicator_prompt.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/inputs/support_subagent_rules.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/analysis/bigai_trace_layer/output/`
+  - `research/sources/trajectories/`
+  - `research/sources/codebases/`
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - `research/sources/benchmarks/`
+  - `blocks/`
+  - `runner/`
+  - `evals/`
+  - `FAILURE_CARD_SCHEMA.md`
+  - `TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md`
+- preflight_requirements:
+  - confirm this is a vertical failure-domain wave centered on execution-control and terminal failures rather than a generic mechanism recap
+  - confirm `trajectory/failure` is the primary empirical anchor and `codebase/source reconstruction` is the primary implementation anchor
+  - state explicitly why the optional `eval/benchmark` fifth lane is inactive unless reactivated during preflight
+  - list the planned read order across trajectories, source, formal literature, informal contradiction pressure, and relevant local harness surfaces
+  - name the critical failure-heavy slices, source systems, and contradiction-pressure sources selected for the wave
+  - keep one minimal-sufficient baseline visible against prestige failure rhetoric: simple terminal-first loops can fail too, but richer orchestration does not automatically fix execution-control breakdowns
+  - say which support artifacts are required before the lane can claim strong coverage
+  - stop and hand control back to the principal if the wave lacks enough trajectory or source visibility to support honest failure attribution
+- trajectory_slice_targets:
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/`
+  - timeout-heavy BigAI clusters from `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to execution loops, interrupts, termination, cleanup, verification handoff, and failure handling
+- formal_literature_targets:
+  - `research/sources/papers/papers_text/`
+  - `research/sources/docs/`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - timeout and stall clusters
+  - false-success and benchmark-blindness clusters
+  - interruption/cancellation/repo-state drift clusters
+- required_case_slices:
+  - `failure-heavy multimodal triad`
+  - `stateful recovery triad`
+  - `timeout-heavy systems cluster`
+  - `false-success and verifier-blindness pressure`
+- citation_contract:
+  - every `L3` or `L4` failure claim must cite repo-local paths
+  - failure attribution should cite direct trajectory evidence first
+  - mechanism linkage should cite source and prior mechanism synthesis explicitly
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+  - formal literature can sharpen or challenge claims, but should not outrank stronger direct trajectory or source evidence
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- support_subagent_policy:
+  - bounded support sub-agents are standard infrastructure for this wave
+  - use them for failure matrices, timeout inventories, file discovery, issue clustering, source-link gathering, benchmark-blindness grouping, and route maps
+  - support outputs must be saved explicitly and cited by the owning lane
+  - support outputs do not count as promoted failure claims on their own
+- contradiction_hand_off:
+  - route the first-pass lane outputs and any material follow-ups to `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/contradiction_analyst.md`
+  - attack over-attribution, model-versus-harness confusion, fake execution-control certainty, and benchmark-blindness undercounting
+- gate_review_plan:
+  - primary contradiction:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/contradiction_analyst.md`
+  - optional external breadth review:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/contradiction_analyst__gemini.md`
+  - optional external adversarial contradiction or acceptance review:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/contradiction_analyst__claude.md`
+  - primary checklist adjudication:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/adjudication/checklist_adjudicator.md`
+  - optional external checklist reviews:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/adjudication/checklist_adjudicator__claude.md`
+- carry_forward_operating_rules:
+  - update `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md` after the wave
+  - update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` after principal synthesis and again after checklist adjudication if the gate changes the accepted status
+  - keep the `mechanism_map` carry-forward warnings explicit instead of silently flattening mechanism uncertainty into failure certainty
+  - organizer routing is still secondary to direct path accounting while organizer coverage stays incomplete
+  - keep benchmark blindness and verifier omission visible rather than hiding them inside “model failure”
+- output_contract:
+  - primary main-lane outputs should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/informal_issues_postmortems_analyst.md`
+  - if the eval fifth lane is reactivated, its output should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/eval_benchmark_analyst.md`
+  - support outputs should land in the same wave outputs directory with descriptive names such as:
+    - `trajectory_support_failure_timeline.md`
+    - `trajectory_support_terminal_failure_matrix.md`
+    - `codebase_support_execution_failure_map.md`
+    - `codebase_support_interrupt_cancellation_map.md`
+    - `literature_support_failure_pressure_cluster.md`
+    - `informal_support_timeout_false_success_cluster.md`
+    - `eval_support_benchmark_failure_contract_map.md`
+  - follow-up outputs should use:
+    - `__followup_01`
+    - `__followup_02`
+    - `__revision_01`
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/contradiction_analyst.md`
+  - wave principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/adjudication/checklist_adjudicator.md`
+  - cumulative artifact state must be updated at:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - coverage register must be updated at:
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis must include explicit sections for:
+    - `what_this_wave_resolved`
+    - `what_still_requires_another_wave`
+    - `local_harness_implications`
+    - `coverage_not_yet_used`
+    - `priority_sources_not_yet_read`
+    - `support_track_updates`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. This is the first governed `failure_taxonomy` wave after accepted `mechanism_map` completion.

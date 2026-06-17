@@ -1,0 +1,65 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT_GEMINI_GATE
+- artifact: mechanism_map / wave_06_planning_orchestration_and_interactions
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - Confirmed focus on planning, replanning, delegation, role separation, and interaction contracts.
+  - Confirmed Gemini is acting as an external breadth/long-context gate reviewer, providing a gate opinion and not replacing the primary canonical GPT contradiction file.
+- preflight_planned_read_order:
+  - Wave control surfaces and operational plans.
+  - Current status from the coverage register.
+  - All four primary Wave 06 lane outputs.
+  - Primary `contradiction_analyst.md` output.
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst.md`
+- preflight_coverage_risks:
+  - Human-in-the-loop (HITL) orchestration contracts and role separations are under-sampled (e.g., deepagents `hitl.py` was explicitly unread).
+  - Sub-agent context poisoning (where an executor generates massive output that breaks the planner's context) as an interaction-collapse failure class is not fully explored.
+- preflight_likely_blind_spots:
+  - Explicit delegation to human operators (HITL) vs. automated executors.
+  - The impact of verbose sub-agent or tool outputs on parent orchestrator context limits.
+- preflight_blockers:
+  - None. The gaps identified are breadth-related but not structural enough to block the wave.
+- coverage_used:
+  - Primary Wave 06 lane outputs.
+  - Primary GPT contradiction output.
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- coverage_not_yet_used:
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/hitl.py`
+  - Unexpanded trajectory tarballs for long-tail tasks (`protein-assembly`, `large-scale-text-editing`).
+- evidence_classes_touched:
+  - Primary lane outputs covering trajectories, codebases, literature, and informal sources.
+- priority_sources_not_yet_read:
+  - HITL source implementations (`hitl.py`).
+  - `KIRA-Slack/app/main.py`.
+- support_artifact_gaps:
+  - No critical support artifacts are missing for this specific breadth gate review.
+- coverage_register_consistency:
+  - Stale: `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` still marks Wave 06 as "packet prepared, not started". Must be updated to reflect lane completion.
+- supported_findings:
+  - Planning operates as explicit orchestration rather than just prompt scaffolding.
+  - Verifier-gated closure is dominant but there are visible no-verifier variants.
+  - Interaction contracts add distinct failure classes (deadlocks, context boundary conflicts, role drift).
+- unsupported_or_overclaimed_findings:
+  - No new overclaims found; primary contradiction analyst correctly caught the over-promotion of role-separated architecture stability vs terminal-first baselines.
+- missing_evidence_classes:
+  - Human-in-the-loop (HITL) as an orchestration role contract. Delegation isn't just to automated sub-agents; humans act as orchestrators, verifiers, or fallback executors in many harnesses.
+- reconciliation_failures:
+  - None beyond what the primary contradiction flagged (e.g., codebase capacity > trajectory exercise).
+- coverage_blind_spots:
+  - Sub-agent context poisoning. The interaction contract must protect the planner's context window from sub-agent runaway outputs.
+  - HITL interaction contracts and interruption/resumption states.
+- required_repairs_before_acceptance:
+  - None structural. Gate passes with warnings.
+- optional_pressure_tests:
+  - Inspect `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/hitl.py` to identify role contracts for human delegation.
+- gate_review_recommendations:
+  - Proceed to principal synthesis with `pass_with_warnings`.
+  - Ensure HITL is acknowledged when defining delegation and role variants; humans are frequently part of the orchestration graph.
+  - Acknowledge sub-agent context poisoning as a potential interaction collapse failure mode alongside the already identified context boundary conflicts.
+  - Explicit distinction to enforce: Wave acceptance is not artifact completion.
+- confidence: medium-high

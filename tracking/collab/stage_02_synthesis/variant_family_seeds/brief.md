@@ -1,0 +1,131 @@
+# Variant Family Seeds Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: variant_family_seeds
+- objective: Turn accepted mechanism, failure, and eval findings into evidence-backed variant-family seeds without letting prestige complexity outrun the synthesis.
+- exact_question: Which swappable variant families should exist after Deep Synthesis, which simple contenders must be preserved, which evidence-backed mechanism and failure findings justify them, and how does each surviving seed map onto concrete block types, interface pressure, and atomic-versus-combo implementation choices in this repo?
+- why_now: This packet is instantiated before execution so the final Deep Synthesis artifact is concretely scoped, but it remains queued behind `eval_implications` because variant seeds should inherit the full synthesis chain rather than improvise from partial upstream evidence. Under the compressed plan this artifact now closes in two core waves, not three.
+- inputs:
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - prompts/deep_synthesis_shared_policy_prompt.md
+  - prompts/deep_synthesis_variant_pruning_role_prompt.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md
+  - MECHANISM_CARD_SCHEMA.md
+  - FAILURE_CARD_SCHEMA.md
+  - VARIANT_FAMILY_SEED_SCHEMA.md
+  - AGENTS.md
+  - research/analysis/lego_dimensions.md
+- preflight_requirements:
+  - confirm the upstream handoffs exist and are sufficient before proposing seeds
+  - list the planned read order across mechanism, failure, and eval implication artifacts
+  - name critical sources selected for the first pass
+  - map each serious seed candidate to affected block types and interface pressure before treating it as surviving
+  - surface coverage risks, blind spots, and complexity-inflation risks before seed proposals
+  - stop and hand control back to the principal if upstream inheritance is structurally incomplete
+- scope_anchor_paths:
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- organizer_paths:
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- evidence_classes_in_scope:
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - trajectories
+  - mirrored codebases
+  - eval repos
+  - benchmark captures
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - inherited from accepted upstream handoffs only
+- mirrored_source_targets:
+  - inherited from accepted upstream handoffs only
+- behavior_reconstruction_targets:
+  - inherited from accepted upstream handoffs only
+- eval_and_benchmark_targets:
+  - inherited from accepted upstream handoffs only
+- formal_literature_targets:
+  - inherited from accepted upstream handoffs only
+- informal_signal_targets:
+  - inherited from accepted upstream handoffs only
+- required_case_slices:
+  - accepted upstream mechanism families
+  - accepted upstream failure families
+  - accepted upstream eval implications
+- extraction_level_cap: `L5`
+- citation_contract:
+  - every seed family must cite upstream Deep Synthesis paths and their direct evidence basis
+  - simple contenders must be named explicitly
+  - every surviving seed must cite the block or interface evidence that makes it implementable in this repo rather than only descriptively interesting
+- confidence_contract:
+  - confidence is per seed family using `high`, `medium`, or `low`
+  - every `medium` or `low` seed must say what weakens it
+- coverage_register_rule:
+  - principal synthesis and checklist adjudication must state whether the active coverage register needs updates before closing the wave
+- gate_review_usage:
+  - primary contradiction and checklist files are canonical GPT gate outputs
+  - optional Gemini or Claude passes are external gate reviewers only and must use suffixed files if run
+- contradiction_hand_off:
+  - route blind-parallel seed proposals to the pruning critic and contradiction reviewer before principal synthesis
+- adversarial_checkpoint:
+  - pruning critic and contradiction review must run before principal synthesis is accepted
+- carry_forward_operating_rules:
+  - no seed without upstream mechanism, failure, or eval support
+  - always preserve simpler contenders
+  - do not silently discard unresolved contradictions
+  - no surviving seed without explicit block-type, interface-pressure, and atomic-versus-combo mapping
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+- exclusions:
+  - do not instantiate concrete implementation variants yet
+  - do not edit canonical ledger files
+- output_contract:
+  - seed proposal outputs should land in:
+    - `tracking/collab/stage_02_synthesis/variant_family_seeds/outputs/seed_proposal_a.md`
+    - `tracking/collab/stage_02_synthesis/variant_family_seeds/outputs/seed_proposal_b.md`
+    - `tracking/collab/stage_02_synthesis/variant_family_seeds/outputs/pruning_critic.md`
+    - `tracking/collab/stage_02_synthesis/variant_family_seeds/outputs/contradiction_analyst.md`
+  - principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/variant_family_seeds/adjudication/checklist_adjudicator.md`
+  - the principal synthesis must emit seed cards using `VARIANT_FAMILY_SEED_SCHEMA.md`
+  - every output must include the mandatory preflight and coverage sections
+- collaboration_mode: hybrid blind-parallel seed proposals, then pruning critique and contradiction review, then principal synthesis
+- external_agent_action: Run external agent now: no. This packet is queued only; do not launch before `eval_implications` principal synthesis is accepted unless the human owner explicitly overrides artifact order.
+- assigned_roles:
+  - principal project steward
+  - seed proposer A
+  - seed proposer B
+  - pruning critic
+  - contradiction reviewer
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/eval_implications/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/eval_implications/synthesis/handoff_to_variant_family_seeds.md`
+- handoff_requirements:
+  - none downstream inside Deep Synthesis; this is the final Deep Synthesis artifact
+- evidence_expectations:
+  - keep variant seeds evidence-backed and aggressively pruned
+  - do not let prestige complexity outrun the synthesis
+  - keep simple contenders visible
+  - every surviving seed must declare:
+    - affected block type or types
+    - expected interface pressure
+    - atomic vs combo status
+    - required ablation hooks
+    - required eval hooks
+- decision_needed_from_human: None yet to instantiate the packet. Execution remains queued behind accepted `eval_implications`.
+- done_condition: Proposal outputs exist, pruning and contradiction review are complete, and principal synthesis produces evidence-backed variant-family seeds with explicit coverage, uncertainty accounting, and block/interface mapping strong enough to support swappable implementation planning.

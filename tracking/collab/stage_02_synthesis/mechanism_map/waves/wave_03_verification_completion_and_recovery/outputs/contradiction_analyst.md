@@ -1,0 +1,208 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: mechanism_map
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - This contradiction pass is scoped to Wave 03 `verification_completion_and_recovery`, a vertical mechanism-domain wave about completion proof, verifier coupling, cleanup confirmation, rollback, restart, resumability, and recovery rather than generic execution control: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`.
+  - The empirical anchor remains trajectories and the implementation anchor remains visible source. This gate treats literature, informal reports, and benchmark captures as reconciliation pressure, not override layers: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+  - The optional eval lane is correctly activated for this wave because verifier, grader, replay, and completion-contract logic are load-bearing in the packet and in the reviewed lane outputs: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`.
+- preflight_planned_read_order:
+  - Wave control surfaces and scope anchors first: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`, `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`.
+  - First-pass lane outputs and support artifacts second so contradiction review attacks the actual promoted synthesis surface rather than hypothetical work: all five lane outputs plus `trajectory_support_verification_matrix.md`, `codebase_support_verifier_recovery_map.md`, `eval_support_verifier_grader_replay_matrix.md`, `literature_support_verification_cluster.md`, `informal_support_recovery_issue_cluster.md`.
+  - Primary evidence spot-checks third: DeepAgents `db-wal-recovery`, KIRA `extract-moves-from-video`, BigAI verifier reconstruction summaries, KIRA completion source, A-Evolve completion/eval separation, local harness eval stubs, and the mismatched issue capture.
+  - Required support-track artifacts last: wave-specific eval and informal dossiers, source-system dossier directory state, trajectory-case-study directory state, and tracing-readiness carry-forward context.
+- preflight_critical_sources_selected:
+  - Control and scope anchors:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+    - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+    - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - Primary lane outputs:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+  - Primary evidence spot-checks:
+    - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/question_answers.json`
+    - `research/analysis/bigai_trace_layer/output/exemplar_runs.json`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+    - `evals/verification_eval.py`
+    - `research/sources/issues/src_iss_949d7288362a/artifact.txt`
+  - Support-track state checks:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+    - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+    - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+- preflight_coverage_risks:
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` still says Wave 03 is `not started`, so the control surface is stale relative to the existing lane outputs and support artifacts.
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is empty, so organizer-based routing cannot currently support any real coverage claim.
+  - Required source-system dossiers and required trajectory case studies are still missing, which weakens reuse and traceability even though the lane outputs themselves exist.
+  - BigAI implementation claims remain bounded by behavioral reconstruction because this pass did not read a direct verifier-heavy trajectory bundle such as `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`, and no BigAI source mirror exists in the current wave.
+  - KIRA `extract-moves-from-video` is the easiest place for the wave to accidentally overstate completion proof because a support artifact presents it as success while the main trajectory lane and direct trajectory both preserve false-completion pressure.
+- preflight_likely_blind_spots:
+  - Direct BigAI verifier-heavy slices beyond the reconstruction summaries, especially `adaptive-rejection-sampler`.
+  - Underlying grader implementations behind README-level benchmark captures such as ImpossibleBench and SlopCodeBench.
+  - Restart/resume behavior grounded in direct trajectories rather than issue reports or source substrate.
+  - Missing source-system dossiers and trajectory case studies that should consolidate the current wave’s evidence for reuse.
+- preflight_blockers:
+  - none; the wave has enough direct trajectory visibility, source visibility, eval visibility, and operational contradiction pressure for an honest contradiction pass, but not for acceptance without repairs
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_support_verifier_grader_replay_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_support_recovery_issue_cluster.md`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - `research/analysis/bigai_trace_layer/output/exemplar_runs.json`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+  - `evals/verification_eval.py`
+  - `research/sources/issues/src_iss_949d7288362a/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/**`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - eval repos
+  - benchmark captures
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+  - support artifacts and control surfaces
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/artifact.txt`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+- support_artifact_gaps:
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is empty and cannot presently serve as a real routing scaffold.
+  - Required source-system dossiers are missing:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - Required trajectory case studies are missing:
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - Deferred trajectory support artifacts remain absent:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_false_completion_cases.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_recovery_restart_table.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md` still lists several paper IDs as strong anchors that the main literature lane later judged unusable or mismatched.
+- coverage_register_consistency:
+  - inconsistent
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` says Wave 03 `verification_completion_and_recovery` is `not started`, but five first-pass lane outputs and multiple support artifacts are already present under the Wave 03 outputs directory.
+  - The same register correctly warns that source-system dossiers and trajectory case studies are still incomplete, so the accurate state is not `not started`; it is `in progress with unresolved support-track gaps`.
+- supported_findings:
+  - claim: `verification`, `completion`, and `recovery` are related but not yet a single stable cross-system mechanism family.
+    - observation: The trajectory lane distinguishes DeepAgents direct postcondition proof, BigAI verifier-gated cleanup/verification, and KIRA retest-closure plus false-completion pressure, while the codebase and eval lanes show separate source-visible completion, evaluation, replay, and rollback surfaces rather than one uniform mechanism: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`.
+    - inference: The wave’s central non-collapse claim is supported.
+    - confidence: high
+  - claim: Artifact-backed completion proof and verifier/cleanup gating are both real mechanism families in the current corpus.
+    - observation: DeepAgents `db-wal-recovery` directly checks `json_length 11`, `db_length 11`, `keys_ok True`, and `match_db True` after writing `/app/recovered.json`, while BigAI reconstruction and trajectories continue to treat verifier cycles and cleanup confirmation as load-bearing closure signals: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`.
+    - inference: The wave is not inventing verifier or completion-proof mechanisms from thin evidence.
+    - confidence: high
+  - claim: Restart and resumability remain under-evidenced as stable behavioral families even though substrate-level support exists.
+    - observation: The codebase lane finds checkpoint/resume or rollback substrate in DeepAgents and A-Evolve, but the trajectory lane still marks restart/resume weaker than verification/cleanup, and the informal lane surfaces stale resume indexes, stale snapshots, non-terminal crash states, and rewind corruption: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`.
+    - inference: The current wave can support “restart substrate exists” and “field stability is not yet established,” but not a stronger cross-family stability claim.
+    - confidence: high
+  - claim: Verifier state, benchmark grading, and overall run success remain distinct surfaces and should stay separate in principal synthesis.
+    - observation: BigAI reconstruction explicitly says verifier-present runs can still fail overall, and A-Evolve’s source-visible adapter separates `submit("DONE")` or agent trajectory output from benchmark pass/fail parsing: `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`.
+    - inference: The wave’s anti-collapse posture toward internal verifier state, external grading, and final success is supported.
+    - confidence: high
+- unsupported_or_overclaimed_findings:
+  - claim: KIRA `extract-moves-from-video` is a validated completion-proof example.
+    - observation: `trajectory_support_verification_matrix.md` labels the run as `success, solution file produced`, but the direct trajectory shows interrupted OCR, multiple unresolved counts (`201`, `230`, `262`), and repeated `mark_task_complete` pressure, while the main trajectory lane only promotes it as plausible false completion with medium confidence: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`.
+    - inference: The support artifact overstates this slice if it is later cited as defended completion rather than false-completion pressure.
+    - confidence: high
+  - claim: BigAI controller-retry or family-wide verifier doctrine is source-backed or ready for stronger generalization.
+    - observation: The reviewed support comes from `question_answers.json`, `exemplar_runs.json`, and selected trajectories; the brief’s emphasized direct verifier-heavy slice `adaptive-rejection-sampler` was not opened in this contradiction pass, and no BigAI source mirror exists in the current corpus slice: `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`.
+    - inference: Any promotion beyond `behavioral reconstruction` would overclaim the current evidence.
+    - confidence: high
+  - claim: The literature support cluster is already fully reconciled with the main literature lane.
+    - observation: `literature_support_verification_cluster.md` still lists `src_pap_2126cf579e39`, `src_pap_7c8d9e1a2b3c`, and `src_pap_a2865d580c30` as strong anchors, while the main literature lane later says those extracts were unusable or mismatched: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`.
+    - inference: The main literature output is more disciplined than the current support artifact; the support artifact should not be treated as a stable anchor list until repaired.
+    - confidence: medium
+- missing_evidence_classes:
+  - none at the class level across the full wave packet
+  - the remaining problem is depth and reconciliation quality within classes, especially direct verifier-heavy BigAI trajectories, restart/resume behavior, benchmark-implementation visibility, and reusable support-track consolidation
+- reconciliation_failures:
+  - Control-surface reconciliation failure: the coverage register and organizer do not accurately reflect the actual state of Wave 03 work: `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`.
+  - Support-artifact reconciliation failure: the KIRA extract-video slice is treated as “success” in a support matrix while the main trajectory output and direct trajectory preserve it as false-completion pressure: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+  - Literature-support reconciliation failure: the support cluster and the main literature lane disagree on which paper IDs are usable anchors: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`.
+  - No fatal source/trajectory/eval reconciliation failure was found in the main mechanism claims themselves; the main outputs are generally more disciplined than the stale support/control artifacts around them.
+- coverage_blind_spots:
+  - Direct BigAI verifier-heavy trajectory evidence remains thinner than the reconstruction-heavy discussion of verifier loops.
+  - Restart and resume remain more strongly evidenced by issues and source substrate than by direct trajectory demonstrations of safe recovery.
+  - Benchmark reasoning still leans on contract pages and visible DeepAgents grader code; comparable direct grader code for some captured benchmark families was not opened here.
+  - The missing source-system dossiers and trajectory case studies make reuse and later cross-wave traceability weaker than the current lane volume suggests.
+- required_repairs_before_acceptance:
+  - Update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` so Wave 03 is no longer mislabeled `not started` and the remaining gaps are recorded as support-track debt rather than non-existence.
+  - Repair or explicitly caveat `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`; an empty organizer cannot remain a mandatory control surface without being called out.
+  - Create the required source-system dossiers:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - Create the required trajectory case studies:
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - Reconcile `trajectory_support_verification_matrix.md` so KIRA `extract-moves-from-video` is not later cited as a defended completion-proof success case without its contradiction caveat.
+  - Reconcile `literature_support_verification_cluster.md` with the main literature lane so unusable or mismatched paper IDs are removed or clearly marked as unresolved.
+  - Keep all BigAI verifier-loop/controller claims explicitly labeled `behavioral reconstruction` until at least one direct verifier-heavy bundle such as `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**` is read in the main wave flow.
+- optional_pressure_tests:
+  - Open one direct BigAI verifier-heavy run from `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**` and test whether the claimed fail-to-pass verifier recovery loop is visible without relying on reconstruction summaries.
+  - Build `trajectory_support_false_completion_cases.md` and/or `trajectory_support_recovery_restart_table.md` so false-completion and restart evidence stop riding on ad hoc notes.
+  - Read additional benchmark-implementation artifacts for a captured family beyond README-level contract text, especially where the current eval lane flags gaming risk.
+  - Read `research/sources/informal/anthropic_long_running_harness.md` plus one more resume-failure issue to pressure-test the current long-running/restart synthesis.
+- gate_review_recommendations:
+  - Proceed to principal synthesis, but only under `pass_with_warnings`; do not treat this wave as acceptance-ready yet.
+  - Principal synthesis should preserve separate mechanism cards or subfamilies for:
+    - artifact-backed completion proof
+    - verifier-gated completion proof
+    - replay/state-diff verification
+    - rollback/resume substrate
+  - Principal synthesis should not use KIRA `extract-moves-from-video` or BigAI reconstruction as high-confidence anchor cases for general completion doctrine.
+  - Checklist adjudication should explicitly verify that the missing required dossiers, case studies, and coverage-register update were completed; these are not optional polish items anymore.
+- confidence:
+  - high for the main supported boundaries, the stale-control-surface diagnosis, and the KIRA extract-video overclaim warning
+  - medium for any prevalence judgment across the whole corpus because this contradiction pass spot-checked the highest-leverage primary evidence rather than rereading every cited source end-to-end

@@ -1,0 +1,52 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_04_git_multibranch_context_state_workspace
+- wave: wave_04_context_state_memory_workspace
+- task_family: git-multibranch
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+  - `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`
+- outcome_profile:
+  - `deepagents`: defended success with explicit todo-state progression, scripted verification from fresh clones, and endpoint checks.
+  - `terminus-kira`: defended success with checklist-driven command batches, explicit `post-receive` deployment logic, and executable test script replay.
+  - `BigAI`: defended success in inspected runs with verifier-mediated checks plus cleanup/reset pressure on repo and deploy state, but only as behavioral reconstruction.
+- per_run_notes:
+  - `deepagents e6e6...`: the run uses `write_todos` for explicit state tracking, creates `/git/project/hooks/post-receive`, prepares password auth via `/tmp/askpass.sh`, and performs end-to-end replay from `/tmp/verifyrepo` (clone, push `main` and `dev`, `curl -sk` checks). It explicitly measures push-time behavior (`0-1s`) using a second timing check.
+  - `terminus-kira 80b5...`: the run is checklist-shaped and script-backed. It writes `/app/test_deploy.sh`, configures `post-receive` with `git archive $newrev | tar -x` into branch-specific web roots, runs scripted clone/push checks, and verifies endpoint content with `curl -s -k`.
+  - `BigAI 62d2...`: the run shows multi-role planner/executor/verifier behavior with explicit verification escalation. Visible verifier steps include branch-state and hook inspection plus state sanitization (`/git/project` refs/index and `/var/www/html/main/*`, `/var/www/html/dev/*`) before final pass.
+  - `BigAI baabd...`: the run uses a verifier-side `/tmp/verify.py` workflow for clone/push/content checks and enforces delivery-state cleanliness after verification. It includes explicit repo/deploy cleanup and return-to-clean-state reporting as part of closure.
+- cross_run_comparison:
+  - All three systems solve this family with artifact-first state carriers: hook script content, repo refs, deployment directories, and replayable verification scripts.
+  - `deepagents` is the cleanest minimal baseline: todo state + reproducible script replay + direct endpoint checks without visible long-term retrieval machinery.
+  - `terminus-kira` follows the same artifact-first baseline but with stronger checklist pressure and batch-command structure.
+  - `BigAI` adds the strongest visible verifier and cleanup layering in this family, but remains behavioral reconstruction rather than source-backed mechanism.
+  - Cross-family convergence for this task is branch/workspace hygiene, not durable long-term memory retrieval.
+- failure_point_comparison:
+  - `deepagents`: risk surface is silent deploy failure after push; the run mitigates this by rerunnable clone/push/curl verification and direct web-root checks.
+  - `terminus-kira`: risk surface is branch deployment semantics in bare-repo hooks; the run explicitly chooses archive extraction in hook logic and validates both endpoints through a dedicated script.
+  - `BigAI`: risk surface is state drift from verifier-side branch/ref mutations and dirty deploy trees; the run resolves this through explicit reset/cleanup before accepting completion.
+- source_or_architecture_links:
+  - `deepagents`: `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py`
+  - `terminus-kira`: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/sources/docs/bigai/raw/sdk_documentation_memory.txt`
+  - supporting trajectory matrix: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+- behavioral_reconstruction_caveats:
+  - `BigAI` remains behavioral reconstruction in this case study. Planner/executor/verifier handoff and cleanup behavior are trajectory-visible, but no mirrored BigAI source was used to source-back the mechanism.
+  - This task family should not be collapsed into “memory architecture evidence.” The dominant visible state surface is repo/workspace artifacts plus scripts and checklists.
+  - Branch/worktree hygiene here is task-regime evidence (`git-multibranch`), not proof of universal cross-task behavior.
+- mechanism_implications:
+  - The strongest Wave 04 mechanism signal in this family is explicit workspace and branch-state discipline via files/hooks/scripts, not durable retrieval memory.
+  - The minimal-sufficient baseline remains load-bearing: if deploy artifacts and refs are explicit and replay-verified, systems can close without visible long-term memory machinery.
+  - No run in this case study demonstrates restart-safe resumability as a stable promoted mechanism.
+- failure_implications:
+  - False success risk is high when branch/ref cleanup is skipped; deploy directories can remain “passing” from stale state.
+  - Verifier-side mutations can create additional drift; completion discipline must include cleanup and post-clean verification, not just functional checks.
+  - In this family, artifact hygiene outperforms vague memory claims as a practical failure defense.
+- confidence_notes:
+  - High confidence: artifact-first closure and branch/workspace hygiene are the dominant visible mechanisms in the inspected runs.
+  - Medium confidence: any claim that BigAI’s internal memory substrate drives this behavior (source unavailable; behavioral reconstruction only).

@@ -1,0 +1,49 @@
+{
+  "call_id": "qemu-startup__SZBEip3_execute_7",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"success_contract\",\"objective\":\"Start /app/alpine.iso in QEMU in the background and expose an Alpine login prompt reachable at telnet 127.0.0.1 6665, then block until readiness is confirmed.\",\"required_artifacts\":[\"A running QEMU process using /app/alpine.iso\",\"A launch log or receipt showing the VM started successfully\",\"A probe receipt showing telnet 127.0.0.1 6665 reaches a login prompt\"],\"required_behaviors\":[\"QEMU must remain running in the background after launch\",\"Host port 6665 must forward to the guest console/login service\",\"A connection to 127.0.0.1:6665 must display a login prompt before finalization\"],\"known_invalid_patterns\":[\"Only verifying that files exist\",\"Only checking that QEMU is installed\",\"Only confirming the port is open without seeing a login prompt\",\"Launching QEMU in the foreground so the task is not left running\",\"Using a different host port than 6665\"],\"verification_plan\":[\"Inspect available image files and any prior receipts or helper scripts\",\"Launch QEMU detached/backgrounded with hostfwd from 127.0.0.1:6665 to guest port 23 or equivalent console path\",\"Probe 127.0.0.1:6665 until the login prompt is observed\",\"Keep the VM running and record receipts for launch and probe\"],\"finalization_evidence_required\":[\"Receipt-backed evidence of the QEMU launch command and process start\",\"Receipt-backed evidence from a telnet/netcat probe showing the login prompt on 127.0.0.1:6665\"],\"notes\":[\"If the ISO boots to a serial console instead of telnetd, adapt the QEMU console/forwarding so the user-facing telnet endpoint still reaches the login prompt.\"]},{\"type\":\"working_checklist\",\"items\":[\"Search for existing receipts and any helper launch scripts\",\"Inspect the image files to determine whether ISO or disk boot is needed\",\"Launch QEMU in the background with logging enabled\",\"Probe localhost:6665 for the login prompt\",\"Leave the VM running once readiness is confirmed\"]},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nprintf 'Workspace files:\\\\n'\\nls -l\\nprintf '\\\\nExisting receipts (if any):\\\\n'\\nfind . -maxdepth 2 -type f \\\\( -name '*.receipt' -o -name '*.json' -o -name '*.log' -o -name '*receipt*' \\\\) | sed 's#^./##' | sort | head -200\",\"timeout_seconds\":30,\"description\":\"Inspect workspace files and prior receipts before launching QEMU\"}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nprintf 'Workspace files:\\\\n'\\nls -l\\nprintf '\\\\nExisting receipts (if any):\\\\n'\\nfind . -maxdepth 2 -type f \\\\( -name '*.receipt' -o -name '*.json' -o -name '*.log' -o -name '*receipt*' \\\\) | sed 's#^./##' | sort | head -200\",\"timeout_seconds\":30,\"description\":\"Inspect workspace files and prior receipts before launching QEMU\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\nprintf 'Workspace files:\\n'\nls -l\nprintf '\\nExisting receipts (if any):\\n'\nfind . -maxdepth 2 -type f \\( -name '*.receipt' -o -name '*.json' -o -name '*.log' -o -name '*receipt*' \\) | sed 's#^./##' | sort | head -200",
+        "timeout_seconds": 30,
+        "description": "Inspect workspace files and prior receipts before launching QEMU"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3056,
+    "cached_input_tokens": 2304,
+    "output_tokens": 698,
+    "total_tokens": 3754,
+    "provider_usage_raw": {
+      "completion_tokens": 698,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 6,
+        "engine_ttft_ms": 61,
+        "engine_ttlt_ms": 4026,
+        "pre_inference_ms": 86,
+        "service_tbt_ms": 6,
+        "service_ttft_ms": 594,
+        "service_ttlt_ms": 4555,
+        "total_duration_ms": 4481,
+        "user_visible_ttft_ms": 508
+      },
+      "prompt_tokens": 3056,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 2304
+      },
+      "total_tokens": 3754
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

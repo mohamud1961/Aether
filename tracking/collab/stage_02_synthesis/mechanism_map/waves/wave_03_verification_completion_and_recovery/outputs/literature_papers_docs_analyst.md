@@ -1,0 +1,171 @@
+LITERATURE_PAPERS_DOCS_OUTPUT
+- artifact: `mechanism_map`
+- role: `literature/papers/docs analyst`
+- preflight_scope_confirmed:
+  - This is a vertical mechanism-domain wave centered on verification, completion, false-completion prevention, cleanup confirmation, rollback, restart, resumability, and recovery rather than a generic execution-control pass: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`.
+  - `trajectory/failure` remains the primary empirical anchor and `codebase/source reconstruction` remains the primary implementation anchor. This lane only adds the formal-source layer and does not let formal intent outrank observed behavior or visible source: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+  - The optional `eval/benchmark` fifth lane is activated because verifier, grader, replay, and completion-contract logic are load-bearing in this wave packet and the formal corpus contains distinct benchmark-contract, verifier, and replay-assurance surfaces rather than one merged mechanism family: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`.
+  - Planned reconciliation anchor from direct evidence: keep DeepAgents artifact-backed self-audit, KIRA two-step completion confirmation, and A-Evolve `submit("DONE")` plus external verification visible against the verifier-heavy formal corpus: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`.
+  - Support artifacts required before claiming strong coverage were the current wave literature cluster plus the already drafted trajectory/source lanes; those are now present: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`.
+- preflight_planned_read_order:
+  - Wave control surfaces and carry-forward warnings: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`, `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`.
+  - Formal benchmark-contract anchors first: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`.
+  - Formal verifier and completion-gate anchors next: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`.
+  - Replay, provenance, and checkpoint/resume anchors after that: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`, `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`, `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`.
+  - Direct-evidence contradiction pressure last so formal claims stay subordinate to stronger behavior/source evidence: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+- preflight_critical_sources_selected:
+  - Benchmark and completion-contract anchors: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`.
+  - Verifier and completion-gate anchors: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`.
+  - Replay and resumability anchors: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`, `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`, `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`.
+  - Contradiction-pressure evidence selected for reconciliation: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`, `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`.
+- preflight_coverage_risks:
+  - The formal corpus is stronger on verifier/grader/replay/checkpoint doctrine than on cleanup confirmation as a standalone completion criterion.
+  - Several candidate formal anchors surfaced by metadata or support clustering were unusable because extracted text did not match the recorded title: `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`, `research/sources/papers/papers_text/src_pap_7c8d9e1a2b3c.txt`, `research/sources/papers/papers_text/src_pap_a2865d580c30.{txt,meta.json}`.
+  - `research/sources/docs/src_doc_a7930779ecd3/artifact.txt` and `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt` are vendor blog/doc surfaces rather than peer-reviewed papers; they are useful for stated mechanism intent but should not dominate stronger direct evidence.
+  - BigAI documentation remains provider-stated architecture, not mirrored source.
+- preflight_likely_blind_spots:
+  - Formal literature on cleanup confirmation and delivery-directory hygiene as part of completion doctrine.
+  - Formal sources that directly connect checkpoint/resume substrate to real task-family restart behavior rather than generic workflow state restoration.
+  - Unread or unusable verifier-gateway candidates that may sharpen the false-completion story if clean extracts are recovered later.
+- preflight_blockers:
+  - none
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`
+  - `research/sources/papers/papers_text/review_summary.md`
+  - `research/sources/papers/pdf_papers/INDEX.md`
+  - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_2531fb990b03.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_d4370863a7e0.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_9c739fa97b90.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_45e5459616e1.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_567951e5e0b3.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`
+  - `research/sources/papers/papers_text/src_pap_7c8d9e1a2b3c.txt`
+  - `research/sources/papers/papers_text/src_pap_a2865d580c30.{txt,meta.json}`
+  - `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`
+  - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+  - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+  - `research/sources/docs/src_doc_78e1a708df4a/artifact.txt`
+  - `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`
+  - `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`
+  - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`
+  - `research/sources/papers/papers_text/src_pap_8c314cc9f889.txt`
+  - `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`
+  - `research/sources/papers/papers_text/2603.17100.txt`
+  - `research/sources/papers/papers_text/src_pap_ca5c7b42ffd1.txt`
+  - `research/sources/papers/papers_text/src_pap_7a8b9c0d1e2f.txt`
+  - `research/sources/docs/src_doc_1069e67c4fe5/artifact.txt`
+  - `research/sources/docs/src_doc_c91153d296ea/artifact.txt`
+  - `research/sources/docs/src_doc_bec8b9457702/artifact.txt`
+- evidence_classes_touched:
+  - `papers`
+  - `docs`
+  - `wave-control surfaces`
+  - `support artifacts`
+  - `trajectory/source contradiction pressure`
+- priority_sources_not_yet_read:
+  - `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`
+  - `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`
+  - `research/sources/papers/papers_text/2603.17100.txt`
+  - `research/sources/papers/papers_text/src_pap_ca5c7b42ffd1.txt`
+  - `research/sources/papers/papers_text/src_pap_7a8b9c0d1e2f.txt`
+  - `research/sources/docs/src_doc_1069e67c4fe5/artifact.txt`
+  - `research/sources/docs/src_doc_c91153d296ea/artifact.txt`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`
+- support_artifacts_requested_or_deferred:
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/verification_and_replay.md` deferred
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/checkpoint_restore_and_resumability.md` deferred
+  - Additional bounded paper-recovery support for metadata/text mismatches deferred until a later cleanup pass
+- coverage_register_updates_needed:
+  - Mark the literature lane as first-pass drafted with strong formal coverage for verifier doctrine, benchmark completion contracts, replay/determinism assurance, and checkpoint/resume substrate.
+  - Keep explicit that cleanup confirmation and rollback-as-completion remain formally underrepresented relative to trajectory and source evidence.
+  - Record that several candidate formal anchors were unusable because extraction text mismatched metadata.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/verification_and_replay.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/checkpoint_restore_and_resumability.md`
+- formal_claims:
+  - observation: The formal corpus treats verification/completion as a layered stack rather than one mechanism. Benchmark contracts define success conditions (`Terminal-Bench`, `DeepPlanning`, `MCPAgentBench`), orchestration papers define verifier-driven gap detection (`VMAO`), verifier artifacts score candidate solutions (`Agentic Rubrics`), replay literature measures determinism/faithfulness separately (`Replayable Financial Agents`), and framework docs define checkpoint/resume substrate (`Sessions`, `LangGraph durable execution`, `Microsoft checkpoints`, `Agent Continuations`). Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`.
+    inference: Formal literature supports the wave’s existing cumulative claim that completion is multi-layered, but it does not collapse those layers into a single verifier family. Confidence: `high`
+  - observation: Formal benchmark sources mostly verify final state, constrained output, or execution efficiency, not cleanup confirmation. `Terminal-Bench` is explicitly outcome-driven and tests final container state; `DeepPlanning` uses offline sandboxes with rule-based checkers; `MCPAgentBench` emphasizes task completion plus efficiency under local MCP sandboxing; `VERO` formalizes execution traces and evaluation protocols for optimizer comparison. Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`.
+    inference: The formal corpus is strong on completion contracts and trace/eval scaffolds, but weak on cleanup-confirmation as its own completion criterion. Confidence: `high`
+  - observation: Formal verifier-heavy sources rely on explicit evaluator logic to prevent premature or shallow completion. `VMAO` uses an orchestration-level verifier plus replan loop and stop conditions; `Agentic Rubrics` creates repository-grounded rubric criteria for execution-free patch verification; Anthropic’s long-running harness doc uses an evaluator with hard thresholds plus negotiated sprint contracts; Tong-Agent docs describe planner-executor-verification reflection loops. Evidence: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`.
+    inference: Formal sources overrepresent explicit verifier/evaluator architectures relative to minimal self-audit or confirmation-gate patterns. Confidence: `high`
+  - observation: Replay and provenance literature separates correctness from reproducibility and from behavioral interpretability. `Replayable Financial Agents` defines trajectory determinism, decision determinism, and evidence-conditioned faithfulness as independent measures; `VERO` requires versioning, reproducible execution, structured tracing, and standardized observation; `Reasoning Provenance` argues checkpoints and traces do not natively capture structured reasoning provenance. Evidence: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`.
+    inference: Replay, grading, and reasoning-provenance surfaces are formal mechanism families in their own right, not just implementation details of verification. Confidence: `high`
+  - observation: Formal recovery/resumability sources frame restart safety as persisted state plus deterministic or idempotent replay, with explicit trust-boundary warnings. `Sessions` resumes interrupted runs with the same session and supports correction primitives; `LangGraph` warns resumed workflows replay from a starting point rather than continuing from the same line of code and therefore require idempotent side effects; `Microsoft checkpoints` capture executor state, pending messages, and support restore/rehydration; `Agent Continuations` snapshots pending actions and nested agent state; `ACRFence` shows checkpoint-restore can create semantic rollback attacks if irreversible effects are reissued under changed request semantics. Evidence: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`, `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`.
+    inference: In the formal corpus, recovery is primarily a substrate and replay-safety problem, not a completion-proof problem. Confidence: `high`
+- terminology_and_definition_notes:
+  - `outcome-driven framework`: final-state verification rather than command-stream verification in `Terminal-Bench`. Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`.
+  - `verification-driven replanning`: orchestration-level verifier checks that trigger new sub-questions or retries in `VMAO`. Evidence: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`.
+  - `rubric`: repository-grounded, explicit criterion set used as an execution-free verifier in `Agentic Rubrics`. Evidence: `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`.
+  - `decision determinism` and `pass k`: replay-focused assurance terminology from `Replayable Financial Agents`. Evidence: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`.
+  - `checkpoint`, `restore`, `rehydrate`: workflow-state persistence terms in `Microsoft Agent Framework Workflows - Checkpoints`. Evidence: `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`.
+  - `reasoning provenance`: structured intent/observation/inference record distinct from raw checkpoints and traces. Evidence: `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`.
+- benchmark_definition_notes:
+  - `Terminal-Bench` defines a task as instruction, Docker image, tests, example solution, and time limit; tests check final container state and intentionally do not check the agent’s commands or console output. Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`.
+  - `DeepPlanning` evaluates long-horizon planning under offline sandboxes and rule-based checkers, with explicit attention to global constraints and backtracking difficulty. Evidence: `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`.
+  - `MCPAgentBench` uses local MCP servers, dynamic candidate-tool lists with distractors, and completion-plus-efficiency metrics. Evidence: `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`.
+  - `VERO` defines a harness/benchmark protocol where outputs may include both final response and execution trace, and it requires versioning, budget enforcement, reproducible execution, structured tracing, and a standardized observation interface. Evidence: `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`.
+- mechanism_or_failure_support:
+  - `completion proof versus false completion`
+    - Formal support is strongest for explicit verifier or grader layers: `VMAO`, `Agentic Rubrics`, Anthropic evaluator-and-contract loops, and Tong-Agent’s planner-review loop. Evidence: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`.
+    - Formal support is weaker for simple baseline families where completion is proven by direct postcondition checks or a lightweight confirmation gate rather than a dedicated verifier stack.
+  - `verification and replay coupling`
+    - Strong formal support: `Replayable Financial Agents`, `VERO`, and `Reasoning Provenance` all separate replayability, traceability, and correctness. Evidence: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`.
+  - `cleanup confirmation and rollback`
+    - Partial formal support only. `ACRFence` strongly supports rollback/restore safety against duplicated irreversible effects, but the read formal sources do not comparably elevate cleanup confirmation or delivery-hygiene checks as first-class completion criteria. Evidence: `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`.
+  - `restart, resumability, and recovery discipline`
+    - Strong formal support exists at the workflow substrate level through sessions, durable execution, checkpoints, and continuations. Evidence: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`.
+- conflicts_with_direct_evidence:
+  - observation: The formal corpus is dominated by explicit verifier/evaluator architectures. Direct evidence in the current wave shows meaningful minimal-sufficient completion patterns that do not rely on a separate verifier role: DeepAgents uses direct artifact-vs-database postcondition checks and KIRA implements a source-visible two-step completion gate; A-Evolve cleanly separates `DONE` from benchmark verification without collapsing them into one internal verifier loop. Evidence: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`.
+    inference: Formal-source emphasis risks obscuring the simple-baseline family that the wave packet explicitly asked to keep visible. Confidence: `high`
+  - observation: Formal benchmark and workflow sources under-specify cleanup confirmation, while direct trajectories treat cleanup and delivery hygiene as part of completion, especially in BigAI and DeepAgents cancellation/WAL slices and in A-Evolve’s rollback/versioning surfaces. Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`.
+    inference: Cleanup confirmation is stronger in direct evidence than in the current formal slice. Confidence: `high`
+  - observation: Formal docs describe strong resumability and restore primitives, but the current trajectory lane still judges restart/resumability behavior to be under-evidenced relative to verification and cleanup. Evidence: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`.
+    inference: There is a current tension between formally available resume substrate and empirically demonstrated restart-safe task behavior. Confidence: `medium`
+    weakening_factors: `The direct evidence packet for restart/resume is still thinner than the formal workflow docs and some source surfaces.`
+  - observation: `Terminal-Bench` intentionally ignores command-stream and console-output details in scoring, while the current trajectories and source analysis show that internal verifier doctrine, cleanup confirmation, and delivery hygiene can materially change when a family considers a task complete. Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+    inference: Benchmark-visible completion and family-local completion doctrine are not identical surfaces and should not be collapsed. Confidence: `high`
+- confidence_notes:
+  - High-confidence anchors:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`
+    - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`
+    - `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`
+    - `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`
+    - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+  - Medium-confidence surfaces:
+    - `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`
+    - `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`
+    - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+  - Unusable this pass due metadata/text mismatch:
+    - `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`
+    - `research/sources/papers/papers_text/src_pap_7c8d9e1a2b3c.txt`
+    - `research/sources/papers/papers_text/src_pap_a2865d580c30.txt`
+- open_questions:
+  - Which unread formal sources, if any, treat cleanup confirmation or delivery-directory hygiene as first-class completion doctrine rather than as incidental side effects?
+  - Does a cleanly extracted verifier-gateway paper materially change the current judgment that explicit verifier stacks are overrepresented in the formal corpus?
+  - How should rollback-safe restore claims from checkpoint docs be reconciled with `ACRFence`’s semantic rollback attack model and the current wave’s thinner direct restart evidence?
+  - Is there a formal source that better captures the simple-baseline family already visible in DeepAgents, KIRA, and A-Evolve than the current verifier-heavy corpus does?
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`

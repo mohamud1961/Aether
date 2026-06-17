@@ -1,0 +1,107 @@
+{
+  "source_id": "src_iss_594e5f13600f",
+  "title": "default.rules is not honored for sandbox-escaping commands even when execpolicy returns allow",
+  "canonical_url": "https://github.com/openai/codex/issues/15298",
+  "date": "2026-03-20",
+  "authors_or_org": [
+    "OpenAI",
+    "GitHub user report"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "issue",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "environment_substrate",
+  "bucket_secondary": [
+    "policy_program"
+  ],
+  "decision_targets": [
+    "artifacts_workspace",
+    "policy_program",
+    "tool_gateway"
+  ],
+  "mechanism_tags": [
+    "execpolicy_rules",
+    "sandbox_escape_authorization",
+    "protected_git_dir",
+    "trusted_project"
+  ],
+  "failure_mode_tags": [
+    "double_gate_mismatch",
+    "sandbox_escape_requires_manual_approval"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "terminal_agent",
+    "coding_agent"
+  ],
+  "models_if_named": [],
+  "environment_type": [
+    "sandboxed_terminal",
+    "local_fs"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 5,
+    "reproducibility": 5,
+    "ecological_validity": 4,
+    "decision_relevance": 5,
+    "recency": 5
+  },
+  "relevance_note": "Concrete mismatch between policy engine allow and sandbox-escape approval for protected paths.",
+  "reason_included": "Provides exact commands and observed outputs for a double-gating failure around protected .git writes.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "In a trusted Windows project with windows.sandbox='elevated', execpolicy check returns allow for git add rules defined in default.rules.",
+      "claim_status": "measured"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "Despite execpolicy returning allow, asking Codex to run git add -A still triggers a manual approval prompt when the command needs sandbox escape to write under .git.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The issue reporter argues that if default.rules allows a command and execpolicy check returns allow for that exact command, the rule should be sufficient authorization for the required sandbox escape.",
+      "claim_status": "anecdotal"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Lines 221-266, trusted-project setup and execpolicy check outputs"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Lines 268-290, manual approval prompt despite allow"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Lines 297-301, expected behavior"
+    }
+  ],
+  "dedupe_key": "github_issue:openai/codex#15298",
+  "canonical_locator": "github_issue:openai/codex#15298",
+  "discovered_in_batches": [
+    "2026-03-29__approval_control_gates_sweep.json#obj1.1",
+    "2026-03-29__approval_control_gates_sweep.json#obj1|bucket=|run_date=2026-03-28|agent=approval_control_gates_sweep_agent"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_594e5f13600f::https://github.com/openai/codex/issues/15298::2026-03-29__approval_control_gates_sweep.json#obj1::r8"
+  ],
+  "origin_buckets": [
+    "environment_substrate"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_594e5f13600f/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/openai/codex/issues/15298",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "origin_batch_buckets": [],
+  "artifact_relpath": "research/sources/issues/src_iss_594e5f13600f"
+}

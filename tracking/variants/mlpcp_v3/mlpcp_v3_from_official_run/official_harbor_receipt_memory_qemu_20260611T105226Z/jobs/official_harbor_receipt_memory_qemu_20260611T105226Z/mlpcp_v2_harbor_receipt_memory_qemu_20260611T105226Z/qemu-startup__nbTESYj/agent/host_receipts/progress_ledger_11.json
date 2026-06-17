@@ -1,0 +1,54 @@
+{
+  "action_types": [
+    "raw_bash",
+    "probe_service",
+    "raw_bash"
+  ],
+  "artifact_states": [
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A running qemu process using /app/alpine.iso",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    },
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A reachable telnet service on 127.0.0.1:6665",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    }
+  ],
+  "commands": [
+    "set -euo pipefail\ncd /app\nif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU=qemu-system-x86_64; elif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU=qemu-system-i386; else echo 'NO_QEMU'; exit 1; fi\nnohup \"$QEMU\" -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -monitor none -display none -drive file=/app/alpine.iso,media=cdrom,format=raw -boot d >/tmp/alpine-qemu.log 2>&1 &\necho $! > /tmp/alpine-qemu.pid\nsleep 2\nprintf 'QEMU=%s PID=%s\\n' \"$QEMU\" \"$(cat /tmp/alpine-qemu.pid)\"\nps -p \"$(cat /tmp/alpine-qemu.pid)\" -o pid=,cmd=",
+    "set -euo pipefail\ncat /tmp/alpine-qemu.log | tail -n 50"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 3,
+  "facts": [
+    "Required artifact(s) missing: A running qemu process using /app/alpine.iso, A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [
+    "A running qemu process using /app/alpine.iso",
+    "A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [
+    "A running qemu process using /app/alpine.iso",
+    "A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 11
+}

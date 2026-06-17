@@ -1,0 +1,442 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/ticket_seller/?q=
+================================================================================
+
+电影售票智能体示例¶
+
+TongAgents 提供了基于工作流和类型化智能体的解决方案，此示例展示了电影售票智能体如何解析用户意图，区分订票与对话请求，并分别处理。
+
+环境准备¶
+安装 TongAgents SDK，参考安装指南
+配置模型服务，详见模型配置
+确保已安装 Pydantic 和其他依赖包
+代码示例¶
+
+下面的示例展示了如何构造一个售票智能体。智能体接收用户输入，并通过类型化智能体（用于意图分类）判断是订票请求还是普通对话，随后分别调用相应处理逻辑。
+
+examples/seller_agent/ticket_seller.py
+import os
+
+import queue
+
+import time
+
+from collections.abc import Iterator
+
+from typing import Literal
+
+
+
+from pydantic import BaseModel
+
+
+
+from tongagents.agents.llm import ModelConfig
+
+from tongagents.agents.llm.messages import UserPromptMessage
+
+from tongagents.agents.llm_agent import LLMRunContext, ReactAgentSetting
+
+from tongagents.agents.planner_agent import TongPlanner
+
+from tongagents.agents.typed_react_agent import (
+
+    TextWithModelAction,
+
+    TypedReactAgent,
+
+    create_typed_react_agent,
+
+)
+
+from tongagents.base_agent import WorkflowAgent
+
+from tongagents.entity import Action, Event
+
+from tongagents.workflow.commands.entrance_takeover_command import (
+
+    EntranceTakeOffCommand,
+
+    EntranceTakeOverCommand,
+
+)
+
+from tongagents.workflow.commands.transfer_command import (
+
+    ContinueCommand,
+
+    TransferCommand,
+
+)
+
+from tongagents.workflow.nodes.simple_node_base import END, START
+
+from tongagents.workflow.simple_workflow import RunContext, node_declare
+
+
+
+
+
+# Create environment
+
+class TicketingEnv:
+
+    def __init__(self):
+
+        self.q = queue.Queue()
+
+        self.count = 0
+
+
+
+    def event_generator(self) -> Iterator[Event]:
+
+        yield "订票"
+
+        print("user: 订票")
+
+        while True:
+
+            data = self.q.get()
+
+            print(f"user: {data}")
+
+            if data in {"quit", "exit"}:
+
+                break
+
+            yield data
+
+
+
+    def action_process(self, action: str):
+
+        print(f"seller: {action}")
+
+        if self.count == 0:
+
+            self.q.put("午夜场")
+
+            self.count += 1
+
+        elif self.count == 1:
+
+            self.count += 1
+
+        elif self.count == 2:  # noqa:PLR2004
+
+            self.count += 1
+
+            self.q.put("谢谢")
+
+        else:
+
+            self.q.put("quit")
+
+
+
+    # Define intent classification result type
+
+
+
+
+
+class IntentClassification(BaseModel):
+
+    query: str
+
+    intent: Literal["booking", "chat"]
+
+    confidence: float
+
+
+
+
+
+# Combine workflow with planner
+
+class MovieTicketAgent(WorkflowAgent):
+
+    planner: TongPlanner = None
+
+    intent_classifier: TypedReactAgent[IntentClassification] = None
+
+
+
+    def __init__(self, planner):
+
+        super().__init__()
+
+        self.planner = planner
+
+
+
+        # Initialize typed react agent for intent classification
+
+        ctx = LLMRunContext()
+
+        model_config = ModelConfig(
+
+            model_name=os.environ.get("MODEL_NAME"),
+
+            url=os.environ.get("MODEL_URL"),
+
+            api_key=os.environ.get("MODEL_API_KEY", "fake_api"),
+
+        )
+
+
+
+        agent_settings = ReactAgentSetting(
+
+            llm_config=model_config,
+
+            system_prompt="""You are an intent classifier that analyzes user queries.
+
+            For booking related queries about movie tickets, classify as 'booking'.
+
+            For general conversation, classify as 'chat'.
+
+            Provide confidence score between 0 and 1.""",
+
+        )
+
+        self.intent_classifier = create_typed_react_agent(
+
+            result_type=IntentClassification,
+
+            ctx=ctx,
+
+            agent_settings=agent_settings,
+
+        )
+
+
+
+    @node_declare(
+
+        name="intent_classifier",
+
+        edges=[(START, "intent_classifier")],
+
+    )
+
+    def classify_intent(self, query: str) -> Event:
+
+        """Classify user input into chat or booking intent"""
+
+        if query != "谢谢":
+
+            intent_ret: TextWithModelAction = TextWithModelAction(
+
+                instance=IntentClassification(
+
+                    query=query, intent="booking", confidence=0.0
+
+                ),
+
+                messages=[UserPromptMessage(role="user", content=query)],
+
+            )
+
+        else:
+
+            intent_ret = TextWithModelAction(
+
+                instance=IntentClassification(
+
+                    query=query, intent="chat", confidence=0.0
+
+                ),
+
+                messages=[UserPromptMessage(role="user", content=query)],
+
+            )
+
+        if hasattr(intent_ret, "instance"):
+
+            return intent_ret.instance
+
+
+
+        return TransferCommand(transfer_event=intent_ret.response, transfer_target=END)
+
+
+
+    @node_declare(
+
+        name="branch",
+
+        edges=[("intent_classifier", "branch")],
+
+        with_context_when_called=True,
+
+    )
+
+    def branch(self, intent: IntentClassification, context: RunContext) -> Event:
+
+        """Classify user input into chat or booking intent"""
+
+        if intent.intent == "booking":
+
+            return TransferCommand(
+
+                transfer_event=intent, transfer_target="booking_handler"
+
+            )
+
+        return TransferCommand(transfer_event=intent, transfer_target="chat_handler")
+
+
+
+    @node_declare(
+
+        name="booking_handler",
+
+        edges=[("branch", "booking_handler"), ("booking_handler", END)],
+
+        with_context_when_called=True,
+
+    )
+
+    def booking_handler(
+
+        self, input_event: IntentClassification | str, context: RunContext
+
+    ) -> Iterator[Action]:
+
+        """Handle movie ticket booking requests"""
+
+        try:
+
+            if context.workflow.take_over_node is None:
+
+                yield EntranceTakeOverCommand(
+
+                    take_over_name="booking_handler",
+
+                    user_prompt="收到订票请求，请告诉我您想看的电影和场次。",
+
+                )
+
+            else:
+
+                yield f"已收到您的订票请求: {input_event}，请稍等。"
+
+                time.sleep(5)
+
+                yield EntranceTakeOffCommand(
+
+                    take_off_name="booking_handler",
+
+                    user_prompt="订票完成，感谢您的光临！",
+
+                )
+
+
+
+        except StopIteration:
+
+            yield ContinueCommand()
+
+
+
+    @node_declare(
+
+        name="chat_handler", edges=[("branch", "chat_handler"), ("chat_handler", END)]
+
+    )
+
+    def handle_chat(self, intent: IntentClassification) -> str:
+
+        action = self.planner.plan_once(Event(**{"query": intent.query}))
+
+        return action.resp
+
+
+
+
+
+# Create and run agent
+
+if __name__ == "__main__":
+
+    # Create planner with specific role
+
+    my_planner = TongPlanner(
+
+        """
+
+    你是一个电影院的售票员，负责:
+
+    1. 回答顾客关于电影的问题
+
+    2. 处理订票请求
+
+    3. 友好且专业地与顾客交流
+
+
+
+    可以预订的电影有：
+
+    - 复仇者联盟 (14:00, 18:00, 21:00)
+
+    - 泰坦尼克号 (13:30, 16:30, 19:30)
+
+    - 哪吒2 (15:00, 18:30, 21:30)
+
+
+
+    票价：
+
+    - 普通场次: 50元
+
+    - 黄金场次(18:00-19:30): 70元
+
+    - 夜场(20:00后): 40元
+
+    """
+
+    )
+
+    agent = MovieTicketAgent(my_planner)
+
+    env = TicketingEnv()
+
+    print("电影售票系统启动 (输入 'quit' 或 'exit' 退出)")
+
+    print("-" * 50)
+
+    # 在需要查看调试信息的地方添加
+
+    # logging.getLogger().setLevel(logging.DEBUG)
+
+    agent.run_with_env(env)
+
+构建的流程：¶
+START
+intent_classifier(意图识别)
+branch(分支)
+booking_handler(订票)
+用户多轮交互
+chat_handler(聊天)
+END
+开始意图识别
+匹配意图进行分流处理
+订票意图处理
+闲聊意图处理
+订票交互输出
+闲聊交互输出
+订票交互输入
+输出结果如下：¶
+user: 订票
+seller: 收到订票请求，请告诉我您想看的电影和场次。
+user: 午夜场
+seller: 已收到您的订票请求: 午夜场，请稍等。
+seller: 订票成功！请凭票入场。
+user: 谢谢
+seller: 您好！看来您刚刚完成了一次操作，有什么我可以帮到您的吗？如果您有任何关于电影的问题，或是需要帮助预订电影票，请随时告诉我。祝您有一个美好的夜晚！
+user: quit
+说明¶
+该示例展示了如何利用类型化智能体对用户查询进行意图分类，并通过工作流分支分别处理订票和聊天请求。
+使用 Pydantic 模型和 TypedReactAgent 确保返回数据符合预期结构，从而提高整体系统的准确性和可靠性。
+智能体将不同环节的处理逻辑模块化，展现了 TongAgents 框架在多任务协同处理方面的优势。 通过本示例，你可以快速搭建一个电影售票系统，实现用户意图识别与对应服务自动执行。

@@ -1,0 +1,255 @@
+SOURCE_SYSTEM_DOSSIER
+- system: BigAI_behavioral
+- dossier_status: wave_03_behavioral_dossier_first_complete
+- source_scope:
+  - There is no mirrored BigAI source tree in the current corpus slice. This dossier is intentionally behavioral only and must not be cited as source-backed implementation fact.
+  - Primary behavioral reconstruction surfaces read for this dossier: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`.
+  - Direct trajectory pressure used in this repair pass: `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`, `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`.
+- architectural_core:
+  - Observed behavior strongly supports a role-separated architecture rather than a monolithic loop. The reconstruction summarizes a planner, executor, verifier doctrine, and `question_answers.json` records a stable observable role set with planner-before-executor ordering across parseable runs (`research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`).
+  - This is still an observable contract, not hidden implementation proof. The internal scheduler, branch control, and memory plumbing remain unknown without source.
+- tool_calling_and_execution:
+  - Observed execution is planner-first and executor-mediated. `question_answers.json` reports multi-executor fanout in some runs and rare explicit executor-to-executor coordination, while direct Wave 03 trajectories show executors performing filesystem, backup, testing, and verification-related tool work in `/app` and `.work/space` (`research/analysis/bigai_trace_layer/output/question_answers.json`, `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`).
+  - `exemplar_runs.json` also identifies verifier-heavy or safety-first bundles such as `adaptive-rejection-sampler` and `db-wal-recovery`, but those exemplars remain routing aids unless the underlying run bundle is read directly (`research/analysis/bigai_trace_layer/output/exemplar_runs.json`).
+- workflow_and_control_doctrine:
+  - Observed doctrine is planner first, executor work second, verifier audit after execution, and recovery after verifier rejection when necessary (`research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`).
+  - The Wave 03 trajectories show that completion is not accepted at first sight. In WAL recovery, the system backs up sensitive state before repair and later restores a clean deliverable state around the verified artifact. In cancellation cleanup, the system blocks final success until directory hygiene and cancellation cleanup are both satisfied (`research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`).
+- context_and_state_model:
+  - Behaviorally, BigAI exposes a shared-workspace model built around `/app` plus `.work/space`. The WAL recovery runs explicitly use `.work/space/shared/backup/` and other shared directories to hold backups, scripts, and temporary test material (`research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`).
+  - The hidden context model remains unknown. The reconstruction says prompt assembly, scheduler logic, branch state, and memory remain out of reach without deeper traces (`research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`).
+- memory_or_persistence_model:
+  - Observed persistence surfaces include shared backup directories, report directories, and restored deliverable state, but there is no source-backed visibility into internal memory or checkpoint objects (`research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`).
+  - `question_answers.json` and `final_harness_reconstruction.md` support a moderate inference that state-sensitive tasks trigger backup or isolation behavior, but they do not reveal the hidden persistence machinery (`research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`).
+- verification_and_completion:
+  - BigAI is the strongest behavioral anchor in Wave 03 for verifier-mediated closure. `question_answers.json` reports verifier presence in most parseable runs and explicitly warns that verifier presence or even verifier pass does not equal overall run success (`research/analysis/bigai_trace_layer/output/question_answers.json`).
+  - In `db-wal-recovery`, direct trajectories show backup-first handling, recovery work around `recovered.json`, a final `verification_result_status: "PASSED"`, and a human-readable verification report that checks 11 recovered records, sorted JSON output, and a clean delivery directory (`research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`).
+  - In `cancel-async-tasks`, the verifier does not treat functional success alone as enough. The visible run fails until delivery-directory cleanliness is restored, then passes only after cleanup is confirmed (`research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`).
+- recovery_and_resumability:
+  - Behaviorally, BigAI shows real recovery loops after verifier rejection and explicit safety-first handling for stateful tasks. The stable-doctrine reconstruction calls recovery after verifier rejection a recurring loop rather than a rare anomaly, and the WAL trajectories show backup-then-repair-then-restore workflow (`research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`).
+  - Restart-safe resumability is still under-evidenced. The current behavioral slice gives stronger evidence for verifier-driven retry and cleanup than for durable resume after interruption, and there is still no source to upgrade that claim.
+- environment_and_permissions:
+  - Direct trajectories show Linux task environments with explicit task directory `/app` and shared workspace `.work/space`, but the internal permission model is not visible in source. The best disciplined statement is behavioral: BigAI appears able to create backups, run scripts, and manipulate delivery state inside the task environment (`research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`).
+- what_the_agent_sees:
+  - Observed runs show structured task briefs, environment summaries, and explicit mention of working directories and shared spaces before execution begins. That suggests the planner receives more than raw terminal output, but the exact prompt format is still hidden (`research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`).
+  - The verifier appears to see deliverables plus cleanup state, because its reports talk about both content correctness and directory hygiene (`research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`).
+- relevant_trajectory_links:
+  - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - Pressure-test target not directly read in this repair pass: `research/sources/trajectories/BigAI/adaptive-rejection-sampler/c05344ea-9a06-490d-9310-937670fb7b4a.tar.gz`
+- contradictions_or_unknowns:
+  - BigAI must remain explicitly behavioral. No claim in this dossier should be upgraded into source-backed implementation fact without a mirrored codebase.
+  - Verifier `PASSED` can coexist with overall run failure according to `question_answers.json`, so verifier success must remain separate from final acceptance (`research/analysis/bigai_trace_layer/output/question_answers.json`).
+  - The visible `extract-moves-from-video` slice is incomplete for completion proof, and the named verifier-heavy `adaptive-rejection-sampler` bundle was not directly opened in this repair pass. Those are real evidence limits, not cosmetic omissions (`research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`).
+  - Internal scheduler logic, hidden branch control, memory persistence, and true restart-safe resumability remain unknown.
+- confidence_notes:
+  - High confidence: planner/executor/verifier observable split, verifier-mediated cleanup gating, backup-aware recovery behavior in stateful tasks.
+  - Medium confidence: broader family-level claims about branch control, hidden persistence, and how verifier pass diverges from overall failure, because those depend on reconstruction artifacts rather than source.
+- downstream_relevance:
+  - BigAI is the strongest current behavioral anchor for a role-separated verifier-gated family and for cleanup-confirmed completion. It should pressure later local harness design toward explicit separation among execution, verification, and final acceptance.
+  - It should not be used to outrank or flatten DeepAgents, KIRA, and A-Evolve into one family. Its value is precisely that it preserves a distinct behavioral family under missing-source constraints.
+- wave_06_formal_pressure_update:
+  - Formal role-separation and orchestration papers are directionally consistent with the observed planner/executor/verifier split in BigAI traces, but cannot upgrade this dossier beyond behavioral reconstruction because mirrored implementation source is still absent.
+  - Formal governance/trace-contract recommendations increase pressure to keep BigAI contradiction surfaces explicit (verifier pass vs overall failure, restart uncertainty, hidden scheduler logic) rather than smoothing them.
+  - Wave 06 implication: BigAI remains a critical behavioral comparator for orchestration doctrine, with strict non-promotion to source-backed fact.
+- wave_06_planning_orchestration_and_interactions_update:
+  - trajectory_pressure_scope:
+    - required:
+      - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+      - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+      - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+      - `research/sources/trajectories/BigAI/prove-plus-comm/*`
+      - `research/sources/trajectories/BigAI/cobol-modernization/*`
+      - `research/sources/trajectories/BigAI/openssl-selfsigned-cert/*`
+    - optional long-tail pressure:
+      - `research/analysis/bigai_trace_layer/output/runs/protein-assembly/*.json`
+      - `research/analysis/bigai_trace_layer/output/runs/large-scale-text-editing/*.json`
+  - observations:
+    - required run set summary: `10/10` pass, `2/10` multi-executor, `9/10` verifier-present, max required replan count `3`.
+    - planner-first order is stable in required runs (`save_plan` step `3`, first executor step `4`).
+    - verifier loop is dominant but not universal: `23f367...` passes with two executors and no visible verifier cycle.
+    - fail-then-recover orchestration is explicit in `a3dd...` (`FAILED -> PASSED` with planner `plan_update` and executor reassignment).
+    - planner completion signaling is often provisional: in `9/10` required runs planner marks `task_finished=true` before verifier closure.
+  - inference:
+    - BigAI Wave 06 behavior supports a real role-separated orchestration family with explicit handoff contracts, conditional branch-depth escalation, and verifier-mediated replanning.
+    - interaction doctrine is heterogeneous: verifier-gated and no-verifier completion variants coexist.
+  - confidence:
+    - high for observed ordering/handoff/gating patterns in sampled runs
+    - medium for controller-policy explanations behind verifier optionality
+  - open_limit:
+    - keep `behavioral reconstruction` label; no hidden scheduler or source-backed policy claim is justified yet.
+- wave_06_informal_pressure_update:
+  - observation: Multi-agent autonomy narratives are strong in postmortems/product writing, but issue evidence across ecosystems shows frequent compaction/resume/delegation fragility and orchestration stalls.
+  - inference: BigAI behavioral claims must keep explicit anti-prestige caveats: role-separated controller rhetoric should not be promoted beyond behavioral reconstruction without source and stronger failure-envelope evidence.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+    - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+    - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+    - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+    - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+- wave_06_codebase_source_reconstruction_update:
+  - source_scope_delta:
+    - no mirrored BigAI source was available; this update is behavior-only by design.
+  - trajectory_pressure_scope:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+    - `research/sources/trajectories/BigAI/prove-plus-comm/*.txt`
+    - `research/sources/trajectories/BigAI/cobol-modernization/*.txt`
+    - `research/sources/trajectories/BigAI/openssl-selfsigned-cert/*.txt`
+  - observations:
+    - required Wave 06 runs continue to support planner-first handoff structure with frequent verifier gating and occasional no-verifier closure variants.
+    - fail-then-recover replanning remains behaviorally explicit in required runs.
+  - inference:
+    - BigAI remains the strongest behavioral comparator for role-separated orchestration, with strict no-promotion to source-backed implementation fact.
+  - confidence:
+    - high on observed sequencing/gating patterns, medium on hidden controller-policy explanation
+  - open_limit:
+    - scheduler internals, delegation policy rules, and verifier-optionality criteria remain unobserved.
+- wave_01_literature_pressure_update_2026_04_10:
+  - context: formal Wave 01 pressure applied to execution-control and terminal-failure attribution.
+  - observation: Formal benchmark and verifier doctrine strongly supports explicit outcome checks and structured verifier loops.
+  - inference: BigAI behavioral runs can be used for verifier/cleanup sequencing pressure, but implementation claims remain `behavioral reconstruction` and must not be upgraded to source-backed fact.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`
+- wave_03_context_state_memory_workspace_update_2026_04_10:
+  - source_scope_delta:
+    - no mirrored BigAI source added; this update remains behavioral reconstruction only.
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+    - `research/sources/trajectories/BigAI/break-filter-js-from-html/4389d2e9-7d17-4dc1-b0bd-5d1bde2716b6-traj.txt`
+    - `research/sources/trajectories/BigAI/custom-memory-heap-crash/11834f22-09ea-4bc7-9a11-68f574976a10-traj.txt`
+  - observations:
+    - trajectories expose planner-executor-verifier framing and strict `.work/space` artifact hygiene guidance under context-heavy flows.
+    - custom-memory-heap trajectory pressure is runtime allocator debugging and not direct evidence of long-term agent-memory logic.
+    - visible behavior continues to support workspace-governance and verification loops, while implementation internals remain unobservable.
+  - inference:
+    - keep BigAI in Wave 03 as `behavioral reconstruction` for context/workspace coordination pressure only.
+    - preserve anti-collapse boundary between `runtime-memory bug classes` and `context/state/memory/workspace` taxonomy classes.
+  - confidence:
+    - high on observed behavioral doctrine in sampled runs
+    - medium on hidden mechanism explanations due to no source visibility
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+    - `research/sources/trajectories/BigAI/break-filter-js-from-html/4389d2e9-7d17-4dc1-b0bd-5d1bde2716b6-traj.txt`
+    - `research/sources/trajectories/BigAI/custom-memory-heap-crash/11834f22-09ea-4bc7-9a11-68f574976a10-traj.txt`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+    - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - source_scope_delta:
+    - no mirrored BigAI source was available; this update is behavior-only by design.
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+    - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+    - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - observations:
+    - planner/executor/verifier role separation remains consistently visible in Wave 01 slices.
+    - successful closes repeatedly include explicit verifier terminal markers (`verification_result_status: "PASSED"`).
+    - completion can be delayed after logic correctness due to delivery-directory hygiene requirements.
+  - inference:
+    - BigAI remains the strongest behavioral example of verifier-mediated execution-control closure, while implementation attribution remains unresolved without source.
+  - confidence:
+    - high on observed behavioral sequencing, medium on hidden policy/implementation explanations
+  - open_limit:
+    - keep strict `behavioral reconstruction` boundary; do not promote internal mechanism claims.
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - trajectory_pressure_scope:
+    - required Wave 02 task triads under:
+      - `research/sources/trajectories/BigAI/db-wal-recovery/`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/`
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - observations:
+    - BigAI continues to show explicit verifier loop behavior in db/cancel tasks.
+    - Required cancel run `98b7...` shows `finish_verification: PASSED` in trajectory but benchmark verifier still fails one test (reward `0`).
+    - Required extract run has no visible `finish_verification` closeout and ends with failing bundled verifier quality check.
+  - inference:
+    - For Wave 02 attribution, BigAI demonstrates both verifier-mediated closure and verifier-omission / verifier-final-gate mismatch failure surfaces in the same required packet.
+  - confidence:
+    - high on behavioral mismatch claim (trajectory + bundled verifier artifacts)
+    - medium on hidden-policy explanation for verifier omission
+  - caveat:
+    - all BigAI claims remain `behavioral reconstruction`; no source-backed implementation promotion.
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d.tar.gz`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_scope_delta:
+    - no mirrored source added; this update is behavior-only.
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/{answered_questions.md,question_answers.json,final_harness_reconstruction.md}`
+  - observations:
+    - verifier role and verifier-cycle recovery are strongly visible behaviorally.
+    - behavioral synthesis explicitly reports verifier-pass and overall-run-failure divergence.
+    - required task slices show cleanup/delivery hygiene pressure as part of acceptance in cancellation flows.
+  - inference:
+    - Wave 02 should treat BigAI as high-pressure evidence for layered completion/adjudication mismatch, while maintaining strict `behavioral reconstruction` labeling.
+    - no source-backed mechanism attribution is defensible in this pass.
+  - confidence:
+    - high on observed behavioral patterns
+    - medium on hidden-policy explanations due to no source visibility
+  - evidence_paths:
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+    - `research/analysis/bigai_trace_layer/output/question_answers.json`
+    - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+    - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+  - observations:
+    - role-handoff/replan behavior is real and sometimes corrective (`FAILED -> PASSED`), but verifier participation is not uniform across all passing runs.
+    - required long-horizon extract slice contains repeated still-running phases and explicit signal intervention at multi-minute horizons.
+    - path/handoff mismatch events remain visible in cancellation-family verification flow.
+  - inference:
+    - BigAI continues to be high-value Wave 04 behavioral pressure for mixed-cause attribution, with strict `behavioral reconstruction` labeling preserved.
+  - confidence:
+    - high on observed behavior
+    - low-medium on hidden controller causality
+- wave_04_codebase_source_reconstruction_update_2026_04_11:
+  - source_scope_delta:
+    - no mirrored BigAI source was added; this update remains behavioral reconstruction only.
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - observations:
+    - trajectories continue to show role-separated orchestration and verifier-facing coordination pressure.
+    - required long-horizon extract slice shows repeated wait loops and signal-driven interruption under runtime pressure.
+    - no source-backed mechanism inspection is possible in this lane.
+  - inference:
+    - keep BigAI as high-value Wave 04 behavioral pressure for role-handoff variability and timeout-heavy degradation.
+    - retain strict anti-overclaim boundary: no source-backed BigAI mechanism claims.
+  - confidence:
+    - high on observed behavior
+    - low-medium on hidden mechanism causality
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`

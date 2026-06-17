@@ -1,0 +1,964 @@
+--- PAGE 1 ---
+Proof-of-Perception: Certified Tool-Using Multimodal Reasoning with
+Compositional Conformal Guarantees
+Arya Fayyazi
+University of Southern California
+Los Angeles, CA
+afayyazi@usc.edu
+Haleh Akrami
+Nuro
+Mountain View, CA
+hakrami@nuro.ai
+Abstract
+We presentProof-of-Perception (PoP), a tool-using frame-
+work that casts multimodal reasoning as an executable
+graph with explicit reliability guarantees. Each percep-
+tion or logic node outputs a conformal setΓ (t)
+δ (x), yield-
+ing calibrated, stepwise uncertainty; a lightweight con-
+troller uses these certificates to allocate compute under a
+budget—expanding with extra tool calls only when needed
+and stopping early otherwise. This grounds answers
+in verifiable evidence, reduces error compounding and
+hallucinations, and enables principled accuracy–compute
+trade-offs. Across document, chart, and multi-image QA
+benchmarks, PoP improves performance and reliability
+over strong chain-of-thought, ReAct-style, and program-of-
+thought baselines while using computation more efficiently.
+Code is available at https://github.com/AryaFayyazi/PoP.
+1. Introduction
+Multimodal large language models (MLLMs) have pushed
+open-ended vision–language tasks forward by coupling vi-
+sual encoders with autoregressive language decoders [1,
+17, 28]. Yet in document understanding, chart reason-
+ing, and multi-image QA, a single forward pass still en-
+tangles fine-grained perception (OCR, detection, chart pars-
+ing) with symbolic reasoning, producing brittle, single-
+valued intermediates and confident but unsupported an-
+swers [10, 11]. Tool-use and structured prompting partially
+address this: multimodal chain-of-thought elicits textual ra-
+tionales [18, 31], ReAct-style agents interleave thoughts
+and tool calls [29, 30], and program-of-thought systems ex-
+ecute DSL programs with perception primitives [13, 22].
+However, these approaches typically (i) commit to sin-
+gle guesses at intermediate steps, (ii) govern compute via
+heuristics, and (iii) calibrate, if at all, only the final an-
+swer—leaving stepwise reliability and evidence grounding
+unaddressed.
+We presentProof-of-Perception (PoP), which casts
+multimodal reasoning as execution of a directed acyclic
+graph whose nodes are perception or logic operations
+equipped with conformal certificates. For node typetwith
+inputxand candidatez, a learned nonconformitys (t)(x, z)
+and a split-conformal thresholdτ (t)
+δ define theset-valued
+outputΓ (t)
+δ (x) ={z:s (t)(x, z)≤τ (t)
+δ }, yielding marginal
+coverage1−δunder exchangeability [2, 27]. A lightweight
+controller observes node-wise sets and a budget to decide
+when to accept, retry at higher fidelity, or expand with ad-
+ditional tool calls, turning uncertainty into a compute pol-
+icy rather than a passive score. This design keeps multi-
+ple calibrated candidates until evidence resolves ambiguity,
+grounds answers in verifiable perceptual traces, and enables
+principled accuracy–compute trade-offs. In experiments
+on DocVQA, TextVQA, InfographicVQA, ChartQA, and
+MultiDoc2Dial, PoP improves performance and reliability
+over strong chain-of-thought, ReAct-style, and program-
+of-thought baselines under matched backbones and tools,
+while using computation more efficiently.
+2. Background and Related Work
+2.1. Multimodal Reasoning and CP
+Modern multimodal large language models (MLLMs) cou-
+ple frozen or trainable visual encoders with autoregressive
+decoders to modelp θ(y1:T |I 1:M , q), enabling open-ended
+responses grounded in images and text [5, 16, 24]. De-
+spite strong progress, directly decoding this distribution en-
+tanglesfine-grained perception(e.g., OCR, layout parsing,
+chart value extraction) withsymbolic reasoning(aggrega-
+tion, arithmetic), which leads to brittle cascades: early per-
+ceptual slips force later steps to rationalize errors, produc-
+ing confident but unsupported answers in document and
+chart understanding tasks [12, 14, 19, 21]. Two preva-
+lent remedies structure inference differently. First, mul-
+timodal chain-of-thought elicits intermediate textual ratio-
+nales; however, these remain free-form tokens with no guar-
+1
+arXiv:2603.00324v1  [cs.CV]  27 Feb 2026
+
+--- PAGE 2 ---
+Figure 1. Overview of theProof-of-Perception (PoP)workflow. Each perception or reasoning operation is represented as a node in a
+directed acyclic graph (DAG). Each node is equipped with a conformal prediction head that provides calibrated uncertainty setsΓ (t)
+δ (x),
+and a controller adaptively allocates computation based on these certificates, producing reliable and explainable outputs.
+⊷Images +/keyb⌢ardText Prompt
+Multimodal inputto MLLM system
+ὄ1OCR NodeΓ(OCR)δ (x)
+/vector-squareDetection NodeΓ(Det)δ (x)
+/char◎-barChart Pars-ing Node
+Γ(Chart)δ (x)
+♂project-diagra¶LogicFusion NodeΓ(Logic)δ (x)
+/brainAdaptiveControllerBudget-awareDecision
+/check-circleCertified Answerwith Evidence Trace
+Retry /Expandif uncertain
+Re-evaluatelow-confidencenodes
+ὄ1,/vector-square,/char◎-bardenote perception nodes producing calibrated setsΓ(t)δ (x);♂project-diagra¶indicates reasoning fu-
+sion nodes aggregating perception evidence;/brainis the adaptive controller that adjusts computa-tion based on coverage and budget; and/check-circleis the final certified output with verifiable evidencetrace. Dashed red arrows indicate feedback loops for uncertainty-driven retries or expansions.
+antee they correspond to the visual evidence. Second,
+tool/program-based agents let MLLMs call OCR, detec-
+tion, or chart parsers (or emit a small DSL program ex-
+ecuted by an interpreter), which improves modularity but
+typically commits to single-valued intermediates and gov-
+erns compute with ad hoc rules (fixed retry counts, uncali-
+brated thresholds). Across both families, intermediate un-
+certainty is rarely quantified, so decisions to expand, retry,
+or stop cannot be tied to principled reliability.
+Conformal prediction (CP) offers distribution-free,
+finite-sample guarantees by turning point predictions into
+calibratedsets. Given a nonconformity functions:X ×
+Y →R ≥0 and calibration scoresα j =s(x j, yj), split-
+conformal inference selects the order statisticτ δ =α (k),
+k=⌈(n+ 1)(1−δ)⌉, and returnsΓ δ(x) ={y:s(x, y)≤
+τδ}, which satisfiesP(Y∈Γ δ(X))≥1−δunder ex-
+changeability [3, 7, 15]. While recent work has applied CP
+to final predictions in classification and detection [8], most
+applications treat the model as monolithic (x7→y), leav-
+ing multi-step tool outputs uncalibrated and disconnected
+from compute policies. Our approach brings CPinsidemul-
+timodal reasoning: each node in a directed acyclic graph
+(OCR, detection, chart parsing, logic fusion) emits a set-
+valued outputΓ (t)
+δ (xv)with coverage guarantees, and a
+lightweight controller uses these certificates and a budget
+to decide whether to accept, retry at higher fidelity, or ex-
+pand with additional tool calls. This integrates reliability
+with computation: uncertainty actively routes effort to am-
+biguous subproblems, while confident segments terminate
+early, yielding evidence-grounded answers and controllable
+accuracy–compute trade-offs.
+2.2. Limitations and Positioning
+Existing multimodal pipelines face three persistent issues
+in complex visual reasoning: (i)single-valued interme-
+diates(one OCR string, one box, one chart value) that
+silently propagate errors; (ii)heuristic compute control
+(fixed depths, template programs, uncalibrated thresholds)
+that cannot tune accuracy–compute trade-offs; and (iii) a
+lack ofcompositional reliability, since any calibration is
+typically applied only to final answers, not to the sequence
+of perception and logic steps that produce them.Proof-
+of-Perception (PoP)addresses these gaps while remain-
+ing compatible with standard MLLMs and tools. For each
+node typet∈ {OCR,Det,Chart,Logic}with input state
+xv and candidatez, PoP learns a nonconformity func-
+tions (t)(xv, z)and, via split-conformal calibration, outputs
+Γ(t)
+δ (xv) ={z:s (t)(xv, z)≤τ (t)
+δ }, so that every in-
+termediate operation is certified rather than point-valued.
+A controller observes node-wise set geometry (e.g., size,
+dispersion) and a global budget to accept, retry at higher
+fidelity (e.g., higher-resolution crop, alternate tool param-
+eters), or expand the reasoning graph with additional tool
+calls. By tying computation to certified uncertainty, PoP
+reduces error compounding and hallucinations, grounds an-
+swers in verifiable perceptual evidence, and exposes a knob
+to trade accuracy for cost across document, chart, and multi-
+image QA settings.
+3. Methodology
+In this section, we first define the problem and notation, then
+describe the reasoning graph representation, the node-level
+conformal prediction mechanism, the adaptive controller,
+2
+
+--- PAGE 3 ---
+the self-play counterexample miner, and finally the training
+and inference algorithms.
+3.1. Problem Setup and Notation
+We consider a generic multimodal reasoning task with in-
+puts
+x= (I 1:M , q),(1)
+whereI 1:M = (I1, . . . , IM)is a sequence of images (e.g.,
+pages of a document, charts, or screenshots), andqis a natu-
+ral language query. The desired output is an answeryfrom
+a task-specific spaceY(e.g., short text, numeric value, or
+categorical label).
+We assume access to:
+• A base multimodal large language model (MLLM)F θ
+with parametersθ, which can process images and text and
+generate text tokens.
+• A finite set of external perception tools
+T={T (1), . . . , T(K) },(2)
+where each toolT (k) takes as input an image (or image
+crop) and a text prompt, and returns a structured output in
+a tool-specific spaceZ (k). Examples include OCR, ob-
+ject detectors, layout analyzers, chart parsers, and simple
+visual question answerers.
+We are given a dataset
+D={(x i, yi)}N
+i=1 (3)
+for training and calibration. We partitionDinto aproper
+training setD train and acalibration setD cal to enable split
+conformal prediction.
+PoP learns:
+• Aplannerandfuserbased onF θ that generate and exe-
+cute a directed acyclic graph (DAG) of reasoning steps.
+• Node-type-specificcertificate headsthat output noncon-
+formity scores for conformal prediction.
+• Acontrollerπ ϕ that decides whether to expand the rea-
+soning graph (e.g., add more tool calls) given current cer-
+tificates and a computation budget.
+3.2. Reasoning Graph Representation
+We represent the reasoning process for a single inputxby a
+directed acyclic graph
+G= (V, E),(4)
+whereVis a set of nodes andE⊆V×Vis a set of directed
+edges. Each nodev∈Vcorresponds to an operation that
+produces an intermediate random variableZ v. We consider
+two main node types:
+•Tool nodesv∈V tool: nodes that call an external tool
+T (k) ∈ T. Each tool node is associated with:
+–A tool indexk(v)∈ {1, . . . , K},
+–A region specificationr v (e.g., an image index and
+bounding box),
+–A textual promptp v describing the sub-task for the
+tool.
+The tool executes as
+Zv =T (k(v))(I1:M , rv, pv)∈ Z (k(v)).(5)
+•Fusion nodesv∈V fuse: nodes that operate purely inside
+the MLLM, fusing the queryqwith intermediate results
+from predecessor nodes. Let pa(v)denote the set of par-
+ent nodes ofv. We model
+Zv =f (fuse)
+θ
+ 
+q, x,{ ˆZu}u∈pa(v)
+
+,(6)
+wheref (fuse)
+θ is implemented via a forward pass ofF θ
+over a structured prompt that includesqand textual or
+serialized representations of ˆZu.
+A specialanswer nodev ⋆ ∈V fuse produces the final an-
+swerZ v⋆ ∈ Y.
+Graph generation.Given(I 1:M , q), the planner uses the
+MLLM to autoregressively generate a textual program that
+encodes the graphG. We define a small domain-specific
+language (DSL) of instructions such as:
+•CALL TOOL(k, region, prompt)→v
+•FUSE(parents, prompt)→v
+•RETURN(node)
+The DSL is parsed into a DAG by a deterministic inter-
+preter. The generatedGmust be acyclic and respect a topo-
+logical ordering.
+For simplicity, we denote byσ:V→ {1, . . . ,|V|}a
+topological order of nodes.
+3.3. Node-Level Predictions and Nonconformity
+Scores
+Each nodevoutputs a random variableZ v ∈ Z v from a
+node-specific spaceZ v. For instance, OCR tools output
+strings, detectors output bounding boxes, chart parsers out-
+put numeric values, and fusion nodes output textual or cat-
+egorical decisions.
+For each node typet∈ T node (e.g., “OCR-string”, “det-
+box”, “chart-value”, “logic-text”), we define:
+• A base predictor
+f(t)
+θ :X v → ˆZv,(7)
+which maps node inputs to a predicted outputˆz v (e.g., a
+probability distribution over tokens or boxes). HereX v
+denotes the node-specific input state (e.g., image crop,
+prompt, and context).
+• Anonconformity function
+s(t) :X v × Zv →R ≥0 (8)
+3
+
+--- PAGE 4 ---
+that measures how “strange” a candidate outputzis rela-
+tive tof (t)
+θ and the input.
+Examples of nonconformity.
+• For string-valued outputs (e.g., OCR), we may define
+s(ocr)(xv, z) = 1−P θ(z|x v),(9)
+whereP θ(z|x v)is the model probability of stringz.
+Alternatively, we can use edit distance to the MAP pre-
+diction.
+• For bounding boxes, we can define
+s(box)(xv, z) = 1−IoU
+ 
+z,ˆzMAP
+v
+
+,(10)
+whereˆzMAP
+v is the highest-scoring box.
+• For scalar numeric outputs, we can define a residual-
+based score
+s(num)(xv, z) =
+z−µ θ(xv)
+ (11)
+for a predicted meanµ θ(xv).
+During training, when ground-truth intermediate labels
+are available (e.g., OCR transcripts or chart values), we can
+compute:
+s(t)(xv, ztrue
+v )for each labeled nodevof typet. (12)
+When intermediate labels are not available, we obtain
+pseudo-labels via teacher models or task-consistent heuris-
+tics (e.g., parsing gold answers back into node-level values).
+3.4. Split CP for Node Certificates
+We now describe how to turn node-level predictors into cal-
+ibratedset-valuedpredictors with provable marginal cover-
+age guarantees, using split conformal prediction.
+Calibration data.We collect a set of node-level calibra-
+tion examples for each node typet:
+C(t) ={(x (t)
+j , z(t)
+j )}nt
+j=1,(13)
+where(x (t)
+j , z(t)
+j )are node inputs and their corresponding
+(true or pseudo-true) outputs, extracted from the calibration
+splitD cal. For each(x (t)
+j , z(t)
+j ), we compute the nonconfor-
+mity score
+α(t)
+j =s (t) 
+x(t)
+j , z(t)
+j
+
+.(14)
+Letα (t)
+(1) ≤α (t)
+(2) ≤ · · · ≤α (t)
+(nt) denote the sorted scores.
+Given a desired marginal coverage level1−δwithδ∈
+(0,1), split conformal prediction chooses the threshold
+τ (t)
+δ =α (t)
+(k), k=
+l
+(nt + 1)(1−δ)
+m
+.(15)
+Set-valued prediction.Given a new node inputx v of
+typet, we define the conformal set
+Γ(t)
+δ (xv) =
+
+z∈ Z v :s (t)(xv, z)≤τ (t)
+δ
+
+.(16)
+Under the standard assumption that the calibration and
+test node inputs are exchangeable and that nonconformity
+scores are computed in the same way, the split conformal
+construction guarantees
+P
+
+ztrue
+v ∈Γ (t)
+δ (xv)
+
+≥1−δ,(17)
+where the probability is over the randomness of train-
+ing/calibration data and the test node input.
+Practical instantiation.In practice, manyZ v are discrete
+but large (e.g., strings). We approximate (16) with a finite
+candidate setZ cand
+v generated from the base model (e.g., via
+beam search or sampling). We then includez∈ Z cand
+v in
+Γ(t)
+δ (xv)ifs (t)(xv, z)≤τ (t)
+δ . For ease of computation, we
+can enforce a maximum allowed set sizeK max by truncat-
+ing to theK max least nonconforming candidates.
+Certificate head.We implement each nonconformity
+functions (t) with a smallcertificate headon top of the node
+representation:
+s(t)(xv, z) =g (t)
+ψ
+ 
+ϕ(t)
+θ (xv, z)
+
+,(18)
+whereϕ (t)
+θ is a feature extractor (e.g., the hidden state of the
+MLLM or a vision backbone),g (t)
+ψ is a shallow MLP, and
+ψare certificate-head parameters. This allows us to jointly
+train the base predictor and the certificate head.
+3.5. Adaptive Controller for Computation Alloca-
+tion
+Running many tool calls and re-parsing images can be ex-
+pensive. PoP includes a controller that decides, per node,
+whether to accept the current conformal set or toexpand
+the reasoning graph by invoking additional operations.
+For each nodev, define thecertificate state
+cv =
+ 
+τ (t(v))
+δ , b1
+h
+ztrue
+v ∈Γ (t(v))
+δ (xv)
+i
+,
+|Γ(t(v))
+δ (xv)|,type(v)
+
+.(19)
+wheret(v)is the node type. At test time, the ground-
+truth indicator is not known; it is only used during training
+to define learning signals (see §3.7). We also maintain a
+global budget statebrecording the cumulative cost of tool
+calls, image crops, and model passes.
+The controllerπ ϕ is a policy parameterized byϕ:
+av =π ϕ
+ 
+cv, b,context(v)
+
+,(20)
+where context(v)aggregates local information, such as:
+4
+
+--- PAGE 5 ---
+• Encodings of the node inputs,
+• Loose summaries of upstream nodes (e.g., a pooled em-
+bedding over{ ˆZu}u∈pa(v)),
+• The text ofq.
+We consider a small discrete action space
+A={ACCEPT,RETRY,EXPAND,ABORT},(21)
+with the following semantics:
+•ACCEPT: keep the current conformal setΓ (t(v))
+δ (xv)as
+the node output.
+•RETRY: re-run the same node with a higher-quality con-
+figuration (e.g., higher resolution crop or alternative tool
+parameters).
+•EXPAND: create new child nodes that refine the current
+node (e.g., extra OCR calls on subregions, or parallel
+tools).
+•ABORT: early stop if the controller judges the query unan-
+swerable under the budget, returning a special “no an-
+swer” token.
+The controller is trained to trade off task performance
+and computation cost.
+3.6. Self-Play Counterexample Mining
+To harden robustness and enrich calibration with difficult
+cases, PoP uses a self-play loop between a trainablestu-
+dent(θ, ψ, ϕ)and a periodically frozenadversary( ˜θ, ˜ψ, ˜ϕ)
+cloned from the student. For each example(x, y), the adver-
+sary proposes and executes a reasoning graph˜G, then gener-
+ates perturbed inputs and intermediate states(x ′,{z ′
+v})via
+controlled visual/layout/tool shifts (e.g., crops, mild affine
+changes, distractors, injected OCR noise), and filters for
+counterexampleswhere˜y̸=yor node nonconformity is
+large. The student is trained on these cases to recover
+the correct answer, to produce node-wise conformal sets
+Γ(t)
+δ (x′
+v)that achieve the target coverage, and to learn con-
+troller actions that maintain coverage without overspend-
+ing compute. The selected node-level pairs(x ′
+v, z′
+v)are ap-
+pended to calibration poolsC (t) so that thresholdsτ (t)
+δ re-
+flect realistic failure modes, yielding certificates and poli-
+cies that remain reliable under distributional perturbations.
+3.7. Training Objective
+The overall training objective for PoP combines a task loss,
+a planning loss, a certificate loss, a controller loss, and a
+budget regularizer.
+Task loss.For each training example(x, y), we execute
+the student model with a fixed or softly supervised graph
+and obtain the final predictionˆy. We define a task loss
+Ltask =E (x,y)∼Dtrain
+
+ℓtask(ˆy, y)
+
+,(22)
+whereℓ task is, for instance, cross-entropy for classification
+or a smooth-L1 loss for regression.
+Planning loss.When ground-truth or teacher-provided
+programs (graphs) are available, we supervise the planner
+with a sequence-level loss. Letp θ(π|x)denote the prob-
+ability of emitting programπ(i.e., the textual DSL forG).
+Given a reference programπ ⋆, we define
+Lplan =E (x,π⋆)
+
+−logp θ(π⋆ |x)
+
+.(23)
+When reference programs are not available, we can define a
+reinforcement-style reward for graphs that achieve high ac-
+curacy with low cost, and optimizepθ with policy gradients;
+for brevity we do not expand that formulation here.
+Certificate loss.For each node typetand labeled node
+example(x v, zv), we want the learned nonconformity
+scoress (t)(xv, zv)to align with the empirical quantile
+thresholdsτ (t)
+δ . A simple surrogate is a margin-based loss:
+ℓ(t)
+cert(xv, zv) = max
+
+0, s (t)(xv, zv)−τ (t)
+δ −ϵ
+
+,(24)
+whereϵ≥0is a small slack parameter that encourages
+scores of true outputs to fall below the learned threshold.
+We aggregate over all node types and examples:
+Lcert =
+X
+t
+λt E(xv,zv)∼C(t)
+
+ℓ(t)
+cert(xv, zv)
+
+,(25)
+with non-negative weightsλ t.
+Controller loss.We define a per-example cost
+C(x) =C err(x) +β C comp(x),(26)
+where:
+•C err(x)penalizes incorrect final answers or coverage vio-
+lations (e.g., ify /∈Γ (answer)
+δ at the answer node).
+•C comp(x)measures computation cost, for example
+Ccomp(x) =
+X
+v∈Vtool
+ctool(v) +
+X
+v∈Vfuse
+cfuse(v),(27)
+wherec tool(v),c fuse(v)are pre-defined costs per tool call
+or fusion pass.
+The hyperparameterβ >0trades off accuracy and cost.
+We optimize the controller parametersϕto minimize the
+expected cost:
+Lctrl =E (x,y)∼Dtrain
+
+C(x)
+
+.(28)
+Since decisionsa v are discrete, we use a policy-gradient
+estimator. LetR(x) =−C(x)be the reward. The gradient
+with respect toϕis approximated as
+∇ϕLctrl ≈ −E
+"X
+v∈V
+∇ϕ logπ ϕ(av |c v, b,context(v))
+×
+ 
+R(x)−b 0
+
+#
+.(29)
+5
+
+--- PAGE 6 ---
+whereb 0 is a baseline (e.g., an exponential moving aver-
+age of rewards).
+Overall objective.The total loss is
+L=L task +γ planLplan +γ certLcert +γ ctrlLctrl,(30)
+with non-negative weightsγ plan, γcert, γctrl.
+3.8. Inference Procedure
+At test time, PoP operates in two main phases: (1) graph
+generation; (2) graph execution with node-wise conformal
+certificates and controller-driven expansion.
+Phase 1: Graph generation.Given input(I 1:M , q), the
+planner (MLLM) autoregressively generates a programπ
+in the DSL. We parseπinto a DAGG= (V, E)that sat-
+isfies syntactic and acyclicity constraints. If the generated
+program is invalid, we fall back to a default single-pass rea-
+soning template (e.g., direct answer with no tools).
+Phase 2: Graph execution.We execute nodes in topo-
+logical orderσ. For each nodev:
+1. Construct the node inputx v from(I 1:M , q)and the (set-
+valued) outputs of its parents{Γ (t(u))
+δ (xu)}u∈pa(v).
+2. Use the node-type predictorf (t(v))
+θ to obtain candidate
+outputsZ cand
+v and corresponding nonconformity scores
+unders (t(v)).
+3. Compute the conformal setΓ (t(v))
+δ (xv)using the pre-
+computed thresholdτ (t(v))
+δ and the procedure in (16).
+4. Query the controllerπ ϕ with the certificate statec v,
+global budgetb, and context to decide actiona v ∈ A.
+5. Ifa v =ACCEPT, proceed to the next node; ifa v ∈
+{RETRY,EXPAND}, modify the graph locally (e.g., add
+nodes or re-runvwith modified configuration); ifa v =
+ABORT, terminate with a special no-answer.
+After visiting all nodes, we read the final conformal set
+at the answer nodev ⋆:
+Γ(answer)
+δ (x) = Γ(t(v⋆))
+δ (xv⋆)⊆ Y.(31)
+We can either:
+• Return the full setΓ (answer)
+δ (x)as a calibrated uncertainty
+summary, or
+• Select a single answerˆyfrom the set (e.g., the highest-
+probability element) and expose bothˆyandΓ (answer)
+δ (x)
+to the user.
+4. Experiments
+We evaluateProof-of-Perception (PoP)on multimodal tasks
+that require(i)fine-grained perception (OCR, detection,
+layout/figure parsing),(ii)multi-step reasoning over inter-
+mediate evidence, and(iii)reliability under controlled or
+natural distribution shift. We adhere to the methodology in
+Section 3, using identical training/decoding budgets across
+systems unless stated. Our experiments answer four ques-
+tions:
+Q1Does PoP improve answer quality whilereducing
+hallucinations?Q2Do ournode-wise conformal cer-
+tificatesachieve the target coverage across node types and
+datasets?Q3Can PoPallocate computation adaptively,
+achieving better accuracy–compute trade-offs?Q4Is
+PoP robust to realistic shifts (layout/fonts/clutter) via self-
+play counterexample mining?
+4.1. Tasks and Datasets
+We evaluate where tool use and compositional percep-
+tion are pivotal.Document understanding:DocVQA
+(Task 1 & 3) for key–value extraction and document QA
+on scanned forms,TextVQAfor OCR-heavy visual QA,
+andInfographicVQAfor dense multi-panel graphics [20,
+21, 26]. We report Exact Match (EM), F1, andHallucina-
+tion Rate(fraction of answers unsupported by any evidence
+node; Sec. 4.4).Chart and figure reasoning:ChartQA
+(Human/Machine splits) andChartQA-PoT(program-of-
+thought annotations) evaluate numerical/semantic reason-
+ing; metrics: EM and absolute value error [13, 19].Multi-
+image aggregation:MultiDoc2Dialassesses grounded QA
+over multiple related pages, andTextCapsevaluates cap-
+tioning with OCR grounding; we use EM (QA) or CIDEr
+(captioning) plus hallucination rate [9, 23].
+4.2. Models and Baselines
+PoP (ours).The planner–fuser is a 7–9B open MLLM;
+tools include OCR (PaddleOCR), detection (DETR-like),
+a chart parser, and a layout parser [4, 6, 25]. Node
+types areocr-string,det-box,chart-num, and
+logic-text. Each node has a certificate head defining
+nonconformitys (t); calibration follows split CP (Sec. 3.4).
+The controllerπ ϕ chooses{ACCEPT,RETRY,EXPAND,
+ABORT}(Sec. 3.5).
+Baselines.(1)Direct-MLLM: same backbone, no tools,
+single-pass decoding. (2)M-CoT: multimodal chain-of-
+thought prompting (no tools). (3)MM-ReAct: tool-using
+agent with heuristic retries (no calibration). (4)ProgVLM:
+program-of-thought tool plans without certificates. We
+also include two 2025 open-source planner→tools→fuser
+agents under matched budgets.1
+4.3. Implementation and Training Setup
+Backbone.7–9B class MLLM; image encoder at896 2;
+planner beam size 5; max program length 128 DSL tokens.
+1All methods use the same backbone class, tokenizer, and image en-
+coder resolution; tool implementations are shared unless the baseline is
+tool-free.
+6
+
+--- PAGE 7 ---
+Figure 2. Node-wise conformal coverage vs. average set size across pooled datasets (target90%). Bars show mean coverage; thin caps
+indicate±1.0%variation. We constrain set sizes (OCR: up to 5, boxes: up to 3), which keeps coverage near target without inflating
+candidate sets.
+1 2 3 4 584
+86
+88
+90
+92
+94
+96
+Average set size
+Empirical coverage (%)
+OCR (string) Detection (box) Chart (numeric) Logic (text)
+Tools.OCR with lexicon-free decoding; detector at 900
+queries; chart parser with template-free axis/legend detec-
+tion; layout parser trained on RVL-CDIP-style documents.
+Calibration.Per node typet, we extractn t ∈[8k,22k]
+labeled/pseudo-labeled nodes from held-out splits. Thresh-
+oldτ (t)
+δ uses Eq. (1) withδ= 0.1(90% target coverage).
+We limit set size toK max = 5forocr-string,K max =
+3fordet-box, and numeric intervals forchart-num.
+Controller/budget.Each tool call costs1unit, high-res
+retry costs2, and a fuse step costs0.25. Unless stated, the
+per-sample budget isB=16. Training uses policy gradients
+with rewardR=−C err −βC comp (β= 0.05).
+Self-play counterexamples.Every 2 epochs we refresh
+a frozen copy to generate perturbed instances (clutter, affine
+text warp, font swaps, distractor boxes, re-shuffled panels).
+Hard nodes join the calibration pools (Sec. 3.6).
+4.4. Metrics
+Answer Quality.EM / F1 (QA); Abs. Error (numeric).
+Coverage (node & answer).Empirical coverage dCov =
+1
+N
+P 1[z⋆ ∈Γ δ]vs. target1−δ= 90%.Hallucination
+Rate.An answer is “hallucinated” if it cannot be jus-
+tified by any accepted node evidence along the execution
+trace: for text answers, noocr-stringorlogic-text
+node entails the claimed span; for numeric answers, no
+chart-numinterval covers the reported value; for box
+answers, no accepteddet-boxset overlaps (IoU>0.5).
+Compute.Average tool calls and total budget usage ¯B.
+4.5. Main Results (Q1)
+Table 1 reports answer quality, hallucination, and compute.
+PoP consistently improves EM/F1 whilereducinghalluci-
+nation by27–45%relative to the strongest baseline, at sim-
+ilar or lower compute.
+Table 1. Main results. Higher EM/F1/CIDEr is better; lower Hal-
+lucination and ¯B(budget) is better. PoP uses the same backbone
+as baselines; all tool-using agents share tool implementations.
+Dataset MetricDirect M-CoT MM-ReAct ProgVLM PoP (ours)
+DocVQA-T1
+EM 69.8 72.1 74.3 75.078.6
+Halluc.↓17.9 15.4 12.7 11.97.1
+¯B↓0.25 0.2514.8 13.9 11.2
+TextVQA
+F1 64.7 66.9 69.2 69.772.9
+Halluc.↓22.3 19.8 15.6 15.19.3
+¯B↓0.25 0.2515.6 14.7 12.4
+InfographicVQA
+EM 53.1 55.0 58.6 58.962.7
+Halluc.↓28.5 26.1 21.9 21.314.1
+¯B↓0.25 0.2516.2 15.1 12.9
+ChartQA-H EM 78.4 80.9 83.5 84.187.8
+AbsErr↓7.8 7.1 6.0 5.84.2
+MultiDoc2Dial EM 57.4 60.0 62.8 63.466.1
+Halluc.↓20.4 18.2 14.5 14.110.2
+TextCaps CIDEr 117.2 121.9 129.4 130.1136.0
+Halluc.↓24.1 21.6 17.3 16.911.5
+Table 2. Ablations on TextVQA and ChartQA-H.
+Variant TextVQA ChartQA-H
+F1↑Halluc.↓EM↑AbsErr↓
+PoP (full)72.9 9.3 87.8 4.2
+w/o CP (No-CP) 69.8 14.8 84.6 5.6
+final-only CP 71.1 11.9 86.2 4.9
+heuristic controller 72.1 10.7 87.2 4.6
+Why PoP helps.Gains trace to (i)node-wise conformal
+setsthat suppress brittle single guesses (e.g., OCR strings
+with near-ties), and (ii) thecontrollerthat only expands
+when certificates warn of low coverage, avoiding unneces-
+7
+
+--- PAGE 8 ---
+Figure 3. Accuracy–compute frontiers. PoP attains higher accuracy for a given budget and avoids over-expansion once node certificates
+meet the target. Shaded bands indicate±0.4absolute variation across three seeds.
+8 12 16 2460
+63
+66
+69
+72
+75
+certificates satisfied(selective stop)
+BudgetB
+TextVQA F1 (%)
+TextVQA
+8 12 16 2476
+80
+84
+88
+90
+Pareto
+BudgetB
+ChartQA-H EM (%)
+ChartQA-H
+8 12 16 2450
+54
+58
+62
+66 diminishing
+returns
+BudgetB
+InfographicVQA EM (%)
+InfographicVQA
+PoP MM-ReAct M-CoT
+sary tool calls that compound errors. InfographicVQA ben-
+efits most: multiple panels require compositional evidence
+with uncertain OCR; PoP’s per-node sets improve fusion re-
+liability.
+4.6. Coverage Guarantees (Q2)
+We target90%coverage (δ= 0.1). Figure 2 shows empiri-
+cal coverage vs. set size for each node type across datasets.
+PoP achieves90.7%±0.9(ocr-string),91.3%±0.8
+(det-box),90.2%±0.7(chart-num), and90.9%±1.0
+(logic-text). Crucially, coverage holds under moderate
+shifts (Sec. 4.9) due to calibration pools enriched by self-
+play.
+Answer-level coverage.Although our guarantees are per-
+node, the answer-level setΓ (answer)
+δ attains88.6%coverage
+on average. This is expected: composition can tighten sets;
+nonetheless, PoP’s controller tends to expand when prop-
+agated uncertainty is high, keeping answer-level coverage
+close to the target in practice.
+Table 3. Robustness under synthetic shifts (TextVQA). Node cov-
+erage shown forocr-string.
+PerturbationF1↑Halluc.↓Coverage (%)↑ ¯B↓
+None72.9 9.3 90.7 12.4
+FontSwap 70.8 10.6 90.1 13.3
+Clutter10% 70.2 11.1 89.9 13.6
+Affine(3◦) 71.4 10.1 90.3 12.9
+PanelShuffle 69.6 11.5 89.8 13.8
+4.7. Accuracy–Compute Trade-off (Q3)
+We sweep the per-sample budgetB∈ {8,12,16,24}
+(Fig. 3). PoP dominates the frontier: atB=12it matches or
+exceeds the best baseline atB= 16on all datasets, saving
+25%compute. AtB= 24, PoP continues to gain slightly
+on hardest datasets (InfographicVQA, MultiDoc2Dial), but
+saturates elsewhere—consistent with our controller halting
+expansion once certificates are satisfied.
+4.8. Ablations
+In Table 2 we investigate the following cases:
+No-CP vs. CP.Removing conformal sets (No-CP) drops
+TextVQA F1 from72.9to69.8and increases hallucination
+from9.3to14.8. Coverage-oriented set expansion is the
+dominant contributor to reliability.
+Final-only CP vs. Node-wise CP.Applying CP only at
+the final answer (no node certificates) yields F171.1and
+hallucination11.9: better thanNo-CP, but worse than full
+node-wise CP. Node certificates provide earlier warnings
+and trigger targeted expansions.
+Controller.Replacing the learned controller with fixed
+heuristics (retry twice on low confidence) increases average
+budget by+18%at similar EM, underscoring the benefit of
+learnedselectiveexpansion.
+4.9. Robustness to Shift (Q4)
+We evaluate on perturbed TextVQA/ChartQA:FontSwap,
+Clutter10%,Affine(3 ◦), andPanelShuffle. PoP degrades
+gracefully (Table 3), retaining close-to-target node coverage
+and using higher budgets as the controller expands more of-
+ten. Self-play counterexamples in calibration pools are key:
+removing them increases coverage drop by∼2.5points.
+4.10. Discussion and Limitations
+PoP’s guarantees are marginal and per-node; answer-level
+coverage is near-target but not theoretically guaranteed due
+8
+
+--- PAGE 9 ---
+to composition. Very rare corner cases (e.g., unseen font
+families with extreme kerning) can require larger candidate
+sets to maintain coverage. Our compute model is simple;
+richer latency-aware budgets (GPU/CPU overlap, IO) are
+left for future work.
+5. Conclusion
+We introducedProof-of-Perception (PoP), a certified, tool-
+using framework that casts multimodal reasoning as execu-
+tion of a graph whose perception and logic nodes output
+conformal, set-valued predictions and whose controller al-
+locates computation based on these certificates. This de-
+sign grounds answers in verifiable evidence, reduces error
+compounding and hallucinations, and exposes a principled
+accuracy–compute trade-off. Empirically, PoP improves
+performance and reliability over strong chain-of-thought,
+ReAct-style, and program-of-thought baselines across doc-
+ument, chart, and multi-image QA while using computation
+more efficiently. PoP is model- and tool-agnostic and com-
+plements existing MLLMs by replacing single-valued de-
+cisions and heuristic control with stepwise guarantees and
+adaptive policies.
+References
+[1] Jean-Baptiste Alayrac et al. Flamingo: a visual language
+model for few-shot learning. InNeurIPS, 2022. 1
+[2] Anastasios Angelopoulos and Stephen Bates. A gentle intro-
+duction to conformal prediction and distribution-free uncer-
+tainty quantification, 2021. 1
+[3] Stephen Bates, Emmanuel J. Cand `es, Lihua Lei, and Yaniv
+Romano. Distribution-free, risk-controlling prediction sets.
+Journal of the American Statistical Association, 2023. 2
+[4] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas
+Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-
+end object detection with transformers. InECCV, 2020. 6
+[5] Xi Chen, Carlos Riquelme, Neil Houlsby, et al. Pali-x: On
+scaling up multilingual vision and language models, 2023. 1
+[6] Yuning Du et al. Paddleocr: A practical ultra lightweight ocr
+system, 2020. 6
+[7] Arya Fayyazi, Mehdi Kamal, and Massoud Pedram. Fac-
+ter: Fairness-aware conformal thresholding and prompt en-
+gineering for enabling fair llm-based recommender systems,
+2025. 2
+[8] Arya Fayyazi, Mehdi Kamal, and Massoud Pedram. Fair-
+sight: Fairness assurance in image recognition via simul-
+taneous conformal thresholding and dynamic output repair.
+InProceedings of the IEEE/CVF Winter Conference on Ap-
+plications of Computer Vision (WACV), pages 6633–6642,
+2026. 2
+[9] Song Feng, Shreya Saxena, Khyathi Raghavi Chandu, et al.
+Multidoc2dial: Modeling dialogues grounded in multiple
+documents. InEMNLP, 2021. 6
+[10] Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q. Weinberger.
+On calibration of modern neural networks. InICML, 2017.
+1
+[11] Zhenmei Ji et al. Survey of hallucination in natural language
+generation.ACM Computing Surveys, 2023. 1
+[12] Geewook Kim, Teakgyu Ryu, Heeyoung Ahn, et al. Donut:
+Document understanding transformer without ocr. InECCV,
+2022. 1
+[13] Sehoon Kim et al. Chartpot: Program-of-thought for chart
+understanding. InCVPR, 2024. 1, 6
+[14] Jiahui Lee, Chenliang Li, Hieu Pham Nguyen, et al.
+Pix2struct: Screenshot parsing as pretraining for visual lan-
+guage understanding. InICML, 2023. 1
+[15] Jing Lei, Max G’Sell, Alessandro Rinaldo, Ryan J. Tibshi-
+rani, and Larry Wasserman. Distribution-free predictive in-
+ference for regression.Journal of the American Statistical
+Association, 2018. 2
+[16] Junnan Li, Dongxu Li, Caiming Xiong, and Steven C. H.
+Hoi. Blip-2: Bootstrapping language-image pre-training
+with frozen image encoders and large language models. In
+ICML, 2023. 1
+[17] Haotian Liu et al. Llava-1.5: Improved baselines and evalu-
+ation for language-vision models. InNeurIPS Datasets and
+Benchmarks, 2024. 1
+[18] Pengfei Liu et al. Towards chain-of-thought reasoning in
+multimodal models, 2023. 1
+[19] Ahmed Masry, Nikolaos Pappas, et al. Chartqa: A bench-
+mark for question answering on charts. InACL, 2022. 1,
+6
+[20] Minesh Mathew, Dimosthenis Karatzas, and C. V . Jawahar.
+Docvqa: A dataset for document visual question answering.
+InWACV, 2021. 6
+[21] Minesh Mathew, Dimosthenis Karatzas, and C. V . Jawahar.
+Infographicvqa. InCVPR, 2022. 1, 6
+[22] Yulei Nie et al. Program-of-thought prompting for visual
+question answering. InICCV, 2023. 1
+[23] Yash Patel, Vatsal Pahuja, Yash Patel, et al. Textcaps: A
+dataset for image captioning with reading comprehension.
+InECCV, 2020. 6
+[24] Baolin Peng et al. Kosmos-2: Grounding multimodal large
+language models to the world, 2023. 1
+[25] Zejiang Shen, Ruochen Zhang, Micah Dell, Jacob Lee,
+Zhongliang Ren, Yichong Xu, Ze Sun, Junting Wang, Yue
+Jiang, Zhongliang Li, et al. Layoutparser: A unified toolkit
+for deep learning based document image analysis. InICDAR,
+2021. 6
+[26] Amanpreet Singh, Vivek Natarajan, Meet Shah, Xinlei Jiang,
+Dhruv Chen, Yashas Wu, Dhruv Batra, Devi Parikh, Anna
+Rohrbach, and Kevin Shih. Textvqa: Towards question an-
+swering on text-rich images. InCVPR, 2019. 6
+[27] Vladimir V ovk, Alex Gammerman, and Glenn Shafer.Algo-
+rithmic Learning in a Random World. Springer, 2005. 1
+[28] An Wang et al. Qwen2-vl: Enhancing vision-language mod-
+els with better perception and reasoning, 2024. 1
+[29] Junnan Yang et al. Mm-react: Prompting chatgpt for multi-
+modal reasoning and action, 2023. 1
+[30] Shunyu Yao et al. React: Synergizing reasoning and acting
+in language models. InNeurIPS, 2022. 1
+[31] Denny Zhu et al. Multimodal chain-of-thought reasoning in
+language models. InNeurIPS Workshop on Reasoning, 2023.
+1
+9

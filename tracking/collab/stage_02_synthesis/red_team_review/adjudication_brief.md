@@ -1,0 +1,82 @@
+# Red Team Review Adjudication Brief
+
+TASK_PACKET
+- stage: Stage 2A synthesis prep
+- artifact: red_team_review_adjudication
+- objective: Review the three existing red-team review artifacts, reconcile them against the current repo state, and produce one adjudicated judgment on what still matters before deep synthesis.
+- exact_question: After comparing the Codex, Gemini, and Opus red-team reviews to the current post-QC repo state, which findings remain valid, which are stale or superseded, where do the reviews genuinely disagree, and is the project safe to proceed into deep synthesis?
+- why_now: Three red-team reviews now exist, but they were written against slightly different repo states. The latest frozen synthetic-prep QC has passed, so the next useful step is not another standalone review but an adjudication pass that separates still-live defects from already-fixed or stale claims.
+- inputs:
+  - `tracking/collab/stage_02_synthesis/red_team_review/outputs/red_team_review_codex.md`
+  - `tracking/collab/stage_02_synthesis/red_team_review/outputs/red_team_review_gemini.md`
+  - `tracking/collab/stage_02_synthesis/red_team_review/outputs/red_team_review_opus.md`
+  - `research/intake/normalized/qc/2026-04-01__qc_report.json`
+  - `research/intake/inbox/system_runs/2026-03-31__dedup__pass_03.json`
+  - `research/intake/normalized/manifests/corpus__deduped.json`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/intake/rejected/2026-04-01__accepted_blocked_exceptions.json`
+  - `research/intake/rejected/2026-04-01__manual_demotions.json`
+  - `research/intake/rejected/2026-04-01__synthesis_duplicate_quarantine.json`
+  - `research/intake/rejected/2026-04-01__current_blocked_accepted_sources.json`
+  - `tracking/collab/stage_02_synthesis/eval_inventory/outputs/eval_inventory.md`
+  - `tracking/collab/stage_02_synthesis/eval_inventory/outputs/eval_metadata_repair.md`
+- exclusions:
+  - no new web research
+  - no source discovery
+  - no new red-team artifact beyond the adjudication output
+  - do not edit accepted records, manifests, or canonical ledger files in this pass
+  - do not rerun dedup, capture, or QC
+- current_state_to_treat_as_ground_truth:
+  - the latest QC state is a pass in `research/intake/normalized/qc/2026-04-01__qc_report.json`
+  - the frozen accepted layer is `288` accepted sources
+  - the frozen captured synthesis input is `247` captured sources
+  - the frozen explicit blocked-exception set is `41` sources
+  - the duplicate Terminal-Bench quarantine remains out of active synthesis scope
+- review_focus:
+  - identify findings shared by two or more reviews that are still true now
+  - identify findings that were true when written but are now stale because the repo state changed
+  - identify findings that are weak, overstated, or unsupported by current repo evidence
+  - identify any high-severity issue that all three reviews missed
+  - judge whether the remaining unresolved issues block deep synthesis or are manageable synthesis-time caveats
+- explicit_checks:
+  - verify whether any review still relies on the old failed-QC state instead of the current passing QC state
+  - verify whether placeholder/mock accepted records still exist in the live accepted corpus
+  - verify whether `current_blocked_accepted_sources.json` is still stale relative to `corpus__captured_for_synthetic_prep.json`
+  - verify whether eval inventory artifacts are stale relative to the repaired manifests
+  - verify whether accepted blocked exceptions leak into the captured synthesis input
+  - verify whether demoted or quarantined source ids leak back into active manifests
+  - verify whether the schema-drift criticism is still true against the current accepted records and documented schema
+  - treat each review as evidence, not authority
+- output_contract:
+  - write one ADJUDICATED_RED_TEAM_REVIEW to `tracking/collab/stage_02_synthesis/red_team_review/outputs/red_team_review_adjudicated.md`
+  - findings must be ordered by severity
+  - each adjudicated finding must include:
+    - `status`: `confirmed_live|confirmed_but_nonblocking|stale_fixed|overstated|unsupported`
+    - `severity`: `critical|high|medium|low`
+    - `title`
+    - `which_reviews_raised_it`
+    - `current_repo_evidence_paths`
+    - `adjudication`
+    - `why_it_matters_now`
+    - `minimum_fix_or_operating_rule`
+  - also include:
+    - `consensus_findings`
+    - `disagreements_between_reviews`
+    - `new_findings_not_raised_by_all_three`
+    - `findings_invalidated_by_the_passing_qc`
+    - `must_fix_before_deep_synthesis`
+    - `safe_to_proceed_judgment`
+    - `recommended_next_hand_off_target`
+- collaboration_mode: single-agent repo-access adjudicator under principal routing
+- external_agent_action: Run external agent now: yes. This is a repo-access adjudication pass that should inspect the three review artifacts against current repo state and write one consolidated judgment only.
+- assigned_roles:
+  - principal project steward
+  - adversarial review adjudicator
+- evidence_expectations:
+  - use repo-local evidence only
+  - prefer current repo state over stale review text
+  - distinguish fixed defects from still-live defects
+  - call out when a review is directionally right but no longer current
+  - do not smooth over disagreement; resolve it explicitly
+- decision_needed_from_human: None to run the adjudication. Human review is only needed if the adjudicated output says deep synthesis scope should be narrowed or reopened.
+- done_condition: The adjudicated review artifact exists, stale review claims are separated from live blockers, and the project has one current evidence-backed answer on whether it is safe to proceed into deep synthesis.

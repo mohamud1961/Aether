@@ -1,0 +1,125 @@
+{
+  "source_id": "src_iss_31cf9134cefa",
+  "title": "[FEATURE] Add durable long-lived task execution layer for agentic workflows",
+  "canonical_url": "https://github.com/langchain4j/langchain4j/issues/4637",
+  "date": "2026-02-27",
+  "authors_or_org": [
+    "LangChain4j community"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "webpage",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "state_management",
+  "bucket_secondary": [],
+  "decision_targets": [
+    "execution_loop",
+    "state",
+    "observability",
+    "recovery"
+  ],
+  "mechanism_tags": [
+    "checkpointing",
+    "event_journal",
+    "store_atomic_transition",
+    "journaling",
+    "replay_resume"
+  ],
+  "failure_mode_tags": [
+    "cancel_race"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "terminal_agent"
+  ],
+  "models_if_named": [],
+  "environment_type": [
+    "local_fs"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 5,
+    "reproducibility": 3,
+    "ecological_validity": 4,
+    "decision_relevance": 5,
+    "recency": 5
+  },
+  "relevance_note": "LangChain4j issue detailing a durable execution module with checkpoints and journaling",
+  "reason_included": "Provides design for durable tasks: checkpoints, journaling, resume after restart",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "ReplayingPlanner: on resume, replays completed invocations from the journal to fast-forward agent state.",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "Crash recovery \u2014 if the JVM restarts mid-workflow, the agent should resume from its last checkpoint rather than re-execute from scratch.",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "CheckpointPolicy: NONE, AFTER_EACH_AGENT, AFTER_ROOT_CALL \u2014 controls when scope-aware checkpoints are taken at agentic scope boundaries.",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c4",
+      "claim_text": "All lifecycle events (agent invocations, retries, pauses, cancellations, completions, failures) are recorded in an ordered, immutable journal per task.",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c5",
+      "claim_text": "Store-atomic compare-and-set: all status transitions use TaskExecutionStore.compareAndSetStatus() atomically to prevent a race between cancel and completion.",
+      "claim_status": "asserted"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Issue #4637, component 'ReplayingPlanner'"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Issue #4637, bullet 'Crash recovery'"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Issue #4637, component 'CheckpointPolicy'"
+    },
+    {
+      "claim_id": "c4",
+      "locator": "Issue #4637, Key design decision 3 'Event journal'"
+    },
+    {
+      "claim_id": "c5",
+      "locator": "Issue #4637, Key design decision 1 'compare-and-set'"
+    }
+  ],
+  "dedupe_key": "github_issue:langchain4j/langchain4j#4637",
+  "canonical_locator": "github_issue:langchain4j/langchain4j#4637",
+  "discovered_in_batches": [
+    "2026-03-25__state_management.json#obj1.1",
+    "2026-03-25__state_management.json#obj1|bucket=state_management|run_date=2026-03-24|agent=state_management_agent",
+    "existing::src_iss_31cf9134cefa"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_31cf9134cefa::github_issue:langchain4j/langchain4j#4637::2026-03-25__state_management.json#obj1.1::r1",
+    "src_iss_31cf9134cefa::langchain4j#4637::2026-03-25__state_management.json#obj1::r1"
+  ],
+  "origin_buckets": [
+    "state_management"
+  ],
+  "origin_batch_buckets": [
+    "state_management"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_31cf9134cefa/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/langchain4j/langchain4j/issues/4637",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "artifact_relpath": "research/sources/issues/src_iss_31cf9134cefa"
+}

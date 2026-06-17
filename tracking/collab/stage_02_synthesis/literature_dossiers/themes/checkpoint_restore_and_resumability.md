@@ -1,0 +1,130 @@
+LITERATURE_DOSSIER
+- dossier_type: theme
+- topic:
+  - `checkpoint restore and resumability`
+- scope:
+  - Formal sources on workflow checkpoints, restore semantics, resumable execution, and rollback-safety boundaries for agent systems.
+  - Keeps substrate-level resume claims subordinate to stronger direct-evidence judgments about whether restart-safe task completion is actually demonstrated in trajectories and visible source.
+- primary_sources:
+  - `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt` - `ACRFence: Preventing Semantic Rollback Attacks in Agent Checkpoint-Restore`
+  - `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt` - `Sessions`
+  - `research/sources/docs/src_doc_776484f287d8/artifact.txt` - `Durable execution`
+  - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt` - `Microsoft Agent Framework Workflows - Checkpoints`
+  - `research/sources/docs/src_doc_a7930779ecd3/artifact.txt` - `Agent Continuations for Resumable AI Workflows`
+- secondary_sources:
+  - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt` - `VeRO: An Evaluation Harness for Agents to Optimize Agents`
+  - `research/sources/papers/papers_text/src_pap_45e5459616e1.txt` - `Reasoning Provenance for Autonomous AI Agents: Structured Behavioral Analytics Beyond State Checkpoints and Execution Traces`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+- coverage_used:
+  - `research/sources/papers/papers_text/src_pap_567951e5e0b3.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_2531fb990b03.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_45e5459616e1.{txt,meta.json}`
+  - `research/sources/docs/src_doc_07fd01b8b76a/{artifact.txt,capture.json}`
+  - `research/sources/docs/src_doc_776484f287d8/{artifact.txt,capture.json}`
+  - `research/sources/docs/src_doc_118b78fe9c63/{artifact.txt,capture.json}`
+  - `research/sources/docs/src_doc_a7930779ecd3/{artifact.txt,capture.json}`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__claude.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__gemini.md`
+- coverage_not_yet_used:
+  - `research/sources/docs/src_doc_1069e67c4fe5/artifact.txt`
+  - `research/sources/docs/src_doc_c91153d296ea/artifact.txt`
+  - `research/sources/docs/src_doc_bec8b9457702/artifact.txt`
+  - `research/sources/papers/papers_text/src_pap_a2865d580c30.txt`
+- evidence_classes_touched:
+  - `papers`
+  - `docs`
+  - `trajectory contradiction pressure`
+  - `source contradiction pressure`
+  - `wave synthesis outputs`
+- priority_sources_not_yet_read:
+  - `research/sources/docs/src_doc_1069e67c4fe5/artifact.txt`
+  - `research/sources/docs/src_doc_c91153d296ea/artifact.txt`
+  - `research/sources/docs/src_doc_bec8b9457702/artifact.txt`
+  - `research/sources/papers/papers_text/src_pap_a2865d580c30.txt`
+- formal_claims:
+  - observation: The strongest formal recovery sources define resumability as persisted workflow or conversation state plus replay from a restore point, not as proof that the original task is complete. `Sessions`, `Durable execution`, `Microsoft Agent Framework Workflows - Checkpoints`, and `Agent Continuations` all emphasize stored state, restore, rehydration, and continuing or replaying work from saved checkpoints. Evidence: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`, `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`. Inference: in the formal corpus, resumability is primarily a substrate property rather than a completion-proof mechanism. Confidence: `high`
+  - observation: Formal resume surfaces depend on replay semantics and idempotency boundaries. `Durable execution` explicitly warns that resumed workflows replay from a starting point rather than continuing from the exact interrupted line, and `Sessions` exposes correction and history-rewrite primitives rather than immutable progression. Evidence: `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`. Inference: restart safety depends on how side effects, history mutation, and replay are controlled, not just on whether a checkpoint exists. Confidence: `high`
+  - observation: `ACRFence` adds an explicit adversarial caution: checkpoint-restore can produce semantic rollback attacks when irreversible actions are reissued under changed task meaning or stale state assumptions. Evidence: `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`. Inference: rollback safety is not guaranteed by checkpointing alone and must be analyzed as a distinct failure surface. Confidence: `high`
+  - observation: `VeRO` and `Reasoning Provenance` reinforce that state snapshots and traces are insufficient for full behavioral accountability by themselves. Evidence: `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`. Inference: resumability, replay, and behavioral interpretation should remain distinct even when they share infrastructure. Confidence: `high`
+- benchmark_or_definition_notes:
+  - `Sessions` is a memory and continuation surface built around a persistent conversation history keyed by session identity, including explicit resume-after-interruption flows: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`.
+  - `Durable execution` defines resume as replay from a saved start point and therefore makes idempotent side effects an explicit requirement: `research/sources/docs/src_doc_776484f287d8/artifact.txt`.
+  - `Microsoft Agent Framework Workflows - Checkpoints` uses `checkpoint`, `restore`, and `rehydrate` terminology for persisted executor state and pending work: `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`.
+  - `Agent Continuations for Resumable AI Workflows` frames resumability through snapshots of pending actions and nested agent state, but remains a provider-authored design surface rather than stronger implementation proof: `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`.
+- mechanism_relevance:
+  - This theme supports a mechanism split between completion proof and recovery substrate. Checkpoints, sessions, and restore primitives help explain how a family could resume work, but they do not by themselves prove task completion or cleanup correctness: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`.
+  - It is useful for keeping restart/resumability separate from verifier and cleanup mechanisms in `mechanism_map`, especially where Wave 03 judged the substrate to be better evidenced than successful task-level restart behavior: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`.
+- failure_relevance:
+  - The main formal failure mode in this theme is semantic rollback or stale-state replay, not false completion in the narrower verifier sense: `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`.
+  - Cleanup confirmation remains underrepresented here too; the formal recovery slice is much stronger on checkpoint semantics than on proving the workspace is left in a clean or delivery-safe state: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`.
+- eval_relevance:
+  - This theme matters for eval design wherever replayability, versioning, rehydration, or restart-safe judging are part of the benchmark or verifier contract: `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`.
+  - It also cautions against treating `resume supported` as equivalent to `completion preserved`, because the formal sources themselves separate restore mechanics from correctness proof: `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`.
+- contradictions:
+  - Formal docs present comparatively mature resume and restore primitives, but Wave 03 trajectory and source evidence still leaves restart-safe task completion under-evidenced relative to verification and cleanup: `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+  - The direct evidence packet is stronger on minimal-sufficient artifact-backed completion proof than on durable restart-safe resumability, so the formal resume substrate should not be silently promoted into a demonstrated cross-family behavior claim: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__claude.md`.
+  - `Agent Continuations` is useful for vocabulary and design intent, but as a provider-authored document it is weaker than visible code or trajectories when deciding whether resumability is stable in practice: `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+- confidence_notes:
+  - High confidence: the formal slice consistently frames recovery as checkpointed state plus replay or rehydration mechanics, with `ACRFence` providing a strong counterpressure against naive restore claims: `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`, `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`, `research/sources/docs/src_doc_776484f287d8/artifact.txt`, `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`.
+  - Medium confidence: `Agent Continuations` is useful but weaker because it is a provider-authored design narrative rather than a stronger on-disk or peer-reviewed mechanism source: `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`.
+  - Medium confidence: the current dossier can characterize the substrate strongly, but not promote positive cross-family claims about restart-safe resumability because the direct evidence remains thin. Weakening factors: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`.
+  - Low confidence: `research/sources/papers/papers_text/src_pap_a2865d580c30.txt` is currently unusable for promotion because the extracted text does not match the recorded rollback title and may not belong to the intended paper at all.
+- open_questions:
+  - Which unread official docs, if any, connect checkpoint restore semantics to task-level cleanup confirmation rather than only state persistence?
+  - What direct evidence would be sufficient to promote restart-safe resumability from a substrate claim to a stable behavioral family across systems?
+  - Can any clean formal source close the gap between workflow-level resume surfaces and the thinner observed task-level recovery behavior in Wave 03?
+- downstream_use:
+  - `mechanism_map` synthesis for restart, rollback, and resumability cards
+  - `eval_implications` work on replay-safe and restore-safe benchmark design
+  - `variant_family_seeds` work that needs to distinguish recovery substrate from demonstrated recovery behavior
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - trajectory_pressure_alignment:
+    - required Wave 02 recovery failures include a concrete environment-state breakdown (`getcwd` invalid cwd) in KIRA db-wal-recovery.
+  - observations:
+    - checkpoint/resume doctrine from formal sources does not remove trajectory-visible failure where execution context becomes invalid before verifier closure.
+  - inference:
+    - Wave 02 recovery taxonomy should explicitly separate `resume substrate exists` from `resume path remained valid in run`.
+  - confidence:
+    - medium (single required KIRA run)
+  - evidence_paths:
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2.tar.gz`
+- wave_02_verification_completion_recovery_failures_update_2026_04_10:
+  - scope:
+    - Failure Taxonomy Wave 02 formal-source pressure on recovery/resume failure attribution.
+  - observations:
+    - Session/checkpoint frameworks describe resumability as history/state restoration and replay from a persisted boundary.
+    - Durable execution guidance explicitly requires deterministic/idempotent side-effect handling under replay.
+    - `ACRFence` shows semantic rollback attacks where restored runs reissue irreversible actions with regenerated request identities.
+  - inferences:
+    - `resume succeeded` cannot be used as evidence that `completion remained valid`.
+    - recovery failure taxonomy needs a dedicated branch for restore/replay side-effect duplication and stale authority reuse.
+    - recovery doctrine should stay distinct from verifier doctrine even when both appear in one harness loop.
+  - confidence:
+    - high for restore/replay semantics and rollback attack framing
+  - evidence_paths:
+    - `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`
+    - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+    - `research/sources/docs/src_doc_a7930779ecd3/artifact.txt`
+    - `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`
+- wave_02_codebase_source_reconstruction_pressure_update_2026_04_10:
+  - observation:
+    - required source families show strong resume/checkpoint substrate visibility (`deepagents` state/session + ACP resume, `KIRA` session/run-log lifecycle, `a-evolve` git rollback/versioning), but direct Wave 02 task-level restart-safe correctness evidence remains uneven.
+  - inference:
+    - Wave 02 should keep `recovery/resume substrate present` distinct from `recovery/resume correctness proven`.
+    - failure attribution should include a dedicated `resume substrate mismatch` axis when completion claims rely on restored state without defended postcondition proof.
+  - confidence: high on source substrate; medium on behavior prevalence
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+    - `research/sources/codebases/deepagents/libs/acp/deepagents_acp/server.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`

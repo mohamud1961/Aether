@@ -1,0 +1,160 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: failure_taxonomy / wave_01_execution_control_and_terminal_failures
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - Confirmed this is the primary contradiction review for Wave 01 `execution_control_and_terminal_failures`.
+  - Review scope is adversarial checking of the four first-pass lane outputs, cited wave support artifacts, required mechanism-map carry-forward surfaces, coverage register state, and spot-checked direct trajectory/source evidence.
+  - The optional eval/benchmark fifth lane is inactive in the wave packet and in all four lane outputs. This review treats benchmark/verifier claims as allowed only when bounded to formal pressure, behavioral reconstruction, or explicit eval-lane follow-up need.
+  - BigAI is treated strictly as `behavioral reconstruction`; no source-backed BigAI implementation claims are accepted.
+- preflight_planned_read_order:
+  - 1. Wave and artifact control files: `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/brief.md`, `tracking/collab/stage_02_synthesis/failure_taxonomy/brief.md`, `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`, `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`.
+  - 2. Governance and closure surfaces: `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`, `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`.
+  - 3. Inherited mechanism spine: `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`, Wave 02/03/05/06 principal syntheses.
+  - 4. Four Wave 01 lane outputs and wave-local support artifacts in `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/`.
+  - 5. Material cited support dossiers/case studies and direct spot checks against selected trajectories/source/local BigAI analysis.
+- preflight_critical_sources_selected:
+  - first-pass outputs:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/informal_issues_postmortems_analyst.md`
+  - support artifacts:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/trajectory_support_failure_timeline.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/trajectory_support_terminal_failure_matrix.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_support_failure_pressure_cluster.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/informal_support_timeout_false_success_cluster.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/execution_control_and_terminal_failures.md`
+  - direct spot-check evidence:
+    - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+    - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+    - `research/analysis/bigai_trace_layer/output/question_answers.json`
+    - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- preflight_coverage_risks:
+  - Required inherited Wave 02 principal path is empty: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`. The accepted Wave 02 state is still available through `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`, but direct continuity through the mandated principal file is weak.
+  - The codebase lane deferred both recommended wave-local codebase support maps: `codebase_support_execution_failure_map.md` and `codebase_support_interrupt_cancellation_map.md`.
+  - Timeout-heavy BigAI clusters are mostly routed through `research/analysis/bigai_trace_layer/output/answered_questions.md` rather than direct per-timeout trajectory reads.
+  - False-success and benchmark-blindness claims are present while eval lane is inactive; the lane outputs mostly bound this honestly, but principal synthesis must not upgrade these into eval-backed conclusions.
+  - Coverage register still says Failure Taxonomy Wave 01 is `packet prepared, not started`, so register state is stale relative to the first-pass outputs.
+- preflight_likely_blind_spots:
+  - Hidden BigAI controller rules for verifier optionality and verifier-pass/overall-fail divergence.
+  - Direct benchmark grader/replay contracts behind false-success claims.
+  - Full long-tail timeout traces for `torch-pipeline-parallelism`, `train-fasttext`, `caffe-cifar-10`, `qemu-startup`, and related systems-heavy tasks.
+  - Full codebase support-map closure for process lifecycle, interrupt, cancellation, and timeout maps.
+  - Direct A-Evolve Wave 01 trajectories; current A-Evolve contribution is source-backed, not behaviorally reconciled.
+- preflight_blockers:
+  - none. The remaining problems are real, but the four lane outputs preserve mixed-cause uncertainty and do not structurally collapse core attribution.
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/*.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/{extract_moves_from_video,cancel_async_tasks,db_wal_recovery,headless_terminal}.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/{deepagents,KIRA,BigAI_behavioral,a-evolve}.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/{tool_use_and_gateways,environment_and_permissions,verification_and_replay}.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/execution_control_and_terminal_failures.md`
+  - selected direct spot checks under `research/sources/trajectories/deepagents/{extract-moves-from-video,cancel-async-tasks,db-wal-recovery}/`
+  - selected direct spot checks under `research/sources/trajectories/terminus-kira/{extract-moves-from-video,cancel-async-tasks,db-wal-recovery}/`
+  - selected direct spot checks under `research/sources/trajectories/BigAI/{cancel-async-tasks,db-wal-recovery}/`
+  - selected source spot checks under `research/sources/codebases/deepagents/`, `research/sources/codebases/KIRA/`, and `research/sources/codebases/a-evolve/`
+  - selected BigAI local analysis spot checks under `research/analysis/bigai_trace_layer/output/`
+- coverage_not_yet_used:
+  - direct per-run reads for BigAI timeout-heavy clusters under `research/sources/trajectories/BigAI/{torch-pipeline-parallelism,train-fasttext,caffe-cifar-10,qemu-startup}/**`
+  - direct benchmark/replay/grader implementation reads under `research/sources/benchmarks/**`
+  - wave-local codebase support maps that were deferred by the codebase lane
+  - unread issue and informal long-tail paths listed by the informal lane
+  - additional formal papers/docs listed under each literature lane `coverage_not_yet_used`
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - papers/docs through lane and dossier outputs
+  - informal/issues/postmortems through lane and dossier outputs
+  - relevant local BigAI analysis
+  - local harness code through the codebase lane and spot-checked lane claims
+  - coverage/control artifacts
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/torch-pipeline-parallelism/**`
+  - `research/sources/trajectories/BigAI/train-fasttext/**`
+  - `research/sources/trajectories/BigAI/caffe-cifar-10/**`
+  - `research/sources/trajectories/BigAI/qemu-startup/**`
+  - `research/sources/benchmarks/**`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/hitl.py`
+  - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/api.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/trial.py`
+  - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+- support_artifact_gaps:
+  - Missing wave-local codebase support artifacts:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/codebase_support_execution_failure_map.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/codebase_support_interrupt_cancellation_map.md`
+  - The missing codebase maps are a warning, not a block, because the codebase lane cites concrete source files directly and source-system dossiers exist. Principal synthesis should either produce one codebase map or explicitly justify carrying this gap forward.
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md` now exists, but literature and informal outputs still describe it as missing. This is a stale-state inconsistency to correct in principal synthesis and coverage-register updates.
+- coverage_register_consistency:
+  - Inconsistent. `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` still records Failure Taxonomy Wave 01 as `packet prepared, not started`, while four first-pass lane outputs, three wave-local support artifacts, a new headless-terminal case study, and an informal cluster dossier exist.
+  - The register also carries earlier warnings that should remain active: BigAI behavioral reconstruction, empty organizer weakness, and no failure family decision-ready.
+- supported_findings:
+  - Supported: execution-control and terminal-failure families are real enough for Wave 01 principal synthesis, but not decision-ready. Direct support includes DeepAgents cancellation cleanup and WAL postcondition proof, KIRA false-success pressure and recovery drift, BigAI verifier/cleanup-gated behavioral reconstruction, and source-backed execution/cancellation surfaces in DeepAgents/KIRA/A-Evolve.
+  - Supported: attribution is mixed, not model-only. The trajectory lane separates environment/harness visibility from model behavior for DeepAgents extract cancellation, KIRA WAL drift, BigAI timeout summaries, and false-success pressure; the codebase and informal lanes separately reinforce harness/runtime/control-plane contributions.
+  - Supported: process lifecycle and cancellation require explicit cleanup/postcondition checks. Direct checks include `max_running 2`, `cleaned [0, 1]`, and `cleaned ['fail', 'ok-1', 'ok-2']` in the DeepAgents cancellation trajectory; KIRA's stronger scenario exposes earlier cleanup defects before eventual pass; BigAI `d799` verifies cleanup plus delivery-directory cleanliness.
+  - Supported: false-success pressure is visible but should stay bounded. KIRA `extract-moves-from-video` preserves unresolved count contradictions, while BigAI analysis preserves verifier-pass/overall-fail divergence. These support false-success pressure, not a completed benchmark-blindness taxonomy.
+  - Supported: BigAI role/verifier claims are behaviorally useful but not source-backed. All lane outputs and the BigAI dossier keep this boundary explicit.
+  - Supported: formal and informal lanes are used mostly as pressure and definition surfaces rather than as overrides of direct behavior.
+- unsupported_or_overclaimed_findings:
+  - Overconfidence risk: informal claim `FT_W01_INF_C1_timeout_loops_are_harness_lifecycle_failures` is labeled high confidence even though it rests on selected public issues plus doctrine. Existence of the cluster is supported; cross-ecosystem prevalence and primary attribution should be medium unless principal synthesis narrows the claim.
+  - Overconfidence risk: trajectory candidate `FT-W01-FC3` says process lifecycle failure under cancellation is mostly `harness implementation`. That is plausible for the specific task family, but principal synthesis should preserve test-design/scenario-selection and model-implementation contributions rather than promote a single primary cause.
+  - Gap: codebase lane's local harness claim that `blocks/`, `runner/`, and `evals/` are mostly scaffold/interface surfaces may be directionally useful, but the review did not perform a full local harness audit. Treat as local implementation-pressure, not a promoted failure-family claim.
+  - Gap: A-Evolve is a strong source-side decomposition anchor, but Wave 01 has no direct A-Evolve trajectory reconciliation. Do not promote A-Evolve behavioral equivalence.
+  - Gap: timeout-heavy BigAI conclusions rely on local analysis summaries and should not be upgraded to direct per-run failure taxonomy until underlying timeout trajectories are read.
+- missing_evidence_classes:
+  - Optional eval/benchmark lane remains inactive. This is acceptable only if benchmark-blindness claims stay as pressure/carry-forward, not accepted causal attribution.
+  - Direct benchmark implementations and grader/replay contracts are not read for this contradiction pass.
+  - Codebase wave-local support maps are missing.
+  - Long-tail timeout trajectory reads are not yet done.
+- reconciliation_failures:
+  - Stale support-state reconciliation: some lane outputs say `headless_terminal.md` is missing while the file now exists.
+  - Inherited mechanism surface reconciliation is imperfect because the mandated Wave 02 principal synthesis path is empty. The cumulative mechanism synthesis mitigates this but does not fully satisfy the exact-file read expectation.
+  - Codebase lane closure is weaker than trajectory/literature/informal closure because it deferred recommended support maps and used `support_artifacts_used: none` despite large source scope.
+  - Eval-lane boundary remains vulnerable: the literature lane uses benchmark-contract formal sources and the trajectory lane names benchmark acceptance contract in false-success attribution. This is acceptable as warning-level pressure only.
+- coverage_blind_spots:
+  - Direct path accounting remains stronger than organizer routing because the organizer surface is still not reliable.
+  - BigAI closure and timeout claims remain source-opaque and partly summary-routed.
+  - Headless-terminal was repaired as a case study, but some first-pass outputs did not refresh around that repair.
+  - Local harness implications are under-supported by direct implementation because the current local harness is still mostly scaffolded.
+- required_repairs_before_acceptance:
+  - Principal synthesis must explicitly state that `pass_with_warnings` is wave acceptance only, not `failure_taxonomy` completion and not `decision_ready` status for any family.
+  - Principal synthesis must update or carry forward the coverage register inconsistency: Wave 01 is no longer merely `packet prepared, not started`.
+  - Principal synthesis must resolve the stale `headless_terminal.md` status across lane outputs and update the coverage register accordingly.
+  - Principal synthesis must either create a codebase support map or explicitly carry forward the missing `codebase_support_execution_failure_map.md` / `codebase_support_interrupt_cancellation_map.md` gap.
+  - Any benchmark-blindness or verifier-omission claim must remain medium/bounded unless the optional eval/benchmark lane is activated or direct benchmark contracts are read.
+  - Timeout-heavy claims must remain summary-level until underlying BigAI timeout trajectories are opened.
+- optional_pressure_tests:
+  - Open direct BigAI timeout trajectories for `torch-pipeline-parallelism`, `train-fasttext`, `caffe-cifar-10`, and `qemu-startup` and build a timeout/process-lifecycle matrix.
+  - Produce `codebase_support_interrupt_cancellation_map.md` from DeepAgents async subagents, KIRA process manager/tools, A-Evolve terminal solver timeouts, and local harness execution stubs.
+  - Run a narrow eval/benchmark sidecar only for false-success and verifier/overall-run divergence if principal synthesis wants stronger benchmark-blindness attribution.
+  - Directly inspect A-Evolve Wave 01-compatible trajectories if any are available before treating A-Evolve as behaviorally comparable.
+- gate_review_recommendations:
+  - Proceed to principal synthesis with warnings.
+  - Do not block the wave: the four main lanes exist, direct claims are mostly cited, mixed-cause uncertainty is explicit, BigAI is bounded as behavioral reconstruction, and support artifacts are not treated as promoted final claims.
+  - Principal synthesis should promote only emerging/exploratory failure families and carry forward the unresolved eval, timeout, codebase-support-map, and stale coverage-register gaps.
+- confidence:
+  - medium-high for the `pass_with_warnings` verdict.
+  - The verdict is weakened by missing codebase support maps, summary-routed timeout claims, stale coverage-register state, and inactive eval-lane boundaries.

@@ -1,0 +1,75 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/features/agents/plan/?q=
+================================================================================
+
+Plan Agent¶
+
+Plan Agent 具备任务规划能力，可以将复杂任务分解为子任务并逐步执行。
+
+特点¶
+任务自动分解
+执行计划生成
+进度跟踪
+失败重试
+使用方法¶
+from tongagents.agents import PlanAgent
+
+
+
+agent = PlanAgent(
+
+    name="planner",
+
+    llm="gpt-4",
+
+    max_steps=10
+
+)
+
+
+
+result = agent.run("帮我分析 A 公司的财务状况并生成报告")
+
+工作流程¶
+1. 任务分析 → 2. 分解子任务 → 3. 制定执行计划 → 4. 逐个执行 → 5. 结果整合 → 6. 输出
+
+配置参数¶
+参数	说明	默认值
+max_steps	最大执行步骤	10
+max_retries	最大重试次数	3
+plan_type	规划类型	auto
+子任务类型¶
+类型	说明
+search	信息搜索
+llm	LLM 调用
+tool	工具调用
+code	代码执行
+示例¶
+# 复杂任务示例
+
+agent = PlanAgent(
+
+    max_steps=20,
+
+    allow_parallel=True  # 允许并行执行
+
+)
+
+
+
+result = agent.run("""
+
+    1. 搜索 AI 领域最新论文
+
+    2. 筛选近一年的高质量论文
+
+    3. 提取每篇论文的核心观点
+
+    4. 生成摘要报告
+
+""")
+
+适用场景¶
+复杂任务自动化
+研究分析
+报告生成
+多步骤工作流

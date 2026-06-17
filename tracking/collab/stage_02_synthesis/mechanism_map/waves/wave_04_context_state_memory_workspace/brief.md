@@ -1,0 +1,256 @@
+# Mechanism Map Wave 04 Context State Memory Workspace Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- wave: wave_04_context_state_memory_workspace
+- wave_focus_domain: context_state_memory_workspace
+- objective: Build behavior-anchored mechanism cards for context management, state persistence and drift, memory write and retrieval, workspace and artifact discipline, compaction, reset, and handoff across the major harness families.
+- exact_question: How do the in-scope systems decide what state to keep, compress, retrieve, forget, restore, or expose to the agent, and how do context, memory, and workspace decisions shape success, failure, and architectural tradeoffs across trajectories, source, formal literature, and informal reports?
+- new_resolution_goal: Resolve whether context, state, memory, and workspace discipline form stable cross-system mechanism families with visible behavior and source reconciliation, or whether they are still falsely collapsed into vague "memory" narratives.
+- why_prior_waves_were_not_enough: `wave_01_exploratory_anchor` only surfaced candidate memory and state themes, `wave_02_execution_control_and_terminal_grounding` centered execution control and PTY grounding, and `wave_03_verification_completion_and_recovery` centered completion proof, verifier layering, and recovery. None of those waves made context, state, memory, workspace artifacts, compaction, or handoff discipline the central question.
+- why_now: The compressed 14-wave plan explicitly makes `context_state_memory_workspace` the next `mechanism_map` domain. Wave 03 also left carry-forward pressure on restart and resumability, which makes state persistence, artifact continuity, and workspace discipline the right next mechanism surface.
+- lane_completion_rule: First-pass lane outputs are not wave-sufficient by default. A lane only becomes wave-sufficient if contradiction review plus principal synthesis say it is sufficient for this domain.
+- eval_fifth_lane_activated: `no`
+- eval_reactivation_rule: Activate the optional fifth `eval/benchmark` lane only if benchmark contracts, grader state comparisons, or evaluator-side state handling become load-bearing during Wave 04 preflight.
+- support_track_dependencies:
+  - `coverage_register`
+  - `trajectory_case_studies`
+  - `source_system_dossiers`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+- required_case_study_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+- what_can_remain_unfinished_without_blocking_contradiction_review:
+  - second-tier paper grouping beyond the wave-selected context and workspace anchors
+  - long-tail issue clustering outside the selected compaction, stale-state, and workspace-hygiene families
+  - extra benchmark or grader inspection unless state-comparison logic becomes load-bearing and reactivates the eval lane
+  - dossier polish after the wave if the current wave still cites the updated support artifacts honestly
+- inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md`
+  - `prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `prompts/deep_synthesis_checklist_adjudicator_prompt.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/inputs/support_subagent_rules.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/analysis/bigai_trace_layer/output/`
+  - `research/sources/trajectories/`
+  - `research/sources/codebases/`
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - `blocks/`
+  - `runner/`
+  - `evals/`
+  - `MECHANISM_CARD_SCHEMA.md`
+  - `TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md`
+- preflight_requirements:
+  - confirm this is a vertical mechanism-domain wave centered on context, state, memory, and workspace rather than verification or generic execution control
+  - confirm `trajectory/failure` is the primary empirical anchor and `codebase/source reconstruction` is the primary implementation anchor
+  - state explicitly why the optional `eval/benchmark` fifth lane is inactive unless reactivated during preflight
+  - list the planned read order across trajectories, source, formal literature, informal contradiction pressure, and relevant local harness surfaces
+  - name the critical trajectory slices, source systems, and contradiction-pressure sources selected for the wave
+  - identify at least one simple or minimal-sufficient baseline that must stay visible against richer memory rhetoric, such as explicit workspace artifacts with little or no long-term memory
+  - say which support artifacts are required before the lane can claim strong coverage
+  - stop and hand control back to the principal if the wave lacks enough trajectory or source visibility to support honest context/state synthesis
+- scope_anchor_paths:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- evidence_classes_in_scope:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `research/sources/trajectories/BigAI/git-multibranch/`
+  - `research/sources/trajectories/deepagents/git-multibranch/`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/`
+  - `research/sources/trajectories/BigAI/break-filter-js-from-html/`
+  - `research/sources/trajectories/deepagents/break-filter-js-from-html/`
+  - `research/sources/trajectories/terminus-kira/break-filter-js-from-html/`
+  - `research/sources/trajectories/BigAI/custom-memory-heap-crash/`
+  - `research/sources/trajectories/deepagents/custom-memory-heap-crash/`
+  - `research/sources/trajectories/terminus-kira/custom-memory-heap-crash/`
+  - optional long-tail pressure from `research/sources/trajectories/*/headless-terminal/`
+  - optional long-tail pressure from `research/sources/trajectories/*/large-scale-text-editing/`
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to context management, state persistence, workspace artifacts, and memory discipline
+- behavior_reconstruction_targets:
+  - `research/sources/trajectories/BigAI/`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - `research/sources/docs/bigai/raw/sdk_documentation_memory.txt`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - context flooding and compaction failure clusters
+  - stale resume and state drift clusters
+  - workspace, branch, and repo-state hygiene clusters
+- required_case_slices:
+  - `context compaction and handoff discipline`
+  - `state persistence versus state drift`
+  - `memory write, retrieval, and stale memory`
+  - `workspace and artifact discipline with branch hygiene`
+- extraction_level_cap: `L4`
+- citation_contract:
+  - every `L3` or `L4` claim must cite repo-local paths
+  - behavior claims must anchor in trajectories first
+  - implementation claims must anchor in visible source first
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+  - formal literature can sharpen or challenge claims, but should not outrank stronger direct trajectory or source evidence
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- support_subagent_policy:
+  - bounded support sub-agents are standard infrastructure for this wave
+  - use them for inventories, matrices, route maps, subsystem maps, archive triage, file discovery, paper grouping, and issue clustering
+  - support outputs must be saved explicitly and cited by the owning lane
+  - support outputs do not count as promoted mechanism claims on their own
+- contradiction_hand_off:
+  - route the first-pass lane outputs and any material follow-ups to `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+  - attack unsupported long-term-memory claims, fake persistence, weak workspace coverage, source or trajectory mismatch, and context-window mythology
+- gate_review_plan:
+  - primary contradiction:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+  - optional external breadth review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__gemini.md`
+  - optional external adversarial contradiction or acceptance review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__claude.md`
+  - primary checklist adjudication:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/adjudication/checklist_adjudicator.md`
+  - optional external checklist reviews:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/adjudication/checklist_adjudicator__claude.md`
+- carry_forward_operating_rules:
+  - update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` after the wave
+  - update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` after principal synthesis and again after checklist adjudication if the gate changes the accepted status
+  - keep `coverage_access` and extraction caveats visible rather than pretending they are closed
+  - organizer routing is still secondary to direct path accounting while organizer coverage stays incomplete
+  - do not let formal memory rhetoric outrank observed behavior or visible source
+  - keep Wave 03 carry-forward warnings visible where they intersect with state persistence or restart claims
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+  - `support_artifacts_used`
+  - `support_artifacts_requested_or_deferred`
+  - `coverage_register_updates_needed`
+  - `required_dossier_updates`
+  - `coverage_used` must list concrete repo-local paths or path globs actually read in the current wave
+- exclusions:
+  - do not treat this wave as `mechanism_map` completion
+  - do not produce final failure-taxonomy, eval-policy, or variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - primary main-lane outputs should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - if the eval fifth lane is reactivated, its output should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/eval_benchmark_analyst.md`
+  - support outputs should land in the same wave outputs directory with descriptive names such as:
+    - `trajectory_support_context_workspace_matrix.md`
+    - `trajectory_support_memory_state_drift_cases.md`
+    - `codebase_support_context_state_map.md`
+    - `codebase_support_workspace_artifact_map.md`
+    - `literature_support_context_memory_cluster.md`
+    - `informal_support_context_state_issue_cluster.md`
+    - `eval_support_state_contract_map.md`
+  - follow-up outputs should use:
+    - `__followup_01`
+    - `__followup_02`
+    - `__revision_01`
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+  - interaction analysis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/interaction_analysis.md`
+  - wave principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/adjudication/checklist_adjudicator.md`
+  - cumulative artifact state must be updated at:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - coverage register must be updated at:
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis must include explicit sections for:
+    - `what_this_wave_resolved`
+    - `what_still_requires_another_wave`
+    - `local_harness_implications`
+    - `coverage_not_yet_used`
+    - `priority_sources_not_yet_read`
+    - `support_track_updates`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. This is the next governed multi-agent `mechanism_map` wave under the compressed 14-wave model.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - contradiction analyst
+  - checklist adjudicator
+  - optional eval/benchmark analyst if the fifth lane is reactivated during preflight
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+- handoff_requirements:
+  - do not emit the cross-artifact `failure_taxonomy` handoff from this wave alone
+  - instead update the artifact-level cumulative synthesis and keep downstream handoff for artifact-level acceptance
+- evidence_expectations:
+  - trajectories are the primary empirical anchor for this wave
+  - source pressure should explain implementation shape where visible
+  - formal literature should sharpen definitions or challenge claims, not dominate them
+  - informal sources should surface operational tensions and contradiction pressure
+  - eval and benchmark evidence are secondary unless the wave reactivates the fifth lane

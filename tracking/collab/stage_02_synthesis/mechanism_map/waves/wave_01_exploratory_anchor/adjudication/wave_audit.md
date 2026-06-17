@@ -1,0 +1,52 @@
+# Mechanism Map Wave 01 Exploratory Anchor: Wave Audit
+
+WAVE_AUDIT
+- artifact: `mechanism_map`
+- wave: `wave_01_exploratory_anchor`
+- checklist_anchor: `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md`
+- verdict: `pass_with_warnings`
+- section_status:
+  - packet_discipline: `pass`
+  - coverage_honesty: `pass_with_warnings`
+  - evidence_and_claims: `pass_with_warnings`
+  - wave_question_resolution: `pass`
+  - compounding_update: `pass`
+  - ready_to_proceed_gate: `pass`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/*.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/*__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/*.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/*.pdf`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/trajectories/{BigAI,deepagents,terminus-kira}/extract-moves-from-video/*`
+  - `research/sources/informal/*.md` (most)
+  - `research/sources/issues/src_iss_*/` (most)
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - docs
+  - papers
+  - benchmark captures
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+- priority_sources_not_yet_read:
+  - `research/sources/papers/src_pap_f6aa42bfdc1a/artifact.pdf`
+  - `research/sources/papers/src_pap_c5f42ff16ea3/artifact.pdf`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/trajectories/{BigAI,deepagents,terminus-kira}/extract-moves-from-video/*`
+- findings:
+  - The wave materially answered its bounded question by surfacing durable mechanism anchors around terminal control, completion gating, cleanup/state hygiene, and behavior-only role separation.
+  - Coverage reporting is honest about major unread path families, which is why the correct verdict is `pass_with_warnings` rather than `blocked`.
+  - The wave now compounds into cumulative artifact state files instead of remaining only a flat historical output set.
+  - The next planned move is not `mechanism_map` Wave 02 yet. It is `coverage_access` Wave 01 and Wave 02, exactly as defined by the binding wave plan.
+- warnings:
+  - This wave is not artifact completion.
+  - Formal paper content remains largely unread because the PDF access surface does not exist yet.
+  - First-class `claw-code` source coverage is still missing from the mechanism artifact history.
+  - The long-tail trajectories and the majority of the informal lane remain open coverage work.

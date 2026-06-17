@@ -1,0 +1,81 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/pydantic_agent/?q=
+================================================================================
+
+Pydantic Agent 示例¶
+
+TongAgents 提供了类型化 React 智能体，可以借助 Pydantic 模型对 LLM 的返回结果进行验证和解析。通过该方式，你可以获得结构化的输出数据，便于后续处理。
+
+环境准备¶
+安装 TongAgents SDK，参考安装
+配置模型服务，参考模型
+确保 Pydantic 已正确安装（通常会随着 SDK 一同安装）
+代码示例¶
+
+下面的示例定义了一个 Pydantic 模型 MyModel，用于解析 LLM 输出的 JSON 数据。示例中，通过 create_typed_react_agent 构造类型化智能体，并调用 step 同步执行查询，最终将解析后的结构化数据输出。
+
+examples/pydantic_agent/pydantic_agent.py
+import os
+
+
+
+from pydantic import BaseModel
+
+
+
+from tongagents.agents.llm import ModelConfig
+
+from tongagents.agents.llm_agent import ReactAgentSetting
+
+from tongagents.agents.typed_react_agent import create_typed_react_agent
+
+
+
+
+
+# 定义 Pydantic 模型，用于解析 LLM 输出
+
+class MyModel(BaseModel):
+
+    city: str
+
+    country: str
+
+
+
+
+
+if __name__ == "__main__":
+
+    agent_settings = ReactAgentSetting(
+
+        llm_config=ModelConfig(
+
+            model_name=os.environ.get("MODEL_NAME"),
+
+            url=os.environ.get("MODEL_URL"),
+
+            api_key=os.environ.get("MODEL_API_KEY", "fake_api"),
+
+        ),
+
+        system_prompt="Pydantic Agent Example - 请根据以下 schema 输出 JSON 格式结果",
+
+    )
+
+
+
+    # 构造 TypedReactAgent，传入预期输出类型 MyModel
+
+    agent = create_typed_react_agent(result_type=MyModel, agent_settings=agent_settings)
+
+    # 调用 agent.run_sync 进行同步调用，并获得响应结果
+
+    RET = agent.step("中国首都北京")
+
+    print("Parsed Data:", RET.instance)
+
+说明¶
+该示例展示了如何利用类型化 Agent 将 LLM 模型返回的 JSON 数据解析为符合 MyModel 模型结构的对象。
+使用 Pydantic 模型可以确保返回数据满足预期字段（例如 city 和 country），从而提高数据处理的可靠性。
+
+通过本示例，你可以快速搭建并验证基于类型的智能体，用于更精确的数据解析与应用场景扩展。

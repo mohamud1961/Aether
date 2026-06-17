@@ -1,0 +1,53 @@
+# Deep Synthesis Plan Brief
+
+TASK_PACKET
+- stage: Deep Synthesis stage planning
+- artifact: deep_synthesis_plan
+- objective: Maintain the canonical Deep Synthesis operating plan as the stage evolves from initial approval into governed execution.
+- exact_question: How should Deep Synthesis stay structured as a full-corpus multi-agent analysis operation so that mechanism, failure, eval, and variant artifacts all use the same evidence policy, tracing rules, collaboration pattern, support-track model, and adversarial checkpoints?
+- why_now: The stage is already open, but the owner requested a plan upgrade after the Wave 02 experience so the canonical planning artifact matches the current operating model.
+- inputs:
+  - AGENTS.md
+  - GOVERNED_MULTI_AGENT_OPERATING_MODEL.md
+  - PRINCIPAL_AGENT_WORKFLOW.md
+  - SYNTHESIS_TEAM_SPEC.md
+  - prompts/principal_project_agent_prompt.md
+  - tracking/collab/stage_02_synthesis/README.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/red_team.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/synthesis/principal_synthesis.md
+  - research/analysis/lego_dimensions.md
+  - MECHANISM_CARD_SCHEMA.md
+  - FAILURE_CARD_SCHEMA.md
+  - TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md
+- exclusions:
+  - no final mechanism claims
+  - no final failure taxonomy
+  - no eval-policy conclusions
+  - no variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - write one Deep Synthesis plan to `tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md`
+  - define:
+    - corpus_scope_and_evidence_policy
+    - research_types
+    - extraction_levels_and_insight_hierarchy
+    - multi_agent_setup
+    - support_track_model
+    - model_role_recommendations
+    - artifact_order
+    - tracing_and_reconciliation_policy
+    - adversarial_checkpoints
+    - success_criteria
+- collaboration_mode: principal-led planning artifact, then human owner review
+- external_agent_action: Run external agent now: no. This is a principal-owned stage-planning artifact.
+- assigned_roles:
+  - principal project steward
+- evidence_expectations:
+  - treat deep synthesis as a full-corpus multi-agent analysis operation, not a narrow deterministic pass
+  - keep the captured synthesis manifest as the integrity anchor
+  - keep organizer-routed non-intake evidence classes in scope explicitly
+  - include papers, docs, informal sources, issues, postmortems, trajectories, mirrored codebases, eval repos, benchmark captures, relevant local analysis, and relevant local harness code
+  - require adversarial review for important artifacts by default
+- decision_needed_from_human: approve or refine the current Deep Synthesis operating model when major stage-governance changes are proposed.
+- done_condition: The plan artifact exists, defines the current Deep Synthesis operating model concretely, and stays aligned with the binding wave plan and execution setup.

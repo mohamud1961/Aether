@@ -1,0 +1,51 @@
+# Coverage Access Wave 05 Eval Benchmark Inventory Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: coverage_access
+- objective: Build a route map for public and local eval surfaces so later Deep Synthesis work can read benchmark contracts, grader logic, replay surfaces, and local eval hooks systematically rather than opportunistically.
+- exact_question: Which benchmark captures, eval repos, grader or judge surfaces, replay mechanisms, and local eval files are in scope, and which of them are high-priority for later `eval_implications` and mechanism/failure pressure?
+- why_now: The binding wave plan requires eval and benchmark inventory as a real support wave. This packet is instantiated now so the eval lane cannot quietly remain plan-only while later implication work depends on it.
+- inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_access/brief.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - research/sources/benchmarks/
+  - research/sources/codebases/
+  - evals/
+- preflight_requirements:
+  - inventory benchmark capture families and eval-relevant repos explicitly
+  - distinguish benchmark contract captures from mirrored evaluator code
+  - identify replay, verifier, judge, grader, and local eval surfaces separately
+  - route high-priority eval families for later mechanism and implication work
+  - stop and return a blocker if a major eval family is missing or unreadable in practice
+- exclusions:
+  - do not produce final eval policy conclusions
+  - do not silently treat benchmark names as eval understanding
+  - do not open new `mechanism_map` waves from inside this support wave
+- output_contract:
+  - wave synthesis:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_05_eval_benchmark_inventory/synthesis/principal_synthesis.md
+  - eval and benchmark route map:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_05_eval_benchmark_inventory/outputs/eval_benchmark_route_map.md
+  - high-priority eval targets:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_05_eval_benchmark_inventory/outputs/high_priority_eval_targets.md
+  - eval and benchmark dossier scaffolding:
+    - tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/
+- collaboration_mode: bounded support wave; blind parallel allowed for benchmark-vs-eval classification checks under the same packet
+- external_agent_action: Run external agent now: no. This wave is instantiated and staged; execution timing follows the approved wave plan.
+- assigned_roles:
+  - principal project steward
+  - eval/benchmark analyst
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- handoff_requirements:
+  - write the route map and high-priority eval targets so later mechanism, failure, and eval implication waves can cite them directly
+  - route load-bearing benchmark, verifier, grader, replay, and local-eval families into `eval_benchmark_dossiers/`
+- evidence_expectations:
+  - keep benchmark captures, mirrored eval code, and local eval code distinct
+  - make replay, verifier, judge, and grader surfaces explicit
+  - keep unread or weakly-captured benchmark families visible
+- decision_needed_from_human: none to instantiate the packet; execution timing follows the approved wave plan.
+- done_condition: the eval and benchmark lane has a route map and prioritized target list so later Deep Synthesis work is not forced to improvise from scattered benchmark artifacts.

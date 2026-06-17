@@ -1,0 +1,48 @@
+variant_id: v04_tb_02_permission_runtime_attribution_split
+block_family: ToolBlock
+block_interface: ToolBlock.get_tools() -> list[tool_definitions]
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w05.tool_gateway_family_separation
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: mm.w05.permission_policy_vs_capability_boundary
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: ft.w04.permission_policy_runtime_mismatch
+      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+    - claim_ref: ft.w04.tool_gateway_substrate_mismatch
+      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+observed_trace_or_eval_evidence:
+  - packet_03 eval card for ae_tool_result_normalization_permission_probe requires deny-vs-runtime reason-code separation
+  - packet_03 closeout marks tool-result normalization surface accepted and usable now
+mechanism_claim: normalize tool results with explicit taxonomy that separates permission denials from runtime/capability faults.
+target_failure: permission_policy_runtime_mismatch
+anti_benchmarkifying_risk: variant may collapse ambiguous mixed faults into whichever label is rewarded on current fixtures.
+expected_improvement: lower reason-code flip-rate and improved attribution stability across deny/runtime paired fixtures.
+expected_failure_mode: mixed-fault cases may be misbucketed if taxonomy precedence is too rigid.
+complexity_cost: medium (result normalization layer and attribution taxonomy enforcement).
+token_cost_expectation: low_to_moderate increase on model-backed runs due richer tool-result metadata.
+changed_files:
+  - blocks/tools/result_normalizer.py
+required_atomic_eval: ae_tool_result_attribution_quality_v2
+required_atomic_eval_status: packet05a_repaired_surface
+anticipated_interaction_eval: tool_result_attribution_x_workspace_integrity_probe
+anticipated_interaction_eval_status: blocked_until_packet_05
+anticipated_transfer_eval: pressure_transfer_tool_attribution_set_v1
+anticipated_transfer_eval_status: anticipated
+promotion_threshold: beat baseline on attribution consistency and pass sibling deny/runtime perturbation probe without worsening workspace integrity diagnostics.
+retirement_condition: retire if attribution gains vanish under adversarial camouflage or if transfer introduces higher unresolved-error rates.
+bounded_claims:
+  - atomic mechanism claim only in packet_04
+  - no universal permission safety claim without later interaction/transfer confirmation
+telemetry_required:
+  - normalized_output_hash
+  - raw_output_link
+  - permission_denied_count
+  - runtime_error_count
+  - reason_code_flip_rate
+  - cost_per_accepted_run
+model_policy:
+  screening_default: screening_model
+  promotion_tier: promotion-model
+  deterministic_eval_override: not_applicable
+  note: promotion-model reserved for survivor/tie-break/promotion-strength claims.

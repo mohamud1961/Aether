@@ -1,0 +1,862 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/documentation/agent/?q=
+================================================================================
+
+Agent
+简介¶
+
+TongAgents是与大语言模型（LLM）和TongPL交互的主要接口。
+
+在某些使用场景中，单个Agent可以解决业务的诉求，但对于更复杂的工作流程，多个Agent的交互可以获得更好的实现效果。
+
+从概念上讲，您可以将Agent视为以下组件的容器：
+
+组件	描述
+提示词	由开发人员编写的一组指令，引导Agent的行为。
+工具	Agent与外部世界交互的方式，例如查询天气、执行指令等。
+模型	与Agent关联的推理引擎，例如LLM、TongPL。
+记忆	用于存储Agent运行过程中的对话上下文信息。
+知识库	通过知识召回增强Agent的推理能力。
+
+2.0 架构分层
+
+TongAgents 2.0 将工具/MCP/运行环境等底层能力统一到开源 chuang_agent，tongagents 在此基础上提供 workflow 引擎、WorkFlowEnv 与企业级能力。本文档描述的 Agent 与 workflow 能力均属于 tongagents。
+
+开箱即用的Agent¶
+
+我们提供以下开箱即用的Agent：
+
+类名	完整路径	描述	主要功能/特点
+ReactAgent	tongagents.agents.llm_agent.react_agent.ReactAgent	基于 ReAct 模式的智能体，支持工具调用和知识库。	ReAct 模式，工具与知识库集成
+TypedReactAgent	tongagents.agents.typed_react_agent.TypedReactAgent	基于 ReAct 模式，可将大模型输出严格解析为指定的 Pydantic BaseModel。	ReAct 模式，结构化输出 (Pydantic)
+TongLLMAgent	tongagents.agents.assistant.tong_llm_agent.TongLLMAgent	可配置的智能体，兼容平台网站设定 (如角色、开场白等)，继承自ReactAgent。	平台配置加载，个性化设定，支持摘要或直接输出模式
+FormatLLMAgent	tongagents.agents.assistant.format_llm_agent.FormatLLMAgent	继承自 TongLLMAgent，内置 TypedReactAgent 以确保输出为指定 JSON 格式。	继承 TongLLMAgent 特性，强制 JSON 结构化输出
+PlanAgent	tongagents.agents.planner_agent.PlanAgent	使用可插拔的 Planner 协议 (如 TongPlanner) 进行任务规划和执行。	自主规划，可定制规划逻辑
+VoiceChatbot	tongagents.agents.voice_chatbot.VoiceChatbot	实现语音交互的智能体，集成 ASR, LLM, TTS 服务。	语音输入/输出，实时对话
+VoiceChatbotWithTool	tongagents.agents.voice_chatbot_with_tool.VoiceChatbotWithTool	继承自 VoiceChatbot，并内置 ReactAgent 以支持工具调用。	语音交互，工具调用能力
+
+比如，对于ReactAgent，开发者可以直接引入tongagents.agents.llm_agent.react_agent.ReactAgent并运行。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+)
+
+
+
+result = agent.step("请输出Hello World")
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+Hello World
+
+"""
+
+
+本例中，MODEL_NAME、API_KEY、MODEL_URL为环境变量，请根据实际情况设置为OpenAI-compatible的模型，若需要使用其他模型，请参考模型。
+
+ReActAgent相比于直接调用LLM，增加了记忆、工具调用和知识库调用，从而增强了Agent的推理能力。在本例中，我们构造了一个不带有工具调用和知识库调用的ReactAgent，并使用step方法运行了一次，并输出了结果。
+
+运行Agent¶
+
+TongAgents SDK 为Agent提供了多种运行方式，开发者可以按需实现并根据需要选择合适的方式，且不限制开发者接口实现的方式。
+
+方法	描述	输入	返回值	适用场景
+step	单次调用	Event	完整执行结果	单次调用获取完整结果，如结构化输出json
+stream	流式响应	Event	结果的迭代器	单次调用获取流式结果，如LLM流式输出
+run	长会话	Event迭代器	结果的迭代器	长连接双向流，如音频交互的Agent
+astep	异步单次调用	Event	完整执行结果	异步单次调用获取完整结果
+astream	异步流式响应	Event	结果的迭代器	异步流式响应获取流式结果
+arun	异步长会话	Event迭代器	结果的迭代器	异步长连接双向流
+
+对于复杂场景，TongAgents SDK建议通过workflow作为Agent的执行引擎。workflow是一个通用的、围绕node和edge的流式工作流执行框架，支持将Agent作为node嵌入工作流中，且在最大程度上保持了和Agent接口的兼容性，详见工作流。workflow 为 tongagents 企业版能力，开源 chuang_agent 不包含 workflow/node 概念。
+
+单次调用¶
+完整响应¶
+
+step方法会完整的返回End节点的输出结果，即Agent的输出结果。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+)
+
+
+
+# 单次调用
+
+result = agent.step("请输出Hello World")
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+Hello World
+
+"""
+
+在 tongagents 中，Agent 运行由workflow引擎调度，数据将会在workflow中流动直到End节点。
+step会返回End节点的输出结果，即Agent的输出结果。
+
+此外，TongAgents SDK提供了stream方法，用于调用流式响应。以下是使用stream进行单次调用的示例：
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm.messages import UserPromptMessage
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMInputEvent,
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting
+
+)
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+)
+
+
+
+
+
+result = agent.stream(LLMInputEvent(input=UserPromptMessage("请输出Hello World")))
+
+for r in result:
+
+    print(r.content)
+
+"""
+
+Hello World
+
+"""
+
+长会话¶
+
+以下是使用run进行长会话的示例：
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMInputEvent,
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting
+
+)
+
+
+
+# 创建agent并配置
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+)
+
+# 长会话
+
+def req_iter():
+
+    yield from ["请输出Hello World", "请输出\"你好，世界\""]
+
+
+
+result = agent.run(req_iter())
+
+for r in result:
+
+    print(r.content)
+
+"""
+
+Hello World
+
+你好，世界
+
+"""
+
+
+当希望通过run进行长会话时，您需要提供一个req_iter，它是一个生成器，用于生成每次请求的输入。run会返回一个resp_iter，它是一个生成器，用于生成每次响应的结果。
+
+附加配置¶
+
+TongAgents 框架设计了灵活的配置体系，使开发者能够根据需求自定义 Agent 的行为和能力。
+
+AgentSettings¶
+
+AgentSettings 是 Agent 配置的基础类，它继承自Pydantic的 BaseModel，并允许传入未定义的字段：
+
+from pydantic.main import BaseModel
+
+class AgentSettings(BaseModel):
+
+    class Config:
+
+        extra = "allow"
+
+
+这种设计允许开发者传入任何自定义字段，为不同类型的 Agent 提供了极大的灵活性。基于此基础类，TongAgents 框架提供了更具体的配置类：
+
+TongAgentSettings：继承自 AgentSettings，增加了认知系统、长期记忆、偏好设置等高级功能：
+
+class TongAgentSettings(AgentSettings):
+
+    preference: AgentPreference = None           # 智能体价值偏好
+
+    cognitive_system: Belief = None              # 信念/认知体系
+
+    long_term_memory: LongTermMemory = None      # 长期记忆
+
+    supported_set_of_embodied_actions: SupportedSetOfEmbodiedActions = None  # 具身能力
+
+
+TongLLMAgentSettings：继承自 TongAgentSettings，专为大语言模型 Agent 设计，提供了全面的配置选项：
+
+agent_settings = TongLLMAgentSettings(
+
+    # 基础信息
+
+    name="TongAgents",                                # Agent名称
+
+    intro="你好！我是一个帮助你的人工智能助手",        # Agent介绍
+
+    recommended_questions=["你的名字是什么"],         # 推荐问题列表
+
+
+
+    # 交互配置
+
+    prologue="你好，我的名字是TongAgent，有什么可以帮你的吗？", # 开场白
+
+    voice_id="voice_id",                             # 语音ID
+
+    figure_id="figure_id",                           # 形象ID
+
+
+
+    # 能力配置
+
+    tool_id_list=["weather_tool"],                   # 工具ID列表
+
+    tool_choice=["weather_tool"],                    # 推理必选工具（可选）
+
+    character_profile="你必须礼貌地回应用户",          # 角色设计
+
+    llm_config=model_config,                         # LLM配置
+
+
+
+    # 继承自TongAgentSettings的高级功能（可选）
+
+    preference=agent_preference,                     # 智能体价值偏好
+
+    cognitive_system=belief,                         # 认知系统
+
+    long_term_memory=memory,                         # 长期记忆
+
+)
+
+其中，model_config 是 ModelConfig 类型，用于配置 LLM 模型，详见模型配置。
+
+AgentRunContext¶
+
+AgentRunContext 是 Agent 运行时的上下文环境，用于存储运行过程中的状态信息。在基础 Agent 类中，它被定义为一个灵活的类型变量：
+
+AgentRunContext = TypeVar("AgentRunContext")
+
+
+这种设计允许不同类型的 Agent 使用不同类型的运行上下文。对于 LLM 类型的 Agent，框架提供了 LLMRunContext：
+
+class LLMRunContext:
+
+    memory: MemoryBase = None
+
+
+
+    def __init__(self, memory: MemoryBase = None):
+
+        if not memory:
+
+            self.memory = SimpleMemory()
+
+        else:
+
+            self.memory = memory
+
+
+LLMRunContext 主要包含一个 memory 对象，用于存储对话历史、状态信息等。默认使用 SimpleMemory，但开发者可以提供自定义的记忆实现。
+
+当用户在自定义Agent时，需要访问AgentRunContext，并进行自定义的配置，可通过self.run_context访问。
+
+使用示例¶
+
+以下是创建和使用 TongLLMAgent 的完整示例：
+
+from tongagents.tools.base import RetryableToolCallException
+
+from tongagents.tools.tool_manager import tool
+
+from tongagents.agents.llm import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import LLMRunContext
+
+from tongagents.agents.assistant.tong_llm_agent import TongLLMAgent, TongLLMAgentSettings
+
+
+
+
+
+@tool(retry_times=2)
+
+def weather_tool(location: str, time: str):
+
+    """查询天气
+
+
+
+    Args:
+
+        location: 地理位置
+
+        time: 日期时间
+
+    """
+
+    if location is None:
+
+        raise RetryableToolCallException(
+
+            '未找到位置信息，请记得提供位置'
+
+        )
+
+    if time is None:
+
+        raise RetryableToolCallException(
+
+            '未找到时间信息，请记得提供时间'
+
+        )
+
+    return f"{location}在{time}天气晴朗"
+
+
+
+# 创建模型配置
+
+model_config = ModelConfig(
+
+    model_name="gpt-4",
+
+    api_key="your-api-key",
+
+    url="https://api.openai.com/v1"
+
+)
+
+
+
+# 创建Agent设置
+
+agent_settings = TongLLMAgentSettings(
+
+    name="天气助手",
+
+    intro="我是一个专业的天气助手，可以帮您查询天气信息",
+
+    recommended_questions=["北京今天天气怎么样？", "上海明天会下雨吗？"],
+
+    prologue="您好，我是天气助手，有什么可以帮您的吗？",
+
+    voice_id="natural_voice_1",
+
+    figure_id="assistant_1",
+
+    tool_identifier_list=["weather_tool"],
+
+    character_profile="你是一个专业、友好的天气助手，总是提供准确的天气信息",
+
+    llm_config=model_config
+
+)
+
+
+
+# 创建运行上下文
+
+run_context = LLMRunContext()
+
+
+
+# 创建Agent实例
+
+agent = TongLLMAgent(agent_settings=agent_settings, agent_context=run_context)
+
+
+
+# 运行Agent
+
+result = agent.step("今天北京天气怎么样？")
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+今天北京晴转多云，最高气温27摄氏度。
+
+"""
+
+
+通过这种灵活的配置体系，开发者可以根据需求自定义 Agent 的各种行为和能力，从简单的对话机器人到复杂的多能力智能助手，都能轻松实现。
+
+自定义Agent¶
+
+若需要实现自定义的Agent，有两种方式
+
+继承Agent类，并实现相应接口方法。
+继承任意WorkflowAgent的子类，重写相应的节点方法。
+继承Agent类¶
+
+对于第一种方式，开发者需要实现Agent的所有基类方法：run、arun、step、astep、stream、astream。
+
+灵活且复杂
+
+这种方式为开发者提供了最灵活的Agent实现方式，开发者可以实现任意复杂的Agent。但由于需要实现所有Agent的基类方法，复杂度较高。请优先考虑复用开箱即用的Agent或者继承WorkflowAgent的子类。
+
+from collections.abc import AsyncIterator, Callable, Iterator
+
+from typing import Any
+
+
+
+from tongagents.agent import Agent
+
+from tongagents.entity import Action
+
+
+
+
+
+class HelloWorldAgent(Agent):
+
+    def run(self, events: Iterator[Any]) -> Iterator[Any]:
+
+        for event in events:
+
+            yield self.step(event)
+
+
+
+    def step(self, event: Any) -> Any:
+
+        return Action(content="Hello World")
+
+
+
+    async def arun(self, events: AsyncIterator[Any] | Callable) -> AsyncIterator[Any]:
+
+        async for event in events:
+
+            yield self.astep(event)
+
+
+
+    async def astep(self, event: Any) -> Any:
+
+        return self.step(event)
+
+
+
+
+
+agent = HelloWorldAgent()
+
+result = agent.step("哪吒2票房是多少？")
+
+print(result)
+
+"""
+
+description=None data_type='ACTION' event_happen_time='2025-03-10 13:45:43' action_name=None content='Hello World'
+
+"""
+
+
+其中，Agent类定义了Agent的基类，提供了Agent的基类方法，如run、arun、step、astep等。
+
+run：运行Agent，输入一个Event迭代器，返回一个Event迭代器。
+arun：异步运行Agent，输入一个Event迭代器，返回一个Event迭代器。
+step：单次运行Agent，输入一个Event，返回一个Event。
+astep：异步单次运行Agent，输入一个Event，返回一个Event。
+继承WorkflowAgent的子类¶
+
+第二种方式，开发者可以继承任意WorkflowAgent的子类，重写相应的节点方法。
+
+比如：VoiceChatbot继承自WorkflowAgent，并实现了三个节点：
+
+asr节点：将语音转换为文本
+llm_chat节点：与用户进行对话
+tts节点：将文本转换为语音
+play节点：限制输出音频的播放速率
+
+比如，我想实现一个音频输入、文本输出的Agent，且用用户自己实现的HelloWorldAgent代替llm_chat节点以增强推理能力。开发者可以继承VoiceChatbot，重写llm_chat节点，并使用HelloWorldAgent代替llm_chat节点，并重写tts和play节点。
+
+from collections.abc import Iterator
+
+
+
+from tongagents.agents.llm_agent.react_agent import LLMRunContext
+
+from tongagents.agents.voice_chatbot import VoiceChatbot
+
+from tongagents.workflow.simple_workflow import END, node_declare
+
+
+
+
+
+class VoiceChatbotWithHelloWorldAgent(VoiceChatbot):
+
+    def __init__(self, hello_world_agent: HelloWorldAgent):
+
+        super().__init__()
+
+        self.hello_world_agent = hello_world_agent
+
+
+
+    # 重写父类节点
+
+    @node_declare(name="llm_chat", edges=[("asr", "llm_chat"), ("llm_chat", END)])
+
+    def llm_chat(self, ctx: LLMRunContext):
+
+        # 嵌套Agent
+
+        return self.hello_world_agent.run(ctx)
+
+
+
+    # 弃用父类节点
+
+    def tts(self, data: Iterator) -> Iterator:
+
+        """
+
+        直接返回文本，无需tts
+
+        """
+
+        pass
+
+
+
+    def play(self, tts_resp):
+
+        """
+
+        直接返回文本，无需限制播放速率
+
+        """
+
+        pass
+
+
+通过上述代码，开发者可以实现Agent的嵌套、节点复用、节点重写，从而实现更复杂的Agent。更为详细的用法，请参考Workflow。
+
+Agent继承结构¶
+
+下图为TongAgents SDK中Agent的继承结构，包括了开箱即用的Agent和抽象的Agent。当开发者需要实现自定义的Agent时，可以参考该继承结构。
+
+Planner
+plan()
+aplan()
+Agent
+AgentSettings
+AgentRunContext
+stream()
+step()
+arun()
+astep()
+run_with_env()
+TongPlanner
+system_prompt
+llm
+PlanAgent
+planner
+Workflow
+WorkflowAgent
+AgentWithWorkflow
+workflow
+VoiceChatbot
+llm
+interrupt
+VoiceChatbotWithTool
+inner_agent: ReactAgent
+ReactAgent
+llm
+tools
+tool_choice
+TypedReactAgent
+result_type
+_parse_response_to_type()
+Group
+agents
+planner_cxt
+task_plan_agent
+task_generator
+n
+使用环境运行¶
+
+TongAgent提供了Env SDK，为开发者提供开箱即用的复杂场景，帮助调试、评估和演示Agent的性能和表现。
+
+以下是使用Env SDK运行Agent的示例：
+
+import os
+
+from sdk.extend.web.env import WebEnv, AudioAction
+
+from tongagents.agents.voice_chatbot_with_tool import VoiceChatbot
+
+from tongagents.tools.common_tool.amap_weather import AmapWeather
+
+from examples.gui_audio_chat.knowledge import create_knowledge_store
+
+import asyncio
+
+
+
+agent = VoiceChatbot()
+
+asyncio.run(
+
+    agent.astream_with_env_sdk(
+
+        WebEnv,
+
+        {"connection_info": {"uri": os.getenv("WEB_ENV_URI")}},
+
+        preprocess=lambda x: {"stream": x.audio},
+
+        postprocess=lambda x: AudioAction(audio=x["result"]) if "result" in x else None,
+
+    )
+
+)
+
+
+首先, 我们需要设置环境变量WEB_ENV_URI，其值为WebEnv的连接地址，如 ws://localhost:8765。也可以使用TongAgents提供的Env服务。
+
+我们创建一个语音聊天机器人Agent实例。
+使用astream_with_env_sdk方法在Web环境中运行Agent。
+
+通过以上代码，可以快速在Web环境中运行Agent，并使用Env SDK提供的丰富功能进行调试和评估。此外，我们还提供了一系列Env，详见Env SDK。
+
+反思和自我纠正¶
+
+对于ReactAgent及其子类，框架提供了反思和自我纠正机制，用于在工具调用失败时进行重试。
+
+来自函数工具参数验证和结果验证的验证错误可以通过请求重试的方式传递回模型。
+
+你也可以在工具内抛出ModelRetry异常，告知模型应该重新生成响应。
+
+默认的重试次数是 1，但可以为Agent或某个工具进行调整。
+你可以通过ctx.retry在Agent中访问当前的重试次数。
+
+以下是一个示例：
+
+tool_retry.py
+from tongagents.tools.base import RetryableToolCallException
+
+from tongagents.tools.tool_manager import tool
+
+
+
+
+
+@tool(retry_times=2)
+
+def weather_tool(location: str, time: str):
+
+    """查询天气
+
+
+
+    Args:
+
+        location: 地理位置
+
+        time: 日期时间
+
+    """
+
+    if location is None:
+
+        raise RetryableToolCallException(
+
+            '未找到位置信息，请记得提供位置'
+
+        )
+
+    if time is None:
+
+        raise RetryableToolCallException(
+
+            '未找到时间信息，请记得提供时间'
+
+        )
+
+    return f"{location}在{time}天气晴朗"
+
+Agent运行时异常¶
+
+如果模型、工具的异常行为无法通过框架提供的基础异常处理能力恢复（例如，工具调用超过重试限制，或者LLM的API暂时不可用），Agent运行将引发异常。 在这些情况下，可以使用agent.run_context.memory访问运行期间交换的消息，以帮助诊断问题。
+
+agent_model_errors.py
+try:
+
+    result = agent.step("今天北京天气怎么样？")
+
+    print(''.join(msg.content for msg in result))
+
+except Exception as e:
+
+    print(f"发生异常: {e}")
+
+    print("运行上下文记录:")
+
+    print(agent.run_context.memory)

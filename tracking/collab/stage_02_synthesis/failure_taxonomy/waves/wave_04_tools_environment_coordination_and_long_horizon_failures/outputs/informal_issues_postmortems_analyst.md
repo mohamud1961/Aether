@@ -1,0 +1,343 @@
+INFORMAL_ISSUES_POSTMORTEMS_OUTPUT
+- artifact: `failure_taxonomy`
+- role: `informal/issues/postmortems analyst`
+- preflight_scope_confirmed:
+  - Confirmed this pass is Wave 04 `tools_environment_coordination_and_long_horizon_failures` contradiction-pressure work, not a generic recap.
+  - Confirmed eval/benchmark fifth lane remains inactive in this lane pass because in-scope contradiction pressure is already strong from informal/issues/postmortems.
+  - Confirmed corpus anchor read via `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`, then bounded to this lane's evidence classes.
+- preflight_planned_read_order:
+  - Wave packet controls and carry-forward constraints.
+  - Prior failure/mechanism synthesis needed for inheritance checks.
+  - Existing informal cluster dossiers for tools/env and planning/orchestration.
+  - Direct issue artifacts for permission/sandbox/path/process-lifecycle/long-horizon failures.
+  - Informal and postmortem captures for operator claims and contradiction pressure.
+  - Synthesis write + required dossier updates.
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+  - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+  - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+  - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+  - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_agent_computer_use.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/cursor_scaling_agents.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+- preflight_coverage_risks:
+  - Evidence is issue-heavy; many records are user reports with mixed resolution states (`open`, `duplicate`, `stale`, `not planned`).
+  - Informal/postmortem captures include vendor-authored success narratives that can overstate solved status.
+  - This pass did not run additional support clustering artifacts; clustering is analyst-synthesized from direct reads.
+- preflight_likely_blind_spots:
+  - Full maintainer discussion context and patch outcomes in issue comment threads were not exhaustively read.
+  - Cross-platform reproducibility for Windows-heavy path/sandbox findings remains uncertain.
+  - No direct trajectory replay in this lane pass; contradiction pressure remains informal/issues/postmortems only.
+- preflight_blockers:
+  - []
+- coverage_used:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/literature_papers_docs_analyst.md`
+  - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+  - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+  - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+  - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+  - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_agent_computer_use.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/cursor_scaling_agents.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/informal/*.md` long-tail captures not read in this pass.
+  - `research/sources/issues/src_iss_*.html` full issue-page variants and thread/comment context.
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt` (capture contains no usable narrative text in current artifact).
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt` (eval-focused, outside this lane’s active scope).
+- evidence_classes_touched:
+  - wave governance/control surfaces
+  - prior mechanism/failure synthesis surfaces
+  - issue captures
+  - informal articles/blog captures
+  - postmortem captures
+  - cross-lane Wave 04 trajectory/literature outputs (for contradiction pressure alignment)
+- priority_sources_not_yet_read:
+  - `research/sources/issues/src_iss_949d7288362a/artifact.txt` (capture quality is PR-thread-heavy and needs separate curation pass)
+  - `research/sources/issues/src_iss_f44f83f3fbc3/artifact.txt`
+  - `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+  - `research/sources/issues/src_iss_6bbe542bed6c/artifact.txt`
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt`
+- support_artifacts_used:
+  - []
+- support_artifacts_requested_or_deferred:
+  - Deferred optional support artifact `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/informal_support_long_horizon_tooling_failure_cluster.md` for this pass because direct clustering in this lane output was sufficient for first-pass contradiction pressure.
+- coverage_register_updates_needed:
+  - Mark Wave 04 informal lane first-pass output as present at this path.
+  - Mark both required informal dossier files as updated for Wave 04 failure-taxonomy attribution.
+  - Keep explicit warning that this lane remains issue-heavy and does not establish prevalence by itself.
+- required_dossier_updates:
+  - updated: `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+  - updated: `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md`
+- high_signal_operating_claims:
+  - claim_id: `op_claim_tools_approval_dual_failure`
+    - observation: Informal vendor narratives claim sandboxing reduces prompt burden and improves safety, while issue evidence simultaneously reports both under-enforcement (policy bypass / hook non-trigger / sandbox escape) and over-enforcement (prompt storms).
+    - inference: `permission-policy/runtime mismatch` should be modeled as a dual-sided failure family, not as a single "too strict" or "too lax" category.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/informal/cursor_agent_sandboxing.md`
+      - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+      - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+      - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+      - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+      - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+      - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+      - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - claim_id: `op_claim_tool_context_surface_is_failure_critical`
+    - observation: Dynamic context-discovery patterns emphasize lazy loading/file-backed tool context, while multiple issues report stale tool catalogs, oversized tool descriptors/results, and silent truncation.
+    - inference: `tool-gateway/context-surface integrity` is a first-order failure pressure and should remain separated from general memory failures.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/informal/cursor_dynamic_context_discovery.md`
+      - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+      - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+      - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+      - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+      - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+      - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - claim_id: `op_claim_long_horizon_reliability_is_resume_checkpoint_limited`
+    - observation: Long-running autonomy narratives emphasize multi-agent throughput and long-duration runs, while issue evidence repeatedly shows resume/index corruption, compaction hangs, and stalled RUNNING states after apparent successful steps.
+    - inference: `long-horizon degradation` and `handoff/resume contract failure` must remain explicit Wave 04 families; success narratives do not negate these failure surfaces.
+    - confidence: `medium`
+    - what_weakens_confidence: Narrative sources are product-team authored; issue distributions are ecosystem-skewed.
+    - evidence_paths:
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/informal/cursor_scaling_agents.md`
+      - `research/sources/informal/cursor_self_driving_codebases.md`
+      - `research/sources/informal/anthropic_long_running_harness.md`
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+- issue_and_postmortem_findings:
+  - finding_id: `ft_w04_perm_runtime_mismatch_cluster`
+    - observation: Reports show both policy bypass and policy friction: rules marked `allow` still prompt, hooks fail to intercept or deny, and sandbox intent can diverge from actual execution path.
+    - inference: This cluster is best attributed as `permission-policy/runtime mismatch`, not collapsed into one generic safety bug class.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+      - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+      - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+      - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+      - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+      - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+      - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - finding_id: `ft_w04_path_cwd_contract_cluster`
+    - observation: Multiple incidents show path targeting and boundary mismatch: wrong-file edit loops, relative-vs-absolute permission mismatch, UNC/mapped-path failures, and unexpected directory-scope permission prompts.
+    - inference: `cwd/path/workspace contract failure` is a distinct family and should not be merged with generic planning mistakes.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+      - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+      - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+      - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+      - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - finding_id: `ft_w04_process_lifecycle_browser_cluster`
+    - observation: Long-running browser/runtime tasks show stuck waits and absent recovery: browser crash non-recovery, stuck "thinking" threads after extension crash, and long-running agent hangs.
+    - inference: `process lifecycle and cancellation breakdown` remains a first-class family in Wave 04 and should stay separate from role/delegation failures.
+    - confidence: `medium`
+    - what_weakens_confidence: Some artifacts are feature requests or user root-cause hypotheses rather than maintainer-confirmed defects.
+    - evidence_paths:
+      - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+      - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+      - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+      - `research/sources/informal/cursor_agent_computer_use.md`
+  - finding_id: `ft_w04_long_horizon_compaction_resume_cluster`
+    - observation: Session continuity failures recur under long-context pressure: compaction unresponsive/hanging, oversized history breaking resume, stale index or stale state on resume, and cache-accounting-induced false compactions.
+    - inference: `timeout-heavy long-horizon degradation` in this corpus is strongly coupled to compaction/resume infrastructure quality rather than one pure model-cognition cause.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+      - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - finding_id: `ft_w04_delegation_handoff_cluster`
+    - observation: Delegated paths repeatedly show authority/handoff failure: subagent permission hooks not firing, task-agent resume failing silently after API error, repeated tool call loops in long-running tool contexts, and durable-task/checkpoint demand surfacing as explicit feature debt.
+    - inference: `delegation mismatch` and `role-handoff breakdown` should be retained as separate failure families from process lifecycle failures.
+    - confidence: `medium`
+    - what_weakens_confidence: Several records are enhancement requests that imply failure pressure but do not provide confirmed incident traces.
+    - evidence_paths:
+      - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+      - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+      - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+      - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+      - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+- contradiction_or_support_notes:
+  - contradiction_id: `w04_contra_perm_policy`
+    - observation: Product/architecture narratives frame sandboxing and approvals as structured safety with reduced interruptions.
+    - observation: Direct issue evidence reports both policy bypass and repetitive prompt storms in real use.
+    - inference: For Wave 04, approval design must be modeled as a mixed-cause surface requiring both enforcement integrity and burden control.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/informal/cursor_agent_sandboxing.md`
+      - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+      - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+      - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+      - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - contradiction_id: `w04_contra_tool_state_freshness`
+    - observation: Dynamic context-discovery claims emphasize better token efficiency and fresh tool availability.
+    - observation: Issues show stale tool lists/cache and oversized tool payload pathologies in practical workflows.
+    - inference: `tool-gateway freshness` remains unresolved operationally; formal/informal intent should not be upgraded to solved behavior.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/informal/cursor_dynamic_context_discovery.md`
+      - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+      - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+      - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+      - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - contradiction_id: `w04_contra_long_run_claims`
+    - observation: Long-running orchestration narratives report multi-day autonomous progress and large throughput.
+    - observation: Incident reports repeatedly show session-state staleness, resume drift, and stuck-running states after seemingly successful intermediate steps.
+    - inference: Current evidence supports `capability exists` and `reliability remains fragile` simultaneously; taxonomy should preserve both sides explicitly.
+    - confidence: `medium`
+    - what_weakens_confidence: Cross-stack comparability is limited; some failures may be implementation-specific.
+    - evidence_paths:
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/informal/cursor_scaling_agents.md`
+      - `research/sources/informal/cursor_self_driving_codebases.md`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+  - support_alignment_note:
+    - observation: Wave 04 trajectory lane already identifies non-collapsible families for tool-gateway mismatch, path/cwd contract failure, lifecycle breakdown, delegation/handoff variability, and long-horizon timeout pressure.
+    - inference: This informal lane materially reinforces those boundaries with operator/incident contradiction pressure and does not introduce a conflicting collapse model.
+    - confidence: `high`
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/trajectory_failure_analyst.md`
+- unvalidated_leads:
+  - `The hardware-damage report tied to false completion signaling (`src_iss_5d861db09829`) is high-severity but single-reporter and should remain low-confidence until corroborated.`
+  - `Windows path/sandbox anomalies may share root causes across projects, but cross-system causal linkage is not yet demonstrated.`
+  - `Stuck RUNNING/event-persistence failures may be caused by separate persistence layers across stacks; a single family label could over-collapse without codebase-lane confirmation.`
+- confidence_notes:
+  - `High confidence`: existence of major contradiction-pressure clusters (permission/runtime mismatch, tool-state freshness failures, path/cwd contract failures, compaction/resume degradation).
+  - `Medium confidence`: cross-system prevalence and root-cause unification, because source ecosystems and issue quality vary.
+  - `Low confidence`: claims that unresolved high-severity anecdotes (for example hardware damage attribution) are representative rather than outliers.
+- open_questions:
+  - Which mitigation is most leverageful for approval failures: stronger policy-runtime equivalence checks, per-tool trust envelopes, or better prompt-burst suppression?
+  - What minimum structured signal should tool outputs provide (truncation, stale-cache markers, freshness versions) to prevent silent wrong edits and planning drift?
+  - How should Wave 04 partition compaction/resume failures between coordination family vs context/state family boundaries from Wave 03 to avoid double counting?
+  - Which long-horizon failures are primarily lifecycle timeout/cancellation defects vs delegation/role-contract defects when both appear together?
+- next_hand_off_target:
+  - `contradiction_analyst` for cross-lane arbitration of mixed-cause attributions before principal synthesis.
+  - `principal_synthesis` after contradiction pass integrates trajectory/source/formal/informal weightings.

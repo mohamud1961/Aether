@@ -1,0 +1,78 @@
+# Wave 05 Contradiction Analyst Output (External: Gemini)
+
+```text
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: mechanism_map
+- wave: wave_05_tools_environment_permissions
+- reviewer_type: external_gemini
+- overall_verdict: blocked
+- preflight_scope_confirmed:
+  - confirmed contradiction pass scoped to tools, environment handling, sandbox boundaries, and permissions.
+  - confirmed optional eval fifth lane is inactive.
+  - confirmed trajectory/failure is the primary empirical anchor for this wave, but its first-pass output is missing.
+- preflight_planned_read_order:
+  - read wave control surfaces and carry-forward constraints.
+  - read Wave 05 codebase, literature, and informal first-pass outputs and their support artifacts.
+  - attempt to read trajectory_failure_analyst.md (missing).
+  - cross-reference claims against the target attack surface list.
+- preflight_critical_sources_selected:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_papers_docs_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+- preflight_coverage_risks:
+  - missing trajectory_failure_analyst.md entirely removes the empirical anchor required for wave sufficiency.
+  - missing tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md case study.
+- preflight_likely_blind_spots:
+  - without trajectory outputs, direct cross-family behavioral proof of tool execution, permission enforcement, and path management is unverified.
+- preflight_blockers:
+  - missing required tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+- coverage_used:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_papers_docs_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md
+  - codebase support tool/gateway maps, literature themes, and informal cluster dossiers.
+- coverage_not_yet_used:
+  - missing trajectory_failure_analyst.md.
+  - missing trajectory support artifacts (matrix, permission boundary cases).
+- evidence_classes_touched:
+  - codebase, informal issues, literature, prior synthesis.
+- priority_sources_not_yet_read:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md (missing)
+- support_artifact_gaps:
+  - missing trajectory support artifacts.
+  - missing tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md.
+- coverage_register_consistency:
+  - Wave 05 marked as packet-prepared/not-started despite 3 lanes being completed.
+- supported_findings:
+  - fake tool-gateway sophistication: Defended. Codebase lane explicitly checked capabilities, finding deepagents requires feature-gating and a-evolve uses two-tier limits. Informal lane flags stale-state tool-gateway sprawl.
+  - fake sandbox/permission safety: Defended. Informal lane flags both over-prompting and under-enforcement; codebase lane correctly tracks KIRA's diverse policy.
+  - hidden environment assumptions: Defended. Informal lane highlights localhost ECONNREFUSED brittleness.
+  - cwd/workdir discipline: Defended. Codebase lane identifies distinct path discipline in deepagents/KIRA. Informal lane highlights path mismatch corruption on Windows/UNC.
+  - BigAI treated beyond behavioral reconstruction: Clean. Kept strictly as behavioral reconstruction across all read lanes.
+  - silent eval-lane reasoning: Clean. Properly excluded by all submitted lanes.
+  - support artifacts as promoted claims: Clean. Separated correctly.
+- unsupported_or_overclaimed_findings:
+  - wave-level resolution of mechanism families is blocked because trajectory behavior (the primary anchor) is unverified.
+- missing_evidence_classes:
+  - trajectory/failure.
+- reconciliation_failures:
+  - no reconciliation possible between formal/codebase doctrine and actual trajectory execution behavior without the trajectory lane.
+  - source/trajectory mismatches: Codebase lane noted deepagents extract-moves slice is cancel-only, but full reconciliation is blocked.
+- coverage_blind_spots:
+  - trajectory evidence for deepagents extract-moves slice is cancel-only (noted by codebase lane), meaning tool/environment substrate exercise is thin for that family.
+- required_repairs_before_acceptance:
+  - run the trajectory_failure_analyst lane.
+  - generate required trajectory support artifacts.
+  - update the headless_terminal.md case study.
+  - reconcile new trajectory findings with codebase/informal/literature findings.
+- optional_pressure_tests:
+  - cross-validate deepagents' tool gating against its cancel-only trajectory slices and long-tail branches.
+- gate_review_recommendations:
+  - blocked. Return to principal to run trajectory lane.
+- confidence:
+  - high on the structural blocker; high on the submitted lanes defending against wave attack surfaces.
+```

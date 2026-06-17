@@ -1,0 +1,51 @@
+{
+  "action_types": [
+    "raw_bash"
+  ],
+  "artifact_states": [
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A running qemu process using /app/alpine.iso",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    },
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A reachable telnet service on 127.0.0.1:6665",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    }
+  ],
+  "commands": [
+    "cd /app && (nohup qemu-system-x86_64 -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -cdrom /app/alpine.iso -boot d >/tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid) && sleep 2 && (grep -m1 -E 'login:|Alpine|Welcome' /tmp/alpine-qemu.log || true) && (timeout 5 bash -lc 'until nc -w 1 127.0.0.1 6665 </dev/null >/tmp/alpine-telnet-probe.out 2>/tmp/alpine-telnet-probe.err; do sleep 1; done; cat /tmp/alpine-telnet-probe.out; cat /tmp/alpine-telnet-probe.err'"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 1,
+  "facts": [
+    "Required artifact(s) missing: A running qemu process using /app/alpine.iso, A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [
+    "A running qemu process using /app/alpine.iso",
+    "A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [
+    "A running qemu process using /app/alpine.iso",
+    "A reachable telnet service on 127.0.0.1:6665"
+  ],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 19
+}

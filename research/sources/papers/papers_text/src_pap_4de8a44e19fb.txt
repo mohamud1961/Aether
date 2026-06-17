@@ -1,0 +1,1253 @@
+--- PAGE 1 ---
+HyFunc: Accelerating LLM-based Function Calls for Agentic AI
+through Hybrid-Model Cascade and Dynamic Templating
+Weibin Liao∗
+Peking University
+Beijing, China
+Jian-guang Lou
+Microsoft Corporation
+Beijing, China
+Haoyi Xiong†‡
+Microsoft Corporation
+Beijing, China
+haoyi.xiong.fr@ieee.org
+Abstract
+While agentic AI systems rely on LLMs to translate user intent
+into structured function calls, this process is fraught with computa-
+tional redundancy, leading to high inference latency that hinders
+real-time applications. This paper identifies and addressesthree
+key redundancies: (1) the redundant processing of a large library of
+function descriptions for every request; (2) the redundant use of
+a large, slow model to generate an entire, often predictable, token
+sequence; and (3) the redundant generation of fixed, boilerplate
+parameter syntax. We introduceHyFunc, a novel framework that
+systematically eliminates these inefficiencies.HyFuncemploys a
+hybrid-model cascadewhere a large model distills user intent into
+a single “soft token. ” This token guides a lightweight retriever to
+select relevant functions and directs a smaller, prefix-tuned model
+to generate the final call, thus avoiding redundant context process-
+ing and full-sequence generation by the large model. To eliminate
+syntactic redundancy, our “dynamic templating” technique injects
+boilerplate parameter syntax on-the-fly within an extended vLLM
+engine. To avoid potential limitations in generalization, we evaluate
+HyFuncon an unseen benchmark dataset, BFCL. Experimental
+results demonstrate thatHyFuncachieves an excellent balance be-
+tween efficiency and performance. It achieves an inference latency
+of 0.828 seconds, outperforming all baseline models, and reaches
+a performance of 80.1%, surpassing all models with a comparable
+parameter scale. These results suggest thatHyFuncoffers a more
+efficient paradigm for agentic AI. Our code is publicly available at
+https://github.com/MrBlankness/HyFunc.
+CCS Concepts
+•Computing methodologies → Natural language processing;
+Machine learning algorithms.
+Keywords
+Function Call; Agentic AI; Large Language Model.
+ACM Reference Format:
+Weibin Liao, Jian-guang Lou, and Haoyi Xiong. 2026.HyFunc: Accelerating
+LLM-based Function Calls for Agentic AI through Hybrid-Model Cascade
+∗Work done during internship at Microsoft Corporation.
+†W. Liao and H. Xiong contributed equally to this research.
+‡H. Xiong is corresponding author.
+This work is licensed under a Creative Commons Attribution 4.0 International License.
+KDD ’26, Jeju Island, Republic of Korea
+©2026 Copyright held by the owner/author(s).
+ACM ISBN 979-8-4007-2258-5/2026/08
+https://doi.org/10.1145/3770854.3780283
+I want to know the weather in Palo Alto.
+get_3me:Descrip3on:Parameters:…get_loca3on:Descrip3on:Parameters:…
+get_weather:Descrip3on:Parameters:…
+User Query
+Massive Available Functions
+𝐿𝑀!
+get_weather(location=“Palo Alto”, time=“today”)complete func3on call genera3on(a) Exis)ng func)on call paradigmI want to…User Query
+get_weather..Selected Functions
+𝐿𝑀!get_weather(location=“Palo Alto”, time=“today”)parameter value genera3on via dynamic templa3ng (b) Our proposed redundancy-reduced func)on call paradigm
+SoJ Token++𝐿𝑀!token𝐿𝑀" tokenTemplate token
+Figure 1: Illustration of the key differences between exist-
+ing function call paradigm and our proposed redundancy-
+reduced paradigm.
+and Dynamic Templating. InProceedings of the 32nd ACM SIGKDD Confer-
+ence on Knowledge Discovery and Data Mining V.1 (KDD ’26), August 09–13,
+2026, Jeju Island, Republic of Korea.ACM, New York, NY, USA, 12 pages.
+https://doi.org/10.1145/3770854.3780283
+Resource Availability:
+The source code of this paper has been made publicly available at https:
+//doi.org/10.5281/zenodo.18137443.
+1 Introduction
+The proliferation of agentic AI systems [ 2, 21], capable of per-
+forming tasks by interacting with external tools [ 26] and APIs,
+marks a paradigm shift in human-computer interaction [ 5, 10,
+15]. At the core of these systems are LLMs that translate natu-
+ral language instructions into executable function calls [ 40, 48]
+(e.g., get_weather(location="Palo Alto") ). While larger mod-
+els demonstrate superior reasoning for this task, their deployment is
+hampered by significant inference latency [7, 54], creating a barrier
+for responsive user experiences.
+We posit that a primary source of this inefficiency isinfor-
+mation redundancyinherent in the standard function-calling
+workflow. This redundancy manifests in several ways, presenting
+distinct technical challenges:
+(1) Redundancy in Context Processing:Models are often prompted
+with extensive function libraries [ 30, 32, 40], forcing an inef-
+ficient processing of irrelevant context on every turn. While
+a large model ( LML) excels at selecting the correct function,
+using it for the entire subsequent generation is computationally
+excessive. The challenge is to leverage the LML’s reasoning for
+selection without incurring its full generative cost.
+(2) Redundancy in Full-Sequence Generation:Using an expen-
+sive LML to generate a structured function call [ 34] is often
+unnecessary, as the core intent is often embedded in the first
+token of the generated sequence [49]. We hypothesize that the
+arXiv:2602.13665v1  [cs.AI]  14 Feb 2026
+
+--- PAGE 2 ---
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Weibin Liao, Jian-guang Lou, and Haoyi Xiong
+initial “soft token” [17, 28, 37] from an LML contains a suffi-
+ciently rich signal to guide a more efficient smaller model (LMS).
+The challenge is to steer the LMS effectively using only this
+compressed semantic signal.
+(3) Redundancy in Syntactic Generation:A large part of a func-
+tion call is fixed, boilerplate syntax (e.g., function names, paren-
+theses, parameter names). Generating these predictable tokens
+is wasteful, as the core task is extracting the variable parameter
+valuesfrom the context. The challenge is to bypass this redun-
+dant syntax generation and focus the model on the crucial task
+of value extraction.
+To address these challenges, we introduceHyFunc, a framework
+designed to systematically reduce these redundancies. Our core
+intuition is that the function-calling process can be decomposed
+into two distinct phases:high-level semantic reasoning(i.e., under-
+standing user intent and selecting the correct function from a large
+function library) andlow-level structured generation(i.e., filling in
+parameter values when a specific function has been selected). While
+large models excel at the former, they are computationally excessive
+for the latter. Conversely, smaller modelsLMS are efficient but may
+lack the reasoning power for accurate function selection. Therefore,
+HyFuncis designed as a hybrid-model cascade that leverages the
+best efforts of both worlds. As shown in Figure. 1 (in comparison to
+the existing function call paradigm), our proposal uses a large model
+LML for a single, efficient forward pass to distill user intent as the
+“first soft token”, and then hands off the task to a specialized smaller
+model LMS for the final, constrained generation. To achieve the
+goal, three key strategies –efficient function retrieval via soft token
+distillation,guided generation with soft token continuous prompting,
+andaccelerating syntax generation with dynamic templatinghave
+been proposed. Specifically, our key contributions are as follows.
+• We study the LLM function-calling acceleration problem from
+the perspective of redundancy in generating the tool calls from
+conversation context with the user, systematically identifying
+and targeting three key inefficiencies: the redundant processing
+of large function libraries, the redundant generation of the full
+token sequence by a large model, and the redundant creation of
+boilerplate syntax.
+• We design and implementHyFunc, a novel framework built
+on ahybrid-model cascadecentered on the“first soft token”
+generated by LML to target these redundancies. It features three
+core components: (1) asoft token-based function retrieverthat uses
+a single forward pass from aLML to drive an efficient Multi-layer
+Perceptron (MLP) for function selection; (2) a smaller model (LMS)
+specificallyfine-tuned via prefix continuous promptingon a dataset
+where the soft token from the LML serves as the conditional
+prompt and the annotated tool call is the generation target; and
+(3) adynamic templating mechanismbuilt into vLLM to inject
+boilerplate syntax on-the-fly.
+• We conducted extensive experiments to validate the effectiveness
+of our approach. To avoid potential limitations in generalization,
+we evaluatedHyFuncon an unseen benchmark dataset, BFCL.
+Experimental results show thatHyFuncachieves an overall
+accuracy of80.1%, significantly lifting the performance of a 0.6B
+parameter model from 62.2% and outperforming many larger
+Offline Preparation
+Func%on Library…𝑳𝑴𝑳Embedding
+TrainingData
+Constrained Generation
+location=“USA”𝑳𝑴𝑺
+…Func%on & So9 Token Embeddings
+Function Retriever
+🔥
+𝑳𝑴𝑺Fine-tuning…User Query
+…
+Func%on Library…
+User Query
+🔍𝑳𝑴𝑳Embedding
+…
+ SelectedFunc%on
+Function Retriever Training
+🔥
+Online Inference
+Figure 2: High-level architecture of the HyFunc framework,
+including Offline Preparation and Online Inference, showing
+the flow from user prompt to the final function call through
+the two models and retrieval step.
+public models. This high accuracy is achieved with an end-to-
+end inference time of just0.828s, which surpasses the inference
+latency of all baseline LLMs.
+Our framework provides a pragmatic path toward building fast,
+accurate, and scalable agentic systems.
+2 The HyFunc Framework
+TheHyFuncframework is designed to accelerate function calling
+by decomposing the task and delegating sub-tasks to the most
+suitable component. This section details its architecture and the
+key mechanisms that drive its efficiency.
+Problem Formulation.The task of function calling is formally
+defined as follows. Given a user query, denoted by 𝑞, and a set
+of candidate functionsF ={𝑓 1, 𝑓2,· · ·, 𝑓 𝑁 }, where 𝑁 is the total
+number of available functions, the objective is to select the most
+appropriate function or sequence of functions to execute and to
+determine the correct arguments for each. Specifically, the model
+is tasked with generating a sequence of function calls:
+A=[𝑓 1 (𝑎1), . . . , 𝑓𝑚 (𝑎𝑚)]=𝜃 𝐿𝑀 (⟨𝑞,F⟩),(1)
+whereArepresents the resulting sequence of 𝑚 function invo-
+cations. For the 𝑗-th invocation (1 ≤𝑗≤𝑚 ), 𝑓𝑗 ∈ Fis the selected
+function and 𝑎 𝑗 represents its corresponding arguments. The term
+𝐿𝑀𝜃 (·) denotes the Large Language Model, parameterized by 𝜃,
+which processes the query 𝑞 and the set of function definitionsFto
+produce the output.
+2.1 The Hybrid-Model Cascade Architecture
+At its core,HyFuncoperates as a hybrid-model cascade that syner-
+gizes a large, powerful model (LML) with a smaller, efficient model
+(LMS). The central idea is to decouple high-level semantic reason-
+ing from low-level structured generation. As show in Figure. 2, the
+process consists of two stages:
+• Offline Preparation:Before handling any user requests, we
+prepare the necessary components. This involves creating a se-
+mantic embedding for every function in the tool library using
+the LML and training both the lightweight MLP-based function
+retrieverℛ 𝜃 and the specialized LMS.
+• Online Inference Pipeline:When a user prompt is received,
+HyFuncexecutes a three-phase pipeline orchestrated by the
+“first soft token” distilled from theLML. This pipeline includes (1)
+
+--- PAGE 3 ---
+HyFunc: Accelerating LLM-based Function Calls for Agentic AI ... KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea
+efficient function retrieval, (2) guided function-call generation,
+and (3) accelerated syntex generation via dynamic templating.
+Each phase is designed to systematically eliminate one of the
+redundancies identified in Section. 1.
+2.2 Function Retrieval via Soft Token
+Distillation
+To address the redundancy in context processing,HyFuncreplace
+full-prompt reasoning with a highly efficient retrieval step. This
+process involves two key steps:
+• Offline Function & Soft Token Embedding: HyFunccreate
+a semantic signature 𝑓𝑠𝑖𝑔 for every function in the tool library
+and encapsulates the user’s intent via a single “first soft token”.
+Each function’s description and user query is fed to the LML,
+andHyFuncextract the hidden states to obtain the semantic
+embedding 𝑒𝑓 of function and soft token embedding 𝑒𝑞 of user
+intent. These embeddings are stored in a fast-access database D
+as a dense embedding of the function’s semantics.
+• Online Function Retrieval:During inference, a single forward
+pass on the user’s prompt through theLML produces a “first soft
+token” that encapsulates the user’s intent. This token serves as
+a query to a lightweight, pre-trained MLP retriever. The MLP
+rapidly compares the query token against the pre-computed func-
+tion embeddings and returns a small, ranked subset of the most
+relevant functions, effectively pruning the search space with
+minimal computational overhead.
+2.2.1Offline Function & Soft Token Embedding.HyFunc
+initiates the function retrieval process by creating a semantic sig-
+nature for each function within a function library, denoted as
+F ={𝑓 1, 𝑓2, . . . , 𝑓𝑛 }, and for the user’s query 𝑞. For every func-
+tion 𝑓𝑖 ∈ F, characterized by its name, description, and parameter
+specifications,HyFuncconstructs a detailed prompt. This is accom-
+plished by concatenating a manually composed instruction 𝐼 (see
+Appendix. B), the comprehensive function setF, and the specific
+user query 𝑞. As show in Figure. 3a, the resulting concatenated text
+[𝐼, F, 𝑞] is tokenized as a token squeeze and subsequently input into
+LML. From the output of LML,HyFuncextracts the sequence of
+hidden states, 𝐻𝑓𝑖 ={ℎ 1, ℎ2, . . . , ℎ𝑘 }, corresponding to the 𝑘 tokens
+that represent the function 𝑓𝑖. A Mean Pooling operation is then
+applied to these hidden states to compute the definitive function
+embedding,e 𝑓𝑖 ∈R 𝑑, where 𝑑 is the dimension of the hidden state
+of LML.
+Simultaneously, to distill the user’s intent,HyFunccaptures the
+hidden state of the “first soft token” generated by LML without
+decoding it. This “soft token” hidden state is designated as the user
+query embedding,e 𝑞 ∈R 𝑑. Upon computation, both the set of
+function embeddings {e𝑓𝑖 }𝑁
+𝑖=1 and the soft token query embeddings
+e𝑞 are systematically stored in a high-speed database,D, to facilitate
+the efficient training of the function retriever.
+2.2.2Online Function Retrieval.HyFuncuses a lightweight
+MLP-based function retriever ℛ𝜃 to quickly retrieve relevant func-
+tions for a given user query. As show in Figure. 3b, for the training
+of the function retriever ℛ𝜃 ,HyFuncimplements a dual-encoder
+model. This architecture consists of a soft token encoder, 𝐸𝑞, and a
+function encoder, 𝐸𝑓 , where each encoder is structured as a two-
+layer MLP. The training regimen utilizes the embeddings stored
+in the database D.HyFuncemploys a contrastive learning ap-
+proach [11, 22], specifically the InfoNCE loss [12, 23, 39], to optimize
+the retriever. For a given query embeddinge 𝑞, the corresponding
+ground-truth function embeddinge 𝑓 + serves as the positive sample,
+while all other function embeddings in the batch act as negative
+samples. The objective is to minimize the following loss function:
+LInfoNCE =−log exp(sim(𝐸 𝑞 (e𝑞), 𝐸𝑓 (e 𝑓 + ))/𝜏)
+Í𝐵
+𝑗=1 exp(sim(𝐸 𝑞 (e𝑞), 𝐸𝑓 (e 𝑓𝑗 ))/𝜏)
+,(2)
+where sim(·,·) is the cosine similarity, 𝜏 is a temperature hyperpa-
+rameter, and𝐵is the number of samples in the batch.
+During the inference stage, for a new query,HyFuncfirst ac-
+quires the soft token embeddinge 𝑞 and the set of pre-computed
+function embeddings {e𝑓𝑖 }𝑁
+𝑖=1. The trained function retriever ℛ𝜃
+then deeply encodes these initial embeddings to yield refined rep-
+resentations:
+z𝑞 =𝐸 𝑞 (e𝑞),z 𝑓𝑖 =𝐸 𝑓 (e 𝑓𝑖 )(3)
+The relevance of each function 𝑓𝑖 is quantified by the cosine simi-
+larity between the final query and function representations:
+𝑠𝑖 = z𝑞 ·z 𝑓𝑖
+∥z𝑞 ∥ ∥z𝑓𝑖 ∥ (4)
+HyFuncretrieves all functions {𝑓𝑖 } for which the similarity score
+𝑠𝑖 is greater than a specified threshold 𝛼. Furthermore, as our sub-
+sequent experiments assume the guaranteed presence of a relevant
+function within the libraryFfor any query, a fallback mechanism
+is instituted. If no function’s similarity score exceeds𝛼,HyFunc
+retrieves the single function with the highest similarity score, en-
+suring a candidate is always returned.
+2.3 Guided Function Call Generation with Soft
+Token Continuous Prompting
+With a small set of candidate functions retrieved, the task is handed
+to the smaller model, LMS. To ensure the LMS can effectively inter-
+pret the semantic signal from the LML, it is specifically prepared
+using prefix continuous prompting [20, 33].
+• Specialized Fine-Tuning:We create a dataset where each entry
+consists of instruction, user query, selected functions, the corre-
+sponding soft token generated by the LML, and the ground-truth
+tool call. The LMS is then fine-tuned on this dataset.
+• Conditional Generation:This tuning process teaches the LMS
+to treat the high-dimensional soft token as a powerful condi-
+tional prefix that guides generation. It aligns the LMS with the
+LML’s semantic space, enabling it to accurately generate the final
+tool call by conditioning on the soft token, the original prompt,
+and the retrieved function descriptions, thus avoiding redundant
+reasoning.
+2.3.1Specialized Fine-Tuning via Conditional Generation.
+In the second phase,HyFuncleverages the distilled user intent,
+encapsulated in the soft token embedding, to guide a more effi-
+cient, smaller large language model LMS, in generating the precise
+function call syntax. The core task of this phase is to perform a
+
+--- PAGE 4 ---
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Weibin Liao, Jian-guang Lou, and Haoyi Xiong
+Large Language Model<instruction><tool1>…<tooln><query>
+Mean Pooling
+𝐿𝑀!hidden state
+soft token
+(a) Func. Embed. & Soft Token Distill. via LML
+Func%onEncoderSoft TokenEncoder
+(a) Func)on Retriever Training
+🔥
+🔥
+Cross-correlation Matrix
+querykey√FunctionEncoderSo2 TokenEncoder
+ Cosine Similarity
+(b) Function Retriever Inference (b) Function Retriever Training & Inference
+Large Language Model<instruction><tool><query>
+🔥
+𝐿𝑀!target tokengradient updateLog-likelihood loss
+Projector
+🔥soft token embedding
+location=“USA”, time=“today” (c) Tuning LMS for Guided Func. Call Gen.
+Figure 3: Illustration of the three core strategies in the HyFunc framework. (a) The LML performs a single forward pass to
+produce semantic embeddings: function embeddings are derived via mean pooling over their token hidden states, while the
+user’s intent is distilled into the hidden state of the first generated “soft token”. (b) A dual-encoder MLP-based retriever is
+trained with a contrastive loss to align soft token and function embeddings. During inference, it uses cosine similarity to
+efficiently select relevant functions. (c) The LMS is fine-tuned using the soft token as a continuous prompt. A projector maps
+the soft token from the LML’s space to the LMS’s space, guiding the smaller model to generate the final, structured function
+call with reduced context.
+prefix-prompt-based fine-tuning of LMS, where the soft token em-
+bedding from Phase 1 serves as a continuous prompt.
+A significant challenge arises from the fact that the soft token
+embedding,e 𝑞 ∈R 𝑑, was generated by the initial model LML,
+rendering it semantically misaligned with the embedding space of
+the smaller model LMS [31, 58]. A direct injection ofe 𝑞 into LMS
+would be ineffective due to this representational disparity. To bridge
+this semantic gap, as shown in Figure. 3c,HyFuncincorporates a
+Projector, 𝒫𝜃 , which is a single linear layer. Drawing inspiration
+from the LLaVA [31] architecture, this projector maps the soft token
+embedding from the source space of LML to the target embedding
+space of LMS. Let the embedding dimension of LMS be 𝑑 ′. The 𝒫𝜃
+is performed by a weight matrix𝑊 𝑝 ∈R 𝑑 ′ ×𝑑:
+p𝑞 =𝒫 𝜃 (e𝑞)=𝑊 𝑝 e𝑞 (5)
+wherep 𝑞 ∈R 𝑑 ′
+is the resulting projected soft token, now acting as
+a continuous prompt that is comprehensible to LMS.
+For the fine-tuning process,HyFuncconstructs a new input
+sequence for LMS. This sequence is formed by concatenating a
+manually written instruction 𝐼, the refined set of candidate func-
+tionsF ′ ⊆ Fselected in Phase 1, the original user query 𝑞, and the
+projected soft tokenp 𝑞. The continuous promptp 𝑞 is prepended to
+the token embeddings of the textual input, guiding the subsequent
+generation process.
+The model is then optimized using a standard Supervised Fine-
+Tuning (SFT) objective. Given a ground-truth function call output
+𝑌=(𝑦 1, 𝑦2, . . . , 𝑦𝑚),HyFunctrains the parameters of both the
+smaller model LMS and the Projector 𝒫𝜃 by minimizing the neg-
+ative log-likelihood of the target sequence. The loss function is
+defined as:
+LSFT =−
+𝑚∑︁
+𝑡=1
+log𝑃(𝑦 𝑡 |𝐶, 𝑦<𝑡 ;𝜃 𝐿𝑀𝑆 , 𝜃𝒫)(6)
+where 𝐶 represents the prepared input context (including 𝐼,F ′, 𝑞,
+and the continuous promptp 𝑞), 𝑦<𝑡 denotes the preceding ground-
+truth tokens, and 𝜃𝐿𝑀𝑆 and 𝜃𝒫 are the trainable parameters of the
+model LMS and the projector 𝒫𝜃 , respectively. This joint optimiza-
+tion ensures that the projector effectively translates the guiding
+signal from the larger model, and the smaller model learns to inter-
+pret this signal to generate the correct function call.
+2.4 Accelerated Syntax Generation with
+Dynamic Templating
+The final phase ofHyFuncaims to address the redundancy in syn-
+tactic generation of function calls, targeting both the training and
+inference stages to maximize efficiency and accuracy. This phase is
+designed to reduce the redundant, token-by-token generation of
+predictable boilerplate syntax (e.g., function names, parentheses,
+and parameter keywords) and to focus the model’s capabilities on
+the critical task of inferring parameter values.
+• Selective Token Fine-Tuning:At training time, we refine the
+fine-tuning process with a masked loss function. This technique,
+which we term Selective SFT, compels the LMS to learn exclu-
+sively from the tokens that constitute parametervalues. By ignor-
+ing the static, syntactical components of a function call during
+backpropagation, we concentrate the model’s optimization on
+the more challenging and crucial task of generating contextually
+appropriate parameter values.
+• Inference with Dynamic Templating:At inference time, we
+deploy a novel acceleration strategy named Dynamic Templating.
+This method alternates between two modes: direct injection of the
+fixed syntactical template of a function call and controlled, auto-
+regressive generation by the LMS for the parameter values. This
+process guarantees syntactically correct outputs and significantly
+reduces latency by bypassing LLM generation for predictable
+tokens.
+2.4.1Selective Token Fine-Tuning.In this phase,HyFuncfo-
+cuses on optimizing the generation of syntactically correct and
+semantically grounded function call parameters. A critical observa-
+tion is that during the generation of a complete function call, such
+as get_weather(location="USA", time="today") , a significant
+portion of the tokens constitutes a fixed template (e.g., the function
+name get_weather, parentheses, parameter names like location,
+and assignment operators). The truly variable components that the
+
+--- PAGE 5 ---
+HyFunc: Accelerating LLM-based Function Calls for Agentic AI ... KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea
+model must infer from the user’s intent are the parameter values
+themselves (e.g.,"USA","today").
+To compel the LMS to concentrate its learning capacity on this
+core inference task,HyFuncrefines the loss function used in
+Phase 2. Instead of calculating the loss across all tokens in the
+target sequence,HyFuncemploys a masked loss function that ex-
+clusively computes the error on the parameter value tokens. Let
+the ground-truth function call output be the token sequence 𝑌=
+(𝑦1, 𝑦2, . . . , 𝑦𝑚).HyFuncintroduces a binary mask 𝑀=(𝑚 1, 𝑚2, . . . , 𝑚𝑚),
+where 𝑚𝑡 = 1if token 𝑦𝑡 is part of a parameter value, and 𝑚𝑡 = 0
+otherwise. The new Selective SFT loss is then formulated as:
+LSelective_SFT =−
+Í𝑚
+𝑡=1 𝑚𝑡 ·log𝑃(𝑦 𝑡 |𝐶, 𝑦<𝑡 ;𝜃 𝐿𝑀𝑆 , 𝜃𝒫)Í𝑚
+𝑡=1 𝑚𝑡
+(7)
+where 𝐶 is the input context. This objective effectively ignores
+the syntactically deterministic template components during back-
+propagation, thereby directing the model’s optimization towards
+the more challenging task of generating accurate and contextually
+appropriate parameter values.
+2.4.2Inference with Dynamic Templating.During inference,
+HyFuncemploys the Dynamic Templating strategy to ensure both
+high-speed generation and guaranteed syntactic correctness. This
+process operates by dynamically switching between two distinct
+modes:Template Injection ModeandLLM Generation Mode.
+The process begins by feeding the full context—comprising the
+instruction 𝐼, the selected function setF ′, the user query 𝑞, and
+the projected soft tokenp 𝑞—into the fine-tuned LMS.HyFunc
+then begins to construct the final function call string. InTemplate
+Injection Mode,HyFunciterates through the known structure of
+the selected function (its name, syntax like parentheses and commas,
+and parameter names). Instead of prompting the LMS to generate
+these tokens,HyFuncdirectly injects these known, correct tokens
+into the input sequence.
+To manage the transition between modes, we introduce two spe-
+cial control tokens, <param> and </param>. The function’s static
+template is dynamically augmented with these tokens. For instance,
+a function signatureget_weather(location, time) is transformed
+into the templateget_weather(location=<param></param>,
+time=<param></param>). When the injection process encounters
+a <param> token,HyFuncswitches toLLM Generation Mode. In
+this mode, control is handed to the LMS, which, conditioned on the
+entire preceding context, generates the parameter value. The model
+has been trained via Selective SFT to conclude its value generation
+by emitting the </param> token. Upon detecting this closing token,
+HyFuncreverts back toTemplate Injection Modeto continue
+appending the rest of the fixed template. This interplay ensures
+that the LLM’s generative power is invoked exclusively for the com-
+plex task of value inference, while the rigid syntactical structure is
+populated deterministically. This dual approach eliminates syntax
+errors and substantially reduces generation latency.
+More specifically,HyFuncleverages the KV Cache [ 35] mecha-
+nism to store the representations of previously computed tokens
+during each mode switch. This allows the model to avoid redun-
+dant computation when generating parameter values in subsequent
+rounds. A detailed case study illustrating our dynamic templat-
+ing strategy is provided in Section. 3.7. The detailed algorithm is
+described in Appendix. 1.
+Table 1: Comparison of token cost and inference time on var-
+ious LLMs. Input.:Number of Input Tokens; Output.:Output
+Token; Time.:Inference Time (seconds);
+Models Input Output Time (sec.)
+Public Models (General)
+Qwen3-8B 621.13 54.68 1.984
+Qwen3-4B 621.13 58.24 1.341
+Qwen3-1.7B 621.13 55.26 1.014
+Qwen3-0.6B 621.13 53.58 1.006
+Qwen2.5-14B-Instruct 632.82 57.95 2.985
+Qwen2.5-7B-Instruct 632.82 58.99 1.815
+Qwen2.5-3B-Instruct 632.82 62.70 1.282
+Qwen2.5-1.5B-Instruct 632.82 56.63 0.872
+Qwen2.5-0.5B-Instruct 632.82 60.54 0.927
+Public Models (Specifical)
+ToolACE-8B 943.05 55.34 1.876
+Hammer2.1-7B 822.00 57.74 1.792
+Hammer2.1-3B 822.00 52.98 1.042
+Hammer2.1-1.5B 822.00 56.48 0.949
+Hammer2.1-0.5B 822.00 52.54 0.904
+xLAM-7B-r 810.57 59.65 1.171
+xLAM-1B-r 864.03 65.47 0.911
+HyFunc♣ (LML: ToolACE-8B, LMS: Qwen3-0.6B)
+Total1410.76 37.67 0.828
+- Function Retriever708.51 1.00 0.104
+- Func. Call. Gen.702.25 36.67 0.724
+3 Experiments
+3.1 Experiment Setup
+3.1.1Datasets, Evaluation and Models.We employ the dataset 1
+provided by xLAM [55] as our offline preparation, which comprises
+11,300 user queries. This dataset includes various types of function
+calling scenarios, such as those involving multiple candidate tools
+and parallel function executions. We use the Berkeley Function
+Call Leaderboard (BFCL) dataset [40] (Out-of-Domain) to evaluate
+the performance ofHyFuncin the online inference setting. For
+BFCL, we assess both the Non-Live and Live subsets, correspond-
+ing to synthetic test cases and real-world scenarios, respectively.
+Each subset is further divided into four categories: Simple, Multiple,
+Parallel, and Parallel Multiple. The Simple and Multiple categories
+both involve a single invoked tool, with Multiple featuring multiple
+candidate tools. In contrast, Parallel and Parallel Multiple require
+invoking multiple tools simultaneously. Additionally, the Non-Live
+subset of BFCL contains two disjoint splits, each evaluated using
+different metrics: AST substring matching and execution-response
+matching. For more details on the evaluation protocol, we refer
+readers to the original BFCL dataset documentation2.
+We utilize ToolACE-8B3 as LML, and adopt Qwen3-0.6B [ 51]
+and Qwen2.5-0.5B-Instruct [5] as LMS. As previously described, we
+1https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k
+2https://gorilla.cs.berkeley.edu/leaderboard.html
+3https://huggingface.co/Team-ACE/ToolACE-8B
+
+--- PAGE 6 ---
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Weibin Liao, Jian-guang Lou, and Haoyi Xiong
+Table 2: Accuracy performance comparison on BFCL leaderboard (Out-of-Domain). Sim.:Simple; Mult.:Multiple; Para.:Parallel;
+P.M.:Parallel Multiple. † and ‡ indicates that our method outperforms all baseline models with ≤ 1B and ≤ 3B parameter,
+respectively.
+Non-Live Live
+AST Execute ASTModels
+Sim. Mult. Para. P.M. Sim. Mult. Para. P.M. Sim. Mult. Para. P.M.
+Overall
+Private Models
+GPT-4o 77.2 93.5 93.0 86.0 88.3 92.0 94.0 82.5 81.4 78.8 87.5 75.0 82.6
+GPT-4-turbo 70.4 91.0 90.0 87.5 87.4 90.0 86.0 77.5 83.7 78.6 81.2 70.8 81.0
+GPT-4o-mini 74.8 92.0 90.0 84.0 83.3 92.0 84.0 75.0 78.7 76.2 87.5 70.8 79.9
+Public Models (General)
+Qwen3-8B 76.8 95.5 94.5 88.5 94.0 92.0 86.0 77.5 84.9 79.4 62.5 75.0 83.4
+Qwen3-4B 75.3 96.5 92.0 90.5 88.0 90.0 70.0 75.0 87.6 80.0 75.0 83.3 83.3
+Qwen3-1.7B 71.1 93.0 87.5 81.5 87.0 88.0 68.0 75.0 75.6 72.7 75.0 75.0 76.9
+Qwen3-0.6B 62.3 88.0 69.0 68.0 54.0 88.0 56.0 60.0 65.9 54.4 37.5 54.2 62.2
+Qwen2.5-32B-Instruct 72.8 94.0 93.5 88.5 97.6 88.0 84.0 77.5 80.2 80.1 43.8 62.5 82.2
+Qwen2.5-14B-Instruct 69.7 95.0 88.0 89.0 90.4 92.0 72.0 85.0 77.1 75.0 75.0 70.8 79.0
+Qwen2.5-7B-Instruct 71.8 95.0 90.0 86.0 95.4 94.0 84.0 77.5 75.6 75.6 68.8 66.7 79.6
+Qwen2.5-3B-Instruct 73.3 92.0 73.5 76.5 86.9 90.0 66.0 70.0 74.0 72.1 62.5 45.8 74.9
+Qwen2.5-1.5B-Instruct 72.4 87.0 81.5 75.5 88.0 90.0 78.0 72.5 74.0 66.1 50.0 45.8 72.7
+Qwen2.5-0.5B-Instruct 61.2 78.0 60.0 50.0 51.2 88.0 52.0 52.5 56.2 41.3 56.2 20.8 52.4
+GLM4-9B-chat 65.2 81.5 0.0 0.0 94.0 90.0 0.0 0.0 72.5 64.4 0.0 0.0 55.1
+Public Models (Specifical)
+ToolACE-8B [32] 76.7 93.5 90.5 89.5 97.4 94.0 88.0 77.5 73.3 76.7 81.2 70.8 81.0
+Hammer2.1-7B [30] 78.1 95.0 93.5 88.0 86.4 92.0 86.0 77.5 76.7 77.4 81.2 70.8 81.6
+Hammer2.1-3B [30] 81.4 95.0 89.5 81.5 82.9 92.0 84.0 77.5 73.3 73.3 62.5 66.7 79.0
+Hammer2.1-1.5B [30] 74.7 92.0 84.5 80.0 86.6 90.0 82.0 75.0 71.3 69.8 50.0 62.5 75.5
+Hammer2.1-0.5B [30] 68.0 83.0 71.5 54.0 68.4 84.0 82.0 47.5 60.1 58.0 50.0 45.8 63.5
+BigAgent-8B [6] 76.2 95.0 94.0 82.5 98.6 94.0 88.0 77.5 77.9 77.4 87.5 70.8 81.6
+xLAM-8x7B-r [55] 73.6 90.0 69.0 38.0 89.0 90.0 72.0 45.0 74.8 79.3 43.8 58.3 74.3
+xLAM-7B-r [55] 74.2 95.5 81.0 73.5 74.0 96.0 82.0 67.5 72.1 74.9 50.0 62.5 76.6
+xLAM-1B-r [55] 71.7 86.0 5.0 2.0 77.8 90.0 4.0 0.0 64.0 53.4 6.2 0.0 51.2
+Granite-20B [1] 72.8 91.5 84.0 81.5 84.9 92.0 86.0 82.5 68.2 56.3 43.8 58.3 78.6
+Our Proposal –HyFunc♥ (LML: ToolACE-8B, LMS: Qwen2.5-0.5B-Instruct) andHyFunc♣ (LML: ToolACE-8B, LMS: Qwen3-0.6B)
+HyFunc♥ 72.5† 92.5† 87.5† 85.0† 91.0† 90.0† 78.0 75.0† 74.8† 75.2† 68.8† 66.7† 78.6†
+HyFunc♣ 75.3‡ 93.5† 89.5† 89.0‡ 95.0† 92.0† 82.0† 75.0† 75.2† 75.5† 75.0‡ 70.8† 80.1‡
+implement a dual-encoder architecture for our function retriever,
+where each encoder is a two-layer multilayer perceptron (MLP). For
+LMS tuning with soft tokens, we incorporate a single-layer linear
+projector to map the learned representations.
+3.1.2Implementation Details.HyFuncwas implemented us-
+ing the PyTorch framework with the HuggingFace Transform-
+ers [50] library. All experiments were conducted on a server equipped
+with 8 × NVIDIA RTX 4090 GPUs (24G). The training process con-
+sisted of two distinct stages with tailored hyperparameters. For the
+function retriever ℛ𝜃 training, we employed the AdamW optimizer
+with a learning rate of 1e-3 and a batch size of 256. This training was
+performed over 100 epochs, utilizing a cosine learning rate sched-
+uler with a warm-up phase. For the subsequent LMS fine-tuning
+stage, we again used the AdamW optimizer, but with a learning
+rate of 2e-5 and a batch size of 1. This stage was conducted for a
+single epoch. Across all experiments, we set the selection threshold
+for the function retriever to𝛼= 0.5and configured the temperature
+parameter in our contrastive loss function (see Equ. 2) to𝜏=0.07.
+3.1.3Baselines.We introduce three categories of baseline mod-
+els: private models, general public models, and function call–specific
+public models. The private modes include the GPT-4 series [15], the
+general public models include the Qwen3 series [51], the Qwen2.5
+series [5], as well as GLM4-9B-Chat [10], and the function call–specific
+public models include the ToolACE [ 32] (ICLR’25), Hammer se-
+ries [30] (ICLR’25), BigAgent [6], xLAM series [ 55] (NAACL’25)
+and Granite [1] (EMNLP’24), which are detailed in Appendix. C.
+3.2 Main Results
+We evaluateHyFuncand the introduced baselines on the BFCL
+benchmark,focusing on the trade-off between accuracy and
+
+--- PAGE 7 ---
+HyFunc: Accelerating LLM-based Function Calls for Agentic AI ... KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea
+Table 3: Ablation Study of our proposed modules in HyFunc. Sim.:Simple; Mult.:Multiple; Para.:Parallel; P.M.:Parallel Multiple.
+Non-Live Live
+AST Execute AST
+Methods
+Sim. Mult. Para. P.M. Sim. Mult. Para. P.M. Sim. Mult. Para. P.M.
+Overall
+Qwen3-0.6B (base) 62.3 88.0 69.0 68.0 54.0 88.0 56.0 60.0 65.9 54.4 37.5 54.2 62.2
+w/Function Retriever 62.3 89.0 69.0 72.5 54.0 88.0 56.0 65.0 65.9 59.2 37.5 54.2 64.6
+w/Soft Token Distillation 68.8 90.0 75.0 78.0 79.0 88.0 64.0 70.0 68.6 66.6 50.0 62.5 71.2
+w/Selective Token Tuning 70.5 90.5 80.5 82.5 84.0 90.0 68.0 72.5 70.5 68.9 56.3 66.7 73.9
+w/Dynamic Templating 75.3 93.5 89.5 89.0 95.0 92.0 82.0 75.0 75.2 75.5 75.0 70.8 80.1
+inference efficiency. The experimental results for accuracy and
+latency are summarized in Table 2 and Table 1, for time cost and
+accuracy, respectively.
+3.2.1Accuracy and Efficiency Trade-off.Our primary con-
+tribution is not solely to achieve state-of-the-art accuracy, but to
+provide a highly efficient solution that maintains strong perfor-
+mance.HyFunc ♣ achieves an inference latency of just0.828 sec-
+ondsper case, outperforming all baseline models in terms of speed.
+This efficiency stems from our redundancy-reduction design, which
+significantly decreases the number of generatedoutput tokensby
+29.54% compared to its base model, Qwen3-0.6B. AlthoughHyFunc
+introduces some additional input tokens due to its hybrid-model
+architecture–particularly from theFunction RetrieverandFunction
+Call Generator–this slight increase in input length does not com-
+promise its overall inference efficiency.
+When comparing models with similar time costs (i.e., latency
+around 1 second),HyFunc♣ demonstrates superior accuracy. For ex-
+ample, it achieves an overall accuracy of80.1%, significantly outper-
+forming other fast models such as Hammer2.1-1.5B (75.5%), Qwen3-
+1.7B (76.9%), and xLAM-1B-r (51.2%). This observation highlights
+HyFunc’s ability to deliver high accuracy without a latency penalty.
+Conversely, while some much larger models achieve slightly better
+accuracy, they do so at a substantially higher computational cost.
+For instance, GPT-4o achieves 82.6% accuracy but is a proprietary
+model (where the raw inference latency on same compute setting
+is not accessible). Similarly, Qwen3-8B reaches 83.4% but takes
+1.984s to run–more than twice as long asHyFunc. This observa-
+tion demonstrates thatHyFuncoccupies a unique position on the
+performance-efficiency frontier, making it a more practical choice
+for real-time applications.
+3.2.2Significant Performance Improvement for Small Mod-
+els.When integrated with theHyFuncframework, small language
+models show substantial performance gains. Qwen2.5-0.5B-Instruct
+improves its overall accuracy to 78.6% (26.2%↑), while Qwen3-0.6B
+reaches 80.1% (17.9%↑). These results highlight the strong efficacy
+ofHyFuncin enhancing the capabilities of small, efficient models
+to the level of much larger ones.
+3.3 Ablation Study
+To analyze the contribution of each individual component inHy-
+Func, we incrementally add the proposed modules on top of a base
+LMS. We select Qwen3-0.6B as the base LMS for this ablation study.
+The results, presented in Table. 3, show that performance steadily
+Table 4: Analysis of How HyFunc Mitigates Redundancy in
+the Function Calling Process.
+Redundant StageRedundant token HyFunc Speed Up
+Context Processing 584.46 function embedding & retrieve 5.20%Full-Sequence Generation53.58 LM_L→LM_S 38.51%Syntactic Generation16.91 LM_L (output)→Dynamic Template (input) 14.56%
+improves as moreHyFuncmodules are introduced.(1) Effective-
+ness of Function Retrieval.Although our function retriever is
+designed to help the model recall the most relevant functions, its
+effectiveness is most evident in scenarios involving multiple candi-
+date functions. For example, in theSimpleandParallelsubsets of
+BFCL—where the correct function is directly provided—retrieval
+is unnecessary, and thus no performance gain is observed. How-
+ever, in more challenging subsets requiring function selection, such
+asMultipleandParallel-Multiple, the function retriever improves
+performance by 2.4%. Furthermore, as it relies solely on two light-
+weight MLPs, the retriever is significantly faster and more efficient
+than traditional LLM-based retrieval methods.(2) Effectiveness of
+Soft Token Distillation. HyFuncdistills latent user intent from
+LML to enhance the LMS’s understanding of task requirements.
+This module yields a substantial performance improvement of 6.6%,
+demonstrating the value of distillation in aligning user intent with
+token-level supervision.(3) Effectiveness of Selective Token
+Tuning.To avoid redundant fine-tuning on fixed function syntax,
+HyFuncfocuses parameter optimization on key tokens, particularly
+those representing argument values. This selective tuning allows
+the model to concentrate on generating correct parameter content,
+resulting in a 2.7% performance improvement.(4) Effectiveness
+of Dynamic Templating. HyFuncdynamically injects function
+templates during inference to prevent the model from generating
+incorrect arguments or forgetting required parameters—issues that
+are especially pronounced in smaller models. By offloading template
+memorization, the model can better focus on generating accurate
+parameter values, leading to a 6.2% improvement in performance.
+3.4 Redundancy Elimination Analysis
+As shown in Table. 4, we analyze the redundancies arising during
+the function calling process, which can be categorized into three
+stages: Context Processing, Full-Sequence Generation, and Syntac-
+tic Generation (see Sec. 1). Using the BFCL dataset, we quantify the
+average number of redundant tokens generated per function call at
+each stage. We further present the targeted strategies introduced by
+
+--- PAGE 8 ---
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Weibin Liao, Jian-guang Lou, and Haoyi Xiong
+Table 5: Performance ofFunction Retriever. EMAcc.:Exact
+Match Accuracy; Pre.:Precision; Rec.:Recall; P.P.:Parallel
+Prediction.
+Dataset Category EMAcc. Pre. Rec. F1
+Non-Live AST 94.0 95.3 96.5 95.9
+Execute 95.8 96.6 97.4 97.0
+Live AST 85.8 87.4 89.6 88.5
+Figure 4: Performanceimprovementand time consumption
+reductionofDynamic Templatingon various backbone LLMs.
+HyFuncto eliminate these redundancies, along with the resulting
+relative speedups after incorporating these strategies. Experimental
+results demonstrate thatHyFunceffectively mitigates redundan-
+cies in the function calling process and substantially accelerates
+function invocation.
+3.5 Performance of Function Retriever
+We further conduct a standalone evaluation of theFunction Re-
+trievercomponent, with the results presented in Table. 5. In this
+experiment, we employ the Exact Match Accuracy metric: Accuracy
+= 1 if and only if the retriever successfully recalls all required func-
+tions without predicting any irrelevant ones. (detailed definition
+of Exact Match Accuracy provided in Appendix. D) Our results
+demonstrate that theFunction Retrieverachieves high accuracy,
+reaching up to 95.8% in the Non-Live (Execute) setting. This strong
+performance highlights the effectiveness of our retrieval mecha-
+nism, which distills user intent through soft token supervision and
+enables a decoder-free function retrieval strategy. We further an-
+alyze the impact of the function retriever’s hyperparameter𝛼 on
+the performance ofHyFuncin Fig. 6a.
+3.6 Plug-and-Play of Dynamic Templating
+We propose that ourDynamic Templatingmodule is designed to
+be plug-and-play—it can be seamlessly integrated into existing
+function-calling models with minimal overhead. To validate this
+claim, we incorporateDynamic Templatinginto several baseline
+LLMs and evaluate its impact on function-calling performance. The
+Query: Could you determine the distance to the closest leading object for our vehicle? Here's the data: our car's position is at 10.5 meters laterally and 50 meters longitudinally, with an orientation of 30 degrees. The lane we're in has an ID of 'L123' and it's a regular type. We've detected several objects, but the closest has a bounding box with x coordinate 60.2 meters and y coordinate 12.3 meters.
+Response:{    "name": "get_time_headway",    "arguments":{        "ego_info": {            "position": {"lateral": <param>10.5</param>,"longitudinal": <param>50</param>},"orientation": <param>30</param>}, "lane_info": {"lane_id": <param>"L123"</param>, "lane_type": <param>"regular"</param>}, "bounding_boxes": [{"x": <param>60.2</param>, "y": <param>12.3</param>}]}}
+KV Cachesaveload
+Figure 5: Case study ofDynamic Templating.
+results, presented in Fig. 4, demonstrate thatDynamic Templating
+consistently enhances function-calling capabilities across a wide
+range of models, including both general-purpose LLMs and task-
+specific models. For instance,Dynamic Templatinghelps Qwen2.5-
+1.5B-Instruct achieve an overall performance of 78.8% (6.1%↑), and
+boosts Hammer2.1-0.5B to 76.3% (12.9% ↑). These results provide
+strong evidence ofDynamic Templating’s effectiveness and ease of
+integration. In summary, we emphasize thatDynamic Templating
+plays a critical role in enhancing the reliability and usability of
+small-scale LLMs, making it a valuable component for real-world
+deployment under constrained resource settings.
+3.7 Case Study
+Figure. 5 provides a detailed illustration of the dynamic templating
+mechanism. The dark brown text denotes the function template
+(i.e., the input), while the green text representsHyFunc’s output.
+HyFuncswitches betweenLLM Generation ModeandTemplate
+Injection Modeby monitoring the <param> and </param> tokens.
+During each mode switch, it leverages the KV Cache to store the
+representations of already processed tokens, thereby avoiding re-
+dundant attention computations. This mechanism ensures that the
+LLM does not generate incorrect function templates, such as syntac-
+tic errors or missing parameters. Moreover, by offloading template
+generation and requiring the LLM to generate only parameter val-
+ues,HyFuncsignificantly accelerates function invocation.
+4 Related Works
+Recent advancements have significantly expanded the function call-
+ing capabilities of large language models (LLMs), enabling them
+to interact with external APIs and structured data sources to per-
+form complex, multi-step reasoning tasks [ 25, 43]. Existing ap-
+proaches can broadly be categorized into tuning-free and tuning-
+based paradigms. Tuning-free methods leverage in-context learning
+through prompting strategies, such as few-shot demonstrations of
+API usage, without requiring additional model updates [13, 36, 44].
+Among these, ReAct [52] stands out for its ability to interleave rea-
+soning and function execution in iterative cycles. In contrast, tuning-
+based methods aim to directly improve function invocation capa-
+bilities through task-specific fine-tuning [1, 27, 32, 41, 45, 47, 55].
+To accelerate LLM inference, multi-faceted approaches have
+been proposed from the perspectives of models, system-level op-
+timization, and attention mechanisms. Model-centric techniques
+such as quantization [29], network pruning, knowledge distillation
+
+--- PAGE 9 ---
+HyFunc: Accelerating LLM-based Function Calls for Agentic AI ... KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea
+to compressed models have been well surveyed in [ 9]. These ef-
+forts are complemented by system-level optimizations that tackle
+core bottlenecks without altering the model itself [38, 46, 56]. For
+instance, FlashAttention is a pivotal I/O-aware algorithm that re-
+engineers the attention mechanism to minimize data movement
+on GPUs [8]. Prefill-decode disaggregation improves LLM serving
+performance, enabling higher request rates and stricter latency
+adherence by minimizing communication overhead [3, 16, 24, 57].
+Architectural variants such as Grouped-Query Attention (GQA) [4],
+Natively Sparse Attention (NSA) [53], and various KV cache strate-
+gies [19], shrink the massive memory footprint required for long
+contexts. Furthermore, methods such as speculative decoding use a
+smaller draft model to generate multiple tokens at once, reducing
+latency [18].
+Discussion.While the aforementioned works in agentic func-
+tion calling have advanced the correctness of LLMs, they have
+largely overlooked the redundant computations inherent in the
+process.In contrast, our approach explicitly addresses this limitation,
+thereby enabling more efficient and streamlined function execution.
+Compared to the broader field of LLM acceleration, our work is
+specifically tailored to the function-calling scenario.Our core con-
+tribution is the hybrid-model cascade architecture, which, together
+with our three strategies, leverages LML-distilled soft tokens, a contin-
+uous prompt-tuned LMS, and a reduced context to enhance generation.
+From the perspective of accelerating function calls, our contribu-
+tion is unique and effective. It is important to note that our work is
+orthogonal to existing efforts; it can be complemented by incorpo-
+rating more advanced agentic models as either the LML or LMS, or
+by serving our cascade architecture with state-of-the-art inference
+engines to enjoy and enhance the latest research results from the
+both perspectives.
+5 Limitations and Future Works
+Despite the promising results obtained in our work, it is important
+to acknowledge the limitations. The first limitation ofHyFunc
+is its sensitivity to the performance of the function retriever. As
+illustrated in Fig. 6a, we vary the retriever’s hyperparameter𝛼 to
+control retrieval quality, and the results show that fluctuations in
+retriever performance can lead to substantial performance variance
+inHyFunc. This is because retrieving incorrect or redundant func-
+tions inevitably results in erroneous function calls in subsequent
+stages ofHyFunc. Moreover, the dynamic templates adopted by
+HyFunc forcethe LLM to generate function arguments, which
+may not only produce semantically meaningless parameter values
+but also introduce additional redundant decoding. This issue is par-
+ticularly critical in scenarios where function call is unnecessary. In
+contrast, the BFCL dataset mitigates this challenge, as all function-
+calling tasks in BFCL require at least one function calling, thereby
+reducing the overall difficulty faced byHyFunc 4.
+Another limitation is that the current implementation ofHy-
+Funcfocuses exclusively on single-turn function-calling scenarios.
+Some existing works, such as UserBench [42], incorporate active
+4It is worth noting that incorrect function calling is a common issue across existing
+function-calling approaches and is not unique toHyFunc. By decomposing function
+calling into staged parsing, retrieval, and generation,HyFuncmakes such errors more
+explicit and transparent.
+questioning strategies to better resolve ambiguities in user intent
+and thus better support multi-turn interactions. In future work, we
+plan to further extendHyFuncto multi-turn dialogue settings.
+6 Conclusions
+In this work, we addressed the critical challenge of inference latency
+in LLM-based function calling by targeting three key sources of com-
+putational redundancy. We introducedHyFunc, a novel framework
+that employs a hybrid-model cascade to leverage the reasoning of
+a large model and the efficiency of a small model. Through soft
+token distillation, an efficient MLP-based retriever, and a dynamic
+templating mechanism,HyFuncsuccessfully reduces redundant
+context processing, full-sequence generation, and syntax creation.
+To validate the effectiveness of our approach and avoid potential
+limitations in generalization, we evaluated our method on an un-
+seen benchmark dataset, BFCL. Extensive experiments demonstrate
+thatHyFuncachieves an excellent balance between efficiency and
+performance, reducing latency to just 0.828s while enabling a 0.6B
+parameter model to achieve 80.1% accuracy, outperforming many
+larger models. This work presents a pragmatic and effective path
+toward deploying fast, reliable, and scalable agentic AI systems in
+real-world applications.
+References
+[1] Ibrahim Abdelaziz, Kinjal Basu, Mayank Agarwal, Sadhana Kumaravel, Matthew
+Stallone, Rameswar Panda, Yara Rizk, GP Shrivatsa Bhargav, Maxwell Crouse,
+Chulaka Gunasekara, et al. 2024. Granite-Function Calling Model: Introducing
+Function Calling Abilities via Multi-task Learning of Granular Tasks. InEmpirical
+Methods in Natural Language Processing (EMNLP). 1131–1139.
+[2] Deepak Bhaskar Acharya, Karthigeyan Kuppan, and B Divya. 2025. Agentic
+ai: Autonomous intelligence for complex goals–a comprehensive survey.IEEE
+Access(2025).
+[3] Amey Agrawal, Ashish Panwar, Jayashree Mohan, Nipun Kwatra, Bhargav S
+Gulavani, and Ramachandran Ramjee. 2023. Sarathi: Efficient llm inference by
+piggybacking decodes with chunked prefills.arXiv preprint arXiv:2308.16369
+(2023).
+[4] Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico
+Lebron, and Sumit Sanghai. 2023. GQA: Training Generalized Multi-Query
+Transformer Models from Multi-Head Checkpoints. InEmpirical Methods in
+Natural Language Processing (EMNLP). 4895–4901.
+[5] Jinze Bai, Shuai Bai, Yunfei Chu, Zeyu Cui, Kai Dang, Xiaodong Deng, Yang Fan,
+Wenbin Ge, Yu Han, Fei Huang, et al. 2023. Qwen technical report.arXiv preprint
+arXiv:2309.16609(2023).
+[6] BitAgent. 2025. BitAgent-8B. https://huggingface.co/BitAgent/BitAgent-8B.
+Accessed: 2025-05-16.
+[7] Chuangtao Chen, Grace Li Zhang, Xunzhao Yin, Cheng Zhuo, Ulf Schlichtmann,
+and Bing Li. 2024. Livemind: Low-latency large language models with simultane-
+ous inference.arXiv preprint arXiv:2406.14319(2024).
+[8] Tri Dao, Dan Fu, Stefano Ermon, Atri Rudra, and Christopher Ré. 2022. Flashat-
+tention: Fast and memory-efficient exact attention with io-awareness.Advances
+in Neural Information Processing Systems (NeurIPS)35 (2022), 16344–16359.
+[9] Sanjay Surendranath Girija, Shashank Kapoor, Lakshit Arora, Dipen Pradhan,
+Aman Raj, and Ankit Shetgaonkar. 2025. Optimizing LLMs for Resource-
+Constrained Environments: A Survey of Model Compression Techniques.arXiv
+preprint arXiv:2505.02309(2025).
+[10] Team GLM, Aohan Zeng, Bin Xu, Bowen Wang, Chenhui Zhang, Da Yin, Dan
+Zhang, Diego Rojas, Guanyu Feng, Hanlin Zhao, et al. 2024. Chatglm: A fam-
+ily of large language models from glm-130b to glm-4 all tools.arXiv preprint
+arXiv:2406.12793(2024).
+[11] Raia Hadsell, Sumit Chopra, and Yann LeCun. 2006. Dimensionality reduction
+by learning an invariant mapping. InIEEE Conference on Computer Vision and
+Pattern Recognition (CVPR), Vol. 2. IEEE, 1735–1742.
+[12] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. 2020. Momen-
+tum contrast for unsupervised visual representation learning. InIEEE Conference
+on Computer Vision and Pattern Recognition (CVPR). 9729–9738.
+[13] Cheng-Yu Hsieh, Si-An Chen, Chun-Liang Li, Yasuhisa Fujii, Alexander Rat-
+ner, Chen-Yu Lee, Ranjay Krishna, and Tomas Pfister. 2023. Tool documenta-
+tion enables zero-shot tool-usage with large language models.arXiv preprint
+
+--- PAGE 10 ---
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Weibin Liao, Jian-guang Lou, and Haoyi Xiong
+arXiv:2308.00675(2023).
+[14] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean
+Wang, Lu Wang, and Weizhu Chen. 2021. LoRA: Low-Rank Adaptation of Large
+Language Models. InInternational Conference on Learning Representations (ICLR).
+[15] Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perelman, Aditya Ramesh,
+Aidan Clark, AJ Ostrow, Akila Welihinda, Alan Hayes, Alec Radford, et al. 2024.
+Gpt-4o system card.arXiv preprint arXiv:2410.21276(2024).
+[16] Aditya K Kamath, Ramya Prabhu, Jayashree Mohan, Simon Peter, Ramachandran
+Ramjee, and Ashish Panwar. 2025. Pod-attention: Unlocking full prefill-decode
+overlap for faster llm inference. InProceedings of the 30th ACM International
+Conference on Architectural Support for Programming Languages and Operating
+Systems (ASPLOS). 897–912.
+[17] Zhenglun Kong, Peiyan Dong, Xiaolong Ma, Xin Meng, Wei Niu, Mengshu
+Sun, Xuan Shen, Geng Yuan, Bin Ren, Hao Tang, et al . 2022. Spvit: Enabling
+faster vision transformers via latency-aware soft token pruning. InEuropean
+Conferenceon Computer Vision (ECCV). Springer, 620–640.
+[18] Yaniv Leviathan, Matan Kalman, and Yossi Matias. 2023. Fast inference from
+transformers via speculative decoding. InInternational Conference on Machine
+Learning (ICML). PMLR, 19274–19286.
+[19] Haoyang Li, Yiming Li, Anxin Tian, Tianhao Tang, Zhanchao Xu, Xuejia Chen,
+Nicole Hu, Wei Dong, Qing Li, and Lei Chen. 2024. A survey on large lan-
+guage model acceleration based on kv cache management.arXiv preprint
+arXiv:2412.19442(2024).
+[20] Xiang Lisa Li and Percy Liang. 2021. Prefix-Tuning: Optimizing Continuous
+Prompts for Generation. InAssociation for Computational Linguistics and Interna-
+tional Joint Conference on Natural Language Processing (ACL-IJCNLP). 4582–4597.
+[21] Yuchen Li, Hengyi Cai, Rui Kong, Xinran Chen, Jiamin Chen, Jun Yang, Haojie
+Zhang, Jiayi Li, Jiayi Wu, Yiqun Chen, et al. 2025. Towards AI Search Paradigm.
+arXiv preprint arXiv:2506.17188(2025).
+[22] Yuchen Li, Haoyi Xiong, Yongqi Zhang, Jiang Bian, Tianhao Peng, Xuhong
+Li, Shuaiqiang Wang, Linghe Kong, and Dawei Yin. 2025. RankElectra: Semi-
+supervised pre-training of learning-to-rank electra for web-scale search. InCon-
+ference on Knowledge Discovery and Data Mining (KDD). 2415–2425.
+[23] Yuchen Li, Hao Zhang, Haojie Zhang, Hengyi Cai, Xinyu Ma, Shuaiqiang Wang,
+Haoyi Xiong, Zhaochun Ren, Maarten de Rijke, and Dawei Yin. 2025. FULTR: A
+Large-Scale Fusion Learning to Rank Dataset and Its Application for Satisfaction-
+Oriented Ranking. InConference on Knowledge Discovery and Data Mining (KDD).
+5583–5594.
+[24] Yuchen Li, Hao Zhang, Yongqi Zhang, Hengyi Cai, Mingxin Cai, Shuaiqiang
+Wang, Haoyi Xiong, Dawei Yin, and Lei Chen. 2025. RankExpert: A Mixture of
+Textual-and-Behavioral Experts for Multi-Objective Learning-to-Rank in Web
+Search. InConference on Knowledge Discovery and Data Mining (KDD). 4437–4449.
+[25] Weibin Liao, Xu Chu, and Yasha Wang. 2025. TPO: Aligning Large Language Mod-
+els with Multi-branch & Multi-step Preference Trees. InInternational Conference
+on Learning Representations (ICLR).
+[26] Weibin Liao, Xin Gao, Tianyu Jia, Rihong Qiu, Yifan Zhu, Yang Lin, Xu Chu, Jun-
+feng Zhao, and Yasha Wang. 2025. LearNAT: Learning NL2SQL with AST-guided
+Task Decomposition for Large Language Models.arXiv preprint arXiv:2504.02327
+(2025).
+[27] Weibin Liao, Tianlong Wang, Yinghao Zhu, Yasha Wang, Junyi Gao, and Liantao
+Ma. 2025. Magical: Medical Lay Language Generation via Semantic Invariance
+and Layperson-tailored Adaptation. (2025).
+[28] Weibin Liao, Yinghao Zhu, Zhongji Zhang, Yuhang Wang, Zixiang Wang, Xu Chu,
+Yasha Wang, and Liantao Ma. 2025. Learnable Prompt as Pseudo-Imputation:
+Rethinking the Necessity of Traditional EHR Data Imputation in Downstream
+Clinical Prediction. InConference on Knowledge Discovery and Data Mining (KDD)
+(Toronto ON, Canada)(KDD ’25). Association for Computing Machinery, New
+York, NY, USA, 765–776. doi:10.1145/3690624.3709166
+[29] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen
+Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, and Song Han. 2024. Awq:
+Activation-aware weight quantization for on-device llm compression and accel-
+eration.Proceedings of machine learning and systems (MLSys)6 (2024), 87–100.
+[30] Qiqiang Lin, Muning Wen, Qiuying Peng, Guanyu Nie, Junwei Liao, Jun Wang,
+Xiaoyun Mo, Jiamu Zhou, Cheng Cheng, Yin Zhao, et al. 2025. Robust function-
+calling for on-device language model via function masking. InInternational
+Conference on Learning Representations (ICLR).
+[31] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. 2023. Visual in-
+struction tuning.Advances in Neural Information Processing Systems (NeurIPS)36
+(2023), 34892–34916.
+[32] Weiwen Liu, Xu Huang, Xingshan Zeng, Shuai Yu, Dexun Li, Shuai Wang, Weinan
+Gan, Zhengying Liu, Yuanqing Yu, Zezhong WANG, et al. 2025. ToolACE: Win-
+ning the Points of LLM Function Calling. InInternational Conference on Learning
+Representations (ICLR).
+[33] Xiao Liu, Kaixuan Ji, Yicheng Fu, Weng Tam, Zhengxiao Du, Zhilin Yang, and Jie
+Tang. 2022. P-Tuning: Prompt Tuning Can Be Comparable to Fine-tuning Across
+Scales and Tasks. InAssociation for Computational Linguistics (ACL). 61–68.
+[34] Zuxin Liu, Thai Hoang, Jianguo Zhang, Ming Zhu, Tian Lan, Juntao Tan, Weiran
+Yao, Zhiwei Liu, Yihao Feng, Rithesh RN, et al. 2024. Apigen: Automated pipeline
+for generating verifiable and diverse function-calling datasets.Advances in Neural
+Information Processing Systems (NeurIPS)37 (2024), 54463–54482.
+[35] Shi Luohe, Hongyi Zhang, Yao Yao, Zuchao Li, et al. 2024. Keep the Cost Down:
+A Review on Methods to Optimize LLM’s KV-Cache Consumption. InConference
+on Language Modeling (COLM).
+[36] Grégoire Mialon, Roberto Dessì, Maria Lomeli, Christoforos Nalmpantis, Ram
+Pasunuru, Roberta Raileanu, Baptiste Rozière, Timo Schick, Jane Dwivedi-Yu, Asli
+Celikyilmaz, et al. 2023. Augmented Language Models: a Survey.Transactions on
+Machine Learning Research (TMLR)2023 (2023).
+[37] Jia Ning, Chen Li, Zheng Zhang, Chunyu Wang, Zigang Geng, Qi Dai, Kun He,
+and Han Hu. 2023. All in tokens: Unifying output space of visual tasks via soft
+token. InInternational Conference on Computer Vision (ICCV). 19900–19910.
+[38] NVIDIA. 2025. The Triton TensorRT-LLM Backend. https://github.com/triton-
+inference-server/tensorrtllm_backend. Accessed: 2025-07-31.
+[39] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. 2018. Representation learning
+with contrastive predictive coding.arXiv preprint arXiv:1807.03748(2018).
+[40] Shishir G Patil, Huanzhi Mao, Fanjia Yan, Charlie Cheng-Jie Ji, Vishnu Suresh, Ion
+Stoica, and Joseph E Gonzalez. 2025. The Berkeley Function Calling Leaderboard
+(BFCL): From Tool Use to Agentic Evaluation of Large Language Models. In
+International Conference on Machine Learning (ICML).
+[41] Shishir G Patil, Tianjun Zhang, Xin Wang, and Joseph E Gonzalez. 2024. Go-
+rilla: Large language model connected with massive apis.Advances in Neural
+Information Processing Systems (NeurIPS)37 (2024), 126544–126565.
+[42] Cheng Qian, Zuxin Liu, Akshara Prabhakar, Zhiwei Liu, Jianguo Zhang, Haolin
+Chen, Heng Ji, Weiran Yao, Shelby Heinecke, Silvio Savarese, Caiming Xiong, and
+Huan Wang. 2025. UserBench: An Interactive Gym Environment for User-Centric
+Agents.arXiv preprint arXiv:2507.22034(2025).
+[43] Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan Yan, Yaxi Lu, Yankai Lin,
+Xin Cong, Xiangru Tang, Bill Qian, et al . 2024. ToolLLM: Facilitating Large
+Language Models to Master 16000+ Real-world APIs. InInternational Conference
+on Learning Representations (ICLR).
+[44] Jingqing Ruan, Yihong Chen, Bin Zhang, Zhiwei Xu, Tianpeng Bao, Hangyu Mao,
+Ziyue Li, Xingyu Zeng, Rui Zhao, et al. 2023. Tptu: Task planning and tool usage
+of large language model-based ai agents. InNeurIPS 2023 Foundation Models for
+Decision Making Workshop.
+[45] Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli,
+Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. 2023.
+Toolformer: Language models can teach themselves to use tools.Advances in
+Neural Information Processing Systems (NeurIPS)36 (2023), 68539–68551.
+[46] Sky Computing Lab, UC Berekely. 2025. vLLM: Easy, fast, and cheap LLM serving
+for everyone. https://docs.vllm.ai/en/latest/. Accessed: 2025-07-31.
+[47] Qiaoyu Tang, Ziliang Deng, Hongyu Lin, Xianpei Han, Qiao Liang, Boxi Cao,
+and Le Sun. 2023. Toolalpaca: Generalized tool learning for language models
+with 3000 simulated cases.arXiv preprint arXiv:2306.05301(2023).
+[48] Jun Wang, Jiamu Zhou, Xihuai Wang, Xiaoyun Mo, Haoyu Zhang, Qiqiang Lin,
+Jincheng Jincheng, Muning Wen, Weinan Zhang, and Qiuying Peng. 2025. Ham-
+merBench: Fine-Grained Function-Calling Evaluation in Real Mobile Assistant
+Scenarios. InFindings of Association for Computational Linguistics (ACL). 3350–
+3376.
+[49] Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and
+Furu Wei. 2024. Large search model: Redefining search stack in the era of llms.
+InConference on Information Retrieval (SIGIR), Vol. 57. ACM New York, NY, USA,
+1–16.
+[50] T Wolf. 2019. Huggingface’s transformers: State-of-the-art natural language
+processing.arXiv preprint arXiv:1910.03771(2019).
+[51] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng,
+Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, et al. 2025. Qwen3 technical
+report.arXiv preprint arXiv:2505.09388(2025).
+[52] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan,
+and Yuan Cao. 2023. React: Synergizing reasoning and acting in language models.
+InInternational Conference on Learning Representations (ICLR).
+[53] Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan
+Zhang, Zhenda Xie, YX Wei, Lean Wang, Zhiping Xiao, et al . 2025. Native
+sparse attention: Hardware-aligned and natively trainable sparse attention. In
+Association for Computational Linguistics (ACL).
+[54] Mu Yuan, Lan Zhang, Di Duan, Liekang Zeng, Miao-Hui Song, Zichong Li, Guo-
+liang Xing, and Xiang-Yang Li. 2025. Mitigating Tail Latency for on-Device
+Inference with Load-Balanced Heterogeneous Models.IEEE Transactions on
+Mobile Computing(2025).
+[55] Jianguo Zhang, Tian Lan, Ming Zhu, Zuxin Liu, Thai Quoc Hoang, Shirley Kokane,
+Weiran Yao, Juntao Tan, Akshara Prabhakar, Haolin Chen, et al. 2025. xLAM: A
+Family of Large Action Models to Empower AI Agent Systems. InNorth American
+Chapter of the Association for Computational Linguistics (NAACL). 11583–11597.
+[56] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Chuyue Livia Sun, Jeff Huang,
+Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E Gonzalez,
+et al. 2024. Sglang: Efficient execution of structured language model programs.
+Advances in Neural Information Processing Systems (NeurIPS)37 (2024), 62557–
+62583.
+
+--- PAGE 11 ---
+HyFunc: Accelerating LLM-based Function Calls for Agentic AI ... KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea
+[57] Yinmin Zhong, Shengyu Liu, Junda Chen, Jianbo Hu, Yibo Zhu, Xuanzhe Liu,
+Xin Jin, and Hao Zhang. 2024. {DistServe}: Disaggregating prefill and decoding
+for goodput-optimized large language model serving. In18th USENIX Symposium
+on Operating Systems Design and Implementation (OSDI). 193–210.
+[58] Deyao Zhu, Jun Chen, Xiaoqian Shen, Xiang Li, and Mohamed Elhoseiny. 2024.
+MiniGPT-4: Enhancing Vision-Language Understanding with Advanced Large
+Language Models. InInternational Conference on Learning Representations (ICLR).
+A Algorithm Description
+Algorithm 1Dynamic Templating for Function Call Generation
+Require: Fine-tuned model LMS, Initial context 𝐶, Selected func-
+tion signature𝑓 𝑠𝑖𝑔
+Ensure: Complete and syntactically correct function call string
+𝑆𝑜𝑢𝑡
+1:𝑆 𝑜𝑢𝑡 ←""⊲Initialize the output string
+2:𝑇 𝑑 𝑦𝑛 ←ConstructDynamicTemplate(𝑓 𝑠𝑖𝑔 )
+3:⊲e.g., f(arg=<param></param>...)
+4:𝑇 𝑡𝑜𝑘𝑒𝑛𝑠 ←Tokenize(𝑇 𝑑 𝑦𝑛)
+5:𝑖←0
+6:while𝑖<length(𝑇 𝑡𝑜𝑘𝑒𝑛𝑠 )do
+7:𝑡 𝑡𝑒𝑚𝑝𝑙𝑎𝑡𝑒 ←𝑇 𝑡𝑜𝑘𝑒𝑛𝑠 [𝑖]
+8:if𝑡 𝑡𝑒𝑚𝑝𝑙𝑎𝑡𝑒 =<𝑝𝑎𝑟𝑎𝑚>then⊲LLM Generation Mode
+9:loop
+10:𝑡 𝑔𝑒𝑛𝑒𝑟𝑎𝑡𝑒𝑑 ←𝐿𝑀 𝑆 .generate(𝐶, 𝑆𝑜𝑢𝑡 )
+11:if𝑡 𝑔𝑒𝑛𝑒𝑟𝑎𝑡𝑒𝑑 =</𝑝𝑎𝑟𝑎𝑚>then
+12:break⊲End of parameter value, switch back
+13:end if
+14:𝑆 𝑜𝑢𝑡 ←𝑆 𝑜𝑢𝑡 +detokenize(𝑡 𝑔𝑒𝑛𝑒𝑟𝑎𝑡𝑒𝑑 )
+15:end loop
+16:else⊲Template Injection Mode
+17:𝑆 𝑜𝑢𝑡 ←𝑆 𝑜𝑢𝑡 +detokenize(𝑡 𝑡𝑒𝑚𝑝𝑙𝑎𝑡𝑒 )
+18:end if
+19:𝑖←𝑖+1
+20:end while
+21:return𝑆 𝑜𝑢𝑡
+B Prompts used in This Work
+Prompt for Function Embedding & Soft Token Distillation
+via LML
+You are an expert in composing functions. You are given
+a question and a set of possible functions. Based on the
+question, you will need to make one or more function/tool
+calls to achieve the purpose.
+If none of the function can be used, point it out. If the
+given question lacks the parameters required by the
+function, also point it out.
+You should only return the function call in tools call
+sections.
+If you decide to invoke any of the func-
+tion(s), you MUST put it in the format of
+[func_name1(params_name1=params_value1,
+params_name2=params_value2...), func_name2(params)]
+You SHOULD NOT include any other text in the response.
+Here is a list of functions in JSON format that you can
+invoke.
+{functions}
+User Query: {question}
+Prompt for Dynamic Templating
+<|im_start|>system
+# Tools
+You may call one or more functions to assist with
+the user query.
+You are provided with function signatures within
+<tools></tools> XML tags:
+<tools>
+{functions}
+</tools>
+For each function call, return a json object with function
+name and arguments within <tool_call></tool_call> XML
+tags, and your answer for the function parameters must
+be enclosed within <param></param> tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <param><args-
+json-object></param>}}
+</tool_call><|im_end|>
+<|im_start|>user
+{query}<|im_end|>
+<soft_token>
+</soft_token>
+<|im_start|>assistant
+<think>
+</think>
+<tool_call>
+{response}
+</tool_call>
+C Details of Baselines
+The details of the function calling customized LLMs we use is as
+follows:
+(1) HammerToolACE (ICLR’25): ToolACE [32] is an automatic
+agent-based pipeline designed to generate accurate, complex,
+and diverse training data for function calling in LLMs. It em-
+ploys a self-evolution synthesis mechanism and multi-agent
+dialogue generation, coupled with dual-layer verification, to
+construct high-quality tool-learning datasets at scale.
+
+--- PAGE 12 ---
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Weibin Liao, Jian-guang Lou, and Haoyi Xiong
+(2) Hammer (ICLR’25): Hammer [30] is a family of foundation
+models tailored for on-device function calling, addressing over-
+fitting issues by leveraging augmented datasets and function
+masking techniques.
+(3) xLAM (NAACL’25):xLAM [ 55] is a series of Large Action
+Models specifically designed for AI agent tasks, featuring both
+dense and mixture-of-experts architectures ranging from 1B to
+8×22B parameters.
+(4) Granite (EMNLP’24):Granite [1] is an open-source large lan-
+guage model specifically designed to enhance function calling
+capabilities, enabling it to identify, invoke, and interact with
+external tools and APIs to accomplish complex tasks.
+D Exact Match (EM) Accuracy
+Let 𝐷={(𝑋 𝑖, 𝑌𝑖 )} 𝑁
+𝑖=1 be a test set of 𝑁 samples, where 𝑋𝑖 is the
+input and 𝑌𝑖 is the ground truth list of labels for the 𝑖-th sample.
+Let ˆ𝑌𝑖 be the list of labels predicted by the model for input𝑋 𝑖.
+The Exact Match score for a single prediction ˆ𝑌𝑖 is determined
+by an indicator functionI( ˆ𝑌𝑖 =𝑌 𝑖 ), which is defined as:
+I( ˆ𝑌𝑖 =𝑌 𝑖 )=
+(
+1if ˆ𝑌𝑖 =𝑌 𝑖
+0if ˆ𝑌𝑖 ≠𝑌 𝑖
+Here, the condition ˆ𝑌𝑖 =𝑌 𝑖 holds true if and only if the two
+lists have the same length and their corresponding elements are
+identical.
+The overall Exact Match accuracy over the entire test set is the
+average of these scores across all 𝑁 samples. The formula is given
+by:
+Exact Match= 1
+𝑁
+𝑁∑︁
+𝑖=1
+I( ˆ𝑌𝑖 =𝑌 𝑖 )
+The value of this metric ranges from 0 to 1, where 1 indicates that
+every predicted list perfectly matches its corresponding ground
+truth list, and 0 indicates that no prediction is an exact match. [11]
+This metric is particularly useful when the complete correctness of
+the entire output is crucial.
+E Additional Experiments
+E.1 Sensitivity Analysis of Hyperparameter
+(a)𝛼in the function retriever.
+ (b) Soft token number𝑘.
+Figure 6: Sensitivity Analysis.
+We provide an analysis of the soft token number𝑘 in Fig. 6b. The
+experimental results show that the choice of 𝑘 has minimal impact
+on model performance; however, since the LML needs to parse
+more tokens, it leads to higher response latency. This experimental
+result validates our hypothesis of using the first token to distill user
+intent.
+E.2 Analysis of Projector Variants
+Table 6: Analysis of Various Projector Variants.
+Projector Performance Params
+MLP (2 layers) 80.1 10.5M
+LoRA (r=8) 79.1 41K
+Linear (Ours) 80.1 4.2M
+We replace the Linear used in Projector with a two-layer MLP
+and with LoRA [14] (r=8) to analyze the impact of different projector
+variants on the performance of HyFunc. The experimental results
+are reported in Table. 6. The experimental results indicate that our
+choice of linear achieves a balanced trade-off between parameter
+count and performance.
+E.3 Analysis of GPU Memory Overhead
+Table 7: Analysis on GPU Memory Overhead of HyFunc and
+baseline models.
+Model Max. Time(sec.) Avg.
+ToolACE-8B 16.6G 1.984 16.5G
+Qwen3-0.6B 2.3G 1.006 2.3G
+HyFunc 18.1G 0.828 4.1G
+- LML 16.5G 0.104 16.5G
+- LMS 2.3G 0.724 2.3G
+We provide the GPU Memory ofHyFuncand other baseline
+models as shown in the Table. 7. We report themaximum(Max.),
+average(Avg.), andduration(Time (sec.)) of GPU memory usage
+during inference. We acknowledge thatHyFuncincurs higher GPU
+utilization due to the use of a hybrid model; however, this overhead
+isstatic. The large model LML is only used for 0.0104 seconds,
+while most of the inference process is handled by LMS, resulting in
+a relatively low average GPU usage forHyFunc.

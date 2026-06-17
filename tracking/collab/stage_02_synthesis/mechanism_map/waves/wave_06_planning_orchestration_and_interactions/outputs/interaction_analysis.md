@@ -1,0 +1,13 @@
+INTERACTION_ANALYSIS
+- artifact: mechanism_map / wave_06_planning_orchestration_and_interactions
+- status: produced during principal synthesis
+- purpose: principal-level interaction summary across trajectory, source, literature, and informal evidence
+- strongest_interactions:
+  - planner completion signal versus verifier acceptance are separate layers
+  - delegation quality depends on explicit handoff contracts, not role count alone
+  - permission and context inheritance at handoff boundaries remain active fragility surfaces
+  - terminal-first baseline remains the correct anti-prestige comparator for richer orchestration families
+- key_cross_lane_tension:
+  - BigAI supplies the richest direct behavioral orchestration evidence, but only as `behavioral reconstruction`, while deepagents/KIRA/a-evolve supply stronger source-backed orchestration capacity with thinner required-task trajectory exercise
+- next_governed_use:
+  - Wave 06 checklist adjudication

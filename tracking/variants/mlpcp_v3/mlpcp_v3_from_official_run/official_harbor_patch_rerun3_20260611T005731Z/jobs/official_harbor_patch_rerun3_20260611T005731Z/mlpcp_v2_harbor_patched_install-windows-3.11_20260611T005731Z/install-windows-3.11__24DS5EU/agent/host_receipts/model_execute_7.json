@@ -1,0 +1,77 @@
+{
+  "call_id": "install-windows-3.11__24DS5EU_execute_7",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nprintf 'Inspecting environment...\\\\n'\\ncommand -v qemu-system-i386 || true\\ncommand -v nginx || true\\nls -l /app/isos/win311.img\\nps -ef | grep -E 'qemu-system|nginx' | grep -v grep || true\\nss -ltnp | grep -E ':5901|:80' || true\",\"receipt\":\"inspect_env_1\"},{\"type\":\"search_receipts\",\"query\":\"qemu win311.img snapshot vnc 5901 nginx 80 keyboard input\",\"limit\":20},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncat >/tmp/start_win311.sh <<'EOF'\\n#!/usr/bin/env bash\\nset -euo pipefail\\n# Start nginx web interface if available\\nif command -v nginx >/dev/null 2>&1; then\\n  nginx -g 'daemon on;'\\nfi\\n# Start QEMU in snapshot mode with VNC :1 and a monitor socket for programmatic control\\nexec qemu-system-i386 \\\\\\n  -m 32 \\\\\\n  -hda /app/isos/win311.img \\\\\\n  -snapshot \\\\\\n  -vnc :1 \\\\\\n  -monitor unix:/tmp/win311-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -rtc base=localtime \\\\\\n  -boot c\\nEOF\\nchmod +x /tmp/start_win311.sh\\nnohup /tmp/start_win311.sh >/tmp/win311.log 2>&1 &\\nsleep 2\\nps -ef | grep -E 'qemu-system-i386.*win311.img|start_win311.sh' | grep -v grep || true\\nss -ltnp | grep -E ':5901|:80' || true\\nprintf '--- qemu log ---\\\\n'\\nsed -n '1,120p' /tmp/win311.log || true\",\"receipt\":\"launch_win311_1\"},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\n# Evidence of programmatic keyboard input capability via QEMU monitor socket\\nprintf 'info status\\\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\\nprintf 'sendkey ctrl-alt-delete\\\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\\nprintf 'info status\\\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\",\"receipt\":\"kbd_control_1\"},{\"type\":\"probe_service\",\"service\":\"vnc\",\"target\":\"127.0.0.1:5901\"},{\"type\":\"probe_service\",\"service\":\"http\",\"target\":\"127.0.0.1:80\"},{\"type\":\"run_verifier\",\"name\":\"win311_desktop_reachability\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\nprintf 'Inspecting environment...\\n'\ncommand -v qemu-system-i386 || true\ncommand -v nginx || true\nls -l /app/isos/win311.img\nps -ef | grep -E 'qemu-system|nginx' | grep -v grep || true\nss -ltnp | grep -E ':5901|:80' || true",
+        "receipt": "inspect_env_1"
+      },
+      {
+        "type": "search_receipts",
+        "query": "qemu win311.img snapshot vnc 5901 nginx 80 keyboard input",
+        "limit": 20
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncat >/tmp/start_win311.sh <<'EOF'\n#!/usr/bin/env bash\nset -euo pipefail\n# Start nginx web interface if available\nif command -v nginx >/dev/null 2>&1; then\n  nginx -g 'daemon on;'\nfi\n# Start QEMU in snapshot mode with VNC :1 and a monitor socket for programmatic control\nexec qemu-system-i386 \\\n  -m 32 \\\n  -hda /app/isos/win311.img \\\n  -snapshot \\\n  -vnc :1 \\\n  -monitor unix:/tmp/win311-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -rtc base=localtime \\\n  -boot c\nEOF\nchmod +x /tmp/start_win311.sh\nnohup /tmp/start_win311.sh >/tmp/win311.log 2>&1 &\nsleep 2\nps -ef | grep -E 'qemu-system-i386.*win311.img|start_win311.sh' | grep -v grep || true\nss -ltnp | grep -E ':5901|:80' || true\nprintf '--- qemu log ---\\n'\nsed -n '1,120p' /tmp/win311.log || true",
+        "receipt": "launch_win311_1"
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\n# Evidence of programmatic keyboard input capability via QEMU monitor socket\nprintf 'info status\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\nprintf 'sendkey ctrl-alt-delete\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true\nprintf 'info status\\n' | socat - UNIX-CONNECT:/tmp/win311-monitor.sock || true",
+        "receipt": "kbd_control_1"
+      },
+      {
+        "type": "probe_service",
+        "service": "vnc",
+        "target": "127.0.0.1:5901"
+      },
+      {
+        "type": "probe_service",
+        "service": "http",
+        "target": "127.0.0.1:80"
+      },
+      {
+        "type": "run_verifier",
+        "name": "win311_desktop_reachability"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 2658,
+    "cached_input_tokens": 1792,
+    "output_tokens": 632,
+    "total_tokens": 3290,
+    "provider_usage_raw": {
+      "completion_tokens": 632,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 60,
+        "engine_ttlt_ms": 3216,
+        "pre_inference_ms": 129,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 648,
+        "service_ttlt_ms": 3796,
+        "total_duration_ms": 3678,
+        "user_visible_ttft_ms": 518
+      },
+      "prompt_tokens": 2658,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1792
+      },
+      "total_tokens": 3290
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

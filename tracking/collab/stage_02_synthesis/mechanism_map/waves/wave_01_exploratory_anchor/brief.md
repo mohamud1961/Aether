@@ -1,0 +1,44 @@
+# Mechanism Map Wave 01 Exploratory Anchor Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- objective: Preserve the first Deep Synthesis `mechanism_map` run as a governed exploratory anchor wave that surfaced real mechanism structure without overstating coverage.
+- exact_question: What reusable mechanism anchors did the first bounded `mechanism_map` wave actually establish, and what must remain explicitly open before later waves continue?
+- why_now: The human owner accepted the wave-plan model as binding governance and directed that the current run be relabeled as `wave_01_exploratory_anchor`, finished cleanly, and preserved in artifact history rather than mistaken for artifact completion.
+- inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/brief.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/decision.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/outputs/
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md
+- preflight_requirements:
+  - preserve the wave as history, not as artifact completion
+  - keep surviving claims separate from unresolved gaps
+  - update cumulative artifact state before moving on
+- exclusions:
+  - do not claim `mechanism_map` completion
+  - do not open a new `mechanism_map` wave from inside this legacy closeout
+  - do not emit final downstream handoff to `failure_taxonomy`
+- output_contract:
+  - wave-local copies of inputs, outputs, synthesis, and adjudication should live under:
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_01_exploratory_anchor/
+  - cumulative artifact state should live under:
+    - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/
+- collaboration_mode: preserved historical wave plus principal closeout
+- external_agent_action: Run external agent now: no. This wave is already run; only closeout and preservation remain.
+- assigned_roles:
+  - principal project steward
+  - historical first-pass role outputs already completed
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+- handoff_requirements:
+  - carry surviving claims into cumulative mechanism-map state
+  - route the stage next to `coverage_access`, not to `failure_taxonomy`
+- evidence_expectations:
+  - preserve contradiction pressure
+  - preserve coverage gaps
+  - keep BigAI source-opaque claims as `behavioral reconstruction`
+- decision_needed_from_human: none. The owner already accepted this relabel and closeout rule.
+- done_condition: Wave 01 has contradiction review, principal synthesis, checklist adjudication, and cumulative artifact updates, and it is preserved under the wave-local history path as `wave_01_exploratory_anchor`.

@@ -1,0 +1,48 @@
+{
+  "call_id": "qemu-startup__nnFZWMp_execute_13",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"success_contract\",\"objective\":\"Start /app/alpine.iso in QEMU in the background so that telnet to 127.0.0.1:6665 reaches a login prompt, and block until it is ready.\",\"required_artifacts\":[\"A running QEMU process using /app/alpine.iso\",\"A reachable telnet service on 127.0.0.1:6665\"],\"required_behaviors\":[\"QEMU must be started in the background and remain running\",\"Connecting with telnet to 127.0.0.1:6665 must present a login prompt\",\"The task is not complete until readiness is demonstrated by runtime evidence\"],\"known_invalid_patterns\":[\"Only verifying that the ISO file exists\",\"Only starting QEMU without confirming the telnet port is ready\",\"Only checking process existence without service readiness\",\"Any compile-only, file-existence-only, or non-empty-output-only check\"],\"verification_plan\":[\"Inspect available tools and filesystem for the ISO and QEMU invocation details\",\"Start QEMU with telnet/serial forwarding to localhost:6665 in the background\",\"Probe readiness until the login prompt is reachable on 127.0.0.1:6665\",\"Record receipt-backed evidence of the running process and ready telnet service\"],\"finalization_evidence_required\":[\"Receipt-backed command output showing QEMU started with /app/alpine.iso\",\"Receipt-backed probe or telnet evidence showing 127.0.0.1:6665 is reachable and presents a login prompt\"]},{\"type\":\"plan_update\",\"plan_update\":\"Need to discover available tooling and launch QEMU with port forwarding to 127.0.0.1:6665, then verify readiness with a probe or telnet-equivalent evidence before finalizing.\"},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncommand -v qemu-system-x86_64 || command -v qemu-system-i386 || command -v qemu-system-aarch64 || true\\nls -l /app/alpine.iso 2>/dev/null || true\\nls -l /app 2>/dev/null || true\",\"reason\":\"Discover QEMU binary availability and confirm the ISO path before starting the VM.\"}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncommand -v qemu-system-x86_64 || command -v qemu-system-i386 || command -v qemu-system-aarch64 || true\\nls -l /app/alpine.iso 2>/dev/null || true\\nls -l /app 2>/dev/null || true\",\"reason\":\"Discover QEMU binary availability and confirm the ISO path before starting the VM.\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncommand -v qemu-system-x86_64 || command -v qemu-system-i386 || command -v qemu-system-aarch64 || true\nls -l /app/alpine.iso 2>/dev/null || true\nls -l /app 2>/dev/null || true",
+        "reason": "Discover QEMU binary availability and confirm the ISO path before starting the VM."
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 1633,
+    "cached_input_tokens": 0,
+    "output_tokens": 569,
+    "total_tokens": 2202,
+    "provider_usage_raw": {
+      "completion_tokens": 569,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 4,
+        "engine_ttft_ms": 70,
+        "engine_ttlt_ms": 2510,
+        "pre_inference_ms": 88,
+        "service_tbt_ms": 4,
+        "service_ttft_ms": 604,
+        "service_ttlt_ms": 3040,
+        "total_duration_ms": 2964,
+        "user_visible_ttft_ms": 516
+      },
+      "prompt_tokens": 1633,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 2202
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

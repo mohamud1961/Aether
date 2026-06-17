@@ -1,0 +1,103 @@
+{
+  "cleanup_plan": {
+    "container_id": "bf90dd4266673c92909efb56448086e43b62cc5ea551dedcdaf5840eaefcb4ab",
+    "remove_after_row_write": true
+  },
+  "container_inspect": {
+    "config": {
+      "env": [
+        "TEST_DIR=/tmp/aether2-tests",
+        "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+        "PYTHON_VERSION=3.13.1",
+        "PYTHON_SHA256=9cf9427bee9e2242e3877dd0f6b641c1853ca461f39d6503ce260a59c80bf0d9"
+      ],
+      "image": "aether2-g3-assign-seats:c24e66340a"
+    },
+    "network_settings": {
+      "Networks": {
+        "bridge": {
+          "Aliases": null,
+          "DNSNames": null,
+          "DriverOpts": null,
+          "EndpointID": "d899b440f879082422c5084b43f5115fc4a4240366122882f1578eacfd99220b",
+          "Gateway": "172.17.0.1",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "GwPriority": 0,
+          "IPAMConfig": null,
+          "IPAddress": "172.17.0.2",
+          "IPPrefixLen": 16,
+          "IPv6Gateway": "",
+          "Links": null,
+          "MacAddress": "16:e4:10:00:cf:35",
+          "NetworkID": "01c8723cb896c95925fc4768bcd2f971b819d2b6889080bb203210073ac78303"
+        }
+      },
+      "Ports": {},
+      "SandboxID": "15986a6f11b9d6d1a1fd6c6ad727376639ef2ddaf43e92009d613216a1a8df4f",
+      "SandboxKey": "/var/run/docker/netns/15986a6f11b9"
+    },
+    "state": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 1447303,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-06-15T14:25:50.353049137Z",
+      "Status": "running"
+    }
+  },
+  "job_survival": true,
+  "listener_snapshot": {
+    "cmd": [
+      "docker",
+      "exec",
+      "bf90dd4266673c92909efb56448086e43b62cc5ea551dedcdaf5840eaefcb4ab",
+      "bash",
+      "-lc",
+      "(ss -ltnp || netstat -tulpn || true)"
+    ],
+    "duration_sec": 0.06,
+    "returncode": 0,
+    "stderr": "bash: line 1: ss: command not found\nbash: line 1: netstat: command not found\n",
+    "stdout": "",
+    "timed_out": false
+  },
+  "observation_window_sec": 49.76,
+  "port_binding_report": {
+    "cmd": [
+      "docker",
+      "port",
+      "bf90dd4266673c92909efb56448086e43b62cc5ea551dedcdaf5840eaefcb4ab"
+    ],
+    "duration_sec": 0.02,
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "",
+    "timed_out": false
+  },
+  "process_snapshot": {
+    "cmd": [
+      "docker",
+      "exec",
+      "bf90dd4266673c92909efb56448086e43b62cc5ea551dedcdaf5840eaefcb4ab",
+      "bash",
+      "-lc",
+      "ps -ef"
+    ],
+    "duration_sec": 0.06,
+    "returncode": 127,
+    "stderr": "bash: line 1: ps: command not found\n",
+    "stdout": "",
+    "timed_out": false
+  },
+  "session_survival": true,
+  "verification_exit_code": 1,
+  "verification_stderr_tail": "debconf: delaying package configuration, since apt-utils is not installed\ndownloading uv 0.7.13 x86_64-unknown-linux-gnu\nUsing CPython 3.13.1 interpreter at: /usr/local/bin/python\nCreating virtual environment at: .tbench-testing\nUsing Python 3.13.1 environment at: .tbench-testing\nResolved 5 packages in 140ms\nDownloading pygments (1.2MiB)\n Downloading pygments\nPrepared 5 packages in 124ms\nwarning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.\n         If the cache and target directories are on different filesystems, hardlinking may not be supported.\n         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.\nInstalled 5 packages in 23ms\n + iniconfig==2.3.0\n + packaging==26.2\n + pluggy==1.6.0\n + pygments==2.20.0\n + pytest==8.4.1\n",
+  "verification_stdout_tail": "\neverything's installed!\n\nTo add $HOME/.local/bin to your PATH, either restart your shell or run:\n\n    source $HOME/.local/bin/env (sh, bash, zsh)\n    source $HOME/.local/bin/env.fish (fish)\n============================= test session starts ==============================\nplatform linux -- Python 3.13.1, pytest-8.4.1, pluggy-1.6.0\nrootdir: /tmp/aether2-tests\ncollected 2 items\n\n../tmp/aether2-tests/test_outputs.py .F                                  [100%]\n\n=================================== FAILURES ===================================\n________________________ test_results_has_correct_pairs ________________________\n\n    def test_results_has_correct_pairs():\n        \"\"\"\n        This test checks that the results file contains the correct pairs.\n        \"\"\"\n        results_path = Path(\"/app/results.txt\")\n        content = results_path.read_text().strip()\n    \n        actual_lines = [\n            line.strip().lower() for line in content.splitlines() if line.strip()\n        ]\n        expected_lines = [\"alice, bob\", \"alice, ethan\"]\n    \n        # Compare as sets (order agnostic, case insensitive)\n>       assert set(actual_lines) == set(expected_lines), (\n            f\"Expected {set(expected_lines)}, found {set(actual_lines)}\"\n        )\nE       AssertionError: Expected {'alice, ethan', 'alice, bob'}, found {'alice, ethan', 'alice, bob', 'bob, frankie'}\nE       assert {'alice, bob'...bob, frankie'} == {'alice, bob', 'alice, ethan'}\nE         \nE         Extra items in the left set:\nE         'bob, frankie'\nE         Use -v to get more diff\n\n/tmp/aether2-tests/test_outputs.py:28: AssertionError\n==================================== PASSES ====================================\n=========================== short test summary info ============================\nPASSED ../tmp/aether2-tests/test_outputs.py::test_results_file_exists\nFAILED ../tmp/aether2-tests/test_outputs.py::test_results_has_correct_pairs\n========================= 1 failed, 1 passed in 0.02s ==========================\n"
+}

@@ -1,0 +1,1494 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+  	<head>
+        <meta charset="utf-8" />
+        
+        <title>
+            
+            Architecting efficient context-aware multi-agent framework for production
+            
+            
+            - Google Developers Blog
+            
+        </title>
+        <meta property="og:title" content="Architecting efficient context-aware multi-agent framework for production- Google Developers Blog" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        
+	<meta name="description" content="ADK&#x27;s Context Engineering scales production AI agents. Architect tiered context for efficiency, reliability, and multi-agent context scoping." />
+  <meta content="summary_large_image" name="twitter:card"/>
+  <meta content="Google for Developers Blog - News about Web, Mobile, AI and Cloud" property="twitter:title"/>
+  <meta property="og:title" content="Architecting efficient context-aware multi-agent framework for production" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [{
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Google for Developers Blog",
+      "item": "https://developers.googleblog.com/"
+    },{
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Architecting efficient context-aware multi-agent framework for production",
+      "item": "https://developers.googleblog.com/architecting-efficient-context-aware-multi-agent-framework-for-production/"
+    }]
+  }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Architecting efficient context-aware multi-agent framework for production",
+      "description": "ADK introduces **Context Engineering** to scale AI agents beyond large context windows. It treats context as a compiled view over a tiered, stateful system (**Session, Memory, Artifacts**). This architecture uses explicit processors for transformation, enables efficient compaction and caching, and allows for strict, scoped context handoffs in multi-agent workflows to ensure reliability and cost-effectiveness in production.",
+      "image": "https://storage.googleapis.com/gweb-developer-goog-blog-assets/images/Ai-1-banner.2e16d0ba.fill-800x400.png",
+      "datePublished": "2025-12-04",
+      "author": [
+        
+        
+          { "@type": "Person", "name": "Hangfei Lin", "url": "/search/?author=Hangfei+Lin" }
+        
+        
+      ]
+    }
+  </script>
+  
+  <meta content="https://storage.googleapis.com/gweb-developer-goog-blog-assets/images/Ai-1-banner.2e16d0ba.fill-1200x600.png" property="og:image"/>
+  
+
+
+        
+        
+
+        <!-- Google Tag Manager -->
+        <script type="text/javascript" nonce="+HOrx3oJZCDhgOEqQ6Km6g==" src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/js/analytics.js"></script>
+        <!-- End Google Tag Manager -->
+
+        
+        <link href="//www.gstatic.com/glue/v27_1/glue.min.css" rel="stylesheet">
+        <link rel="stylesheet" type="text/css" href="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/css/dgc_blog.css">
+        <link rel="icon" href="https://storage.googleapis.com/gweb-developer-goog-blog-assets/meta/favicon.ico" type="image/x-icon">
+        <link rel="apple-touch-icon" href="https://storage.googleapis.com/gweb-developer-goog-blog-assets/meta/apple-touch-icon.png">
+
+        
+				<link rel="preconnect" href="https://fonts.googleapis.com">
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+				<link rel="preload" href="https://fonts.googleapis.com/css2?family=Product+Sans&family=Google+Sans+Display:ital@0;1&family=Google+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=Google+Sans+Text:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&display=swap" as="style">
+				<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Product+Sans&family=Google+Sans+Display:ital@0;1&family=Google+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=Google+Sans+Text:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&display=swap">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400&display=swap">
+
+        
+        <link href="https://www.gstatic.com/glue/cookienotificationbar/cookienotificationbar.min.css" rel="stylesheet">
+
+        
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/css/blog_detail.css"
+  />
+  <link type="text/css" href="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/css/prism.css" rel="stylesheet" />
+
+    </head>
+
+    <body id="main-content" class="glue-body ">
+        <!-- Google Tag Manager (noscript) -->
+        <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WVTLDSL "
+        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+        <!-- End Google Tag Manager (noscript) -->
+
+        
+
+				
+        
+
+<!-- HTML -->
+<header class="dgc-header">
+  <div class="dgc-header-inner">
+    <button class="hamburger" aria-haspopup="true" aria-expanded="false" aria-label="Open Menu">
+      <svg role="presentation" aria-hidden="true" class="glue-icon">
+        <use href="/glue-icon/#menu"></use>
+      </svg>
+    </button>
+    <div class="product-name-wrapper">
+      <a href="https://developers.google.com/" class="site-logo-link" data-label="Site logo">
+        <img src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/images/g-dev.svg" class="site-logo" alt="Google for Developers">
+      </a>
+    </div>
+    <div class="desktop-nav-wrapper">
+      <div class="upper-tabs-wrapper">
+        <div class="upper-tabs">
+          <nav class="tabs" aria-label="Upper Tabs">
+            <div class="tab" dropdown>
+              <a
+                href="//developers.google.com/products"
+                class="top-nav-title">
+                Products
+              </a>
+              <a
+                href="#"
+                role="button"
+                aria-haspopup="true"
+                aria-expanded="true"
+                aria-label="Dropdown menu for Products"
+                class="dropdown-toggle">
+                <svg role="presentation" aria-hidden="true" class="glue-icon">
+                  <use href="/glue-icon/#arrow-drop-down"></use>
+                </svg>
+              </a>
+              <div class="tabs-dropdown" aria-label="Submenu">
+                <div class="tabs-dropdown-content">
+                  <div class="tabs-dropdown-column">
+                    <ul class="tabs-dropdown-section">
+                      <li class="nav-title" aria-label="Develop Menu">Develop</li>
+                      
+                        <li class="nav-item">
+                          <a href="//developer.android.com">
+                            <div class="nav-item-title">
+                              Android
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developer.chrome.com">
+                            <div class="nav-item-title">
+                              Chrome
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//chromeos.dev/">
+                            <div class="nav-item-title">
+                              ChromeOS
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//cloud.google.com">
+                            <div class="nav-item-title">
+                              Cloud
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//firebase.google.com">
+                            <div class="nav-item-title">
+                              Firebase
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//flutter.dev">
+                            <div class="nav-item-title">
+                              Flutter
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/assistant">
+                            <div class="nav-item-title">
+                              Google Assistant
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/maps">
+                            <div class="nav-item-title">
+                              Google Maps Platform
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/workspace">
+                            <div class="nav-item-title">
+                              Google Workspace
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//www.tensorflow.org">
+                            <div class="nav-item-title">
+                              TensorFlow
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/youtube">
+                            <div class="nav-item-title">
+                              YouTube
+                            </div>
+                          </a>
+                        </li>
+                      
+                    </ul>
+                  </div>
+                  <div class="tabs-dropdown-column">
+                    <ul class="tabs-dropdown-section">
+                      <li class="nav-title" aria-label="Grow Menu">Grow</li>
+                      
+                        <li class="nav-item">
+                          <a href="//firebase.google.com">
+                            <div class="nav-item-title">
+                              Firebase
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/google-ads">
+                            <div class="nav-item-title">
+                              Google Ads
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/analytics">
+                            <div class="nav-item-title">
+                              Google Analytics
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developer.android.com/distribute">
+                            <div class="nav-item-title">
+                              Google Play
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/search">
+                            <div class="nav-item-title">
+                              Search
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/web/fundamentals/engage-and-retain/push-notifications">
+                            <div class="nav-item-title">
+                              Web Push and Notification APIs
+                            </div>
+                          </a>
+                        </li>
+                      
+                    </ul>
+                  </div>
+                  <div class="tabs-dropdown-column">
+                    <ul class="tabs-dropdown-section">
+                      <li class="nav-title" aria-label="Earn Menu">Earn</li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/admob">
+                            <div class="nav-item-title">
+                              AdMob
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/google-ads/api">
+                            <div class="nav-item-title">
+                              Google Ads API
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/pay">
+                            <div class="nav-item-title">
+                              Google Pay
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developer.android.com/google/play/billing/">
+                            <div class="nav-item-title">
+                              Google Play Billing
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/interactive-media-ads">
+                            <div class="nav-item-title">
+                              Interactive Media Ads
+                            </div>
+                          </a>
+                        </li>
+                      
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tab">
+              <a
+                href="//developers.google.com/solutions/catalog"
+                class="top-nav-title">
+                Solutions
+              </a>
+            </div>
+            <div class="tab">
+              <a
+                href="//developers.google.com/events"
+                class="top-nav-title">
+                Events
+              </a>
+            </div>
+            <div class="tab">
+              <a
+                href="//developers.google.com/learn"
+                class="top-nav-title">
+                Learn
+              </a>
+            </div>
+            <div class="tab" dropdown>
+              <a
+                href="//developers.google.com/community"
+                class="top-nav-title">
+                Community
+              </a>
+              <a
+                href="#"
+                role="button"
+                aria-haspopup="true"
+                aria-expanded="true"
+                aria-label="Dropdown menu for Community"
+                class="dropdown-toggle">
+                <svg role="presentation" aria-hidden="true" class="glue-icon">
+                  <use href="/glue-icon/#arrow-drop-down"></use>
+                </svg>
+              </a>
+              <div class="tabs-dropdown" aria-label="Submenu">
+                <div class="tabs-dropdown-content">
+                  <div class="tabs-dropdown-column">
+                    <ul class="tabs-dropdown-section">
+                      <li class="nav-title" aria-label="Groups Menu">Groups</li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/community/gdg">
+                            <div class="nav-item-title">
+                              Google Developer Groups
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/community/gdsc">
+                            <div class="nav-item-title">
+                              Google Developer Student Clubs
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/womentechmakers">
+                            <div class="nav-item-title">
+                              Woman Techmakers
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/community/experts">
+                            <div class="nav-item-title">
+                              Google Developer Experts
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//www.techequitycollective.com/">
+                            <div class="nav-item-title">
+                              Tech Equity Collective
+                            </div>
+                          </a>
+                        </li>
+                      
+                    </ul>
+                  </div>
+                  <div class="tabs-dropdown-column">
+                    <ul class="tabs-dropdown-section">
+                      <li class="nav-title" aria-label="Programs Menu">Programs</li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/community/accelerators">
+                            <div class="nav-item-title">
+                              Accelerator
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/community/gdsc-solution-challenge">
+                            <div class="nav-item-title">
+                              Solution Challenge
+                            </div>
+                          </a>
+                        </li>
+                      
+                        <li class="nav-item">
+                          <a href="//developers.google.com/community/devfest">
+                            <div class="nav-item-title">
+                              DevFest
+                            </div>
+                          </a>
+                        </li>
+                      
+                    </ul>
+                  </div>
+                  <div class="tabs-dropdown-column">
+                    <ul class="tabs-dropdown-section">
+                      <li class="nav-title" aria-label="Stories Menu">Stories</li>
+                      <li class="nav-item">
+                        <a href="//developers.google.com/community/stories">
+                          <div class="nav-item-title">
+                            All Stories
+                          </div>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tab">
+              <a
+                href="//developers.google.com/profile/u/me"
+                class="top-nav-title">
+                Developer Program
+              </a>
+            </div>
+            <div class="tab">
+              <a
+                href="//developers.googleblog.com/"
+                class="top-nav-title">
+                Blog
+              </a>
+            </div>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dgc-header-search">
+    <div class="search-wrapper glue-page">
+      <div class="glue-grid">
+        <form id="search-form"  action="/search/" method="get" class="search-content glue-grid__col glue-grid__col--span-4-sm glue-grid__col--span-9-md glue-grid__col--span-7-lg">
+          <div class="search-input-wrapper">
+            <svg role="presentation" aria-hidden="true" class="glue-icon search-icon">
+              <use href="/glue-icon/#search"></use>
+            </svg>
+            <input
+              type="text"
+              name="query"
+              
+              placeholder="Search all articles..."
+              aria-label="Search"
+              class="search-input-field"
+            />
+          </div>
+          <button class="glue-button glue-button--high-emphasis">
+            Search
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-drawer" top-level-nav>
+  <nav class="nav-content" aria-label="Side menu">
+    <div class="mobile-header">
+      <button class="nav-close-btn nav-btn" aria-label="Close navigation">
+        <svg role="presentation" aria-hidden="true" class="glue-icon">
+          <use href="/glue-icon/#close"></use>
+        </svg>
+      </button>
+      <button class="nav-back-btn nav-btn hidden" aria-label="Back to Menu">
+        <svg role="presentation" aria-hidden="true" class="glue-icon">
+          <use href="/glue-icon/#arrow-back"></use>
+        </svg>
+      </button>
+      <div class="product-name-wrapper">
+        <a href="https://developers.google.com/" class="site-logo-link" data-label="Site logo">
+          <img src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/images/g-dev.svg" class="site-logo" alt="Google for Developers">
+        </a>
+      </div>
+    </div>
+    <div class="nav-wrapper">
+      <div class="mobile-nav-top">
+        <ul class="nav-list">
+          <li class="nav-item">
+            <a href="//developers.google.com/products" class="nav-title" data-label="Tab: Products">
+              <span class="nav-text" tooltip="">
+                Products
+             </span>
+            </a>
+            <ul class="nav-responsive-tabs">
+              <li class="nav-item">
+                <span tabindex="0" class="nav-title products-btn" data-label="More Products">
+                  <span class="nav-text" menu="Products">
+                    More
+                  </span>
+                  <span class="nav-icon" menu="Products">
+                    <svg role="presentation" aria-hidden="true" class="glue-icon">
+                      <use href="/glue-icon/#arrow-forward"></use>
+                    </svg>
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.google.com/solutions/catalog" class="nav-title" data-label="Tab: Solutions">
+              <span class="nav-text" tooltip="">
+                Solutions
+             </span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.google.com/events" class="nav-title" data-label="Tab: Events">
+              <span class="nav-text" tooltip="">
+                Events
+             </span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.google.com/learn" class="nav-title" data-label="Tab: Learn">
+              <span class="nav-text" tooltip="">
+                Learn
+             </span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.google.com/community" class="nav-title" data-label="Tab: Community">
+              <span class="nav-text" tooltip="">
+                Community
+             </span>
+            </a>
+            <ul class="nav-responsive-tabs">
+              <li class="nav-item">
+                <span tabindex="0" class="nav-title community-btn" data-label="More Community">
+                  <span class="nav-text" menu="Community">
+                    More
+                  </span>
+                  <span class="nav-icon" menu="Community">
+                    <svg role="presentation" aria-hidden="true" class="glue-icon">
+                      <use href="/glue-icon/#arrow-forward"></use>
+                    </svg>
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.google.com/profile/u/me" class="nav-title" data-label="Tab: Developer Program">
+              <span class="nav-text" tooltip="">
+                Developer Program
+             </span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.googleblog.com/" class="nav-title" data-label="Tab: Blog">
+              <span class="nav-text" tooltip="">
+                Blog
+             </span>
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div class="mobile-nav-bottom">
+        <ul class="nav-list products-submenu" menu="Products" aria-label="Side menu">
+          <li class="nav-item nav-heading">
+            <span class="nav-title">
+              <span class="nav-text">
+                Develop
+              </span>
+            </span>
+          </li>
+          
+            <li class="nav-item">
+              <a href="//developer.android.com" class="nav-title">
+                <span class="nav-text">
+                  Android
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developer.chrome.com" class="nav-title">
+                <span class="nav-text">
+                  Chrome
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//chromeos.dev/" class="nav-title">
+                <span class="nav-text">
+                  ChromeOS
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//cloud.google.com" class="nav-title">
+                <span class="nav-text">
+                  Cloud
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//firebase.google.com" class="nav-title">
+                <span class="nav-text">
+                  Firebase
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//flutter.dev" class="nav-title">
+                <span class="nav-text">
+                  Flutter
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/assistant" class="nav-title">
+                <span class="nav-text">
+                  Google Assistant
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/maps" class="nav-title">
+                <span class="nav-text">
+                  Google Maps Platform
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/workspace" class="nav-title">
+                <span class="nav-text">
+                  Google Workspace
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//www.tensorflow.org" class="nav-title">
+                <span class="nav-text">
+                  TensorFlow
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/youtube" class="nav-title">
+                <span class="nav-text">
+                  YouTube
+                </span>
+              </a>
+            </li>
+          
+          <li class="nav-item nav-heading">
+            <span class="nav-title">
+              <span class="nav-text">
+                Grow
+              </span>
+            </span>
+          </li>
+          
+            <li class="nav-item">
+              <a href="//firebase.google.com" class="nav-title">
+                <span class="nav-text">
+                  Firebase
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/google-ads" class="nav-title">
+                <span class="nav-text">
+                  Google Ads
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/analytics" class="nav-title">
+                <span class="nav-text">
+                  Google Analytics
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developer.android.com/distribute" class="nav-title">
+                <span class="nav-text">
+                  Google Play
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/search" class="nav-title">
+                <span class="nav-text">
+                  Search
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/web/fundamentals/engage-and-retain/push-notifications" class="nav-title">
+                <span class="nav-text">
+                  Web Push and Notification APIs
+                </span>
+              </a>
+            </li>
+          
+          <li class="nav-item nav-heading">
+            <span class="nav-title">
+              <span class="nav-text">
+                Earn
+              </span>
+            </span>
+          </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/admob" class="nav-title">
+                <span class="nav-text">
+                  AdMob
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/google-ads/api" class="nav-title">
+                <span class="nav-text">
+                  Google Ads API
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/pay" class="nav-title">
+                <span class="nav-text">
+                  Google Pay
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developer.android.com/google/play/billing/" class="nav-title">
+                <span class="nav-text">
+                  Google Play Billing
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/interactive-media-ads" class="nav-title">
+                <span class="nav-text">
+                  Interactive Media Ads
+                </span>
+              </a>
+            </li>
+          
+        </ul>
+        <ul class="nav-list community-submenu hidden" menu="Community" aria-label="Side menu">
+          <li class="nav-item nav-heading">
+            <span class="nav-title">
+              <span class="nav-text">
+                Groups
+              </span>
+            </span>
+          </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/community/gdg" class="nav-title">
+                <span class="nav-text">
+                  Google Developer Groups
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/community/gdsc" class="nav-title">
+                <span class="nav-text">
+                  Google Developer Student Clubs
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/womentechmakers" class="nav-title">
+                <span class="nav-text">
+                  Woman Techmakers
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/community/experts" class="nav-title">
+                <span class="nav-text">
+                  Google Developer Experts
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//www.techequitycollective.com/" class="nav-title">
+                <span class="nav-text">
+                  Tech Equity Collective
+                </span>
+              </a>
+            </li>
+          
+          <li class="nav-item nav-heading">
+            <span class="nav-title">
+              <span class="nav-text">
+                Programs
+              </span>
+            </span>
+          </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/community/accelerators" class="nav-title">
+                <span class="nav-text">
+                  Accelerator
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/community/gdsc-solution-challenge" class="nav-title">
+                <span class="nav-text">
+                  Solution Challenge
+                </span>
+              </a>
+            </li>
+          
+            <li class="nav-item">
+              <a href="//developers.google.com/community/devfest" class="nav-title">
+                <span class="nav-text">
+                  DevFest
+                </span>
+              </a>
+            </li>
+          
+          <li class="nav-item nav-heading">
+            <span class="nav-title">
+              <span class="nav-text">
+                Stories
+              </span>
+            </span>
+          </li>
+          <li class="nav-item">
+            <a href="//developers.google.com/community/stories" class="nav-title" aria-label="All Stories">
+              <span class="nav-text">
+                All Stories
+              </span>
+            </a>
+          </li>
+        </ul>
+      </div>
+      
+    </div>
+  </nav>
+  <select
+    aria-label="Change language"
+    name="lang-selector"
+    id="lang-selector-nav"
+    class="glue-form__dropdown glue-mobile-nav__lang-dropdown"
+    onchange="window.location.href=this.value"
+  >
+    
+  </select>
+</div>
+
+<div class="backdrop"></div>
+
+        
+  <div class="blog-detail-container">
+
+    
+      <section class="tags-container glue-page glue-spacer-5-top">
+        <div class="glue-eyebrow"></div>
+      </section>
+    
+
+    <section class="heading-container glue-page  glue-spacer-1-top">
+      <h1 class="glue-headline glue-headline--headline-1">Architecting efficient context-aware multi-agent framework for production</h1>
+    </section>
+
+    <section class="summary-container glue-page glue-spacer-4-top">
+      <div class="date-time">
+        <div class="published-date glue-font-weight-medium">DEC. 4, 2025</div>
+      </div>
+    </section>
+
+    <section class="glue-page glue-grid glue-spacer-1-top">
+
+      <section class="author-container glue-grid__col glue-grid__col--span-4-sm glue-grid__col--span-10-md">
+      
+        
+          <div class="author-obj">
+            <a class="glue-font-weight-medium" href="/search/?author=Hangfei+Lin">Hangfei Lin</a>
+            
+              <span class="glue-font-weight-medium role">Tech Lead</span>
+            
+            
+          </div>
+        
+
+      
+      </section>
+      <section class="social-container glue-grid__col glue-grid__col--span-4-sm glue-grid__col--span-2-md">
+        <button id="social-button" class="glue-button glue-button--low-emphasis glue-button--icon" aria-haspopup="true" aria-expanded="false">
+          <svg role="presentation" aria-hidden="true" class="glue-icon">
+            <use href="/glue-icon/#share"></use>
+          </svg>
+          <span>Share</span>
+        </button>
+        <ul id="social-menu" class="glue-elevation-level-1" role="menu" aria-labelledby="social-button">
+          <li>
+            <a href="https://www.facebook.com/sharer/sharer.php?u={url}"
+                title="Share on Facebook" target="_blank" rel="noopener">
+              <svg role="presentation" aria-hidden="true"
+                  class="glue-icon glue-icon--social glue-icon--32px">
+                <use href="/glue-icon/#post-facebook"></use>
+              </svg>
+              <span>Facebook</span>
+            </a>
+          </li>
+          <li>
+            <a href="https://twitter.com/intent/tweet?text={url}"
+                title="Share on Twitter" target="_blank" rel="noopener">
+              <svg role="presentation" aria-hidden="true"
+                  class="glue-icon glue-icon--social glue-icon--32px">
+                <use href="/glue-icon/#twitter-x"></use>
+              </svg>
+              <span>Twitter</span>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.linkedin.com/shareArticle?url={url}&amp;mini=true" title="Share on LinkedIn" target="_blank" rel="noopener">
+              <svg role="presentation" aria-hidden="true"
+                  class="glue-icon glue-icon--social glue-icon--32px">
+                <use href="/glue-icon/#post-linkedin"></use>
+              </svg>
+              <span>LinkedIn</span>
+            </a>
+          </li>
+          <li>
+            <a href="mailto:name@example.com?subject=Check%20out%20this%20site&body=Check%20out%20{url}" title="Send via Email">
+              <svg role="presentation" aria-hidden="true"
+                  class="glue-icon glue-icon--social glue-icon--32px">
+                <use href="/glue-icon/#email"></use>
+              </svg>
+              <span>Mail</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" title="Get shareable link" data-link="" data-copy-text="Copy Link" data-copied-text="Copied!">
+              <svg role="presentation" aria-hidden="true"
+                  class="glue-icon glue-icon--social glue-icon--32px">
+                <use href="/glue-icon/#link"></use>
+              </svg>
+              <span></span>
+            </a>
+          </li>
+        </ul>
+      </section>
+    </section>
+
+    
+    <section class="blocks-container glue-page glue-spacer-3-top">
+      <div class="block">
+          
+
+<img
+    class="banner-image"
+    src="https://storage.googleapis.com/gweb-developer-goog-blog-assets/images/Ai-1-banner.original.png"
+    alt="Agent Development Kit: Making it easy to build multi-agent applications"
+/>  <div class="inner-block-content rich-content">
+    <p data-block-key="rnr6y">The landscape of AI agent development is shifting fast. We’ve moved beyond prototyping single-turn chatbots. Today, organizations are deploying sophisticated, autonomous agents to handle <b>long-horizon tasks</b>: automating workflows, conducting deep research, and maintaining complex codebases.</p><p data-block-key="1q47u">That ambition immediately runs into a bottleneck: <b>context</b>.</p><p data-block-key="ataek">As agents run longer, the amount of information they need to track—chat history, tool outputs, external documents, intermediate reasoning—<b>explodes</b>. The prevailing “solution” has been to lean on ever-larger context windows in foundation models. But simply giving agents more space to paste text can not be the single scaling strategy.</p><p data-block-key="5qg6b">To build production-grade agents that are <b>reliable, efficient, and debuggable</b>, the industry is exploring a new discipline:</p><p data-block-key="45itv"><b>Context engineering</b> — treating context as a first-class system with its own architecture, lifecycle, and constraints.</p><p data-block-key="855nn">Based on our experience scaling complex single- or multi-agentic systems, we designed and evolved the context stack in <a href="https://github.com/google/adk-python"><b>Google Agent Development Kit (ADK)</b></a> to support that discipline. ADK is an open-source, multi-agent-native framework built to make <b>active context engineering</b> achievable in real systems.</p><h3 data-block-key="r7twl" id="the-scaling-bottleneck"><b>The scaling bottleneck</b></h3><p data-block-key="4ch28">A large context window will help context-related problems but won&#x27;t address all context-related problems. In practice, the naive pattern—<b>append everything into one giant prompt</b>—collapses under a three-way pressure:</p><ol><li data-block-key="c1qhc"><b>Cost and latency spirals:</b> Model cost and time-to-first-token grow quickly with context size. &quot;Shoveling&quot; raw history and verbose tool payloads into the window makes agents prohibitively slow and expensive.<br/><br/></li><li data-block-key="7qnn3"><b>Signal degradation (“lost in the middle”):</b> A context window flooded with irrelevant logs, stale tool outputs, or deprecated state can distract the model, causing it to fixate on past patterns rather than the immediate instruction. To ensure robust decision-making, we must maximize the density of relevant information.<br/><br/></li><li data-block-key="7hd1n"><b>Physical limits:</b> Real-world workloads—involving full RAG results, intermediate artifacts, and long conversation traces—eventually overflow even the largest fixed windows.</li></ol><p data-block-key="ba04n">Throwing more tokens at the problem buys time, but it doesn’t change the shape of the curve. To scale, we need to change <b>how context is represented and managed</b>, not just how much of it we can cram into a single call.</p><h3 data-block-key="m9988" id="the-design-thesis:-context-as-a-compiled-view"><b>The design thesis: context as a compiled view</b></h3><p data-block-key="3vcre">In the previous generation of agent frameworks, context was treated like a mutable string buffer. ADK is built around a different thesis:<b> Context is a compiled view over a richer stateful system.</b></p><p data-block-key="7dd7n">In that view:</p><ul><li data-block-key="50hu0"><b>Sessions, memory, and artifacts (files)</b> are the <i>sources</i>– the full, structured state of the interaction and its data.</li><li data-block-key="14dt0"><b>Flows and processors</b> are the <i>compiler pipeline</i> – a sequence of passes that transform that state.</li><li data-block-key="cihgl">The <b>working context</b> is the <i>compiled view</i> you ship to the LLM for this one invocation.</li></ul><p data-block-key="3os7n">Once you adopt this mental model, context engineering stops being prompt gymnastics and starts looking like systems engineering. You are forced to ask standard systems questions: <i>What is the intermediate representation? Where do we apply compaction? How do we make transformations observable?</i></p><p data-block-key="8qnbe">ADK’s architecture answers these questions via three design principles:</p><ul><li data-block-key="383cn"><b>Separate storage from presentation:</b> We distinguish between durable state (Sessions) and per-call views (working context). This allows you to evolve storage schemas and prompt formats independently.</li><li data-block-key="808r0"><b>Explicit transformations:</b> Context is built through named, ordered processors, not ad-hoc string concatenation. This makes the &quot;compilation&quot; step observable and testable.</li><li data-block-key="3rlk1"><b>Scope by default:</b> Every model call and sub-agent sees the minimum context required. Agents must reach for more information explicitly via tools, rather than being flooded by default.</li></ul><p data-block-key="4jdr3">ADK’s tiered structure, its relevance mechanisms, and its multi-agent handoff semantics—is essentially an application of this &quot;compiler&quot; thesis and these three principles:</p><ul><li data-block-key="h0di"><b>Structure</b> – a tiered model that separates how information is stored from what the model sees.</li><li data-block-key="8e6mj"><b>Relevance</b> – agentic and human controls that decide what matters <i>now</i>.</li><li data-block-key="d0bci"><b>Multi-agent context</b> – explicit semantics for handing off the right slice of context between agents.</li></ul><p data-block-key="b55h9">The next sections walk through each of these pillars in turn.</p><h3 data-block-key="snx3i" id="1.-structure:-the-tiered-model"><b>1. Structure: The tiered model</b></h3><p data-block-key="8jcfi">Most early agent systems implicitly assume a <b>single window of context</b>. ADK goes the other way. It separates storage from presentation and organizes context into distinct layers, each with a specific job:</p><ul><li data-block-key="d5q7h"><b>Working context</b> – the immediate prompt for <i>this</i> model call: system instructions, agent identity, selected history, tool outputs, optional memory results, and references to artifacts.</li><li data-block-key="9n6on"><b>Session</b> – the <b>durable log</b> of the interaction: every user message, agent reply, tool call, tool result, control signal, and error, captured as structured Event objects.</li><li data-block-key="egck"><b>Memory</b> – long-lived, <b>searchable knowledge</b> that outlives a single session: user preferences, and past conversations.</li><li data-block-key="doqgc"><b>Artifacts</b> – large binary or textual data associated with the session or user (files, logs, images), addressed by name and version rather than pasted into the prompt.</li></ul><h3 data-block-key="jnmnp" id="1.1-working-context-as-a-recomputed-view"><b>1.1 Working context as a recomputed view</b></h3><p data-block-key="9rl2f">For each invocation, ADK rebuilds the Working Context from the underlying state. It starts with instructions and identity, pulls in selected Session events, and optionally attaches memory results. This view is <b>ephemeral</b> (thrown away after the call), <b>configurable</b> (you can change formatting without migrating storage), and <b>model-agnostic</b>.</p><p data-block-key="5boas">This flexibility is the first win of the compiler view: you stop hard-coding &quot;the prompt&quot; and start treating it as a derived representation you can iterate on.</p><h3 data-block-key="0hj9z" id="1.2-flows-and-processors:-context-processing-as-a-pipeline"><b>1.2 Flows and processors: context processing as a pipeline</b></h3><p data-block-key="b87td">Once you separate storage from presentation, you need machinery to &quot;compile&quot; one into the other. In ADK, every LLM-based agent is backed by an <b>LLM Flow</b>, which maintains ordered lists of processors.</p><p data-block-key="c77qc">A (simplified) SingleFlow might look like:</p>
+</div>  <div class="inner-block-content code-block line-numbers">
+    <pre><code class="language-python">self.request_processors += [
+    basic.request_processor,
+    auth_preprocessor.request_processor,
+    request_confirmation.request_processor,
+    instructions.request_processor,
+    identity.request_processor,
+    contents.request_processor,
+    context_cache_processor.request_processor,
+    planning.request_processor,
+    code_execution.request_processor,
+    output_schema_processor.request_processor,
+]
+
+self.response_processors += [
+    planning.response_processor,
+    code_execution.response_processor,
+]</code></pre>
+    <div class="language-block glue-font-weight-medium">
+        Python
+    </div>
+    <div class="copy-code-block">
+        <span class="hidden">Copied</span>
+        <button class="copy-clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#202124"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+        </button>
+    </div>
+    <div class="dark-mode-block">
+        <button class="dark-mode-toggle">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#202124"><path d="M480-120q-150 0-255-105T120-480q0-150 105-255t255-105q14 0 27.5 1t26.5 3q-41 29-65.5 75.5T444-660q0 90 63 153t153 63q55 0 101-24.5t75-65.5q2 13 3 26.5t1 27.5q0 150-105 255T480-120Zm0-80q88 0 158-48.5T740-375q-20 5-40 8t-40 3q-123 0-209.5-86.5T364-660q0-20 3-40t8-40q-78 32-126.5 102T200-480q0 116 82 198t198 82Zm-10-270Z"/></svg>
+        </button>
+    </div>
+    
+</div>  <div class="inner-block-content rich-content">
+    <p data-block-key="rnr6y">These flows are ADK&#x27;s machinery to compile context. The order matters: each processor builds on the outputs of the previous steps. This gives you natural insertion points for custom filtering, compaction strategies, caching, and multi-agent routing. You are no longer rewriting giant &quot;prompt templates&quot;; you’re just adding or reordering processors.</p><h3 data-block-key="rqfw9" id="1.3-session-and-events:-structured-language-agnostic-history"><b>1.3 Session and events: structured, language-agnostic history</b></h3><p data-block-key="3psje">An ADK Session represents the definitive state of a conversation or workflow instance. Concretely, it acts as a container for session metadata (IDs, app names), a state scratchpad for structured variables, and—most importantly—a chronological list of <b>Events</b>.</p><p data-block-key="det3d">Instead of storing raw prompt strings, ADK captures every interaction—user messages, agent replies, tool calls, results, control signals, and errors—as strongly-typed Event records. This structural choice pays three distinct advantages:</p><ul><li data-block-key="ai2g0"><b>Model agnosticism:</b> You can swap underlying models without rewriting the history, as the storage format is decoupled from the prompt format.</li><li data-block-key="5kkp8"><b>Rich operations:</b> Downstream components like compaction, time-travel debugging, and memory ingestion can operate over a rich event stream rather than parsing opaque text.</li><li data-block-key="1i5l5"><b>Observability:</b> It provides a natural surface for analytics, allowing you to inspect precise state transitions and actions.</li></ul><p data-block-key="27p9o">The bridge between this session and the working context is the <code>contents</code> processor. It performs the heavy lifting of transforming the Session into the history portion of the working context by executing three critical steps:</p><ul><li data-block-key="3a66u"><b>Selection:</b> It filters the event stream to drop irrelevant events, partial events, and framework noise that shouldn&#x27;t reach the model.</li><li data-block-key="c8rmn"><b>Transformation:</b> It flattens the remaining events into <code>Content</code> objects with the correct roles (user/assistant/tool) and annotations for the specific model API being used.</li><li data-block-key="31aa3"><b>Injection:</b> It writes the formatted history into <code>llm_request.contents</code>, ensuring downstream processors—and the model itself—receive a clean, coherent conversational trace.</li></ul><p data-block-key="9qh2s">In this architecture, the Session is your <b>ground truth</b>; the working context is merely a <b>computed projection</b> that you can refine and optimize over time.</p><h3 data-block-key="hc7ek" id="1.4-context-compaction-and-filtering-at-the-session-layer"><b>1.4 Context compaction and filtering at the session layer</b></h3><p data-block-key="56ua8">If you keep appending raw events indefinitely, latency and token usage will inevitably spiral out of control. ADK’s Context Compaction feature attacks this problem at the Session layer.</p><p data-block-key="d0hcc">When a configurable threshold (such as the number of invocations) is reached, ADK triggers an asynchronous process. It uses an LLM to summarize older events over a sliding window—defined by compaction intervals and overlapping size—and writes the resulting summary back into the Session as a new event with a &quot;compaction&quot; action. Crucially, this allows the system to prune or de-prioritize the raw events that were summarized.</p><p data-block-key="376qf">Because compaction operates on the Event stream itself, the benefits cascade downstream:</p><ul><li data-block-key="5lolv"><b>Scalability:</b> Sessions remain physically manageable even for extremely long-running conversations.</li><li data-block-key="23hhq"><b>Clean views:</b> The <code>contents</code> processor automatically works over a history that is already compacted, requiring no complex logic at query time.</li><li data-block-key="3jqqi"><b>Decoupling:</b> You can tune compaction prompts and strategies without touching a single line of agent code or template logic.</li></ul><p data-block-key="dib0p">This creates a scalable lifecycle for long contexts. For strictly rule-based reduction, ADK offers a sibling operation—<b>Filtering</b>—where prebuilt plugins can globally drop or trim context based on deterministic rules before it ever reaches the model.</p><h3 data-block-key="r5bnm" id="1.5-context-caching"><b>1.5 Context caching</b></h3><p data-block-key="cmvos">Modern models support <b>context caching</b> (prefix caching), which allows the inference engine to reuse attention computation across calls. ADK’s separation of &quot;Session&quot; (storage) and &quot;Working Context&quot; (view) provides a natural substrate for this optimization.</p><p data-block-key="dfeqm">The architecture effectively divides the context window into two zones:</p><ul><li data-block-key="7ftnq"><b>Stable prefixes:</b> System instructions, agent identity, and long-lived summaries.</li><li data-block-key="9o93s"><b>Variable suffixes:</b> The latest user turn, new tool outputs, and small incremental updates.</li></ul><p data-block-key="bqhkq">Because ADK flows and processors are explicit, you can treat cache-friendliness as a hard design constraint. You can order your pipeline to keep frequently reused segments stable at the front of the context window, while pushing highly dynamic content toward the end. To enforce this rigor, we introduced <code>static instruction</code>, a primitive that guarantees immutability for system prompts, ensuring that the cache prefix remains valid across invocations.</p><p data-block-key="4apgu">This is a prime example of context engineering acting as systems work across the full stack: you are not only deciding what the model sees, but optimizing how often the hardware has to re-compute the underlying tensor operations.</p><h3 data-block-key="2c591" id="2.-relevance:-agentic-management-of-what-matters-now"><b>2. Relevance: Agentic management of what matters now</b></h3><p data-block-key="ap84v">Once the structure is established, the core challenge shifts to relevance: <i>Given a tiered context architecture, what specific information belongs in the model’s active window right now?</i></p><p data-block-key="73aeh">ADK answers this through a collaboration between human domain knowledge and agentic decision-making. Relying solely on hard-coded rules is cost-effective but rigid; relying solely on the agent to browse everything is flexible but prohibitively expensive and unstable.</p><p data-block-key="4tfmt">An optimal Working Context is a negotiation between the two. Human engineers define the architecture—where data lives, how it is summarized, and what filters apply. The Agent then provides the intelligence, deciding dynamically when to &quot;reach&quot; for specific memory blocks or artifacts to satisfy the immediate user request.</p><h3 data-block-key="hmfjs" id="2.1-artifacts:-externalizing-large-state"><b>2.1 Artifacts: externalizing large state</b></h3><p data-block-key="eqnlm">Early agent implementations often fall into the &quot;context dumping&quot; trap: placing large payloads—a 5MB CSV, a massive JSON API response, or a full PDF transcript—directly into the chat history. This creates a permanent tax on the session; every subsequent turn drags that payload along, burying critical instructions and inflating costs.</p><p data-block-key="1d4fi">ADK solves this by treating large data as <b>Artifacts</b>: named, versioned binary or text objects managed by an <code>ArtifactService</code>.</p><p data-block-key="74old">Conceptually, ADK applies a <b>handle pattern</b> to large data. Large data lives in the artifact store, not the prompt. By default, agents see only a lightweight reference (a name and summary) via the request processor. When—and only when—an agent requires the raw data to answer a question, it uses the <code>LoadArtifactsTool</code>. This action temporarily loads the content into the Working Context.</p><p data-block-key="cbo9h">Crucially, ADK supports <b>ephemeral expansion</b>. Once the model call or task is complete, the artifact is offloaded from the working context by default. This turns &quot;5MB of noise in every prompt&quot; into a precise, on-demand resource. The data can be huge, but the context window remains lean.</p><h3 data-block-key="fvn2i" id="2.2-memory:-long-term-knowledge-retrieved-on-demand"><b>2.2 Memory: long-term knowledge, retrieved on demand</b></h3><p data-block-key="cp1f0">Where Artifacts handle discrete, large objects, ADK&#x27;s <b>Memory</b> layer manages long-lived, semantic knowledge that extends beyond a single session—user preferences, past decisions, and domain facts.</p><p data-block-key="88p86">We designed the <code>MemoryService</code> around two principles: memory must be <b>searchable</b> (not permanently pinned), and retrieval should be <b>agent-directed</b>.</p><p data-block-key="fvjl5">The <code>MemoryService</code> ingests data—often from finished Sessions—into a vector or keyword corpus. Agents then access this knowledge via two distinct patterns:</p><ul><li data-block-key="86mf9"><b>Reactive recall:</b> The agent recognizes a knowledge gap (&quot;What is the user&#x27;s dietary restriction?&quot;) and explicitly calls the <code>load_memory_tool</code> to search the corpus.</li><li data-block-key="7upl2"><b>Proactive recall:</b> The system uses a pre-processor to run a similarity search based on the latest user input, injecting likely relevant snippets via the<code> preload_memory_tool</code> before the model is even invoked.</li></ul><p data-block-key="3835r">This approach replaces the &quot;context stuffing&quot; anti-pattern with a &quot;memory-based&quot; workflow. Agents recall exactly the snippets they need for the current step, rather than carrying the weight of every conversation they have ever had.</p><h3 data-block-key="01hhv" id="3.-multi-agent-context:-who-sees-what-when"><b>3. Multi-agent context: who sees what, when</b></h3><p data-block-key="2u7ja">Single-agent systems struggle with context bloat; multi-agent systems amplify it. If a root agent passes its full history to a sub-agent, and that sub-agent does the same, you trigger a <b>context explosion</b>. The token count skyrockets, and sub-agents get confused by irrelevant conversational history.</p><p data-block-key="ebahj">Whenever an agent invokes another agent, ADK lets you <b>explicitly scope</b> what the callee sees—maybe just the latest user query and one artifact—while suppressing most of the ancestral history.</p><h3 data-block-key="k5rkr" id="3.1-two-multi-agent-interaction-patterns"><b>3.1 Two multi-agent interaction patterns</b></h3><p data-block-key="df3gg">At a high level, ADK maps multi-agent interactions into two distinct architectural patterns.</p><p data-block-key="aag1q">The first is Agents as Tools. Here, the root agent treats a specialized agent strictly as a function: call it with a focused prompt, get a result, and move on. The callee sees only the specific instructions and necessary artifacts—no history.</p><p data-block-key="bcv7n">The second is Agent Transfer (Hierarchy). Here, control is fully handed off to a sub-agent to continue the conversation. The sub-agent inherits a view over the Session and can drive the workflow, calling its own tools or transferring control further down the chain.</p><h3 data-block-key="l82ut" id="3.2-scoped-handoffs-for-agent-transfer"><b>3.2 Scoped handoffs for agent transfer</b></h3><p data-block-key="mqs6">Handoff behavior is controlled by knobs like include_contents on the callee, which determine how much context flows from the root agent to a sub-agent. In the default mode, ADK passes the full contents of the caller’s working context—useful when the sub-agent genuinely benefits from the entire history. In none mode, the sub-agent sees no prior history; it only receives the new prompt you construct for it (for example, the latest user turn plus a couple of tool calls and responses). Specialized agents get the minimal context they need, rather than inheriting a giant transcript by default.</p><p data-block-key="1mc9t">Because a sub-agent’s context is also built via processors, these handoff rules plug into the same flow pipeline as single-agent calls. You don’t need a separate multi-agent machinery layer; you’re just changing how much upstream state the existing context compiler is allowed to see.</p><h3 data-block-key="xonn2" id="3.3-translating-conversations-for-agent-transfer"><b>3.3 Translating conversations for agent transfer</b></h3><p data-block-key="9g8gn">Foundation models operate on a fixed role schema: <code>system</code>, <code>user</code>, and <code>assistant</code>. They do not natively understand &quot;Assistant A&quot; vs. &quot;Assistant B.&quot;</p><p data-block-key="8q23n">When ADK transfers control, it must often <b>reframe</b> the existing conversation so the new agent sees a coherent working context. If the new agent simply sees a stream of &quot;Assistant&quot; messages from the previous agent, it will hallucinate that <i>it</i> performed those actions.</p><p data-block-key="adafn">To prevent this, ADK performs an active translation during handoff:</p><ul><li data-block-key="6sqsi"><b>Narrative casting:</b> Prior &quot;Assistant&quot; messages may be re-cast as narrative context (e.g., modifying the role or injecting a tag like <code>[For context]: Agent B said...</code>) rather than appearing as the new agent’s own outputs.</li><li data-block-key="aaeoc"><b>Action attribution:</b> Tool calls from other agents are marked or summarized so the new agent acts on the <i>results</i> without confusing the <i>execution</i> with its own capabilities.</li></ul><p data-block-key="f8k74">Effectively, ADK builds a fresh Working Context from the sub-agent’s point of view, while preserving the factual history in the Session. This ensures correctness, allowing each agent to assume the &quot;Assistant&quot; role without misattributing the broader system&#x27;s history to itself.</p><h3 data-block-key="hl2pu" id="conclusion"><b>Conclusion</b></h3><p data-block-key="79jgi">As we push agents to tackle longer horizons, &quot;context management&quot; can no longer mean &quot;string manipulation.&quot; It must be treated as an architectural concern alongside storage and compute.</p><p data-block-key="c4qf6">ADK’s context architecture—tiered storage, compiled views, pipeline processing, and strict scoping—is our answer to this challenge. It encapsulates the rigorous systems engineering required to move agents from interesting prototypes to scalable, reliable production systems.</p>
+</div> 
+      </div>
+    </section>
+    
+
+    <section class="navigation-container glue-page glue-spacer-6-top">
+      <div class="posted-in-section">
+        <div class="posted-in-section__heading">
+          <span class="glue-caption">
+            posted in:
+          </span>
+        </div>
+        <div class="posted-in-section__tags">
+          <ul>
+              
+                  <li>
+                      <a href="/search/?technology_categories=AI" class="glue-caption">AI</a>
+                  </li>
+              
+                  <li>
+                      <a href="/search/?content_type_categories=Best+Practices" class="glue-caption">Best Practices</a>
+                  </li>
+              
+                  <li>
+                      <a href="/search/?content_type_categories=Industry+Trends" class="glue-caption">Industry Trends</a>
+                  </li>
+              
+                  <li>
+                      <a href="/search/?content_type_categories=Problem-Solving" class="glue-caption">Problem-Solving</a>
+                  </li>
+              
+              
+                  <li>
+                      <a href="/search/?tag=Explore" class="glue-caption">Explore</a>
+                  </li>
+              
+                  <li>
+                      <a href="/search/?tag=Influence" class="glue-caption">Influence</a>
+                  </li>
+              
+                  <li>
+                      <a href="/search/?tag=Learn" class="glue-caption">Learn</a>
+                  </li>
+              
+          </ul>
+      </div>
+      </div>
+      <div class="buttons-section">
+        <div class="buttons-section__left">
+          <a href="/mediatek-npu-and-litert-powering-the-next-generation-of-on-device-ai/" class="glue-button--icon glue-elevation-level-1 " aria-label="Previous">
+            <svg role="presentation" aria-hidden="true" class="glue-icon">
+              <use href="/glue-icon/#chevron-left"></use>
+            </svg>
+          </a>
+          <span class="caption ">Previous</span>
+        </div>
+        <div class="buttons-section__right">
+          <span class="caption ">Next</span>
+          <a href="/new-gemini-api-updates-for-gemini-3/" class="glue-button--icon glue-elevation-level-1 "  aria-label="Next">
+            <svg role="presentation" aria-hidden="true" class="glue-icon">
+              <use href="/glue-icon/#chevron-right"></use>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    
+    <section class="related-posts-container glue-page glue-spacer-6-top glue-spacer-3-bottom">
+      <span class="glue-headline glue-headline--headline-3">Related Posts</span>
+      <div class="related-posts-container__carousel glue-page glue-spacer-5-top">
+        <div class="glue-carousel glue-carousel--cards glue-carousel-related-posts" aria-label="Related Posts">
+          <!-- Previous -->
+          <button class="glue-carousel__button glue-carousel__button--prev"
+              aria-label="Go to the previous slide">
+            <svg role="presentation" aria-hidden="true" class="glue-icon glue-icon--32px">
+              <use href="/glue-icon/#chevron-left"></use>
+            </svg>
+          </button>
+          <!-- Next -->
+          <button class="glue-carousel__button glue-carousel__button--next"
+              aria-label="Go to the next slide">
+            <svg role="presentation" aria-hidden="true" class="glue-icon glue-icon--32px">
+              <use href="/glue-icon/#chevron-right"></use>
+            </svg>
+          </button>
+          <!-- List -->
+          <div class="glue-carousel__viewport">
+            <div class="glue-carousel__list">
+              
+                <a class="glue-card glue-carousel__item" href="/boost-training-goodput-how-continuous-checkpointing-optimizes-reliability-in-orbax-and-maxtext/">
+                  <div aria-label="Boost Training Goodput: How Continuous Checkpointing Optimizes Reliability in Orbax and MaxText" class="glue-card__inner">
+                    <picture class="glue-card__asset">
+                      <img alt="Boost Training Goodput: How Continuous Checkpointing Optimizes Reliability in Orbax and MaxText" src="https://storage.googleapis.com/gweb-developer-goog-blog-assets/images/adk-gemini-cli-agent-building-bann.2e16d0ba.fill-800x400.png">
+                    </picture>
+                    <div class="glue-card__content">
+                      <div class="glue-card__tags glue-spacer-2-top">
+                        
+                            
+                            
+                            <span class="glue-label">AI</span>
+                            
+                            <span class="glue-label">Cloud</span>
+                            
+                            
+                            <span class="glue-label">Tutorials</span>
+                            
+                            <span class="glue-label">Case Studies</span>
+                            
+                        
+                      </div>
+                      <p class="glue-headline glue-headline--headline-5">Boost Training Goodput: How Continuous Checkpointing Optimizes Reliability in Orbax and MaxText</p>
+                      <div class="glue-card__cta-custom glue-spacer-3-top">
+                        <span class="glue-cta">MARCH 31, 2026</span>
+                        <svg aria-hidden="true" class="glue-icon glue-icon--24px" role="presentation">
+                          <use href="/glue-icon/#arrow-forward"></use>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              
+                <a class="glue-card glue-carousel__item" href="/closing-the-knowledge-gap-with-agent-skills/">
+                  <div aria-label="Closing the knowledge gap with agent skills" class="glue-card__inner">
+                    <picture class="glue-card__asset">
+                      <img alt="Closing the knowledge gap with agent skills" src="https://storage.googleapis.com/gweb-developer-goog-blog-assets/images/Gemini_API_Skills_Banner_v2.2e16d0ba.fill-800x400.png">
+                    </picture>
+                    <div class="glue-card__content">
+                      <div class="glue-card__tags glue-spacer-2-top">
+                        
+                            
+                            
+                            <span class="glue-label">AI</span>
+                            
+                            
+                            <span class="glue-label">Best Practices</span>
+                            
+                        
+                      </div>
+                      <p class="glue-headline glue-headline--headline-5">Closing the knowledge gap with agent skills</p>
+                      <div class="glue-card__cta-custom glue-spacer-3-top">
+                        <span class="glue-cta">MARCH 25, 2026</span>
+                        <svg aria-hidden="true" class="glue-icon glue-icon--24px" role="presentation">
+                          <use href="/glue-icon/#arrow-forward"></use>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              
+                <a class="glue-card glue-carousel__item" href="/adk-go-10-arrives/">
+                  <div aria-label="ADK Go 1.0 Arrives!" class="glue-card__inner">
+                    <picture class="glue-card__asset">
+                      <img alt="ADK Go 1.0 Arrives!" src="https://storage.googleapis.com/gweb-developer-goog-blog-assets/images/ADK_Go_Blog_Banner-Gemini_Generate.2e16d0ba.fill-800x400.png">
+                    </picture>
+                    <div class="glue-card__content">
+                      <div class="glue-card__tags glue-spacer-2-top">
+                        
+                            
+                            
+                            <span class="glue-label">AI</span>
+                            
+                            <span class="glue-label">Cloud</span>
+                            
+                            
+                            <span class="glue-label">Announcements</span>
+                            
+                            <span class="glue-label">Problem-Solving</span>
+                            
+                        
+                      </div>
+                      <p class="glue-headline glue-headline--headline-5">ADK Go 1.0 Arrives!</p>
+                      <div class="glue-card__cta-custom glue-spacer-3-top">
+                        <span class="glue-cta">MARCH 31, 2026</span>
+                        <svg aria-hidden="true" class="glue-icon glue-icon--24px" role="presentation">
+                          <use href="/glue-icon/#arrow-forward"></use>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              
+            </div>
+          </div>
+          <!-- Navigation dots -->
+          <div class="glue-carousel__navigation" aria-label="Choose a page"
+               data-glue-carousel-navigation-label="Selected tab $glue_carousel_page_number$ of $glue_carousel_page_total$">
+          </div>
+        </div>
+      </div>
+    </section>
+    
+  </div>
+
+
+				
+				
+
+<div class="footer-linkboxes__wrapper">
+  <nav class="footer-linkboxes" aria-label="Footer links">
+    <ul class="footer-linkboxes__list">
+      <li class="footer-linkbox">
+        <span class="footer-linkbox-heading">
+          Connect
+        </span>
+        <ul class="footer-linkbox-list">
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//googledevelopers.blogspot.com" class="footer-linkbox-list__link">
+                Blog
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="https://goo.gle/3FReQXN" class="footer-linkbox-list__link">
+                Bluesky
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="https://goo.gle/googlefordevs" class="footer-linkbox-list__link">
+                Instagram
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="https://goo.gle/gdevs-li" class="footer-linkbox-list__link">
+                LinkedIn
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="https://goo.gle/gdevs-tw" class="footer-linkbox-list__link">
+                X (Twitter)
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="https://goo.gle/developers" class="footer-linkbox-list__link">
+                YouTube
+              </a>
+            </li>
+          
+        </ul>
+      </li>
+      <li class="footer-linkbox">
+        <span class="footer-linkbox-heading">
+          Programs
+        </span>
+        <ul class="footer-linkbox-list">
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//developers.google.com/program" class="footer-linkbox-list__link">
+                Google Developer Program
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//developers.google.com/community/gdg" class="footer-linkbox-list__link">
+                Google Developer Groups
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//developers.google.com/community/experts" class="footer-linkbox-list__link">
+                Google Developer Experts
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//developers.google.com/community/accelerators" class="footer-linkbox-list__link">
+                Accelerators
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//www.womentechmakers.com" class="footer-linkbox-list__link">
+                Women Techmakers
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//developers.google.com/community/nvidia" class="footer-linkbox-list__link">
+                Google Cloud &amp; NVIDIA
+              </a>
+            </li>
+          
+        </ul>
+      </li>
+      <li class="footer-linkbox">
+        <span class="footer-linkbox-heading">
+          Developer consoles
+        </span>
+        <ul class="footer-linkbox-list">
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//console.developers.google.com" class="footer-linkbox-list__link">
+                Google API Console
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//console.cloud.google.com" class="footer-linkbox-list__link">
+                Google Cloud Platform Console
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//play.google.com/apps/publish" class="footer-linkbox-list__link">
+                Google Play Console
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//console.firebase.google.com" class="footer-linkbox-list__link">
+                Firebase Console
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//console.actions.google.com" class="footer-linkbox-list__link">
+                Actions on Google Console
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//cast.google.com/publish" class="footer-linkbox-list__link">
+                Cast SDK Developer Console
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//chrome.google.com/webstore/developer/dashboard" class="footer-linkbox-list__link">
+                Chrome Web Store Dashboard
+              </a>
+            </li>
+          
+            <li class="footer-linkbox-list__item">
+              <a href="//console.home.google.com/" class="footer-linkbox-list__link">
+                Google Home Developer Console
+              </a>
+            </li>
+          
+        </ul>
+      </li>
+    </ul>
+  </nav>
+</div>
+<div class="footer-utility__wrapper">
+  <div>
+    <nav class="footer-sites" aria-label="Other Google Developers websites">
+      <a href="https://developers.google.com/" class="site-logo-link" data-label="Site logo">
+        <img src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/images/g-dev.svg" class="site-logo" alt="Google for Developers">
+      </a>
+      <ul class="footer-sites-list">
+        <li class="footer-sites-item">
+          <a href="//developer.android.com" class="footer-sites-link">
+            Android
+          </a>
+        </li>
+        <li class="footer-sites-item">
+          <a href="//developer.chrome.com/home" class="footer-sites-link">
+            Chrome
+          </a>
+        </li>
+        <li class="footer-sites-item">
+          <a href="//firebase.google.com" class="footer-sites-link">
+            Firebase
+          </a>
+        </li>
+        <li class="footer-sites-item">
+          <a href="//cloud.google.com" class="footer-sites-link">
+            Google Cloud Platform
+          </a>
+        </li>
+        <li class="footer-sites-item">
+          <a href="//developers.google.com/products" class="footer-sites-link">
+            All products
+          </a>
+        </li>
+        <li class="footer-sites-item">
+          <button aria-hidden="true" class="glue-cookie-notification-bar-control footer-sites-link">
+            Manage cookies
+          </button>
+        </li>
+      </ul>
+    </nav>
+    <nav class="footer-utility-links">
+      <ul class="footer-utility-list">
+        <li class="footer-utility-item">
+          <a href="//developers.google.com/terms/site-terms" class="footer-utility-link">
+            Terms
+          </a>
+        </li>
+        <li class="footer-utility-item">
+          <a href="//policies.google.com/privacy" class="footer-utility-link">
+            Privacy
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>
+
+
+        
+				
+
+        
+        <script nonce="+HOrx3oJZCDhgOEqQ6Km6g==" src="https://www.youtube.com/player_api"></script>
+        <script nonce="+HOrx3oJZCDhgOEqQ6Km6g==" src="//www.gstatic.com/glue/v27_1/glue.min.js"></script>
+        <script nonce="+HOrx3oJZCDhgOEqQ6Km6g==" type="text/javascript" src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/js/dgc_blog.js"></script>
+
+        <script nonce="+HOrx3oJZCDhgOEqQ6Km6g==" src="https://www.gstatic.com/glue/cookienotificationbar/cookienotificationbar.min.js"
+            data-glue-cookie-notification-bar-category="2A"
+            data-glue-cookie-notification-bar-site-id="developers.googleblog.com"></script>
+
+        
+  <script src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/js/blog_detail.js" nonce="+HOrx3oJZCDhgOEqQ6Km6g=="></script>
+  <script src="https://storage.googleapis.com/gweb-developer-goog-blog-cms-assets/site/20251118-195321/js/prism.js" nonce="+HOrx3oJZCDhgOEqQ6Km6g=="></script>
+
+    </body>
+</html>

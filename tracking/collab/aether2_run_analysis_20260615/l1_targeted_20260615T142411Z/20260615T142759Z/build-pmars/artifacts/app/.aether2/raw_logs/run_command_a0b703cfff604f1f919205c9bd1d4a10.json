@@ -1,0 +1,105 @@
+{
+  "tool": "run_command",
+  "exit_code": 0,
+  "duration_sec": 1.2828769180050585,
+  "cwd": "/home/azureuser/aether2_full_tournament/l1_targeted_20260615T142411Z/20260615T142759Z/build-pmars/workspace",
+  "stdout": "# generic UNIX makefile\nCC = gcc\t\t\t# req. for linux\n#CC = cc\t\t\t\t# if you don't have gcc\n# Configuration options:\n#\n# No.   Name            Incompatible with   Description\n# (1)   -DSERVER        2                   disables cdb debugger (koth server \n#                                           version)\n# (2)   -DGRAPHX        1                   enables platform specific core \n#                                           graphics\n# (3)   -DKEYPRESS                          only for curses display on SysV:\n#                                           enter cdb upon keypress (use if\n#                                           Ctrl-C doesn't work)\n# (4)   -DEXT94                             ICWS'94 + SEQ,SNE,NOP,*,{,}\n# (5)   -DSMALLMEM                          16-bit addresses, less memory\n# (6)   -DXWINGRAPHX    1                   X-Windows graphics (UNIX)\n# (7)   -DPERMUTATE                         enables -P switch\n# (9)   -DRWLIMIT                           enables read/write limits\n\nCFLAGS += -O -DEXT94 -DPERMUTATE -DRWLIMIT \nLFLAGS += -x\n# LIB = -lcurses -ltermlib\t\t# enable this one for curses display\n# LIB = -lvgagl -lvga\t\t\t# enable this one for Linux/SVGA\nLIB =\n\n.SUFFIXES: .o .c .c~ .man .doc .6\nMAINFILE = pmars\n\nHEADER = global.h config.h asm.h sim.h \nOBJ1 = pmars.o asm.o eval.o disasm.o cdb.o sim.o pos.o\nOBJ2 = clparse.o global.o token.o \nOBJ3 = str_eng.o\n\nall: flags $(MAINFILE)\n\nflags:\n\t@echo Making $(MAINFILE) with compiler flags $(CFLAGS)\n\n$(MAINFILE): $(OBJ1) $(OBJ2) $(OBJ3)\n\t@echo Linking $(MAINFILE)\n\t@$(CC) $(LDFLAGS) -o $(MAINFILE) $(OBJ1) $(OBJ2) $(OBJ3) $(LIB)\n\t# @strip $(MAINFILE)\n\t@echo done\n\ntoken.o asm.o disasm.o: asm.h\n\nsim.o cdb.o pos.o disasm.o: sim.h\n\nsim.o: curdisp.c uidisp.c lnxdisp.c\n\nlnxdisp.c: lnxdisp.h\n\n$(OBJ1) $(OBJ2) $(OBJ3): Makefile config.h global.h\n\n.c.o:\n\t@echo Compiling $*.o \n\t$(CC) $(CPPFLAGS) $(CFLAGS) -c $*.c\n\n\nclean:\n\trm -f $(OBJ1) $(OBJ2) $(OBJ3) core\n\n\nmake: Entering directory '/app/pmars-0.9.4/src'\nrm -f pmars.o asm.o eval.o disasm.o cdb.o sim.o pos.o clparse.o global.o token.o  str_eng.o core\nmake: Leaving directory '/app/pmars-0.9.4/src'\nmake: Entering directory '/app/pmars-0.9.4/src'\nMaking pmars with compiler flags -O -DEXT94 -DPERMUTATE -DRWLIMIT\nCompiling pmars.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c pmars.c\nCompiling asm.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c asm.c\nCompiling eval.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c eval.c\nCompiling disasm.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c disasm.c\nCompiling cdb.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c cdb.c\nCompiling sim.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c sim.c\nCompiling pos.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c pos.c\nCompiling clparse.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c clparse.c\nCompiling global.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c global.c\nCompiling token.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c token.c\nCompiling str_eng.o\ngcc\t\t\t  -O -DEXT94 -DPERMUTATE -DRWLIMIT  -c str_eng.c\nLinking pmars\n# @strip pmars\ndone\nmake: Leaving directory '/app/pmars-0.9.4/src'\nINSTALLED\n",
+  "stderr": "In file included from disasm.c:26:\nsim.h:92:12: warning: built-in function 'round' declared as non-function [-Wbuiltin-declaration-mismatch]\n   92 | extern int round;\n      |            ^~~~~\nIn file included from cdb.c:30:\nsim.h:92:12: warning: built-in function 'round' declared as non-function [-Wbuiltin-declaration-mismatch]\n   92 | extern int round;\n      |            ^~~~~\nIn file included from sim.c:29:\nsim.h:92:12: warning: built-in function 'round' declared as non-function [-Wbuiltin-declaration-mismatch]\n   92 | extern int round;\n      |            ^~~~~\nIn file included from pos.c:24:\nsim.h:92:12: warning: built-in function 'round' declared as non-function [-Wbuiltin-declaration-mismatch]\n   92 | extern int round;\n      |            ^~~~~\npos.c: In function 'rc5_schedule':\npos.c:154:12: warning: conversion from 'long unsigned int' to 'U32_T' {aka 'unsigned int'} changes value from '8393868501' to '4098901205' [-Woverflow]\n  154 | #define _P 0xb7e15163UL\n      |            ^~~~~~~~~~~~\npos.c:219:14: note: in expansion of macro '_P'\n  219 |   for ( S[2]=_P+2*_Q, i=3; i<NKEYS; i++) S[i] = S[i-1]+_Q;\n      |              ^~\nError:\n        Unable to open file 'flashpaper.red'\n",
+  "files_changed": [
+    {
+      "path": "pmars-0.9.4/src/Makefile",
+      "hash_before": "d0bd411f15dab9292ae0b6d284c3e23f20f5e465af040337897a6e40d9608e08",
+      "hash_after": "377c0c2f3f70da3b14b5cc9c07061eca9993f378092dde3078b7f991630de335",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/asm.o",
+      "hash_before": "51f63453a4ef785792466fe7fa760ed6258cc60a010a283767c25c76a37b7932",
+      "hash_after": "e59997f127bd21202a21cedd992ce819f1f0f42627b05f54e5c83a59a10955dc",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/cdb.o",
+      "hash_before": "e92a8f76902b0b1a55df69ac4a2e31db5b3539b9a0049fac7d91bfb670fe817e",
+      "hash_after": "7e22d42d76995365aed863d5809e94aa9bae9dc1fadfd1963d21aec6288f12f9",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/clparse.o",
+      "hash_before": "ed0aa42477b755e1329438e7183a1295e9894754674a3b8ca928014cb56a6324",
+      "hash_after": "e0af386405866e6226dea7bc63fe5076b2691b1fb60a0311f3df9bb0eb917018",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/disasm.o",
+      "hash_before": "facde65143d077708bc5a8060ebb34a6b5d84a68d7af4880f23dab60a98aaea9",
+      "hash_after": "b94d1847c3fdbaf03fbc48aa1dded01281d4c58a8feac1beec2b54827664111d",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/eval.o",
+      "hash_before": "73dad5e2bf6914c221cc6e5dc6bb3a16c1d2076d715fe154c95243b0872a7d65",
+      "hash_after": "613555897684bc189d8018fa9ddbae3f3e8cec8f8240849dd075844e53a76013",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/global.o",
+      "hash_before": "33957ab40c654b71ce62c3181eea5fb7b0d259cc68fec6227d7c59626c8c5e4f",
+      "hash_after": "a461261a7e8b7feae1106a19bfaec108b15ce4b3c6f00a212fd5ae8d5ea6c42c",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/pmars",
+      "hash_before": "ab6f5a339d75e12a5197c81607a0ee3953bc752afaceaa0e3aa177fbcf6c507b",
+      "hash_after": "dd1db782eecc7c3b6f000df2bc833ae6439d2dd0867e0b812c57630f12cfa8d4",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/pmars.o",
+      "hash_before": "bb0758af482e9884ad37b3c00d551ad5fea1ffefdaeeb067e5ce53dcd6b637d0",
+      "hash_after": "653c417bc98769a3594c6dbbad05b3b33dc6d7a8bca21728b8f721271663365c",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/pos.o",
+      "hash_before": "8dd6a1728918c483a383c3764e80f9a30dd0493edcbb13b3b9e6f3ad28212087",
+      "hash_after": "652aa5a91fff9f7f76243169f945fb5bfb3227b845f17de782b740a8a5940b02",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/sim.o",
+      "hash_before": "836ec5494e4b33ca0716ab144bcf4e9cadf9941c454dd6e4b82211b0f51e2a6d",
+      "hash_after": "cf273a6dba991122d421699cf76855bc281688ea3cecc4c863c540b073b0d279",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/str_eng.o",
+      "hash_before": "44f40aed31881fb50e150cff7ea9c548ecb1ff308dd687b30590d180f32d9d90",
+      "hash_after": "315758ae2511543a6b2ff1497577e68726bffc669424541ba44b539343a2a78b",
+      "change_type": "modified"
+    },
+    {
+      "path": "pmars-0.9.4/src/token.o",
+      "hash_before": "b22429ea91de58e11d71f41d665de6e484d1b446e68d79d55ced5b42928cc2d8",
+      "hash_after": "aa40a20a3bf1a349e19621e2effd3014ea6ee7e0bba8699871ea2afc3af047a8",
+      "change_type": "modified"
+    }
+  ],
+  "process_delta": {
+    "started": [],
+    "exited": [],
+    "log_growth": {},
+    "jobs_started": [],
+    "jobs_exited": [],
+    "sessions_started": [],
+    "sessions_exited": [],
+    "services_started": [],
+    "services_exited": [],
+    "job_log_growth": {},
+    "session_log_growth": {},
+    "service_log_growth": {}
+  },
+  "blind_retry_blocked": false,
+  "error": null,
+  "truncation_digest": null
+}

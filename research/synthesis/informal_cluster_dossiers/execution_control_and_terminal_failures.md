@@ -1,0 +1,76 @@
+INFORMAL_CLUSTER_DOSSIER
+- cluster: `execution_control_and_terminal_failures`
+- source_families:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - trajectory reconciliation anchors from `[private-source: trajectory]/`
+- primary_items:
+  - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `[private-source: trajectory]/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `[private-source: trajectory]/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `[private-source: trajectory]/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+- coverage_used:
+  - all `primary_items` listed above
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/codebase_source_reconstruction_analyst.md`
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+- operator_claims:
+  - claim: `Execution-control reliability requires explicit crash finalization and resume-state repair paths, not only stronger model prompting.`
+    - evidence: `research/sources/informal/langchain_anatomy_of_harness.md`, `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`, `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+    - confidence: `high`
+  - claim: `Long-running autonomy depends on watchdog and recovery loops for browser/process/tool substrates.`
+    - evidence: `research/sources/informal/cursor_long_running_agents.md`, `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `[private-source: trajectory]/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - confidence: `medium`
+  - claim: `Permission governance can silently drift when hook routes are bypassed at runtime.`
+    - evidence: `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`, `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+    - confidence: `medium`
+- issue_or_postmortem_evidence:
+  - cluster: `non-terminal crash state and stuck execution loops`
+    - evidence: `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - cluster: `browser/process crash without automatic recovery`
+    - evidence: `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - cluster: `resume index drift causing stale/missing recoverability`
+    - evidence: `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - cluster: `permission hook bypass under agent-mode gating`
+    - evidence: `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - cluster: `high-throughput agent narratives with continuing reliability caveats`
+    - evidence: `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`, `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- contradictions:
+  - `Postmortem/product narratives emphasize long-running, high-throughput agent execution, while issue evidence still shows hard failures in crash-finalization and resume integrity.`
+  - `Autonomy guidance promotes parallel long-running delegation, but issue evidence shows that a single broken control-plane event can stall an entire thread/session.`
+  - `Permission-governance doctrine exists, yet runtime hook bypass reports show policy-to-runtime mismatch under real use.`
+- likely_mechanism_pressure:
+  - `terminal-state reconciler that writes explicit aborted/interrupted end markers after crashes`
+  - `browser/process watchdogs with automatic restart and progress resume hooks`
+  - `resume index repair and freshness checks tied to session persistence`
+  - `permission hook conformance checks between configured policy and effective runtime behavior`
+  - `delivery-directory hygiene and cleanup checks integrated into completion gates`
+- likely_failure_pressure:
+  - `infinite thinking/stuck-running states`
+  - `manual-only crash recovery`
+  - `stale or missing resume sessions`
+  - `permission-dialog fallback bypassing intended gatekeeper hooks`
+  - `false success from partial verification or unclean delivery state`
+- confidence_notes:
+  - `High confidence on the existence of the core failure clusters because issues and trajectories converge on the same failure shapes.`
+  - `Medium confidence on cross-ecosystem prevalence because evidence is concentrated in a small number of active agent stacks.`
+  - `Medium confidence on durability of mitigations because most evidence is bug-report or postmortem snapshots, not longitudinal fix validation.`
+- downstream_relevance:
+  - `failure_taxonomy`: seeds concrete families for crash-finalization failure, resume-index drift, recovery watchdog omission, and permission-routing mismatch.
+  - `mechanism_map`: reinforces separation between execution control, recovery control-plane, and verification/cleanup closure.
+  - `local harness implications`: prioritize explicit terminal-state finalization, resumability checks, and cleanup-gated completion as early implementation targets.

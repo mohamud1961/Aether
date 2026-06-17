@@ -1,0 +1,103 @@
+SUPPORT_ARTIFACT
+- artifact_id: wave_06_trajectory_support_planning_timeline
+- wave: wave_06_planning_orchestration_and_interactions
+- lane_owner: trajectory/failure analyst
+- purpose: Compact timeline of planning, replanning, and verifier gating events across required runs, with optional long-tail pressure.
+- sources:
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/protein-assembly/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/large-scale-text-editing/*.json`
+  - `research/sources/trajectories/BigAI/prove-plus-comm/*.txt`
+  - `research/sources/trajectories/BigAI/cobol-modernization/*.txt`
+  - `research/sources/trajectories/BigAI/openssl-selfsigned-cert/*.txt`
+
+- required_run_timeline:
+  - run: `9d65fa58-b782-4b19-8cd2-f68bbc5e4604` (`prove-plus-comm`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `17`
+    - task_finished_plan_step: `15` (before verifier)
+    - verification_sequence: `PASSED`
+  - run: `a3dd0499-b4fd-47bc-8fde-189e4d7093a9` (`prove-plus-comm`)
+    - first_plan_step: `3`
+    - plan_updates: `34`
+    - first_executor_step: `4`
+    - first_verifier_step: `15`
+    - task_finished_plan_steps: `13`, `42`
+    - verification_sequence: `FAILED -> PASSED`
+    - note: planner re-opened work and delegated to `executor-1` after verifier failure
+  - run: `cd0d69dd-3cac-47e0-9777-51327561ff6d` (`prove-plus-comm`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `21`
+    - task_finished_plan_step: `19` (before verifier)
+    - verification_sequence: `PASSED`
+    - note: only normalized run JSON was readable in this lane (`*-traj.txt` absent)
+  - run: `e2156559-1778-4aeb-93d5-3d627dc5896a` (`prove-plus-comm`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `27`
+    - task_finished_plan_step: `25` (before verifier)
+    - verification_sequence: `PASSED`
+  - run: `1478ab91-572c-445e-ba77-807d2cd03d4c` (`cobol-modernization`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `39`
+    - task_finished_plan_step: `37` (before verifier)
+    - verification_sequence: `PASSED`
+  - run: `23f367d2-84b1-4834-9cb9-43823ca4a2e0` (`cobol-modernization`)
+    - first_plan_step: `3`
+    - plan_updates: `30`
+    - first_executor_step: `4`
+    - verifier_step: `none`
+    - task_finished_plan_step: `none`
+    - verification_sequence: `none`
+    - note: run still ended `pass` with two executors and no visible verifier cycle
+  - run: `5bcfcd9d-0551-4227-9e9a-26d104728d76` (`cobol-modernization`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `43`
+    - task_finished_plan_step: `41` (before verifier)
+    - verification_sequence: `PASSED`
+  - run: `b131ce4a-2242-4467-ad17-acbcd3b2abd6` (`cobol-modernization`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `47`
+    - task_finished_plan_step: `45` (before verifier)
+    - verification_sequence: `PASSED`
+  - run: `d7f5f2b6-aede-4480-9cbe-ce5a89ab0342` (`cobol-modernization`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `44`
+    - task_finished_plan_step: `42` (before verifier)
+    - verification_sequence: `PASSED`
+  - run: `ede4695e-37a5-4e1b-b1ac-187903ef0e29` (`openssl-selfsigned-cert`)
+    - first_plan_step: `3`
+    - plan_updates: `none`
+    - first_executor_step: `4`
+    - first_verifier_step: `30`
+    - task_finished_plan_step: `28` (before verifier)
+    - verification_sequence: `PASSED`
+
+- optional_long_tail_pressure:
+  - `protein-assembly` (4 runs): all runs were multi-executor (`2-4`), all had verifier cycles, max observed replans `4`, and two runs showed `FAILED -> PASSED` verifier recovery.
+  - `large-scale-text-editing` (3 runs): one verifier-heavy pass (`1b3d...`), one no-verifier pass (`c4ea...`), and one no-verifier fail (`9d27...`) with two late plan updates.
+
+- cross_run_observations:
+  - Planner-first ordering is stable in all required runs (`save_plan` at step `3`, executor handoff at step `4`).
+  - Task-finished signaling often occurs before verifier closure; this appears to be a standard orchestration contract rather than a one-off anomaly.
+  - Replanning is usually sparse in required runs except in explicit verifier-recovery cases (`a3dd...`) and no-verifier branch-heavy cases (`23f3...`).
+  - Verifier absence is possible (`23f3...`) and should be treated as a real interaction-contract variant.
+
+- limitations:
+  - This artifact compresses event timing; it does not expose hidden scheduler internals or true parallel branch execution.
+  - `cd0d...` required reliance on normalized run JSON because a normalized `*-traj.txt` was not present in the path slice.

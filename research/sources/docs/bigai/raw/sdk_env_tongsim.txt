@@ -1,0 +1,49 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/env/tongsim/?q=
+================================================================================
+
+TongSim Env
+
+TongSim 是一个基于虚幻引擎构建的通用智能体仿真与训练平台。它为通用人工智能（AGI）智能体提供多样化的任务场景，并赋予智能体感知环境的能力，如视觉、听觉和触觉。
+
+仿真平台还提供了智能体执行动作的能力，使其能够与环境进行交互。每当智能体对环境进行操作后，平台会在因果关系和物理法则的基础上，模拟环境状态的变化。此外，TongSim 还支持 VR 交互，可以将现实世界中的人类动作或其他智能体的行为映射到虚拟环境中，对智能体的环境进行干预。
+
+命令行启动¶
+tongenv run --env tongsim voice_chatbot.py
+
+
+形象和音色详见创建智能体
+
+根据输出提示，打开TongSim的页面，即可看到TongSim的页面。
+
+用户可通过语音与TongSim中的Agent进行交互，比如：让Agent打开冰箱，并拿一瓶可乐。
+
+代码启动¶
+import os
+
+from sdk.extend.tongsim.env import TongSimEnv, AudioAction
+
+from tongagents.agents.voice_chatbot_with_tool import VoiceChatbot
+
+import asyncio
+
+
+
+if __name__ == "__main__":
+
+    agent = VoiceChatbot()
+
+    asyncio.run(
+
+        agent.astream_with_env_sdk(
+
+            TongSimEnv,
+
+            {"connection_info": {"uri": os.getenv("TONGSIM_ENV_URI")}},
+
+            preprocess=lambda x: {"stream": x.audio},
+
+            postprocess=lambda x: AudioAction(audio=x["result"]) if "result" in x else None,
+
+        )
+
+    )

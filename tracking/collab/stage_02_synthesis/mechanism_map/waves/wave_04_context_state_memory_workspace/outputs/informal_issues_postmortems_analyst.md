@@ -1,0 +1,162 @@
+INFORMAL_ISSUES_POSTMORTEMS_OUTPUT
+- artifact: `mechanism_map`
+- role: `informal/issues/postmortems analyst`
+- preflight_scope_confirmed:
+  - `yes - this is a Wave 04 vertical pass on context, state, memory, and workspace discipline; this lane is limited to contradiction pressure from informal/issues/postmortems and does not promote source-backed architecture on its own`
+  - `the optional eval/benchmark fifth lane remains inactive because the current informal slice pressures agent-side context/state/workspace handling rather than grader or replay contract logic`
+- preflight_planned_read_order:
+  - `1) wave/control files and accepted carry-forward surfaces`
+  - `2) direct issue evidence for context flooding and compaction failure`
+  - `3) direct issue evidence for stale resume and state drift`
+  - `4) direct issue evidence for workspace/path/session-state corruption`
+  - `5) informal and postmortem writeups that explain why builders moved toward file-backed retrieval, memory files, worktrees, and dynamic context discovery`
+- preflight_critical_sources_selected:
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- preflight_coverage_risks:
+  - `issue evidence is vendor-skewed toward Claude Code and OpenClaw, so cross-family prevalence claims must stay bounded`
+  - `workspace hygiene pressure is stronger for path/session corruption than for git-branch or repo-cleanliness failures`
+  - `blog and product writeups are useful for mechanism pressure but remain weaker than direct issue failures`
+- preflight_likely_blind_spots:
+  - `thin direct informal coverage for BigAI and for non-public enterprise long-running failures`
+  - `thin postmortem coverage dedicated specifically to branch hygiene or worktree merge contamination`
+  - `little direct informal evidence yet on restart-safe resumability that survives crashes cleanly`
+- preflight_blockers:
+  - `none structural; the issue corpus is sufficient for a contradiction-pressure first pass, but not for broad stability rankings across harness families`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/x_pvncher_2011877317237223766.md`
+  - `research/sources/informal/x_koylanai_2029427980699644360.md`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+- evidence_classes_touched:
+  - `informal sources`
+  - `issues`
+  - `postmortems`
+  - `prior accepted synthesis surfaces for carry-forward constraints`
+- priority_sources_not_yet_read:
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/x_koylanai_2029427980699644360.md`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+- support_artifacts_requested_or_deferred:
+  - `deferred tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_support_context_state_issue_cluster.md because the first-pass clustering was small enough to do directly from primary evidence`
+- coverage_register_updates_needed:
+  - `mark the Wave 04 informal lane as first-pass complete once contradiction review accepts the file`
+  - `carry forward that restart/resumability still remains under-evidenced and should not be upgraded from informal evidence alone`
+  - `carry forward that informal branch/repo-state hygiene remains exploratory relative to stronger path/session corruption evidence`
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+- high_signal_operating_claims:
+  - claim: `Context flooding is a concrete operational failure family, not just a generic “long context is bad” philosophy.`
+    - observation: `Subagent returns, large tool results, and large MCP catalogs are reported as the direct trigger for context saturation, failed compaction, and repeated context-limit failure loops in research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt, research/sources/issues/src_iss_f736e544a5b9/artifact.txt, research/sources/issues/src_iss_e9fe7e122de1/artifact.txt, research/sources/issues/src_iss_809077092a02/artifact.txt, and research/sources/issues/src_iss_b69884cd17d8/artifact.txt.`
+    - inference: `Wave 04 should treat raw tool-output ingestion and compaction headroom as separate mechanism surfaces; file-backed retrieval and output artifactization are being adopted precisely because compaction alone is too brittle at the limit in research/sources/informal/cursor_dynamic_context_discovery.md, research/sources/informal/humanlayer_ace_fca.md, and research/sources/informal/langchain_autonomous_context.md.`
+    - confidence: `high`
+  - claim: `Resume and rewind fragility remains a distinct state-substrate problem rather than a solved consequence of better compaction.`
+    - observation: `The issue corpus shows stale or missing resume indexes, resume loading hours-old state, resume crashing on large transcript lines, silent resume failure after transcript-ending API errors, and rewind nullifying injected initial state in research/sources/issues/src_iss_613424e145e5/artifact.txt, research/sources/issues/src_iss_edac72dd9b31/artifact.txt, research/sources/issues/src_iss_222a58240294/artifact.txt, research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt, and research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt.`
+    - inference: `Wave 03’s caution still holds: restart-safe resumability is not promoted by this informal slice; the evidence instead pressures a dedicated persistence-and-replay family that must preserve indexes, checkpoints, and non-event state explicitly.`
+    - confidence: `high`
+  - claim: `Persistent instruction and memory files are treated as first-class workspace artifacts, but post-compaction rule loss shows that summaries do not reliably preserve them.`
+    - observation: `Project-context loss after compaction and post-compaction memory loss are reported in research/sources/issues/src_iss_d227a621da26/artifact.txt and research/sources/issues/src_iss_b8d7092a954f/artifact.txt, while file-backed memory and AGENTS/skills conventions are explicitly promoted in research/sources/informal/langchain_agent_builders_memory.md, research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt, and research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt.`
+    - inference: `The mechanism picture should separate durable rule artifacts from transient compacted summaries; compaction without rule re-injection or validation looks materially unsafe for long-running harnesses.`
+    - confidence: `medium-high`
+  - claim: `Workspace discipline pressure in this slice is stronger for path/session-state corruption than for git-branch hygiene.`
+    - observation: `Wrong-file edit loops and repeated session-state file corruption appear in research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt and research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt, while worktree/isolation doctrine appears in research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt and research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt.`
+    - inference: `Wave 04 should promote file-target fidelity, atomic session-state updates, and isolated workspaces as stronger informal pressure points than broad repo-cleanliness rhetoric; direct issue support for branch hygiene itself is still thin.`
+    - confidence: `medium`
+- issue_and_postmortem_findings:
+  - cluster: `context flooding and compaction failure`
+    - evidence: `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`, `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`, `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`, `research/sources/issues/src_iss_809077092a02/artifact.txt`, `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+    - finding: `The failure mode is not only “too much context”; it is “compaction and guardrails fail exactly when saturation becomes acute,” which turns raw tool output and subagent return shape into load-bearing workspace-state design questions.`
+  - cluster: `stale resume and state drift`
+    - evidence: `research/sources/issues/src_iss_613424e145e5/artifact.txt`, `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`, `research/sources/issues/src_iss_222a58240294/artifact.txt`, `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`, `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+    - finding: `Resume failures span index freshness, checkpoint recency, transcript integrity, terminal error handling, and rewind-state reconstruction; this is broader than “memory loss” and directly pressures state-accounting mechanisms.`
+  - cluster: `artifact handoff and instruction loss after compaction`
+    - evidence: `research/sources/issues/src_iss_d227a621da26/artifact.txt`, `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`, `research/sources/informal/langchain_agent_builders_memory.md`, `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+    - finding: `The informal lane repeatedly distinguishes durable files from transient summary state; once AGENTS-like guidance is treated as summary residue instead of a re-loadable artifact, behavior regresses.`
+  - cluster: `workspace/path/session corruption`
+    - evidence: `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`, `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+    - finding: `The agent can state the correct intent while the workspace substrate executes against the wrong target or corrupts its own session state, which means workspace discipline cannot be reduced to “the model remembered the plan.”`
+- contradiction_or_support_notes:
+  - `Support: Cursor, LangChain, and HumanLayer all independently move toward file-backed retrieval, dynamic context discovery, memory files, or intentional compaction because they treat raw transcript growth as a real operational constraint in research/sources/informal/cursor_dynamic_context_discovery.md, research/sources/informal/langchain_autonomous_context.md, research/sources/informal/langchain_agent_builders_memory.md, and research/sources/informal/humanlayer_ace_fca.md.`
+  - `Contradiction: promotional long-running-agent claims say users can step away and return to working solutions, but the issue corpus still shows stale resume pickers, silent resume failures, and corrupted state files in research/sources/informal/cursor_long_running_agents.md, research/sources/issues/src_iss_613424e145e5/artifact.txt, research/sources/issues/src_iss_edac72dd9b31/artifact.txt, research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt, and research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt.`
+  - `Contradiction: self-summarization and autonomous compaction are presented as progress, but the direct issue slice shows compaction can hang, fire too early, or strip injected project rules in research/sources/informal/cursor_self_summarization.md, research/sources/issues/src_iss_f736e544a5b9/artifact.txt, research/sources/issues/src_iss_b69884cd17d8/artifact.txt, research/sources/issues/src_iss_d227a621da26/artifact.txt, and research/sources/issues/src_iss_b8d7092a954f/artifact.txt.`
+  - `Carry-forward caution: BigAI remains behavioral reconstruction and is largely absent from the current informal pressure slice; this lane should not fill that gap with analogies.`
+- unvalidated_leads:
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt may reflect model/tool routing contamination more than durable workspace-state corruption; it still pressures file-target validation but not necessarily persistence architecture.`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt supports worktree isolation as doctrine, but not as a demonstrated fix for the specific corruption clusters in this wave.`
+  - `research/sources/informal/cursor_self_summarization.md gives a strong optimistic compaction result, but it is still a single-system trained-harness claim rather than broad field evidence.`
+- confidence_notes:
+  - `High confidence on the existence of the main contradiction-pressure clusters because multiple direct issue reports converge on compaction failure, stale resume, and state corruption.`
+  - `Medium confidence on cross-family generality because the issue set is concentrated in a few public agent products and many supporting informal sources are promotional or doctrinal.`
+  - `Low-to-medium confidence on repo-branch hygiene as a promoted informal family in this wave because the direct complaint set is much stronger for session/path corruption than for git-state cleanup.`
+- open_questions:
+  - `Do the Wave 04 trajectory anchors in git_multibranch and custom_memory_heap_crash show the same distinction between durable artifacts and transient summaries that the issue corpus is surfacing here?`
+  - `Which first-class source families explicitly re-inject AGENTS/skills/rule files after compaction or resume, rather than trusting the compacted summary?`
+  - `What minimum artifact set must survive rewind, resume, and compaction for workspace discipline to remain stable: plan, rule files, checkpoints, tool-output files, or all of them?`
+  - `Is there any source-backed family in scope that already treats path-target validation and session-state atomicity as first-class mechanisms rather than generic robustness details?`
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`

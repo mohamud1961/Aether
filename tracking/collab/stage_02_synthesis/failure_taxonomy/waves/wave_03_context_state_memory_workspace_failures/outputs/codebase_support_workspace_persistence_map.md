@@ -1,0 +1,20 @@
+# Codebase Support Workspace Persistence Map
+
+## Scope
+- Wave: `failure_taxonomy/wave_03_context_state_memory_workspace_failures`
+- Lane: `codebase/source-reconstruction`
+- Purpose: map workspace and persistence designs to failure-attribution boundaries.
+
+## Workspace/Persistence Map
+| System | Workspace Contract | Persistence Contract | Failure Boundary Notes | Evidence Paths |
+|---|---|---|---|---|
+| `deepagents` | File operations mediated by backend; workflow often artifact-first (`write_todos`, scripts, explicit verifier replay in trajectories). | Thread-local state via `StateBackend`; cross-thread persistence via `StoreBackend` namespace and session DB metadata. | Losing thread identity or offload path can produce stale/partial context even when files exist. | `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`, `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt` |
+| `KIRA` | Terminal-first execution with checklist discipline; repository deployment and test scripts are explicit workspace artifacts in trajectories. | Session lanes + run logs + local memory files/index; memory queue can fail without hard-stop. | Session/memory persistence exists, but failure runs show drift into environment archaeology when workspace anchor is lost (e.g., db-wal path/cwd pressure). | `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/{session_manager.py,run_log_store.py,memory_store.py,memory_runtime.py}`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt` |
+| `a-evolve` | Workspace is explicit filesystem contract (`prompts`, `skills`, `tools`, `memory`, `evolution`). | Git history/tags/rollback preserve state transitions; evolution history/metrics are durable files. | Strongest source-backed split between workspace discipline and durable persistence; behavioral prevalence in required Wave 03 slices remains thin. | `research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/history.py` |
+| `claw-code` (quarantine) | Porting workspace metadata (`source/tests/assets/archive`) and simulated session handling. | JSON session snapshots only; archived `state` subsystem references, not full active runtime. | Keep as archive-pressure only; do not promote as cross-family persistence baseline. | `research/sources/codebases/quarantine/claw-code/src/context.py`, `research/sources/codebases/quarantine/claw-code/src/session_store.py`, `research/sources/codebases/quarantine/claw-code/src/state/__init__.py` |
+| `BigAI` (behavioral reconstruction) | `.work/space` shared/team directories and delivery-dir cleanliness rules are explicit in trajectory prompts/flows. | Backup/restore and verifier cleanup are behavior-visible; internal persistence substrate is unknown. | High confidence in behavioral workspace hygiene pressure; low confidence in hidden persistence implementation. | `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`, `research/sources/trajectories/BigAI/break-filter-js-from-html/4389d2e9-7d17-4dc1-b0bd-5d1bde2716b6-traj.txt`, `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md` |
+
+## Attribution Implications
+- Keep `workspace cleanliness/branch hygiene` separate from `context compaction` and `durable memory` families.
+- Keep `session persistence substrate exists` separate from `session recovery succeeded` in failure attribution.
+- Keep quarantine archive captures and behavioral-only families from outranking source-backed primary systems.

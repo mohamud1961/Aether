@@ -1,0 +1,1289 @@
+--- PAGE 1 ---
+Beyond the Context Window: A Cost-Performance Analysis of Fact-Based
+Memory vs. Long-Context LLMs for Persistent Agents
+Natchanon Pollertlam1 Witchayut Kornsuwannawit1
+1 Bricks Technology
+1 {natchanon.p,witchayut.k}@brickstech.co
+Abstract
+Persistent conversational AI systems face a
+choice between passing full conversation his-
+tories to a long-context large language model
+(LLM) and maintaining a dedicated mem-
+ory system that extracts and retrieves struc-
+tured facts. We compare a fact-based mem-
+ory system built on the Mem0 framework
+against long-context LLM inference on three
+memory-centric benchmarks—LongMemEval,
+LoCoMo, and PersonaMem v2—and evaluate
+both architectures on accuracy and cumulative
+API cost. Long-context GPT-5-mini achieves
+higher factual recall on LongMemEval and
+LoCoMo, while the memory system is compet-
+itive on PersonaMem v2, where persona con-
+sistency depends on stable, factual attributes
+suited to flat-typed extraction. We construct a
+cost model that incorporates prompt caching
+and show that the two architectures have
+structurally different cost profiles: long-context
+inference incurs a per-turn charge that grows
+with context length even under caching, while
+the memory system’s per-turn read cost remains
+roughly fixed after a one-time write phase. At
+a context length of 100k tokens, the memory
+system becomes cheaper after approximately
+ten interaction turns, with the break-even point
+decreasing as context length grows. These
+results characterize the accuracy–cost trade-
+off between the two approaches and provide
+a concrete criterion for selecting between them
+in production deployments.
+Executive Summary
+When people use an AI assistant over many days
+or months — for customer support, personal help,
+or learning — the AI needs to remember what was
+said in earlier conversations. There are two main
+ways to do this. The first approach keeps a full
+record of every past conversation and sends the
+whole record to the AI every time a new question
+is asked. The second approach saves only the key
+facts from past conversations into a small memory
+store, and pulls out only what is needed when a
+question comes in. Both approaches work, but
+they have different strengths and costs. This paper
+compares the two to help organizations decide
+which one is right for their situation.
+We tested both approaches using three separate
+tests that measure how well an AI assistant
+remembers things about a user over time — such
+as facts, dates, and personal details. We also
+tracked how much each approach costs as users
+ask more and more questions, taking into account
+price discounts that AI service providers offer when
+the same conversation is sent repeatedly, which is
+called aprompt caching discount.
+On accuracy, the full-history approach was more
+correct on two of the three tests, by a margin of
+about 33 to 35 percentage points. On the third test
+— which checks whether the AI stays consistent
+about a user’s personal details, such as their habits
+and preferences — the memory-based approach
+performed just as well and was even slightly better
+in one comparison. This means that the full-history
+approach is not always the winner; it depends on
+what kind of questions are being asked.
+On cost, the picture changes as users interact
+more. In the first few interactions, the full-history
+approach costs less. However, because it sends
+the entire conversation history every time, its cost
+keeps growing with each new question. The
+memory-based approach pays a small one-time
+cost upfront to build the memory store, and then
+charges only a small, steady fee for each new
+question. When a conversation history reaches
+about 100,000 words, the memory-based approach
+becomes cheaper after around 10 questions, and
+saves about 26% of the total cost by the time
+20 questions have been asked. The longer the
+conversation history grows, the sooner this saving
+comes into effect.
+In short, there is no single best approach for
+every situation. For services where users come
+arXiv:2603.04814v1  [cs.CL]  5 Mar 2026
+
+--- PAGE 2 ---
+back many times — such as ongoing customer
+support, personal assistants, or tutoring tools —
+the memory-based approach saves a meaningful
+amount of money while still giving good answers.
+For one-time or short interactions where accuracy
+is the top priority, the full-history approach is the
+better choice. This paper gives organizations a
+simple way to calculate which approach will cost
+less, based on how many times their users are likely
+to interact with the AI.
+1 Introduction
+As conversational AI assistants are deployed in
+settings that span multiple sessions—personal
+assistants, customer-support agents, educational
+tutors—they must maintain coherent access to
+information from past interactions. Two strategies
+address this requirement. The first passes the
+raw conversation history directly into the context
+window of a long-context large language model
+(LLM), relying on the model to process all prior
+turns on every query. The second builds a
+dedicated memory system that distills interactions
+into compact, structured records and retrieves only
+the relevant facts at query time (Chhikara et al.,
+2025; Maharana et al., 2024). As context windows
+have expanded to millions of tokens (Google
+DeepMind, 2025; Singh et al., 2025), some have
+questioned whether retrieval-based approaches
+remain necessary (Khalusova, 2024; Rengifo and
+Martin, 2025). However, the practical case for
+memory systems rests not only on accuracy but on
+the economics of long-running deployments.
+API pricing for long-context LLMs scales with
+input length, and re-submitting a 100k-token
+history on every user turn accumulates cost rapidly.
+Prompt caching partially alleviates this by dis-
+counting tokens that share a common prefix with
+a recently processed prompt (Gim et al., 2024)—
+OpenAI charges cached input tokens at 10% of
+the standard rate for GPT-5-series models, and
+Anthropic applies the same 90% discount across its
+Claude models (OpenAI, 2024, 2025a; Anthropic,
+2024)—but each turn still incurs an incremental
+charge proportional to context length. Memory
+systems have a structurally different cost profile:
+a one-time write phase covers fact extraction
+and embedding, while each subsequent query
+consumes only the retrieved facts, which are far
+smaller than the full history. Whether the memory
+approach is economically preferable depends on
+how frequently a user re-engages with the same
+context—a quantity we refer to as thebreak-even
+point.
+In this paper, we compare a fact-based memory
+system built on the Mem0 framework (Chhikara
+et al., 2025) against long-context LLM inference on
+three memory-centric benchmarks: LongMemEval,
+LoCoMo (Maharana et al., 2024), and Person-
+aMem v2. In addition to measuring factual
+recall accuracy, we construct a cost model that
+incorporates prompt caching and tracks cumulative
+API expenditure as a function of the number of
+interaction turns. Our main contributions are:
+• An accuracy comparison across three bench-
+marks of varying context length and question
+type, showing that long-context LLMs achieve
+higher factual recall on most datasets, while
+the memory system remains competitive on
+persona-consistency tasks.
+• A cost model incorporating prompt caching
+that demonstrates the memory system’s fixed
+per-turn read cost is structurally different from
+the cached but still growing per-turn cost of
+long-context inference.
+• A break-even analysis showing that at a
+context length of 100k tokens the memory
+system becomes cheaper after approximately
+ten interaction turns, and that this threshold
+decreases as context length grows.
+2 Related Work
+Long-context LLMs.Extending the effective con-
+text window of transformer-based models has been
+studied through architectural changes (Guo et al.,
+2022; Beltagy et al., 2020) and positional encoding
+techniques (Chen et al., 2023b). Recent models
+such as Gemini 2.5 Pro (Google DeepMind, 2025),
+Claude Opus 4.5 (Anthropic, 2025), and GPT-
+5 (Singh et al., 2025) support context windows
+of one million tokens or more, making it possible
+in principle to load full conversation histories into
+a single prompt. In practice, however, performance
+often degrades when relevant information appears
+in the middle of a long context (Liu et al., 2024),
+and effective context utilization has been shown to
+be substantially shorter than the nominal window
+size (Hsieh et al., 2024). Additional input length
+can also impair reasoning in some settings (Levy
+et al., 2024). To reduce the computational cost of
+long-context inference, prior work has proposed
+
+--- PAGE 3 ---
+prompt compression (Jiang et al., 2023) and
+model cascading (Chen et al., 2023a). In this
+work, we treat a long-context LLM with prompt
+caching as one of two candidate architectures for
+persistent conversational memory, and we evaluate
+its accuracy and cost against a fact-based memory
+system.
+Memory systems for conversational agents.Sev-
+eral types of memory have been identified for LLM
+agents: working memory covers the active context
+window; factual (long-term) memory persists
+user-specific information such as preferences and
+past events; and episodic memory records event-
+ordered sequences of interactions (Packer et al.,
+2024; Su et al., 2026). Retrieval-augmented
+generation (Lewis et al., 2020) is an early form of
+memory augmentation, prepending retrieved doc-
+ument chunks to the prompt to ground generation
+in external knowledge. MemGPT (Packer et al.,
+2024) draws an analogy between LLM context
+management and OS virtual memory, introducing
+a tiered storage hierarchy that pages facts between
+in-context working memory and external long-
+term storage. More recently, Mem0 (Chhikara
+et al., 2025) introduces a pipeline that extracts
+atomic, flat-typed facts from conversation history
+and stores them in a vector database; at query
+time, the top- k facts are retrieved as context for
+the answer model. This design separates the
+extraction cost (a one-time write phase) from the
+query cost (a fixed read phase), and achieves a
+91% reduction in p95 response latency compared
+to full-context processing on the LoCoMo bench-
+mark (Maharana et al., 2024; Chhikara et al., 2025).
+More recent systems pursue richer representations.
+EverMemOS (Hu et al., 2026) organizes facts into
+hierarchical memory scenes through an engram-
+inspired lifecycle of episodic trace formation,
+semantic consolidation, and reconstructive recollec-
+tion. Su et al. (2026) propose Temporal Semantic
+Memory (TSM), which distinguishes between the
+time a conversation is recorded and the real-world
+time events occur, and consolidates temporally
+continuous facts into durative summaries that
+capture persistent user states. A-MEM (Xu et al.,
+2025) takes an agentic approach inspired by the
+Zettelkasten method, constructing memory notes
+with LLM-generated contextual attributes and
+autonomously establishing semantic links between
+related memories; new experiences can further
+trigger updates to existing memory representations.
+Zep (Rasmussen et al., 2025) structures agent
+memory as a temporally-aware knowledge graph
+that tracks historical relationships between entities
+and maintains fact validity periods, enabling
+reasoning about how entity states evolve across
+sessions. These systems represent a progression
+from flat fact stores toward structured, temporally
+grounded representations. Our work uses Mem0’s
+flat-typed extraction as a controlled baseline and
+compares it against long-context inference rather
+than against other memory architectures.
+Cost efficiency in LLM inference.The per-
+token pricing of LLM APIs makes cost a central
+concern in production deployments. Prompt
+caching—reusing the precomputed key-value states
+of recently seen input prefixes (Gim et al., 2024)—
+is among the most effective cost-reduction mech-
+anisms: OpenAI charges cached input tokens
+at 10% of the standard rate for GPT-5-series
+models, and Anthropic applies the same 90%
+discount across its Claude models (OpenAI, 2024,
+2025a; Anthropic, 2024). Cache-Augmented
+Generation (Chan et al., 2025) applies caching to
+static knowledge bases, loading documents into the
+KV cache as an alternative to retrieval. Zhang et al.
+(2025) analyze KV cache eviction policies and
+show that the standard Least Recently Used policy
+can be suboptimal for tail latency in multi-turn
+conversations, motivating more principled cache
+management strategies. In our cost model, prompt
+caching is applied to the long-context baseline at a
+90% discount on input tokens from the second turn
+onward, consistent with the GPT-5-series pricing
+used in our experiments (OpenAI, 2024, 2025a);
+we then derive the number of turns at which the
+memory system becomes cheaper.
+Long-context benchmarks and evaluation.
+Several benchmarks evaluate LLMs on tasks
+that require memory of extended interactions.
+LongMemEval (Wu et al., 2025) tests five core
+abilities—information extraction, multi-session
+reasoning, temporal reasoning, knowledge updates,
+and abstention—with conversation histories of
+approximately 115k tokens per question in the
+standard single-session setting. LoCoMo (Ma-
+harana et al., 2024) provides ten multi-session
+dialogues with nearly 2,000 questions spanning
+single-hop, multi-hop, temporal, and open-domain
+categories. PersonaMem v2 (Jiang et al., 2025)
+evaluates whether a system maintains consistent
+responses about user-specific persona information
+across a series of questions. Broader long-
+context benchmarks not specific to conversational
+
+--- PAGE 4 ---
+memory include LongBench (Bai et al., 2023),
+∞Bench (Zhang et al., 2024), and the Needle-in-a-
+Haystack community benchmark (Greg Kamradt,
+2023). Studies using these benchmarks have
+documented the lost-in-the-middle degradation
+pattern (Liu et al., 2024), discrepancies between
+nominal and effective context size (Hsieh et al.,
+2024), and challenges in retrieval from very long
+sequences (Kuratov et al., 2024).
+3 Methodology
+We conducted a comparative study to evaluate
+the performance and economic feasibility of fact-
+based memory systems against long-context LLMs.
+This section outlines the architectural setup of
+our memory baseline, the datasets employed, the
+evaluation metrics, and the framework for our cost-
+performance analysis.
+3.1 Memory System Baseline (Mem0)
+The memory-augmented baseline was im-
+plemented using the Mem0 Open Source
+framework (Chhikara et al., 2025) with a custom
+configuration. The system architecture consists
+of four primary stages. Full prompt templates are
+provided in Appendix A.
+Conversation Segmentation:Input dialogues
+are processed in segments using batch_size=10,
+with a maximum content length of 8,000 char-
+acters per segment. By processing dialogues in
+chronological windows, segmentation preserves
+temporal order and prevents context drift during
+fact extraction.
+Fact Extraction:GPT-5-nano (Singh et al.,
+2025) served as the fact extractor model, configured
+with low reasoning effort and default API param-
+eters (see Appendix B). Long-form conversations
+are distilled into atomic, non-hierarchical (flat-
+typed) facts to ensure compatibility with vector-
+based retrieval. This process converts raw context
+into structured memory records.
+Embedding & Storage:Extracted facts are
+embedded into a 1536-dimensional vector space
+using the text-embedding-3-small model.1 These
+are stored in a pgvector2 vector database utilizing
+an HNSW index ( m=16, ef_construction=64,
+cosine similarity).
+Retrieval Mechanism:For each query, the
+system performs a standard vector search with
+1https://developers.openai.com/api/docs/
+models/text-embedding-3-small
+2https://github.com/pgvector/pgvector
+top_k=20 to retrieve relevant facts. The reasoner
+model (GPT-5-mini (Singh et al., 2025)) consumes
+the retrieved context, using default API parameters
+(see Appendix B).
+3.2 Long-context LLM
+Aside from the memory system baseline, we
+evaluate a long-context LLM that uses no memory
+extraction. Instead of extracting and indexing facts,
+the raw conversation history is passed directly to
+the answer-generation LLM as retrieved context.
+The experimental setup uses GPT-5-mini (Singh
+et al., 2025) and GPT-OSS-120B (OpenAI et al.,
+2025) for answer generation (default API parame-
+ters; see Appendix B), with timestamps included
+in the conversation format.
+3.3 Experimental Datasets
+We evaluated the systems across three benchmarks
+representing different context lengths and memory
+requirements. Table 1 and Table 2 summarize
+the conversation and question token statistics per
+dataset (counted with o200k_base tokenizer (Ope-
+nAI, 2025b)).
+LongMemEval(Wu et al., 2025) tests the
+limits of context windows and retrieval precision
+with conversations exceeding 100k tokens.Lo-
+CoMo(Maharana et al., 2024) focuses on complex
+reasoning over long histories with many questions
+per conversation.PersonaMem v2(Jiang et al.,
+2025) evaluates the system’s ability to maintain
+consistent agentic personas.
+3.4 Evaluation Metrics: LLM-as-a-Judge
+To assess the accuracy of generated responses, we
+utilized an LLM-as-a-judge framework.
+Judge Model:GPT-5-mini (Singh et al., 2025)
+was selected as the evaluator due to its high
+reasoning capabilities and long-context support.
+Consensus Protocol:To mitigate stochas-
+tic variance and “self-preference” bias (Zheng
+et al., 2023), we implemented a 3-vote consensus
+(Majority V ote) system. For every question,
+the judge model independently evaluated the
+alignment between the generated answer and the
+“Golden Answer” three times; the final score was
+determined by the majority outcome.
+Accuracy Calculation:Accuracy is defined as
+the percentage of questions where the generated
+response was judged as correct relative to the total
+number of questions in the dataset.
+
+--- PAGE 5 ---
+DatasetNMin Max Med. Mean
+LongMemEval 500 95,271 103,935 101,747 101,601
+LoCoMo 10 9,690 19,242 17,788 15,966
+PersonaMem v2 222 14,828 28,479 23,546 22,997
+Table 1: Conversation token statistics per dataset.
+DatasetNMin Max Med. Mean
+LongMemEval 500 5 65 15 17.8
+LoCoMo 1,986 4 28 11 12.0
+PersonaMem v2 589 7 163 28 58.4
+Table 2: Question token statistics per dataset.
+3.5 Cost-Performance Analysis Framework
+The economic evaluation compares the cumulative
+cost of the Memory System ( CMem) against the
+Long-context LLM (CLC) over N interaction turns
+(whereN∈ {1,5,10,20}).
+3.5.1 Cost Equations
+The cost models incorporate Prompt Caching
+(providing a 90% discount on input tokens for
+N >1 3) and are defined as follows:
+1.Long-Context LLM Cost(C LC):
+CLC(N) =C first_turn
++ (N−1)×C cached_turn
+(1)
+Where Cfirst_turn reflects the full price of the
+100k+ context, and Ccached_turn reflects the
+discounted rate for subsequent queries using
+the same context.
+2.Memory System Cost(C Mem):
+CMem(N) =C write +N×C read (2)
+Cwrite: A one-time initialization cost for fact
+extraction and embedding (using GPT-5-nano
+and text-embedding-3-small pricing3). Cread:
+The turn-by-turn cost of processing only the
+retrieved facts and the current query (using
+GPT-5-mini pricing).
+3.5.2 Break-even Analysis
+We calculated the Break-even Point (NBE), the turn
+count at which CMem < C LC. This analysis was
+performed across varying context lengths ( L) to
+determine the Sensitivity of Economic Scalability
+in relation to data volume.
+3https://openai.com/api/pricing/
+3.6 Experimental Environment
+All LLM and embedding API calls were routed
+through OpenRouter.4 The vector database used
+pgvector running on PostgreSQL 17.5 Full prompt
+templates for fact extraction and LLM-as-a-judge
+evaluation are provided in Appendix A.
+4 Experiments and Results
+We evaluate the memory system and the long-
+context baselines along two dimensions:accuracy
+on factual recall tasks andcostas a function of
+interaction volume. All models and pricing details
+are described in Sections 3.1, 3.2 and 3.5.
+4.1 Accuracy Results
+Table 3 reports accuracy across the three evaluation
+datasets for the Memory System (Mem0), LC GPT-
+5-mini, and LC GPT-OSS-120B.
+LC GPT-5-mini achieves the highest accuracy
+on LoCoMo and LongMemEval, exceeding the
+memory system by 35.2 and 33.4 percentage points
+respectively. On PersonaMem v2 the gap is smaller
+(7.3 percentage points), and the memory system
+marginally outperforms LC GPT-OSS-120B on that
+dataset.
+The accuracy advantage of the long-context
+approach is expected: passing the full conversation
+history to the model preserves every detail, whereas
+the memory pipeline condenses conversations into
+a compact set of atomic facts (averaging 2,909
+tokens per user after extraction from roughly
+101,600-token conversations). Some information
+is inevitably lost during this compression step.
+4https://openrouter.ai
+5https://github.com/pgvector/pgvector
+
+--- PAGE 6 ---
+Dataset Memory System LC GPT-5-mini LC GPT-OSS-120B
+LoCoMo 57.6892.8581.69
+PersonaMem v2 62.4869.7560.50
+LongMemEval 49.0082.4048.20
+Table 3: Accuracy (%) on three datasets (Maharana et al., 2024; Jiang et al., 2025; Wu et al., 2025). “Memory
+System” denotes the Mem0 pipeline (GPT-5-nano extraction + GPT-5-mini reader). LC = long-context, no memory
+extraction.
+GPT-OSS-120B shows a mixed profile. On
+LoCoMo and PersonaMem v2 it scores substan-
+tially below GPT-5-mini (81.69% vs. 92.85% and
+60.50% vs. 69.75%), while on LongMemEval its
+accuracy (48.20%) is close to that of the memory
+system (49.00%). These results suggest that model
+capability, not context length alone, is a limiting
+factor on the longer benchmarks.
+4.2 Operational Cost Breakdown
+We measure the actual API costs incurred during
+the LongMemEval (Wu et al., 2025) experiments
+(500 conversations, mean context length 101,601
+tokens) using the pricing described in Section 3.5.
+Memory System — write phase.Fact extraction
+with GPT-5-nano across all 500 conversations
+cost $21.76 in total ($0.0435 per conversation),
+consuming 164.2M tokens (122.6M prompt, 41.6M
+completion). Embedding 103,183 extracted records
+(1.842M tokens) with text-embedding-3-small
+added a negligible $0.037. The write phase is a
+one-time cost per user.
+Memory System — read phase.Answer gener-
+ation from retrieved facts (top-k= 20 , averaging
+1,046 retrieved tokens per query) with GPT-5-mini
+cost $0.65 across 500 evaluation questions, or
+roughly $0.0013 per query.
+Long-context baselines.Running GPT-5-mini
+on full conversations (>50k tokens) cost $14.79
+for 504 requests ($0.0293 per request). GPT-OSS-
+120B cost $7.65 for 664 requests ($0.0115 per
+request) due to its lower per-token price. Both
+request counts exceed the 500 evaluation questions
+because transient API errors triggered automatic
+retries; each question is counted once toward
+accuracy but may have required more than one
+API call to complete.
+In summary, the memory system front-loads cost
+at write time and then incurs a small, roughly fixed
+charge per query, whereas long-context LLMs pay
+a variable cost proportional to the full context on
+every turn.
+4.3 Cost Comparison by Interaction Volume
+The cost trade-off between the two architectures
+changes as the number of interaction turnsN grows.
+Table 4 shows the cumulative cost per user at a
+representative context length of 101,601 tokens
+(LongMemEval mean), using the cost model from
+Section 3.5.1 with prompt caching applied to LC
+from turn 2 onward.
+For single-turn or low-turn interactions, the long-
+context approach is less expensive, because its
+first-turn cost ($0.0265) is well below the memory
+system’s write-plus-read cost ($0.0450). Once the
+number of turns reaches approximately 10, the
+accumulated LC cost overtakes the memory system,
+which adds only $0.0013 per additional turn. At
+N= 20, the memory system is 26% cheaper.
+This crossover arises from the structural dif-
+ference between the two cost profiles: CLC(N)
+grows with N even under caching (each cached
+turn still incurs an incremental charge proportional
+to context length), while CMem(N) grows at the
+much smaller per-turn read rate.
+4.4 Break-even Sensitivity Analysis
+The break-even point NBE, the turn count at
+which CMem < CLC, depends on the conversation
+context length L. Table 5 reports results for four
+representative context sizes.
+Two observations follow from the table. First,
+the write cost grows proportionally with L (fact
+extraction scales with input length), but the break-
+even N decreases from 13 to 9 as L increases from
+30k to 500k tokens. This happens because the
+cached LC per-turn cost also grows with L, and
+it grows faster relative to the fixed read cost of
+the memory system. Second, the break-even N is
+relatively insensitive to L above 100k tokens: at
+100k, 200k, and 500k, NBE differs by at most one
+turn.
+
+--- PAGE 7 ---
+N(turns)Memory System LC GPT-5-mini Result
+1 $0.0450 $0.0265 LC cheaper
+5 $0.0502 $0.0408 LC cheaper
+10 $0.0568 $0.0588 Memory cheaper
+15 $0.0634 $0.0768 Memory saves≈17%
+20 $0.0700 $0.0947 Memory saves≈26%
+Table 4: Cumulative cost per user at context length 101,601 tokens as a function of N interaction turns. LC prices
+assume prompt caching from turn 2 onward (90% discount on input tokens).
+ContextL(tokens) Write Cost LC Turn 1 LC TurnNBreak-evenN
+30,000 $0.0129 $0.0086 $0.0018 13
+100,000 $0.0430 $0.0261 $0.0036 10
+200,000 $0.0859 $0.0511 $0.0061 9
+500,000 $0.2148 $0.1261 $0.0136 9
+Table 5: Break-even analysis across context sizes. Write Cost is the one-time memory extraction cost. LC costs are
+per-turn: Turn 1 reflects the uncached rate, Turn N >1 reflects the cached rate. Break-even N is the first turn at
+which the memory system becomes cheaper.
+Figure 1 visualizes the cost-optimal region
+across the full space of context lengths and
+turn counts. The boundary separating the two
+regions shifts leftward (lower N) as context grows,
+confirming that memory systems become cost-
+competitive more quickly in high-context settings.
+4.5 Summary
+The experimental results highlight a clear ac-
+curacy–cost trade-off between the two architec-
+tures. Long-context LLMs, particularly GPT-5-
+mini, achieve higher factual recall than the memory
+system across most benchmarks. However, this
+advantage comes at a cost that scales linearly
+with context length and interaction volume. For
+applications where a user interacts with the system
+more than approximately ten times — a reasonable
+expectation for any persistent assistant — the
+memory system becomes the more economical
+option, while remaining competitive in the subset
+of tasks where persona consistency matters most
+(PersonaMem v2 (Jiang et al., 2025)).
+5 Discussion
+5.1 Interpretation of Results
+The accuracy gap between the long-context ap-
+proach and the memory system on LongMemEval
+and LoCoMo reflects a fundamental difference
+in how each architecture handles conversational
+history. Passing the raw conversation to the model
+preserves everything the user said; the memory
+pipeline, by contrast, condenses each conversation
+into a compact set of atomic facts. At a mean
+context of 101,601 tokens, extraction produces
+an average of 2,909 retrieved tokens per user—a
+compression ratio of roughly 35:1. Under this
+compression, certain categories of information are
+irretrievably lost: precise temporal markers (e.g.,
+“she mentioned last Tuesday that. . . ”), implicit
+coreferences that are only resolvable by reading
+earlier turns, and ephemeral one-off details that
+a flat-typed extractor does not recognise as a
+stable fact. Table 6 illustrates the three failure
+modes with concrete examples drawn from the
+LongMemEval evaluation. Questions that require
+multi-hop reasoning over any of these lost details
+will tend to be answered incorrectly.
+The smaller accuracy gap on PersonaMem
+v2 is consistent with the nature of that bench-
+mark. PersonaMem v2 tests whether a system
+maintains consistent responses about user-specific
+persona attributes (Jiang et al., 2025). Such
+attributes—preferences, personal history, habitual
+behaviors—are precisely the kind of stable, factual
+properties that flat-typed memory extraction is
+designed to capture. The memory system’s
+narrow advantage over LC GPT-OSS-120B on
+this dataset (62.48% vs. 60.50%) suggests that
+explicit fact storage may offer benefits where the
+relevant information is distributable into discrete,
+
+--- PAGE 8 ---
+Figure 1: Break-even heatmap: cumulative cost difference (LC minus Memory) as a function of context length L
+and number of turns N. Red regions indicate where the long-context approach is cheaper; blue regions indicate
+where the memory system is cheaper. The black curve marks the break-even boundary.
+Loss type Question Retrieved memory (Mem0) Mem0 answer LC answer
+Temporal marker How many days passed between my
+visit to MoMA and the ‘Ancient
+Civilizations’ exhibit at the Met?
+“Interested in art-themed day
+trips” (visit dates not stored)
+0 days 7 days
+Implicit
+coreference
+What was my previous occupation? “Previously managed a team
+of interns at a startup” (activity
+stored, not the role title)
+Managed interns
+at a startup
+Marketing
+specialist at a
+startup
+Ephemeral update How often do I attend yoga classes
+to help with my anxiety?
+“Yoga twice a week” (earlier
+session; later update to three
+times not propagated)
+Twice a week Three times a
+week
+Table 6: Concrete examples of information categories irretrievably lost under flat-typed fact extraction
+(LongMemEval). “LC answer” refers to LC GPT-5-mini, which reads the full conversation and answers correctly in
+all three cases.
+addressable records.
+The results for GPT-OSS-120B illustrate that
+model capability is a confounding factor. On
+LoCoMo and PersonaMem v2, GPT-OSS-120B
+scores 10–15 percentage points below GPT-5-
+mini, despite receiving the same full-context input.
+On LongMemEval, GPT-OSS-120B (48.20%) is
+nearly identical to the memory system (49.00%),
+but this convergence arises from GPT-OSS-120B
+underperforming on the longer, more complex
+histories, not from the memory system recovering
+its recall. Context length alone does not determine
+accuracy; the capacity of the answer model to
+reason over long inputs also matters.
+The cost results reinforce the argument made
+in the introduction. Even with prompt caching
+at a 90% discount on input tokens from the
+second turn onward, the per-turn cost of long-
+context inference grows linearly with context
+length, whereas the memory system’s per-turn read
+cost remains roughly fixed at $0.0013 per query.
+This difference is independent of any particular
+pricing schedule and would persist under any
+pricing model that charges proportionally to input
+token count.
+5.2 Limitations
+Single memory architecture.This study uses
+Mem0’s flat-typed extraction pipeline as the sole
+
+--- PAGE 9 ---
+memory baseline (Chhikara et al., 2025). More
+structured approaches—such as temporal semantic
+memory (Su et al., 2026), or hierarchical engram-
+based systems (Hu et al., 2026)—may recover
+recall that flat extraction loses, and could alter the
+accuracy comparison. The findings reported here
+characterize the accuracy–cost trade-off for flat-
+typed fact extraction specifically and should not be
+generalized to memory-augmented generation as a
+category.
+Benchmark coverage.The three benchmarks
+cover distinct competencies but share a common
+focus on persistent user-specific information across
+multi-session dialogues. They do not cover tasks
+that require real-time knowledge, reasoning over
+structured data, or compositional multi-document
+evidence chains.
+Evaluation protocol.The LLM-as-a-judge
+framework using GPT-5-mini as evaluator (Zheng
+et al., 2023) introduces its own sources of
+variance. Although the 3-vote majority consensus
+protocol reduces stochastic fluctuation, the judge
+model may exhibit systematic biases toward
+responses generated by models in the same model
+family (Zheng et al., 2023; Ye et al., 2024), and
+may be more lenient on verbose near-misses than a
+human annotator would be (Zheng et al., 2023; Ye
+et al., 2024; Chen et al., 2024).
+Cost model assumptions.The cost analysis is
+based on OpenAI API pricing as of the time
+of the experiments, with a fixed 90% caching
+discount applied to input tokens from the second
+turn onward (OpenAI, 2024). Actual costs depend
+on cache hit rates, which vary with inter-request
+timing and prefix stability. The model does
+not account for infrastructure costs (e.g., vector
+database hosting, embedding compute) beyond
+API charges, which would increase the absolute
+cost of the memory system but not change the
+qualitative shape of the break-even curve. The
+cost comparison covers the GPT-5-mini pricing
+tier only; a corresponding breakdown for GPT-
+OSS-120B is excluded because its inference cost
+depends on the hosting provider and infrastructure,
+which differ across deployments.
+Static memory snapshot.The benchmark proto-
+col ingests all conversational data in a single write
+phase before any questions are posed. This setup
+does not reflect deployments in which memory
+evolves during an active session—for instance,
+when a user adds new facts or revises prior
+statements while querying. In practice, a memory
+system would update its fact store incrementally
+as new information arrives, which could shift the
+accuracy trade-offs reported here. The effect of
+continuous memory updates on the cost–accuracy
+comparison is left to future work.
+5.3 Practical Implications
+The break-even analysis provides a concrete deci-
+sion criterion for practitioners choosing between
+the two architectures. At a context length of 100k
+tokens, the memory system becomes cheaper after
+approximately ten interaction turns (Sections 4.3
+and 4.4). For applications where a user is
+expected to re-engage with the same conversational
+context more than ten times—persistent personal
+assistants, long-running customer-support threads,
+multi-session tutoring systems—the memory sys-
+tem offers lower cumulative cost with a modest
+accuracy trade-off. For single-session or low-
+repetition use cases, long-context inference is both
+cheaper at the first turn and more accurate overall.
+The break-even point decreases as context length
+grows: at 500k tokens, the threshold drops to
+nine turns (Table 5). Practitioners working with
+very long conversation histories therefore have
+a stronger economic incentive to adopt memory
+systems, even accounting for the write-phase cost.
+The accuracy trade-off is task-dependent. On
+benchmarks that test precise factual recall over
+complex histories (LongMemEval, LoCoMo),
+long-context models retain a material advantage
+at current extraction quality. Where persona
+consistency is the primary requirement, the
+memory system is competitive. Deployment
+decisions should take the query distribution of the
+target application into account when interpreting
+these results.
+These findings have direct implications for
+enterprise AI deployments in which users interact
+repeatedly within the same conversational con-
+text—such as persistent data analytics assistants,
+long-running customer-support threads, or multi-
+session chatbots. In such settings, the break-even
+criterion offers a concrete operational signal: when
+a user is expected to issue more than approximately
+ten queries against a 100k-token context, a memory-
+based architecture reduces cumulative inference
+cost while remaining competitive on tasks that
+require persona consistency,e.g., customer service
+chatbots, which need to maintain a professional
+
+--- PAGE 10 ---
+and consistent brand alignment. This trade-
+off is practically relevant because organizations
+increasingly deploy AI assistants that accumulate
+context over weeks or months, making the cost of
+processing the full conversation history on every
+query a significant operating expense. Memory
+systems address this by replacing a growing per-
+query cost with a one-time extraction cost and
+a near-fixed per-query read cost, yielding more
+predictable, sub-linear cost scaling over time.
+That being said, long-context inference remains
+preferable for workloads in which single-session
+precision is paramount; the break-even analysis
+should be treated as a principled decision criterion
+rather than a general recommendation.
+6 Conclusions and Future Work
+This paper compared a fact-based memory system
+(Mem0) against long-context LLM inference across
+three memory-centric benchmarks and a cost model
+incorporating prompt caching. On accuracy, long-
+context GPT-5-mini significantly outperforms the
+memory system on LoCoMo and LongMemEval,
+while the memory system remains competitive on
+PersonaMem v2, where relevant information is
+well-suited to flat fact extraction. On cost, the two
+architectures cross at approximately ten interaction
+turns at 100k tokens, with the break-even point
+decreasing as context length grows. These findings
+suggest that the choice between memory systems
+and long-context inference is best treated as a
+deployment decision that depends on the nature
+of user queries, the number of interactions per
+user session, and the accuracy requirements of
+the application. For deployments in which users
+issue more than approximately ten queries against
+the same conversational context, a memory-based
+architecture reduces cumulative inference cost
+while remaining competitive on persona-consistent
+tasks; long-context inference remains preferable
+for single-session or precision-critical workloads.
+Future work should examine richer memory
+architectures—such as temporal semantic mem-
+ory (Su et al., 2026) and hierarchical engram-
+based systems (Hu et al., 2026)—and extend
+the evaluation suite to cover tasks requiring real-
+time knowledge, structured-data reasoning, and
+compositional multi-document inference.
+Acknowledgements
+We would like to thank Anavit Jedmongkolwong,
+Kan Sirarojanakul, and Pornpailin Kobkiatkawin
+for their helpful comments, suggestions, and
+valuable discussions.
+References
+Anthropic. 2024. Prompt caching. https:
+//platform.claude.com/docs/en/build-with-
+claude/prompt-caching.
+Anthropic. 2025. Claude opus 4.5. https://www.
+anthropic.com/news/claude-opus-4-5.
+Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu,
+Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao
+Liu, Aohan Zeng, Lei Hou, et al. 2023. Longbench:
+A bilingual, multitask benchmark for long context
+understanding.arXiv preprint arXiv:2308.14508.
+Iz Beltagy, Matthew E Peters, and Arman Cohan. 2020.
+Longformer: The long-document transformer.arXiv
+preprint arXiv:2004.05150.
+Brian J. Chan, Chao-Ting Chen, Jui-Hung Cheng, and
+Hen-Hsen Huang. 2025. Don’t do rag: When cache-
+augmented generation is all you need for knowledge
+tasks. InCompanion Proceedings of the ACM on
+Web Conference 2025, WWW ’25, page 893–897.
+ACM.
+Guiming Hardy Chen, Shunian Chen, Ziche Liu, Feng
+Jiang, and Benyou Wang. 2024. Humans or LLMs as
+the judge? a study on judgement bias. InProceedings
+of the 2024 Conference on Empirical Methods in
+Natural Language Processing, pages 8301–8327,
+Miami, Florida, USA. Association for Computational
+Linguistics.
+Lingjiao Chen, Matei Zaharia, and James Zou. 2023a.
+Frugalgpt: How to use large language models while
+reducing cost and improving performance.arXiv
+preprint arXiv:2305.05176.
+Shouyuan Chen, Sherman Wong, Liangjian Chen, and
+Yuandong Tian. 2023b. Extending context window
+of large language models via positional interpolation.
+arXiv preprint arXiv:2306.15595.
+Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet
+Singh, and Deshraj Yadav. 2025. Mem0: Building
+production-ready ai agents with scalable long-term
+memory.Preprint, arXiv:2504.19413.
+In Gim, Guojun Chen, Seung seob Lee, Nikhil Sarda,
+Anurag Khandelwal, and Lin Zhong. 2024. Prompt
+cache: Modular attention reuse for low-latency
+inference.Preprint, arXiv:2311.04934.
+Google DeepMind. 2025. Gemini 2.5: Pushing the
+frontier with advanced reasoning, multimodality,
+long context, and next generation agentic capabilities.
+Preprint, arXiv:2507.06261.
+
+--- PAGE 11 ---
+Greg Kamradt. 2023. Needle in a haystack - pressure
+testing llms. https://github.com/gkamradt/
+LLMTest_NeedleInAHaystack.
+Mandy Guo, Joshua Ainslie, David C Uthus, Santiago
+Ontanon, Jianmo Ni, Yun-Hsuan Sung, and Yinfei
+Yang. 2022. Longt5: Efficient text-to-text
+transformer for long sequences. InFindings of the
+Association for Computational Linguistics: NAACL
+2022, pages 724–736.
+Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman,
+Shantanu Acharya, Dima Rekesh, Fei Jia, and Boris
+Ginsburg. 2024. Ruler: What’s the real context
+size of your long-context language models?arXiv
+preprint arXiv:2404.06654.
+Chuanrui Hu, Xingze Gao, Zuyi Zhou, Dannong
+Xu, Yi Bai, Xintong Li, Hui Zhang, Tong
+Li, Chong Zhang, Lidong Bing, and Yafeng
+Deng. 2026. Evermemos: A self-organizing
+memory operating system for structured long-horizon
+reasoning.Preprint, arXiv:2601.02163.
+Bowen Jiang, Yuan Yuan, Maohao Shen, Zhuoqun Hao,
+Zhangchen Xu, Zichen Chen, Ziyi Liu, Anvesh Rao
+Vijjini, Jiashu He, Hanchao Yu, Radha Poovendran,
+Gregory Wornell, Lyle Ungar, Dan Roth, Sihao
+Chen, and Camillo Jose Taylor. 2025. Personamem-
+v2: Towards personalized intelligence via learning
+implicit user personas and agentic memory.Preprint,
+arXiv:2512.06688.
+Huiqiang Jiang, Qianhui Wu, Xufang Luo, Dongsheng
+Li, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2023.
+Longllmlingua: Accelerating and enhancing llms
+in long context scenarios via prompt compression.
+arXiv preprint arXiv:2310.06839.
+Maria Khalusova. 2024. RAG vs. long-
+context models: Do we still need RAG?
+https://unstructured.io/blog/rag-vs-long-
+context-models-do-we-still-need-rag.
+Yuri Kuratov, Aydar Bulatov, Petr Anokhin, Dmitry
+Sorokin, Artyom Sorokin, and Mikhail Burtsev.
+2024. In search of needles in a 11m haystack:
+Recurrent memory finds what llms miss.Preprint,
+arXiv:2402.10790.
+Mosh Levy, Alon Jacoby, and Yoav Goldberg. 2024.
+Same task, more tokens: the impact of input length on
+the reasoning performance of large language models.
+arXiv preprint arXiv:2402.14848.
+Patrick Lewis, Ethan Perez, Aleksandra Piktus,
+Fabio Petroni, Vladimir Karpukhin, Naman Goyal,
+Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim
+Rocktäschel, et al. 2020. Retrieval-augmented
+generation for knowledge-intensive nlp tasks.
+Advances in Neural Information Processing Systems,
+33:9459–9474.
+Nelson F Liu, Kevin Lin, John Hewitt, Ashwin
+Paranjape, Michele Bevilacqua, Fabio Petroni, and
+Percy Liang. 2024. Lost in the middle: How
+language models use long contexts.Transactions
+of the Association for Computational Linguistics,
+12:157–173.
+Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov,
+Mohit Bansal, Francesco Barbieri, and Yuwei Fang.
+2024. Evaluating very long-term conversational
+memory of llm agents.Preprint, arXiv:2402.17753.
+OpenAI, :, Sandhini Agarwal, Lama Ahmad, Jason
+Ai, Sam Altman, Andy Applebaum, Edwin Arbus,
+Rahul K. Arora, Yu Bai, Bowen Baker, Haiming
+Bao, Boaz Barak, Ally Bennett, Tyler Bertao,
+Nivedita Brett, Eugene Brevdo, Greg Brockman,
+Sebastien Bubeck, Che Chang, Kai Chen, Mark
+Chen, Enoch Cheung, Aidan Clark, Dan Cook,
+Marat Dukhan, Casey Dvorak, Kevin Fives, Vlad
+Fomenko, Timur Garipov, Kristian Georgiev, Mia
+Glaese, Tarun Gogineni, Adam Goucher, Lukas
+Gross, Katia Gil Guzman, John Hallman, Jackie
+Hehir, Johannes Heidecke, Alec Helyar, Haitang Hu,
+Romain Huet, Jacob Huh, Saachi Jain, Zach Johnson,
+Chris Koch, Irina Kofman, Dominik Kundel, Jason
+Kwon, V olodymyr Kyrylov, Elaine Ya Le, Guillaume
+Leclerc, James Park Lennon, Scott Lessans, Mario
+Lezcano-Casado, Yuanzhi Li, Zhuohan Li, Ji Lin,
+Jordan Liss, Lily, Liu, Jiancheng Liu, Kevin Lu,
+Chris Lu, Zoran Martinovic, Lindsay McCallum,
+Josh McGrath, Scott McKinney, Aidan McLaughlin,
+Song Mei, Steve Mostovoy, Tong Mu, Gideon Myles,
+Alexander Neitz, Alex Nichol, Jakub Pachocki,
+Alex Paino, Dana Palmie, Ashley Pantuliano,
+Giambattista Parascandolo, Jongsoo Park, Leher
+Pathak, Carolina Paz, Ludovic Peran, Dmitry
+Pimenov, Michelle Pokrass, Elizabeth Proehl, Huida
+Qiu, Gaby Raila, Filippo Raso, Hongyu Ren,
+Kimmy Richardson, David Robinson, Bob Rotsted,
+Hadi Salman, Suvansh Sanjeev, Max Schwarzer,
+D. Sculley, Harshit Sikchi, Kendal Simon, Karan
+Singhal, Yang Song, Dane Stuckey, Zhiqing Sun,
+Philippe Tillet, Sam Toizer, Foivos Tsimpourlas,
+Nikhil Vyas, Eric Wallace, Xin Wang, Miles Wang,
+Olivia Watkins, Kevin Weil, Amy Wendling, Kevin
+Whinnery, Cedric Whitney, Hannah Wong, Lin
+Yang, Yu Yang, Michihiro Yasunaga, Kristen Ying,
+Wojciech Zaremba, Wenting Zhan, Cyril Zhang,
+Brian Zhang, Eddie Zhang, and Shengjia Zhao. 2025.
+gpt-oss-120b & gpt-oss-20b model card.Preprint,
+arXiv:2508.10925.
+OpenAI. 2024. Prompt caching in the API. https:
+//openai.com/index/api-prompt-caching/.
+OpenAI. 2025a. OpenAI API pricing. https://
+platform.openai.com/docs/pricing.
+OpenAI. 2025b. tiktoken: A fast bpe tokeniser for
+use with openai’s models. https://github.com/
+openai/tiktoken.
+Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang,
+Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez.
+2024. Memgpt: Towards llms as operating systems.
+Preprint, arXiv:2310.08560.
+
+--- PAGE 12 ---
+Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais,
+Jack Ryan, and Daniel Chalef. 2025. Zep: A
+temporal knowledge graph architecture for agent
+memory.Preprint, arXiv:2501.13956.
+Jeffrey Rengifo and Eduard Martin. 2025.
+Longer context ̸= better: Why RAG still
+matters. https://www.elastic.co/search-
+labs/blog/rag-vs-long-context-model-llm.
+Aaditya Singh, Adam Fry, Adam Perelman, Adam
+Tart, Adi Ganesh, Ahmed El-Kishky, Aidan
+McLaughlin, Aiden Low, AJ Ostrow, Akhila
+Ananthram, Akshay Nathan, Alan Luo, Alec
+Helyar, Aleksander Madry, Aleksandr Efremov,
+Aleksandra Spyra, Alex Baker-Whitcomb, Alex
+Beutel, Alex Karpenko, Alex Makelov, Alex Neitz,
+Alex Wei, Alexandra Barr, Alexandre Kirchmeyer,
+Alexey Ivanov, Alexi Christakis, Alistair Gillespie,
+Allison Tam, Ally Bennett, Alvin Wan, Alyssa
+Huang, Amy McDonald Sandjideh, Amy Yang,
+Ananya Kumar, Andre Saraiva, Andrea Vallone,
+Andrei Gheorghe, Andres Garcia Garcia, Andrew
+Braunstein, Andrew Liu, Andrew Schmidt, Andrey
+Mereskin, Andrey Mishchenko, Andy Applebaum,
+Andy Rogerson, Ann Rajan, Annie Wei, Anoop
+Kotha, Anubha Srivastava, Anushree Agrawal,
+Arun Vijayvergiya, Ashley Tyra, Ashvin Nair, Avi
+Nayak, Ben Eggers, Bessie Ji, Beth Hoover, Bill
+Chen, Blair Chen, Boaz Barak, Borys Minaiev,
+Botao Hao, Bowen Baker, Brad Lightcap, Brandon
+McKinzie, Brandon Wang, Brendan Quinn, Brian
+Fioca, Brian Hsu, Brian Yang, Brian Yu, Brian
+Zhang, Brittany Brenner, Callie Riggins Zetino,
+Cameron Raymond, Camillo Lugaresi, Carolina Paz,
+Cary Hudson, Cedric Whitney, Chak Li, Charles
+Chen, Charlotte Cole, Chelsea V oss, Chen Ding,
+Chen Shen, Chengdu Huang, Chris Colby, Chris
+Hallacy, Chris Koch, Chris Lu, Christina Kaplan,
+Christina Kim, CJ Minott-Henriques, Cliff Frey,
+Cody Yu, Coley Czarnecki, Colin Reid, Colin Wei,
+Cory Decareaux, Cristina Scheau, Cyril Zhang,
+Cyrus Forbes, Da Tang, Dakota Goldberg, Dan
+Roberts, Dana Palmie, Daniel Kappler, Daniel
+Levine, Daniel Wright, Dave Leo, David Lin, David
+Robinson, Declan Grabb, Derek Chen, Derek Lim,
+Derek Salama, Dibya Bhattacharjee, Dimitris Tsipras,
+Dinghua Li, Dingli Yu, DJ Strouse, Drew Williams,
+Dylan Hunn, Ed Bayes, Edwin Arbus, Ekin Akyurek,
+Elaine Ya Le, Elana Widmann, Eli Yani, Elizabeth
+Proehl, Enis Sert, Enoch Cheung, Eri Schwartz, Eric
+Han, Eric Jiang, Eric Mitchell, Eric Sigler, Eric
+Wallace, Erik Ritter, Erin Kavanaugh, Evan Mays,
+Evgenii Nikishin, Fangyuan Li, Felipe Petroski Such,
+Filipe de Avila Belbute Peres, Filippo Raso, Florent
+Bekerman, Foivos Tsimpourlas, Fotis Chantzis,
+Francis Song, Francis Zhang, Gaby Raila, Garrett
+McGrath, Gary Briggs, Gary Yang, Giambattista
+Parascandolo, Gildas Chabot, Grace Kim, Grace
+Zhao, Gregory Valiant, Guillaume Leclerc, Hadi
+Salman, Hanson Wang, Hao Sheng, Haoming Jiang,
+Haoyu Wang, Haozhun Jin, Harshit Sikchi, Heather
+Schmidt, Henry Aspegren, Honglin Chen, Huida Qiu,
+Hunter Lightman, Ian Covert, Ian Kivlichan, Ian
+Silber, Ian Sohl, Ibrahim Hammoud, Ignasi Clavera,
+Ikai Lan, Ilge Akkaya, Ilya Kostrikov, Irina Kofman,
+Isak Etinger, Ishaan Singal, Jackie Hehir, Jacob Huh,
+Jacqueline Pan, Jake Wilczynski, Jakub Pachocki,
+James Lee, James Quinn, Jamie Kiros, Janvi Kalra,
+Jasmyn Samaroo, Jason Wang, Jason Wolfe, Jay
+Chen, Jay Wang, Jean Harb, Jeffrey Han, Jeffrey
+Wang, Jennifer Zhao, Jeremy Chen, Jerene Yang,
+Jerry Tworek, Jesse Chand, Jessica Landon, Jessica
+Liang, Ji Lin, Jiancheng Liu, Jianfeng Wang, Jie
+Tang, Jihan Yin, Joanne Jang, Joel Morris, Joey
+Flynn, Johannes Ferstad, Johannes Heidecke, John
+Fishbein, John Hallman, Jonah Grant, Jonathan
+Chien, Jonathan Gordon, Jongsoo Park, Jordan
+Liss, Jos Kraaijeveld, Joseph Guay, Joseph Mo,
+Josh Lawson, Josh McGrath, Joshua Vendrow, Joy
+Jiao, Julian Lee, Julie Steele, Julie Wang, Junhua
+Mao, Kai Chen, Kai Hayashi, Kai Xiao, Kamyar
+Salahi, Kan Wu, Karan Sekhri, Karan Sharma,
+Karan Singhal, Karen Li, Kenny Nguyen, Keren
+Gu-Lemberg, Kevin King, Kevin Liu, Kevin Stone,
+Kevin Yu, Kristen Ying, Kristian Georgiev, Kristie
+Lim, Kushal Tirumala, Kyle Miller, Lama Ahmad,
+Larry Lv, Laura Clare, Laurance Fauconnet, Lauren
+Itow, Lauren Yang, Laurentia Romaniuk, Leah Anise,
+Lee Byron, Leher Pathak, Leon Maksin, Leyan Lo,
+Leyton Ho, Li Jing, Liang Wu, Liang Xiong, Lien
+Mamitsuka, Lin Yang, Lindsay McCallum, Lindsey
+Held, Liz Bourgeois, Logan Engstrom, Lorenz
+Kuhn, Louis Feuvrier, Lu Zhang, Lucas Switzer,
+Lukas Kondraciuk, Lukasz Kaiser, Manas Joglekar,
+Mandeep Singh, Mandip Shah, Manuka Stratta,
+Marcus Williams, Mark Chen, Mark Sun, Marselus
+Cayton, Martin Li, Marvin Zhang, Marwan Aljubeh,
+Matt Nichols, Matthew Haines, Max Schwarzer,
+Mayank Gupta, Meghan Shah, Melody Huang,
+Meng Dong, Mengqing Wang, Mia Glaese, Micah
+Carroll, Michael Lampe, Michael Malek, Michael
+Sharman, Michael Zhang, Michele Wang, Michelle
+Pokrass, Mihai Florian, Mikhail Pavlov, Miles
+Wang, Ming Chen, Mingxuan Wang, Minnia Feng,
+Mo Bavarian, Molly Lin, Moose Abdool, Mostafa
+Rohaninejad, Nacho Soto, Natalie Staudacher, Natan
+LaFontaine, Nathan Marwell, Nelson Liu, Nick
+Preston, Nick Turley, Nicklas Ansman, Nicole
+Blades, Nikil Pancha, Nikita Mikhaylin, Niko Felix,
+Nikunj Handa, Nishant Rai, Nitish Keskar, Noam
+Brown, Ofir Nachum, Oleg Boiko, Oleg Murk,
+Olivia Watkins, Oona Gleeson, Pamela Mishkin,
+Patryk Lesiewicz, Paul Baltescu, Pavel Belov, Peter
+Zhokhov, Philip Pronin, Phillip Guo, Phoebe Thacker,
+Qi Liu, Qiming Yuan, Qinghua Liu, Rachel Dias,
+Rachel Puckett, Rahul Arora, Ravi Teja Mullapudi,
+Raz Gaon, Reah Miyara, Rennie Song, Rishabh
+Aggarwal, RJ Marsan, Robel Yemiru, Robert
+Xiong, Rohan Kshirsagar, Rohan Nuttall, Roman
+Tsiupa, Ronen Eldan, Rose Wang, Roshan James,
+Roy Ziv, Rui Shu, Ruslan Nigmatullin, Saachi
+Jain, Saam Talaie, Sam Altman, Sam Arnesen,
+Sam Toizer, Sam Toyer, Samuel Miserendino,
+Sandhini Agarwal, Sarah Yoo, Savannah Heon, Scott
+Ethersmith, Sean Grove, Sean Taylor, Sebastien
+Bubeck, Sever Banesiu, Shaokyi Amdo, Shengjia
+Zhao, Sherwin Wu, Shibani Santurkar, Shiyu Zhao,
+
+--- PAGE 13 ---
+Shraman Ray Chaudhuri, Shreyas Krishnaswamy,
+Shuaiqi, Xia, Shuyang Cheng, Shyamal Anadkat,
+Simón Posada Fishman, Simon Tobin, Siyuan Fu,
+Somay Jain, Song Mei, Sonya Egoian, Spencer Kim,
+Spug Golden, SQ Mah, Steph Lin, Stephen Imm,
+Steve Sharpe, Steve Yadlowsky, Sulman Choudhry,
+Sungwon Eum, Suvansh Sanjeev, Tabarak Khan,
+Tal Stramer, Tao Wang, Tao Xin, Tarun Gogineni,
+Taya Christianson, Ted Sanders, Tejal Patwardhan,
+Thomas Degry, Thomas Shadwell, Tianfu Fu,
+Tianshi Gao, Timur Garipov, Tina Sriskandarajah,
+Toki Sherbakov, Tomer Kaftan, Tomo Hiratsuka,
+Tongzhou Wang, Tony Song, Tony Zhao, Troy
+Peterson, Val Kharitonov, Victoria Chernova, Vineet
+Kosaraju, Vishal Kuo, Vitchyr Pong, Vivek Verma,
+Vlad Petrov, Wanning Jiang, Weixing Zhang, Wenda
+Zhou, Wenlei Xie, Wenting Zhan, Wes McCabe,
+Will DePue, Will Ellsworth, Wulfie Bain, Wyatt
+Thompson, Xiangning Chen, Xiangyu Qi, Xin
+Xiang, Xinwei Shi, Yann Dubois, Yaodong Yu, Yara
+Khakbaz, Yifan Wu, Yilei Qian, Yin Tat Lee, Yinbo
+Chen, Yizhen Zhang, Yizhong Xiong, Yonglong Tian,
+Young Cha, Yu Bai, Yu Yang, Yuan Yuan, Yuanzhi
+Li, Yufeng Zhang, Yuguang Yang, Yujia Jin, Yun
+Jiang, Yunyun Wang, Yushi Wang, Yutian Liu, Zach
+Stubenvoll, Zehao Dou, Zheng Wu, and Zhigang
+Wang. 2025. Openai gpt-5 system card.Preprint,
+arXiv:2601.03267.
+Miao Su, Yucan Guo, Zhongni Hou, Long Bai,
+Zixuan Li, Yufei Zhang, Guojun Yin, Wei Lin,
+Xiaolong Jin, Jiafeng Guo, and Xueqi Cheng.
+2026. Beyond dialogue time: Temporal semantic
+memory for personalized llm agents.Preprint,
+arXiv:2601.07468.
+Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang,
+Kai-Wei Chang, and Dong Yu. 2025. Longmemeval:
+Benchmarking chat assistants on long-term interac-
+tive memory.Preprint, arXiv:2410.10813.
+Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao
+Tan, and Yongfeng Zhang. 2025. A-mem: Agentic
+memory for llm agents.Preprint, arXiv:2502.12110.
+Jiayi Ye, Yanbo Wang, Yue Huang, Dongping Chen,
+Qihui Zhang, Nuno Moniz, Tian Gao, Werner Geyer,
+Chao Huang, Pin-Yu Chen, Nitesh V Chawla, and
+Xiangliang Zhang. 2024. Justice or prejudice?
+quantifying biases in llm-as-a-judge.Preprint,
+arXiv:2410.02736.
+Wenxin Zhang, Yueying Li, Ciamac C. Moallemi, and
+Tianyi Peng. 2025. Tail-optimized caching for llm
+inference.Preprint, arXiv:2510.15152.
+Xinrong Zhang, Yingfa Chen, Shengding Hu, Zihang
+Xu, Junhao Chen, Moo Khai Hao, Xu Han,
+Zhen Leng Thai, Shuo Wang, Zhiyuan Liu, et al.
+2024. Infinity bench: Extending long context
+evaluation beyond 100k tokens.arXiv preprint
+arXiv:2402.13718.
+Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan
+Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin,
+Zhuohan Li, Dacheng Li, Eric P. Xing, Hao Zhang,
+Joseph E. Gonzalez, and Ion Stoica. 2023. Judging
+llm-as-a-judge with mt-bench and chatbot arena.
+Preprint, arXiv:2306.05685.
+
+--- PAGE 14 ---
+A Prompt Templates
+A.1 Fact Extraction: Memory Extraction Instructions
+The following custom instructions are passed to the Mem0 (Chhikara et al., 2025) add stage to
+guide memory extraction from raw conversations. These instructions were developed as part of the
+EverMemOS (Hu et al., 2026) mem0 evaluation pipeline.
+Fact Extraction — Custom Instructions
+Generate personal memories that follow these guidelines:
+1. Each memory should be self-contained with complete context, including:
+• The person’s name (do not use “user” while creating memories)
+• Personal details (career aspirations, hobbies, life circumstances)
+• Emotional states and reactions
+• Ongoing journeys or future plans
+• Specific dates when events occurred
+2. Include meaningful personal narratives focusing on:
+• Identity and self-acceptance journeys
+• Family planning and parenting
+• Creative outlets and hobbies
+• Mental health and self-care activities
+• Career aspirations and education goals
+• Important life events and milestones
+3. Make each memory rich with specific details rather than general statements:
+• Include timeframes (exact dates when possible)
+• Name specific activities (e.g., “charity race for mental health” rather than just “exercise”)
+• Include emotional context and personal growth elements
+4. Extract memories only from user messages, not incorporating assistant responses.
+5. Format each memory as a paragraph with a clear narrative structure that captures the person’s experience,
+challenges, and aspirations.
+Figure 2: Custom instructions passed to the Mem0addstage for memory extraction.
+A.2 LLM-as-a-Judge Grading Prompt
+The following system and user prompts are used by the GPT-5-mini (Singh et al., 2025) judge to evaluate
+generated answers against the golden answer (Zheng et al., 2023). This grading protocol was adopted
+from the EverMemOS (Hu et al., 2026) evaluation framework.
+B Model Parameters
+Table 7 lists the intended inference parameters for each model role. The GPT-5 model series (GPT-
+5-nano, GPT-5-mini) does not accept temperature or max_tokens via the API and instead uses a
+reasoning_effort parameter; for those models, the table reports reasoning effort. The GPT-OSS-120B
+model uses standard temperature and max-token settings.
+C Experimental Environment
+All LLM completions and embedding API calls were routed through OpenRouter 6 as the unified
+API provider, which supports a broad range of model families under a single endpoint. Vector
+storage was provided by the pgvector 7 extension running on PostgreSQL 17 (Docker image
+6https://openrouter.ai/api/v1
+7https://github.com/pgvector/pgvector
+
+--- PAGE 15 ---
+LLM-as-a-Judge — System Prompt
+You are an expert grader that determines if answers to questions match a gold standard answer.
+LLM-as-a-Judge — User Prompt Template
+Your task is to label an answer to a question as ‘CORRECT’ or ‘WRONG’. You will be given the following data: (1) a
+question (posed by one user to another user), (2) a ‘gold’ (ground truth) answer, (3) a generated answer, which you will
+score as CORRECT/WRONG.
+The point of the question is to ask about something one user should know about the other user based on their prior
+conversations. The gold answer will usually be a concise and short answer that includes the referenced topic. The
+generated answer might be much longer, but you should be generous with your grading—as long as it touches on the
+same topic as the gold answer, it should be counted as CORRECT.
+For time-related questions, the gold answer will be a specific date, month, year, etc. The generated answer might be
+much longer or use relative time references (e.g., “last Tuesday” or “next month”), but you should be generous with
+your grading—as long as it refers to the same date or time period as the gold answer, it should be counted as CORRECT.
+Even if the format differs (e.g., “May 7th” vs. “7 May”), consider it CORRECT if it is the same date.
+Question:{question}
+Gold answer:{golden_answer}
+Generated answer:{generated_answer}
+First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG. Do NOT
+include both CORRECT and WRONG in your response. Return the label in JSON format with the key"label".
+Figure 3: System and user prompt templates used for LLM-as-a-judge evaluation.
+Role Model Snapshot Reasoning effort Temp. max_tokens
+Fact extractor GPT-5-nano2025-08-07low — —
+Memory reader GPT-5-mini2025-08-07medium — —
+Long-context LLM GPT-5-mini2025-08-07low — —
+Long-context LLM GPT-OSS-120B — — 0 2,000
+Judge GPT-5-mini2025-08-07high — —
+Table 7: Intended model inference parameters. GPT-5-nano and GPT-5-mini usereasoning_effort and are pinned
+to the2025-08-07snapshot; GPT-OSS-120B has no versioned snapshot and uses temperature and max_tokens.
+pgvector/pgvector:pg17), deployed as a local service alongside the evaluation pipeline. Model pricing
+used in the cost-performance analysis is sourced from the OpenAI API pricing page.8
+8https://openai.com/api/pricing/

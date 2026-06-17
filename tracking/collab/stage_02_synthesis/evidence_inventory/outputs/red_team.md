@@ -1,0 +1,38 @@
+SYNTHESIS_PREP_RED_TEAM_OUTPUT
+- artifact: `evidence_inventory`
+- overall_verdict: `pass_with_warnings`
+- strongest_parts:
+  - The repaired organizer closes the main blocker from the previous red-team pass. It now has an explicit `lego_dimension_map`, a first-wave run-level `trajectory_matrix`, a subsystem-level `codebase_eval_matrix`, individual routing for all 9 `src_cod_*` captures and all 5 `src_bnm_*` benchmark captures, and finer confidence splits across informal, issue, postmortem, and standalone code clusters.
+  - The case-study slate is materially better. The earlier success-heavy bias is gone: `headless-terminal`, `cancel-async-tasks`, `extract-moves-from-video`, and `gpt2-codegolf` are now in scope alongside the prior recovery and branching cases.
+  - The organizer no longer overclaims readiness sequencing. It correctly keeps Stage 2A blocked on this rerun review and defers the `mechanism_map` versus `failure_taxonomy` choice until after acceptance.
+- missing_evidence_classes:
+  - No mandatory evidence class is now missing in a way that should block opening deep synthesis. The repaired organizer gives explicit places to trajectories, source code, eval repos/frameworks, papers, docs, informal sources, and local project code.
+  - The remaining limitation is scope, not absence: the new matrices are first-wave selective rather than exhaustive. That is acceptable if later agents do not misread “not listed in the first-wave matrix” as “out of scope.”
+- mislabeled_or_overtrusted_evidence:
+  - BigAI-derived analysis is handled much better than before, but it still must remain secondary to underlying run artifacts. `research/analysis/bigai_trace_layer/output/corpus_summary.json`, `question_answers.json`, `exemplar_runs.json`, and `final_harness_reconstruction.md` are useful indexes, not substitute primary evidence.
+  - Archived standalone code captures are now properly surfaced, but the organizer is right to keep them below mirrored repos when inspectability differs. Deep-synthesis agents should still prefer mirrored trees such as `research/sources/codebases/deepagents/libs/deepagents/` and `research/sources/codebases/KIRA/terminus_kira/` when claim strength depends on subsystem inspection depth.
+- skipped_high_value_trajectories:
+  - No critical omission remains in the first-wave trajectory slate after the repair.
+  - `adaptive-rejection-sampler` remains a good reserve verifier-loop case because it is already called out in `research/analysis/bigai_trace_layer/output/exemplar_runs.json`, but leaving it out of the initial case-study set is no longer a blocker.
+- skipped_high_value_codebases_or_eval_repos:
+  - No critical codebase or eval-repo omission remains from the organizer-only perspective. The previous invisible assets, especially `src_cod_086db5a6312e`, `src_cod_564b05dcc95b`, `src_cod_ad409dc1ebde`, `src_cod_e231561a3d69`, and the five `src_bnm_*` captures, are now explicitly routed.
+- weak_confidence_judgments:
+  - Confidence labeling is materially improved. The remaining weak spot is that `research/sources/issues/` is still split only at the cluster level (`medium` versus `low-medium`) rather than per-thread. That is acceptable for prep, but the next deep-synthesis pass should promote individual issue threads only when they carry concrete failure or design evidence.
+  - The trajectory matrix still includes scaffolding tags such as `inspect`, `comparison-run`, `explicit-verifier-likely`, `failed-or-weak`, and `unknown`. Those are acceptable prep-level placeholders, but they are not final observations and should not be cited as if they were already validated behavior findings.
+- premature_inferences:
+  - No blocking premature inference remains in the repaired organizer itself.
+  - The only thing that still needs discipline is downstream use: the matrix structure is ready enough to open deep synthesis, but the placeholder tags inside it are not themselves synthesis conclusions.
+- readiness_risks:
+  - The first deep-synthesis agent must still read the underlying run artifacts before making strong claims about verification behavior, control-policy patterns, or recovery dynamics. The repaired matrix is a routing layer, not a substitute for trajectory reading.
+  - The new matrices are first-wave working sets, not exhaustive corpus indexes. If a later agent treats absence from `trajectory_matrix` or `codebase_eval_matrix` as exclusion from the frozen corpus, it will create a new false-scope problem.
+  - The organizer still inherits two global corpus caveats that it does not reopen but also does not solve: the out-of-intake paper/doc recount discrepancy and the six placeholder/mock canonical-URL records in the broader accepted manifest. Those remain governed correctly only if synthesis stays on `corpus__captured_for_synthetic_prep.json`.
+- required_repairs_before_deep_synthesis:
+  - No additional organizer repair is required before opening deep synthesis.
+  - Operating rule 1: treat the repaired matrices as triage scaffolds and cite the underlying trajectory/code/eval paths for mechanism or failure claims.
+  - Operating rule 2: keep first-wave synthesis on `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`, not the broader accepted manifest.
+  - Operating rule 3: do not treat placeholder matrix tags as adjudicated behavior labels; confirm them in the source artifacts during deep synthesis.
+- optional_improvements:
+  - Normalize the placeholder trajectory tags after the first mechanism/failure extraction pass so later artifacts inherit cleaner evidence labels.
+  - Export the first-wave trajectory and codebase/eval matrices into a machine-readable sidecar if blind-parallel deep-synthesis work opens later.
+  - Promote specific issue threads from the current cluster-level bucket only when they become load-bearing for a concrete mechanism or failure claim.
+- confidence: `high`

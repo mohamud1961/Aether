@@ -1,0 +1,36 @@
+{
+  "tool": "run_command",
+  "exit_code": 1,
+  "duration_sec": 0.14889971099910326,
+  "cwd": "/home/azureuser/aether2_full_tournament/l1_targeted_20260615T142411Z/20260615T143210Z/broken-networking/workspace",
+  "stdout": "resolved example.com 172.66.147.243\n",
+  "stderr": "Traceback (most recent call last):\n  File \"<stdin>\", line 8, in <module>\n  File \"/usr/lib/python3.10/ssl.py\", line 513, in wrap_socket\n    return self.sslsocket_class._create(\n  File \"/usr/lib/python3.10/ssl.py\", line 1100, in _create\n    self.do_handshake()\n  File \"/usr/lib/python3.10/ssl.py\", line 1371, in do_handshake\n    self._sslobj.do_handshake()\nssl.SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1007)\n",
+  "files_changed": [],
+  "process_delta": {
+    "started": [],
+    "exited": [],
+    "log_growth": {},
+    "jobs_started": [],
+    "jobs_exited": [],
+    "sessions_started": [],
+    "sessions_exited": [],
+    "services_started": [],
+    "services_exited": [],
+    "job_log_growth": {},
+    "session_log_growth": {},
+    "service_log_growth": {}
+  },
+  "blind_retry_blocked": false,
+  "error": {
+    "kind": "nonzero_exit",
+    "message": "command exited with status 1",
+    "reason_code": "nonzero_exit",
+    "failure_class": "process_exit",
+    "details": "foreground command completed but returned a non-zero exit code",
+    "tool_name": "run_command",
+    "command": "python3 - <<'PY'\nimport socket, ssl\nhost='example.com'\nport=443\nip=socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)[0][4][0]\nprint('resolved', host, ip)\nctx=ssl.create_default_context()\nwith socket.create_connection((ip, port), timeout=10) as s:\n    with ctx.wrap_socket(s, server_hostname=host) as ss:\n        ss.sendall(b'HEAD / HTTP/1.1\\r\\nHost: example.com\\r\\nConnection: close\\r\\n\\r\\n')\n        data=ss.recv(200)\n        print(data.decode('latin1', 'replace').splitlines()[0])\nPY",
+    "exit_code": 1,
+    "timed_out": false
+  },
+  "truncation_digest": null
+}

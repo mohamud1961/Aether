@@ -1,0 +1,32 @@
+Codex review evidence (sanitized)
+Date: 2026-06-12
+Target: live dirty tree in /Users/mohamud/Downloads/harnesseng
+Skill: /Users/mohamud/.codex/skills/codex-review/SKILL.md
+
+Ephemeral review home:
+- created under /private/tmp with mode 0700
+- auth copied ephemerally only for the review attempt
+- removed after every attempt
+- no repo-local CODEX_HOME retained
+
+Attempt 1:
+- config: sandbox_mode="danger-full-access", approval_policy="never"
+- result: failed before review execution because SSL certificate path was unset in the ephemeral environment
+- evidence: Codex backend connection failed with "no native root CA certificates found"
+
+Attempt 2:
+- config: same as above, model explicitly set to "gpt-5"
+- result: failed before review execution because the ChatGPT-backed account rejected that model for Codex review
+- evidence: API returned `invalid_request_error` with message `The 'gpt-5' model is not supported when using Codex with a ChatGPT account.`
+
+Attempt 3:
+- config: same as above, model set to "gpt-5.4-mini", SSL_CERT_FILE set from certifi
+- result: Codex process started, but the review helper could not be completed reliably in this host environment
+- evidence:
+  - one run failed at subprocess spawn with `BlockingIOError: [Errno 35] Resource temporarily unavailable`
+  - a subsequent retry hung inside the helper until interrupted after bounded waiting, leaving no trustworthy clean-review verdict
+
+Disposition:
+- No accepted/actionable Codex findings were obtained.
+- The review gate is not satisfied, because the environment did not produce a trustworthy completed review over the live tree.
+- This file intentionally replaces the earlier stale artifact that referenced the deleted repo-local `.tmp_codex_home/`.

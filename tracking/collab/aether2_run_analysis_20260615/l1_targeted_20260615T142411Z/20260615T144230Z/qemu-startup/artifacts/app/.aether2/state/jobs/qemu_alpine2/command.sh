@@ -1,0 +1,1 @@
+sh -lc 'exec qemu-system-x86_64 -nographic -serial telnet:127.0.0.1:6665,server,nowait -monitor none -display none -m 512 -drive file=/app/alpine-disk.qcow2,format=qcow2,if=virtio -boot c'

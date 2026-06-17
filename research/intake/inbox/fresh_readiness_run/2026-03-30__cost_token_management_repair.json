@@ -1,0 +1,1391 @@
+[
+  {
+    "agent_id": "cost_token_management_source_finder",
+    "bucket": "cost_token_management",
+    "run_date": "2026-03-31",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_fe2899cf9c24",
+        "title": "Introducing advanced tool use on the Claude Developer Platform",
+        "canonical_url": "[https://www.anthropic.com/engineering/advanced-tool-use",
+        "date": "2025-11-24",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason](https://www.anthropic.com/engineering/advanced-tool-use%22,%22date%22:%222025-11-24%22,%22authors_or_org%22:[%22Anthropic%22],%22source_type%22:%22engineering_writeup%22,%22artifact_type%22:%22webpage%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "tool_gateway",
+          "context",
+          "cost_budget",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "deferred_tool_loading",
+          "prompt_caching_preservation",
+          "token_budget_reduction",
+          "tools_x_context"
+        ],
+        "failure_mode_tags": [
+          "context_pollution",
+          "tool_surface_bloat",
+          "latency_tradeoff"
+        ],
+        "benchmark_tags": [
+          "mcp_evals"
+        ],
+        "benchmark_contamination_risk": "medium",
+        "task_regime": [
+          "terminal_agent",
+          "api_agent",
+          "mixed"
+        ],
+        "models_if_named": [
+          "Claude Opus 4",
+          "Claude Opus 4.5"
+        ],
+        "environment_type": [
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Deferred tool loading cuts token load and preserves cacheable prefixes.",
+        "reason_included": "Concrete mechanism for tool-surface cost control in agent loops.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Loading only a search tool plus 3-5 relevant tools reduced upfront context from about 77K tokens to about 8.7K tokens, preserving 95% of the context window.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Deferred tools marked with `defer_loading: true` are excluded from the initial prompt and expanded into context only after search-time selection.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Because deferred tools are excluded from the initial prompt, the system prompt and core tool definitions remain cacheable.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "The feature adds a search step before invocation, so the context savings and accuracy gains trade off against added latency.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Passage showing 77K to 8.7K token reduction, lines 50-59"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Passage describing `defer_loading: true`, lines 60-63"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Passage on cacheable initial prompt, lines 66-68"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Passage noting latency tradeoff, lines 103-105"
+          }
+        ],
+        "dedupe_key": "[https://www.anthropic.com/engineering/advanced-tool-use"
+      },
+      {
+        "source_id": "src_doc_126c6de9bbb9",
+        "title": "Shell](https://www.anthropic.com/engineering/advanced-tool-use%22},{%22source_id%22:%22src_doc_126c6de9bbb9%22,%22title%22:%22Shell) + Skills + Compaction: Tips for long-running agents that do real work",
+        "canonical_url": "[https://developers.openai.com/blog/skills-shell-tips",
+        "date": "2026-02-11",
+        "authors_or_org": [
+          "OpenAI",
+          "Charlie](https://developers.openai.com/blog/skills-shell-tips%22,%22date%22:%222026-02-11%22,%22authors_or_org%22:[%22OpenAI%22,%22Charlie) Guo"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "context",
+          "artifacts_workspace",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "container_reuse",
+          "thread_chaining",
+          "server_side_compaction",
+          "context_reduction",
+          "execution_x_context"
+        ],
+        "failure_mode_tags": [
+          "restart_behavior",
+          "context_limit_overflow",
+          "prompt_spaghetti"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "api_agent",
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal",
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Long-run agent guidance ties cost control to thread reuse and compaction.",
+        "reason_included": "Direct long-horizon cost and continuity patterns from provider engineering.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Hosted shell requests carry stateful work, tool calls, multi-turn continuation, and artifacts through the Responses API.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Server-side compaction runs automatically in-stream once context crosses a threshold, avoiding a separate compaction call.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "For long runs, OpenAI recommends reusing the same container, passing `previous_response_id`, and using compaction as a default primitive rather than an emergency fallback.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "Moving templates and examples into skills avoids inflating tokens for unrelated queries because they load only when the skill triggers.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Hosted shell description, lines 486-496"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Compaction description, lines 498-500"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Long-run guidance, lines 540-547"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Skills token-savings guidance, lines 524-531"
+          }
+        ],
+        "dedupe_key": "[https://developers.openai.com/blog/skills-shell-tips"
+      },
+      {
+        "source_id": "src_doc_6cefd45b6af9",
+        "title": "Prompt](https://developers.openai.com/blog/skills-shell-tips%22},{%22source_id%22:%22src_doc_6cefd45b6af9%22,%22title%22:%22Prompt) Caching 201",
+        "canonical_url": "[https://developers.openai.com/cookbook/examples/prompt_caching_201",
+        "date": "2026-02-18",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason](https://developers.openai.com/cookbook/examples/prompt_caching_201%22,%22date%22:%222026-02-18%22,%22authors_or_org%22:[%22OpenAI%22],%22source_type%22:%22engineering_writeup%22,%22artifact_type%22:%22webpage%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "context",
+          "cost_budget",
+          "observability",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "prompt_caching",
+          "prefix_stability",
+          "cache_routing",
+          "cost_telemetry",
+          "context_reuse"
+        ],
+        "failure_mode_tags": [
+          "cache_miss_from_prefix_drift",
+          "compaction_x_cache_interaction",
+          "tool_schema_churn"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "coding_agent",
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "OpenAI cookbook gives concrete cache-hit rules, telemetry fields, and cache-preserving prompt layout.",
+        "reason_included": "Implementation-level caching mechanics plus cost/accounting guidance.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Cache hits require an exact repeated prefix, start at 1024 tokens, and accrue in 128-token increments; the cacheable prefix includes messages, images, audio, tool definitions, and structured output schemas.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "In-memory prompt caching works automatically, extended caching can last up to 24 hours, and `prompt_cache_key` can improve routing for traffic that shares prefixes.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Responses expose per-request cache telemetry through `usage.prompt_tokens_details.cached_tokens`, enabling direct measurement of cached versus uncached prompt tokens.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "At around 150k+ tokens, cached requests were reported as 67% faster on time-to-first-token, and a slightly longer but stable prefix can be cheaper than a shorter prompt that never caches.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c5",
+            "claim_text": "Changing tool definitions, schemas, ordering, or early dynamic values invalidates exact-prefix matching; the guide recommends keeping stable tools ordered identically and moving volatile metadata out of the prompt prefix.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Rules for cache hits and cached prefix contents, lines 479-485"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Caching behavior and `prompt_cache_key` guidance, lines 480-484"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Usage telemetry example, lines 510-519"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Latency result and prompt-layout tradeoff, line 508 and lines 534-536"
+          },
+          {
+            "claim_id": "c5",
+            "locator": "Cache-preserving prompt ordering guidance, lines 541-556"
+          }
+        ],
+        "dedupe_key": "[https://developers.openai.com/cookbook/examples/prompt_caching_201"
+      },
+      {
+        "source_id": "src_doc_ac681845490f",
+        "title": "Prompt](https://developers.openai.com/cookbook/examples/prompt_caching_201%22},{%22source_id%22:%22src_doc_ac681845490f%22,%22title%22:%22Prompt) caching - Claude API Docs",
+        "canonical_url": "[https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "date": "2026-02-05",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason](https://platform.claude.com/docs/en/build-with-claude/prompt-caching%22,%22date%22:%222026-02-05%22,%22authors_or_org%22:[%22Anthropic%22],%22source_type%22:%22official_doc%22,%22artifact_type%22:%22docs_page%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "context",
+          "cost_budget",
+          "observability",
+          "tool_gateway"
+        ],
+        "mechanism_tags": [
+          "prompt_caching",
+          "ttl_selection",
+          "cache_invalidation",
+          "workspace_cache_isolation",
+          "cost_telemetry",
+          "tools_x_verification"
+        ],
+        "failure_mode_tags": [
+          "silent_length_based_cache_failure",
+          "tool_choice_invalidation",
+          "json_key_order_cache_breakage",
+          "user_loop_reset"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "coding_agent",
+          "mixed"
+        ],
+        "models_if_named": [
+          "Claude Opus 4.6",
+          "Claude Sonnet 4.6",
+          "Claude Haiku 4.5"
+        ],
+        "environment_type": [
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Detailed invalidation, TTL, and usage-field behavior for Anthropic prompt caching.",
+        "reason_included": "Strong provider doc with cache-consistency and failure-mode detail.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "By default the cache lifetime is 5 minutes and refreshes with use; Anthropic also offers a 1-hour cache duration at additional cost.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Automatic prefix checking uses one breakpoint at the end of static content and reuses the longest previously written prefix.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "When thinking blocks are read from cache they still count as input tokens in usage metrics, which matters for cost calculation and token budgeting.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "Tool-result-only user messages keep cache validity, but adding non-tool-result user content invalidates prior thinking blocks and starts a new assistant loop.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c5",
+            "claim_text": "Length-based caching failures are silent and cache keys can also break from changing `tool_choice`, image presence, or unstable JSON key ordering in `tool_use` blocks.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Cache duration section, lines 238-240"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Automatic prefix checking section, lines 393-395"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Token counting for cached thinking blocks, lines 535-540"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Cache invalidation rule for user content after tool results, lines 539-541"
+          },
+          {
+            "claim_id": "c5",
+            "locator": "Troubleshooting common issues section covering silent failures and invalidation causes"
+          }
+        ],
+        "dedupe_key": "[https://platform.claude.com/docs/en/build-with-claude/prompt-caching"
+      },
+      {
+        "source_id": "src_iss_c1f147f856cb",
+        "title": "[Bug](https://platform.claude.com/docs/en/build-with-claude/prompt-caching%22},{%22source_id%22:%22src_iss_c1f147f856cb%22,%22title%22:%22[Bug)]: Prompt cache constantly invalidated — cacheWrite dominates over cacheRead, causing 10x cost increase",
+        "canonical_url": "[https://github.com/openclaw/openclaw/issues/19989",
+        "date": "2026-02-18",
+        "authors_or_org": [
+          "qonnectv",
+          "openclaw/openclaw"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason](https://github.com/openclaw/openclaw/issues/19989%22,%22date%22:%222026-02-18%22,%22authors_or_org%22:[%22qonnectv%22,%22openclaw/openclaw%22],%22source_type%22:%22issue_thread%22,%22artifact_type%22:%22issue%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "context",
+          "cost_budget",
+          "observability",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "cache_read_vs_write_monitoring",
+          "session_cost_attribution",
+          "prefix_stability",
+          "regression_detection"
+        ],
+        "failure_mode_tags": [
+          "cache_invalidation_regression",
+          "zero_output_high_cost",
+          "silent_cost_spike",
+          "state_x_recovery"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "claude-opus-4-6"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Regression report with per-call cost evidence and cache read/write imbalance.",
+        "reason_included": "Concrete real-world cache failure with operational cost impact.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "After upgrading to 2026.2.17, a ~20k-token system prompt was reportedly rewritten to cache on nearly every call, increasing cost from roughly $0.02-$0.04 to $0.35-$0.50 per call.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The reporter compares pre-upgrade sessions where `cacheRead` dominated after the first call with post-upgrade sessions where `cacheWrite` dominated and cost rose to as high as $0.51.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Several recent calls incurred about $0.50 with zero output, suggesting the full context was being sent and cache-written without producing useful work.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "The issue ties diagnosis to session JSONL usage entries that expose `cacheWrite >> cacheRead`, making cache-read/write ratios a practical regression detector.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue description and cost comparison, lines 206-219"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Reported pre/post-upgrade usage comparison, lines 215-222"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Examples of high-cost zero-output calls, lines 224-230"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "JSONL usage evidence discussion, lines 242-248"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openclaw/openclaw/issues/19989"
+      },
+      {
+        "source_id": "src_iss_985d6091dfd3",
+        "title": "Agent](https://github.com/openclaw/openclaw/issues/19989%22},{%22source_id%22:%22src_iss_985d6091dfd3%22,%22title%22:%22Agent) SDK defaults to 1-hour cache TTL instead of 5-minute",
+        "canonical_url": "[https://github.com/anthropics/claude-agent-sdk-typescript/issues/188",
+        "date": "2026-02-19",
+        "authors_or_org": [
+          "mohamadhase",
+          "anthropics/claude-agent-sdk-typescript"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason](https://github.com/anthropics/claude-agent-sdk-typescript/issues/188%22,%22date%22:%222026-02-19%22,%22authors_or_org%22:[%22mohamadhase%22,%22anthropics/claude-agent-sdk-typescript%22],%22source_type%22:%22issue_thread%22,%22artifact_type%22:%22issue%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "cost_budget",
+          "observability",
+          "context"
+        ],
+        "mechanism_tags": [
+          "ttl_policy",
+          "usage_field_accounting",
+          "session_cost_attribution",
+          "sdk_defaults"
+        ],
+        "failure_mode_tags": [
+          "implicit_ttl_upgrade",
+          "unexpected_write_cost_increase",
+          "hidden_sdk_policy"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "claude-haiku-4-5-20251001",
+          "sonnet"
+        ],
+        "environment_type": [
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Shows how TTL defaults surface in usage fields and directly change cost.",
+        "reason_included": "Useful failure case for cache TTL governance and cost attribution.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The reporter states the Agent SDK shifted cache creation from 5-minute TTL to 1-hour TTL by default, with all cache-creation tokens landing in `ephemeral_1h_input_tokens` and none in `ephemeral_5m_input_tokens`.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue reports a direct pricing consequence: 1-hour cache writes are billed at 2x base input price versus 1.25x for 5-minute writes.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The reproduction output includes `total_cost_usd`, `cache_creation_input_tokens`, `cache_read_input_tokens`, and a nested `cache_creation` object, making per-run attribution visible in returned usage.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue summary and usage fields, lines 205-209, 255-258, 286"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Pricing consequence statement, lines 207-209"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Reproduction output showing attribution fields, lines 233-258"
+          }
+        ],
+        "dedupe_key": "[https://github.com/anthropics/claude-agent-sdk-typescript/issues/188"
+      },
+      {
+        "source_id": "src_iss_3dddd3e1acbc",
+        "title": "High](https://github.com/anthropics/claude-agent-sdk-typescript/issues/188%22},{%22source_id%22:%22src_iss_3dddd3e1acbc%22,%22title%22:%22High) token usage due to Prompt Cache in agents (large cached fixed context) – bug or expected behavior?",
+        "canonical_url": "[https://github.com/danny-avila/LibreChat/discussions/11615",
+        "date": "2026-02-03",
+        "authors_or_org": [
+          "MaximilianoGutierrez",
+          "danny-avila/LibreChat"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason](https://github.com/danny-avila/LibreChat/discussions/11615%22,%22date%22:%222026-02-03%22,%22authors_or_org%22:[%22MaximilianoGutierrez%22,%22danny-avila/LibreChat%22],%22source_type%22:%22issue_thread%22,%22artifact_type%22:%22issue%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "context",
+          "cost_budget",
+          "observability"
+        ],
+        "mechanism_tags": [
+          "prompt_token_breakdown",
+          "agent_fixed_context",
+          "provider_comparison",
+          "cache_control_surface"
+        ],
+        "failure_mode_tags": [
+          "large_fixed_prefix_cost",
+          "cache_write_without_read",
+          "agent_overhead_on_simple_queries"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "workflow_agent",
+          "mixed"
+        ],
+        "models_if_named": [
+          "Claude Sonnet",
+          "GPT-4o-mini"
+        ],
+        "environment_type": [
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 3,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "User report isolates agent-specific fixed-context cost blowup on trivial queries.",
+        "reason_included": "Good example of silent fixed-prefix cost in agent wrappers.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "For simple queries, the reporter observed very low `promptTokens.input` but very high `promptTokens.write` at 20k-30k tokens and `promptTokens.read` at 0, implying a large fixed cached context rather than user input dominated cost.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue happened with agents but not simple chat sessions, suggesting the prompt assembly path for agents injected substantial static overhead.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Changing models reduced cache size materially, indicating model-specific prompt assembly or wrapper differences can change fixed-context cost.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "The thread explicitly identifies unclear controls for cache invalidation, excluding certain blocks from caching, or disabling prompt caching per agent.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Token breakdown in issue body, lines 212-223"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Agent versus simple chat comparison, lines 225-229"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Model change observation, lines 230-232"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Questions about cache control and invalidation, lines 234-247"
+          }
+        ],
+        "dedupe_key": "[https://github.com/danny-avila/LibreChat/discussions/11615"
+      },
+      {
+        "source_id": "src_iss_2b9f1f0c5a91",
+        "title": "[Bug](https://github.com/danny-avila/LibreChat/discussions/11615%22},{%22source_id%22:%22src_iss_2b9f1f0c5a91%22,%22title%22:%22[Bug)]: Prompt-cache not used because OpenClaw is changing the prompt-prefix (inference costs x1000)",
+        "canonical_url": "[https://github.com/openclaw/openclaw/issues/45110",
+        "date": "2026-03-13",
+        "authors_or_org": [
+          "kripper",
+          "openclaw/openclaw"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason](https://github.com/openclaw/openclaw/issues/45110%22,%22date%22:%222026-03-13%22,%22authors_or_org%22:[%22kripper%22,%22openclaw/openclaw%22],%22source_type%22:%22issue_thread%22,%22artifact_type%22:%22issue%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "context",
+          "cost_budget",
+          "observability",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "prefix_hash_stability",
+          "long_context_cache_boundary",
+          "server_log_diagnostics",
+          "compaction_x_cache_interaction"
+        ],
+        "failure_mode_tags": [
+          "prefix_drift",
+          "checkpoint_invalidation",
+          "multi_turn_cost_explosion",
+          "token_spike"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "qwen3-coder-next"
+        ],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Shows prompt-prefix drift causing repeated recomputation in long multi-turn runs.",
+        "reason_included": "Clear cache-consistency failure with server-log clues.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The reporter attributes prompt-cache failure to the application changing the prompt prefix, forcing recomputation on each message and creating very high inference cost.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue reports about 40k additional computed tokens per message on top of an initial 40k context, with the multiplier becoming severe over long workflows.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Only the first ~70k tokens reportedly used the existing prompt cache; after that the rest was recomputed and llama-server logged invalidated context checkpoints.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue summary, lines 210-216"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Reported token growth per message, lines 213-216"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Server-log checkpoint invalidation note, lines 219-223"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openclaw/openclaw/issues/45110"
+      },
+      {
+        "source_id": "src_doc_337afc339ead",
+        "title": "Changelog](https://github.com/openclaw/openclaw/issues/45110%22},{%22source_id%22:%22src_doc_337afc339ead%22,%22title%22:%22Changelog) | OpenAI API",
+        "canonical_url": "[https://developers.openai.com/api/docs/changelog",
+        "date": "2026-03-05",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason](https://developers.openai.com/api/docs/changelog%22,%22date%22:%222026-03-05%22,%22authors_or_org%22:[%22OpenAI%22],%22source_type%22:%22official_doc%22,%22artifact_type%22:%22docs_page%22,%22time_window_status%22:%22primary_window%22,%22exception_reason)": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "tool_gateway",
+          "context",
+          "cost_budget",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "deferred_tool_loading",
+          "native_compaction",
+          "token_efficiency",
+          "tool_search"
+        ],
+        "failure_mode_tags": [
+          "tool_surface_bloat",
+          "long_run_context_pressure"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "api_agent",
+          "mixed"
+        ],
+        "models_if_named": [
+          "gpt-5.4",
+          "gpt-5.4-pro"
+        ],
+        "environment_type": [
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Official launch note links tool search and compaction to lower token use on agent workflows.",
+        "reason_included": "Fresh provider evidence for runtime tool deferral and long-run context control.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "OpenAI states that tool search in the Responses API defers large tool surfaces until runtime to reduce token usage, preserve cache performance, and improve latency.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The same launch note ties native compaction and a 1M-token context window to longer-running agent workflows.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Changelog entry for tool search, line 682"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Changelog entry for native compaction and long-running workflows, line 684"
+          }
+        ],
+        "dedupe_key": "[https://developers.openai.com/api/docs/changelog"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "Pricing](https://developers.openai.com/api/docs/changelog%22}],%22rejections%22:[{%22candidate_title%22:%22Pricing) | OpenAI API",
+        "candidate_url": "[https://developers.openai.com/api/docs/pricing/",
+        "rejection_reason": "Pricing](https://developers.openai.com/api/docs/pricing/%22,%22rejection_reason%22:%22Pricing) page; lists fees but lacks concrete harness implementation mechanics."
+      },
+      {
+        "candidate_title": "Production best practices | OpenAI API",
+        "candidate_url": "[https://developers.openai.com/api/docs/guides/production-best-practices/",
+        "rejection_reason": "Too](https://developers.openai.com/api/docs/guides/production-best-practices/%22,%22rejection_reason%22:%22Too) generic for this bucket; cost section is monitoring advice without caching or budget-control mechanism detail."
+      },
+      {
+        "candidate_title": "We need to talk about prompt caching",
+        "candidate_url": "[https://community.openai.com/t/we-need-to-talk-about-prompt-caching/1363898",
+        "rejection_reason": "Community](https://community.openai.com/t/we-need-to-talk-about-prompt-caching/1363898%22,%22rejection_reason%22:%22Community) forum commentary, not a preferred primary source."
+      },
+      {
+        "candidate_title": "Prompt Caching 101",
+        "candidate_url": "[https://developers.openai.com/cookbook/examples/prompt_caching101/",
+        "rejection_reason": "Older](https://developers.openai.com/cookbook/examples/prompt_caching101/%22,%22rejection_reason%22:%22Older) and lower-signal than Prompt Caching 201 for this freshness-focused run."
+      },
+      {
+        "candidate_title": "Pricing - Claude API Docs",
+        "candidate_url": "[https://docs.anthropic.com/en/docs/about-claude/pricing",
+        "rejection_reason": "Pricing-heavy](https://docs.anthropic.com/en/docs/about-claude/pricing%22,%22rejection_reason%22:%22Pricing-heavy) page; contains some telemetry notes but insufficient dedicated mechanism detail relative to stronger sources."
+      }
+    ]
+  },
+  {
+    "agent_id": "cost_token_management_agent",
+    "bucket": "cost_token_management",
+    "run_date": "2026-03-31",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_anthro_cache_docs",
+        "title": "Prompt caching - Claude API Docs",
+        "canonical_url": "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "date": "2026-03-31",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [
+          "context"
+        ],
+        "decision_targets": [
+          "cost_budget",
+          "context",
+          "memory"
+        ],
+        "mechanism_tags": [
+          "cache_control_breakpoints",
+          "hierarchical_cache_evaluation",
+          "explicit_caching",
+          "ttl_1h_extension",
+          "tools_x_verification"
+        ],
+        "failure_mode_tags": [
+          "json_serialization_invalidation",
+          "dynamic_parameter_cache_miss"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "mixed"
+        ],
+        "models_if_named": [
+          "Claude 3.5 Sonnet",
+          "Claude 3.7 Sonnet",
+          "Claude 3 Opus"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Definitive provider documentation detailing block-level prompt caching syntax, cost multipliers, and TTL extension mechanisms crucial for long-horizon agent stability.",
+        "reason_included": "Mandatory coverage of explicit block-level caching semantics and the precise economic tradeoffs between 5-minute and 1-hour cache lifespans.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Anthropic allows developers to define up to four distinct cache_control breakpoints... enforcing a strict hierarchical evaluation order: tools, then system instructions, then messages.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "A 1-hour cache write incurs a 2.0x base input price multiplier, compared to the 1.25x multiplier applied to 5-minute writes.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Changes to tool_choice or the presence/absence of images anywhere in the prompt will invalidate the cache, requiring a new cache entry to be created.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Prompt caching', 'Combining with block-level caching'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Pricing'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'What invalidates the cache'"
+          }
+        ],
+        "dedupe_key": "anthropic_docs_prompt_caching"
+      },
+      {
+        "source_id": "src_iss_claude_code_9579",
+        "title": "[BUG] Autocompacting Loop Causing Massive Token Usage Spikes OCT 15 2025",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/9579",
+        "date": "2025-10-15",
+        "authors_or_org": [
+          "GitHub Community"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "foundational_exception",
+        "exception_reason": "Highly documented real-world postmortem of an infinite idempotent read loop causing catastrophic financial blowup, required for understanding token failures.",
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [
+          "execution_loop"
+        ],
+        "decision_targets": [
+          "execution_loop",
+          "cost_budget",
+          "state"
+        ],
+        "mechanism_tags": [
+          "state_x_recovery",
+          "hard_budget_caps",
+          "loop_detection"
+        ],
+        "failure_mode_tags": [
+          "infinite_tool_loop",
+          "token_blowup",
+          "idempotent_read_loop",
+          "cache_subsidized_runaway"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [
+          "Claude 3.5 Sonnet"
+        ],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 3
+        },
+        "relevance_note": "Critical issue detailing how prompt caching subsidized a runaway execution loop by hiding latency, leading to massive financial waste.",
+        "reason_included": "Satisfies the requirement for an issue thread with a real token blowup and long-run cost failure.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Autocompacting process is repeatedly reading the same file without making progress... Average Daily Tokens: 41.57M (normal) vs 96.4M (spike) - 232% increase.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Total Tokens Consumed: 1,247,031,522 tokens... Total Cost: $1,027.16 over a single weekend with zero actual work accomplished.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue Description, 'Performance Metrics During Incident'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Issue Description, 'Executive Summary'"
+          }
+        ],
+        "dedupe_key": "github_anthropic_claude_code_issue_9579"
+      },
+      {
+        "source_id": "src_pap_cta_260216699",
+        "title": "Calibrate-Then-Act: Cost-Aware Exploration in LLM Agents",
+        "canonical_url": "https://arxiv.org/abs/2602.16699",
+        "date": "2026-02-18",
+        "authors_or_org": [
+          "Wenxuan Ding",
+          "Nicholas Tomlin",
+          "Greg Durrett"
+        ],
+        "source_type": "paper",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [
+          "policy_program"
+        ],
+        "decision_targets": [
+          "policy_program",
+          "execution_loop",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "cost_uncertainty_tradeoff",
+          "calibrate_then_act",
+          "pareto_optimal_exploration",
+          "prior_probability_injection",
+          "execution_x_context"
+        ],
+        "failure_mode_tags": [
+          "naive_tool_usage",
+          "unconstrained_exploration_cost"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "api_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "benchmark_harness"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Introduces a mathematical framework (CTA) that directly links internal epistemic uncertainty with the tangible financial costs of tool execution.",
+        "reason_included": "Fulfills the requirement for a source linking cost management to execution-control behavior and decision boundaries.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "CTA-PROMPTED achieved a 94.0% optimal policy match rate by allowing the agent to dynamically shift its retrieval threshold based on varying costs.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "CTA-RL improved discounted reward by 3.5% in a coding task... demonstrating more adaptive and cost-efficient decision-making compared to baseline end-to-end RL.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Abstract and Section 'Implementation Modalities'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Abstract and Section 'CTA-RL'"
+          }
+        ],
+        "dedupe_key": "arxiv_2602.16699_calibrate_then_act"
+      },
+      {
+        "source_id": "src_cod_zeptoclaw_repo",
+        "title": "qhkm/zeptoclaw: Final form of claw family",
+        "canonical_url": "https://github.com/qhkm/zeptoclaw",
+        "date": "2026-03-24",
+        "authors_or_org": [
+          "qhkm"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [
+          "memory"
+        ],
+        "decision_targets": [
+          "execution_loop",
+          "cost_budget",
+          "memory"
+        ],
+        "mechanism_tags": [
+          "stratified_memory_middleware",
+          "compaction_middleware",
+          "token_budget_middleware",
+          "loop_guard",
+          "per_session_budget_enforcement"
+        ],
+        "failure_mode_tags": [
+          "analytical_degradation"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "docker",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "A prime architectural example of shifting context compaction out of the provider SDK and into modular middleware stacks to protect analytical workspaces.",
+        "reason_included": "Demonstrates strict non-LLM-dependent execution bounds, deterministic loop guards, and stratified memory structures in a production codebase.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "ZeptoClaw implements per-session budget enforcement and per-model cost estimation for 8 models at the gateway layer.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Constructs middleware stacks including CompactionMiddleware and TokenBudgetMiddleware to intercept the context array before network calls.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "README.md, 'Security & Ops' section"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Source code architecture description"
+          }
+        ],
+        "dedupe_key": "github_qhkm_zeptoclaw_main"
+      },
+      {
+        "source_id": "src_doc_claude_compaction_cookbook",
+        "title": "Automatic context compaction",
+        "canonical_url": "https://platform.claude.com/cookbook/tool-use-automatic-context-compaction",
+        "date": "2025-11-24",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [
+          "memory"
+        ],
+        "decision_targets": [
+          "context",
+          "memory",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "threshold_based_compaction",
+          "summary_injection",
+          "history_truncation"
+        ],
+        "failure_mode_tags": [
+          "epistemic_fidelity_loss",
+          "analytical_degradation"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent"
+        ],
+        "models_if_named": [
+          "Claude 3.5 Sonnet",
+          "Claude Opus 4.6"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 4
+        },
+        "relevance_note": "Explains Anthropic's native compaction architecture via the SDK, which substitutes detailed historical context with synthesized XML summaries.",
+        "reason_included": "Meets requirement for an engineering writeup on context compaction, showcasing both its utility in continuous operation and its tradeoff with precise historical data preservation.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The compaction_control parameter... intercepts the loop when token usage exceeds a threshold, injects a summary prompt, and replaces the history with a generated <summary>.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "While compaction manages token budgets... early-stage data gathering feeding into late-stage synthesis is inadvertently destroyed, resulting in a 'summary of summaries'.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Automatic Context Compaction'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'The Challenge / The Analytical Degradation Failure Mode'"
+          }
+        ],
+        "dedupe_key": "anthropic_cookbook_automatic_context_compaction"
+      },
+      {
+        "source_id": "src_doc_deepseek_mla_cache",
+        "title": "DeepSeek API introduces Context Caching on Disk, cutting prices by an order of magnitude",
+        "canonical_url": "https://api-docs.deepseek.com/news/news0802",
+        "date": "2024-08-02",
+        "authors_or_org": [
+          "DeepSeek"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "foundational_exception",
+        "exception_reason": "Pioneering architectural implementation of Multi-Head Latent Attention (MLA) disk-backed caching that permanently altered baseline economics for agentic systems.",
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "cost_budget",
+          "artifacts_workspace"
+        ],
+        "mechanism_tags": [
+          "disk_backed_caching",
+          "multi_head_latent_attention",
+          "fine_grained_prefix_evaluation",
+          "relaxed_cache_eviction"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "mixed"
+        ],
+        "models_if_named": [
+          "DeepSeek-V2",
+          "DeepSeek-V3",
+          "DeepSeek Chat"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 2
+        },
+        "relevance_note": "Describes DeepSeek's shift from expensive VRAM KV caching to disk-backed structures, enabling highly aggressive caching logic.",
+        "reason_included": "Critical technical background on how model providers implement sub-100-token increment caching and its radical effect on agent operational budgets.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The MLA architecture compresses the context KV cache, enabling offloading to low-cost distributed disk arrays, reducing costs to $0.014 per million tokens for cache hits.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Evaluates prompt prefixes in minute increments of just 64 tokens, circumventing the 1,024-token minimums enforced by other providers.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Paragraph 'DeepSeek API introduces Context Caching on Disk'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Paragraph 'DeepSeek API's Concurrency and Rate Limits'"
+          }
+        ],
+        "dedupe_key": "deepseek_api_context_caching_disk"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "GPT vs Claude: What's The Best AI Model?",
+        "candidate_url": "https://www.fivetran.com/blog/gpt-vs-claude-whats-the-best-ai-model",
+        "rejection_reason": "Content marketing piece without concrete implementation detail, cost telemetry, or architectural mechanisms for harness token management."
+      }
+    ]
+  }
+]

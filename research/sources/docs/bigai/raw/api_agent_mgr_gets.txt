@@ -1,0 +1,127 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/agent/mgr/gets/?q=
+================================================================================
+
+获取智能体
+
+AgentGet 获取智能体详情¶
+请求URL¶
+POST /api/v1/agent/gets
+
+请求参数¶
+Header¶
+参数	取值	说明
+Content-Type	application/json	指定请求正文的数据格式。当值为 application/json 时，表明请求体（Body）内容以 JSON 格式组织，服务端将按 JSON 规范解析请求参数。
+X-TraceId	string	traceId
+Authorization	Bearer $AccessToken	用于验证客户端身份的访问令牌
+Body¶
+参数	类型	是否必填	描述	备注
+id	[]string	是	agent ID列表	
+请求示例¶
+{
+
+    "id": ["agent_1234567890"]
+
+}
+
+响应参数¶
+参数	类型	描述	备注
+agents	map[string]json struct	包含agent ID和对应数据的映射	
+agents.exist	bool	agent是否存在	
+agents.data	json struct	agent具体数据	
+agents.data.name	string	agent名称	
+agents.data.intro	string	agent说明	
+agents.data.memory	map[string]json struct	记忆列表	
+agents.data.learn	map[string]json struct	知识库列表	
+agents.data.config.prologue	string	开场白	
+agents.data.config.recommendation_question	[]string	推荐问题列表	
+agents.data.config.voice	string	声音ID	
+agents.data.config.figure	string	形象ID	
+agents.data.config.tools	map[string]json struct	工具列表	
+agents.data.config.workflow_id	string	绑定的工作流ID	
+agents.data.config.character_profile	string	人设	
+agents.data.config.type	string	智能体类型	
+agents.data.config.model	string	模型名称	
+响应示例¶
+{
+
+    "agents": {
+
+        "agent_1234567890": {
+
+            "exist": true,
+
+            "data": {
+
+                "name": "TestAgent",
+
+                "intro": "Test agent",
+
+                "memory": {
+
+                    "mem1": {
+
+                        "name": "Memory1",
+
+                        "description": "Description for Memory1",
+
+                        "default": "Default Value1"
+
+                    }
+
+                },
+
+                "learn": {
+
+                    "learn1": {}
+
+                },
+
+                "config": {
+
+                    "prologue": "Hello, I am your agent.",
+
+                    "recommendation_question": [
+
+                        "What is your name?",
+
+                        "How can I assist you?"
+
+                    ],
+
+                    "voice": "voice_id_001",
+
+                    "figure": "figure_id_001",
+
+                    "tools": {
+
+                        "tool1": {
+
+                            "version": "1.1",
+
+                            "running_config": {
+
+                                "k1": "v1"
+
+                            }
+
+                        }
+
+                    },
+
+                    "workflow_id": "workflow_001",
+
+                    "character_profile": "friendly",
+
+                    "type": "workflow",
+
+                    "model": "example_model"
+
+                }
+
+            }
+
+        }
+
+    }
+
+}

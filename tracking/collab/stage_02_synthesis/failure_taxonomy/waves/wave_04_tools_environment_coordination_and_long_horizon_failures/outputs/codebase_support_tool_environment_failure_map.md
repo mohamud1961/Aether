@@ -1,0 +1,78 @@
+CODEBASE_SUPPORT_ARTIFACT
+- artifact: failure_taxonomy/wave_04_tools_environment_coordination_and_long_horizon_failures
+- role: codebase/source-reconstruction analyst (support mapping)
+- purpose: bounded source map for tool gateway, permission/runtime, cwd/path, and process-lifecycle failure attribution
+- map:
+  - family: tool_gateway_mismatch
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/config.py`
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/code_executor.py`
+      - `research/sources/codebases/a-evolve/seed_workspaces/mcp/tools/registry.yaml`
+    - claw_code_source_surface:
+      - `research/sources/codebases/quarantine/claw-code/src/query_engine.py`
+      - `research/sources/codebases/quarantine/claw-code/src/permissions.py`
+    - implication:
+      - Tool invocation and command-channel parsing are implemented through different control contracts across families; failures should be attributed to gateway contract quality before model-level reasoning.
+    - confidence: high
+  - family: permission_policy_runtime_mismatch
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/filesystem.py`
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/config.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+      - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+      - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/agent.py`
+      - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/code_executor.py`
+    - implication:
+      - Distinct policy layers (allow/deny/ask, bypass modes, or unrestricted host shell) can diverge from effective runtime capability and must remain a separate failure family.
+    - confidence: high
+  - family: cwd_path_workspace_contract_failure
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/filesystem.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/swe/env.py`
+      - `research/sources/codebases/a-evolve/seed_workspaces/swe/tools/bash.py`
+    - local_harness_surface:
+      - `blocks/tools/structured.py`
+      - `runner/agent.py`
+    - implication:
+      - Root semantics and cwd resolution differ by family; path/cwd contract breakage should not be collapsed into generic orchestration failures.
+    - confidence: high
+  - family: process_lifecycle_and_cancellation_breakdown
+    - deepagents_source_surface:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - kira_source_surface:
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+    - a_evolve_source_surface:
+      - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/bash.py`
+      - `research/sources/codebases/a-evolve/seed_workspaces/swe/tools/bash.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/swe/env.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - implication:
+      - Process and timeout semantics are explicit source-level control surfaces, so lifecycle failures are substrate failures, not only planning failures.
+    - confidence: high
+- limitations:
+  - BigAI is excluded from source-backed mapping because no mirrored source is available.
+  - claw-code contributes quarantine pressure and partial runtime surfaces; do not promote to parity with source-complete families.
+- handoff:
+  - Use this support artifact as a routing scaffold for `outputs/codebase_source_reconstruction_analyst.md` only.

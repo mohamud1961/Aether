@@ -1,0 +1,53 @@
+{
+  "call_id": "qemu-startup__nbTESYj_execute_8",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && (qemu-system-x86_64 -nographic -m 512 -drive file=/app/alpine.iso,format=raw,media=cdrom -boot d -netdev user,id=n1,hostfwd=tcp::6665-:22 -device e1000,netdev=n1 > /tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid; sleep 2; cat /tmp/alpine-qemu.log)\",\"timeout_seconds\":30},{\"type\":\"raw_bash\",\"command\":\"python3 - <<'PY'\\nimport socket,sys,time\\nhost='127.0.0.1'; port=6665\\nend=time.time()+60\\nbuf=b''\\nwhile time.time()<end:\\n    try:\\n        s=socket.create_connection((host,port),timeout=2)\\n        s.settimeout(2)\\n        for _ in range(20):\\n            try:\\n                data=s.recv(4096)\\n                if not data:\\n                    break\\n                buf += data\\n                if b'login:' in buf.lower() or b'alpine' in buf.lower():\\n                    print(buf.decode('utf-8','ignore'))\\n                    sys.exit(0)\\n            except socket.timeout:\\n                pass\\n        s.close()\\n    except Exception:\\n        pass\\n    time.sleep(2)\\nprint(buf.decode('utf-8','ignore'))\\nsys.exit(1)\\nPY\",\"timeout_seconds\":90}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && (qemu-system-x86_64 -nographic -m 512 -drive file=/app/alpine.iso,format=raw,media=cdrom -boot d -netdev user,id=n1,hostfwd=tcp::6665-:22 -device e1000,netdev=n1 > /tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid; sleep 2; cat /tmp/alpine-qemu.log)\",\"timeout_seconds\":30},{\"type\":\"raw_bash\",\"command\":\"python3 - <<'PY'\\nimport socket,sys,time\\nhost='127.0.0.1'; port=6665\\nend=time.time()+60\\nbuf=b''\\nwhile time.time()<end:\\n    try:\\n        s=socket.create_connection((host,port),timeout=2)\\n        s.settimeout(2)\\n        for _ in range(20):\\n            try:\\n                data=s.recv(4096)\\n                if not data:\\n                    break\\n                buf += data\\n                if b'login:' in buf.lower() or b'alpine' in buf.lower():\\n                    print(buf.decode('utf-8','ignore'))\\n                    sys.exit(0)\\n            except socket.timeout:\\n                pass\\n        s.close()\\n    except Exception:\\n        pass\\n    time.sleep(2)\\nprint(buf.decode('utf-8','ignore'))\\nsys.exit(1)\\nPY\",\"timeout_seconds\":90}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "cd /app && (qemu-system-x86_64 -nographic -m 512 -drive file=/app/alpine.iso,format=raw,media=cdrom -boot d -netdev user,id=n1,hostfwd=tcp::6665-:22 -device e1000,netdev=n1 > /tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid; sleep 2; cat /tmp/alpine-qemu.log)",
+        "timeout_seconds": 30
+      },
+      {
+        "type": "raw_bash",
+        "command": "python3 - <<'PY'\nimport socket,sys,time\nhost='127.0.0.1'; port=6665\nend=time.time()+60\nbuf=b''\nwhile time.time()<end:\n    try:\n        s=socket.create_connection((host,port),timeout=2)\n        s.settimeout(2)\n        for _ in range(20):\n            try:\n                data=s.recv(4096)\n                if not data:\n                    break\n                buf += data\n                if b'login:' in buf.lower() or b'alpine' in buf.lower():\n                    print(buf.decode('utf-8','ignore'))\n                    sys.exit(0)\n            except socket.timeout:\n                pass\n        s.close()\n    except Exception:\n        pass\n    time.sleep(2)\nprint(buf.decode('utf-8','ignore'))\nsys.exit(1)\nPY",
+        "timeout_seconds": 90
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 2448,
+    "cached_input_tokens": 1792,
+    "output_tokens": 697,
+    "total_tokens": 3145,
+    "provider_usage_raw": {
+      "completion_tokens": 697,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 52,
+        "engine_ttlt_ms": 3375,
+        "pre_inference_ms": 87,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 636,
+        "service_ttlt_ms": 3955,
+        "total_duration_ms": 3877,
+        "user_visible_ttft_ms": 548
+      },
+      "prompt_tokens": 2448,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1792
+      },
+      "total_tokens": 3145
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

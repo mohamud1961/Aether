@@ -1,0 +1,113 @@
+{
+  "source_id": "src_doc_64510e405cf6",
+  "title": "Shell + Skills + Compaction: Tips for long-running agents that do real work",
+  "canonical_url": "https://developers.openai.com/blog/skills-shell-tips",
+  "date": "2026-02-11",
+  "authors_or_org": [
+    "OpenAI",
+    "Charlie Guo"
+  ],
+  "source_type": "engineering_writeup",
+  "artifact_type": "webpage",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "context_engineering",
+  "bucket_secondary": [],
+  "decision_targets": [
+    "context",
+    "artifacts_workspace",
+    "state",
+    "tool_gateway",
+    "cost_budget"
+  ],
+  "mechanism_tags": [
+    "server_side_compaction_in_stream",
+    "standalone_compaction_endpoint",
+    "skill_on_demand_loading",
+    "container_reuse",
+    "thread_continuation_previous_response_id"
+  ],
+  "failure_mode_tags": [
+    "restart_behaviour",
+    "prompt_spaghetti",
+    "context_window_limit_stall"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "terminal_agent",
+    "coding_agent",
+    "mixed"
+  ],
+  "models_if_named": [],
+  "environment_type": [
+    "docker",
+    "sandboxed_terminal",
+    "mixed"
+  ],
+  "evidence_scorecard": {
+    "provenance": 5,
+    "mechanistic_detail": 4,
+    "reproducibility": 3,
+    "ecological_validity": 5,
+    "decision_relevance": 4,
+    "recency": 5
+  },
+  "relevance_note": "OpenAI engineering post describing in-stream server-side compaction vs explicit compaction calls, plus on-demand loading of 'skills' to reduce prompt bloat.",
+  "reason_included": "Concrete harness-level mechanisms for compiling context on demand (skills) and maintaining continuity via compaction and thread continuation.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "The post distinguishes server-side compaction (automatic, in-stream when context crosses a threshold) from the standalone `/responses/compact` endpoint (explicit control over when compaction happens).",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "Skills are described as a bundle of files with a `SKILL.md` manifest; when skills are available, the platform exposes each skill\u2019s metadata (`name`, `description`, `path`) to the model, and the model reads `SKILL.md` only if it decides to invoke the skill.",
+      "claim_status": "asserted"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The post claims combining container reuse, passing `previous_response_id`, and using compaction reduces restart behaviour and keeps multi-step jobs coherent as the thread grows.",
+      "claim_status": "asserted"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Section 'Compaction: Keep long runs moving'"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Section 'A brief mental model' \u2192 'Skills: \u201cProcedures\u201d the model can load on demand'"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Section 'Tips and tricks' \u2192 'Design for long runs early with container reuse and compaction' (bullet list including `previous_response_id`)"
+    }
+  ],
+  "dedupe_key": "https://developers.openai.com/blog/skills-shell-tips",
+  "canonical_locator": "https://developers.openai.com/blog/skills-shell-tips",
+  "discovered_in_batches": [
+    "2026-03-25__context_engineering.json#obj1.1",
+    "2026-03-25__context_engineering.json#obj1|bucket=context_engineering|run_date=2026-03-24|agent=context_engineering_source_finder"
+  ],
+  "merged_from_candidate_keys": [
+    "src_doc_64510e405cf6::openai_blog:skills-shell-tips::2026-03-25__context_engineering.json#obj1::r6"
+  ],
+  "origin_buckets": [
+    "context_engineering"
+  ],
+  "origin_batch_buckets": [
+    "context_engineering"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/docs/src_doc_64510e405cf6/capture.json",
+    "capture_kind": "doc",
+    "capture_canonical_url": "https://developers.openai.com/blog/skills-shell-tips",
+    "canonical_url_match": true
+  },
+  "artifact_class": "documentation",
+  "artifact_relpath": "research/sources/docs/src_doc_64510e405cf6"
+}

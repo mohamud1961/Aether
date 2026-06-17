@@ -1,0 +1,332 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/rag_agent/?q=
+================================================================================
+
+知识库工具调用示例¶
+
+该示例展示了如何利用 TongAgents 框架集成知识库工具，结合多种知识文档进行语义搜索问答，使得知识检索更加精准高效。
+
+环境准备¶
+安装 TongAgents SDK，参考安装指南
+配置模型服务，参见模型配置
+安装依赖：langchain_openai、sentence-transformers、milvus 等
+代码示例¶
+
+下面代码演示了如何：
+
+使用 SentenceTransformer 实现文本嵌入
+构建 Milvus 知识库，并添加示例文档
+通过工具适配器将知识库注册为搜索工具
+创建一个基于 OpenAI 模型的智能体，并绑定知识库工具进行问答
+examples/rag_knowledge/knowledge_tool_call.py
+import os
+
+
+
+import numpy as np
+
+from sentence_transformers import SentenceTransformer
+
+
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent import (
+
+    ReactAgentSetting,
+
+    create_react_agent,
+
+)
+
+from tongagents.knowledge.core import Document
+
+from tongagents.knowledge.embedding.base import BaseEmbedding
+
+from tongagents.knowledge.tool_adapter import create_knowledge_store_tool_adapter
+
+from tongagents.knowledge.vectorstore.milvus import MilvusVectorStore
+
+
+
+
+
+class SentenceTransformerEmbedding(BaseEmbedding):
+
+    """Wrapper for SentenceTransformer embedding function."""
+
+
+
+    def __init__(self):
+
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        # Get dimension by encoding a sample text
+
+        self.dimensions = len(self.model.encode("sample text"))
+
+
+
+    def embed_texts(self, texts: list[str]) -> list[np.ndarray]:
+
+        """Embed the texts using SentenceTransformer.
+
+
+
+        Args:
+
+            texts: List of texts to embed
+
+
+
+        Returns:
+
+            List of embeddings as numpy arrays
+
+        """
+
+        embeddings = self.model.encode(texts)
+
+        return [np.array(emb) for emb in embeddings]
+
+
+
+
+
+def get_embedding_function():
+
+    """Get a simple embedding function for demo purposes."""
+
+    return SentenceTransformerEmbedding()
+
+
+
+
+
+def create_python_knowledge_store():
+
+    """Create a knowledge store for Python documentation."""
+
+    milvus_path = "./python_milvus.db"
+
+
+
+    store = MilvusVectorStore(
+
+        collection_name="python_collection",
+
+        uri=milvus_path,
+
+        embedding_function=get_embedding_function(),
+
+        overwrite=True,
+
+        search_limit=1,
+
+    )
+
+
+
+    # Python 相关文档
+
+    sample_docs = [
+
+        Document(
+
+            content="Python是一种高级编程语言，以其简洁的语法和丰富的库而闻名。",
+
+            metadata={"source": "python_guide.txt", "topic": "Python"},
+
+        ),
+
+        Document(
+
+            content="Python的主要特点包括动态类型系统和自动内存管理。",
+
+            metadata={"source": "python_features.txt", "topic": "Python"},
+
+        ),
+
+    ]
+
+
+
+    store.add_documents(sample_docs)
+
+    return store, milvus_path
+
+
+
+
+
+def create_ai_knowledge_store():
+
+    """Create a knowledge store for AI documentation."""
+
+    milvus_path = "./ai_milvus.db"
+
+
+
+    store = MilvusVectorStore(
+
+        collection_name="ai_collection",
+
+        uri=milvus_path,
+
+        embedding_function=get_embedding_function(),
+
+        overwrite=True,
+
+        search_limit=1,
+
+    )
+
+
+
+    # AI 相关文档
+
+    sample_docs = [
+
+        Document(
+
+            content="机器学习是人工智能的一个子领域，它使计算机能够从数据中学习。",
+
+            metadata={"source": "ai_intro.txt", "topic": "AI"},
+
+        ),
+
+        Document(
+
+            content="深度学习是机器学习的一个分支，它使用多层神经网络进行学习。",
+
+            metadata={"source": "deep_learning.txt", "topic": "AI"},
+
+        ),
+
+    ]
+
+
+
+    store.add_documents(sample_docs)
+
+    return store, milvus_path
+
+
+
+
+
+def run_agent(agent):
+
+    """Run the agent with the given requests."""
+
+    resp = agent.stream("机器学习和人工智能的关系？")
+
+    for _, workflow_item in enumerate(resp):
+
+        print("result:", workflow_item)
+
+
+
+
+
+def demo_knowledge_tool():
+
+    """Demo using multiple knowledge tools."""
+
+    # 创建两个知识库
+
+    python_store, python_path = create_python_knowledge_store()
+
+    ai_store, ai_path = create_ai_knowledge_store()
+
+
+
+    try:
+
+        # 创建两个不同的工具类
+
+        python_tool_class = create_knowledge_store_tool_adapter(
+
+            store=python_store,
+
+            name="python_knowledge",
+
+            description="搜索 Python 编程相关知识",
+
+            name_for_human="Python 知识库",
+
+        )
+
+
+
+        ai_tool_class = ai_store.as_tool(
+
+            name="ai_knowledge",
+
+            description="搜索人工智能相关知识",
+
+            name_for_human="AI 知识库",
+
+        )
+
+
+
+        # 创建并配置 agent
+
+        agent = create_react_agent(
+
+            agent_settings=ReactAgentSetting(
+
+                llm_config=ModelConfig(
+
+                    model_name=os.environ.get("MODEL_NAME"),
+
+                    url=os.environ.get("MODEL_URL"),
+
+                    api_key=os.environ.get("MODEL_API_KEY", "fake_api"),
+
+                )
+
+            ),
+
+            tools=[python_tool_class(), ai_tool_class()],
+
+        )
+
+
+
+        # 运行 agent
+
+        run_agent(agent)
+
+
+
+    finally:
+
+        # 清理资源
+
+        python_store.clear()
+
+        ai_store.clear()
+
+        if os.path.exists(python_path):
+
+            os.remove(python_path)
+
+        if os.path.exists(ai_path):
+
+            os.remove(ai_path)
+
+
+
+
+
+if __name__ == "__main__":
+
+    demo_knowledge_tool()
+
+说明¶
+本示例展示了如何构建知识库工具，并将其集成到基于 OpenAI 模型的智能体中，利用知识库进行语义搜索问答。
+利用 SentenceTransformer 提供文本嵌入，结合 Milvus 存储与检索，实现跨领域知识的高效调用。
+示例涵盖了知识库创建、工具适配器注册以及智能体工具绑定和运行全流程。
+
+通过本示例，你可以快速构建一个支持多知识文档查询的问答系统，应对复杂的知识检索需求。

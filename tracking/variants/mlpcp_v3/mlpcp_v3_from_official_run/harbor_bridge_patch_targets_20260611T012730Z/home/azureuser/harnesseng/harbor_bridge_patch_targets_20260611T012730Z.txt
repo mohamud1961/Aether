@@ -1,0 +1,1475 @@
+===== prompt/env map construction =====
+  3420	                        'A self-check should be derived from visible requirements, local files, and observed behavior. '
+  3421	                        'A self-check should fail the known-bad behavior before it is accepted as validating the repair. '
+  3422	                        'A self-check should prove required inputs affect behavior when the request requires using them. '
+  3423	                        'For data, parser, compiler, model, service, or generator work, compare behavior across changed inputs where possible. '
+  3424	                        'Reject checks that only prove compilation, formatting, file existence, non-empty output, deterministic output, fixed strings, hashes without behavioral meaning, random seed control, lookup tables, echoes, padding, or smoke-only success. '
+  3425	                        'For difficult implementation work, derive actual data and file formats from the workspace, build a small diagnostic oracle when possible, compare against it, then simplify or optimize after correctness is demonstrated. '
+  3426	                        ' '
+  3427	                        'Service monitoring: '
+  3428	                        'If the request involves a service, daemon, server, API, socket, VM, or background process, identify required behavior from visible evidence, start only when needed, capture logs, confirm the expected process or listener exists, probe the expected endpoint/protocol/command/behavior, inspect failures before repairing, and refresh service state after config, file, package, or process changes. '
+  3429	                        'Do not assume a service is ready because the process started. '
+  3430	                        'Use protocol, content, command, log, RPC, HTTP, SSH, socket, or domain-specific probes when the visible requirement demands them. '
+  3431	                        ' '
+  3432	                        'Verifier use: '
+  3433	                        'Use visible verifiers as evidence, not as a substitute for understanding. '
+  3434	                        'Run relevant self-checks before the final verifier when possible. '
+  3435	                        'When verifier output fails, inspect it carefully and repair from the failure evidence. '
+  3436	                        'Do not expose non-visible verifier internals in reasoning or final answers. '
+  3437	                        'Do not turn hidden or oracle verifier results into solver hints. '
+  3438	                        'If a verifier is unavailable or the environment is missing dependencies, classify that from evidence and continue with the strongest visible request-relevant checks available. '
+  3439	                        ' '
+  3440	                        'Raw bash rules: '
+  3441	                        'raw_bash is allowed, but every command should be evidence-producing. '
+  3442	                        'Use bounded commands. '
+  3443	                        'Avoid unnecessary long-running processes. '
+  3444	                        'Do not start silent background services unless the action explicitly declares background intent and you will probe or log them afterward. '
+  3445	                        'Avoid destructive commands unless they are required and safe for the visible workspace. '
+  3446	                        ' '
+  3447	                        'Completion checklist: '
+  3448	                        'Before finalizing, confirm required outputs exist, artifacts are real and complete, required inputs or assets were used when required, functional criteria have behavioral evidence, required verifiers or self-checks passed, required services are healthy by measured probes, current blockers are resolved, no output is a placeholder/stub/mock/canned answer/incomplete shortcut, and no hidden/oracle/solution material was used as solver evidence. '
+  3449	                        'When you believe the work is done, treat verification as a high-stakes final gate. Never claim that you inspected, edited, ran, tested, verified, started, installed, generated, or confirmed anything unless that action appears in recorded receipts or the current action result. '
+  3450	                        'Run the strongest visible verifier or request-relevant check available, inspect the result, repair failures, then finalize only when the checklist is satisfied. '
+  3451	                        'Do not use cannot_complete unless the visible requirements are impossible from the available environment. '
+  3452	                            'If current work is invalid, continue repairing from evidence instead of giving up. '
+  3453	                        )
+  3454	                        if step_index <= 1 or __import__("os").environ.get("MLPCP_FULL_PROMPT_EVERY_STEP") == "1"
+  3455	                        else (
+  3456	                            "You are an interactive software engineering agent. Return strict JSON only with a top-level actions list. "
+  3457	                            "Use only allowed actions. Use receipts, file cache, and measured evidence before repeating equivalent work. "
+  3458	                            "You may include success_contract, plan_update, working_checklist, or model_notes when useful. "
+  3459	                            "Finalize only when completion is supported by receipt-backed evidence_refs. "
+  3460	                            "If cockpit or derived state conflicts with the original request or measured evidence, preserve the original request and repair the derived state."
+  3461	                        )
+  3462	                    ),
+  3463	                ),
+  3464	                ModelMessage(
+  3465	                    "user",
+  3466	                    "ORIGINAL USER REQUEST / AUTHORITATIVE TASK OBJECTIVE:\n"
+  3467	                    + self._original_instruction_for_model()
+  3468	                    + "\n\nInstruction priority note: the success contract, cockpit, receipts, and repair packets are derived aids. If they conflict with the original request, preserve the original request and repair the derived state. Do not satisfy surrogate gates such as compile/read/non-empty-output when the original request demands semantic behavior.",
+  3469	                ),
+  3470	                ModelMessage(
+  3471	                    "user",
+  3472	                    "REMOTE ENVIRONMENT MAP:\n"
+  3473	                    + json.dumps(
+  3474	                        compact_remote_context_for_model(getattr(self, "_remote_context_cache", {})),
+  3475	                        sort_keys=True,
+  3476	                    ),
+  3477	                ),
+  3478	                ModelMessage(
+  3479	                    "user",
+  3480	                    "SUCCESS CONTRACT CHECKLIST:\n"
+  3481	                    + json.dumps(self._success_checklist_for_model(), sort_keys=True),
+  3482	                ),
+  3483	                ModelMessage(
+  3484	                    "user",
+  3485	                    "MODEL-OWNED WORKING PLAN:\n"
+  3486	                    + json.dumps(self._load_model_owned_plan(), sort_keys=True),
+  3487	                ),
+  3488	                ModelMessage("user", json.dumps(cockpit_for_model, sort_keys=True)),
+  3489	            ],
+  3490	        )
+  3491	        try:
+  3492	            (self.receipt_root / f"model_execute_request_{step_index}.json").write_text(
+  3493	                json.dumps(
+  3494	                    {
+  3495	                        "call_id": getattr(request, "call_id", None),
+  3496	                        "run_id": getattr(request, "run_id", None),
+  3497	                        "row_id": getattr(request, "row_id", None),
+  3498	                        "phase": getattr(request, "phase", None),
+  3499	                        "messages": [
+  3500	                            {
+  3501	                                "role": getattr(m, "role", None),
+  3502	                                "content": getattr(m, "content", None),
+  3503	                            }
+  3504	                            for m in getattr(request, "messages", [])
+  3505	                        ],
+
+===== execute dispatch + duplicate mirror area =====
+  3520	                pass
+  3521	
+  3522	        model_result = self.model_client.call(request)
+  3523	        try:
+  3524	            (self.receipt_root / f"model_execute_{step_index}.json").write_text(
+  3525	                json.dumps(model_result.to_dict(), indent=2, default=str),
+  3526	                encoding="utf-8",
+  3527	            )
+  3528	        except Exception as log_exc:
+  3529	            (self.receipt_root / f"model_execute_{step_index}_logging_error.txt").write_text(str(log_exc), encoding="utf-8")
+  3530	        if model_result.status != "success" or model_result.parsed is None:
+  3531	            raise ModelIOError(model_result.error or "Model did not return valid execute actions.")
+  3532	        self._capture_model_success_contract(model_result.parsed, step_index=step_index)
+  3533	        self._capture_model_plan_update(model_result.parsed, step_index=step_index)
+  3534	        parsed_for_execution = self._strip_action_level_plan_updates(model_result.parsed)
+  3535	        self._capture_model_success_contract(parsed_for_execution, step_index=step_index)
+  3536	        self._capture_model_plan_update(parsed_for_execution, step_index=step_index)
+  3537	        plan_request = parse_execute_plan_request(
+  3538	            parsed=parsed_for_execution,
+  3539	            run_id=self.run_id,
+  3540	            row_id=self.row_id,
+  3541	            request_id=f"execute_{step_index}",
+  3542	            step_start=step_index,
+  3543	        )
+  3544	        return await self._execute_request(plan_request)
+  3545	
+  3546	    async def _execute_request(self, request: ExecutePlanRequest) -> ExecutePlanResult:
+  3547	        action_results: list[ActionResult] = []
+  3548	        status = "success"
+  3549	        stopped_at: str | None = None
+  3550	        finalization: FinalizationDecision | None = None
+  3551	        for offset, action in enumerate(request.actions, start=1):
+  3552	            step = request.step_start + offset
+  3553	            try:
+  3554	                action_plain_for_dedup = self._action_plain_dict_for_dedup(action)
+  3555	                duplicate_execution = self._find_duplicate_execution(action_plain_for_dedup)
+  3556	
+  3557	                if duplicate_execution is not None:
+  3558	                    mirror = self._duplicate_execution_mirror_result(
+  3559	                        action_plain_for_dedup,
+  3560	                        step_index=step,
+  3561	                        duplicate=duplicate_execution,
+  3562	                    )
+  3563	                    result = ActionResult(
+  3564	                        action.action_id,
+  3565	                        action.action_type,
+  3566	                        "blocked",
+  3567	                        mirror.get("message") or "Duplicate action bypassed: no new evidence was produced. Use the previous receipt, choose a more specific follow-up, or proceed from the known state.",
+  3568	                        failure_class="repeated_no_progress" if str(mirror.get("failure_class") or "").strip() in {"", "duplicate_action_same_state"} else mirror.get("failure_class"),
+  3569	                        result=mirror,
+  3570	                    )
+  3571	                else:
+  3572	                    result = await self._execute_action(action, step=step)
+  3573	                    self._record_action_execution_signature(
+  3574	                        action_plain_for_dedup,
+  3575	                        step_index=step,
+  3576	                        result=result,
+  3577	                        receipt_ref=getattr(result, "receipt_ref", None),
+  3578	                    )
+  3579	            except Exception as exc:
+  3580	                result = ActionResult(
+  3581	                    action.action_id,
+  3582	                    action.action_type,
+  3583	                    "error",
+  3584	                    f"{action.action_type} errored: {exc}",
+  3585	                    failure_class=FailureClass.TOOL_EXECUTION_ERROR,
+  3586	                    error=str(exc),
+  3587	                )
+  3588	            action_results.append(result)
+  3589	            if action.action_type == "finalize" and isinstance(result.result, FinalizationDecision):
+  3590	                finalization = result.result
+  3591	            if result.status in {"blocked", "error"}:
+  3592	                status = "blocked"
+  3593	                stopped_at = action.action_id
+  3594	                break
+  3595	        if finalization is None:
+
+===== search_files implementation =====
+  3590	                finalization = result.result
+  3591	            if result.status in {"blocked", "error"}:
+  3592	                status = "blocked"
+  3593	                stopped_at = action.action_id
+  3594	                break
+  3595	        if finalization is None:
+  3596	            finalization = self._evaluate_finalization()
+  3597	        return ExecutePlanResult(
+  3598	            request_id=request.request_id,
+  3599	            run_id=request.run_id,
+  3600	            row_id=request.row_id,
+  3601	            status=status,
+  3602	            action_results=action_results,
+  3603	            finalization=finalization,
+  3604	            stopped_at_action_id=stopped_at,
+  3605	        )
+  3606	
+  3607	    async def _execute_action(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  3608	        action_type = action.action_type
+  3609	        if action_type == "read_file":
+  3610	            return await self._action_read_file(action, step=step)
+  3611	        if action_type == "write_file":
+  3612	            return await self._action_write_file(action, step=step)
+  3613	        if action_type == "search_files":
+  3614	            return await self._action_search_files(action, step=step)
+  3615	        if action_type == "raw_bash":
+  3616	            return await self._action_raw_bash(action, step=step)
+  3617	        if action_type == "run_verifier":
+  3618	            return await self._action_run_verifier(action, step=step)
+  3619	        if action_type == "probe_service":
+  3620	            return await self._action_probe_service(action, step=step)
+  3621	        if action_type == "view_receipt":
+  3622	            return self._action_view_receipt(action)
+  3623	        if action_type == "search_receipts":
+  3624	            return self._action_search_receipts(action)
+  3625	        if action_type == "view_file_cache":
+  3626	            return self._action_view_file_cache(action)
+  3627	        if action_type == "finalize":
+  3628	            return self._action_finalize(action)
+  3629	        if action_type in {
+  3630	            "model_notes",
+  3631	            "action_rationale",
+  3632	            "working_memory",
+  3633	            "scratchpad",
+  3634	            "notes",
+  3635	            "scratchpad_update",
+  3636	            "plan_update",
+  3637	            "update_plan",
+  3638	            "working_checklist",
+  3639	            "checklist_update",
+  3640	            "success_contract",
+  3641	            "contract",
+  3642	            "message",
+  3643	            "error",
+  3644	            "observation",
+  3645	            "analysis",
+  3646	            "thought",
+  3647	            "comment",
+  3648	        }:
+  3649	            return ActionResult(
+  3650	                action.action_id,
+  3651	                action.action_type,
+  3652	                "success",
+  3653	                f"Captured non-executable model state action: {action_type}.",
+  3654	                result={"captured_state_action": action_type},
+  3655	            )
+  3656	        raise ValueError(f"Unsupported action type: {action_type}")
+  3657	
+  3658	
+  3659	    async def _action_search_files(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  3660	        args = action.args or {}
+  3661	        base = Path(str(args.get("path") or "."))
+  3662	        pattern = str(args.get("pattern") or "*")
+  3663	        max_results = int(args.get("max_results") or 80)
+  3664	        max_results = max(1, min(max_results, 200))
+  3665	
+  3666	        if not base.is_absolute():
+  3667	            base = self.workspace_root / base
+  3668	        try:
+  3669	            base = base.resolve()
+  3670	            workspace = self.workspace_root.resolve()
+  3671	            # Allow /app-like workspace aliases only through the host workspace root.
+  3672	            if workspace not in base.parents and base != workspace:
+  3673	                if str(base).startswith("/app"):
+  3674	                    base = workspace / str(base).lstrip("/").removeprefix("app/")
+  3675	                else:
+  3676	                    raise ValueError("search path must stay inside visible workspace")
+  3677	        except Exception as exc:
+  3678	            return ActionResult(
+  3679	                action.action_id,
+  3680	                action.action_type,
+  3681	                "error",
+  3682	                f"search_files invalid path: {exc}",
+  3683	                failure_class=FailureClass.TOOL_EXECUTION_ERROR,
+  3684	                error=str(exc),
+  3685	            )
+  3686	
+  3687	        matches: list[str] = []
+  3688	        try:
+  3689	            for fp in base.rglob("*"):
+  3690	                if len(matches) >= max_results:
+  3691	                    break
+  3692	                if not fp.is_file():
+  3693	                    continue
+  3694	                rel = str(fp.relative_to(workspace))
+  3695	                if fnmatch(fp.name, pattern) or fnmatch(rel, pattern):
+  3696	                    matches.append(rel)
+  3697	        except Exception as exc:
+  3698	            return ActionResult(
+  3699	                action.action_id,
+  3700	                action.action_type,
+  3701	                "error",
+  3702	                f"search_files failed: {exc}",
+  3703	                failure_class=FailureClass.TOOL_EXECUTION_ERROR,
+  3704	                error=str(exc),
+  3705	            )
+  3706	
+  3707	        rel_base = "." if base == workspace else str(base.relative_to(workspace))
+  3708	        summary = f"search_files found {len(matches)} matches."
+  3709	        receipt = self.session.receipt_store.create_receipt(
+  3710	            receipt_id=self._receipt_id(action, step),
+  3711	            run_id=self.run_id,
+  3712	            row_id=self.row_id,
+  3713	            step=step,
+  3714	            tool_name="search_files",
+  3715	            tool_args={"path": rel_base, "pattern": pattern, "max_results": max_results},
+  3716	            cwd=REMOTE_WORKSPACE_ROOT,
+  3717	            status="success",
+  3718	            exit_code=0,
+  3719	            stdout="\\n".join(matches),
+  3720	            stderr="",
+  3721	            summary=summary,
+  3722	            files_read=[Reference(ref_type="file", ref_id=rel_base, summary=f"Searched {rel_base}")],
+  3723	            failure_class=FailureClass.NONE,
+  3724	            model_visible_summary=summary,
+  3725	        )
+  3726	        receipt_ref = self.session.receipt_store.receipt_ref(receipt)
+  3727	        self.session.memory_store.record_directory_listing(
+  3728	            path=rel_base,
+  3729	            entries=matches,
+  3730	            receipt_ref=receipt_ref,
+  3731	            step=step,
+  3732	        )
+  3733	        return ActionResult(
+  3734	            action.action_id,
+  3735	            action.action_type,
+
+===== read/write/raw_bash implementations =====
+  3730	            receipt_ref=receipt_ref,
+  3731	            step=step,
+  3732	        )
+  3733	        return ActionResult(
+  3734	            action.action_id,
+  3735	            action.action_type,
+  3736	            "success",
+  3737	            summary,
+  3738	            result={"matches": matches, "pattern": pattern, "path": rel_base},
+  3739	            receipt_ref=receipt_ref,
+  3740	        )
+  3741	
+  3742	
+  3743	    async def _action_read_file(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  3744	        path = self.guard.validate_read_path(self._normalize_model_path(str(action.args.get("path") or "")))
+  3745	        rel = self._rel(path)
+  3746	        target = path
+  3747	        target.parent.mkdir(parents=True, exist_ok=True)
+  3748	        await self.environment.download_file(self._remote_path(rel), target)
+  3749	        content = target.read_text(encoding="utf-8", errors="replace")
+  3750	        receipt = self.session.receipt_store.create_receipt(
+  3751	            receipt_id=self._receipt_id(action, step),
+  3752	            run_id=self.run_id,
+  3753	            row_id=self.row_id,
+  3754	            step=step,
+  3755	            tool_name="read_file",
+  3756	            tool_args={"path": rel},
+  3757	            cwd=REMOTE_WORKSPACE_ROOT,
+  3758	            status="success",
+  3759	            exit_code=0,
+  3760	            stdout=content,
+  3761	            stderr="",
+  3762	            summary=f"Read file {rel}.",
+  3763	            files_read=[Reference(ref_type="file", ref_id=rel, summary=f"Read {rel}")],
+  3764	            failure_class=FailureClass.NONE,
+  3765	            model_visible_summary=f"Read file {rel}.",
+  3766	        )
+  3767	        receipt_ref = self.session.receipt_store.receipt_ref(receipt)
+  3768	        self.session.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+  3769	        return ActionResult(action.action_id, action.action_type, "success", f"Read file {rel}.", receipt_ref=receipt_ref, result={"path": rel, "content": content})
+  3770	
+  3771	    async def _action_write_file(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  3772	        path = self.guard.validate_write_path(self._normalize_model_path(str(action.args.get("path") or "")))
+  3773	        content = str(action.args.get("content") or "")
+  3774	        rel = self._rel(path)
+  3775	        before_hash = text_hash(path.read_text(encoding="utf-8", errors="replace")) if path.exists() else None
+  3776	        path.parent.mkdir(parents=True, exist_ok=True)
+  3777	        path.write_text(content, encoding="utf-8")
+  3778	        remote_parent = self._remote_parent(rel)
+  3779	        await self.environment.exec(command=f"mkdir -p {shlex.quote(remote_parent)}", cwd=REMOTE_WORKSPACE_ROOT, timeout_sec=30)
+  3780	        await self.environment.upload_file(path, self._remote_path(rel))
+  3781	        after_hash = text_hash(content)
+  3782	        receipt = self.session.receipt_store.create_receipt(
+  3783	            receipt_id=self._receipt_id(action, step),
+  3784	            run_id=self.run_id,
+  3785	            row_id=self.row_id,
+  3786	            step=step,
+  3787	            tool_name="write_file",
+  3788	            tool_args={"path": rel, "content_sha256": after_hash},
+  3789	            cwd=REMOTE_WORKSPACE_ROOT,
+  3790	            status="success",
+  3791	            exit_code=0,
+  3792	            stdout=f"wrote {rel}\n",
+  3793	            stderr="",
+  3794	            summary=f"Wrote file {rel}.",
+  3795	            files_written=[Reference(ref_type="file", ref_id=rel, summary=f"Wrote {rel}")],
+  3796	            file_hashes={rel: {"before": before_hash, "after": after_hash}},
+  3797	            failure_class=FailureClass.NONE,
+  3798	            model_visible_summary=f"Wrote file {rel}.",
+  3799	        )
+  3800	        receipt_ref = self.session.receipt_store.receipt_ref(receipt)
+  3801	        self.session.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+  3802	        self._apply_capability_if_requested(action, passed=True, receipt_ref=receipt_ref, summary=f"Measured write_file success for {rel}.")
+  3803	        self._apply_artifact_write_evidence(rel=rel, receipt_ref=receipt_ref)
+  3804	        return ActionResult(action.action_id, action.action_type, "success", f"Wrote file {rel}.", receipt_ref=receipt_ref, result={"path": rel, "before_sha256": before_hash, "after_sha256": after_hash})
+  3805	
+  3806	    def _artifact_path_variants(self, value: str) -> set[str]:
+  3807	        text = str(value or "").strip().strip("`'\"")
+  3808	        text = text.replace("\\", "/")
+  3809	        stripped = text.strip("/")
+  3810	        leaf = stripped.rsplit("/", 1)[-1] if stripped else stripped
+  3811	        sanitized = stripped.replace("/", "_").replace(".", "_").replace("-", "_").strip("_")
+  3812	        leaf_sanitized = leaf.replace(".", "_").replace("-", "_").strip("_")
+  3813	        variants = {text, stripped, "/" + stripped if stripped else "", leaf, sanitized, leaf_sanitized}
+  3814	        return {v for v in variants if v}
+  3815	
+  3816	
+  3817	    def _artifact_candidate_check_ids(self, *, output: dict, idx: int, graph) -> list[str]:
+  3818	        path = str(output.get("path") or output.get("name") or f"output_{idx}").strip()
+  3819	        variants = self._artifact_path_variants(path)
+  3820	
+  3821	        candidates: list[str] = []
+  3822	
+  3823	        for key in ("check_id", "exists_check_id"):
+  3824	            value = output.get(key)
+  3825	            if value:
+  3826	                candidates.append(str(value))
+  3827	
+  3828	        req = output.get("requirement_id")
+  3829	        if req:
+  3830	            candidates.append(f"{req}:exists")
+  3831	
+  3832	        for v in variants:
+  3833	            candidates.append(f"artifact:{v}:exists")
+  3834	
+  3835	        # Important: CapabilityGraph usually sanitizes /app/gpt2.c to app_gpt2_c.
+  3836	        sanitized = path.strip("/").replace("/", "_").replace(".", "_").replace("-", "_").strip("_")
+  3837	        if sanitized:
+  3838	            candidates.append(f"artifact:{sanitized}:exists")
+  3839	
+  3840	        try:
+  3841	            obligations = graph.obligations()
+  3842	        except Exception:
+  3843	            obligations = []
+  3844	
+  3845	        for obligation in obligations:
+  3846	            if hasattr(obligation, "to_dict"):
+  3847	                try:
+  3848	                    data = obligation.to_dict()
+  3849	                except Exception:
+  3850	                    data = {}
+  3851	            elif isinstance(obligation, dict):
+  3852	                data = obligation
+  3853	            else:
+  3854	                data = {}
+  3855	
+  3856	            check_id = str(data.get("check_id") or "")
+  3857	            requirement_id = str(data.get("requirement_id") or "")
+  3858	            haystack = f"{check_id} {requirement_id}"
+  3859	            if check_id.startswith("artifact:") and any(v and v in haystack for v in variants):
+  3860	                candidates.append(check_id)
+  3861	
+  3862	        out: list[str] = []
+  3863	        seen = set()
+  3864	        for c in candidates:
+  3865	            c = str(c).strip()
+  3866	            if c and c not in seen:
+  3867	                out.append(c)
+  3868	                seen.add(c)
+  3869	        return out
+  3870	
+  3871	
+  3872	    def _credit_artifact_output(
+  3873	        self,
+  3874	        *,
+  3875	        output: dict,
+  3876	        idx: int,
+  3877	        receipt_ref,
+  3878	        summary: str,
+  3879	    ) -> bool:
+  3880	        graph = getattr(self.session, "capability_graph", None)
+  3881	        if graph is None or receipt_ref is None:
+  3882	            return False
+  3883	
+  3884	        applied = False
+  3885	        for check_id in self._artifact_candidate_check_ids(output=output, idx=idx, graph=graph):
+  3886	            try:
+  3887	                graph.apply_measured_check(
+  3888	                    check_id=check_id,
+  3889	                    passed=True,
+  3890	                    receipt_ref=receipt_ref,
+  3891	                    summary=summary,
+  3892	                    failure_class=FailureClass.NONE,
+  3893	                )
+  3894	                applied = True
+  3895	            except Exception:
+
+===== verifier/finalize implementations =====
+  3890	                    receipt_ref=receipt_ref,
+  3891	                    summary=summary,
+  3892	                    failure_class=FailureClass.NONE,
+  3893	                )
+  3894	                applied = True
+  3895	            except Exception:
+  3896	                pass
+  3897	        return applied
+  3898	
+  3899	
+  3900	    def _apply_artifact_write_evidence(self, *, rel: str, receipt_ref) -> None:
+  3901	        contract = getattr(self.session, "success_contract", None)
+  3902	        if contract is None or receipt_ref is None:
+  3903	            return
+  3904	
+  3905	        rel_variants = self._artifact_path_variants(rel)
+  3906	
+  3907	        for idx, output in enumerate(getattr(contract, "required_outputs", []) or []):
+  3908	            if output.get("required", True) is False:
+  3909	                continue
+  3910	
+  3911	            path = str(output.get("path") or output.get("name") or f"output_{idx}").strip()
+  3912	            path_variants = self._artifact_path_variants(path)
+  3913	
+  3914	            if rel_variants & path_variants:
+  3915	                self._credit_artifact_output(
+  3916	                    output=output,
+  3917	                    idx=idx,
+  3918	                    receipt_ref=receipt_ref,
+  3919	                    summary=f"Required artifact observed in Harbor workspace: {path}",
+  3920	                )
+  3921	
+  3922	
+  3923	    async def _action_raw_bash(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  3924	        command = str(action.args.get("cmd") or action.args.get("command") or "")
+  3925	        if not command:
+  3926	            raise ValueError("raw_bash requires cmd")
+  3927	        self.guard.validate_command_text(command)
+  3928	        cwd = self.guard.validate_cwd(self._normalize_model_path(str(action.args.get("cwd") or "")) if action.args.get("cwd") else None)
+  3929	        timeout = int(action.args.get("timeout_seconds") or (self.execute_policy or ExecutePlanPolicy()).raw_bash_timeout_seconds)
+  3930	        remote_cwd = self._remote_path(self._rel(cwd))
+  3931	        cp = await self.environment.exec(command=command, cwd=remote_cwd, timeout_sec=timeout)
+  3932	        status = "success" if cp.return_code == 0 else "fail"
+  3933	        failure_class = FailureClass.NONE if cp.return_code == 0 else FailureClass.TOOL_EXECUTION_ERROR
+  3934	        summary = f"raw_bash exited {cp.return_code}."
+  3935	        receipt = self.session.receipt_store.create_receipt(
+  3936	            receipt_id=self._receipt_id(action, step),
+  3937	            run_id=self.run_id,
+  3938	            row_id=self.row_id,
+  3939	            step=step,
+  3940	            tool_name="raw_bash",
+  3941	            tool_args={"cmd": command, "cwd": self._rel(cwd), "timeout_seconds": timeout},
+  3942	            cwd=remote_cwd,
+  3943	            status=status,
+  3944	            exit_code=cp.return_code,
+  3945	            stdout=cp.stdout or "",
+  3946	            stderr=cp.stderr or "",
+  3947	            summary=summary,
+  3948	            failure_class=failure_class,
+  3949	            model_visible_summary=summary,
+  3950	            excerpt_chars=(self.execute_policy or ExecutePlanPolicy()).raw_bash_max_output_chars,
+  3951	        )
+  3952	        receipt_ref = self.session.receipt_store.receipt_ref(receipt)
+  3953	        if action.args.get("capability_check_id"):
+  3954	            self._apply_capability_if_requested(action, passed=status == "success", receipt_ref=receipt_ref, summary=summary, failure_class=failure_class)
+  3955	
+  3956	        if status == "success":
+  3957	            await self._scan_artifact_outputs(receipt_ref=receipt_ref)
+  3958	
+  3959	        action_status = "success" if status == "success" else "error"
+  3960	        return ActionResult(action.action_id, action.action_type, action_status, summary, failure_class=failure_class, receipt_ref=receipt_ref, result={"exit_code": cp.return_code, "stdout_excerpt": receipt.stdout["excerpt"], "stderr_excerpt": receipt.stderr["excerpt"]})
+  3961	
+  3962	
+  3963	    async def _scan_artifact_outputs(self, *, receipt_ref) -> None:
+  3964	        contract = getattr(self.session, "success_contract", None)
+  3965	        if contract is None:
+  3966	            return
+  3967	
+  3968	        for idx, output in enumerate(getattr(contract, "required_outputs", []) or []):
+  3969	            path_raw = str(output.get("path") or output.get("name") or "").strip()
+  3970	            if not path_raw:
+  3971	                continue
+  3972	
+  3973	            # Contract paths may be absolute task-container paths like /app/gpt2.c
+  3974	            # or workspace-relative paths like gpt2.c. Test the actual remote path.
+  3975	            if path_raw.startswith("/"):
+  3976	                remote_target = path_raw
+  3977	                evidence_rel = path_raw
+  3978	            else:
+  3979	                rel = path_raw.strip("/")
+  3980	                remote_target = self._remote_path(rel)
+  3981	                evidence_rel = rel
+  3982	
+  3983	            try:
+  3984	                exists = await self.environment.exec(
+  3985	                    command=f"test -e {shlex.quote(remote_target)}",
+  3986	                    cwd=REMOTE_WORKSPACE_ROOT,
+  3987	                    timeout_sec=10,
+  3988	                )
+  3989	            except Exception:
+  3990	                continue
+  3991	
+  3992	            if exists.return_code == 0:
+  3993	                self._apply_artifact_write_evidence(
+  3994	                    rel=evidence_rel,
+  3995	                    receipt_ref=receipt_ref,
+  3996	                )
+  3997	
+  3998	
+  3999	    async def _action_run_verifier(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  4000	        command = str(action.args.get("cmd") or action.args.get("command") or "")
+  4001	        if not command:
+  4002	            return ActionResult(
+  4003	                action.action_id,
+  4004	                action.action_type,
+  4005	                "blocked",
+  4006	                "Verifier command missing; request a concrete verifier command before retrying.",
+  4007	                failure_class=FailureClass.TOOL_EXECUTION_ERROR,
+  4008	                result={"passed": False, "safe_summary": "Verifier command missing."},
+  4009	            )
+  4010	        self.guard.validate_command_text(command)
+  4011	        cwd = self.guard.validate_cwd(self._normalize_model_path(str(action.args.get("cwd") or "")) if action.args.get("cwd") else None)
+  4012	        timeout = int(action.args.get("timeout_seconds") or (self.execute_policy or ExecutePlanPolicy()).raw_bash_timeout_seconds)
+  4013	        remote_cwd = self._remote_path(self._rel(cwd))
+  4014	        cp = await self.environment.exec(command=command, cwd=remote_cwd, timeout_sec=timeout)
+  4015	        passed = cp.return_code == 0
+  4016	        failure_class = FailureClass.NONE if passed else FailureClass.VERIFIER_FAILED
+  4017	        summary = "Verifier passed." if passed else "Verifier failed."
+  4018	        receipt = self.session.receipt_store.create_receipt(
+  4019	            receipt_id=self._receipt_id(action, step),
+  4020	            run_id=self.run_id,
+  4021	            row_id=self.row_id,
+  4022	            step=step,
+  4023	            tool_name="run_verifier",
+  4024	            tool_args={"command": command, "timeout_seconds": timeout},
+  4025	            cwd=remote_cwd,
+
+===== path normalization + remote path helpers =====
+  4300	        failure_class = FailureClass.NONE if passed else (
+  4301	            FailureClass.SERVICE_PORT_CLOSED if check_type == "tcp_port" else
+  4302	            FailureClass.SERVICE_PROTOCOL_FAILED if check_type == "http" else
+  4303	            FailureClass.SERVICE_PROCESS_MISSING if check_type == "process_pattern" else
+  4304	            FailureClass.SERVICE_LOG_ERROR if check_type == "log_tail" else
+  4305	            FailureClass.SERVICE_PROBE_FAILED
+  4306	        )
+  4307	        evidence = f"{check_type} passed" if passed else (cp.stderr or cp.stdout or f"{check_type} failed")
+  4308	        return {
+  4309	            "type": check_type,
+  4310	            "status": "pass" if passed else "fail",
+  4311	            "evidence": evidence[:500],
+  4312	            "failure_class": failure_class,
+  4313	            "stdout": cp.stdout or "",
+  4314	            "stderr": cp.stderr or "",
+  4315	        }
+  4316	
+  4317	    async def _remote_context(self) -> dict[str, Any]:
+  4318	        return await build_remote_context(self.environment, REMOTE_WORKSPACE_ROOT)
+  4319	
+  4320	    def _apply_capability_if_requested(
+  4321	        self,
+  4322	        action: ExecutePlanAction,
+  4323	        *,
+  4324	        passed: bool,
+  4325	        receipt_ref: Reference,
+  4326	        summary: str,
+  4327	        failure_class: FailureClass | str = FailureClass.NONE,
+  4328	    ) -> None:
+  4329	        check_id = action.args.get("capability_check_id") or action.args.get("check_id")
+  4330	        if check_id and self.session.capability_graph is not None:
+  4331	            self.session.capability_graph.apply_measured_check(
+  4332	                check_id=str(check_id),
+  4333	                passed=passed,
+  4334	                receipt_ref=receipt_ref,
+  4335	                summary=summary,
+  4336	                failure_class=failure_class,
+  4337	            )
+  4338	
+  4339	    def _receipt_id(self, action: ExecutePlanAction, step: int) -> str:
+  4340	        safe_action = re.sub(r"[^a-zA-Z0-9_.-]+", "_", action.action_id)[:80] or "action"
+  4341	        return f"{step:04d}_{safe_action}_{action.action_type}"
+  4342	
+  4343	    def _rel(self, path: Path) -> str:
+  4344	        try:
+  4345	            return str(path.resolve().relative_to(self.workspace_root)).replace("\\", "/") or "."
+  4346	        except ValueError:
+  4347	            return str(path)
+  4348	
+  4349	    def _remote_path(self, rel: str) -> str:
+  4350	        rel_value = rel.strip().lstrip("/")
+  4351	        if not rel_value or rel_value == ".":
+  4352	            return REMOTE_WORKSPACE_ROOT
+  4353	        return f"{REMOTE_WORKSPACE_ROOT}/{rel_value}"
+  4354	
+  4355	    def _remote_parent(self, rel: str) -> str:
+  4356	        if "/" not in rel:
+  4357	            return REMOTE_WORKSPACE_ROOT
+  4358	        return self._remote_path(rel.rsplit("/", 1)[0])
+  4359	
+  4360	    def _normalize_model_path(self, value: str) -> str:
+  4361	        text = value.strip()
+  4362	        if text == REMOTE_WORKSPACE_ROOT:
+  4363	            return "."
+  4364	        if text.startswith(f"{REMOTE_WORKSPACE_ROOT}/"):
+  4365	            return text[len(f"{REMOTE_WORKSPACE_ROOT}/") :]
+  4366	        return text
+  4367	
+  4368	
+  4369	__all__ = ["HarborHostRunner"]
+
+===== env/substrate builders =====
+  1600	                    "Run the self-check and inspect output.",
+  1601	                    "Run required verifier/probe actions after the self-check passes.",
+  1602	                ],
+  1603	                "bad_repair_patterns": [
+  1604	                    "rewriting the same placeholder/stub",
+  1605	                    "only checking file existence",
+  1606	                    "only checking compilation",
+  1607	                    "only running a smoke command without validating output",
+  1608	                    "accepting deterministic/non-empty output as enough",
+  1609	                    "accepting numeric-only, hash-like, RNG, fixed-string, lookup-table, or common-word output for semantic generation work",
+  1610	                    "testing only an easy input when the visible requirement implies harder edge cases",
+  1611	                    "treating a required input argument as a filename or optional data source unless the request says it is one",
+  1612	                    "finalizing while verifier/artifact/service obligations remain",
+  1613	                ],
+  1614	            }
+  1615	
+  1616	        return prepared
+  1617	
+  1618	
+  1619	
+  1620	    def _recent_receipts_for_adversarial_review(self, *, limit: int = 18) -> list[dict[str, Any]]:
+  1621	        out: list[dict[str, Any]] = []
+  1622	        receipt_dir = self.receipt_root / "receipts"
+  1623	        for rp in sorted(receipt_dir.glob("*.json"))[-limit:]:
+  1624	            try:
+  1625	                obj = json.loads(rp.read_text(encoding="utf-8"))
+  1626	            except Exception as exc:
+  1627	                out.append({"receipt": rp.name, "error": str(exc)})
+  1628	                continue
+  1629	            compact = {
+  1630	                "receipt": rp.name,
+  1631	                "action_type": obj.get("action_type"),
+  1632	                "status": obj.get("status"),
+  1633	                "summary": obj.get("summary"),
+  1634	            }
+  1635	            result = obj.get("result")
+  1636	            if isinstance(result, dict):
+  1637	                for k in ("exit_code", "stdout_excerpt", "stderr_excerpt", "path", "bytes_written"):
+  1638	                    if k in result:
+  1639	                        compact[k] = str(result.get(k))[:1800]
+  1640	            out.append(compact)
+  1641	        return out
+  1642	
+  1643	    def _artifact_snippets_for_adversarial_review(self, *, limit: int = 10, max_chars: int = 2200) -> list[dict[str, Any]]:
+  1644	        out: list[dict[str, Any]] = []
+  1645	        try:
+  1646	            files = sorted(
+  1647	                [x for x in self.workspace_root.rglob("*") if x.is_file()],
+  1648	                key=lambda x: x.stat().st_mtime,
+  1649	                reverse=True,
+  1650	            )
+  1651	        except Exception:
+  1652	            files = []
+  1653	        for fp in files:
+  1654	            if len(out) >= limit:
+  1655	                break
+  1656	            try:
+  1657	                rel = str(fp.relative_to(self.workspace_root))
+  1658	                size = fp.stat().st_size
+  1659	            except Exception:
+  1660	                continue
+  1661	            if size > 300000:
+  1662	                continue
+  1663	            if fp.suffix.lower() not in {".c", ".h", ".py", ".sh", ".txt", ".md", ".json", ".yaml", ".yml", ".toml", ".log"}:
+  1664	                continue
+  1665	            try:
+  1666	                text = fp.read_text(encoding="utf-8", errors="replace")
+  1667	            except Exception:
+  1668	                continue
+  1669	            out.append({"path": rel, "size": size, "snippet": text[:max_chars]})
+  1670	        return out
+  1671	
+  1672	
+  1673	    def _receipt_index_for_claim_gate(self) -> dict[str, dict[str, Any]]:
+  1674	        """Index visible receipt JSON files by several convenient reference forms."""
+  1675	        index: dict[str, dict[str, Any]] = {}
+  2280	                **payload,
+  2281	            },
+  2282	        )
+  2283	
+  2284	
+  2285	
+  2286	    def _review_finalization_adversarial(
+  2287	        self,
+  2288	        *,
+  2289	        step_index: int,
+  2290	        contract: Any,
+  2291	        finalization: FinalizationDecision,
+  2292	        exec_result: ExecutePlanResult,
+  2293	        cockpit: dict[str, Any],
+  2294	    ) -> VerifierCriticResult:
+  2295	        deterministic = self.critic.review(
+  2296	            VerifierCriticRequest(
+  2297	                run_id=self.run_id,
+  2298	                row_id=self.row_id,
+  2299	                capability_graph=self.session.capability_graph,
+  2300	                finalization_decision=finalization,
+  2301	            )
+  2302	        )
+  2303	        if not finalization.allowed:
+  2304	            return deterministic
+  2305	
+  2306	        try:
+  2307	            instruction_text = (self.workspace_root / "instruction.md").read_text(encoding="utf-8", errors="replace")[:12000]
+  2308	        except Exception:
+  2309	            instruction_text = ""
+  2310	
+  2311	        payload = {
+  2312	            "review_mode": "adversarial_completion_review",
+  2313	            "instruction": instruction_text,
+  2314	            "model_owned_success_contract": self._load_model_owned_success_contract(),
+  2315	            "success_contract_schema": self._model_success_contract_schema(),
+  2316	            "deterministic_finalization": finalization.to_dict() if hasattr(finalization, "to_dict") else str(finalization),
+  2317	            "latest_execute_result": exec_result.to_dict() if hasattr(exec_result, "to_dict") else str(exec_result),
+  2318	            "cockpit": cockpit,
+  2319	            "model_owned_working_plan": self._load_model_owned_plan(),
+  2320	            "plan_review_policy": {
+  2321	                "plan_is_optional": "A missing model-owned plan is not a completion blocker by itself.",
+  2322	                "plan_is_context_not_truth": "The plan is useful continuity state when present, but it does not override the original request, success contract, receipts, artifacts, or measured behavior.",
+  2323	                "reviewer_should_check_only_if_plan_present": [
+  2324	                    "Does the plan include a credible verification/test strategy?",
+  2325	                    "Did the solver gather the evidence the plan itself says is needed?",
+  2326	                    "If the solver deviated from the plan, is the deviation justified by measured evidence?",
+  2327	                    "Does the plan accidentally optimize for surrogate gates such as compilation, file readability, non-empty output, or smoke tests?"
+  2328	                ],
+  2329	                "reviewer_must_not": [
+  2330	                    "Do not reject completion merely because no plan_update was created.",
+  2331	                    "Do not treat the plan as proof of completed work."
+  2332	                ]
+  2333	            },
+  2334	            "recent_receipts": self._recent_receipts_for_adversarial_review(),
+  2335	            "artifact_snippets": self._artifact_snippets_for_adversarial_review(),
+
+===== environment API usage =====
+runner/mlpcp_v2_harbor_host.py:25:from .mlpcp_v2.execute_plan import (
+runner/mlpcp_v2_harbor_host.py:51:    parse_execute_plan_request,
+runner/mlpcp_v2_harbor_host.py:59:from runner.mlpcp_v2_harbor_compact import compact_execute_result_for_cockpit
+runner/mlpcp_v2_harbor_host.py:79:    execute_policy: ExecutePlanPolicy | None = None
+runner/mlpcp_v2_harbor_host.py:92:        self.guard = PathGuard(self.workspace_root, self.execute_policy or ExecutePlanPolicy())
+runner/mlpcp_v2_harbor_host.py:132:            self.session.enter_execute()
+runner/mlpcp_v2_harbor_host.py:145:                        "current_step_id": f"execute_{idx}",
+runner/mlpcp_v2_harbor_host.py:159:                exec_result = await self._run_execute_step(step_index=idx, cockpit=cockpit_payload)
+runner/mlpcp_v2_harbor_host.py:160:                attempted_finalize = self._execution_requested_finalization(exec_result)
+runner/mlpcp_v2_harbor_host.py:161:                finalization = exec_result.finalization or self._evaluate_finalization()
+runner/mlpcp_v2_harbor_host.py:167:                        exec_result=exec_result,
+runner/mlpcp_v2_harbor_host.py:178:                        exec_result=exec_result,
+runner/mlpcp_v2_harbor_host.py:183:                    exec_result=exec_result,
+runner/mlpcp_v2_harbor_host.py:191:                        execute_result=exec_result.to_dict(),
+runner/mlpcp_v2_harbor_host.py:196:                last_result = compact_execute_result_for_cockpit(exec_result.to_dict())
+runner/mlpcp_v2_harbor_host.py:230:                if exec_result.status == "blocked" and self.loop_config.stop_on_blocked_finalization:
+runner/mlpcp_v2_harbor_host.py:648:                "raw_bash",
+runner/mlpcp_v2_harbor_host.py:876:            "ownership": "The model authors this contract from the original task prompt and visible environment. The harness validates shape only and stores it for continuity.",
+runner/mlpcp_v2_harbor_host.py:1013:    def _dedup_execution_ledger_path(self):
+runner/mlpcp_v2_harbor_host.py:1014:        return self.receipt_root / "dedup_execution_ledger.jsonl"
+runner/mlpcp_v2_harbor_host.py:1147:    def _load_dedup_execution_ledger(self):
+runner/mlpcp_v2_harbor_host.py:1148:        path = self._dedup_execution_ledger_path()
+runner/mlpcp_v2_harbor_host.py:1167:    def _append_dedup_execution_ledger(self, row):
+runner/mlpcp_v2_harbor_host.py:1169:            path = self._dedup_execution_ledger_path()
+runner/mlpcp_v2_harbor_host.py:1177:    def _find_duplicate_execution(self, action):
+runner/mlpcp_v2_harbor_host.py:1179:        for row in reversed(self._load_dedup_execution_ledger()):
+runner/mlpcp_v2_harbor_host.py:1188:    def _record_action_execution_signature(
+runner/mlpcp_v2_harbor_host.py:1228:        self._append_dedup_execution_ledger(row)
+runner/mlpcp_v2_harbor_host.py:1231:    def _duplicate_execution_mirror_result(
+runner/mlpcp_v2_harbor_host.py:1243:            "status": "bypassed_duplicate_execution",
+runner/mlpcp_v2_harbor_host.py:1399:        actions = parsed.get("actions") or parsed.get("execute_plan") or []
+runner/mlpcp_v2_harbor_host.py:1472:        """Return the original visible user request/task prompt for every execute call.
+runner/mlpcp_v2_harbor_host.py:2006:        """Read the latest model_execute JSON and return the model's finalize action, if any."""
+runner/mlpcp_v2_harbor_host.py:2008:            self.receipt_root / f"model_execute_{step_index}.json",
+runner/mlpcp_v2_harbor_host.py:2009:            self.receipt_root / f"model_execute_{step_index:03d}.json",
+runner/mlpcp_v2_harbor_host.py:2011:        candidates.extend(sorted(self.receipt_root.glob("model_execute_*.json"))[-3:])
+runner/mlpcp_v2_harbor_host.py:2153:        if any(w in claim_text for w in test_words) and not has_action({"run_verifier", "raw_bash", "probe_service"}):
+runner/mlpcp_v2_harbor_host.py:2154:            blockers.append("claim mentions testing/verification but evidence_refs do not include run_verifier/raw_bash/probe_service evidence")
+runner/mlpcp_v2_harbor_host.py:2157:        if any(w in claim_text for w in write_words) and not has_action({"write_file", "raw_bash"}):
+runner/mlpcp_v2_harbor_host.py:2158:            blockers.append("claim mentions writing/editing/generating but evidence_refs do not include write_file/raw_bash evidence")
+runner/mlpcp_v2_harbor_host.py:2161:        if any(w in claim_text for w in service_words) and not has_action({"probe_service", "raw_bash"}):
+runner/mlpcp_v2_harbor_host.py:2162:            blockers.append("claim mentions service readiness but evidence_refs do not include probe_service/raw_bash evidence")
+runner/mlpcp_v2_harbor_host.py:2191:    def _execution_requested_finalization(self, exec_result) -> bool:
+runner/mlpcp_v2_harbor_host.py:2194:        Do not use exec_result.finalization as the signal. In this host loop that
+runner/mlpcp_v2_harbor_host.py:2199:            payload = exec_result.to_dict() if hasattr(exec_result, "to_dict") else exec_result
+runner/mlpcp_v2_harbor_host.py:2201:            payload = exec_result
+runner/mlpcp_v2_harbor_host.py:2249:    def _verification_skipped_result(self, *, step_index: int, exec_result=None) -> VerifierCriticResult:
+runner/mlpcp_v2_harbor_host.py:2292:        exec_result: ExecutePlanResult,
+runner/mlpcp_v2_harbor_host.py:2317:            "latest_execute_result": exec_result.to_dict() if hasattr(exec_result, "to_dict") else str(exec_result),
+runner/mlpcp_v2_harbor_host.py:2493:        """Parse model action JSON from stored model_execute content.
+runner/mlpcp_v2_harbor_host.py:2522:        actions = parsed.get("actions") or parsed.get("execute_plan") or []
+runner/mlpcp_v2_harbor_host.py:2536:                self.receipt_root.glob("model_execute_*.json"),
+runner/mlpcp_v2_harbor_host.py:2722:        path = self.receipt_root / f"model_execute_{step_index}.json"
+runner/mlpcp_v2_harbor_host.py:2736:        actions = parsed.get("actions") or parsed.get("execute_plan") or []
+runner/mlpcp_v2_harbor_host.py:2881:    def _record_progress_ledger(self, *, step_index: int, instruction: str, exec_result) -> dict[str, Any]:
+runner/mlpcp_v2_harbor_host.py:2888:            "read_file", "write_file", "search_files", "raw_bash", "run_verifier",
+runner/mlpcp_v2_harbor_host.py:2902:            payload = exec_result.to_dict() if hasattr(exec_result, "to_dict") else exec_result
+runner/mlpcp_v2_harbor_host.py:2904:            payload = exec_result
+runner/mlpcp_v2_harbor_host.py:2941:        progress_stage = "execution"
+runner/mlpcp_v2_harbor_host.py:3107:                    "A successful raw_bash exit is not progress when it repeats an already-known fact."
+runner/mlpcp_v2_harbor_host.py:3168:        """Capture plan/checklist/notes actions as model state, not executable tools."""
+runner/mlpcp_v2_harbor_host.py:3194:        for key in ("actions", "execute_plan"):
+runner/mlpcp_v2_harbor_host.py:3261:        raw_count = sum(1 for r in recent if r.get("tool") == "raw_bash")
+runner/mlpcp_v2_harbor_host.py:3294:                    "recent_raw_bash_count": raw_count,
+runner/mlpcp_v2_harbor_host.py:3333:    async def _run_execute_step(self, *, step_index: int, cockpit: dict[str, Any]) -> ExecutePlanResult:
+runner/mlpcp_v2_harbor_host.py:3341:            call_id=f"{self.run_id}_execute_{step_index}",
+runner/mlpcp_v2_harbor_host.py:3357:                        'The top-level object must contain an actions list. The top-level object may also contain success_contract, a model-authored contract following the provided schema. The harness provides the schema only; you own the task interpretation from the original request and visible environment. Create or revise success_contract when useful, and before finalization. The top-level object may also contain plan_update, working_checklist, and model_notes. These are model-owned working memory fields that the host stores and feeds back on later turns. Use them to keep a concise checklist of task understanding, implementation choices, evidence, risks, and next checks. Do not use a placeholder artifact just to satisfy existence. model_notes must be concise auditable rationale, not hidden chain-of-thought. Prefer structured tools for structured operations: use read_file for file reads, write_file for source edits, search_files for search, and raw_bash for shell-native compile/run/system commands. Do not bundle inspect+compile+run+diff into one repeated raw_bash loop when structured tools can provide cleaner evidence. '
+runner/mlpcp_v2_harbor_host.py:3384:                        'Use read_file when available to inspect a known specific file. Use raw_bash with bounded find, grep, ls, sed, awk, or similar commands to search the visible workspace. '
+runner/mlpcp_v2_harbor_host.py:3385:                        'Use raw_bash for shell exploration, diagnostics, builds, tests, service inspection, local scripts, and implementation commands. Keep commands focused, bounded, and evidence-producing. '
+runner/mlpcp_v2_harbor_host.py:3441:                        'raw_bash is allowed, but every command should be evidence-producing. '
+runner/mlpcp_v2_harbor_host.py:3451:                        'Do not use cannot_complete unless the visible requirements are impossible from the available environment. '
+runner/mlpcp_v2_harbor_host.py:3492:            (self.receipt_root / f"model_execute_request_{step_index}.json").write_text(
+runner/mlpcp_v2_harbor_host.py:3515:                (self.receipt_root / f"model_execute_request_log_error_{step_index}.txt").write_text(
+runner/mlpcp_v2_harbor_host.py:3524:            (self.receipt_root / f"model_execute_{step_index}.json").write_text(
+runner/mlpcp_v2_harbor_host.py:3529:            (self.receipt_root / f"model_execute_{step_index}_logging_error.txt").write_text(str(log_exc), encoding="utf-8")
+runner/mlpcp_v2_harbor_host.py:3531:            raise ModelIOError(model_result.error or "Model did not return valid execute actions.")
+runner/mlpcp_v2_harbor_host.py:3534:        parsed_for_execution = self._strip_action_level_plan_updates(model_result.parsed)
+runner/mlpcp_v2_harbor_host.py:3535:        self._capture_model_success_contract(parsed_for_execution, step_index=step_index)
+runner/mlpcp_v2_harbor_host.py:3536:        self._capture_model_plan_update(parsed_for_execution, step_index=step_index)
+runner/mlpcp_v2_harbor_host.py:3537:        plan_request = parse_execute_plan_request(
+runner/mlpcp_v2_harbor_host.py:3538:            parsed=parsed_for_execution,
+runner/mlpcp_v2_harbor_host.py:3541:            request_id=f"execute_{step_index}",
+runner/mlpcp_v2_harbor_host.py:3544:        return await self._execute_request(plan_request)
+runner/mlpcp_v2_harbor_host.py:3546:    async def _execute_request(self, request: ExecutePlanRequest) -> ExecutePlanResult:
+runner/mlpcp_v2_harbor_host.py:3555:                duplicate_execution = self._find_duplicate_execution(action_plain_for_dedup)
+runner/mlpcp_v2_harbor_host.py:3557:                if duplicate_execution is not None:
+runner/mlpcp_v2_harbor_host.py:3558:                    mirror = self._duplicate_execution_mirror_result(
+runner/mlpcp_v2_harbor_host.py:3561:                        duplicate=duplicate_execution,
+runner/mlpcp_v2_harbor_host.py:3572:                    result = await self._execute_action(action, step=step)
+runner/mlpcp_v2_harbor_host.py:3573:                    self._record_action_execution_signature(
+runner/mlpcp_v2_harbor_host.py:3607:    async def _execute_action(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2_harbor_host.py:3615:        if action_type == "raw_bash":
+runner/mlpcp_v2_harbor_host.py:3616:            return await self._action_raw_bash(action, step=step)
+runner/mlpcp_v2_harbor_host.py:3653:                f"Captured non-executable model state action: {action_type}.",
+runner/mlpcp_v2_harbor_host.py:3748:        await self.environment.download_file(self._remote_path(rel), target)
+runner/mlpcp_v2_harbor_host.py:3779:        await self.environment.exec(command=f"mkdir -p {shlex.quote(remote_parent)}", cwd=REMOTE_WORKSPACE_ROOT, timeout_sec=30)
+runner/mlpcp_v2_harbor_host.py:3780:        await self.environment.upload_file(path, self._remote_path(rel))
+runner/mlpcp_v2_harbor_host.py:3923:    async def _action_raw_bash(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2_harbor_host.py:3926:            raise ValueError("raw_bash requires cmd")
+runner/mlpcp_v2_harbor_host.py:3929:        timeout = int(action.args.get("timeout_seconds") or (self.execute_policy or ExecutePlanPolicy()).raw_bash_timeout_seconds)
+runner/mlpcp_v2_harbor_host.py:3931:        cp = await self.environment.exec(command=command, cwd=remote_cwd, timeout_sec=timeout)
+runner/mlpcp_v2_harbor_host.py:3934:        summary = f"raw_bash exited {cp.return_code}."
+runner/mlpcp_v2_harbor_host.py:3940:            tool_name="raw_bash",
+runner/mlpcp_v2_harbor_host.py:3950:            excerpt_chars=(self.execute_policy or ExecutePlanPolicy()).raw_bash_max_output_chars,
+runner/mlpcp_v2_harbor_host.py:3984:                exists = await self.environment.exec(
+runner/mlpcp_v2_harbor_host.py:4012:        timeout = int(action.args.get("timeout_seconds") or (self.execute_policy or ExecutePlanPolicy()).raw_bash_timeout_seconds)
+runner/mlpcp_v2_harbor_host.py:4014:        cp = await self.environment.exec(command=command, cwd=remote_cwd, timeout_sec=timeout)
+runner/mlpcp_v2_harbor_host.py:4199:                "finalize with cannot_complete/incomplete is not allowed while visible requirements remain satisfiable from the available environment. "
+runner/mlpcp_v2_harbor_host.py:4298:        cp = await self.environment.exec(command=command, cwd=remote_cwd, timeout_sec=timeout)
+runner/mlpcp_v2_harbor_agent.py:12:from runner.mlpcp_v2.execute_plan import ExecutePlanPolicy
+runner/mlpcp_v2_harbor_agent.py:61:        raw_bash_timeout_seconds: int = 60,
+runner/mlpcp_v2_harbor_agent.py:66:        self._raw_bash_timeout_seconds = int(raw_bash_timeout_seconds)
+runner/mlpcp_v2_harbor_agent.py:77:        await environment.exec(command="pwd", cwd=None, timeout_sec=10)
+runner/mlpcp_v2_harbor_agent.py:99:            raise RuntimeError("Azure OpenAI endpoint/key env is missing for Harbor MLPCP execution.")
+runner/mlpcp_v2_harbor_agent.py:115:            run_id=environment.session_id,
+runner/mlpcp_v2_harbor_agent.py:116:            row_id=environment.session_id,
+runner/mlpcp_v2_harbor_agent.py:124:            execute_policy=ExecutePlanPolicy(
+runner/mlpcp_v2_harbor_agent.py:126:                raw_bash_timeout_seconds=self._raw_bash_timeout_seconds,
+runner/mlpcp_v2_harbor_task_runner.py:21:from runner.mlpcp_v2.execute_plan import ExecutePlanPolicy, ExecutePlanRuntime, ToolExecutionContext
+runner/mlpcp_v2_harbor_task_runner.py:41:def _build_policy(session: NoModelIntegrationSession, *, raw_bash_timeout_seconds: int) -> ExecutePlanPolicy:
+runner/mlpcp_v2_harbor_task_runner.py:65:        raw_bash_timeout_seconds=raw_bash_timeout_seconds,
+runner/mlpcp_v2_harbor_task_runner.py:78:    raw_bash_timeout_seconds: int,
+runner/mlpcp_v2_harbor_task_runner.py:86:    policy = _build_policy(session, raw_bash_timeout_seconds=raw_bash_timeout_seconds)
+runner/mlpcp_v2_harbor_task_runner.py:87:    execute_runtime = ExecutePlanRuntime(
+runner/mlpcp_v2_harbor_task_runner.py:107:        execute_runtime=execute_runtime,
+runner/mlpcp_v2_harbor_task_runner.py:121:        session.enter_execute()
+runner/mlpcp_v2_harbor_task_runner.py:125:            exec_result = loop.run_execute_step(step_index=idx, cockpit=cockpit.to_dict())
+runner/mlpcp_v2_harbor_task_runner.py:126:            finalization = exec_result.finalization or session.evaluate_finalization()
+runner/mlpcp_v2_harbor_task_runner.py:139:                    execute_result=exec_result.to_dict(),
+runner/mlpcp_v2_harbor_task_runner.py:153:            if exec_result.status == "blocked":
+runner/mlpcp_v2_harbor_task_runner.py:198:        raw_bash_timeout_seconds=args.raw_bash_timeout_seconds,
+runner/mlpcp_v2/state_machine.py:11:No execute_plan runtime.
+runner/mlpcp_v2/live_model.py:17:from .execute_plan import ExecutePlanPolicy, ExecutePlanRuntime, ToolExecutionContext
+runner/mlpcp_v2/live_model.py:97:    execute_policy: ExecutePlanPolicy | None = None,
+runner/mlpcp_v2/live_model.py:107:    execute_runtime = ExecutePlanRuntime(
+runner/mlpcp_v2/live_model.py:115:            policy=execute_policy or ExecutePlanPolicy(),
+runner/mlpcp_v2/live_model.py:125:        execute_runtime=execute_runtime,
+runner/mlpcp_v2/live_model.py:140:    execute_policy: ExecutePlanPolicy | None = None,
+runner/mlpcp_v2/live_model.py:157:        execute_policy=execute_policy,
+runner/mlpcp_v2/adapter.py:8:No execute_plan runtime.
+runner/mlpcp_v2/adapter.py:67:    def execute_plan(self, *args: Any, **kwargs: Any) -> None:
+runner/mlpcp_v2/adapter.py:69:        raise NotImplementedError("execute_plan remains reserved for Packet 4")
+runner/mlpcp_v2/mock_model.py:8:execute_plan and not a live model loop.
+runner/mlpcp_v2/mock_model.py:150:                summary=f"Tool {name!r} executed through harness handler.",
+runner/mlpcp_v2/service_probe.py:4:- execute ServiceProbeRequest checks
+runner/mlpcp_v2/service_probe.py:60:    def execute(
+runner/mlpcp_v2/service_probe.py:72:            outcome = self._execute_one_check(request, check, index=index)
+runner/mlpcp_v2/service_probe.py:149:            return "Required native probe capability is unavailable in this environment."
+runner/mlpcp_v2/service_probe.py:152:    def _execute_one_check(self, request: ServiceProbeRequest, check: dict, *, index: int) -> ProbeCheckOutcome:
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:33:    "raw_bash": "run shell commands, compile, execute checks, or inspect specific implementation-critical details",
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:47:    mode: str = "execute"
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/model_loop.py:16:from .execute_plan import ExecutePlanRequest, ExecutePlanResult, ExecutePlanRuntime, ToolExecutionContext
+runner/mlpcp_v2/model_loop.py:17:from .model_io import ModelCallRequest, ModelClient, ModelIOError, ModelMessage, parse_execute_plan_request, parse_success_contract
+runner/mlpcp_v2/model_loop.py:28:    require_success_contract_before_execute: bool = True
+runner/mlpcp_v2/model_loop.py:37:    execute_result: dict | None = None
+runner/mlpcp_v2/model_loop.py:46:            "execute_result": self.execute_result,
+runner/mlpcp_v2/model_loop.py:77:    def __init__(self, *, session: NoModelIntegrationSession, model_client: ModelClient, execute_runtime: ExecutePlanRuntime, config: ModelLoopConfig | None = None, critic: VerifierCriticStub | None = None):
+runner/mlpcp_v2/model_loop.py:80:        self.execute_runtime = execute_runtime
+runner/mlpcp_v2/model_loop.py:112:        self.execute_runtime.context.capability_graph = self.session.capability_graph
+runner/mlpcp_v2/model_loop.py:115:    def run_execute_step(self, *, step_index: int, cockpit: dict) -> ExecutePlanResult:
+runner/mlpcp_v2/model_loop.py:117:            call_id=f"{self.session.run_id}_execute_{step_index}",
+runner/mlpcp_v2/model_loop.py:131:                        "Prefer write_file over raw_bash for direct file creation when the contract names a file path. "
+runner/mlpcp_v2/model_loop.py:142:            raise ModelIOError(model_result.error or "Model did not return valid execute actions.")
+runner/mlpcp_v2/model_loop.py:143:        plan_request = parse_execute_plan_request(
+runner/mlpcp_v2/model_loop.py:147:            request_id=f"execute_{step_index}",
+runner/mlpcp_v2/model_loop.py:150:        return self.execute_runtime.execute(plan_request)
+runner/mlpcp_v2/model_loop.py:157:            self.session.enter_execute()
+runner/mlpcp_v2/model_loop.py:161:                exec_result = self.run_execute_step(step_index=idx, cockpit=cockpit.to_dict())
+runner/mlpcp_v2/model_loop.py:162:                finalization = exec_result.finalization or self.session.evaluate_finalization()
+runner/mlpcp_v2/model_loop.py:164:                steps.append(ModelLoopStep(idx, "EXECUTE", execute_result=exec_result.to_dict(), critic_result=critic_result.to_dict(), cockpit_chars=cockpit.budget.get("chars") or cockpit.budget.get("char_count")))
+runner/mlpcp_v2/model_loop.py:167:                if exec_result.status == "blocked" and self.config.stop_on_blocked_finalization:
+runner/mlpcp_v2/integration.py.before_observation_loop:79:    def enter_execute(self) -> None:
+runner/mlpcp_v2/integration.py.before_observation_loop:105:            active_plan=active_plan or {"plan_id": "no_model_plan", "current_step_id": "execute", "current_goal": "No-model integration replay."},
+runner/mlpcp_v2/integration.py.before_observation_loop:112:                "raw_bash",
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:16:from .execute_plan import ExecutePlanRequest, ExecutePlanResult, ExecutePlanRuntime, ToolExecutionContext
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:17:from .model_io import ModelCallRequest, ModelClient, ModelIOError, ModelMessage, parse_execute_plan_request, parse_success_contract
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:28:    require_success_contract_before_execute: bool = True
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:37:    execute_result: dict | None = None
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:46:            "execute_result": self.execute_result,
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:77:    def __init__(self, *, session: NoModelIntegrationSession, model_client: ModelClient, execute_runtime: ExecutePlanRuntime, config: ModelLoopConfig | None = None, critic: VerifierCriticStub | None = None):
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:80:        self.execute_runtime = execute_runtime
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:112:        self.execute_runtime.context.capability_graph = self.session.capability_graph
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:115:    def run_execute_step(self, *, step_index: int, cockpit: dict) -> ExecutePlanResult:
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:117:            call_id=f"{self.session.run_id}_execute_{step_index}",
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:131:                        "Prefer write_file over raw_bash for direct file creation when the contract names a file path. "
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:142:            raise ModelIOError(model_result.error or "Model did not return valid execute actions.")
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:143:        plan_request = parse_execute_plan_request(
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:147:            request_id=f"execute_{step_index}",
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:150:        return self.execute_runtime.execute(plan_request)
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:157:            self.session.enter_execute()
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:161:                exec_result = self.run_execute_step(step_index=idx, cockpit=cockpit.to_dict())
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:162:                finalization = exec_result.finalization or self.session.evaluate_finalization()
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:164:                steps.append(ModelLoopStep(idx, "EXECUTE", execute_result=exec_result.to_dict(), critic_result=critic_result.to_dict(), cockpit_chars=cockpit.budget.get("chars") or cockpit.budget.get("char_count")))
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:167:                if exec_result.status == "blocked" and self.config.stop_on_blocked_finalization:
+runner/mlpcp_v2/substrate.py:254:        python_executables = []
+runner/mlpcp_v2/substrate.py:255:        for name in ["python", "python3", sys.executable]:
+runner/mlpcp_v2/substrate.py:256:            path = shutil.which(name) if name != sys.executable else sys.executable
+runner/mlpcp_v2/substrate.py:257:            if path and path not in python_executables:
+runner/mlpcp_v2/substrate.py:258:                python_executables.append(path)
+runner/mlpcp_v2/substrate.py:270:                "executables": python_executables,
+runner/mlpcp_v2/substrate.py:271:                "active_python": sys.executable,
+runner/mlpcp_v2/substrate.py:357:            capabilities.append("run_commands")
+runner/mlpcp_v2/substrate.py:458:        if name in {"python", "python3"} and path == sys.executable:
+runner/mlpcp_v2/cockpit.py.before_emergency_budget_fallback:353:    # CapabilityGraph blockers are top-level execution obligations for the model.
+runner/mlpcp_v2/service_state.py:4:Model assertions and raw_bash service starts can create candidates, but cannot mark
+runner/mlpcp_v2/service_state.py:38:    def register_candidate_from_raw_bash(
+runner/mlpcp_v2/service_state.py:51:                "source": "raw_bash",
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:16:from .execute_plan import ExecutePlanRequest, ExecutePlanResult, ExecutePlanRuntime, ToolExecutionContext
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:17:from .model_io import ModelCallRequest, ModelClient, ModelIOError, ModelMessage, parse_execute_plan_request, parse_success_contract
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:28:    require_success_contract_before_execute: bool = True
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:37:    execute_result: dict | None = None
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:46:            "execute_result": self.execute_result,
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:77:    def __init__(self, *, session: NoModelIntegrationSession, model_client: ModelClient, execute_runtime: ExecutePlanRuntime, config: ModelLoopConfig | None = None, critic: VerifierCriticStub | None = None):
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:80:        self.execute_runtime = execute_runtime
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:112:        self.execute_runtime.context.capability_graph = self.session.capability_graph
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:115:    def run_execute_step(self, *, step_index: int, cockpit: dict) -> ExecutePlanResult:
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:117:            call_id=f"{self.session.run_id}_execute_{step_index}",
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:131:                        "Prefer write_file over raw_bash for direct file creation when the contract names a file path. "
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:142:            raise ModelIOError(model_result.error or "Model did not return valid execute actions.")
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:143:        plan_request = parse_execute_plan_request(
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:147:            request_id=f"execute_{step_index}",
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:150:        return self.execute_runtime.execute(plan_request)
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:157:            self.session.enter_execute()
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:161:                exec_result = self.run_execute_step(step_index=idx, cockpit=cockpit.to_dict())
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:162:                finalization = exec_result.finalization or self.session.evaluate_finalization()
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:164:                steps.append(ModelLoopStep(idx, "EXECUTE", execute_result=exec_result.to_dict(), critic_result=critic_result.to_dict(), cockpit_chars=cockpit.budget.get("chars") or cockpit.budget.get("char_count")))
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:167:                if exec_result.status == "blocked" and self.config.stop_on_blocked_finalization:
+runner/mlpcp_v2/failure_classes.py:50:    TOOL_EXECUTION_ERROR = "tool_execution_error"
+runner/mlpcp_v2/model_io.py.before_output_filtering:6:harness parses and validates it before executing anything.
+runner/mlpcp_v2/model_io.py.before_output_filtering:15:from .execute_plan import ExecutePlanAction, ExecutePlanRequest
+runner/mlpcp_v2/model_io.py.before_output_filtering:135:def parse_execute_plan_request(*, parsed: dict[str, Any], run_id: str, row_id: str, request_id: str, step_start: int = 0) -> ExecutePlanRequest:
+runner/mlpcp_v2/model_io.py.before_output_filtering:137:    actions = parsed.get("actions") or parsed.get("execute_plan") or []
+runner/mlpcp_v2/model_io.py.before_output_filtering:139:        raise ModelIOError("Model execute plan must include an actions list.")
+runner/mlpcp_v2/runtime_env.py:29:                "#!/usr/bin/env bash\nexec python3 \"$@\"\n",
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:4:execution. It is intentionally generic and anti-benchification-safe:
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:13:The model may propose actions. The harness validates boundaries, executes tools,
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:83:    request_id: str = "execute_plan_request"
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:166:        "raw_bash",
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:178:    raw_bash_timeout_seconds: int = 30
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:179:    raw_bash_max_output_chars: int = 2000
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:196:    service_probe_executor: ServiceProbeExecutor | None = None
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:202:        self.service_probe_executor = self.service_probe_executor or ServiceProbeExecutor(self.receipt_store, default_cwd=self.workspace_root)
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:242:        # obvious oracle/hidden references before execution.
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:315:    def execute(self, request: ExecutePlanRequest | dict) -> ExecutePlanResult:
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:331:                result = self._execute_action(action, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:352:                    summary="Action rejected or failed before execution.",
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:371:    def _execute_action(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:488:    def _action_raw_bash(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:491:            raise ExecutePlanError("raw_bash requires cmd")
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:493:            raise ExecutePlanError("background raw_bash is not allowed by policy")
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:496:        timeout = int(action.args.get("timeout_seconds") or self.context.policy.raw_bash_timeout_seconds)
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:512:            summary = f"raw_bash exited {exit_code}."
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:519:            summary = f"raw_bash timed out after {timeout}s."
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:525:            tool_name="raw_bash",
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:535:            excerpt_chars=self.context.policy.raw_bash_max_output_chars,
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:558:            timeout_seconds=int(action.args.get("timeout_seconds") or self.context.policy.raw_bash_timeout_seconds),
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:578:        result = self.context.service_probe_executor.execute(request, step=step, cwd=cwd)
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:33:    "raw_bash": "run shell commands, compile, execute checks, or inspect specific implementation-critical details",
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:47:    mode: str = "execute"
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/model_io.py.before_success_contract_extras:6:harness parses and validates it before executing anything.
+runner/mlpcp_v2/model_io.py.before_success_contract_extras:15:from .execute_plan import ExecutePlanAction, ExecutePlanRequest
+runner/mlpcp_v2/model_io.py.before_success_contract_extras:135:def parse_execute_plan_request(*, parsed: dict[str, Any], run_id: str, row_id: str, request_id: str, step_start: int = 0) -> ExecutePlanRequest:
+runner/mlpcp_v2/model_io.py.before_success_contract_extras:137:    actions = parsed.get("actions") or parsed.get("execute_plan") or []
+runner/mlpcp_v2/model_io.py.before_success_contract_extras:139:        raise ModelIOError("Model execute plan must include an actions list.")
+runner/mlpcp_v2/verification.py:40:    """Deterministic visible verifier execution result."""
+runner/mlpcp_v2/verification.py:139:    """Runs a visible verifier command as deterministic tool execution."""
+runner/mlpcp_v2/env_contract.py:108:            "executables": python_report.get("executables", []),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:33:    "raw_bash": "run shell commands, compile, execute checks, or inspect specific implementation-critical details",
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:47:    mode: str = "execute"
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/integration.py:79:    def enter_execute(self) -> None:
+runner/mlpcp_v2/integration.py:114:            active_plan=active_plan or {"plan_id": "model_plan", "current_step_id": "execute", "current_goal": "Satisfy open obligations using visible task state and receipts."},
+runner/mlpcp_v2/integration.py:125:                "raw_bash",
+runner/mlpcp_v2/model_loop.py.before_remove_internal_max_steps_20260608T235022Z:16:from .execute_plan import ExecutePlanRequest, ExecutePlanResult, ExecutePlanRuntime, ToolExecutionContext
+runner/mlpcp_v2/model_loop.py.before_remove_internal_max_steps_20260608T235022Z:17:from .model_io import ModelCallRequest, ModelClient, ModelIOError, ModelMessage, parse_execute_plan_request, parse_success_contract
+
+===== duplicate blocking callsites =====
+runner/mlpcp_v2_harbor_host.py:814:        def dedupe(items):
+runner/mlpcp_v2_harbor_host.py:829:            "functional_correctness_criteria": dedupe(functional_criteria)[:20],
+runner/mlpcp_v2_harbor_host.py:830:            "verification_procedure": dedupe(verification_procedure)[:12],
+runner/mlpcp_v2_harbor_host.py:831:            "notes": dedupe(notes)[:12],
+runner/mlpcp_v2_harbor_host.py:981:    def _action_plain_dict_for_dedup(self, action):
+runner/mlpcp_v2_harbor_host.py:982:        """Convert ExecutePlanAction or dict into the generic shape used by dedup.
+runner/mlpcp_v2_harbor_host.py:984:        This keeps the dedup mirror independent of ExecutePlan internals.
+runner/mlpcp_v2_harbor_host.py:1013:    def _dedup_execution_ledger_path(self):
+runner/mlpcp_v2_harbor_host.py:1014:        return self.receipt_root / "dedup_execution_ledger.jsonl"
+runner/mlpcp_v2_harbor_host.py:1017:    def _dedup_path_tokens_from_action(self, action):
+runner/mlpcp_v2_harbor_host.py:1080:    def _dedup_state_hash_for_action(self, action):
+runner/mlpcp_v2_harbor_host.py:1090:        paths = self._dedup_path_tokens_from_action(action)
+runner/mlpcp_v2_harbor_host.py:1114:    def _dedup_action_signature(self, action):
+runner/mlpcp_v2_harbor_host.py:1128:        state = self._dedup_state_hash_for_action(action)
+runner/mlpcp_v2_harbor_host.py:1147:    def _load_dedup_execution_ledger(self):
+runner/mlpcp_v2_harbor_host.py:1148:        path = self._dedup_execution_ledger_path()
+runner/mlpcp_v2_harbor_host.py:1167:    def _append_dedup_execution_ledger(self, row):
+runner/mlpcp_v2_harbor_host.py:1169:            path = self._dedup_execution_ledger_path()
+runner/mlpcp_v2_harbor_host.py:1178:        sig = self._dedup_action_signature(action)
+runner/mlpcp_v2_harbor_host.py:1179:        for row in reversed(self._load_dedup_execution_ledger()):
+runner/mlpcp_v2_harbor_host.py:1196:        sig = self._dedup_action_signature(action)
+runner/mlpcp_v2_harbor_host.py:1228:        self._append_dedup_execution_ledger(row)
+runner/mlpcp_v2_harbor_host.py:1231:    def _duplicate_execution_mirror_result(
+runner/mlpcp_v2_harbor_host.py:1244:            "failure_class": "duplicate_action_same_state",
+runner/mlpcp_v2_harbor_host.py:1246:                "You already performed this same action against an unchanged relevant state. "
+runner/mlpcp_v2_harbor_host.py:1262:                "This mirror is an already-known-evidence reminder, not a hard gate. It does not force a specific action "
+runner/mlpcp_v2_harbor_host.py:1270:    def _dedup_mirror_for_cockpit(self) -> dict[str, Any]:
+runner/mlpcp_v2_harbor_host.py:1271:        """Passive memory mirror: factual repeated-work hints, not commands.
+runner/mlpcp_v2_harbor_host.py:1276:        mirror: dict[str, Any] = {
+runner/mlpcp_v2_harbor_host.py:1280:                "This mirror is an already-known-evidence reminder, not a hard gate. Repeat only if state changed or the follow-up is more specific.",
+runner/mlpcp_v2_harbor_host.py:1298:            mirror["known_facts"]["/app/gpt2.c.sha256"] = gpt2_hash
+runner/mlpcp_v2_harbor_host.py:1319:                    "mirror_message": "You already did this before. Review the previous receipt/result before repeating it.",
+runner/mlpcp_v2_harbor_host.py:1324:        mirror["recent_repeated_action_signals"] = repeats[-10:]
+runner/mlpcp_v2_harbor_host.py:1343:            mirror["known_facts"]["environment_prerequisites"] = env
+runner/mlpcp_v2_harbor_host.py:1344:            mirror["known_facts"]["environment_prerequisite_policy"] = (
+runner/mlpcp_v2_harbor_host.py:1348:        return mirror
+runner/mlpcp_v2_harbor_host.py:1563:        prepared["deduplication_mirror"] = self._dedup_mirror_for_cockpit()
+runner/mlpcp_v2_harbor_host.py:2057:        deduped = []
+runner/mlpcp_v2_harbor_host.py:2063:            deduped.append(r)
+runner/mlpcp_v2_harbor_host.py:2064:            if len(deduped) >= limit:
+runner/mlpcp_v2_harbor_host.py:2066:        deduped.reverse()
+runner/mlpcp_v2_harbor_host.py:2068:            "measured_work_receipts": deduped,
+runner/mlpcp_v2_harbor_host.py:3554:                action_plain_for_dedup = self._action_plain_dict_for_dedup(action)
+runner/mlpcp_v2_harbor_host.py:3555:                duplicate_execution = self._find_duplicate_execution(action_plain_for_dedup)
+runner/mlpcp_v2_harbor_host.py:3558:                    mirror = self._duplicate_execution_mirror_result(
+runner/mlpcp_v2_harbor_host.py:3559:                        action_plain_for_dedup,
+runner/mlpcp_v2_harbor_host.py:3567:                        mirror.get("message") or "Duplicate action bypassed: no new evidence was produced. Use the previous receipt, choose a more specific follow-up, or proceed from the known state.",
+runner/mlpcp_v2_harbor_host.py:3568:                        failure_class="repeated_no_progress" if str(mirror.get("failure_class") or "").strip() in {"", "duplicate_action_same_state"} else mirror.get("failure_class"),
+runner/mlpcp_v2_harbor_host.py:3569:                        result=mirror,
+runner/mlpcp_v2_harbor_host.py:3574:                        action_plain_for_dedup,
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:242:    refs = _collect_refs(raw.get("deduplication_mirror") or raw.get("memory_refs") or raw, limit=8)
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:352:    # Dedup mirror is the best direct source.
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:353:    mirror = raw.get("deduplication_mirror") or raw.get("dedup_mirror") or {}
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:354:    if isinstance(mirror, dict):
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:355:        signals = mirror.get("signals") or mirror.get("repeated_actions") or mirror.get("items") or []
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:386:    deduped: list[dict[str, Any]] = []
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:391:            deduped.append(item)
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:393:    return deduped[:6]
+runner/mlpcp_v2/artifact_quality.py:197:    deduped: list[ArtifactQualityFinding] = []
+runner/mlpcp_v2/artifact_quality.py:201:            deduped.append(finding)
+runner/mlpcp_v2/artifact_quality.py:206:        status="fail" if any(item.severity == "blocker" for item in deduped) else "pass",
+runner/mlpcp_v2/artifact_quality.py:207:        findings=deduped,
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:242:    refs = _collect_refs(raw.get("deduplication_mirror") or raw.get("memory_refs") or raw, limit=8)
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:362:    # Dedup mirror is the best direct source.
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:363:    mirror = raw.get("deduplication_mirror") or raw.get("dedup_mirror") or {}
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:364:    if isinstance(mirror, dict):
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:365:        signals = mirror.get("signals") or mirror.get("repeated_actions") or mirror.get("items") or []
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:410:    deduped: list[dict[str, Any]] = []
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:415:            deduped.append(item)
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:417:    return deduped[:6]
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:242:    refs = _collect_refs(raw.get("deduplication_mirror") or raw.get("memory_refs") or raw, limit=8)
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:362:    # Dedup mirror is the best direct source.
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:363:    mirror = raw.get("deduplication_mirror") or raw.get("dedup_mirror") or {}
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:364:    if isinstance(mirror, dict):
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:365:        signals = mirror.get("signals") or mirror.get("repeated_actions") or mirror.get("items") or []
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:410:    deduped: list[dict[str, Any]] = []
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:415:            deduped.append(item)
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:417:    return deduped[:6]
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:80:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:242:    refs = _collect_refs(raw.get("deduplication_mirror") or raw.get("memory_refs") or raw, limit=8)
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:352:    # Dedup mirror is the best direct source.
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:353:    mirror = raw.get("deduplication_mirror") or raw.get("dedup_mirror") or {}
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:354:    if isinstance(mirror, dict):
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:355:        signals = mirror.get("signals") or mirror.get("repeated_actions") or mirror.get("items") or []
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:386:    deduped: list[dict[str, Any]] = []
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:391:            deduped.append(item)
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:393:    return deduped[:6]
+runner/mlpcp_v2/lean_cockpit.py:10:  evidence and dedup-mirrored by the executor.
+runner/mlpcp_v2/lean_cockpit.py:86:                "same_action_same_state_should_be_dedup_mirrored_not_reexecuted": True,
+runner/mlpcp_v2/lean_cockpit.py:248:    refs = _collect_refs(raw.get("deduplication_mirror") or raw.get("memory_refs") or raw, limit=8)
+runner/mlpcp_v2/lean_cockpit.py:474:    # Dedup mirror is the best direct source.
+runner/mlpcp_v2/lean_cockpit.py:475:    mirror = raw.get("deduplication_mirror") or raw.get("dedup_mirror") or {}
+runner/mlpcp_v2/lean_cockpit.py:476:    if isinstance(mirror, dict):
+runner/mlpcp_v2/lean_cockpit.py:477:        signals = mirror.get("signals") or mirror.get("repeated_actions") or mirror.get("items") or []
+runner/mlpcp_v2/lean_cockpit.py:522:    deduped: list[dict[str, Any]] = []
+runner/mlpcp_v2/lean_cockpit.py:527:            deduped.append(item)
+runner/mlpcp_v2/lean_cockpit.py:529:    return deduped[:6]
+
+===== finalize gate callsites =====
+runner/mlpcp_v2_harbor_host.py:146:                        "current_goal": "Continue the test-driven repair loop. If the previous artifact or behavior is invalid, create or run a self-check that fails that invalid behavior, repair or replace the artifact, then rerun the self-check. Do not finalize while open obligations remain. Do not use cannot_complete.",
+runner/mlpcp_v2_harbor_host.py:160:                attempted_finalize = self._execution_requested_finalization(exec_result)
+runner/mlpcp_v2_harbor_host.py:162:                if attempted_finalize:
+runner/mlpcp_v2_harbor_host.py:202:                        "evidence_refs": [],
+runner/mlpcp_v2_harbor_host.py:217:                                "evidence_refs": [ref.to_dict() for ref in final_completion.evidence_refs[:5]],
+runner/mlpcp_v2_harbor_host.py:663:                "evidence_refs": [],
+runner/mlpcp_v2_harbor_host.py:665:                "must_not_actions": ["finalize", "cannot_complete"],
+runner/mlpcp_v2_harbor_host.py:694:                    "Finalize requires args.evidence_refs. Create or revise success_contract before finalization."
+runner/mlpcp_v2_harbor_host.py:721:                    "results, and finalization evidence_refs."
+runner/mlpcp_v2_harbor_host.py:739:                "evidence_refs": [],
+runner/mlpcp_v2_harbor_host.py:751:            if "finalize" not in payload.get("allowed_next_actions", []):
+runner/mlpcp_v2_harbor_host.py:752:                payload.setdefault("allowed_next_actions", []).append("finalize")
+runner/mlpcp_v2_harbor_host.py:832:            "pre_finalize_required_review": [
+runner/mlpcp_v2_harbor_host.py:848:                "Do not finalize.",
+runner/mlpcp_v2_harbor_host.py:1558:        """Add concrete repair guidance and hide finalize while obligations remain."""
+runner/mlpcp_v2_harbor_host.py:1575:                if str(action).strip() not in {"finalize", "claim_complete"}
+runner/mlpcp_v2_harbor_host.py:1581:                + " Repair protocol: do not finalize. Identify the next unsatisfied functional criterion; "
+runner/mlpcp_v2_harbor_host.py:1588:                "required_next_mode": "repair_not_finalize",
+runner/mlpcp_v2_harbor_host.py:1589:                "must_not_actions": ["finalize", "cannot_complete", "repeat_same_invalid_artifact"],
+runner/mlpcp_v2_harbor_host.py:1594:                "mode": "repair_not_finalize",
+runner/mlpcp_v2_harbor_host.py:1786:        # Prefer explicit finalize evidence_refs from the main agent.
+runner/mlpcp_v2_harbor_host.py:1788:            finalize_action = self._latest_finalize_action_for_claim_gate(step_index=step_index)
+runner/mlpcp_v2_harbor_host.py:1789:            args = finalize_action.get("args") if isinstance(finalize_action, dict) else {}
+runner/mlpcp_v2_harbor_host.py:1790:            explicit = args.get("evidence_refs") if isinstance(args, dict) else []
+runner/mlpcp_v2_harbor_host.py:1823:                    "evidence_refs": [],
+runner/mlpcp_v2_harbor_host.py:1840:        Under MLPCP_FINAL_VERIFIER_AUTHORITY=1, a main-agent finalize action is
+runner/mlpcp_v2_harbor_host.py:1841:        treated as finalize_candidate. The verifier authority decides internal
+runner/mlpcp_v2_harbor_host.py:1881:                evidence_refs=pack.relevant_receipts[:8],
+runner/mlpcp_v2_harbor_host.py:1896:                evidence_refs=pack.relevant_receipts[:8],
+runner/mlpcp_v2_harbor_host.py:1903:                        evidence_refs=pack.relevant_receipts[:3],
+runner/mlpcp_v2_harbor_host.py:2005:    def _latest_finalize_action_for_claim_gate(self, *, step_index: int) -> dict[str, Any] | None:
+runner/mlpcp_v2_harbor_host.py:2006:        """Read the latest model_execute JSON and return the model's finalize action, if any."""
+runner/mlpcp_v2_harbor_host.py:2033:                if isinstance(action, dict) and str(action.get("type") or "").strip() == "finalize":
+runner/mlpcp_v2_harbor_host.py:2069:            "rule": "No receipt-linked evidence means the work claim is unsupported. Finalize requires args.evidence_refs. Create or revise success_contract before finalization.",
+runner/mlpcp_v2_harbor_host.py:2079:        """Block false completion claims unless finalize cites real receipts."""
+runner/mlpcp_v2_harbor_host.py:2083:        finalize_action = self._latest_finalize_action_for_claim_gate(step_index=step_index)
+runner/mlpcp_v2_harbor_host.py:2084:        if not isinstance(finalize_action, dict):
+runner/mlpcp_v2_harbor_host.py:2088:                summary="Evidence Claim Gate blocked completion: no finalize action with receipt-backed evidence_refs was found.",
+runner/mlpcp_v2_harbor_host.py:2090:                evidence_refs=[],
+runner/mlpcp_v2_harbor_host.py:2093:                    "summary": "Completion was blocked because the model did not provide a finalize action with evidence_refs.",
+runner/mlpcp_v2_harbor_host.py:2094:                    "missing_evidence": ["finalize.args.evidence_refs"],
+runner/mlpcp_v2_harbor_host.py:2098:                        "Finalize only with args.evidence_refs pointing to successful receipts that prove the claimed work.",
+runner/mlpcp_v2_harbor_host.py:2100:                    "unsupported_claims": ["completion claim without finalize evidence_refs"],
+runner/mlpcp_v2_harbor_host.py:2105:        args = finalize_action.get("args")
+runner/mlpcp_v2_harbor_host.py:2108:        refs = args.get("evidence_refs") or args.get("evidence") or []
+runner/mlpcp_v2_harbor_host.py:2113:        reason = str(finalize_action.get("reason") or "")
+runner/mlpcp_v2_harbor_host.py:2125:            blockers.append("finalize.args.evidence_refs is missing or empty")
+runner/mlpcp_v2_harbor_host.py:2126:            unsupported.append("finalize claim has no receipt-backed evidence_refs")
+runner/mlpcp_v2_harbor_host.py:2154:            blockers.append("claim mentions testing/verification but evidence_refs do not include run_verifier/raw_bash/probe_service evidence")
+runner/mlpcp_v2_harbor_host.py:2158:            blockers.append("claim mentions writing/editing/generating but evidence_refs do not include write_file/raw_bash evidence")
+runner/mlpcp_v2_harbor_host.py:2162:            blockers.append("claim mentions service readiness but evidence_refs do not include probe_service/raw_bash evidence")
+runner/mlpcp_v2_harbor_host.py:2171:                evidence_refs=refs,
+runner/mlpcp_v2_harbor_host.py:2177:                    "provided_evidence_refs": refs,
+runner/mlpcp_v2_harbor_host.py:2181:                        "Return finalize only with evidence_refs that resolve to successful receipts supporting each claim.",
+runner/mlpcp_v2_harbor_host.py:2203:        finalize_action_types = {
+runner/mlpcp_v2_harbor_host.py:2204:            "finalize",
+runner/mlpcp_v2_harbor_host.py:2231:                        if action_name in finalize_action_types:
+runner/mlpcp_v2_harbor_host.py:2257:            "reason": "No finalize/completion claim was made by the main model in this step.",
+runner/mlpcp_v2_harbor_host.py:2272:            summary="Verification skipped: no finalize/completion claim was made this step.",
+runner/mlpcp_v2_harbor_host.py:2273:            evidence_refs=[],
+runner/mlpcp_v2_harbor_host.py:2385:                evidence_refs=[],
+runner/mlpcp_v2_harbor_host.py:2409:                evidence_refs=[],
+runner/mlpcp_v2_harbor_host.py:2418:            evidence_refs=[],
+runner/mlpcp_v2_harbor_host.py:3157:                    "Do not finalize from this artifact.",
+runner/mlpcp_v2_harbor_host.py:3364:                        'When done, return a finalize action with a concise evidence summary and args.evidence_refs listing receipt-backed evidence. Finalize without evidence_refs is invalid. '
+runner/mlpcp_v2_harbor_host.py:3377:                        'Prefer this order: inspect visible evidence; identify or refine the success contract; make the smallest useful change; run a relevant self-check; run verifier or probe when appropriate; inspect failures; repair; finalize. '
+runner/mlpcp_v2_harbor_host.py:3390:                        'Use finalize only when the completion checklist is satisfied. A finalize action must include args.evidence_refs, and each referenced receipt must support the claimed work. '
+runner/mlpcp_v2_harbor_host.py:3450:                        'Run the strongest visible verifier or request-relevant check available, inspect the result, repair failures, then finalize only when the checklist is satisfied. '
+runner/mlpcp_v2_harbor_host.py:3459:                            "Finalize only when completion is supported by receipt-backed evidence_refs. "
+runner/mlpcp_v2_harbor_host.py:3589:            if action.action_type == "finalize" and isinstance(result.result, FinalizationDecision):
+runner/mlpcp_v2_harbor_host.py:3627:        if action_type == "finalize":
+runner/mlpcp_v2_harbor_host.py:3628:            return self._action_finalize(action)
+runner/mlpcp_v2_harbor_host.py:4195:    def _action_finalize(self, action: ExecutePlanAction) -> ActionResult:
+runner/mlpcp_v2_harbor_host.py:4199:                "finalize with cannot_complete/incomplete is not allowed while visible requirements remain satisfiable from the available environment. "
+runner/mlpcp_v2_harbor_host.py:4201:                "and only finalize when the success contract is satisfied."
+runner/mlpcp_v2_harbor_host.py:4210:                    "unsupported_finalize_status": status,
+runner/mlpcp_v2_harbor_host.py:4216:        decision = self._evaluate_finalization(force_finalize=bool(action.args.get("force", False)))
+runner/mlpcp_v2_harbor_host.py:4272:    def _evaluate_finalization(self, *, force_finalize: bool = False) -> FinalizationDecision:
+runner/mlpcp_v2_harbor_host.py:4275:        return self.finalization_gate.evaluate(open_obligations=obligations, conditions_met=conditions, force_finalize=force_finalize)
+runner/mlpcp_v2/mock_model.py:39:            "finalize",
+runner/mlpcp_v2/mock_model.py:71:        return all(event.status == "pass" for event in self.events if event.action_type != "finalize")
+runner/mlpcp_v2/mock_model.py:176:    def _handle_finalize(self, payload: dict[str, Any]) -> None:
+runner/mlpcp_v2/mock_model.py:181:            force_finalize=bool(payload.get("force_finalize", False)),
+runner/mlpcp_v2/mock_model.py:188:                action_type="finalize",
+runner/mlpcp_v2/service_probe.py:106:                "evidence_refs": [receipt_ref] if receipt_ref else [],
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:232:                        "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:247:        "evidence_refs": refs[:6],
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:302:            "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:315:                "evidence_refs": _collect_refs(blocker, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:329:                "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:361:                "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:369:            "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:375:            "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_stale_truth_fix_20260610T002500Z:381:            "evidence_refs": _collect_refs(raw, limit=5),
+runner/mlpcp_v2/model_loop.py:132:                        "Run visible verifiers before finalize when the contract requires them. "
+runner/mlpcp_v2/model_loop.py:133:                        "Do not finalize until visible requirements are backed by measured evidence. "
+runner/mlpcp_v2/safe_summaries.py:147:                "evidence_refs": obligation.get("evidence_refs", [])[:3],
+runner/mlpcp_v2/integration.py.before_observation_loop:118:                "finalize",
+runner/mlpcp_v2/final_completion.py:59:        "or EVIDENCE_INSUFFICIENT. Include concrete evidence_refs and required_repairs when blocking."
+runner/mlpcp_v2/final_completion.py:127:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/final_completion.py:131:        self.evidence_refs = coerce_references(self.evidence_refs, "RequiredRepair.evidence_refs")
+runner/mlpcp_v2/final_completion.py:132:        validate_references_for_solver_context(self.evidence_refs)
+runner/mlpcp_v2/final_completion.py:140:            "evidence_refs": [ref.to_dict() for ref in self.evidence_refs],
+runner/mlpcp_v2/final_completion.py:148:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/final_completion.py:157:        self.evidence_refs = coerce_references(self.evidence_refs, "FinalCompletionDecision.evidence_refs")
+runner/mlpcp_v2/final_completion.py:158:        validate_references_for_solver_context(self.evidence_refs)
+runner/mlpcp_v2/final_completion.py:170:                        evidence_refs=item.get("evidence_refs", []),
+runner/mlpcp_v2/final_completion.py:186:            "evidence_refs": [ref.to_dict() for ref in self.evidence_refs],
+runner/mlpcp_v2/final_completion.py:243:        if repair.requirement_id or repair.check_id or repair.evidence_refs or repair.failure_class != FailureClass.UNKNOWN:
+runner/mlpcp_v2/final_completion.py:268:        if not decision.evidence_refs and pack.relevant_receipts:
+runner/mlpcp_v2/final_completion.py:269:            invalid.append("complete_internal_missing_evidence_refs")
+runner/mlpcp_v2/final_completion.py:285:        evidence_refs=decision.evidence_refs,
+runner/mlpcp_v2/final_completion.py:309:        "evidence_refs": [ref.to_dict() for ref in decision.evidence_refs[:8]],
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:132:                        "Run visible verifiers before finalize when the contract requires them. "
+runner/mlpcp_v2/model_loop.py.before_no_internal_step_cap_and_prompt_cleanup_20260608T235242Z:133:                        "Do not finalize until visible requirements are backed by measured evidence. "
+runner/mlpcp_v2/substrate.py:122:                    "evidence_refs": [],
+runner/mlpcp_v2/substrate.py:130:                    "evidence_refs": [],
+runner/mlpcp_v2/cockpit.py.before_emergency_budget_fallback:157:        return {"failure_class": FailureClass.NONE.value, "summary": "", "evidence_refs": []}
+runner/mlpcp_v2/cockpit.py.before_emergency_budget_fallback:161:        "evidence_refs": blocker.get("evidence_refs", [])[:5],
+runner/mlpcp_v2/cockpit.py.before_emergency_budget_fallback:379:            "evidence_refs": item.get("evidence_refs", [])[:1],
+runner/mlpcp_v2/service_state.py:58:            service.setdefault("readiness_evidence_refs", [])
+runner/mlpcp_v2/service_state.py:84:                service.setdefault("readiness_evidence_refs", []).append(probe_reference.to_dict())
+runner/mlpcp_v2/service_state.py:115:                "evidence_refs": [],
+runner/mlpcp_v2/service_state.py:124:            "evidence_refs": service.get("readiness_evidence_refs", []),
+runner/mlpcp_v2/service_state.py:132:        if service.get("status") == "ready" and service.get("readiness_evidence_refs"):
+runner/mlpcp_v2/service_state.py:146:            "readiness_evidence_refs": [],
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:132:                        "Run visible verifiers before finalize when the contract requires them. "
+runner/mlpcp_v2/model_loop.py.before_final_debench_stepcap_cleanup_20260608T235408Z:133:                        "Do not finalize until visible requirements are backed by measured evidence. "
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:172:        "finalize",
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:333:                if result.action_type == "finalize" and isinstance(result.result, FinalizationDecision):
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:614:    def _action_finalize(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:617:        decision = self.context.finalization_gate.evaluate(open_obligations=obligations, conditions_met=conditions, force_finalize=bool(action.args.get("force", False)))
+runner/mlpcp_v2/compaction.py.before_receipt_refs_v1_20260609T164639Z:53:        refs = coerce_references(fact.get("evidence_refs", []), "HandoffNote.supported_facts.evidence_refs")
+runner/mlpcp_v2/compaction.py.before_receipt_refs_v1_20260609T164639Z:55:            supported.append({"claim": fact.get("claim", ""), "evidence_refs": [ref.to_dict() for ref in refs]})
+runner/mlpcp_v2/compaction.py.before_receipt_refs_v1_20260609T164639Z:57:            unsupported.append({"claim": fact.get("claim", ""), "reason": "supported_fact_missing_evidence_refs"})
+runner/mlpcp_v2/compaction.py.before_receipt_refs_v1_20260609T164639Z:107:            "evidence_refs": current_blocker.get("evidence_refs", []),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:232:                        "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:247:        "evidence_refs": refs[:6],
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:302:            "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:315:                "evidence_refs": _collect_refs(blocker, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:339:                "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:371:                "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:379:            "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:399:            "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:405:            "evidence_refs": _collect_refs(raw, limit=5),
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:510:        "repair_not_finalize",
+runner/mlpcp_v2/lean_cockpit.py.before_context_shape_20260610T014956Z:511:        "do not finalize",
+runner/mlpcp_v2/compaction.py:53:        refs = coerce_references(fact.get("evidence_refs", []), "HandoffNote.supported_facts.evidence_refs")
+runner/mlpcp_v2/compaction.py:55:            supported.append({"claim": fact.get("claim", ""), "evidence_refs": [ref.to_dict() for ref in refs]})
+runner/mlpcp_v2/compaction.py:57:            unsupported.append({"claim": fact.get("claim", ""), "reason": "supported_fact_missing_evidence_refs"})
+runner/mlpcp_v2/compaction.py:108:            "evidence_refs": current_blocker.get("evidence_refs", []),
+runner/mlpcp_v2/finalization.py:54:        force_finalize: bool = False,
+runner/mlpcp_v2/finalization.py:98:            if force_finalize:
+runner/mlpcp_v2/finalization.py:116:        if obligations and not force_finalize:
+runner/mlpcp_v2/finalization.py:127:        if obligations and force_finalize:
+runner/mlpcp_v2/finalization.py:143:                summary="Finalization approved with first-success lock.",
+runner/mlpcp_v2/finalization.py:152:            summary="Finalization approved by gates.",
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:87:    blocker = dict(blocker or {"failure_class": FailureClass.NONE.value, "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:89:    blocker["evidence_refs"] = [ref.to_dict() for ref in coerce_references(blocker.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:115:    network: dict = field(default_factory=lambda: {"status": "unknown", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:162:            blocker["evidence_refs"] = [ref.to_dict() for ref in coerce_references(blocker.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:213:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:217:        self.evidence_refs = coerce_references(self.evidence_refs, "PlanState.evidence_refs")
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:221:            step["evidence_refs"] = [ref.to_dict() for ref in coerce_references(step.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:236:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:244:        self.evidence_refs = coerce_references(self.evidence_refs, "PlanUpdate.evidence_refs")
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:268:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:354:            item["visible_evidence_refs"] = [ref.to_dict() for ref in coerce_references(item.get("visible_evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:357:            blocker["evidence_refs"] = [ref.to_dict() for ref in coerce_references(blocker.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:375:            service["readiness_evidence_refs"] = [ref.to_dict() for ref in coerce_references(service.get("readiness_evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:411:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:448:        self.main_agent_claim["evidence_refs"] = [ref.to_dict() for ref in coerce_references(self.main_agent_claim.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:468:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:479:        self.evidence_refs = coerce_references(self.evidence_refs, "RepairPacket.evidence_refs")
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:529:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:567:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:568:    model_recommended_next_action: dict = field(default_factory=lambda: {"summary": "", "confidence": "low", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:578:            fact["evidence_refs"] = [ref.to_dict() for ref in coerce_references(fact.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:580:            hyp["evidence_refs"] = [ref.to_dict() for ref in coerce_references(hyp.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:584:        self.model_recommended_next_action["evidence_refs"] = [
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:585:            ref.to_dict() for ref in coerce_references(self.model_recommended_next_action.get("evidence_refs", []))
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:611:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py.before_success_contract_extras:618:        self.evidence_refs = coerce_references(self.evidence_refs, "PromotionDecision.evidence_refs")
+runner/mlpcp_v2/verification.py:67:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/verification.py:75:        self.evidence_refs = [Reference.from_dict(ref) for ref in self.evidence_refs]
+runner/mlpcp_v2/verification.py:257:    claim.setdefault("evidence_refs", [])
+runner/mlpcp_v2/env_contract.py:48:                "evidence_refs": [
+runner/mlpcp_v2/env_contract.py:61:                "evidence_refs": [
+runner/mlpcp_v2/env_contract.py:75:                "evidence_refs": [
+runner/mlpcp_v2/env_contract.py:99:            "evidence_refs": [],
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:232:                        "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:247:        "evidence_refs": refs[:6],
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:302:            "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:315:                "evidence_refs": _collect_refs(blocker, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:339:                "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:371:                "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:379:            "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:399:            "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_neutral_lean_sanitizer_20260610T004058Z:405:            "evidence_refs": _collect_refs(raw, limit=5),
+runner/mlpcp_v2/integration.py:131:                "finalize",
+runner/mlpcp_v2/model_loop.py.before_remove_internal_max_steps_20260608T235022Z:132:                        "Run visible verifiers before finalize when the contract requires them. "
+runner/mlpcp_v2/model_loop.py.before_remove_internal_max_steps_20260608T235022Z:133:                        "Do not finalize until visible requirements are backed by measured evidence. "
+runner/mlpcp_v2/cockpit.py:241:        "evidence_refs": [],
+runner/mlpcp_v2/cockpit.py:284:        return {"failure_class": FailureClass.NONE.value, "summary": "", "evidence_refs": []}
+runner/mlpcp_v2/cockpit.py:288:        "evidence_refs": blocker.get("evidence_refs", [])[:5],
+runner/mlpcp_v2/cockpit.py:506:            "evidence_refs": item.get("evidence_refs", [])[:1],
+runner/mlpcp_v2/repair.py:100:    evidence_refs = list(verifier_result.evidence_refs)
+runner/mlpcp_v2/repair.py:101:    if not evidence_refs:
+runner/mlpcp_v2/repair.py:102:        evidence_refs = list(verification_pack.relevant_receipts[:3])
+runner/mlpcp_v2/repair.py:113:        evidence_refs=evidence_refs,
+runner/mlpcp_v2/execute_plan.py:199:        "finalize",
+runner/mlpcp_v2/execute_plan.py:360:                if result.action_type == "finalize" and isinstance(result.result, FinalizationDecision):
+runner/mlpcp_v2/execute_plan.py:641:    def _action_finalize(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py:644:        decision = self.context.finalization_gate.evaluate(open_obligations=obligations, conditions_met=conditions, force_finalize=bool(action.args.get("force", False)))
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:189:        "finalize",
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:350:                if result.action_type == "finalize" and isinstance(result.result, FinalizationDecision):
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:631:    def _action_finalize(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:634:        decision = self.context.finalization_gate.evaluate(open_obligations=obligations, conditions_met=conditions, force_finalize=bool(action.args.get("force", False)))
+runner/mlpcp_v2/schemas.py:87:    blocker = dict(blocker or {"failure_class": FailureClass.NONE.value, "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:89:    blocker["evidence_refs"] = [ref.to_dict() for ref in coerce_references(blocker.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:115:    network: dict = field(default_factory=lambda: {"status": "unknown", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:162:            blocker["evidence_refs"] = [ref.to_dict() for ref in coerce_references(blocker.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:214:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py:218:        self.evidence_refs = coerce_references(self.evidence_refs, "PlanState.evidence_refs")
+runner/mlpcp_v2/schemas.py:222:            step["evidence_refs"] = [ref.to_dict() for ref in coerce_references(step.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:237:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py:245:        self.evidence_refs = coerce_references(self.evidence_refs, "PlanUpdate.evidence_refs")
+runner/mlpcp_v2/schemas.py:269:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:355:            item["visible_evidence_refs"] = [ref.to_dict() for ref in coerce_references(item.get("visible_evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:358:            blocker["evidence_refs"] = [ref.to_dict() for ref in coerce_references(blocker.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:376:            service["readiness_evidence_refs"] = [ref.to_dict() for ref in coerce_references(service.get("readiness_evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:412:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:449:        self.main_agent_claim["evidence_refs"] = [ref.to_dict() for ref in coerce_references(self.main_agent_claim.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:469:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py:480:        self.evidence_refs = coerce_references(self.evidence_refs, "RepairPacket.evidence_refs")
+runner/mlpcp_v2/schemas.py:530:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:568:    current_blocker: dict = field(default_factory=lambda: {"failure_class": "none", "summary": "", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:569:    model_recommended_next_action: dict = field(default_factory=lambda: {"summary": "", "confidence": "low", "evidence_refs": []})
+runner/mlpcp_v2/schemas.py:579:            fact["evidence_refs"] = [ref.to_dict() for ref in coerce_references(fact.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:581:            hyp["evidence_refs"] = [ref.to_dict() for ref in coerce_references(hyp.get("evidence_refs", []))]
+runner/mlpcp_v2/schemas.py:585:        self.model_recommended_next_action["evidence_refs"] = [
+runner/mlpcp_v2/schemas.py:586:            ref.to_dict() for ref in coerce_references(self.model_recommended_next_action.get("evidence_refs", []))
+runner/mlpcp_v2/schemas.py:612:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/schemas.py:619:        self.evidence_refs = coerce_references(self.evidence_refs, "PromotionDecision.evidence_refs")
+runner/mlpcp_v2/verifier_critic.py:28:    max_evidence_refs: int = 8
+runner/mlpcp_v2/verifier_critic.py:37:            "max_evidence_refs": self.max_evidence_refs,
+runner/mlpcp_v2/verifier_critic.py:46:    evidence_refs: list[Reference] = field(default_factory=list)
+runner/mlpcp_v2/verifier_critic.py:54:        self.evidence_refs = [Reference.from_dict(ref) for ref in self.evidence_refs]
+runner/mlpcp_v2/verifier_critic.py:66:            evidence_refs=self.evidence_refs,
+runner/mlpcp_v2/verifier_critic.py:76:            "evidence_refs": [ref.to_dict() for ref in self.evidence_refs],
+runner/mlpcp_v2/verifier_critic.py:108:        evidence_refs: list[Reference] = []
+runner/mlpcp_v2/verifier_critic.py:110:            for ref in getattr(request.verification_pack, "relevant_receipts", [])[: request.max_evidence_refs]:
+runner/mlpcp_v2/verifier_critic.py:111:                evidence_refs.append(Reference.from_dict(ref))
+runner/mlpcp_v2/verifier_critic.py:116:            evidence_refs=evidence_refs,
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:232:                        "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:247:        "evidence_refs": refs[:6],
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:302:            "evidence_refs": _collect_refs(item, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:315:                "evidence_refs": _collect_refs(blocker, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:329:                "evidence_refs": _collect_refs(raw, limit=4),
+runner/mlpcp_v2/lean_cockpit.py.before_lean_trim_fix_20260609T202138Z:361:                "evidence_refs": _collect_refs(item, limit=4),

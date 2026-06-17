@@ -1,0 +1,1162 @@
+===== action result compacting / cockpit propagation =====
+   120	        sm.transition("ORIENT", reason="visible instruction and Harbor environment metadata gathered")
+   121	
+   122	    async def run(self, *, instruction: str) -> ModelLoopRunResult:
+   123	        instruction_path = self.workspace_root / "instruction.md"
+   124	        instruction_path.write_text(instruction, encoding="utf-8")
+   125	        self._current_instruction = instruction
+   126	        steps: list[ModelLoopStep] = []
+   127	        last_result: dict | None = None
+   128	        current_blocker: dict | None = None
+   129	        last_progress_state: dict | None = None
+   130	        try:
+   131	            contract = None  # model-owned contract mode: no harness-authored semantic contract
+   132	            self.session.enter_execute()
+   133	            idx = 1
+   134	            while True:
+   135	                max_steps = self._host_loop_max_steps()
+   136	                if max_steps is not None and idx > max_steps:
+   137	                    return self._make_step_limit_result(steps=steps)
+   138	
+   139	                cockpit = self._build_cockpit_for_model_or_bootstrap(
+   140	                    step=idx,
+   141	                    last_result=last_result,
+   142	                    current_blocker=current_blocker,
+   143	                    active_plan={
+   144	                        "plan_id": "model_plan",
+   145	                        "current_step_id": f"execute_{idx}",
+   146	                        "current_goal": "Continue the test-driven repair loop. If the previous artifact or behavior is invalid, create or run a self-check that fails that invalid behavior, repair or replace the artifact, then rerun the self-check. Do not finalize while open obligations remain. Do not use cannot_complete.",
+   147	                    },
+   148	                )
+   149	                cockpit_payload = cockpit.to_dict()
+   150	                if last_progress_state:
+   151	                    cockpit_payload["progress_state"] = last_progress_state
+   152	
+   153	                evidence_guard = self._evidence_saturation_packet(step_index=idx, instruction=instruction)
+   154	                progress_guard = evidence_guard or self._progress_guard_packet(step_index=idx, instruction=instruction)
+   155	                if progress_guard:
+   156	                    cockpit_payload["progress_guard"] = progress_guard
+   157	                    cockpit_payload["current_blocker"] = progress_guard
+   158	
+   159	                exec_result = await self._run_execute_step(step_index=idx, cockpit=cockpit_payload)
+   160	                attempted_finalize = self._execution_requested_finalization(exec_result)
+   161	                finalization = exec_result.finalization or self._evaluate_finalization()
+   162	                if attempted_finalize:
+   163	                    critic_result = self._review_finalization_adversarial(
+   164	                        step_index=idx,
+   165	                        contract=contract,
+   166	                        finalization=finalization,
+   167	                        exec_result=exec_result,
+   168	                        cockpit=cockpit.to_dict(),
+   169	                    )
+   170	                    critic_result = self._evidence_claim_gate(
+   171	                        step_index=idx,
+   172	                        finalization=finalization,
+   173	                        critic_result=critic_result,
+   174	                    )
+   175	                else:
+   176	                    critic_result = self._verification_skipped_result(
+   177	                        step_index=idx,
+   178	                        exec_result=exec_result,
+   179	                    )
+   180	                progress_entry = self._record_progress_ledger(
+   181	                    step_index=idx,
+   182	                    instruction=instruction,
+   183	                    exec_result=exec_result,
+   184	                )
+   185	                last_progress_state = self._progress_state_from_ledger(progress_entry)
+   186	
+   187	                steps.append(
+   188	                    ModelLoopStep(
+   189	                        idx,
+   190	                        "EXECUTE",
+   191	                        execute_result=exec_result.to_dict(),
+   192	                        critic_result=critic_result.to_dict(),
+   193	                        cockpit_chars=cockpit.budget.get("estimated_chars") or cockpit.budget.get("chars") or cockpit.budget.get("char_count"),
+   194	                    )
+   195	                )
+   196	                last_result = compact_execute_result_for_cockpit(exec_result.to_dict())
+   197	                current_blocker = None
+   198	                if not finalization.allowed:
+   199	                    current_blocker = {
+   200	                        "failure_class": finalization.failure_class.value if hasattr(finalization.failure_class, "value") else str(finalization.failure_class),
+   201	                        "summary": finalization.summary,
+   202	                        "evidence_refs": [],
+   203	                    }
+   204	
+   205	                if finalization.allowed and critic_result.may_claim_complete and idx > 1:
+   206	                    if self._final_verifier_authority_enabled():
+   207	                        final_completion = self._review_final_completion_authority(
+   208	                            step_index=idx,
+   209	                            instruction=instruction,
+   210	                            finalization=finalization,
+   211	                            critic_result=critic_result,
+   212	                        )
+   213	                        if not final_completion.submit_allowed:
+   214	                            current_blocker = {
+   215	                                "failure_class": "final_verifier_blocked",
+   216	                                "summary": final_completion.summary,
+   217	                                "evidence_refs": [ref.to_dict() for ref in final_completion.evidence_refs[:5]],
+   218	                                "invalid_reasons": list(final_completion.invalid_reasons),
+   219	                            }
+   220	                            last_result = {
+   221	                                "status": "blocked",
+   222	                                "final_completion_decision": final_completion.to_dict(),
+   223	                                "message": "Final verifier authority blocked submission; continue repair from the returned evidence.",
+   224	                            }
+   225	                            idx += 1
+   226	                            continue
+   227	
+   228	                    contract_payload = self._load_model_owned_success_contract()
+   229	                    return ModelLoopRunResult(self.run_id, self.row_id, "complete", steps, contract_payload, finalization.to_dict())
+   230	                if exec_result.status == "blocked" and self.loop_config.stop_on_blocked_finalization:
+   231	                    return ModelLoopRunResult(self.run_id, self.row_id, "blocked", steps, contract.to_dict(), finalization.to_dict())
+   232	                idx += 1
+   233	            return ModelLoopRunResult(self.run_id, self.row_id, "step_limit", steps, self._json_safe_payload(contract), self._json_safe_payload(self._evaluate_finalization()))
+   234	        except Exception as exc:
+   235	            return ModelLoopRunResult(self.run_id, self.row_id, "error", steps, error=str(exc))
+   236	
+   237	    async def _request_success_contract(self, *, instruction: str):
+   238	        remote_context = await self._remote_context()
+   239	        self._remote_context_cache = remote_context
+   240	        try:
+   241	            (self.receipt_root / "remote_context.json").write_text(
+   242	                json.dumps(remote_context, indent=2, sort_keys=True, default=str),
+   243	                encoding="utf-8",
+   244	            )
+   245	        except Exception:
+  1450	            "model_notes": model_notes or {},
+  1451	            "usage_note": "Model-owned editable working plan/checklist/notes. It supports continuity but does not override the original user request or measured evidence.",
+  1452	        }
+  1453	
+  1454	        try:
+  1455	            self._model_plan_path().write_text(
+  1456	                json.dumps(saved, indent=2, sort_keys=True, default=str),
+  1457	                encoding="utf-8",
+  1458	            )
+  1459	            with self._model_plan_history_path().open("a", encoding="utf-8") as f:
+  1460	                f.write(json.dumps(saved, sort_keys=True, default=str) + "\n")
+  1461	        except Exception as exc:
+  1462	            try:
+  1463	                (self.receipt_root / f"model_plan_update_error_{step_index}.txt").write_text(
+  1464	                    str(exc),
+  1465	                    encoding="utf-8",
+  1466	                )
+  1467	            except Exception:
+  1468	                pass
+  1469	
+  1470	
+  1471	    def _original_instruction_for_model(self) -> str:
+  1472	        """Return the original visible user request/task prompt for every execute call.
+  1473	
+  1474	        The success contract and cockpit are derived summaries. They must not
+  1475	        replace the raw user request, because summaries can drift, omit key
+  1476	        constraints, or over-emphasize weak surrogate gates.
+  1477	        """
+  1478	        try:
+  1479	            text = (self.workspace_root / "instruction.md").read_text(
+  1480	                encoding="utf-8",
+  1481	                errors="replace",
+  1482	            )
+  1483	        except Exception:
+  1484	            text = ""
+  1485	        return text[:12000]
+  1486	
+  1487	
+  1488	    def _sanitize_model_visible_cockpit(self, obj: Any) -> Any:
+  1489	        """Remove/demote false service-gate obligations from model-visible state.
+  1490	
+  1491	        gcc/libm/files/checkpoints/vocab are prerequisites, not runtime services.
+  1492	        They must not remain as open service obligations after repeated evidence.
+  1493	        """
+  1494	        tool_words = (
+  1495	            "gcc", "compiler", "compile", "linker", "libm", "-lm",
+  1496	            "standard_c_runtime", "standard c runtime", "checkpoint", "vocab",
+  1497	            "bpe", "ckpt", "file", "readable"
+  1498	        )
+  1499	
+  1500	        if isinstance(obj, dict):
+  1501	            out = {}
+  1502	            for k, v in obj.items():
+  1503	                lk = str(k).lower()
+  1504	
+  1505	                # Drop false required_services from success contract snapshots.
+  1506	                if lk == "required_services" and isinstance(v, list):
+  1507	                    kept = []
+  1508	                    demoted = []
+  1509	                    for item in v:
+  1510	                        txt = str(item).lower()
+  1511	                        if any(w in txt for w in tool_words):
+  1512	                            demoted.append(item)
+  1513	                        else:
+  1514	                            kept.append(item)
+  1515	                    out[k] = kept
+  1516	                    if demoted:
+  1517	                        out["environment_prerequisites_demoted_from_services"] = demoted
+  1518	                    continue
+  1519	
+  1520	                # Filter open obligations/finalization obligations that are actually tool prerequisites.
+  1521	                if lk in {"open_obligations", "unresolved_obligations"} and isinstance(v, list):
+  1522	                    kept = []
+  1523	                    demoted = []
+  1524	                    for item in v:
+  1525	                        txt = str(item).lower()
+  1526	                        if "service" in txt and any(w in txt for w in tool_words):
+  1527	                            demoted.append(item)
+  1528	                        else:
+  1529	                            kept.append(item)
+  1530	                    out[k] = kept
+  1531	                    if demoted:
+  1532	                        out[f"demoted_{k}"] = demoted
+  1533	                        out["service_gate_policy"] = {
+  1534	                            "ruling": "Compiler/linker/library/file readiness is an environment prerequisite, not a persistent runtime service gate.",
+  1535	                            "completion_rule": "Do not keep probing gcc/libm/file readiness after it has succeeded. Move to implementation and semantic verification."
+  1536	                        }
+  1537	                    continue
+  1538	
+  1539	                # Rewrite finalization summaries that only complain about false service gates.
+  1540	                if lk in {"failure_class"} and isinstance(v, str) and v == "service_not_ready":
+  1541	                    out[k] = "environment_prerequisite_not_task_completion"
+  1542	                    continue
+  1543	
+  1544	                if lk in {"summary"} and isinstance(v, str) and "service_gate" in v.lower():
+  1545	                    out[k] = v + " [Sanitized note: compiler/libm/file readiness must not be treated as the task objective or repeated after success.]"
+  1546	                    continue
+  1547	
+  1548	                out[k] = self._sanitize_model_visible_cockpit(v)
+  1549	            return out
+  1550	
+  1551	        if isinstance(obj, list):
+  1552	            return [self._sanitize_model_visible_cockpit(x) for x in obj]
+  1553	
+  1554	        return obj
+  1555	
+  1556	
+  1557	    def _prepare_cockpit_for_model(self, cockpit: dict[str, Any]) -> dict[str, Any]:
+  1558	        """Add concrete repair guidance and hide finalize while obligations remain."""
+  1559	        prepared = self._sanitize_model_visible_cockpit(dict(cockpit or {}))
+  1560	        prepared["model_owned_working_plan"] = self._load_model_owned_plan()
+  1561	        prepared["model_owned_success_contract"] = self._load_model_owned_success_contract()
+  1562	        prepared["model_success_contract_schema"] = self._model_success_contract_schema()
+  1563	        prepared["deduplication_mirror"] = self._dedup_mirror_for_cockpit()
+  1564	        prepared["evidence_work_ledger"] = self._evidence_work_ledger_for_cockpit()
+  1565	
+  1566	        obligations = list(prepared.get("open_obligations") or [])
+  1567	        finalization = prepared.get("finalization") or {}
+  1568	        current_blocker = dict(prepared.get("current_blocker") or {})
+  1569	
+  1570	        has_open_obligations = bool(obligations)
+  1571	        if has_open_obligations:
+  1572	            allowed = list(prepared.get("allowed_next_actions") or [])
+  1573	            prepared["allowed_next_actions"] = [
+  1574	                action for action in allowed
+  1575	                if str(action).strip() not in {"finalize", "claim_complete"}
+  1576	            ]
+  1577	
+  1578	            blocker_summary = str(current_blocker.get("summary") or "Open obligations remain.")
+  1579	            repair_summary = (
+  1580	                blocker_summary
+  1581	                + " Repair protocol: do not finalize. Identify the next unsatisfied functional criterion; "
+  1582	                "create or run a self-check that would fail the current invalid behavior; repair or replace "
+  1583	                "the artifact/service; rerun the self-check; then run required verifiers. Avoid repeating "
+  1584	                "compile-only, file-existence-only, non-empty-only, deterministic-only, or smoke-only checks that do not test the functional criterion."
+  1585	            )
+  2880	
+  2881	    def _record_progress_ledger(self, *, step_index: int, instruction: str, exec_result) -> dict[str, Any]:
+  2882	        actions = self._progress_actions_for_step(step_index)
+  2883	        fields = [self._progress_action_fields(a) for a in actions]
+  2884	        action_types = [f["type"] for f in fields if f.get("type")]
+  2885	
+  2886	        plan_types = {"plan_update", "update_plan", "success_contract", "working_plan", "model_plan"}
+  2887	        concrete_types = {
+  2888	            "read_file", "write_file", "search_files", "raw_bash", "run_verifier",
+  2889	            "probe_service", "view_receipt", "search_receipts", "view_file_cache"
+  2890	        }
+  2891	
+  2892	        plan_only = bool(action_types) and all(t in plan_types for t in action_types)
+  2893	        concrete_action_count = sum(1 for t in action_types if t in concrete_types)
+  2894	
+  2895	        commands = [f["command"] for f in fields if f.get("command")]
+  2896	        paths = [f["path"] for f in fields if f.get("path")]
+  2897	        required_paths = self._progress_required_artifact_paths(instruction)
+  2898	        artifact_states = self._progress_artifact_states(required_paths)
+  2899	        missing_required = [s["path"] for s in artifact_states if not s.get("exists")]
+  2900	
+  2901	        try:
+  2902	            payload = exec_result.to_dict() if hasattr(exec_result, "to_dict") else exec_result
+  2903	        except Exception:
+  2904	            payload = exec_result
+  2905	        payload_text = json.dumps(payload, sort_keys=True, default=str).lower()
+  2906	
+  2907	        no_such_file = "no such file or directory" in payload_text
+  2908	        failed_missing_artifact_probe = False
+  2909	        for path in missing_required:
+  2910	            tokens = {str(path).lower(), Path(str(path)).name.lower()}
+  2911	            if no_such_file and any(t and t in payload_text for t in tokens):
+  2912	                failed_missing_artifact_probe = True
+  2913	                break
+  2914	
+  2915	        compile_attempted = any(
+  2916	            any(marker in c.lower() for marker in ("gcc", "g++", "make ", "cmake", "cargo build", "javac", "go build"))
+  2917	            for c in commands
+  2918	        )
+  2919	        runtime_attempted = any(
+  2920	            any(marker in c.lower() for marker in ("./", "/app/a.out", "python ", "node ", "java ", "cargo run", "go run"))
+  2921	            for c in commands
+  2922	        )
+  2923	
+  2924	        previous = self._recent_progress_entries(limit=5)
+  2925	        prior_plan_only_count = 0
+  2926	        for item in reversed(previous):
+  2927	            if item.get("plan_only"):
+  2928	                prior_plan_only_count += 1
+  2929	            else:
+  2930	                break
+  2931	
+  2932	        repeated_command_count = 0
+  2933	        prior_commands = []
+  2934	        for item in previous:
+  2935	            prior_commands.extend(item.get("commands") or [])
+  2936	        for command in commands:
+  2937	            if command and command in prior_commands:
+  2938	                repeated_command_count += 1
+  2939	
+  2940	        failure_hint = "none"
+  2941	        progress_stage = "execution"
+  2942	        productive_step = concrete_action_count > 0 and not failed_missing_artifact_probe
+  2943	
+  2944	        if missing_required and failed_missing_artifact_probe:
+  2945	            failure_hint = "artifact_missing"
+  2946	            progress_stage = "missing_artifact_probe"
+  2947	            productive_step = False
+  2948	        elif missing_required and plan_only and prior_plan_only_count >= 1:
+  2949	            failure_hint = "artifact_missing"
+  2950	            progress_stage = "plan_only_stall_with_required_artifact_missing"
+  2951	            productive_step = False
+  2952	        elif plan_only:
+  2953	            failure_hint = "plan_only"
+  2954	            progress_stage = "plan_only"
+  2955	            productive_step = False
+  2956	        elif repeated_command_count and not productive_step:
+  2957	            failure_hint = "repeated_no_progress"
+  2958	            progress_stage = "repeated_command"
+  2959	        elif any(s.get("likely_invalid") or s.get("likely_stub") for s in artifact_states):
+  2960	            failure_hint = "artifact_invalid"
+  2961	            progress_stage = "fake_or_placeholder_artifact"
+  2962	            productive_step = False
+  2963	        elif required_paths and any(s.get("exists") for s in artifact_states) and not compile_attempted and not runtime_attempted:
+  2964	            failure_hint = "verifier_not_run"
+  2965	            progress_stage = "artifact_written_without_behavior_evidence"
+  2966	            productive_step = True
+  2967	
+  2968	        facts = []
+  2969	        if missing_required:
+  2970	            facts.append("Required artifact(s) missing: " + ", ".join(missing_required[:4]))
+  2971	        if failed_missing_artifact_probe:
+  2972	            facts.append("A concrete command failed because a required artifact was missing.")
+  2973	        if plan_only:
+  2974	            facts.append("This step only updated planning/contract state and produced no concrete workspace action.")
+  2975	        if prior_plan_only_count and plan_only:
+  2976	            facts.append(f"Consecutive prior plan-only steps: {prior_plan_only_count}.")
+  2977	        if repeated_command_count:
+  2978	            facts.append(f"Repeated command count: {repeated_command_count}.")
+  2979	        if compile_attempted:
+  2980	            facts.append("Compile/build command attempted.")
+  2981	        if runtime_attempted:
+  2982	            facts.append("Runtime command attempted.")
+  2983	
+  2984	        entry = {
+  2985	            "schema": "progress_ledger.v1",
+  2986	            "step_index": step_index,
+  2987	            "action_types": action_types,
+  2988	            "concrete_action_count": concrete_action_count,
+  2989	            "plan_only": plan_only,
+  2990	            "commands": commands[:8],
+  2991	            "paths": paths[:8],
+  2992	            "required_artifacts": required_paths,
+  2993	            "artifact_states": artifact_states,
+  2994	            "missing_required_artifacts": missing_required,
+  2995	            "compile_attempted": compile_attempted,
+  2996	            "runtime_attempted": runtime_attempted,
+  2997	            "failed_missing_artifact_probe": failed_missing_artifact_probe,
+  2998	            "repeated_command_count": repeated_command_count,
+  2999	            "productive_step": productive_step,
+  3000	            "progress_stage": progress_stage,
+  3001	            "failure_hint": failure_hint,
+  3002	            "facts": facts[:8],
+  3003	        }
+  3004	
+  3005	        try:
+  3006	            self._progress_ledger_path(step_index).write_text(
+  3007	                json.dumps(entry, indent=2, sort_keys=True, default=str),
+  3008	                encoding="utf-8",
+  3009	            )
+  3010	        except Exception:
+  3011	            pass
+  3012	
+  3013	        return entry
+  3014	
+  3015	    def _progress_state_from_ledger(self, entry: dict[str, Any] | None) -> dict[str, Any] | None:
+  3016	        if not isinstance(entry, dict):
+  3017	            return None
+  3018	
+  3019	        failure_hint = str(entry.get("failure_hint") or "none")
+  3020	        if failure_hint in {"", "none"}:
+  3021	            return {
+  3022	                "type": "progress_state",
+  3023	                "failure_class": "none",
+  3024	                "summary": "Recent step made measurable progress or no actionable progress issue was detected.",
+  3025	                "progress_stage": entry.get("progress_stage"),
+  3026	                "facts": entry.get("facts") or [],
+  3027	            }
+  3028	
+  3029	        failure_class = {
+  3030	            "artifact_missing": "artifact_missing",
+  3031	            "artifact_invalid": "artifact_invalid",
+  3032	            "verifier_not_run": "verifier_not_run",
+  3033	            "plan_only": "repeated_no_progress",
+  3034	            "repeated_no_progress": "repeated_no_progress",
+  3035	        }.get(failure_hint, "unknown")
+  3036	
+  3037	        missing = entry.get("missing_required_artifacts") or []
+  3038	        if failure_hint == "artifact_missing":
+  3039	            summary = "Required artifact is missing after recent concrete/plan steps."
+  3040	        elif failure_hint == "plan_only":
+  3041	            summary = "Recent step only updated plan state and produced no concrete workspace progress."
+  3042	        elif failure_hint == "artifact_invalid":
+  3043	            summary = "Required artifact exists but looks fake, canned, stub-like, or placeholder-like."
+  3044	        elif failure_hint == "verifier_not_run":
+  3045	            summary = "Required artifact exists, but no receipt-backed compile/runtime/finalization evidence has been produced yet."
+  3046	        else:
+  3047	            summary = "Recent steps show no measurable concrete progress."
+  3048	
+  3049	        return {
+  3050	            "type": "progress_state",
+  3051	            "failure_class": failure_class,
+  3052	            "summary": summary,
+  3053	            "progress_stage": entry.get("progress_stage"),
+  3054	            "missing_required_artifacts": missing,
+  3055	            "facts": entry.get("facts") or [],
+  3056	            "productive_step": entry.get("productive_step"),
+  3057	            "step_index": entry.get("step_index"),
+  3058	        }
+  3059	
+  3060	    def _latest_progress_ledger_entry(self) -> dict[str, Any]:
+  3061	        entries = self._recent_progress_entries(limit=1)
+  3062	        return entries[-1] if entries else {}
+  3063	
+  3064	
+  3065	    def _evidence_saturation_packet(self, *, step_index: int, instruction: str) -> dict[str, Any] | None:
+  3066	        """Convert repeated history into stateful non-progress rulings.
+  3067	
+  3068	        This does not require a plan. It detects repeated reads/measurements of an
+  3069	        unchanged state. If a plan exists, the packet also enforces plan-action
+  3070	        accountability.
+  3071	        """
+  3072	        actions = self._recent_model_actions_compact(limit=50)
+  3073	        if not actions:
+  3074	            return None
+  3075	
+  3076	        recent = actions[-24:]
+  3077	        writes_recent = [a for a in recent if a.get("is_write")]
+  3078	        measurements_recent = [a for a in recent if a.get("is_measurement")]
+  3079	        compile_recent = [a for a in recent if a.get("is_compile")]
+  3080	        read_recent = [a for a in recent if a.get("is_read")]
+  3081	        run_recent = [a for a in recent if a.get("is_run")]
+  3082	
+  3083	        gpt2_hash = self._workspace_file_hash("/app/gpt2.c")
+  3084	        gpt2_exists = gpt2_hash is not None
+  3085	
+  3086	        plan_obj = self._load_model_owned_plan()
+  3087	        has_plan = isinstance(plan_obj, dict) and plan_obj.get("status") not in {"no_plan_yet", "plan_read_error", "plan_invalid"}
+  3088	        plan_text = json.dumps(plan_obj, sort_keys=True, default=str).lower() if has_plan else ""
+  3089	
+  3090	        plan_says_unresolved = any(x in plan_text for x in [
+  3091	            "evidence_gaps", "known_bad_behavior", "no verified semantic implementation",
+  3092	            "invalid", "unverified", "repair", "needs repair", "semantic",
+  3093	        ])
+  3094	
+  3095	        fake_findings = self._fake_artifact_findings(instruction=instruction)
+  3096	
+  3097	        # Stop early repeated gcc/libm readiness probes when no artifact progress exists.
+  3098	        if step_index >= 8 and not gpt2_exists and len(compile_recent) >= 6 and not writes_recent:
+  3099	            return {
+  3100	                "type": "evidence_saturation",
+  3101	                "severity": "repair_required",
+  3102	                "summary": "Compiler/library readiness and file inspection have already been measured repeatedly, but the required artifact is still missing.",
+  3103	                "saturated_evidence_classes": ["gcc/libm readiness", "workspace/file inspection"],
+  3104	                "ruling": [
+  3105	                    "Do not run another gcc/libm/readiness probe.",
+  3106	                    "Known state already covers generic workspace inspection. Useful new evidence would come from artifact work, implementation design, or a genuinely new implementation-critical detail.",
+  3107	                    "A successful raw_bash exit is not progress when it repeats an already-known fact."
+  3108	                ],
+  3109	                "required_next_action": "Write /app/gpt2.c or perform one specific new implementation-critical analysis. No more readiness-only commands.",
+  3110	                "recent_actions": recent[-12:],
+  3111	            }
+  3112	
+  3113	        # If artifact exists and recent turns repeatedly measure unchanged state, block.
+  3114	        if step_index >= 14 and gpt2_exists and len(measurements_recent) >= 5 and not writes_recent and not fake_findings:
+  3115	            return {
+  3116	                "type": "evidence_saturation",
+  3117	                "severity": "repair_required",
+  3118	                "summary": "Recent actions repeatedly inspect/compile/run the same unchanged artifact without modifying it.",
+  3119	                "artifact_state": {
+  3120	                    "path": "/app/gpt2.c",
+  3121	                    "sha256": gpt2_hash,
+  3122	                    "fake_artifact_findings": fake_findings,
+  3123	                },
+  3124	                "plan_context": {
+  3125	                    "plan_present": has_plan,
+  3126	                    "plan_says_unresolved": plan_says_unresolved,
+  3127	                },
+  3128	                "saturated_evidence_classes": [
+  3129	                    "read unchanged source",
+  3130	                    "compile unchanged source",
+  3131	                    "run prompt-difference check on unchanged source",
+  3132	                ],
+  3133	                "ruling": [
+  3134	                    "Do not repeat another read/compile/run-only measurement of unchanged /app/gpt2.c.",
+  3135	                    "If the artifact is invalid, unverified, echo-only, stub-like, or input-ignoring, measurement has saturated.",
+
+===== receipt search implementation =====
+1673:    def _receipt_index_for_claim_gate(self) -> dict[str, dict[str, Any]]:
+4245:    def _action_view_receipt(self, action: ExecutePlanAction) -> ActionResult:
+4260:    def _action_search_receipts(self, action: ExecutePlanAction) -> ActionResult:
+  1660	                continue
+  1661	            if size > 300000:
+  1662	                continue
+  1663	            if fp.suffix.lower() not in {".c", ".h", ".py", ".sh", ".txt", ".md", ".json", ".yaml", ".yml", ".toml", ".log"}:
+  1664	                continue
+  1665	            try:
+  1666	                text = fp.read_text(encoding="utf-8", errors="replace")
+  1667	            except Exception:
+  1668	                continue
+  1669	            out.append({"path": rel, "size": size, "snippet": text[:max_chars]})
+  1670	        return out
+  1671	
+  1672	
+  1673	    def _receipt_index_for_claim_gate(self) -> dict[str, dict[str, Any]]:
+  1674	        """Index visible receipt JSON files by several convenient reference forms."""
+  1675	        index: dict[str, dict[str, Any]] = {}
+  1676	        roots = [self.receipt_root, self.receipt_root / "receipts"]
+  1677	        for root in roots:
+  1678	            if not root.exists():
+  1679	                continue
+  1680	            for rp in root.rglob("*.json"):
+  1681	                try:
+  1682	                    obj = json.loads(rp.read_text(encoding="utf-8"))
+  1683	                except Exception:
+  1684	                    continue
+  1685	                # Model call logs are not action evidence for solver work.
+  1686	                if rp.name.startswith("model_") or rp.name in {"remote_context.json"}:
+  1687	                    continue
+  1688	                try:
+  1689	                    rel = str(rp.relative_to(self.receipt_root))
+  1690	                except Exception:
+  1691	                    rel = rp.name
+  1692	                keys = {
+  1693	                    rp.name,
+  1694	                    rp.stem,
+  1695	                    rel,
+  1696	                    str(rp),
+  1697	                    "receipt:" + rp.name,
+  1698	                    "receipt:" + rp.stem,
+  1699	                    "receipt:" + rel,
+  1700	                }
+  1701	                if isinstance(obj, dict):
+  1702	                    ref = obj.get("receipt_ref") or obj.get("id") or obj.get("receipt")
+  1703	                    if isinstance(ref, str) and ref:
+  1704	                        keys.add(ref)
+  1705	                        keys.add("receipt:" + ref)
+  1706	                wrapped = {"path": str(rp), "rel": rel, "object": obj}
+  1707	                for k in keys:
+  1708	                    index[k] = wrapped
+  1709	        return index
+  1710	
+  1711	
+  1712	    def _final_verifier_authority_enabled(self) -> bool:
+  1713	        raw = __import__("os").environ.get("MLPCP_FINAL_VERIFIER_AUTHORITY", "0")
+  1714	        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+  1715	
+  1716	
+  1717	    def _final_verifier_task_prompt(self, *, fallback_instruction: str = "") -> str:
+  1718	        candidates = []
+  1719	        try:
+  1720	            candidates.append(self.workspace_root / "instruction.md")
+  1721	        except Exception:
+  1722	            pass
+  1723	        try:
+  1724	            candidates.append(self.receipt_root.parent / "host_workspace" / "instruction.md")
+  1725	        except Exception:
+  1726	            pass
+  1727	
+  1728	        for path in candidates:
+  1729	            try:
+  1730	                if path.exists():
+  1731	                    text = path.read_text(encoding="utf-8", errors="replace")
+  1732	                    if text.strip():
+  1733	                        return text[:16000]
+  1734	            except Exception:
+  1735	                continue
+  1736	        return str(fallback_instruction or "")[:16000]
+  1737	
+  1738	
+  1739	    def _final_verifier_conditions_met(self) -> dict[str, str]:
+  1740	        default = {
+  1741	            "artifact_gate": "not_required",
+  1742	            "service_gate": "not_required",
+  1743	            "visible_verifier_gate": "not_required",
+  1744	            "verifier_model_approval": "not_required",
+  1745	        }
+  1746	
+  1747	        candidates = [
+  1748	            ("session.capability_graph.conditions_met", lambda: self.session.capability_graph.conditions_met()),
+  1749	            ("capability_graph.conditions_met", lambda: self.capability_graph.conditions_met()),
+  1750	            ("_conditions_met", lambda: self._conditions_met()),
+  1751	        ]
+  1752	        for _name, fn in candidates:
+  1753	            try:
+  1754	                value = fn()
+  1755	                if isinstance(value, dict):
+  1756	                    out = dict(default)
+  1757	                    out.update({k: v for k, v in value.items() if k in out})
+  1758	                    return out
+  1759	            except Exception:
+  1760	                continue
+  4050	        contract = getattr(self.session, "success_contract", None)
+  4051	        if contract is None:
+  4052	            return
+  4053	
+  4054	        for idx, output in enumerate(getattr(contract, "required_outputs", []) or []):
+  4055	            path_raw = str(output.get("path") or output.get("name") or "").strip()
+  4056	            if not path_raw:
+  4057	                continue
+  4058	
+  4059	            # Contract paths may be absolute task-container paths like /app/gpt2.c
+  4060	            # or workspace-relative paths like gpt2.c. Test the actual remote path.
+  4061	            if path_raw.startswith("/"):
+  4062	                remote_target = path_raw
+  4063	                evidence_rel = path_raw
+  4064	            else:
+  4065	                rel = path_raw.strip("/")
+  4066	                remote_target = self._remote_path(rel)
+  4067	                evidence_rel = rel
+  4068	
+  4069	            try:
+  4070	                exists = await self.environment.exec(
+  4071	                    command=f"test -e {shlex.quote(remote_target)}",
+  4072	                    cwd=REMOTE_WORKSPACE_ROOT,
+  4073	                    timeout_sec=10,
+  4074	                )
+  4075	            except Exception:
+  4076	                continue
+  4077	
+  4078	            if exists.return_code == 0:
+  4079	                self._apply_artifact_write_evidence(
+  4080	                    rel=evidence_rel,
+  4081	                    receipt_ref=receipt_ref,
+  4082	                )
+  4083	
+  4084	
+  4085	    async def _action_run_verifier(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+  4086	        command = str(action.args.get("cmd") or action.args.get("command") or "")
+  4087	        if not command:
+  4088	            return ActionResult(
+  4089	                action.action_id,
+  4090	                action.action_type,
+  4091	                "blocked",
+  4092	                "Verifier command missing; request a concrete verifier command before retrying.",
+  4093	                failure_class=FailureClass.TOOL_EXECUTION_ERROR,
+  4094	                result={"passed": False, "safe_summary": "Verifier command missing."},
+  4095	            )
+  4096	        self.guard.validate_command_text(command)
+  4097	        cwd = self.guard.validate_cwd(self._normalize_model_path(str(action.args.get("cwd") or "")) if action.args.get("cwd") else None)
+  4098	        timeout = int(action.args.get("timeout_seconds") or (self.execute_policy or ExecutePlanPolicy()).raw_bash_timeout_seconds)
+  4099	        remote_cwd = self._remote_path(self._rel(cwd))
+  4100	        cp = await self.environment.exec(command=command, cwd=remote_cwd, timeout_sec=timeout)
+  4101	        passed = cp.return_code == 0
+  4102	        failure_class = FailureClass.NONE if passed else FailureClass.VERIFIER_FAILED
+  4103	        summary = "Verifier passed." if passed else "Verifier failed."
+  4104	        receipt = self.session.receipt_store.create_receipt(
+  4105	            receipt_id=self._receipt_id(action, step),
+  4106	            run_id=self.run_id,
+  4107	            row_id=self.row_id,
+  4108	            step=step,
+  4109	            tool_name="run_verifier",
+  4110	            tool_args={"command": command, "timeout_seconds": timeout},
+  4111	            cwd=remote_cwd,
+  4112	            status="success" if passed else "fail",
+  4113	            exit_code=cp.return_code,
+  4114	            stdout=cp.stdout or "",
+  4115	            stderr=cp.stderr or "",
+  4116	            summary=summary,
+  4117	            failure_class=failure_class,
+  4118	            model_visible_summary=summary,
+  4119	        )
+  4120	        receipt_ref = self.session.receipt_store.receipt_ref(receipt)
+  4121	        self._apply_capability_if_requested(action, passed=passed, receipt_ref=receipt_ref, summary=summary, failure_class=failure_class)
+  4122	        self._apply_required_verifier_evidence(
+  4123	            command=command,
+  4124	            passed=passed,
+  4125	            receipt_ref=receipt_ref,
+  4126	            summary=summary,
+  4127	            failure_class=failure_class,
+  4128	        )
+  4129	        safe_summary = "Verifier passed." if passed else "Verifier failed. See receipt ref for safe output retrieval."
+  4130	        return ActionResult(action.action_id, action.action_type, "success" if passed else "blocked", safe_summary, failure_class=failure_class, receipt_ref=receipt_ref, result={"passed": passed, "safe_summary": safe_summary})
+  4131	
+  4132	    def _normalize_verifier_command_for_match(self, command: str) -> str:
+  4133	        text = str(command or "").strip().strip("`").strip()
+  4134	        # Collapse shell whitespace and remove harmless wrapping quotes/backticks.
+  4135	        text = " ".join(text.replace("\\\n", " ").split())
+  4136	        return text
+  4137	
+  4138	
+  4139	    def _verifier_commands_match(self, observed: str, expected: str) -> bool:
+  4140	        obs = self._normalize_verifier_command_for_match(observed)
+  4141	        exp = self._normalize_verifier_command_for_match(expected)
+  4142	        if not obs or not exp:
+  4143	            return False
+  4144	        if obs == exp:
+  4145	            return True
+  4146	        # A model may run the required verifier plus extra smoke-test commands.
+  4147	        if exp in obs:
+  4148	            return True
+  4149	        return False
+  4150	
+  4151	
+  4152	    def _apply_required_verifier_evidence(
+  4153	        self,
+  4154	        *,
+  4155	        command: str,
+  4156	        passed: bool,
+  4157	        receipt_ref,
+  4158	        summary: str,
+  4159	        failure_class: FailureClass,
+  4160	    ) -> None:
+  4161	        graph = getattr(self.session, "capability_graph", None)
+  4162	        contract = getattr(self.session, "success_contract", None)
+  4163	        if graph is None or contract is None or receipt_ref is None:
+  4164	            return
+  4165	
+  4166	        verifiers = list(getattr(contract, "required_verifiers", []) or [])
+  4167	        if not verifiers:
+  4168	            return
+  4169	
+  4170	        matches: list[dict] = []
+  4171	        for verifier in verifiers:
+  4172	            expected = str(verifier.get("command") or verifier.get("cmd") or "").strip()
+  4173	            if self._verifier_commands_match(command, expected):
+  4174	                matches.append(verifier)
+  4175	
+  4176	        # If there is exactly one required verifier, a run_verifier action is
+  4177	        # almost certainly intended to satisfy it even if the model omitted the
+  4178	        # check id or used equivalent command formatting.
+  4179	        if not matches and len(verifiers) == 1:
+  4180	            matches = verifiers
+  4181	
+  4182	        for verifier in matches:
+  4183	            name = str(verifier.get("name") or verifier.get("id") or "model_visible_verifier").strip()
+  4184	            check_id = str(verifier.get("check_id") or f"verifier:{name}:run")
+  4185	            try:
+  4186	                graph.apply_measured_check(
+  4187	                    check_id=check_id,
+  4188	                    passed=passed,
+  4189	                    receipt_ref=receipt_ref,
+  4190	                    summary=summary,
+  4191	                    failure_class=FailureClass.NONE if passed else failure_class,
+  4192	                )
+  4193	            except Exception:
+  4194	                pass
+  4195	
+
+===== memory store listing/read recording implementation =====
+runner/mlpcp_v2/state_machine.py:72:    "file_cache",
+runner/mlpcp_v2/file_cache.py:54:    def record_file_read(
+runner/mlpcp_v2/file_cache.py:84:    def view_file_cache(
+runner/mlpcp_v2/file_cache.py:110:    def record_directory_listing(
+runner/mlpcp_v2/memory.py:12:from .file_cache import FileCache
+runner/mlpcp_v2/memory.py:52:class MemoryStore:
+runner/mlpcp_v2/memory.py:53:    def __init__(self, receipt_store: ReceiptStore, file_cache: FileCache | None = None):
+runner/mlpcp_v2/memory.py:55:        self.file_cache = file_cache or FileCache()
+runner/mlpcp_v2/memory.py:148:    def record_file_read(self, *, path: str, content: str, receipt_ref: Reference | None = None, step: int | None = None) -> dict:
+runner/mlpcp_v2/memory.py:149:        return self.file_cache.record_file_read(path=path, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/memory.py:151:    def view_file_cache(self, path: str, *, start_line: int | None = None, end_line: int | None = None) -> dict:
+runner/mlpcp_v2/memory.py:152:        return self.file_cache.view_file_cache(path, start_line=start_line, end_line=end_line)
+runner/mlpcp_v2/memory.py:154:    def record_directory_listing(
+runner/mlpcp_v2/memory.py:162:        return self.file_cache.record_directory_listing(path=path, entries=entries, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/memory.py:165:        return self.file_cache.view_directory_cache(path)
+runner/mlpcp_v2/integration.py.before_observation_loop:117:                "view_file_cache",
+runner/mlpcp_v2/cockpit.py.before_emergency_budget_fallback:278:        ["search_receipts", "view_receipt", "view_file_cache", "view_directory_cache", "artifact_status", "service_status", "service_logs"],
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:171:        "view_file_cache",
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:408:        cache = self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:438:        self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:485:        self.context.memory_store.record_directory_listing(path=self._rel(root), entries=matches, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:606:    def _action_view_file_cache(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:609:            raise ExecutePlanError("view_file_cache requires path")
+runner/mlpcp_v2/execute_plan.py.before_action_aliases:611:        cache = self.context.memory_store.view_file_cache(path, start_line=action.args.get("start_line"), end_line=action.args.get("end_line"))
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:12:from .file_cache import FileCache
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:40:class MemoryStore:
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:41:    def __init__(self, receipt_store: ReceiptStore, file_cache: FileCache | None = None):
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:43:        self.file_cache = file_cache or FileCache()
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:136:    def record_file_read(self, *, path: str, content: str, receipt_ref: Reference | None = None, step: int | None = None) -> dict:
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:137:        return self.file_cache.record_file_read(path=path, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:139:    def view_file_cache(self, path: str, *, start_line: int | None = None, end_line: int | None = None) -> dict:
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:140:        return self.file_cache.view_file_cache(path, start_line=start_line, end_line=end_line)
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:142:    def record_directory_listing(
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:150:        return self.file_cache.record_directory_listing(path=path, entries=entries, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/memory.py.before_view_receipt_stdout_v1_20260609T164639Z:153:        return self.file_cache.view_directory_cache(path)
+runner/mlpcp_v2/verification.py:125:    def view_file_cache(self, path: str, *, start_line: int | None = None, end_line: int | None = None) -> dict:
+runner/mlpcp_v2/verification.py:127:        return self.memory.view_file_cache(path, start_line=start_line, end_line=end_line)
+runner/mlpcp_v2/verification.py:278:        memory_tools_available=["view_receipt", "search_receipts", "view_file_cache", "view_directory_cache", "service_logs", "artifact_status", "service_status"],
+runner/mlpcp_v2/integration.py:130:                "view_file_cache",
+runner/mlpcp_v2/cockpit.py:255:        "available_memory_tools": ["view_receipt", "search_receipts", "view_file_cache"],
+runner/mlpcp_v2/cockpit.py:405:        ["search_receipts", "view_receipt", "view_file_cache", "view_directory_cache", "artifact_status", "service_status", "service_logs"],
+runner/mlpcp_v2/execute_plan.py:76:            elif action_type in {"read_file", "write_file", "view_file_cache"}:
+runner/mlpcp_v2/execute_plan.py:91:        if action_type in {"read_file", "write_file", "view_file_cache"}:
+runner/mlpcp_v2/execute_plan.py:198:        "view_file_cache",
+runner/mlpcp_v2/execute_plan.py:435:        cache = self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py:465:        self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py:512:        self.context.memory_store.record_directory_listing(path=self._rel(root), entries=matches, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py:633:    def _action_view_file_cache(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py:636:            raise ExecutePlanError("view_file_cache requires path")
+runner/mlpcp_v2/execute_plan.py:638:        cache = self.context.memory_store.view_file_cache(path, start_line=action.args.get("start_line"), end_line=action.args.get("end_line"))
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:81:        if action_type in {"read_file", "write_file", "view_file_cache"}:
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:188:        "view_file_cache",
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:425:        cache = self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:455:        self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:502:        self.context.memory_store.record_directory_listing(path=self._rel(root), entries=matches, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:623:    def _action_view_file_cache(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:626:            raise ExecutePlanError("view_file_cache requires path")
+runner/mlpcp_v2/execute_plan.py.before_string_args_alias:628:        cache = self.context.memory_store.view_file_cache(path, start_line=action.args.get("start_line"), end_line=action.args.get("end_line"))
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:76:            elif action_type in {"read_file", "write_file", "view_file_cache"}:
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:91:        if action_type in {"read_file", "write_file", "view_file_cache"}:
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:198:        "view_file_cache",
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:435:        cache = self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:465:        self.context.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:512:        self.context.memory_store.record_directory_listing(path=self._rel(root), entries=matches, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:633:    def _action_view_file_cache(self, action: ExecutePlanAction, *, step: int) -> ActionResult:
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:636:            raise ExecutePlanError("view_file_cache requires path")
+runner/mlpcp_v2/execute_plan.py.before_action_key_alias:638:        cache = self.context.memory_store.view_file_cache(path, start_line=action.args.get("start_line"), end_line=action.args.get("end_line"))
+runner/mlpcp_v2_harbor_host.py:653:                "view_file_cache",
+runner/mlpcp_v2_harbor_host.py:684:                "available_memory_tools": ["view_receipt", "search_receipts", "view_file_cache"],
+runner/mlpcp_v2_harbor_host.py:2889:            "probe_service", "view_receipt", "search_receipts", "view_file_cache"
+runner/mlpcp_v2_harbor_host.py:3630:        if action_type == "view_file_cache":
+runner/mlpcp_v2_harbor_host.py:3631:            return self._action_view_file_cache(action)
+runner/mlpcp_v2_harbor_host.py:3811:        self.session.memory_store.record_directory_listing(
+runner/mlpcp_v2_harbor_host.py:3852:        self.session.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2_harbor_host.py:3885:        self.session.memory_store.record_file_read(path=rel, content=content, receipt_ref=receipt_ref, step=step)
+runner/mlpcp_v2_harbor_host.py:4272:    def _action_view_file_cache(self, action: ExecutePlanAction) -> ActionResult:
+runner/mlpcp_v2_harbor_host.py:4275:            raise ValueError("view_file_cache requires path")
+runner/mlpcp_v2_harbor_host.py:4278:        cache = self.session.memory_store.view_file_cache(normalized, start_line=action.args.get("start_line"), end_line=action.args.get("end_line"))
+
+===== compact_execute_result_for_cockpit =====
+     1	from __future__ import annotations
+     2	
+     3	from typing import Any
+     4	
+     5	
+     6	def clip_text(value: object, limit: int = 700) -> str:
+     7	    text = "" if value is None else str(value)
+     8	    if len(text) <= limit:
+     9	        return text
+    10	    return text[: limit // 2] + "\n...[truncated]...\n" + text[-limit // 2 :]
+    11	
+    12	
+    13	def compact_execute_result_for_cockpit(result: dict[str, Any]) -> dict[str, Any]:
+    14	    compact_actions = []
+    15	
+    16	    for item in result.get("action_results") or []:
+    17	        res = item.get("result") or {}
+    18	        compact_res: dict[str, Any] = {}
+    19	
+    20	        if isinstance(res, dict):
+    21	            for key in ("exit_code", "passed", "path", "safe_summary"):
+    22	                if key in res:
+    23	                    compact_res[key] = res[key]
+    24	            if "stdout_excerpt" in res:
+    25	                compact_res["stdout_excerpt"] = clip_text(res.get("stdout_excerpt"), 900)
+    26	            if "stderr_excerpt" in res:
+    27	                compact_res["stderr_excerpt"] = clip_text(res.get("stderr_excerpt"), 900)
+    28	            if "content" in res:
+    29	                compact_res["content_excerpt"] = clip_text(res.get("content"), 900)
+    30	            if "matches" in res:
+    31	                compact_res["matches"] = list(res.get("matches") or [])[:40]
+    32	        else:
+    33	            compact_res["value"] = clip_text(res, 500)
+    34	
+    35	        receipt_ref = item.get("receipt_ref") or {}
+    36	        compact_actions.append({
+    37	            "action_id": item.get("action_id"),
+    38	            "action_type": item.get("action_type"),
+    39	            "status": item.get("status"),
+    40	            "summary": clip_text(item.get("summary"), 300),
+    41	            "failure_class": item.get("failure_class"),
+    42	            "error": clip_text(item.get("error"), 500) if item.get("error") else None,
+    43	            "receipt_ref": {
+    44	                "ref_id": receipt_ref.get("ref_id") if isinstance(receipt_ref, dict) else None,
+    45	                "summary": clip_text(receipt_ref.get("summary"), 200) if isinstance(receipt_ref, dict) else None,
+    46	            },
+    47	            "result": compact_res,
+    48	        })
+    49	
+    50	    finalization = result.get("finalization") or {}
+    51	    compact_finalization = None
+    52	    if isinstance(finalization, dict):
+    53	        compact_finalization = {
+    54	            "allowed": finalization.get("allowed"),
+    55	            "failure_class": finalization.get("failure_class"),
+    56	            "summary": clip_text(finalization.get("summary"), 300),
+    57	            "unresolved_obligations": [
+    58	                {
+    59	                    "check_id": x.get("check_id"),
+    60	                    "requirement_id": x.get("requirement_id"),
+    61	                    "failure_class": x.get("failure_class"),
+    62	                    "summary": clip_text(x.get("summary"), 220),
+    63	                }
+    64	                for x in (finalization.get("unresolved_obligations") or [])[:5]
+    65	                if isinstance(x, dict)
+    66	            ],
+    67	        }
+    68	
+    69	    return {
+    70	        "request_id": result.get("request_id"),
+    71	        "status": result.get("status"),
+    72	        "stopped_at_action_id": result.get("stopped_at_action_id"),
+    73	        "action_results": compact_actions[:6],
+    74	        "finalization": compact_finalization,
+    75	    }
+
+===== lean cockpit files/known_state builders =====
+runner/mlpcp_v2/lean_cockpit.py:49:    known_state: dict[str, Any] = field(default_factory=dict)
+runner/mlpcp_v2/lean_cockpit.py:69:            "known_state": self.known_state,
+runner/mlpcp_v2/lean_cockpit.py:225:def _known_state(raw: dict, task_prompt: str = "") -> dict:
+runner/mlpcp_v2/lean_cockpit.py:243:        "workspace_inspection": _workspace_inspection_state(raw),
+runner/mlpcp_v2/lean_cockpit.py:247:def _workspace_inspection_state(raw: dict) -> dict:
+runner/mlpcp_v2/lean_cockpit.py:362:    known = _known_state(raw)
+runner/mlpcp_v2/lean_cockpit.py:406:        "last_result_summary": _safe_str(last, 450),
+runner/mlpcp_v2/lean_cockpit.py:459:        "last_result_summary": _safe_str(last, 450),
+runner/mlpcp_v2/lean_cockpit.py:460:        "last_action_types": action_types[:8] if isinstance(action_types, list) else [],
+runner/mlpcp_v2/lean_cockpit.py:687:        known_state=_known_state(raw, task_prompt=task_prompt),
+runner/mlpcp_v2/lean_cockpit.py:698:            "important_receipts": _collect_refs(raw, limit=10),
+runner/mlpcp_v2/lean_cockpit.py:721:    lean["recent_progress"]["last_result_summary"] = _safe_str(
+runner/mlpcp_v2/lean_cockpit.py:722:        lean.get("recent_progress", {}).get("last_result_summary"), 220
+runner/mlpcp_v2/lean_cockpit.py:730:        lean["memory_refs"]["important_receipts"] = lean.get("memory_refs", {}).get("important_receipts", [])[:6]
+runner/mlpcp_v2_harbor_host.py:686:                "important_receipts": [],
+
+===== current qemu run artifacts to compare against source assumptions =====
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_workspace/instruction.md
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/mlpcp_result.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_12.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_6.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_30.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_29.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_1.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_11.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_25.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_9.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_6.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_30.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_2.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_26.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_10.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_7.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_24.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_3.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_25.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_20.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_25.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_17.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_3.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_9.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0013_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0013_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0017_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0017_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0016_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0016_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0009_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0009_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0004_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0004_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0003_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0003_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0007_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0007_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0020_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0020_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0006_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0006_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0008_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0008_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0029_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0029_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0015_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0015_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0031_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0031_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0022_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0022_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0021_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0021_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0032_action_search_files/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0032_action_search_files/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0030_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0030_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0024_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0024_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0002_action_search_files/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0002_action_search_files/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0018_action_raw_bash/stderr
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/raw/0018_action_raw_bash/stdout
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_23.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_22.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_28.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_15.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_12.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_7.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_13.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_28.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_7.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_24.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_4.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_14.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_18.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_30.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_15.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_18.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_14.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_15.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_8.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_20.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_29.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_17.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_15.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_1.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_28.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_6.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_9.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_1.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_25.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_17.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_8.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_16.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_30.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_19.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_11.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_23.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_22.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_29.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_16.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_16.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_23.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_19.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_21.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_3.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_14.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_5.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_24.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_20.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_26.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_6.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_4.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_13.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_4.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_18.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_30.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_29.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_21.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_8.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_12.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_2.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_4.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/dedup_execution_ledger.jsonl
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_27.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_17.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_19.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_21.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_22.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_26.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_16.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_2.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_22.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_3.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_28.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_21.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_12.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0017_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0013_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0021_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0009_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0006_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0002_action_search_files.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0004_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0032_action_search_files.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0024_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0031_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0029_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0015_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0003_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0022_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0016_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0008_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0018_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0030_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0020_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/receipts/0007_action_raw_bash.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_26.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_13.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_23.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_14.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_22.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_24.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_7.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_owned_working_plan.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_13.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_11.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_15.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_12.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_4.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_27.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_11.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_7.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_5.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_10.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_27.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_19.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_16.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_28.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_20.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_23.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_21.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_2.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_10.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_18.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_27.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_11.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_14.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_1.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_27.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_24.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_13.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_owned_working_plan.history.jsonl
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_9.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_5.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_29.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_18.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_3.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_8.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_5.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_26.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_2.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_17.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_25.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_9.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_request_8.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_5.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_10.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_19.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/verification_skipped_1.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/progress_ledger_20.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/model_execute_10.json
+jobs/official_harbor_live_app_qemu_20260611T013015Z/mlpcp_v2_harbor_live_app_qemu_20260611T013015Z/qemu-startup__SZBEip3/agent/host_receipts/lean_cockpit_6.json

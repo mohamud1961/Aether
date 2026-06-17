@@ -1,0 +1,244 @@
+SOURCE_SYSTEM_DOSSIER
+- system: deepagents
+- dossier_status: wave_03_repair_pass_first_complete
+- source_scope:
+  - Primary source-backed surfaces read for this dossier: `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/test_tau2_airline.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`.
+  - Behavior pressure used to keep the dossier honest: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`.
+- architectural_core:
+  - DeepAgents is a graph-and-middleware substrate rather than a single task-specific harness. `create_deep_agent()` assembles model, backend, middleware, subagents, checkpointer, store, and optional HITL interrupts into one compiled LangGraph state graph, which means completion and recovery often arise from shared substrate plus task-authored checks rather than a dedicated verifier microservice (`research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`).
+  - The deepest architectural split is between agent-state substrate and external evaluation substrate. The runtime graph owns tool use, file mutation, summarization, subagent dispatch, and checkpointing, while the eval tree owns correctness assertions, replay-style checks, benchmark-specific environment reconstruction, and judge-style grading (`research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`).
+- tool_calling_and_execution:
+  - Tool use is native to the graph assembly. The base graph exposes file operations, shell execution when the backend supports sandboxing, todo management, and subagent dispatch; shell execution is not universal but contingent on backend capability (`research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`).
+  - Non-interactive CLI execution wraps the graph in a server/client loop with shell allow-list gating. The docstring in `non_interactive.py` makes the policy explicit: shell is disabled unless allowed, non-shell tools are auto-approved, and HITL interrupts can be resumed through structured decisions (`research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`).
+- workflow_and_control_doctrine:
+  - The base prompt in `graph.py` encodes a three-stage doctrine of understand, act, verify, with an explicit instruction to keep working until blocked or done. That doctrine is architectural, not benchmark-specific, because it lives in the base agent prompt rather than in a single task adapter (`research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`).
+  - In practice, Wave 03 trajectories show DeepAgents often closes tasks through inline self-audit inside the same run rather than through a visibly separate verifier role. The `db-wal-recovery` slice writes `/app/recovered.json` and then runs explicit artifact checks; `cancel-async-tasks` directly tests concurrency and cleanup in-line (`research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`).
+- context_and_state_model:
+  - `StateBackend` stores files directly in LangGraph state and documents the key rule for this family: files persist within a conversation thread and are checkpointed after each agent step, but do not automatically persist across threads (`research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`).
+  - Summarization and filesystem middleware sit in the default middleware stack, so context compaction and filesystem mutation are part of the standard loop rather than optional post-processing (`research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`).
+  - Session metadata is externalized into a SQLite thread store with message counts, initial prompt caching, working-directory tracking, and latest-checkpoint linkage, giving the CLI a durable thread identity even when file state is thread-local (`research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`).
+- memory_or_persistence_model:
+  - Persistence is layered. Graph state can be checkpointed step-by-step through the runtime checkpointer, thread metadata lives in `~/.deepagents/sessions.db`, and evals can also attach independent checkpoint savers such as `MemorySaver()` in the tau2 airline tests (`research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/test_tau2_airline.py`).
+  - This makes DeepAgents unusually strong on resume substrate compared with task-proof visibility. The substrate is easy to trace in source; the task-family verifier path behind some trajectories is not (`research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`).
+- verification_and_completion:
+  - DeepAgents has a real eval stack with at least three visible completion-adjudication modes: hard trajectory assertions (`utils.py`), external benchmark replay or expected-answer scoring (`external_benchmarks.py`), benchmark-specific state reconstruction and state-diff checking (`tau2_airline/evaluation.py`), and LLM-judge grading (`llm_judge.py`) (`research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`).
+  - The strongest Wave 03 behavior is narrower than "DeepAgents has a built-in task verifier for WAL recovery." In `db-wal-recovery`, the visible proof surface is inline artifact-backed checking authored in the run itself: `json_length 11`, `db_length 11`, `keys_ok True`, and `match_db True` (`research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`).
+  - This system therefore supports layered completion, but the task-level proof path is split between visible eval infrastructure and trajectory-visible self-authored checks. That split must remain explicit.
+- recovery_and_resumability:
+  - Recovery substrate is a core strength. Checkpoint-after-step persistence, resumable CLI threads, HITL resumption, and session metadata all support restart and continuation as first-class capabilities (`research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`).
+  - Behaviorally, Wave 03 gives stronger evidence for cleanup-aware cancellation recovery than for true restart-safe resumability. `cancel-async-tasks` verifies cleanup of cancelled and failing tasks directly, while `extract-moves-from-video` provides no usable resume evidence because the visible run aborts immediately with `CancelledError()` (`research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`).
+- environment_and_permissions:
+  - Permissions are explicitly policy-mediated in CLI mode: shell commands can be disabled, allow-listed, or fully enabled, and interrupts can force approval loops before edits or execution continue (`research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`).
+  - Trajectories show the agent is given structured environment context at task start, including current directory, available tools, and a directory tree, which reduces exploratory shell churn and shapes the initial plan surface (`research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`).
+- what_the_agent_sees:
+  - The base agent sees a general prompt telling it to understand first, act, then verify, plus middleware-provided tools and optional memory/skills sources (`research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`).
+  - In non-interactive task runs, the agent also sees a structured environment-context preamble. In the WAL slice this included `/app` as working directory, the presence of `main.db` and `main.db-wal`, and the available toolchain, which is part of why the proof path can be direct and compact (`research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`).
+- relevant_trajectory_links:
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+- contradictions_or_unknowns:
+  - The biggest unresolved point is attribution: the `db-wal-recovery` proof surface is strong in the trajectory, but this repair pass still does not trace those exact checks to a mirrored DeepAgents framework file. The most disciplined current reading is "inline agent-authored proof riding on DeepAgents substrate," not "mirrored built-in verifier" (`research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`).
+  - Restart/resume substrate is source-strong but behavior-thin for Wave 03. The dossier should not be used to promote restart-safe resumability beyond exploratory without more direct run evidence (`research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`, `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`).
+- confidence_notes:
+  - High confidence: graph substrate, checkpoint/session model, eval-family separation, cleanup-aware cancellation evidence.
+  - Medium confidence: any claim that maps DeepAgents trajectory-visible postcondition proof to a specific built-in framework verifier path. The source-to-trajectory join remains incomplete.
+- downstream_relevance:
+  - DeepAgents is the clearest current source family for a reusable checkpoint/resume substrate plus a plural eval stack. It should inform local harness work on swappable persistence and layered adjudication, but not be flattened into either KIRA's built-in completion gate or BigAI's verifier-mediated controller family.
+  - Later waves should reuse this dossier when discussing context/state/memory, eval layering, and restart substrate, while keeping task-level proof attribution open.
+- wave_06_formal_pressure_update:
+  - Formal planning/replanning doctrine reinforces keeping DeepAgents' explicit loop-control surfaces visible (`understand -> act -> verify`, resumable step execution), but does not justify promoting role-heavy orchestration claims absent direct multi-role trajectory proof.
+  - Formal delegation literature strengthens the interpretation that DeepAgents should be evaluated on information gain per added role/block, not role count, because delegation without new information is a known reliability risk.
+  - Wave 06 implication: preserve DeepAgents as an important minimal-to-moderate orchestration baseline (strong explicit loop + resumability substrate) rather than forcing it into a planner/executor/verifier prestige topology.
+- wave_06_planning_orchestration_and_interactions_update:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/protein-assembly/88b6b4f5-9493-4f00-9e4c-7550283e3d6d-traj.txt`
+    - `research/sources/trajectories/deepagents/large-scale-text-editing/cb0057f1-c601-4072-9a38-8fa425da2b36-traj.txt`
+  - observations:
+    - sampled Wave 06 pressure runs remain single-agent execution traces (`agent/system/user` only) with no explicit planner/executor/verifier role split visible in the trajectory schema.
+    - both sampled runs contain high tool-call density and explicit system-side verification nudges (`STOP. You must verify your work before finishing.`), indicating verification pressure is injected as guidance rather than a distinct verifier role.
+  - inference:
+    - in sampled Wave 06 trajectories, DeepAgents presents a terminal-first single-agent orchestration family with embedded verification reminders, contrasting BigAI's explicit role-separated interaction contract.
+  - confidence:
+    - medium (based on two sampled tasks only)
+  - open_limit:
+    - no full Wave 06 DeepAgents run-set sweep was performed in this lane; broader delegation claims remain pending.
+- wave_06_informal_pressure_update:
+  - observation: Informal/issues evidence shows delegated subagent flows are highly sensitive to context-volume spikes, compaction robustness, and permission-routing integrity.
+  - inference: Even for source-strong systems, planning/delegation cards should include explicit guardrails for subagent-output budgeting and delegated approval routing, not only executor/verifier logic.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+    - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+    - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+    - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+- wave_06_codebase_source_reconstruction_update:
+  - source_scope_delta:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/prove-plus-comm/e4e670dd-4a41-4366-a1ca-fc78daca1471.tar.gz`
+    - `research/sources/trajectories/deepagents/cobol-modernization/cabb8c07-4d6f-415d-9553-82cd2ca1cc13-traj.txt`
+    - `research/sources/trajectories/deepagents/openssl-selfsigned-cert/2114a06b-d435-4ad1-b790-0d0e7558c6df-traj.txt`
+  - observations:
+    - source shows explicit delegation/runtime depth (sync task delegation with state filtering, async lifecycle tools with persistent task tracking) that is stronger than what required Wave 06 trajectories visibly exercise.
+    - sampled Wave 06 trajectories remain predominantly single-agent tool loops with explicit verify-pressure prompts (`STOP. You must verify your work before finishing.`), not explicit planner/executor/verifier role packetization.
+  - inference:
+    - keep DeepAgents in Wave 06 as a source-backed orchestration substrate family with under-exercised delegation in sampled required trajectories.
+  - confidence:
+    - medium
+  - open_limit:
+    - this pass did not perform a full DeepAgents Wave 06 trajectory sweep for subagent-heavy tasks, so delegation utilization rates remain unresolved.
+- wave_01_literature_pressure_update_2026_04_10:
+  - context: formal Wave 01 pressure applied to execution-control and terminal-failure attribution.
+  - observation: Formal control-loop literature assigns substantial error handling responsibility to harness logic (retry/reroute/check), not only to base-model reasoning.
+  - inference: DeepAgents task failures should preserve separate attribution for loop-control substrate weaknesses vs model reasoning errors; do not auto-collapse into one cause.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/papers/papers_text/2603.05344.txt`
+    - `research/sources/papers/papers_text/2603.01548.txt`
+    - `research/sources/papers/papers_text/2603.11495.txt`
+    - `research/sources/papers/papers_text/2603.01620.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - source_scope_delta:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/sandbox.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/agent.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - observations:
+    - local-shell execution is explicitly non-isolated and timeout-budgeted, so execution-control failure attribution must include host-shell coupling and timeout-budget failure modes.
+    - async subagent lifecycle state is explicit in source, making cancellation failures partly a state-reconciliation problem.
+    - headless-terminal trajectory shows a concrete teardown failure (`daemon thread` shutdown crash) that is repaired and re-verified in the same run.
+  - inference:
+    - deepagents is strong on explicit loop/control substrate, but task-family reliability still depends on robust verification and teardown discipline under pressure.
+  - confidence:
+    - medium-high
+  - open_limit:
+    - keep carry-forward caution: `db-wal-recovery` inline proof remains strong behaviorally, but exact mirrored framework verifier mapping is still unresolved.
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+    - bundled verifier outputs in matching `*.tar.gz` artifacts.
+  - observations:
+    - `db-wal-recovery` remains the strongest inline-proof positive case (explicit JSON-vs-DB checks and sorted-schema checks).
+    - `cancel-async-tasks` shows a failure-attribution split: local checks pass, but benchmark verifier fails `test_tasks_cancel_above_max_concurrent` (reward `0`).
+    - `extract-moves-from-video` remains unusable for defended completion/recovery attribution due to immediate `CancelledError` + failed verifier bundle.
+  - inference:
+    - DeepAgents currently shows a recurring Wave 02 failure mode where inline self-verification under-covers hard benchmark edge contracts.
+  - confidence:
+    - high for cancellation mismatch claim
+    - medium for broader family prevalence (single required cancel run)
+  - evidence_paths:
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf.tar.gz`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+    - `research/sources/codebases/deepagents/libs/acp/deepagents_acp/server.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - observations:
+    - verifier logic is clearly layered in source: hard correctness assertions (`success`) are distinct from non-blocking expectation checks (`expect`), and external benchmark/state replay paths are separate from LLM-judge grading.
+    - reward plumbing in Harbor falls back to `0.0` when `verifier_result` is absent, making verifier omission an explicit failure mode rather than silent success.
+    - source-visible checkpoint/resume substrate is strong, but trajectory-visible proof in required tasks remains mostly inline run-authored verification.
+  - inference:
+    - Wave 02 failure attribution should split DeepAgents completion failures by verifier layer (`hard assertion`, `soft expectation`, `replay/state`, `judge`) instead of one merged verifier bucket.
+    - keep carry-forward caution: restart/resume substrate does not by itself validate task correctness.
+  - confidence:
+    - high on source-layer separation and fallback behavior
+    - medium on exact runtime path joining task-level inline checks to framework verifier code in required trajectories
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+    - `research/sources/codebases/deepagents/libs/acp/deepagents_acp/server.py`
+    - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+- wave_03_context_state_memory_workspace_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py`
+    - `research/sources/codebases/deepagents/libs/cli/tests/integration_tests/test_compact_resume.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+  - observations:
+    - summarization middleware carries explicit compaction state and can offload pruned history into thread-scoped files, with warning paths when offload fails.
+    - state and store backends remain explicitly separated (`thread-local checkpointed state` vs `cross-thread namespaced store`), so persistence failures and compaction failures are not the same class.
+    - compact/resume integration tests confirm substrate existence for resumable history, but required Wave 03 trajectory coverage still under-samples long-horizon resume stress.
+  - inference:
+    - Wave 03 failure taxonomy should keep at least three deepagents families distinct: `context compaction/offload failure`, `thread-state boundary drift`, and `durable store linkage failure`.
+    - avoid over-promoting restart reliability from substrate tests alone; keep prevalence claims medium until more trajectory slices are reconciled.
+  - confidence:
+    - high on mechanism separation in source
+    - medium on prevalence across required Wave 03 run families
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py`
+    - `research/sources/codebases/deepagents/libs/cli/tests/integration_tests/test_compact_resume.py`
+    - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - observations:
+    - required cancellation slice shows compact single-agent cleanup correctness under cancellation pressure.
+    - required headless-terminal slice shows lifecycle-teardown failure (`Fatal Python error ... daemon threads`) before repair.
+  - inference:
+    - deepagents Wave 04 pressure is strongest on process-lifecycle robustness, weaker on explicit delegation/handoff mismatch in required slices.
+  - confidence:
+    - high on observed lifecycle events
+    - medium on broader prevalence
+- wave_04_codebase_source_reconstruction_update_2026_04_11:
+  - source_scope_delta:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/filesystem.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/config.py`
+  - trajectory_pressure_scope:
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - observations:
+    - source explicitly separates policy-gated shell approval surfaces from runtime capability (host-shell execution remains unrestricted at backend level).
+    - delegation and async lifecycle contracts are source-visible, including explicit state-exclusion boundaries and no-auto-poll async guidance.
+    - required Wave 04 trajectories emphasize lifecycle/cancellation pressure more than rich delegation usage.
+  - inference:
+    - keep DeepAgents Wave 04 attribution split across `permission/runtime mismatch`, `cwd/path contract risk`, and `process-lifecycle breakdown`; do not merge into one orchestration family.
+    - keep delegation-prevalence claims medium because required slices under-exercise source-visible delegation depth.
+  - confidence:
+    - high on source-backed mechanism split
+    - medium on required-slice delegation prevalence
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/filesystem.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/config.py`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`

@@ -1,0 +1,181 @@
+EVAL_BENCHMARK_OUTPUT
+- artifact: mechanism_map
+- role: eval/benchmark analyst
+- preflight_scope_confirmed:
+  - Confirmed this is a vertical mechanism-domain wave centered on verification, completion, false-completion defense, cleanup confirmation, rollback, restart, resumability, and recovery rather than generic execution control (`tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`).
+  - Confirmed the trajectory/failure lane is the primary empirical anchor and the codebase/source lane is the primary implementation anchor. This eval lane is active because verifier, grader, replay, and completion-contract logic are explicitly load-bearing in this wave packet (`tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`).
+  - Minimal-sufficient completion patterns that must stay visible against prestige verifier stacks: DeepAgents hard correctness assertions in `TrajectoryScorer`, BFCL fresh-state replay, and tau2 DB-state replay plus communicate checks. These are simpler than LLM-judge completion prompts but more directly artifact-coupled (`research/sources/codebases/deepagents/libs/evals/tests/evals/README.md`, `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`).
+  - Strong coverage for this lane required a reusable verifier/grader/replay map before promoted synthesis. That requirement is satisfied by `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_support_verifier_grader_replay_matrix.md`.
+- preflight_planned_read_order:
+  - 1. Read wave control surfaces and coverage state so the lane does not silently narrow scope (`tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`).
+  - 2. Read direct local eval surfaces and DeepAgents eval code to identify where grading actually happens (`evals/README.md`, `evals/*.py`, `research/sources/codebases/deepagents/libs/evals/**`).
+  - 3. Read reusable trajectory- and judge-evaluator libraries separately from benchmark-specific code so generic scoring primitives are not confused with benchmark contracts (`research/sources/codebases/langchain/agentevals/**`, `research/sources/codebases/langchain/openevals/**`).
+  - 4. Read benchmark captures for explicit contract/setup language rather than treating benchmark reputation as implementation evidence (`research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`, `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`).
+  - 5. Reconcile benchmark-layer findings against observed verifier behavior in local BigAI reconstruction artifacts without upgrading them into source-backed fact (`research/analysis/bigai_trace_layer/output/question_answers.json`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`).
+- preflight_critical_sources_selected:
+  - Control anchors: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`, `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`, `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`.
+  - Critical DeepAgents eval surfaces: `research/sources/codebases/deepagents/libs/evals/README.md`, `research/sources/codebases/deepagents/libs/evals/tests/evals/README.md`, `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`, `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/deepagents_wrapper.py`, `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`.
+  - Critical reusable evaluator surfaces: `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/match.py`, `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/llm.py`, `research/sources/codebases/langchain/agentevals/python/agentevals/graph_trajectory/strict.py`, `research/sources/codebases/langchain/openevals/python/openevals/llm.py`, `research/sources/codebases/langchain/openevals/python/openevals/trajectory/llm.py`, `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`.
+  - Critical benchmark captures: `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`, `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`.
+  - Critical contradiction-pressure artifacts: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`.
+- preflight_coverage_risks:
+  - The local `evals/` directory is scaffold-only in the files read this turn, so it cannot support strong claims about the current harness's realized grading logic.
+  - Benchmark captures here are contract/setup artifacts, not the full grader implementations behind those benchmarks.
+  - BigAI eval-related claims remain behavioral reconstruction from local analysis outputs rather than source-backed evaluator code.
+  - DeepAgents has both Harbor reward language and test-level assertion logic; collapsing those into one "grader" would overstate coherence.
+- preflight_likely_blind_spots:
+  - Unread benchmark repos or hidden CI workflows may contain stronger replay or verifier implementations than the captured benchmark pages expose.
+  - Unread DeepAgents eval tests outside the focused benchmark files may add more verifier shapes.
+  - No direct benchmark-run artifacts were replayed in this lane; reproducibility notes are based on visible code and capture text, not reruns.
+  - Formal papers/docs and informal issue/postmortem sources remain for other lanes and contradiction review.
+- preflight_blockers:
+  - None severe enough to stop the lane. There is enough direct evaluator visibility to support honest first-pass claims about benchmark contracts, grader/verifier patterns, and replay affordances, provided benchmark pages remain distinct from implementation code and BigAI remains labeled behavioral reconstruction.
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `evals/README.md`
+  - `evals/verification_eval.py`
+  - `evals/context_eval.py`
+  - `evals/step_efficiency_eval.py`
+  - `research/sources/codebases/deepagents/libs/evals/README.md`
+  - `research/sources/codebases/deepagents/libs/evals/docs/plan-evals-cli-mode.md`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/README.md`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/conftest.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/pytest_reporter.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/test_external_benchmarks.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/test_tau2_airline.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/backend.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/deepagents_wrapper.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+  - `research/sources/codebases/deepagents/libs/evals/scripts/analyze.py`
+  - `research/sources/codebases/langchain/agentevals/python/README.md`
+  - `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/match.py`
+  - `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/llm.py`
+  - `research/sources/codebases/langchain/agentevals/python/agentevals/graph_trajectory/strict.py`
+  - `research/sources/codebases/langchain/agentevals/python/tests/test_trajectory.py`
+  - `research/sources/codebases/langchain/openevals/python/README.md`
+  - `research/sources/codebases/langchain/openevals/README.md`
+  - `research/sources/codebases/langchain/openevals/python/openevals/llm.py`
+  - `research/sources/codebases/langchain/openevals/python/openevals/trajectory/llm.py`
+  - `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`
+  - `research/sources/codebases/langchain/openevals/python/tests/test_trajectory_prompts.py`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/capture.json`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/capture.json`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/capture.json`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - `research/analysis/bigai_trace_layer/output/exemplar_runs.json`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_support_verifier_grader_replay_matrix.md`
+- coverage_not_yet_used:
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/**`
+  - `research/sources/benchmarks/src_bnm_facefeed2020/**`
+  - Unread DeepAgents eval tests outside the focused files in `research/sources/codebases/deepagents/libs/evals/tests/evals/**`
+  - Unread mirrored benchmark repos or verifier code not present in the captured benchmark pages
+  - Direct benchmark run artifacts for SWE-bench, ImpossibleBench, or SlopCodeBench
+  - Formal literature and informal issue/postmortem clusters for this wave
+- evidence_classes_touched:
+  - benchmark captures
+  - mirrored codebases
+  - relevant local harness code
+  - relevant local analysis
+  - support artifacts
+- priority_sources_not_yet_read:
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_facefeed2020/artifact.txt`
+  - Wider DeepAgents eval corpus under `research/sources/codebases/deepagents/libs/evals/tests/evals/**`
+  - Any direct evaluator implementation behind the captured ImpossibleBench and SlopCodeBench benchmark pages
+  - Direct BigAI verifier bundles referenced by `research/analysis/bigai_trace_layer/output/exemplar_runs.json`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_support_verifier_grader_replay_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`
+- support_artifacts_requested_or_deferred:
+  - No additional eval support artifact is required for this first-pass lane output.
+  - Deeper benchmark-contract comparison can be deferred until contradiction review if a specific conflict appears between benchmark marketing and visible grader code.
+- coverage_register_updates_needed:
+  - Mark Wave 03 eval/benchmark lane as first-pass drafted.
+  - Record that this lane has direct visibility into DeepAgents grader/verifier logic, generic LangChain judge libraries, and benchmark contract captures, but not into every underlying benchmark implementation.
+  - Keep explicit that BigAI remains behavioral reconstruction and that local `evals/` files are scaffold only.
+  - Preserve the distinction between benchmark contract pages, visible grader code, and observed run behavior.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+- benchmark_contracts:
+  - Claim: The strongest contract-visible benchmark distinction in the read set is between artifact-grounded benchmarks and conversation- or trajectory-judgment frameworks.
+    - Observation: SWE-bench Verified is described as a human-filtered subset of 500 instances with clear descriptions and correct tests; ImpossibleBench explicitly targets specification gaming with impossible variants; SlopCodeBench targets iterative specification refinement and code erosion; OpenEvals task-completion prompts grade whether conversation requests were fully completed (`research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`, `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`, `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`).
+    - Inference: This wave should not treat "benchmark completion" as one contract. Some contracts are external artifact-state checks, some are benchmark-task outcome checks, and some are conversational completion judgments.
+    - Confidence: high.
+  - Claim: SWE-bench leaderboard status is not a stable mechanism claim on its own.
+    - Observation: The captured page itself says bash-only results are versioned by mini-SWE-agent release, and v1.x and v2.x are not directly comparable because one parses actions from strings while the other uses tool calling (`research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`).
+    - Inference: Any mechanism claim that cites SWE-bench leaderboard placement without pinning the agent version and scaffold is too weak for this wave.
+    - Confidence: high.
+  - Claim: ImpossibleBench and SlopCodeBench are unusually useful for false-completion and proxy-risk pressure, but weaker for direct verifier implementation evidence in this capture set.
+    - Observation: ImpossibleBench is explicitly about cheating/spec-gaming variants and includes post-run LLMJudge analysis over transcript dumps; SlopCodeBench foregrounds iterative refinement, an `eval` command, and an LLM-judge metrics command, but the current capture is README-level rather than verifier source (`research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`).
+    - Inference: These captures sharpen where fake-good signals can arise, but they do not outweigh stronger direct grader code when making implementation claims.
+    - Confidence: high.
+- grader_and_verifier_patterns:
+  - Claim: DeepAgents exposes several distinct hard-gating patterns rather than one unified grader.
+    - Observation: `TrajectoryScorer` separates hard-fail `.success(...)` assertions from non-blocking `.expect(...)` efficiency checks; `run_agent()` logs inputs, outputs, model, files, metadata, and `correctness`; BFCL v3 replays ground-truth calls on fresh API instances and fails on state mismatch; tau2 airline computes reward from DB replay plus communicate-info checks while action checks remain informational (`research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/test_tau2_airline.py`).
+    - Inference: The DeepAgents eval layer already contains at least three grading families relevant to this wave: direct artifact/assertion checks, fresh-state replay checks, and judge-mediated textual checks.
+    - Confidence: high.
+  - Claim: DeepAgents' own LLM-judge path is real but intentionally secondary to stronger artifact/state checks where available.
+    - Observation: `llm_judge.py` wraps `openevals.llm.create_llm_as_judge`, evaluates each criterion independently, and logs aggregate pass/fail to LangSmith, while benchmark-specific suites such as BFCL and tau2 rely on explicit state comparison for correctness (`research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`).
+    - Inference: For verification-completion-recovery claims, judge-model outputs should be treated as supplemental where stronger state-diff or artifact checks exist.
+    - Confidence: high.
+  - Claim: Generic LangChain evaluator libraries provide reusable scoring primitives, not benchmark-specific truth.
+    - Observation: `agentevals` offers strict/unordered/subset/superset reference matching plus trajectory LLM-as-judge; `openevals` builds structured LLM judges that normalize prompt inputs and parse `score` plus optional reasoning via structured output (`research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/match.py`, `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/llm.py`, `research/sources/codebases/langchain/openevals/python/openevals/llm.py`, `research/sources/codebases/langchain/openevals/python/openevals/trajectory/llm.py`).
+    - Inference: These libraries are eval infrastructure families. They can support completion/recovery analysis, but they should not be mistaken for benchmark contracts or observed run behavior.
+    - Confidence: high.
+- replay_or_reproducibility_notes:
+  - Claim: DeepAgents has the strongest visible replay discipline in the read eval code.
+    - Observation: Harbor advertises ATIF trajectory logging and reward feedback; `deepagents_harbor.langsmith.py` creates deterministic example IDs from instructions; `pytest_reporter.py` writes JSON summaries; BFCL replays ground truth on fresh API objects; tau2 replays expected actions on a fresh DB and hashes the resulting state; multi-turn tau2 runs use `MemorySaver` and stable `thread_id`s (`research/sources/codebases/deepagents/libs/evals/README.md`, `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/pytest_reporter.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`).
+    - Inference: Replay/state-diff mechanisms are a real mechanism family in this wave and materially stronger evidence than README-only benchmark marketing.
+    - Confidence: high.
+  - Claim: BigAI reconstruction indicates verifier-gated replay-like loops, but not source-visible reproducibility infrastructure.
+    - Observation: `question_answers.json` reports verifier presence in 247/255 parseable passes but only 21/52 parseable fails, 63 verifier failures with 57 later recoveries to passing verifier state, and 17 runs where verifier `PASSED` still coincides with overall failure; `exemplar_runs.json` identifies `adaptive-rejection-sampler` as a planner-first verifier fail-to-pass recovery loop (`research/analysis/bigai_trace_layer/output/question_answers.json`, `research/analysis/bigai_trace_layer/output/exemplar_runs.json`).
+    - Inference: BigAI shows visible verifier-cycle behavior, but the underlying replay/controller semantics remain behavioral reconstruction rather than source-backed evaluator logic.
+    - Confidence: medium. What weakens it: no mirrored evaluator source and reliance on aggregate reconstruction artifacts.
+- gaming_or_proxy_risks:
+  - Claim: Several visible scoring surfaces can produce fake-good signals even when they are useful.
+    - Observation: FRAMES/Nexus use normalized substring checks on final text; tau2 reward is the product of DB and communicate scores while action checks are informational; `TrajectoryScorer.expect(...)` logs step/tool efficiency without failing tests; `TASK_COMPLETION_PROMPT` treats conversational follow-up behavior as the completion signal (`research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`).
+    - Inference: Answer-snippet presence, soft efficiency tracking, and conversational completion prompts are all meaningful but proxy-prone. They should not override stronger artifact or state checks when those are available.
+    - Confidence: high.
+  - Claim: LLM-judge layers introduce model- and prompt-dependent grading risk.
+    - Observation: `openevals.llm` constructs score schemas, supports few-shot examples and attachments, and relies on a judge model's structured output; DeepAgents' `llm_judge.py` defaults to a judge model and logs per-criterion pass/fail through that path (`research/sources/codebases/langchain/openevals/python/openevals/llm.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`).
+    - Inference: LLM-judge outputs are useful contradiction pressure, but they are weaker than direct state replay for this wave's completion and recovery questions.
+    - Confidence: high.
+  - Claim: Benchmark prestige can hide scaffold drift.
+    - Observation: SWE-bench capture text explicitly warns about mini-SWE-agent version changes and bash-only versus full-agent leaderboards; ImpossibleBench distinguishes minimal and tools scaffolds; SlopCodeBench exposes agent/version/environment/prompt knobs in its run command (`research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`, `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`).
+    - Inference: Cross-system comparisons that ignore scaffold/version/prompt changes can manufacture false mechanism equivalence.
+    - Confidence: high.
+- upstream_artifact_implications:
+  - The eval layer reinforces the cumulative synthesis claim that completion is at least three-layered: in-trajectory verifier state, external grader/test-artifact layer, and eval adapter or judge layer (`tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`, `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/langchain/openevals/python/openevals/trajectory/llm.py`, `research/analysis/bigai_trace_layer/output/question_answers.json`).
+  - This lane strengthens the wave's need to keep simple completion/recovery baselines visible. Fresh-state replay and hard correctness assertions are already load-bearing verifier families without requiring prestige LLM-judge stacks (`research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`).
+  - BigAI evidence supports the trajectory lane's warning that verifier pass is not identical to final success, so mechanism cards should keep internal verifier state, external reward, and overall run outcome distinct (`research/analysis/bigai_trace_layer/output/question_answers.json`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`).
+  - Restart and resumability remain thinner than verification/replay. MemorySaver and thread IDs are visible, but broad cross-system replay-safe restart claims would still overread the current eval evidence (`research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`, `research/sources/codebases/deepagents/libs/evals/docs/plan-evals-cli-mode.md`).
+- contradiction_notes:
+  - Benchmark contract, grader implementation, and observed run behavior diverge in the read set and should remain separate during contradiction review.
+  - The local `evals/` directory suggests the intended harness dimensions, but the actual visible hard gates currently live in external-source DeepAgents code rather than local harness implementation.
+  - BigAI reconstruction suggests strong verifier-mediated gating, but the same artifact family explicitly shows verifier `PASSED` can still coexist with failed overall results.
+  - SWE-bench benchmark rhetoric about fair comparison is real, but the capture itself warns that version/scaffold changes affect comparability.
+- confidence_notes:
+  - High-confidence claims are limited to visible grader code or direct benchmark-contract text: DeepAgents hard/soft assertion split, BFCL fresh-state replay, tau2 DB replay plus communicate scoring, `agentevals` reference matching, `openevals` structured judge path, and benchmark capture warnings about scaffold/version drift.
+  - Medium-confidence claims are restricted to BigAI behavioral reconstruction and any broader claim about replay-controller semantics across families because no source-backed BigAI eval implementation was read.
+  - No low-confidence promoted claim is needed for this first-pass lane output; weaker ideas are left as open questions.
+- open_questions:
+  - Which captured benchmark repos in the corpus expose the strongest direct verifier code for false-completion defense, rather than only README-level contract text?
+  - How often do judge-model completion prompts disagree with artifact/state replay in the same benchmark family?
+  - What direct replay or verifier code underlies the currently captured SlopCodeBench and ImpossibleBench surfaces beyond the README-level contract descriptions?
+  - For the local harness, which verification/recovery blocks should be implemented first to preserve swappable minimal baselines instead of defaulting to judge-heavy completion metrics?
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`

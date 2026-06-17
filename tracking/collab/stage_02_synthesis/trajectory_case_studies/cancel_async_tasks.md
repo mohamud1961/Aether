@@ -1,0 +1,109 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_03_cancel_async_tasks
+- wave: wave_03_verification_completion_and_recovery
+- task_family: cancel-async-tasks
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+- outcome_profile:
+  - `deepagents`: defended success through compact inline verification of concurrency and cleanup behavior.
+  - `terminus-kira`: defended success, but only after a visible false fix fails under a stronger scenario and the run rewrites the implementation before retesting.
+  - `BigAI`: defended success across multiple runs with verifier-mediated testing, cleanup confirmation, and in one run delivery-directory hygiene as part of completion.
+- per_run_notes:
+  - `deepagents ca5a...`: the run builds `/app/run.py`, then explicitly verifies three requirements: concurrency cap (`max_running 2`), cancellation cleanup (`cleaned [0, 1]`), and exception cleanup (`cleaned ['fail', 'ok-1', 'ok-2']`). The final message keeps one caveat visible: tasks that never started are not claimed as cleaned.
+  - `terminus-kira 8d55...`: the run initially looks healthy under a small check, then exposes a stronger failure. Early testing reports `Max concurrent: 2` but `Cleanups executed: 0`; later a five-task case shows `BaseException during cleanup: CancelledError()` and again `Cleanups executed: 0`. Only after redesigning the implementation and rerunning a dedicated suite does the run reach `PASS: Concurrency and Success`, `PASS: Cancellation Cleanup`, and `PASS: Exception Propagation`.
+  - `BigAI 17f3...`: the readable verifier flow stresses not just normal cancellation but `SystemExit` propagation and cleanup execution. The verification path writes dedicated test scripts in `.work/space/verifier-0/`, confirms cancelled tasks print cleanup markers, and finishes with `verification_result_status: "PASSED"`.
+  - `BigAI d799...`: this is the strongest cleanup-and-hygiene example. The logic tests eventually pass, but verifier closure is delayed because `/app` is still dirty. The run moves extra test artifacts out of the delivery directory into `.work/space/shared/`, reruns verification, and only then accepts completion.
+  - `BigAI 98b7...`: this run expands the same family into broader exploratory pressure, including `SIGINT` and queue behavior. It reaches `verification_result_status: "PASSED"`, but the visible `/app` state still includes `__pycache__`, so it is better treated as confirming breadth of verification attention than as the cleanest closure example.
+- cross_run_comparison:
+  - All three families treat cleanup after interruption as a real requirement, not a side effect.
+  - `deepagents` uses the simplest proof surface: direct test outputs in the same run, with no visible external verifier role.
+  - `terminus-kira` is strongest as a repair-and-retest narrative. It demonstrates that an apparently plausible early fix can still be wrong once the run is pressured with a harder concurrent case.
+  - `BigAI` uses a layered verifier family. It not only checks cleanup semantics under cancellation and exceptional exits, but in `d799...` also checks whether the delivery directory remains acceptably clean.
+  - This task family is much better saturated than `extract-moves-from-video` and more behaviorally stable than `db-wal-recovery`, so it is the clearest cross-family support for cleanup-confirmed completion.
+- failure_point_comparison:
+  - `deepagents`: the remaining weak edge is queued tasks that never started. The run is explicit that its defended cleanup claim is about started/running tasks plus sibling cleanup after exceptions.
+  - `terminus-kira`: the key failure point is premature confidence after a small-scenario pass. The run only becomes convincing once the stronger five-task scenario and dedicated test suite are passed.
+  - `BigAI`: the key failure point is broader than task logic. `d799...` shows that a functionally correct implementation can still fail completion if verifier-side delivery hygiene expectations are unmet.
+- source_or_architecture_links:
+  - `deepagents`: `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+  - `terminus-kira`: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- behavioral_reconstruction_caveats:
+  - `BigAI` cleanup and verifier doctrine here is still behavioral reconstruction. The visible pass/fail loops, verifier scripts, and delivery-hygiene checks are strong trajectory evidence, but they are not source-backed implementation claims.
+  - `deepagents` and `terminus-kira` both have source-visible control substrates, but the task-level cancellation tests in this case study are still primarily trajectory-grounded rather than tied to a single mirrored verifier implementation.
+- mechanism_implications:
+  - `cancel-async-tasks` is the strongest Wave 03 case for treating cleanup confirmation as part of completion.
+  - It also shows three mechanism families cleanly: inline proof (`deepagents`), iterative repair plus retest (`terminus-kira`), and verifier-mediated plus hygiene-gated closure (`BigAI`).
+  - The family also pressures a naive "all tests passed" story. In the strongest slices, completion is only defended after the right tests are chosen and, for BigAI, after workspace state is also reconciled.
+- failure_implications:
+  - Small or friendly scenarios can hide cleanup defects that appear under stronger concurrency pressure.
+  - Cleanup semantics are easy to overclaim if the run only proves behavior for started tasks, not queued tasks or secondary interrupts.
+  - Delivery-state hygiene can create a second completion gate even after core async logic seems correct.
+- confidence_notes:
+  - High confidence: this family supports cleanup-confirmed completion as a real mechanism family across all three systems.
+  - Medium confidence: the breadth of BigAI family doctrine beyond the sampled runs, and any stronger claim about exactly how many interrupt classes each family handles outside the visible tests.
+- wave_01_literature_pressure_update_2026_04_10:
+  - observation: Formal execution-control literature and benchmark doctrine both treat cancellation cleanup and postcondition checks as primary reliability mechanisms.
+  - inference: This case remains core evidence for a dedicated `timeout/cancellation/cleanup doctrine` failure family rather than a peripheral implementation detail.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/2603.05344.txt`
+    - `research/sources/papers/papers_text/2602.07274.txt`
+    - `research/sources/papers/papers_text/2603.01548.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - observations:
+    - this remains the strongest cross-family Wave 01 evidence for interrupt/cancel correctness requiring explicit cleanup checks.
+    - KIRA and DeepAgents show different recovery styles (repair-and-retest vs compact inline proof) that still converge on cleanup-confirmed closure.
+    - BigAI trajectories add verifier-mediated closure and delivery-hygiene gating after logic passes.
+  - inference:
+    - cancellation correctness and cleanup correctness should be treated as separable but jointly required failure-taxonomy axes.
+  - confidence:
+    - high
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - added_wave_02_observations:
+    - required run bundles expose repeated edge mismatch on `test_tasks_cancel_above_max_concurrent` for BigAI (`98b7...`) and deepagents (`ca5a...`) despite in-run verification confidence.
+    - BigAI `d799...` remains the positive recovery loop control (`FAILED -> PASSED`, reward `1`).
+  - failure_taxonomy_implication:
+    - promote `false completion after partial verifier coverage` and `replay/grader mismatch` as primary subfamilies for this task family.
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf.tar.gz`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603.tar.gz`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_pressure_observation:
+    - DeepAgents required run demonstrates a concrete mismatch: local inline checks pass while bundled benchmark verifier still fails a cancellation-above-cap edge test.
+    - KIRA and BigAI slices continue to show cleanup-aware completion pressure, including delivery-hygiene acceptance in BigAI.
+    - A-Evolve source suggests analogous separation risk (`submit` vs external pass), but no direct Wave 02 trajectory was read for this task.
+  - failure_taxonomy_implication:
+    - this task family should anchor `self-check pass / external verifier fail` as a first-class Wave 02 failure pattern.
+  - confidence: high for deepagents mismatch, medium for cross-family prevalence
+  - evidence_paths:
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf.tar.gz`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - wave_04_relevance:
+    - primary Wave 04 anchor for `process-lifecycle`, `cwd/path handoff`, and `delegation/replanning` failure separation.
+  - wave_04_observations:
+    - BigAI `17f3...` contains both failed cleanup checks and repaired cleanup passes under stronger interrupt pressure.
+    - BigAI slices include verifier handoff path mismatch episodes (`ModuleNotFoundError: No module named 'run'`).
+    - KIRA `8d55...` exposes cleanup failure under stronger case (`Cleanups executed: 0`) before redesign and pass.
+    - deepagents `ca5a...` demonstrates bounded cleanup correctness in a compact single-agent loop.
+  - wave_04_inference:
+    - cancellation failures are not binary; they often appear as mixed process-lifecycle, handoff-path, and test-contract mismatches in one run family.
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - confidence: high

@@ -1,0 +1,203 @@
+EVAL_BENCHMARK_OUTPUT
+- artifact: mechanism_map
+- role: eval_benchmark_analyst
+- preflight_scope_confirmed: Confirmed against `tracking/collab/stage_02_synthesis/mechanism_map/brief.md` and `prompts/deep_synthesis_shared_policy_prompt.md`. This pass stays on eval/benchmark mechanisms that shape mechanism claims (verifier gating, grader logic, replay/reproducibility, anti-cheat surfaces), not final eval policy.
+- preflight_planned_read_order:
+  1. Packet/protocol/policy constraints (`DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`, packet brief, role prompt).
+  2. Benchmark contract captures (`research/sources/benchmarks/src_bnm_*/{capture.json,artifact.txt}`).
+  3. Eval/grader implementation lanes (`research/sources/codebases/deepagents/libs/evals/**` and `research/sources/codebases/langchain/openevals/**`).
+  4. Direct observed behavior from run bundles (`research/sources/trajectories/**.tar.gz` -> `result.json`, `verifier/ctrf.json`, `verifier/reward.txt`, `agent/trajectory.json`).
+  5. Cross-check local trace analysis outputs (`research/analysis/bigai_trace_layer/output/runs/**`).
+  6. Local harness eval surface (`evals/**`).
+- preflight_critical_sources_selected:
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f.tar.gz`
+  - `research/sources/trajectories/BigAI/headless-terminal/955f47f3-f86f-4989-a975-1299ed63a173.tar.gz`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4.tar.gz`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/{utils.py,external_benchmarks.py,llm_judge.py,pytest_reporter.py,conftest.py,README.md}`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/{langsmith.py,failure.py,backend.py,deepagents_wrapper.py}`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/{capture.json,artifact.txt}`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/{capture.json,artifact.txt}`
+- preflight_coverage_risks:
+  - Wave-1 is strong for terminal-bench-style verifier mechanics but not exhaustive over all benchmark families.
+  - Contract coverage is deeper than benchmark implementation-code coverage for externally captured benchmarks (artifact-level readouts vs full cloned repos).
+  - Observed behavior sampling is task-slice based (`headless-terminal`, `cancel-async-tasks`, `torch-pipeline-parallelism`), not full-task-family exhaustive.
+- preflight_likely_blind_spots:
+  - Hidden verifier controller internals beyond bundle artifacts and trajectory packets.
+  - Unread benchmark implementation code behind captures (`artifact.html`/upstream repo code not fully traversed here).
+  - Full `agentevals`/`openevals` breadth and non-terminal domains not fully read this pass.
+- preflight_blockers: none
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_eval_benchmark_analyst_prompt.md`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/{capture.json,artifact.txt}`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/{capture.json,artifact.txt}`
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/{capture.json,artifact.txt}`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/{capture.json,artifact.txt}`
+  - `research/sources/benchmarks/src_bnm_facefeed2020/{capture.json,artifact.txt}`
+  - `research/sources/codebases/deepagents/libs/evals/README.md`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_evals/categories.json`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/{README.md,utils.py,llm_judge.py,external_benchmarks.py,pytest_reporter.py,conftest.py,test_external_benchmarks.py}`
+  - `research/sources/codebases/deepagents/libs/evals/tests/unit_tests/test_external_benchmark_helpers.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/{langsmith.py,failure.py,backend.py,deepagents_wrapper.py}`
+  - `research/sources/codebases/deepagents/libs/evals/scripts/analyze.py`
+  - `research/sources/codebases/deepagents/libs/evals/docs/plan-evals-cli-mode.md`
+  - `research/sources/codebases/langchain/openevals/python/{README.md,openevals/llm.py,openevals/trajectory/strict.py}`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f.tar.gz::result.json`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f.tar.gz::verifier/{ctrf.json,reward.txt}`
+  - `research/sources/trajectories/BigAI/headless-terminal/955f47f3-f86f-4989-a975-1299ed63a173.tar.gz::result.json`
+  - `research/sources/trajectories/BigAI/headless-terminal/955f47f3-f86f-4989-a975-1299ed63a173.tar.gz::verifier/reward.txt`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4.tar.gz::result.json`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4.tar.gz::verifier/{ctrf.json,reward.txt}`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::result.json`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::agent/trajectory.json`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::verifier/{ctrf.json,reward.txt}`
+  - `research/sources/trajectories/BigAI/torch-pipeline-parallelism/fa44940a-723b-496a-9f99-401384563fa2.tar.gz::{result.json,exception.txt}`
+  - `research/sources/trajectories/deepagents/torch-pipeline-parallelism/64609179-ce61-4adb-8203-324910ff7727.tar.gz::{result.json,exception.txt}`
+  - `research/sources/trajectories/deepagents/torch-pipeline-parallelism/64609179-ce61-4adb-8203-324910ff7727.tar.gz::verifier/reward.txt`
+  - `research/analysis/bigai_trace_layer/output/runs/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.json`
+  - `evals/{README.md,verification_eval.py,step_efficiency_eval.py,context_eval.py}`
+- coverage_not_yet_used:
+  - `research/sources/benchmarks/src_bnm_*/artifact.html` and upstream benchmark implementation repos behind those captures.
+  - `research/sources/trajectories/{deepagents,BigAI,terminus-kira}/{db-wal-recovery,break-filter-js-from-html,git-multibranch}/*.tar.gz` (packet-priority mechanisms not yet sampled in this sidecar pass).
+  - `research/sources/codebases/langchain/agentevals/**` deep file-level read (only light indexed scanning this pass).
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/test_*.py` outside external-benchmark/infra-focused subset.
+  - Local harness verification implementation under `blocks/**` and `runner/**` (not traversed in this sidecar pass).
+- evidence_classes_touched:
+  - benchmark captures
+  - mirrored codebases (eval repos and eval-adjacent infra)
+  - trajectories
+  - relevant local analysis
+  - relevant local harness eval code
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/{deepagents,BigAI,terminus-kira}/db-wal-recovery/*.tar.gz`
+  - `research/sources/trajectories/{deepagents,BigAI,terminus-kira}/break-filter-js-from-html/*.tar.gz`
+  - `research/sources/trajectories/{deepagents,BigAI,terminus-kira}/git-multibranch/*.tar.gz`
+  - `research/sources/codebases/langchain/agentevals/README.md`
+  - `research/sources/codebases/langchain/agentevals/python/agentevals/**`
+  - `research/sources/benchmarks/src_bnm_*/artifact.html`
+- benchmark_contracts:
+  - `tb2_external_verifier_contract`
+    - observation: sampled terminal-bench run bundles couple `result.json` with verifier artifacts (`verifier/ctrf.json`, `verifier/reward.txt`). In successful `headless-terminal` samples, CTRF shows all tests passed and reward is `1`; in `cancel-async-tasks`, CTRF shows `5 passed / 1 failed` and reward is `0`.
+    - inference: completion contract is external verifier-gated and effectively binary at task level in sampled runs; planner/executor self-report is not the acceptance oracle.
+    - citations: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f.tar.gz::{result.json,verifier/ctrf.json,verifier/reward.txt}`, `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4.tar.gz::{result.json,verifier/ctrf.json,verifier/reward.txt}`, `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::{result.json,verifier/ctrf.json,verifier/reward.txt}`
+    - confidence: high
+  - `impossiblebench_anti_spec_gaming_contract`
+    - observation: benchmark explicitly defines “impossible” task variants (`original`, `oneoff`, `conflicting`) where passing can indicate shortcut/specification-gaming behavior; supports minimal and tool-heavy scaffolds and includes LLM-judge analysis tooling.
+    - inference: this benchmark’s contract is anti-cheat detection, not just task completion; it is directly relevant to anti-fake-good mechanism claims.
+    - citations: `research/sources/benchmarks/src_bnm_8c3b5dc456f5/{capture.json,artifact.txt}`
+    - confidence: high
+  - `swebench_verified_scaffold_sensitive_contract`
+    - observation: Verified subset is human-filtered; separate “bash-only” mini-SWE-agent lane exists; release-version differences (1.x vs 2.x) and config differences are explicitly noted as comparability caveats.
+    - inference: leaderboard outcomes are scaffold-version sensitive, so mechanism comparisons must isolate benchmark contract vs scaffold implementation changes.
+    - citations: `research/sources/benchmarks/src_bnm_e5f985948a0e/{capture.json,artifact.txt}`
+    - confidence: high
+  - `generated_env_verifiable_task_contracts`
+    - observation: WebArena-Infinity positions programmatic verifiers over generated web environments; NIKA exposes benchmark runner + automatic evaluation over incident suites; SlopCodeBench defines iterative refinement with separate eval and judge commands.
+    - inference: benchmark contracts increasingly include orchestration and verifier pipeline design as first-order mechanisms, not just static test sets.
+    - citations: `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/artifact.txt`, `research/sources/benchmarks/src_bnm_facefeed2020/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`
+    - confidence: medium
+- grader_and_verifier_patterns:
+  - `two_tier_eval_assertion_model`
+    - observation: Deepagents evals separate hard correctness (`.success`) from soft efficiency (`.expect`); correctness failures call `pytest.fail`, while efficiency metrics are logged.
+    - inference: grader implementation intentionally distinguishes pass/fail contract from trajectory-shape diagnostics.
+    - citations: `research/sources/codebases/deepagents/libs/evals/tests/evals/{README.md,utils.py}`
+    - confidence: high
+  - `state_replay_grading_for_tool_domains`
+    - observation: BFCL v3 grading replays benchmark ground-truth tool calls on fresh API instances, diffs model state vs replayed state, and sets correctness via that diff.
+    - inference: this is stronger than text-only judging for tool-state tasks; replay/state diff is a distinct mechanism family in mechanism_map.
+    - citations: `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/test_external_benchmarks.py`
+    - confidence: high
+  - `llm_judge_layer_on_top_of_structured_feedback`
+    - observation: `LLMJudge` wraps `openevals.create_llm_as_judge`, evaluates each criterion independently, requires all criteria to pass, and logs aggregate judge feedback.
+    - inference: LLM judge is used as a grader component, but still a probabilistic/criteria-sensitive layer rather than a strict deterministic oracle.
+    - citations: `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`, `research/sources/codebases/langchain/openevals/python/openevals/llm.py`
+    - confidence: high
+  - `trajectory_match_grader_modes`
+    - observation: openevals trajectory strict matcher enforces role/tool-call and argument matching against reference outputs.
+    - inference: trajectory-match grading can enforce process conformance, not just endpoint correctness.
+    - citations: `research/sources/codebases/langchain/openevals/python/openevals/trajectory/strict.py`, `research/sources/codebases/langchain/openevals/python/README.md`
+    - confidence: high
+  - `reward_feedback_ingestion_and_failure_attribution`
+    - observation: Harbor-LangSmith integration maps `result.json` rewards into `harbor_reward` feedback; missing verifier result falls back to `0.0` with comment; separate failure classifier distinguishes infra timeout/OOM/sandbox vs capability using exit codes and exception text.
+    - inference: post-run grading combines reward ingestion and failure attribution, but fallback behavior can blur cause semantics if consumed naively.
+    - citations: `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/{langsmith.py,failure.py}`
+    - confidence: high
+- replay_or_reproducibility_notes:
+  - sampled bundles preserve reproducibility anchors: task git URL/commit, task checksum, agent import path/model metadata, environment type, verifier timestamps, trajectory files, and verifier artifacts.
+    - citations: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f.tar.gz::result.json`, `research/sources/trajectories/BigAI/headless-terminal/955f47f3-f86f-4989-a975-1299ed63a173.tar.gz::result.json`, `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4.tar.gz::result.json`
+    - confidence: high
+  - deepagents eval suite enforces LangSmith tracing enabled at collection time; eval reporting emits structured JSON and category scores.
+    - citations: `research/sources/codebases/deepagents/libs/evals/tests/evals/conftest.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/pytest_reporter.py`, `research/sources/codebases/deepagents/libs/evals/deepagents_evals/categories.json`
+    - confidence: high
+  - SWE-bench bash-only lane documents release-version comparability caveats; replay comparisons across releases must normalize by mini-SWE-agent release regime.
+    - citations: `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+    - confidence: high
+  - Deepagents analysis tooling includes Wilson CI and minimum detectable effect estimation, indicating explicit noise-aware replay comparison support.
+    - citations: `research/sources/codebases/deepagents/libs/evals/scripts/analyze.py`, `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/stats.py`
+    - confidence: medium
+- gaming_or_proxy_risks:
+  - `self_verification_proxy_risk`
+    - observation: in `cancel-async-tasks`, trajectory includes a verifier `finish_verification` with status `PASSED`, but final bundle reward is `0` and verifier CTRF includes one failed test.
+    - inference: internal verifier-status events are a weak proxy for true completion unless reconciled against final grader artifacts.
+    - citations: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::agent/trajectory.json`, `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::result.json`, `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::verifier/ctrf.json`
+    - confidence: high
+  - `specification_gaming_surface`
+    - observation: ImpossibleBench is explicitly designed to detect shortcutting/specification-gaming behaviors.
+    - inference: mechanism claims that improve benchmark score without robust contract adherence are high-risk and need anti-cheat cross-check.
+    - citations: `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`
+    - confidence: high
+  - `leaderboard_noncomparability_risk`
+    - observation: SWE-bench bash-only leaderboard notes setup differences across releases and model temperature differences.
+    - inference: raw leaderboard deltas can be fake-good if release/scaffold context is not controlled.
+    - citations: `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+    - confidence: high
+  - `llm_judge_subjectivity_risk`
+    - observation: correctness in some lanes depends on LLM-judge criteria prompts and model behavior.
+    - inference: judge drift and prompt/schema choices can create proxy-score movement without true mechanism improvement.
+    - citations: `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`, `research/sources/codebases/langchain/openevals/python/openevals/llm.py`
+    - confidence: medium
+  - `missing_verifier_fallback_risk`
+    - observation: reward feedback ingestion defaults to `0.0` when verifier result is missing.
+    - inference: missing-data and failure modes can be conflated at downstream aggregation layers if not separated.
+    - citations: `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+    - confidence: medium
+- upstream_artifact_implications:
+  - mechanism_map should represent verification/completion as at least three distinct mechanisms:
+    1) external grader/test oracle (`verifier/ctrf.json` + `reward`),
+    2) in-trajectory verifier role protocol (`finish_verification`, verifier packets),
+    3) eval adapter layer (`TrajectoryScorer`, LLM judge, state replay comparators).
+    - citations: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::agent/trajectory.json`, `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::{result.json,verifier/ctrf.json}`, `research/sources/codebases/deepagents/libs/evals/tests/evals/{utils.py,llm_judge.py,external_benchmarks.py}`
+    - confidence: high
+  - completion claims should require reconciliation checks: internal verifier status must be cross-validated against final reward/test artifacts.
+    - citations: `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz::{agent/trajectory.json,result.json,verifier/ctrf.json}`
+    - confidence: high
+  - anti-cheat/spec-gaming should be a first-class mechanism card input, not a peripheral eval footnote.
+    - citations: `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`
+    - confidence: high
+  - mechanism cards that use leaderboard evidence should include scaffold/version comparability caveats.
+    - citations: `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+    - confidence: high
+  - local harness `evals/` currently appears scaffold-level only (docstrings, no implemented checks in sampled files), so mechanism_map should avoid over-crediting local eval maturity without deeper code evidence.
+    - citations: `evals/{README.md,verification_eval.py,step_efficiency_eval.py,context_eval.py}`
+    - confidence: medium
+- contradiction_notes:
+  - Internal verifier loop can emit `PASSED` while external grader still returns failure (`reward=0` + failed test), so “verifier passed” and “task passed” are non-equivalent states.
+  - Failure attribution is split: raw reward alone is insufficient to classify root cause (timeout/sandbox/capability separation is implemented elsewhere).
+  - Some eval lanes are deterministic state/test based, while others are LLM-judge based; mixing them without lane labels risks false comparability.
+- confidence_notes:
+  - high confidence: terminal-bench external verifier contract and reward gating in sampled bundles; internal-vs-external status divergence; deepagents two-tier assertion implementation.
+  - medium confidence: cross-benchmark generalization from capture README-level evidence (WebArena-Infinity, NIKA, SlopCodeBench) without full repo code traversal.
+  - medium confidence: local eval maturity claim because sampled `evals/` files are minimal and may not represent full local eval code elsewhere.
+- open_questions:
+  - What is the exact reward aggregation formula inside terminal-bench/harbor verifier controllers across task types (binary all-pass vs weighted partial)?
+  - Should `finish_verification` status be treated as advisory-only in mechanism_map cards unless cross-checked with `verifier/ctrf.json` and `result.json`?
+  - Which mechanism-map cards should be lane-specific to deterministic graders vs LLM-as-judge graders?
+  - How should infra-failure labels (timeout/OOM/sandbox) be attached to mechanism claims so eval signals are not misattributed?
+  - What minimum replay metadata set is mandatory before treating cross-run score deltas as mechanism evidence?
+  - For wave-2, which benchmark families need direct implementation-level reads (not capture summaries) to close contract-level uncertainty?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`

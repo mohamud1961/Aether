@@ -1,0 +1,199 @@
+INFORMAL_CLUSTER_DOSSIER
+- cluster: `planning_orchestration_and_interactions`
+- source_families:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- primary_items:
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/informal/cursor_scaling_agents.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+  - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_issues_postmortems_analyst.md`
+  - all `primary_items` listed above
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt`
+- operator_claims:
+  - claim: `Hierarchy and explicit role ownership reduce flat-coordination deadlocks in large multi-agent runs.`
+    - evidence: `research/sources/informal/cursor_self_driving_codebases.md`, `research/sources/informal/cursor_scaling_agents.md`
+    - confidence: `medium`
+  - claim: `Replan/reset cycles are required for long runs because context growth causes coherence loss and premature completion behavior.`
+    - evidence: `research/sources/informal/anthropic_long_running_harness.md`, `research/sources/informal/cursor_long_running_agents.md`, `research/sources/informal/humanlayer_12_factor_agents.md`
+    - confidence: `medium`
+  - claim: `Delegation must include strict context and authority boundaries; inherited parent context causes role confusion and mis-execution.`
+    - evidence: `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`, `research/sources/informal/humanlayer_ace_fca.md`
+    - confidence: `high`
+- issue_or_postmortem_evidence:
+  - cluster: `planning drift and replanning trigger failures`
+    - evidence: `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`, `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`, `research/sources/issues/src_iss_222a58240294/artifact.txt`, `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`, `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - cluster: `delegation mismatch and hidden coupling`
+    - evidence: `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`, `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`, `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`, `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - cluster: `handoff/resume contract ambiguity`
+    - evidence: `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`, `research/sources/issues/src_iss_d227a621da26/artifact.txt`, `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`, `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - cluster: `stall/deadlock/collapse`
+    - evidence: `research/sources/issues/src_iss_809077092a02/artifact.txt`, `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - cluster: `prestige language versus operational fragility`
+    - evidence: `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`, `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`, plus issue clusters above
+- contradictions:
+  - `High-autonomy orchestration narratives coexist with recurring resume/compaction collapse reports.`
+  - `Role-split design claims coexist with delegation context/authority conflicts in team/subagent execution.`
+  - `Pause/resume as doctrine coexists with silent resume failures and stale session-index surfaces.`
+  - `Planner-first rhetoric coexists with practical dependence on emergency recovery and manual restart paths.`
+- likely_mechanism_pressure:
+  - `planner drift detection + bounded replan trigger block`
+  - `delegation context-isolation contract (role, authority, policy envelope)`
+  - `handoff artifact integrity and re-injection on compaction/resume`
+  - `orchestrator anti-stall controls (lock budgets, watchdog restart, oversized-output guardrails)`
+  - `anti-prestige governance checks (operational reliability gates before autonomy claims)`
+- likely_failure_pressure:
+  - `context-full dead sessions`
+  - `silent resume failure`
+  - `stale session recovery state`
+  - `permission routing bypass in delegated paths`
+  - `tool retry loops and waiting stalls`
+  - `browser-runtime hang without automatic recovery`
+- confidence_notes:
+  - `High confidence that these failure clusters are operationally real in this corpus slice.`
+  - `Medium confidence on cross-system prevalence because many artifacts are issue reports from a limited number of ecosystems.`
+  - `Low confidence on fix durability over time.`
+- downstream_relevance:
+  - `mechanism_map`: directly pressures Wave 06 cards for replanning triggers, delegation boundaries, and role handoff contracts.
+  - `failure_taxonomy`: seeds failure families for coordination collapse, delegated-policy mismatch, and resume-state corruption.
+  - `eval_implications`: motivates explicit orchestration stress tests for stale resume, oversized tool payloads, and delegated permission routing.
+- wave_06_formal_pressure_update:
+  - linked_formal_output:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_papers_docs_analyst.md`
+  - formal_alignment:
+    - Formal papers/docs support explicit planning and replanning loop contracts, matching this cluster's replanning drift pressure.
+    - Formal docs on delegation boundaries (scoped context, tool/policy scope, ownership) align with this cluster's delegated-context collision failures.
+  - formal_tension:
+    - Formal role-separation rhetoric does not prove behavioral adherence; issue evidence here still shows handoff/resume and policy-routing breakdowns.
+    - Topology superiority remains unresolved across formal sources, so this dossier keeps role-contract quality ahead of role-count prestige.
+  - confidence:
+    - `medium` for cross-lane alignment.
+    - `low` for any claim that formal doctrine alone resolves observed operational failures.
+- wave_06_codebase_source_reconstruction_reconciliation:
+  - reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_support_planner_runtime_map.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_support_subagent_delegation_map.md`
+  - observations:
+    - informal evidence about delegation and resume fragility is structurally consistent with source-side boundary weak points (for example subsystem-specific permission bypass and under-specified handoff integrity).
+    - source-visible orchestration capacity can exceed trajectory-visible exercise (deepagents, a-evolve), so informal failures should not be used to claim non-existence of mechanism support.
+  - inference:
+    - contradiction handling should explicitly separate `mechanism exists in source` from `mechanism reliably exercised under long-run pressure`.
+  - confidence:
+    - high for reconciliation direction, medium for cross-system prevalence.
+- wave_04_formal_pressure_update:
+  - linked_formal_output:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/literature_papers_docs_analyst.md`
+  - formal_alignment:
+    - Formal planning/orchestration sources reinforce this cluster’s replanning and stall pressure by making stop conditions, timeout caps, and verification-triggered replanning explicit control contracts.
+    - Formal delegation/reliability sources reinforce this cluster’s role-drift and coordination-collapse pressure as first-class monitored failures.
+    - Checkpoint/durable-execution docs align with this cluster’s resume fragility theme by separating restore mechanics from correctness guarantees.
+  - formal_tension:
+    - Formal role-separation rhetoric does not resolve observed long-horizon coordination failures; multiple formal sources also caution about coordination cost and diminishing reliability from additional roles.
+    - Keep anti-prestige interpretation: role count is not a sufficient reliability signal.
+  - confidence:
+    - high for contract-surface alignment
+    - medium for cross-system transfer without additional direct trajectory evidence
+- wave_04_required_trajectory_reconciliation_2026_04_11:
+  - trajectory_alignment:
+    - required BigAI run metadata confirms both successful replanning/handoff recovery and governance variability (including no-verifier pass regime).
+    - required cancellation/extract slices show coordination stall patterns under long-running tool pressure.
+  - direct_references:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - inference:
+    - Wave 04 failure attribution should preserve separation between delegation mismatch/replan stall and timeout-heavy coordination drag.
+  - confidence: high
+- wave_04_failure_taxonomy_update:
+  - wave: `failure_taxonomy/wave_04_tools_environment_coordination_and_long_horizon_failures`
+  - objective: `Preserve contradiction pressure for delegation/handoff, replanning stall, and timeout-heavy long-horizon degradation without collapsing with tool or environment families.`
+  - coverage_delta_used:
+    - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+    - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+    - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+    - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+    - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+    - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+    - `research/sources/informal/cursor_cursorbench.md`
+    - `research/sources/informal/cursor_self_summarization.md`
+  - failure_family_attribution:
+    - family: `delegation_and_handoff_contract_failure`
+      - observation: Subagent permission routing failures, silent resume after agent transcript errors, and repeated long-running tool-call loops continue to appear in multi-agent settings.
+      - inference: Delegation failures are contract-quality failures (authority/context/state handoff), not merely model capability limits.
+      - confidence: `medium`
+      - evidence: `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`, `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`, `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`, `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+    - family: `replanning_stall_and_coordination_collapse`
+      - observation: Coordination narratives describe lock contention, risk-averse task selection, and throughput collapse until explicit planner/worker role separation is introduced.
+      - inference: Replanning stall should remain its own family, with distinct mitigation surface (role ownership, planner wakeups, bounded contracts).
+      - confidence: `medium`
+      - evidence: `research/sources/informal/cursor_scaling_agents.md`, `research/sources/informal/cursor_self_driving_codebases.md`, `research/sources/informal/anthropic_long_running_harness.md`
+    - family: `long_horizon_compaction_resume_degradation`
+      - observation: Context-full sessions, compaction hangs, stale resume indices, stale checkpoint restoration, and false auto-compaction triggers recur across toolchains.
+      - inference: Long-horizon degradation is strongly coupled to context-state infrastructure quality and should not be reduced to generic "model drift".
+      - confidence: `high`
+      - evidence: `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`, `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`, `research/sources/issues/src_iss_222a58240294/artifact.txt`, `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`, `research/sources/issues/src_iss_613424e145e5/artifact.txt`, `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+    - family: `stuck_running_and_event_persistence_failure`
+      - observation: Reports show runs reaching READY or first completion success while downstream assistant/action events fail to persist and threads remain stuck RUNNING/thinking.
+      - inference: This family should stay separate from pure task-quality failure because it is execution-state transition failure.
+      - confidence: `medium`
+      - evidence: `research/sources/issues/src_iss_6ba217fff208/artifact.txt`, `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - contradiction_pressure_additions:
+    - `Long-running autonomy success narratives coexist with recurring resume/compaction state failures in day-to-day usage.`
+    - `Role-split orchestration claims coexist with delegated permission and transcript-handoff bypass incidents.`
+    - `Checkpointing roadmaps coexist with current-state stale/rollback recovery incidents, indicating unresolved operational gaps.`
+  - formal_and_eval_alignment_note:
+    - `CursorBench and self-summarization narratives reinforce that long-horizon performance depends on context management quality, which aligns with the failure evidence above rather than contradicting it.`
+  - unresolved:
+    - `Maintainer-confirmed causal roots for many orchestration incidents are not consistently available in captured artifacts.`
+    - `The boundary between Wave 03 context-state families and Wave 04 long-horizon coordination families still needs contradiction-stage adjudication to avoid double counting.`
+- wave_04_codebase_source_reconstruction_reconciliation_2026_04_11:
+  - source_reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_support_orchestration_failure_map.md`
+  - observations:
+    - source-backed orchestration contracts exist for delegation and lifecycle handling (deepagents async/subagent APIs, KIRA process runtime + scheduler, a-evolve evolution loop and MCP delegation).
+    - local harness comparator remains implementation-thin, so informal orchestration failure clusters should not be projected onto local harness behavior yet.
+  - inference:
+    - preserve informal Wave 04 clusters for `delegation mismatch`, `replanning stall`, and `coordination collapse`, while separating mechanism existence from exercised reliability.
+  - confidence:
+    - high on reconciliation direction
+    - medium on cross-family prevalence
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+    - `blocks/execution/flat_loop.py`
+    - `runner/agent.py`

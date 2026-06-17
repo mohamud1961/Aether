@@ -1,0 +1,49 @@
+variant_id: v04_ex_02_cwd_workdir_invariant_propagation_guard
+block_family: ExecutionBlock
+block_interface: ExecutionBlock.run_loop(model, tools, context, max_steps) -> result
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w05.cwd_workdir_path_contract
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: mm.w04.explicit_artifact_continuity_workspace_state
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: ft.w03.workspace_repo_branch_path_drift
+      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+    - claim_ref: ft.w04.cwd_workdir_path_contract_failure
+      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+    - claim_ref: vfs.w02.vf_pc_04_workspace_path_contract_bounded
+      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+observed_trace_or_eval_evidence:
+  - packet_03 eval card for ae_cwd_workdir_path_contract_guard identifies explicit path-invariant logging and reason-code requirements
+  - packet_03 closeout marks cwd/workdir surface accepted and usable now
+mechanism_claim: preserve cwd/workdir/target-path invariants at every execution step and tool hop to prevent path drift and accidental off-target edits.
+target_failure: cwd_path_drift
+anti_benchmarkifying_risk: variant may pass by memorizing fixture-relative path patterns instead of generalized path grounding.
+expected_improvement: higher deterministic path-fingerprint consistency and fewer target-path mismatches.
+expected_failure_mode: strict path normalization can reject legitimate symlink/alias flows and create false negatives.
+complexity_cost: medium (path-propagation assertions and invariant fingerprint plumbing).
+token_cost_expectation: negligible for deterministic eval; modest log-size growth due to extra path telemetry.
+changed_files:
+  - blocks/execution/cwd_invariant_loop.py
+required_atomic_eval: ae_cwd_workdir_path_contract_guard
+required_atomic_eval_status: accepted_packet_03_surface
+anticipated_interaction_eval: path_contract_x_workspace_target_integrity_probe
+anticipated_interaction_eval_status: blocked_until_packet_05
+anticipated_transfer_eval: pressure_transfer_workspace_path_set_v1
+anticipated_transfer_eval_status: anticipated
+promotion_threshold: deterministic pass against baseline plus corroboration on sibling path-decoy diagnostics with no increase in off-target touch rate.
+retirement_condition: retire if gains are fixture-specific or if transfer reveals brittle behavior outside deterministic fixture layout.
+bounded_claims:
+  - bounded due Stage 02 workspace-path regime-scoping warnings
+  - no claim of universal workspace robustness in packet_04
+telemetry_required:
+  - cwd_at_step
+  - workdir_at_tool_call
+  - resolved_target_absolute_path
+  - target_hash_match
+  - workspace_integrity_summary
+model_policy:
+  screening_default: screening_model
+  promotion_tier: promotion-model
+  deterministic_eval_override: no_model
+  note: promotion beyond atomic_eligible requires transfer checks due bounded workspace claim.

@@ -1,0 +1,166 @@
+# Failure Taxonomy Wave 04 Tools Environment Coordination And Long Horizon Failures Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- overall_core_wave: wave_10
+- artifact: failure_taxonomy
+- artifact_wave: wave_04_tools_environment_coordination_and_long_horizon_failures
+- wave_focus_domain: tools_environment_coordination_and_long_horizon_failures
+- objective: Build behavior-anchored failure cards for tool-gateway mismatch, cwd/path/workspace contract failure, permission-policy/runtime mismatch, process-lifecycle and cancellation breakdown, role-handoff failure, delegation mismatch, replanning stall, and timeout-heavy long-horizon degradation.
+- exact_question: Which recurring failure patterns appear when agents coordinate tools, permissions, process lifecycle, workspace roots, replanning, delegation, and long-running execution, and which failures are attributable to tool substrate design, approval/runtime mismatch, interaction contracts, environment limits, or benchmark pressure?
+- new_resolution_goal: Convert accepted `mechanism_map` Wave 05 and Wave 06 into failure-family evidence without collapsing tool gateway choice, permission policy, path/cwd discipline, cancellation semantics, delegation quality, planner-verifier coupling, and long-horizon timeout pressure into one vague orchestration failure bucket.
+- why_prior_waves_were_not_enough: Failure Taxonomy Waves 01-03 established execution, verification, and state/workspace failure families, but they did not center tool substrate, permission/runtime mismatch, interaction governance, or long-horizon coordination breakdown as the primary failure object.
+- why_now: Failure Taxonomy Wave 03 is accepted with carry-forward warnings. The remaining failure-taxonomy core wave now needs to connect tool/environment and orchestration mechanisms to real failure families before `eval_implications` opens.
+- lane_completion_rule: First-pass lane outputs are not wave-sufficient by default. A lane only becomes wave-sufficient if contradiction review plus principal synthesis say it is sufficient for this failure domain.
+- eval_fifth_lane_activated: `no`
+- eval_reactivation_rule: Activate the optional `eval/benchmark` fifth lane only if benchmark time budgets, grader/tool contracts, replay requirements, or benchmark workspace assumptions become necessary to explain in-scope failure attribution.
+- support_track_dependencies:
+  - `coverage_register`
+  - `source_system_dossiers`
+  - `trajectory_case_studies`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+  - `eval_benchmark_dossiers` only if eval is reactivated
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/planning_and_replanning.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/delegation_and_role_separation.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md`
+- required_case_study_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/prove_plus_comm.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cobol_modernization.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/openssl_selfsigned_cert.md`
+- inherited_carry_forward_warnings:
+  - BigAI remains `behavioral reconstruction`.
+  - No accepted `failure_taxonomy` family is `decision_ready`.
+  - Wave 03 support-artifact debt remains open and should not be mistaken for complete prevalence accounting.
+  - Timeout-heavy BigAI claims remain partly summary-routed unless direct trajectory slices are reopened in this wave.
+  - Mechanism Map Wave 05 permission safety remains under-evidenced behaviorally.
+  - Mechanism Map Wave 06 role-separated orchestration remains source-strong and BigAI-behavior-rich, not universally trajectory-proven across all families.
+  - Organizer routing remains weaker than direct path accounting while `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` stays empty.
+- what_can_remain_unfinished_without_blocking_contradiction_review:
+  - second-tier formal sources beyond tool/environment and orchestration anchors
+  - long-tail informal anecdotes not tied to tool gateway, permissions, cancellation, role handoff, delegation, replanning, or timeout-heavy long-horizon failure
+  - direct BigAI source linkage, because BigAI remains behavioral-only
+  - optional eval/benchmark grader reads unless eval is explicitly reactivated during preflight
+  - Wave 01 and Wave 03 support-artifact debt, if it remains explicitly carried rather than silently forgotten
+- inputs:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md`
+  - `prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `prompts/deep_synthesis_checklist_adjudicator_prompt.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/analysis/bigai_trace_layer/output/`
+  - `research/sources/trajectories/`
+  - `research/sources/codebases/`
+  - `research/sources/papers/papers_text/`
+  - `research/sources/docs/`
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - `blocks/`
+  - `runner/`
+  - `evals/`
+  - `FAILURE_CARD_SCHEMA.md`
+  - `TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md`
+- preflight_requirements:
+  - confirm this is a vertical failure-domain wave centered on tool/environment coordination and long-horizon interaction failures rather than a generic mechanism recap
+  - state explicitly why the optional `eval/benchmark` fifth lane is inactive unless reactivated during preflight
+  - list the planned read order across trajectories, source, formal literature, informal contradiction pressure, and local harness surfaces
+  - name the critical tool, permission, path, orchestration, delegation, and timeout-heavy slices selected for the wave
+  - keep one minimal-sufficient baseline visible: simpler terminal-first and single-agent baselines remain active comparators, not strawmen
+  - say which support artifacts are required before the lane can claim strong coverage
+  - stop and hand control back to the principal if the wave lacks enough trajectory or source visibility to support honest failure attribution
+- trajectory_slice_targets:
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/`
+  - `research/sources/trajectories/BigAI/headless-terminal/`
+  - `research/sources/trajectories/deepagents/headless-terminal/`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/`
+  - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/`
+  - timeout-heavy pressure in `research/analysis/bigai_trace_layer/output/answered_questions.md`, especially `torch-pipeline-parallelism`, `train-fasttext`, `caffe-cifar-10`, and `qemu-startup`
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to tool gateways, path contracts, sandboxing, approval policy, process lifecycle, orchestration, delegation, and logging
+- formal_literature_targets:
+  - `research/sources/papers/papers_text/`
+  - `research/sources/docs/`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - tool gateway friction, permission mismatch, browser/tool instability, coordination stall, delegation mismatch, replanning loops, and long-horizon timeout/throughput clusters
+- required_case_slices:
+  - terminal-first versus tool-sprawl failure pressure
+  - permission-policy and runtime-capability mismatch
+  - process lifecycle and cancellation breakdown
+  - planner/executor/verifier handoff or verifier-optional orchestration ambiguity
+  - long-horizon timeout-heavy and coordination-overhead pressure
+- citation_contract:
+  - every `L3` or `L4` failure claim must cite repo-local paths
+  - failure attribution should cite direct trajectory evidence first
+  - mechanism linkage should cite source and prior mechanism synthesis explicitly
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+  - formal and informal evidence can sharpen or challenge claims, but should not outrank stronger direct trajectory or source evidence
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- support_subagent_policy:
+  - bounded support sub-agents are standard infrastructure for this wave
+  - use them for trajectory inventories, timeout matrices, tool-gateway maps, permission-route maps, orchestration timelines, and issue clustering
+  - support outputs must be saved explicitly and cited by the owning lane
+  - support outputs do not count as promoted failure claims on their own
+- dirty_worktree_policy:
+  - expect unrelated dirty files and concurrent wave outputs
+  - do not stop for a dirty worktree alone
+  - edit only assigned Wave 04 files and any explicitly assigned support dossier files
+  - do not revert, clean, stage, delete, or overwrite unrelated files
+  - stop only if an unrelated dirty file directly conflicts with the assigned write scope
+- output_contract:
+  - canonical output paths are listed in `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/README.md`
+  - primary main-lane outputs must land in this wave's `outputs/` directory
+  - contradiction review must land in this wave's `outputs/` directory
+  - principal synthesis must land in this wave's `synthesis/` directory
+  - checklist adjudication must land in this wave's `adjudication/` directory
+  - cumulative artifact state must be updated at `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - coverage register must be updated at `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, with bounded support sub-agents under heavy lanes, then contradiction review, optional Gemini and Claude gate review, principal synthesis, and checklist adjudication
+- external_agent_action: Run external agents now after prompt packets are generated.

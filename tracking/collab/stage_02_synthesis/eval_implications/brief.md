@@ -1,0 +1,136 @@
+# Eval Implications Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: eval_implications
+- objective: Turn accepted mechanism and failure findings into disciplined eval requirements and evaluation-design implications without drifting into unsupported benchmark policy.
+- exact_question: Given the accepted `mechanism_map` and `failure_taxonomy`, what eval implications follow, which claims need dedicated eval families, what should stay fixed during testing, and where are the gaming or proxy risks?
+- why_now: This packet is instantiated before execution so the downstream artifact is concretely scoped, but it remains queued behind `failure_taxonomy` because eval design should inherit both mechanism and failure structure. Under the compressed plan this artifact now closes in two core waves, not four.
+- inputs:
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - prompts/deep_synthesis_shared_policy_prompt.md
+  - prompts/deep_synthesis_eval_implications_role_prompt.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - research/sources/benchmarks/
+  - research/sources/codebases/
+  - research/sources/papers/
+  - research/sources/docs/
+  - evals/
+- preflight_requirements:
+  - confirm upstream handoffs exist and are load-bearing before making eval implications
+  - list the planned read order across mechanism, failure, eval, and benchmark evidence
+  - name critical sources selected for the first pass
+  - surface coverage risks, blind spots, and likely gaming gaps before implications are proposed
+  - stop and hand control back to the principal if upstream inheritance is structurally incomplete
+- scope_anchor_paths:
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- organizer_paths:
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- evidence_classes_in_scope:
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - trajectories
+  - mirrored codebases
+  - eval repos
+  - benchmark captures
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - inherited from accepted `mechanism_map` and `failure_taxonomy` handoffs only
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/langchain/`
+- behavior_reconstruction_targets:
+  - only when a proposed eval implication depends on a no-source mechanism or failure claim
+- eval_and_benchmark_targets:
+  - `research/sources/benchmarks/`
+  - `research/sources/codebases/deepagents/libs/evals/`
+  - `research/sources/codebases/langchain/agentevals/`
+  - `research/sources/codebases/langchain/openevals/`
+  - local `evals/`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- required_case_slices:
+  - accepted mechanism claims only
+  - accepted failure claims only
+  - inherited benchmark and verifier concerns from upstream handoffs
+- extraction_level_cap: `L5`
+- citation_contract:
+  - every eval implication must cite upstream artifact paths plus direct evidence paths when possible
+  - do not propose an eval family from benchmark vibes alone
+- confidence_contract:
+  - confidence is per implication using `high`, `medium`, or `low`
+  - every `medium` or `low` implication must say what weakens it
+- coverage_register_rule:
+  - principal synthesis and checklist adjudication must state whether the active coverage register needs updates before closing the wave
+- gate_review_usage:
+  - GPT remains the canonical proposer/critic/falsifier/breadth-checker chain
+  - optional Gemini or Claude passes are gate-time reviewers only and must use suffixed files if run
+- contradiction_hand_off:
+  - route role-sequenced outputs to the falsifier and breadth checker before principal synthesis
+- adversarial_checkpoint:
+  - critic, falsifier, and breadth checker must run before the principal synthesis is accepted
+- carry_forward_operating_rules:
+  - inherit accepted mechanism and failure claims explicitly
+  - do not silently widen scope beyond upstream evidence support
+  - keep gaming and proxy-risk analysis visible
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+- exclusions:
+  - do not produce final variant-family conclusions
+  - do not reopen `mechanism_map` or `failure_taxonomy` unless the principal explicitly routes a repair
+  - do not edit canonical ledger files
+- output_contract:
+  - role-sequenced outputs should land in:
+    - `tracking/collab/stage_02_synthesis/eval_implications/outputs/proposer.md`
+    - `tracking/collab/stage_02_synthesis/eval_implications/outputs/critic.md`
+    - `tracking/collab/stage_02_synthesis/eval_implications/outputs/falsifier.md`
+    - `tracking/collab/stage_02_synthesis/eval_implications/outputs/breadth_checker.md`
+  - principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/eval_implications/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/eval_implications/adjudication/checklist_adjudicator.md`
+  - after acceptance, emit:
+    - `tracking/collab/stage_02_synthesis/eval_implications/synthesis/handoff_to_variant_family_seeds.md`
+  - every output must include the mandatory preflight and coverage sections
+- collaboration_mode: role-sequenced critique across proposer, critic, falsifier, breadth checker, then principal synthesis
+- external_agent_action: Run external agent now: no. This packet is queued only; do not launch before `failure_taxonomy` principal synthesis is accepted unless the human owner explicitly overrides artifact order.
+- assigned_roles:
+  - principal project steward
+  - eval implications proposer
+  - eval implications critic
+  - eval implications falsifier
+  - eval implications breadth checker
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/handoff_to_failure_taxonomy.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/handoff_to_eval_implications.md`
+- handoff_requirements:
+  - after principal synthesis, emit a structured handoff to `variant_family_seeds`
+  - store it at `tracking/collab/stage_02_synthesis/eval_implications/synthesis/handoff_to_variant_family_seeds.md`
+  - use `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md`
+- evidence_expectations:
+  - treat eval implications as disciplined downstream reasoning from upstream Deep Synthesis claims
+  - keep benchmark limits and gaming risk explicit
+  - do not let benchmark prestige override stronger direct evidence
+- decision_needed_from_human: None yet to instantiate the packet. Execution remains queued behind accepted `failure_taxonomy`.
+- done_condition: Role-sequenced outputs exist, adversarial checks are complete, and principal synthesis produces traceable eval implications with explicit coverage and carry-forward accounting.

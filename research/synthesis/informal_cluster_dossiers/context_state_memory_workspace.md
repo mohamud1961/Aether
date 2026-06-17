@@ -1,0 +1,105 @@
+INFORMAL_CLUSTER_DOSSIER
+- cluster: `context_state_memory_workspace`
+- source_families:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- primary_items:
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/x_koylanai_2029427980699644360.md`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+- operator_claims:
+  - claim: `Builders increasingly treat context control as artifact management rather than pure prompt trimming.`
+    - evidence: `research/sources/informal/cursor_dynamic_context_discovery.md`, `research/sources/informal/humanlayer_ace_fca.md`, `research/sources/informal/langchain_autonomous_context.md`
+    - confidence: `high`
+  - claim: `Durable pause/resume and explicit state handling are baseline expectations for serious agent workflows.`
+    - evidence: `research/sources/informal/humanlayer_12_factor_agents.md`, `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`, `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+    - confidence: `medium`
+  - claim: `AGENTS/skills/memory files are being treated as the durable instruction surface, not as expendable chat residue.`
+    - evidence: `research/sources/informal/langchain_agent_builders_memory.md`, `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`, `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+    - confidence: `medium-high`
+- issue_or_postmortem_evidence:
+  - cluster: `context flooding and compaction failure`
+    - evidence: `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`, `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`, `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`, `research/sources/issues/src_iss_809077092a02/artifact.txt`, `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - cluster: `stale resume and state drift`
+    - evidence: `research/sources/issues/src_iss_613424e145e5/artifact.txt`, `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`, `research/sources/issues/src_iss_222a58240294/artifact.txt`, `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`, `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - cluster: `instruction loss after compaction`
+    - evidence: `research/sources/issues/src_iss_d227a621da26/artifact.txt`, `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - cluster: `workspace/path/session-state corruption`
+    - evidence: `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`, `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+- contradictions:
+  - `Long-running-agent and multi-agent product claims present “step away and return later” as normal, but direct issue evidence still shows stale indexes, old checkpoints, silent resume failures, and corrupted session files.`
+  - `Compaction is promoted as a helpful or even learned behavior, but direct issue evidence shows compaction can hang, fire prematurely, or strip the very rule artifacts that keep the run safe.`
+  - `Workspace isolation via worktrees is promoted, but the strongest direct failures here are still wrong-target edits and session-state corruption rather than cleanly solved repo hygiene.`
+- likely_mechanism_pressure:
+  - `file-backed tool-output and transcript artifactization`
+  - `dynamic context discovery instead of eager static injection`
+  - `durable resume indexes, checkpoints, and replay-safe state reconstruction`
+  - `rule-artifact re-injection or validation after compaction`
+  - `atomic session-state updates and path-target validation`
+- likely_failure_pressure:
+  - `context overflow with no emergency recovery headroom`
+  - `compaction hang or false-trigger loop`
+  - `resume picker drift and stale checkpoint restore`
+  - `rewind nullifying injected baseline state`
+  - `post-compaction loss of AGENTS/memory/rule files`
+  - `wrong-file edit loops and corrupted session-state files`
+- confidence_notes:
+  - `High confidence on the existence of the context-flooding and stale-resume clusters because multiple issue reports converge on the same failure shape.`
+  - `Medium confidence on the promoted mechanism responses because much of the positive design evidence comes from blog/postmortem material rather than direct failure writeups.`
+  - `Low-to-medium confidence on branch-hygiene conclusions because this dossier’s direct evidence is more about session/path corruption than git-state contamination.`
+- downstream_relevance:
+  - `mechanism_map`: pushes Wave 04 toward separating compaction, durable state, rule artifacts, and workspace fidelity rather than collapsing them into “memory.”`
+  - `failure_taxonomy`: seeds context-overflow-without-recovery, stale-resume drift, rule-loss-after-compaction, rewind corruption, and wrong-target workspace corruption families.`
+  - `trajectory_case_studies`: request cross-checks against git_multibranch and custom_memory_heap_crash before promoting repo-state or stale-memory claims more broadly.`

@@ -1,0 +1,210 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/workflow/get/?q=
+================================================================================
+
+获取工作流
+
+查询Workflow接口¶
+请求URL¶
+GET /api/v1/workflow
+
+请求参数¶
+Header¶
+参数	取值	说明
+Content-Type	application/json	指定请求正文的数据格式。当值为 application/json 时，表明请求体（Body）内容以 JSON 格式组织，服务端将按 JSON 规范解析请求参数。
+X-TraceId	string	traceId
+Authorization	Bearer $AccessToken	用于验证客户端身份的访问令牌
+Query Parameters¶
+参数称	类型	是否必填	参数说明	备注
+id	string	是	工作流ID	
+请求示例¶
+GET /api/v1/workflow?id=686758337014865920
+
+响应参数¶
+参数	类型	描述	备注
+code	int	状态码	0代表成功
+message	string	响应消息	
+data	object	响应数据	
+data.exist	boolean	工作流是否存在	
+data.workflow	object	工作流数据	
+data.workflow.id	string	工作流ID	
+data.workflow.config	object	工作流配置	
+data.workflow.config.nodes	array	节点列表	
+data.workflow.config.edges	array	边列表	
+data.workflow.created_at	string	创建时间	ISO8601格式
+data.workflow.updated_at	string	更新时间	ISO8601格式
+响应示例¶
+{
+
+    "code": 0,
+
+    "message": "success",
+
+    "data": {
+
+        "workflow": {
+
+            "id": "686758337014865920",
+
+            "config": {
+
+                "edges": [
+
+                    {
+
+                        "source": {
+
+                            "cell": "db2b723c-d164-4953-a355-5c5d0340e805",
+
+                            "port": "out.db2b723c-d164-4953-a355-5c5d0340e805"
+
+                        },
+
+                        "target": {
+
+                            "cell": "19bff3e5-442a-42c4-87a6-b068c32e4e04",
+
+                            "port": "in.19bff3e5-442a-42c4-87a6-b068c32e4e04"
+
+                        }
+
+                    },
+
+                    {
+
+                        "source": {
+
+                            "cell": "input",
+
+                            "port": "out.input"
+
+                        },
+
+                        "target": {
+
+                            "cell": "822b91e2-ecb7-470a-aead-480c06c7a8a7",
+
+                            "port": "in.822b91e2-ecb7-470a-aead-480c06c7a8a7"
+
+                        }
+
+                    },
+
+                    {
+
+                        "source": {
+
+                            "cell": "822b91e2-ecb7-470a-aead-480c06c7a8a7",
+
+                            "port": "out.822b91e2-ecb7-470a-aead-480c06c7a8a7"
+
+                        },
+
+                        "target": {
+
+                            "cell": "db2b723c-d164-4953-a355-5c5d0340e805",
+
+                            "port": "in.db2b723c-d164-4953-a355-5c5d0340e805"
+
+                        }
+
+                    }
+
+                ],
+
+                "nodes": [
+
+                    {
+
+                        "id": "input",
+
+                        "data": {
+
+                            "desc": "",
+
+                            "type": "input",
+
+                            "title": "输入"
+
+                        },
+
+                        "type": "base"
+
+                    },
+
+                    {
+
+                        "id": "db2b723c-d164-4953-a355-5c5d0340e805",
+
+                        "data": {
+
+                            "desc": "",
+
+                            "type": "llm",
+
+                            "title": "大模型",
+
+                            "prompt_template": "{{#822b91e2-ecb7-470a-aead-480c06c7a8a7.result#}}{{#sys.query#}}",
+
+                            "数据源/API工具": []
+
+                        },
+
+                        "type": "base"
+
+                    },
+
+                    {
+
+                        "id": "19bff3e5-442a-42c4-87a6-b068c32e4e04",
+
+                        "data": {
+
+                            "desc": "",
+
+                            "type": "output",
+
+                            "title": "输出",
+
+                            "answer": "{{#db2b723c-d164-4953-a355-5c5d0340e805.text#}}"
+
+                        },
+
+                        "type": "base"
+
+                    },
+
+                    {
+
+                        "id": "822b91e2-ecb7-470a-aead-480c06c7a8a7",
+
+                        "data": {
+
+                            "desc": "",
+
+                            "type": "web_search",
+
+                            "query": "{{#sys.query#}}",
+
+                            "title": "web搜索"
+
+                        },
+
+                        "type": "tool"
+
+                    }
+
+                ]
+
+            },
+
+            "created_at": "2025-03-10T10:12:26.898+08:00",
+
+            "updated_at": "2025-03-10T15:10:25.524+08:00"
+
+        },
+
+        "exist": true
+
+    }
+
+}

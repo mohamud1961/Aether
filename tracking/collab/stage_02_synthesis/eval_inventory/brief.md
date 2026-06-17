@@ -1,0 +1,71 @@
+# Eval Metadata Repair Brief
+
+TASK_PACKET
+- stage: Stage 2A synthesis prep
+- artifact: eval_inventory
+- objective: Repair eval-related intake metadata so first-wave synthesis can rely on the frozen local corpus without missing major eval families or carrying obvious indexing errors.
+- exact_question: Which repo-local eval sources must be backfilled or corrected in intake metadata before eval synthesis starts, and which duplicate or mislabeled entries should be normalized now?
+- why_now: The accepted corpus and synthetic-prep manifests are now frozen enough to use, but the eval inventory shows that the local eval evidence is materially stronger than the current intake layer. Synthesis should not proceed while key eval captures are absent from intake records or mislabeled.
+- inputs:
+  - tracking/collab/stage_02_synthesis/eval_inventory/outputs/eval_inventory.md
+  - research/intake/records/
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - research/intake/rejected/2026-04-01__accepted_blocked_exceptions.json
+  - research/sources/papers/
+  - research/sources/docs/
+  - research/sources/benchmarks/
+  - research/sources/codebases/
+  - research/sources/trajectories/
+  - research/sources/codebases/deepagents/libs/evals
+  - research/sources/codebases/langchain/agentevals
+  - research/sources/codebases/langchain/openevals
+  - research/sources/codebases/a-evolve/agent_evolve/benchmarks
+- exclusions:
+  - no new web research
+  - no source discovery outside the repo-local corpus
+  - no benchmark ranking or architecture recommendations
+  - no broad dedup rerun
+  - do not edit canonical ledger files
+- required_scope:
+  - backfill intake records for the highest-value local eval captures that exist in `research/sources/*` but are missing from `research/intake/records/`
+  - correct the known mislabeled eval record `src_pap_8ffcaa41e955` if it still mismatches the local capture title
+  - choose one canonical Terminal-Bench capture path and mark the duplicate as ignored or quarantined for synthesis
+  - update affected manifests only if accepted-source membership truly changes
+  - preserve source-local claims and provenance; do not invent metadata the local capture cannot support
+- explicit_targets:
+  - local-but-underindexed families called out in the eval inventory:
+    - MemoryArena
+    - DeepPlanning
+    - AgentLongBench
+    - MCPAgentBench
+    - VeRO
+    - SkillsBench
+    - Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions
+    - CUBE
+  - inventory corrections:
+    - `src_pap_8ffcaa41e955` title / identity mismatch
+    - duplicated Terminal-Bench capture ids
+- output_contract:
+  - write one SYNTHESIS_PREP_OUTPUT to `tracking/collab/stage_02_synthesis/eval_inventory/outputs/eval_metadata_repair.md`
+  - include:
+    - repaired_record_paths
+    - newly_backfilled_source_ids
+    - unchanged_but_reviewed_source_ids
+    - terminal_bench_canonical_choice
+    - terminal_bench_duplicate_handling
+    - manifest_changes
+    - unresolved_eval_metadata_gaps
+    - recommended_next_hand_off_target
+- collaboration_mode: single-agent repo-access cleanup specialist under principal routing
+- external_agent_action: Run external agent now: yes. This is a repo-access cleanup pass that should edit local intake metadata and write the repair summary artifact.
+- assigned_roles:
+  - principal project steward
+  - eval metadata repair specialist
+- evidence_expectations:
+  - use repo-local evidence only
+  - cite concrete local paths for every backfilled or corrected source
+  - if a local capture is present but too weak to support a safe intake record, leave it unresolved and say why
+  - preserve the distinction between captured synthetic-prep corpus and accepted blocked exceptions
+  - do not silently promote blocked exceptions into the captured corpus
+- decision_needed_from_human: None for the repair pass itself. Human review is only needed if the agent believes a proposed canonical Terminal-Bench choice would alter downstream synthesis scope materially.
+- done_condition: The repair summary exists, high-value local eval captures are backfilled where supportable, the known label mismatch is corrected, one canonical Terminal-Bench path is chosen, and remaining eval metadata gaps are explicit instead of implicit.

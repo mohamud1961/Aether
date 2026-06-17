@@ -1,0 +1,74 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: failure_taxonomy / wave_01_execution_control_and_terminal_failures
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - Confirmed this is an external Gemini gate review, providing breadth and long-context pressure.
+  - Confirmed Wave 01 centers on execution-control and terminal failures, process lifecycle, timeout pressure, and false-success.
+  - Confirmed the distinction between wave acceptance and artifact completion.
+  - Confirmed no collapsing of model, harness, environment, and benchmark-blindness into a single cause.
+- preflight_planned_read_order:
+  - Wave 01 brief, deep synthesis phase/wave plan, coverage register.
+  - Trajectory/failure analyst output.
+  - Codebase/source-reconstruction analyst output.
+  - Literature/papers/docs analyst output.
+  - Informal/issues/postmortems analyst output.
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/informal_issues_postmortems_analyst.md`
+- preflight_coverage_risks:
+  - Reliance on summary-level local analysis for timeout-heavy BigAI clusters rather than direct trajectory analysis.
+  - Lack of activation for the eval/benchmark fifth lane limits direct benchmark-blindness attribution.
+- preflight_likely_blind_spots:
+  - Model contribution to failures is undertested because of valid focus on harness/environment surfaces.
+  - Cross-lane reconciliation around the definition of "false-success" remains structurally weak.
+- preflight_blockers:
+  - None. Breadth gaps are not structurally fatal at this gate, provided warnings are explicitly carried forward.
+- coverage_used:
+  - Wave brief, operating plan, coverage register.
+  - The four primary main lane outputs for Wave 01.
+- coverage_not_yet_used:
+  - Individual timeout-heavy BigAI trajectories (e.g., `torch-pipeline-parallelism`, `train-fasttext`).
+  - Underlying codebase, literature, and informal source text.
+- evidence_classes_touched:
+  - Trajectory analyst output
+  - Codebase analyst output
+  - Literature analyst output
+  - Informal analyst output
+  - Wave control artifacts
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/torch-pipeline-parallelism/**`
+  - `research/sources/trajectories/BigAI/train-fasttext/**`
+- support_artifact_gaps:
+  - Codebase lane deferred its execution failure map and interrupt/cancellation map.
+- coverage_register_consistency:
+  - STALE: Coverage register still lists Wave 01 as "packet prepared, not started".
+  - STALE: `headless_terminal.md` case study exists in the repository but is reported as missing/deferred by codebase, literature, and informal lanes, creating internal consistency tracking failure.
+- supported_findings:
+  - Execution-control and terminal failures are consistently mixed-cause and cannot be reduced to just model capability.
+  - Harness lifecycle control (interrupt propagation, timeout limits) directly shapes failure surfaces independently of model reasoning.
+  - Terminal-grounding loss and repo-state drift represent a distinct execution-control failure family.
+- unsupported_or_overclaimed_findings:
+  - Generalizing timeout/stall cluster summaries into a well-defined execution-control mechanism without verifying whether the root cause is environment/infrastructure vs harness timeout vs model reasoning loops.
+  - Literature claims identifying gateway contract failures and containment vs authorization splits represent hidden scope drift. These belong to tools/permissions mechanism domains (Wave 05 inheritance) rather than execution-control failure taxonomy.
+- missing_evidence_classes:
+  - Eval/benchmark contract internals remain missing, weakening the structural explanation of false-success and verifier-pass/overall-fail mismatches.
+- reconciliation_failures:
+  - False-success pressure is not structurally unified. Trajectory emphasizes harness completion protocol, literature emphasizes benchmark metric mismatch, informal emphasizes contract gap. 
+  - Scope drift from the literature lane (gateway contracts) was not scoped out or explicitly reconciled with the Wave 01 domain boundary.
+- coverage_blind_spots:
+  - `quarantine/claw-code/` archive pressure remains exploratory and did not yield explicit codebase failure mechanisms.
+  - No trajectory-level investigation of model-quality contribution across families; harness failures are correctly identified but the comparative weight of model failure remains unsized.
+- required_repairs_before_acceptance:
+  - Update `coverage_register/current_status.md` to mark Wave 01 as first-pass complete.
+  - Acknowledge and resolve the `headless_terminal.md` state discrepancy across lanes.
+  - Principal synthesis must formally reject or defer the literature lane's gateway contract/permission split claims to maintain Wave 01 scope integrity.
+- optional_pressure_tests:
+  - Activate the eval fifth lane if benchmark-contract blindness is deemed a critical confounder for false-success attribution.
+  - Conduct a direct read of one BigAI timeout-heavy trajectory to empirically validate the timeout/stall failure mechanism.
+- gate_review_recommendations:
+  - Pass with warnings.
+  - Ensure the principal synthesis explicitly delineates false-success subfamilies (e.g. verifier-omission vs benchmark-blindness).
+  - Explicitly carry forward the warning that BigAI behavioral reconstruction may overstate the field's execution-control maturity due to the sheer volume of BigAI evidence relative to source-backed evidence.
+- confidence: High for identified scope drift and coverage inconsistencies; medium for the precise degree of model-contribution under-sizing.

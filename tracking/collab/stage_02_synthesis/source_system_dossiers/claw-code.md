@@ -1,0 +1,171 @@
+SOURCE_SYSTEM_DOSSIER
+- system: claw-code
+- dossier_status: wave_04_repair_pass_first_complete_quarantine_archive_pressure_only
+- source_scope:
+  - This dossier is based on direct reads of `research/sources/codebases/quarantine/claw-code/README.md` and the Wave 04 focus files: `research/sources/codebases/quarantine/claw-code/src/session_store.py`, `research/sources/codebases/quarantine/claw-code/src/transcript.py`, `research/sources/codebases/quarantine/claw-code/src/history.py`, `research/sources/codebases/quarantine/claw-code/src/context.py`, `research/sources/codebases/quarantine/claw-code/src/runtime.py`, `research/sources/codebases/quarantine/claw-code/src/remote_runtime.py`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`, `research/sources/codebases/quarantine/claw-code/src/bootstrap_graph.py`, `research/sources/codebases/quarantine/claw-code/src/main.py`.
+  - Wave governance context was checked in `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`, `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`, and `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`.
+  - Cross-lane interpretation pressure was checked in `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__claude.md`, and `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__gemini.md`.
+  - Quarantine status is explicit and load-bearing: this source sits under `research/sources/codebases/quarantine/claw-code/`, and README framing describes an in-progress Python rewrite that is not runtime-equivalent to the archived upstream system (`research/sources/codebases/quarantine/claw-code/README.md`).
+- architectural_core:
+  - In the inspected scope, `claw-code` is a Python porting workspace with a CLI orchestration shell and metadata-driven runtime simulation surfaces, not a fully evidenced production harness runtime (`research/sources/codebases/quarantine/claw-code/README.md`, `research/sources/codebases/quarantine/claw-code/src/main.py`).
+  - The architecture is centered on manifest/query/report composition and routed command/tool metadata matching, with lightweight session persistence and transcript handling (`research/sources/codebases/quarantine/claw-code/src/main.py`, `research/sources/codebases/quarantine/claw-code/src/runtime.py`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - For Wave 04 mechanism work, this system should be treated as archive-pressure and comparative signal only, not first-class proof at the same status as DeepAgents, KIRA, or A-Evolve (`tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`).
+- tool_calling_and_execution:
+  - `main.py` exposes many runtime-style commands (`route`, `bootstrap`, `turn-loop`, `exec-command`, `exec-tool`, remote/ssh/teleport/direct/deep-link modes), but those dispatch into port-layer shims and reports in this scope (`research/sources/codebases/quarantine/claw-code/src/main.py`).
+  - `PortRuntime.bootstrap_session()` routes prompt tokens to mirrored command/tool metadata and calls `build_execution_registry()` for execution messages; the execution depth of those registry targets is outside this dossier's focus set, so capability claims stay bounded (`research/sources/codebases/quarantine/claw-code/src/runtime.py`).
+  - `QueryEnginePort.submit_message()` is implemented and stateful, but it emits synthesized summary output rather than a demonstrated external environment execution loop in the inspected files (`research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+- workflow_and_control_doctrine:
+  - The visible doctrine is "porting workspace introspection with bounded turn/session simulation," not a source-proven end-to-end autonomous harness policy (`research/sources/codebases/quarantine/claw-code/README.md`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - `QueryEngineConfig` enforces local control constraints (`max_turns`, `max_budget_tokens`, `compact_after_turns`, optional structured output retries), giving an explicit but lightweight state-control policy (`research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - `runtime.py` adds run-report assembly and history annotations, which is useful as an observability scaffold but does not, by itself, prove robust recovery-grade workflow control (`research/sources/codebases/quarantine/claw-code/src/runtime.py`, `research/sources/codebases/quarantine/claw-code/src/history.py`).
+- context_and_state_model:
+  - Visible implemented context/state surfaces:
+    - `build_port_context()` computes workspace roots, file counts, and archive availability flags (`research/sources/codebases/quarantine/claw-code/src/context.py`).
+    - `QueryEnginePort` tracks mutable message state, usage totals, permission denials, and transcript entries, with compaction to a configured recent window (`research/sources/codebases/quarantine/claw-code/src/query_engine.py`, `research/sources/codebases/quarantine/claw-code/src/transcript.py`).
+    - `HistoryLog` records session events as append-only markdown-renderable entries (`research/sources/codebases/quarantine/claw-code/src/history.py`, `research/sources/codebases/quarantine/claw-code/src/runtime.py`).
+  - These are concrete and usable local state surfaces, but they are narrow compared with first-class harness families that show richer context assembly, tool-state coupling, and behaviorally exercised long-horizon state handling.
+- memory_or_persistence_model:
+  - Visible implemented persistence surfaces:
+    - `save_session()` and `load_session()` serialize session payloads (`session_id`, messages, input/output tokens) as JSON files in `.port_sessions/` (`research/sources/codebases/quarantine/claw-code/src/session_store.py`).
+    - `persist_session()` in `QueryEnginePort` flushes transcript state and writes a stored session snapshot (`research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - Transcript persistence is partial/staged: transcript entries are maintained in-memory and compacted there; persisted session snapshots store `mutable_messages` and usage counters via `StoredSession` (`research/sources/codebases/quarantine/claw-code/src/transcript.py`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`, `research/sources/codebases/quarantine/claw-code/src/session_store.py`).
+  - No strong source evidence appears in the focused files for durable semantic memory retrieval, cross-run memory indexing, or robust stale-memory prevention; this stays below Wave 04 promoted-memory thresholds.
+- verification_and_completion:
+  - The inspected files show local stop conditions (`max_turns_reached`, `max_budget_reached`, `completed`) and report generation, but not a strong external verifier/grader/replay stack in this focused slice (`research/sources/codebases/quarantine/claw-code/src/query_engine.py`, `research/sources/codebases/quarantine/claw-code/src/runtime.py`).
+  - README states the workspace is not yet runtime-equivalent, which further limits completion-proof claims from this source family (`research/sources/codebases/quarantine/claw-code/README.md`).
+  - Therefore this dossier does not promote claw-code as a verification/completion mechanism anchor for Wave 04.
+- recovery_and_resumability:
+  - Visible implemented recovery/resume-adjacent surfaces:
+    - load persisted session snapshots by id (`load-session` command and `load_session()` path) (`research/sources/codebases/quarantine/claw-code/src/main.py`, `research/sources/codebases/quarantine/claw-code/src/session_store.py`).
+    - replay compacted transcript entries in-memory (`research/sources/codebases/quarantine/claw-code/src/transcript.py`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - Placeholder/scaffold branches that must not be promoted:
+    - `run_remote_mode()`, `run_ssh_mode()`, `run_teleport_mode()` return static placeholder reports, including explicit "Teleport resume/create placeholder" text (`research/sources/codebases/quarantine/claw-code/src/remote_runtime.py`).
+    - `build_bootstrap_graph()` returns a fixed stage tuple, including mode routing and submit-loop labels, but no executable resume/restore substrate by itself (`research/sources/codebases/quarantine/claw-code/src/bootstrap_graph.py`).
+  - Net judgment: resumability signals here are scaffold-level and insufficient for stable restart-safe capability claims.
+- environment_and_permissions:
+  - Environment reporting is implemented at metadata level via `PortContext` (roots, file counts, archive availability) (`research/sources/codebases/quarantine/claw-code/src/context.py`).
+  - Permission handling appears as policy signaling in runtime/query engine integration, including inferred denial records for bash-like tools; however, this is still in a simulation/reporting envelope in the focused files (`research/sources/codebases/quarantine/claw-code/src/runtime.py`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - No claim is made here that this equals production-grade environment isolation or security posture.
+- what_the_agent_sees:
+  - In the focused implementation, the "agent" sees prompt text plus matched command/tool names and denial summaries rendered by `QueryEnginePort`, and may include structured JSON summary when configured (`research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - Session reports can include context/setup summaries and routed matches (`research/sources/codebases/quarantine/claw-code/src/runtime.py`, `research/sources/codebases/quarantine/claw-code/src/context.py`).
+  - This is a compact introspection surface, not evidence of a rich real-world observation/action interface comparable to first-class families.
+- relevant_trajectory_links:
+  - No Wave 04 required trajectory slice is claw-code-native; required slices are under BigAI/deepagents/terminus-kira families (`research/sources/trajectories/BigAI/`, `research/sources/trajectories/deepagents/`, `research/sources/trajectories/terminus-kira/`).
+  - In Wave 04 synthesis, claw-code currently contributes source-side quarantine pressure rather than direct trajectory-backed mechanism evidence (`tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`).
+- contradictions_or_unknowns:
+  - Unknown: how much of `main.py` command/tool dispatch reaches substantive runtime behavior versus mirrored shim responses without reading broader non-focus modules.
+  - Unknown: whether additional files under `research/sources/codebases/quarantine/claw-code/src/` provide stronger resume/recovery execution paths than the focused placeholder surfaces.
+  - Contradiction pressure is consistent across Wave 04 outputs: treat claw-code as quarantine pressure and avoid promotion into core mechanism evidence (`tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__claude.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__gemini.md`).
+  - README-level roadmap statements (for example, branch migration or "definitive version" intent) are project-direction statements, not implementation proof in this corpus slice (`research/sources/codebases/quarantine/claw-code/README.md`).
+- confidence_notes:
+  - High confidence:
+    - Quarantine/archive status and non-runtime-equivalent caveat are explicit.
+    - Focused state/persistence surfaces (session JSON snapshots, transcript compaction, usage counters) are directly visible.
+    - Remote/teleport resume surfaces in focused files are placeholders, not mature runtime branches.
+  - Medium confidence:
+    - Claims about broader execution depth outside the focused files, because `execution_registry` and wider module graph were not part of this bounded repair scope.
+    - Claims about long-horizon resumability behavior without claw-code trajectories.
+- downstream_relevance:
+  - For Wave 04 and near-term follow-up waves, claw-code is useful as a cautionary comparative surface: it demonstrates how easily reportable state scaffolds can be mistaken for production-grade context/memory/runtime mechanisms if quarantine status is ignored.
+  - This dossier should be reused to enforce anti-overclaim discipline:
+    - keep implemented local state surfaces visible,
+    - keep placeholder remote/resume branches clearly non-promoted,
+    - keep claw-code in pressure-only status until stronger direct behavior/source reconciliation is performed.
+  - This dossier does not change current promoted Wave 04 mechanism families; it supports them by clarifying what not to promote.
+- wave_06_formal_pressure_update:
+  - Formal orchestration rhetoric (roles, delegation, dynamic runtime coordination) should not be used to over-promote claw-code, because this source remains quarantine/porting pressure rather than first-class behavior-validated implementation.
+  - Wave 06 formal pressure therefore reinforces the existing caution: do not treat architecture-like wording or scaffolded control surfaces as proof of stable planning/delegation mechanisms.
+  - Wave 06 implication: claw-code stays pressure-only and anti-overclaim reference for orchestration synthesis.
+- wave_06_planning_orchestration_and_interactions_update:
+  - trajectory_pressure_scope:
+    - no claw-code-native trajectory slice was read in this Wave 06 trajectory lane pass.
+  - observations:
+    - Wave 06 required trajectory packet does not include claw-code runs, so orchestration claims from this dossier remain archive/source pressure only.
+  - inference:
+    - claw-code should stay in quarantine comparative status for Wave 06 planning/delegation claims until direct trajectory reconciliation is available.
+  - confidence:
+    - high (on limitation and governance status)
+- wave_06_informal_pressure_update:
+  - observation: Informal/issue evidence emphasizes that compaction/reinjection and resume-index integrity are frequent orchestration failure points.
+  - inference: claw-code should remain quarantine pressure only; any future promotion requires direct proof that session/replay surfaces survive compaction and delegated handoff boundaries under long-run stress.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+    - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+    - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+    - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+- wave_06_codebase_source_reconstruction_update:
+  - source_scope_delta:
+    - `research/sources/codebases/quarantine/claw-code/src/runtime.py`
+    - `research/sources/codebases/quarantine/claw-code/src/query_engine.py`
+    - `research/sources/codebases/quarantine/claw-code/src/main.py`
+    - `research/sources/codebases/quarantine/claw-code/src/reference_data/tools_snapshot.json`
+    - `research/sources/codebases/quarantine/claw-code/src/reference_data/commands_snapshot.json`
+  - observations:
+    - active Python runtime continues to present bounded turn/session simulation and routing summaries, not full orchestration parity.
+    - snapshot metadata still exposes planner/verifier/subagent hints (`planAgent`, `verificationAgent`, `forkSubagent`) as archive pressure.
+  - inference:
+    - retain claw-code as quarantine anti-overclaim pressure for Wave 06; do not promote snapshot hints into strong mechanism claims.
+  - confidence:
+    - high on limitation status
+  - open_limit:
+    - no claw-code-native trajectory reconciliation in this wave packet.
+- wave_03_context_state_memory_workspace_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/quarantine/claw-code/src/context.py`
+    - `research/sources/codebases/quarantine/claw-code/src/session_store.py`
+    - `research/sources/codebases/quarantine/claw-code/src/state/__init__.py`
+    - `research/sources/codebases/quarantine/claw-code/src/reference_data/subsystems/state.json`
+  - trajectory_pressure_scope:
+    - no claw-code-native required Wave 03 trajectory slice; this remains quarantine source pressure only.
+  - observations:
+    - session and context surfaces are scaffold-level (`.port_sessions` snapshots, metadata reporting) with archive-reference indicators for missing state subsystems.
+    - `state.json` confirms archived-subsystem handling, not full active runtime parity.
+    - current slice cannot support cross-family context/state/memory/workspace failure attribution at parity with deepagents, KIRA, or a-evolve.
+  - inference:
+    - keep claw-code in Wave 03 as quarantine pressure and anti-overclaim guardrail.
+    - do not promote claw-code claims into core taxonomy drivers until direct trajectory + deeper runtime reconciliation exists.
+  - confidence:
+    - high on limitation and quarantine-status claims
+    - low on any broader behavioral parity claim
+  - evidence_paths:
+    - `research/sources/codebases/quarantine/claw-code/src/context.py`
+    - `research/sources/codebases/quarantine/claw-code/src/session_store.py`
+    - `research/sources/codebases/quarantine/claw-code/src/state/__init__.py`
+    - `research/sources/codebases/quarantine/claw-code/src/reference_data/subsystems/state.json`
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - trajectory_pressure_scope:
+    - no claw-code-native required Wave 04 trajectory slice was read in this lane packet.
+  - observations:
+    - claw-code remains quarantine/pressure-only for Wave 04 failure attribution in this trajectory lane.
+  - inference:
+    - retain anti-overclaim boundary; no promotion from archive hints to run-level Wave 04 failure families.
+  - confidence: high on limitation statement
+- wave_04_codebase_source_reconstruction_update_2026_04_11:
+  - source_scope_delta:
+    - `research/sources/codebases/quarantine/claw-code/README.md`
+    - `research/sources/codebases/quarantine/claw-code/src/permissions.py`
+    - `research/sources/codebases/quarantine/claw-code/src/query_engine.py`
+    - `research/sources/codebases/quarantine/claw-code/src/runtime.py`
+    - `research/sources/codebases/quarantine/claw-code/src/session_store.py`
+    - `research/sources/codebases/quarantine/claw-code/src/context.py`
+  - trajectory_pressure_scope:
+    - no claw-code-native required Wave 04 trajectory slice was added in this lane packet.
+  - observations:
+    - README continues to state non-runtime-equivalent status for current tree.
+    - bounded runtime/query/session surfaces remain useful for local state and routing inspection, but they do not establish parity-grade execution/recovery behavior.
+    - permission filtering in this slice is simple name/prefix blocking and should be treated as limited surface evidence.
+  - inference:
+    - keep claw-code in Wave 04 as quarantine pressure and anti-overclaim comparator.
+    - do not promote claw-code snapshot surfaces into source-backed core failure-family drivers.
+  - confidence:
+    - high on limitation status and quarantine interpretation
+  - evidence_paths:
+    - `research/sources/codebases/quarantine/claw-code/README.md`
+    - `research/sources/codebases/quarantine/claw-code/src/permissions.py`
+    - `research/sources/codebases/quarantine/claw-code/src/query_engine.py`
+    - `research/sources/codebases/quarantine/claw-code/src/runtime.py`
+    - `research/sources/codebases/quarantine/claw-code/src/session_store.py`
+    - `research/sources/codebases/quarantine/claw-code/src/context.py`

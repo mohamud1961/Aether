@@ -1,0 +1,61 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: mechanism_map / wave_04_context_state_memory_workspace
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - Yes. The contradiction review is anchored in the core failure modes of fake memory families, unsupported long-term memory, and source/trajectory mismatches. The primary main lane outputs have been read and checked against the Wave 04 brief and the shared policy prompt.
+- preflight_planned_read_order:
+  - Read active packet brief and execution protocol.
+  - Read Wave 03 principal synthesis and cumulative synthesis for carry-forward constraints.
+  - Read trajectory, codebase, literature, and informal analyst outputs.
+  - Evaluate against contradiction failure modes.
+- preflight_critical_sources_selected:
+  - First-pass main analyst outputs for Wave 04.
+  - `cumulative_synthesis.md` and `current_status.md`.
+- preflight_coverage_risks:
+  - As an external Gemini gate review, I am evaluating the first-pass GPT lane outputs based on the provided corpus documentation.
+- preflight_likely_blind_spots:
+  - The evaluator lane was explicitly inactive. Long-tail trajectory paths and `adaptive-rejection-sampler` remain unread by the main lanes.
+- preflight_blockers:
+  - None. The lanes executed cleanly, documented their sources, and explicitly handled the required carry-forward constraints without inventing fake coverage.
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+- coverage_not_yet_used:
+  - Deferred support artifacts (e.g., `trajectory_support_memory_state_drift_cases.md`, `codebase_support_compaction_handoff_map.md`).
+- evidence_classes_touched:
+  - Analyst outputs summarizing trajectories, source code, formal literature, and informal issues.
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `headless-terminal` and `large-scale-text-editing` trajectories.
+- support_artifact_gaps:
+  - Required support artifacts (`trajectory_support_context_workspace_matrix.md`, `codebase_support_workspace_artifact_map.md`, `codebase_support_context_state_map.md`) were generated and used. Compaction handoff and claw-code runtime maps were correctly deferred.
+- coverage_register_consistency:
+  - The main lanes accurately identify that `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is empty. The `current_status.md` needs to be updated post-principal synthesis to reflect Wave 04 progress.
+- supported_findings:
+  - "Memory" is successfully decoupled into procedural/scripted state (DeepAgents), active working-memory compaction (KIRA), and explicitly persisted workspace artifacts (A-Evolve).
+  - Trajectory evidence for restart/resumability remains correctly classified as weak/exploratory despite formal and source substrate existence.
+  - BigAI workspace cleanup and handoff is a distinct family but correctly bounded as `behavioral reconstruction`.
+  - The distinction between agent conversational memory and runtime allocator state (`custom-memory-heap-crash`) was correctly identified.
+- unsupported_or_overclaimed_findings:
+  - None structurally promoted. The codebase lane successfully prevented A-Evolve's memory subsystem from being overclaimed because its reference terminal agent explicitly suppresses memory injection.
+  - BigAI's memory module (referenced in docs) is correctly restricted by the trajectory lane as unsupported by direct trajectory evidence.
+- missing_evidence_classes:
+  - None for this pass. The exclusion of the eval lane is well-justified.
+- reconciliation_failures:
+  - The mismatch between formal literature memory rhetoric and actual trajectory artifact continuity is explicitly highlighted and correctly preserved, rather than artificially smoothed over.
+  - The mismatch between the rich KiraClaw memory source and the thinner Terminus-KIRA trajectory use is preserved.
+- coverage_blind_spots:
+  - Long-tail issue and formal coverage remains. `src_pap_575afb401440` is identified as a broken capture.
+- required_repairs_before_acceptance:
+  - None required to unblock principal synthesis. The warnings and mismatches are explicit, honest, and manageable.
+- optional_pressure_tests:
+  - Follow-up on DeepAgents cross-thread memory trajectories to see if their source store is ever actually exercised in the corpus, or if it remains purely architectural capacity.
+- gate_review_recommendations:
+  - The principal synthesizer should promote artifact continuity, context compaction, and workspace hygiene as the primary mechanisms for this wave.
+  - Maintain the carry-forward limits on BigAI (must remain `behavioral reconstruction`) and resumability (remains `exploratory`).
+  - Keep organizer-based routing explicitly subordinated to direct path accounting until the organizer control surface is repaired.
+  - Proceed to Principal Synthesis.
+- confidence: high

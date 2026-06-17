@@ -1,0 +1,52 @@
+LITERATURE_SUPPORT_FAILURE_PRESSURE_CLUSTER
+- wave: wave_01_execution_control_and_terminal_failures
+- role: literature/papers/docs analyst
+- scope:
+  - cluster formal sources into failure-attribution pressure types for Wave 01
+  - keep this as support routing, not promoted synthesis on its own
+- clusters:
+  - cluster: execution_control_and_retry_loops
+    - sources:
+      - `research/sources/papers/papers_text/2603.05344.txt`
+      - `research/sources/papers/papers_text/2603.01548.txt`
+      - `research/sources/papers/papers_text/2603.11495.txt`
+      - `research/sources/papers/papers_text/2603.01620.txt`
+      - `research/sources/papers/papers_text/2603.03329.txt`
+    - observation:
+      - these papers converge on explicit check/retry/reroute/harness patterns as the primary response to tool and execution failures
+    - wave_01_pressure:
+      - failure attribution should not default to "model hallucination" when formal designs allocate failure handling to control-loop substrate
+  - cluster: permission_boundary_and_authorization_split
+    - sources:
+      - `research/sources/docs/src_doc_5438a826fc4c/artifact.txt`
+      - `research/sources/docs/src_doc_59532b247d8a/artifact.txt`
+      - `research/sources/docs/src_doc_7b0e64d48534/artifact.txt`
+      - `research/sources/docs/src_doc_c8a9703cc1eb/artifact.txt`
+      - `research/sources/docs/src_doc_fc2c002988f2/artifact.txt`
+      - `research/sources/papers/papers_text/src_pap_07a953e6fbbf.txt`
+      - `research/sources/papers/papers_text/2603.00495.txt`
+    - observation:
+      - formal docs and papers separate capability containment from approval/authorization policy
+    - wave_01_pressure:
+      - terminal/tool failures involving forbidden actions should be modeled as policy-runtime mismatch candidates, not collapsed into one "sandbox failure" bucket
+  - cluster: benchmark_contract_and_verifier_blindness
+    - sources:
+      - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+      - `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`
+      - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+      - `research/sources/papers/papers_text/2602.07274.txt`
+    - observation:
+      - benchmark contracts are explicit about what is measured (often end-state and efficiency) and what is not measured (full root-cause decomposition)
+    - wave_01_pressure:
+      - verifier omission and benchmark-blindness should be explicit failure-taxonomy axes whenever run-level behavior and benchmark pass criteria diverge
+  - cluster: multimodal_and_perception_false_success_pressure
+    - sources:
+      - `research/sources/papers/papers_text/2603.00324.txt`
+      - `research/sources/papers/papers_text/2603.03329.txt`
+      - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - observation:
+      - formal work repeatedly targets invalid-action suppression and evidence certification to reduce false-success in perception-heavy regimes
+    - wave_01_pressure:
+      - extraction/tool tasks need explicit uncertainty and validity checks; artifact presence alone is weak evidence of completion
+- deferred_support_work:
+  - add per-paper quality triage with confidence weighting if this support artifact is reused in later waves

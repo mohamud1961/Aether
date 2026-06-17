@@ -1,0 +1,46 @@
+variant_id: v04_tb_01_tool_call_contract_classifier
+block_family: ToolBlock
+block_interface: ToolBlock.get_tools() -> list[tool_definitions]
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w05.tool_gateway_family_separation
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: mm.w05.permission_policy_vs_capability_boundary
+      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - claim_ref: ft.w04.tool_gateway_substrate_mismatch
+      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+    - claim_ref: vfs.w02.vf_pc_05_tool_surface_pruned_standalone
+      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+observed_trace_or_eval_evidence:
+  - packet_03 eval card for ae_tool_call_shape_argument_contract requires strict malformed-call vs runtime-error separation
+  - packet_03 closeout marks this tool-call surface accepted and usable now
+mechanism_claim: introduce deterministic call-shape classifier to preserve strict argument contract validation and reduce malformed invocation leakage.
+target_failure: tool_invocation_error
+anti_benchmarkifying_risk: classifier may overfit to known malformed templates and miss semantically malformed but novel payloads.
+expected_improvement: fewer false-accept malformed calls; cleaner malformed-vs-runtime attribution in traces.
+expected_failure_mode: strict validation may reject backward-compatible or optional-field variants that are semantically valid.
+complexity_cost: low_to_medium (schema validator + reason-code harmonization).
+token_cost_expectation: negligible for required deterministic gate; possible small prompt reduction from normalized call records.
+changed_files:
+  - blocks/tools/contract_classifier.py
+required_atomic_eval: ae_tool_call_contract_quality_v2
+required_atomic_eval_status: packet05a_repaired_surface
+anticipated_interaction_eval: tool_call_shape_x_permission_attribution_probe
+anticipated_interaction_eval_status: blocked_until_packet_05
+anticipated_transfer_eval: pressure_transfer_tool_contract_set_v1
+anticipated_transfer_eval_status: anticipated
+promotion_threshold: deterministic contract uplift over baseline plus sibling near-valid camouflage probe pass with stable reason-code mapping.
+retirement_condition: retire if uplift depends on fixture-template memorization or if valid-call rejection rises above agreed threshold in transfer checks.
+bounded_claims:
+  - bounded ablation/support variant only
+  - not a standalone tool-family promotion claim due Stage 02 pruning status
+telemetry_required:
+  - raw_tool_call_payload
+  - normalized_tool_call_payload
+  - call_shape_classification
+  - malformed_vs_runtime_reason_codes
+model_policy:
+  screening_default: screening_model
+  promotion_tier: promotion-model
+  deterministic_eval_override: no_model
+  note: use strong tier only for survivor confirmation.

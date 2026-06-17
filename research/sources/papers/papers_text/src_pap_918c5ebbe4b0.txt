@@ -1,0 +1,3352 @@
+--- PAGE 1 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal
+Attention for Traffic Network Forecasting
+Christopher Cheonga, Gary Davisa and Seongjin Choia,∗
+aDepartment of Civil, Environmental, and Geo- Engineering, University of Minnesota, Twin Cities, 500 Pillsbury Drive S.E., Minneapolis, MN
+55455-0116, United States of America
+ARTICLE INFO
+Keywords:
+Traffic Forecasting
+Spatiotemporal forecasting
+Kronecker product approximation
+Deep Learning
+Time Expanded Network
+ABSTRACT
+Spatiotemporal forecasting on transportation networks is a complex task that requires under-
+standing how traffic nodes interact within a dynamic, evolving system dictated by traffic flow
+dynamicsandsocialbehavioralpatterns.Theimportanceoftransportationnetworksandintelligent
+transportation systems (ITS) for modern mobility and commerce necessitates forecasting models
+that are not only accurate, but also interpretable, efficient, and robust under structural or temporal
+perturbations. Recent approaches, particularly Transformer-based architectures, have improved
+predictive performance but often at the cost of high computational overhead and diminished
+architectural interpretability.
+In this work, we introduce Weaver, a novel attention-based model that appliesKronecker
+product approximations (KPA)to decompose the𝑃 𝑁×𝑃 𝑁 spatiotemporal attention of
+(𝑃 2𝑁 2) complexity into local 𝑃×𝑃 temporal and 𝑁×𝑁 spatial attention maps. This
+Kronecker attention mapenables ourParallel-Kronecker Matrix-Vector product (P2-KMV)
+for efficient spatiotemporal message passing with(𝑃2𝑁+𝑁 2𝑃)complexity. To capture real-
+world traffic dynamics, we address the importance of negative edges in modeling traffic behavior
+(e.g., shockwaves, spillback) by introducingValence Attentionusing thecontinuous Tanimoto
+coefficient (CTC), which provides properties conducive to precise latent graph generation and
+training stability. To fully utilize the model’s learning capacity, we introduce theTraffic Phase
+Dictionaryfor self-conditioning. This enables learning of universal traffic node representations
+on a compact, convex latent space, which augment the inputs through dynamic retrievals.
+Weaver integrates principles from Graph Transformers, Interaction Networks, and Memory-
+Augmented Neural Networks into a modular architecture that separates spatial interactions,
+temporal evolution, and state representation, mirroring classical dynamical systems. It learns
+traffic dynamics without relying on exogenous metadata (e.g., timestamps) yet remains flexible to
+incorporate them when available. Evaluations on PEMS-BAY and METR-LA show that Weaver
+achieves competitive performance across model categories while training more efficiently.
+1. INTRODUCTION
+Urban transportation systems are central to daily mobility and economic activity, supporting diverse personal,
+commercial, and emergency travel. Effective planning and operation are essential for reducing congestion and delays,
+improving safety, minimizing environmental impact, and ensuring network reliability. Traffic speed is particularly
+pivotal, influencing travel time, fuel consumption, emissions, and Level-of-Service (LOS). Travel behavior reflects
+complex interplay between global factors such as time-of-day, weather, and seasonal cycles, and local conditions tied to
+infrastructure design, land use, and service disruptions (Pulugurtha and Koilada, 2021; Kumar and Levinson, 1995;
+Zhang et al., 2017).
+Recognizing the importance of short-term traffic forecasting, early systems like UTCS-2 incorporated predictive
+components for signal control (Larry, 1995). Recent deployments demonstrate operational viability in active traffic
+management. A model predictive controller in Chattanooga, Tennessee achieved over 30% delay reduction and 5%
+energy savings using real-time probe and sensor data (Wang et al., 2022). Forecasting models now support real-time
+incident detection by filtering participatory sensing alerts through predicted speed patterns (Hossain et al., 2025) and
+proactive queue management in ramp metering (Taylor and Meldrum, 2000). These applications reflect a broader shift
+toward embedding predictive analytics within traffic management systems (TMS) for dynamic decision-making (Shah
+et al., 2024).
+∗Corresponding author
+cheon028@umn.edu(C. Cheong);drtrips@umn.edu(G. Davis);chois@umn.edu(S. Choi)
+ORCID(s):0000-0001-7140-537X(S. Choi)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 1 of 48arXiv:2511.08888v2  [cs.LG]  27 Nov 2025
+
+--- PAGE 2 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Despite growing operational adoption, challenges remain in designing systems that generalize across spatial regions
+and adapt to traffic flow stochasticity. Deep learning architectures such as CNNs, RNNs, LSTMs, and hybrid models
+have shown strong performance in capturing spatiotemporal dependencies, yet often require large data volumes, careful
+tuning, and exhibit sensitivity to missing or noisy inputs (Kashyap et al., 2022). Recent approaches incorporating
+Graph Neural Networks (GNN) and Transformer-based architectures offer greater modeling flexibility and long-range
+dependency capture, but raise concerns around computational cost, interpretability, and real-world scalability (Carianni
+and Gemma, 2025). These challenges motivate research into architectures balancing predictive accuracy, robustness,
+and operational usability for intelligent transportation systems.
+In this work, we proposeWeaver(Section 4), a novel application of Kronecker product approximations to the
+Transformerarchitecturethatenablessystem-levelforecastingontrafficnetworks.Specifically,weconstructaKronecker
+productapproximation(KPA)ofthefull 𝑃 𝑁×𝑃 𝑁 spatiotemporalattentionmap Θ (for 𝑃 temporaland 𝑁 spatial
+nodes)onaquasi-staticTime-expandedNetwork(TEN)(FordJrandFulkerson,1958).TheresultingKroneckerattention
+mapyields a novelKronecker-TEN graph(10, see Figure 3C) representation that enables ourParallel-Kronecker
+Matrix-Vector product (P2-KMV)for global message passing. The P2-KMV operation weaves together the latent
+spatiotemporal embedding (  ) with spatial (Θ) and temporal (Θ) local attention maps, reducing the complexity
+of constructingΘ from (𝑃 2𝑁 2) to (𝑃 2𝑁+𝑁 2𝑃). We further derive an efficient formulation of P2-KMV that
+leverages parallel computation patterns characteristic of modern GPU architectures, suggesting favorable scaling
+properties as hardware capabilities advance.
+We further demonstrate that applying typical head-mixing weights for multihead consolidation in Transformers
+resultsinaweightedimplicitKroneckerproductsummation(W-iKPS),whichrelaxestheKroneckerproductseparability
+requirementofKPA.Altogether,thisenablesWeavertooperateconcurrentlyovertheentirequasi-statichistorywindow
+(see Figure 1), learning the traffic network’sbulk dynamicsto predict the contiguous system-state in the succeeding
+forecast horizonthrough thestate-transition module.
+SinceWeaversystematicallymodelshigher-orderrelationships,localnoderelationshipsshouldbecapturedfaithfully
+withoutsuperimposeddependencies.WeintroduceValenceAttentionthroughTanimotoValenceAttention(T-Valence)
+in Section 3.2, addressing the misalignment between softmax-based attention and traffic node relationships. To fully
+utilize Kronecker attention capacity, we implement aTraffic Phase Dictionarythat enables Weaver to self-condition
+by learning sparse latent parameter sets representing traffic phases. This shifts Weaver to a state-based regime, learning
+underlying network dynamics without exogenous cues from dynamic metadata such as timestamps.
+Stated generally,Weaverhasthreemajor components (see Table 1 for corresponding modules):
+= → () ∶ℝ 𝑃×𝑁×𝐶 →ℝ 𝑃×𝑁×𝐸 ,(1)
+= →() +∶ℝ 𝑃×𝑁×𝐸 →ℝ 𝑃×𝑁×𝐸 ,(2)
+̂= → () ∶ℝ 𝑃×𝑁×𝐸 →ℝ 𝑄×𝑁×𝐶 ,(3)
+where(i) → (⋅) ,thepoint-of-entry,maps  ontothefeasibleregionofthemodelonitslatentspace 𝐸;(ii) →(⋅)
+encodes relational information among nodes through graphical message passing, with attention modules as latent graph
+generators that are state-dependent representations of the traffic network; and (iii)→ is the state-transition function
+that predicts the system trajectory by applying the learned bulk dynamics over the traffic network. Here,𝑃 is the history
+window and𝑄the forecast horizon. Important notations used in this paper is summarized in Appendix A.
+Table 1
+Summary of core functions inWeaverand their corresponding components, including the sections containing module
+blueprints (for specifics, refer to Section 3).
+Function Weaver Component Section
+→ Input module and Traffic Phase Dictionary (feasible region & data augmentation)Sec. 5.1
+→ Kronecker Attention and T-Valence (state-dependent signed latent graphs) Sec. 5.2
+→ State-transition module (bulk dynamics and prediction) Sec. 5.3
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 2 of 48
+
+--- PAGE 3 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+1 2
+5
+6
+3
+4
+Historic System State
+Quasi-static
+Forecast System State
+Quasi-static
+History block Forecast block
+Traffic network
+bulk
+dynamics
+Node-state (grouped by time ID)
+4 4 Node & Node ID (history/forecast)
+Spatiotemporal edge
+A
+A B
+B
+Figure 1:Illustration ofWeaverperforming spatiotemporal forecast as a bulk prediction problem in a quasi-static
+Time-expanded Network (TEN) setting. Weaver analyzes traffic patterns within the input system-state∈ℝ 𝑃×𝑁×𝐶
+defined over the history block(𝑡−𝑃+ 1, 𝑡−𝑃+ 2,…, 𝑡− 1, 𝑡) using itsKronecker Attention modulesupported by the
+Traffic Phase DictionaryandState Transition module(see Figure 11). These components learn and apply the traffic
+network’sbulk dynamicson the𝑃 𝑁×𝑃 𝑁 spatiotemporal attention map to predict the block-level system trajectory,
+resulting in forecasted system-statêover the forecast block(𝑡+ 1, 𝑡+ 2,…, 𝑡+𝑄− 1, 𝑡+𝑄).
+2. LITERATURE REVIEW
+2.1. Short-Term Traffic Forecasting: Exploring the ‘What, Why and How?’
+Short-term traffic forecasting aims to predict future traffic states including flow, speed, and occupancy using recent
+historical observations from roadway sensor networks. Given a multivariate time series{𝐱𝑡}𝑇
+𝑡=1 from 𝑁 sensors, where
+each 𝐱𝑡 ∈ℝ 𝑁 contains simultaneous observations at time𝑡, the forecasting task uses a historical window of length𝑃,
+{𝑥𝑡−𝑃+1 ,…, 𝑥 𝑡} to estimate future values{𝐱𝑡+1,…,𝐱 𝑡+𝑄} over prediction horizon𝑄. For Intelligent Transportation
+System (ITS) applications, the lead time𝑄 is typically 60 minutes (Wu et al., 2019; Choi et al., 2025; Guo et al., 2019;
+Xu et al., 2021), as predictive reliability of short-history models degrades notably beyond this horizon (Wang and Sun,
+2023). Advances in mathematical modeling, data availability, and computational technology have collectively driven
+corresponding advancements in traffic forecasting techniques, some of which are detailed below.
+2.1.1. Classical foundations: Statistical methods and regression
+Early approaches often employ statistical and machine learning methods to capture localized temporal patterns in
+trafficflow.Kalmanfilteringenableddynamicreal-timetrafficvolumeprediction(OkutaniandStephanedes,1984),while
+nonparametric regression using k-nearest neighbors demonstrated competitive performance against simple time-series
+predictors (Davis and Nihan, 1991). Seasonal ARIMA models incorporated periodic trends and seasonality (Akhtar
+etal.,2021;KumarandVanajakshi,2015),andmovingaverage(MA)variantshaveprovidedlightweightyetcompetitive
+baselines for short-term traffic flow prediction (Chowdhury et al., 2009; Lv et al., 2015). Linear regression leveraging
+local time-of-day windows provided interpretable short-term baselines (Sun et al., 2003), while Markov chains modeled
+transitions between discrete traffic states (Yu et al., 2003) with applications to real-time forecasting (Davis et al., 1995).
+Despite their interpretability, these classical models were constrained by linearity and short-memory assumptions,
+limiting their ability to capture nonlinear and network-dependent traffic dynamics.
+2.1.2. The era of deep learning: ‘And then... There was big data and computational power’
+Deep learning adoption accelerated with increased computational resources and data availability. Long short-term
+memory (LSTM) networks effectively modeled long-range temporal correlations, outperforming statistical baselines
+(Zhao et al., 2017). Hybrid architectures emerged, including CLTFP (Wu and Tan, 2016), which combined one-
+dimensional convolutions for spatial features with LSTMs for temporal modeling. Graph-based spatiotemporal models
+marked a significant advance, beginning with diffusion convolutional recurrent neural networks (DCRNN) (Li et al.,
+2018a),whichmodeledtrafficasdiffusionoverdirectedgraphsintegratedwithgatedrecurrentunits.Thetemporalgraph
+convolutional network (T-GCN) (Zhao et al., 2020) coupled graph convolution with GRUs for joint spatial-temporal
+modeling. STGCN (Yu et al., 2017) replaced recurrent layers with temporal gated CNNs for improved efficiency,
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 3 of 48
+
+--- PAGE 4 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+while Graph WaveNet (Wu et al., 2019) introduced adaptive adjacency learning and dilated causal convolutions to
+capturedynamicspatialstructureswithoutrecurrence.Thesedevelopmentsshiftedfrompurelytemporalmodelstoward
+architectures capable of modeling complex spatiotemporal dynamics in large-scale networks.
+2.1.3. Transformers and multihead attention: ‘Everything, everywhere, all at once’
+More recently, Transformer architectures have been widely adopted for traffic forecasting, driven by their capacity
+to model long-range temporal dependencies and global spatial correlations throughmultihead dot-product attention—a
+mechanism which exploits tensor operations and GPU parallelization to process multiple data projections concurrently.
+Transformer-based ST models, in contrast to traditional RNN or CNN approaches, handle sequences concurrently and
+assign dynamic weights to inputs across temporal and spatial dimensions, often in both directions, proving particularly
+advantageous in complex road networks.
+RepresentativeexamplesincludetheSpatio-TemporalTransformerNetwork(STTN)(Xuetal.,2021),whichapplies
+separatespatialandtemporalattentionmodules;theSpatial-TemporalGraphSandwichTransformer(STGST)(Fanetal.,
+2023), which sandwiches spatial attention between temporal modules; GMAN (Zheng et al., 2020), an encoder–decoder
+architecture with spatio-temporal attention blocks; and STTLM, which integrates a pre-trained language model to boost
+feature extraction (Ma et al., 2024). Collectively, such works underscore the growing prominence of Transformer-based
+approaches in short-term traffic forecasting and spatiotemporal tasks, offering flexible and powerful alternatives to
+earlier architectures.
+2.2. Graph Representations in Deep Learning for Spatiotemporal Traffic Modeling
+Traffic networks exhibit complex spatiotemporal inter-dependencies—such as shared travel patterns, congestion
+propagation, and recurrent flow cycles—that cannot be captured by physical connectivity alone. Unlike conventional
+time-series forecasting, spatiotemporal modeling must consider interactions among spatially distinct nodes (e.g., traffic
+detectors or road segments) whose relationships are dictated by traffic dynamics rather than physical proximity.
+For example, a highway overpass without connecting ramps may be completely independent from the highway
+below, despite their geographical overlap. Similarly, empirical studies show that traffic shockwaves propagate upstream
+across multiple roadway segments, affecting locations far from the original disturbance (Elfar et al., 2018; Yang et al.,
+2024). Such cases reveal the inherently non-Euclidean structure of traffic networks and motivate the use of graph-based
+models that can represent and propagate information across latent relational structures.
+2.2.1. Graph representations of traffic networks
+Traffic networks can be represented as directed graphs= (Ω,) , whereΩ = {𝜔 1,…, 𝜔 𝑁 } is the set of nodes
+(e.g., sensors), and⊆Ω × Ω is the set of edges indicating pairwise connectivity or influence (e.g., road links or
+empiricalcorrelations).Eachnode 𝜔𝑟 holdsafeaturevector 𝐱𝑟 ∈ℝ 𝐶 (e.g.,speed,flow),anditsneighborhoodisdefined
+as (𝜔 𝑟) = {𝜔 𝑠 ∣ (𝜔 𝑟, 𝜔𝑠) ∈} ,representingsendernodesthatcanprovideinformationtothereceivernode 𝜔𝑟 during
+message passing (MP).
+Tomodelhowinformationpropagatesoverthisstructure,weadopttheMessagePassingNeuralNetwork(MPNN)
+framework (Gilmer et al., 2017), which subsumes most convolutional graph neural networks and Transformer-based
+architectures. Classical approaches perform graph convolution over a predefined topology (Section 2.2.2), whereas
+attention-basedmodelsinferedgesdynamicallythroughdot-productoperators(Section2.2.3).Theobjectiveistoobtain
+expressive node representations admissible to traffic forecasting tasks.
+Latent graph learning.Within geometric deep learning,latent graph learningrefers to discovering hidden relational
+structure directly from data rather than relying solely on a predefined physical topology. This is particularly relevant
+in traffic networks, where observed correlations often arise from phenomena not encoded in road geometry, such as
+shockwave propagation and spillback effects.
+Early spatiotemporal models (e.g., Graph WaveNet (Wu et al., 2019), STTN (Xu et al., 2021)) introduced adaptive
+adjacency matrices learned from node embeddings, effectively adding new edges beyond the physical network. More
+recent architectures treat attention itself as the graph generator—e.g., Graphormer (Ying et al., 2021), Structure-Aware
+Transformer (Chen et al., 2022a), and GraphiT (Mialon et al., 2021)—interpreting attention weights as dynamic
+edge affinities. This enables relational reasoning to emerge end-to-end during training, modeling data-driven node
+relationships without explicit graph design.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 4 of 48
+
+--- PAGE 5 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+2.2.2. Message passing (MP) neural networks
+Graph convolution (GC)(Kipf and Welling, 2017; Zhang et al., 2019) is a canonical message passing method that
+extends the idea of convolution to graphs. It operates over thegraph adjacency matrix (GAM):𝐀∈ℝ 𝑁𝑟×𝑁𝑠, which
+encodespairwiseconnectivityamongnodes( 𝐴𝑖𝑗 = 0 indicatesnoedge).EarlyspectralGC(SpecGC)(KipfandWelling,
+2017) models were derived from spectral filtering on the graph Laplacian, requiring symmetrical GAMs and prior
+graph knowledge. Subsequently, spatial GC (SpatGC) models became dominant due to their simplicity, locality-based
+message passing, and strong generalization to unseen graph structures without enforcing GAM symmetry.
+A simplified GC layer can be expressed as
+𝐕[𝓁+1] = 𝐀 𝐕[𝓁]
+⏟ ⏟ ⏟
+Aggregation
+𝐖[𝓁]
+⏟ ⏟ ⏟
+Update
+,(4)
+where 𝐕[𝓁] ∈ℝ 𝑁×𝐸 arenoderepresentationsatlayer 𝓁= 1,…, 𝐿 ,and 𝐀= GNorm(𝐀+𝐈) isthenormalizedadjacency
+with self-loops𝐈∈ℝ 𝑁×𝑁 to retain self-information. Nodes firstaggregatemessages from neighbors, thenupdatetheir
+states using𝐖[𝓁] ∈ℝ 𝐸×𝐸 (or an MLP,(⋅), in modern variants).
+A key limitation of classical GC is that𝐀 isfixedand does not change with system state. Even when time-indexed
+(e.g., graph snapshots𝐀[𝑡], see Figure 3A), the adjacency remains predefined and cannot adapt to dynamic traffic
+conditions. To overcome this rigidity, we employ attention-based graph generation, allowing node relationships to be
+inferred in latent space rather than imposed a priori.
+2.2.3. Attention as dynamic graph MPNN
+Thescaled dot-product attention (SDPA)mechanism, originally introduced in the Transformer architecture for
+sequential modeling (Vaswani et al., 2017) in NLP, has since been recognized as a SpatGC operation that performs
+message passing over dynamically constructed graphs. This development eventually led toGraph Transformers(Joshi,
+2025; Rampášek et al., 2022; Chen et al., 2022a), where attention defines edges dynamically, while structural encodings
+inject persistent graph priors.
+Graph Transformers.For a graph with 𝑁Ω𝑟 receiver nodes (Ω𝑟 = {𝜔 𝑟1,…, 𝜔 𝑟𝑁Ω𝑟
+}) and 𝑁Ω𝑠 sender nodes
+(Ω𝑠 = {𝜔 𝑠1,…, 𝜔 𝑠𝑁Ω𝑠
+}), message passing in Graph Transformers follows equations(5)–(8). When Ω𝑟 = Ω 𝑠,
+equation (5) performsself-attention; when Ω𝑟 ≠Ω 𝑠, it performscross-attention. Equation(5) carries outmessage
+aggregationusingmultihead SDPAto compute 𝐻 latent graph variants in parallel on GPUs, equations(6)–(7)
+consolidate the heads, and equation(8)updates receiver node representations using an MLP with LayerNorm (Ba et al.,
+2016):
+ [𝓁] = Sof tmax
+(
+[𝓁]([𝓁])⊤
+√
+𝑑𝐾
+)
+ [𝓁] = Θ [𝓁] [𝓁] ,
+}
+Aggregation(5)
+𝐔[𝓁] = [[[ [ [𝓁]
+[𝐻×𝑁 Ω𝑟 ×𝑑head →𝑁 Ω𝑟 ×𝐻𝐷head]
+] ]]],
+}
+Head-consolidation and self-loop (6)
+𝐙[𝓁] =𝐔 [𝓁]𝐖[𝓁]
+𝑂 +𝐇 [𝓁]
+Ω𝑟
+,(7)
+𝐇[𝓁+1]
+Ω𝑟
+=𝜎(LayerNorm(𝐙 [𝓁])𝐖[𝓁]
+up +𝐛 [𝓁]
+up )𝐖[𝓁]
+dn +𝐛 [𝓁]
+dn +𝐙 [𝓁] .
+}
+Update(8)
+Hereafter,wedrop [𝓁] forlegibility.Thetensors ,∈ℝ 𝐻×𝑁 Ω𝑟 ×𝑑head and ∈ℝ 𝐻×𝑁 Ω𝑠 ×𝑑head arethemultiheadQuery,
+Value, and Key tensors, where𝑑𝐾 =𝑑 head and 𝐸=𝐻𝑑 head. The head-mixing weight is𝐖𝑂 ∈ℝ 𝐸×𝐸, while the MLP
+weights and biases are𝐖up ∈ℝ 𝐸×𝑀up𝐸,𝐛up ∈ℝ 𝑀up𝐸,𝐖dn ∈ℝ 𝑀up𝐸×𝐸 ,𝐛dn ∈ℝ 𝐸, where𝑀up ∈ {2,3,4} . The
+terms 𝐇Ω𝑟 and 𝐙 in equations(7)and (8) correspond to residual connections (He et al., 2016), analogous to self-loops
+in GC.
+SDPA appliesSof tmax(⋅)as the row-normalization scheme forGNorm(⋅):
+Θℎ𝑖𝑗 = Sof tmax(Θ)ℎ𝑖𝑗 =
+exp(Θℎ𝑖𝑗)
+∑𝑁Ω𝑠
+𝑗′=1 exp(Θℎ𝑖𝑗′ )
+,(9)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 5 of 48
+
+--- PAGE 6 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+where Θℎ𝑖𝑗 denotes the raw attention logits indexed byℎ, 𝑖, 𝑗corresponding to dimensions:𝐻, 𝑁Ω𝑟, 𝑁Ω𝑠.
+The computations formultihead Query, Key and Valuesare as follows:
+𝐐= ̊𝑄(𝐇Ω𝑟𝐖𝑄, ̊𝑩Ω𝑟),𝐊= ̊𝐾 (𝐇Ω𝑠 𝐖𝐾 , ̊𝑩Ω𝑠),𝐕= ̊𝑉 (𝐇Ω𝑟𝐖𝑉 , ̊𝑩Ω𝑟),(10)
+followed by multihead stratification:
+= [[[ [𝐐[𝑁Ω𝑟 ×𝐻𝐷head →𝐻×𝑁 Ω𝑟 ×𝑑head]
+] ]]],
+= [[[ [𝐊[𝑁Ω𝑠 ×𝐻𝐷head →𝐻×𝑁 Ω𝑠 ×𝑑head]
+] ]]],
+⎫
+⎪
+⎬
+⎪⎭
+Multihead stratification(11)
+= [[[ [𝐕[𝑁Ω𝑟 ×𝐻𝐷head →𝐻×𝑁 Ω𝑟 ×𝑑head]
+] ]]].
+where 𝐐,𝐕∈ℝ 𝑁Ω𝑟 ×𝐸, 𝐊∈ℝ 𝑁Ω𝑠 ×𝐸, and𝐖𝑄,𝐖 𝐾 ,𝐖 𝑉 ∈ℝ 𝐸×𝐸. Here,structural encodings ̊𝐁Ω𝑟 ∈ℝ 𝑁Ω𝑟 ×𝑀𝐵 and
+̊𝐁Ω𝑠 ∈ℝ 𝑁Ω𝑠 ×𝑀𝐵 arelearnedorhandcraftedgraphicalpriors,whereasthestructuralencoderfunction ̊𝑄∕𝐾∕𝑉 (⋅)(e.g.,
+anMLPorlinearfunction)convertstheinputstoinductivebiasesforedgeformations,enablingattentionmechanismsto
+constructGAMsdynamically. ̊𝑄∕𝐾∕𝑉 (⋅)canbeastraightforwardsummation(with 𝑀𝐵 =𝐸 )orincludeconcatenations,
+e.g., ̊∶ℝ 𝑁×(𝐸+𝑀 𝐵) →ℝ 𝑁×𝐸. Typically,̊𝐁Ω𝑟, ̊𝐁Ω𝑠 and ̊𝑄∕𝐾∕𝑉 (⋅) are applied once at𝓁= 1 . Positional encodings
+are special cases of structural encodings that encode linear positions during sequence processing (Vaswani et al., 2017;
+Dufter et al., 2022), and are often pre-computed.
+2.3. Kronecker Product Approximations (KPA): Computational Complexity Reduction
+Kronecker product approximation (KPA).The Kronecker product (Van Loan, 2000) has been widely applied
+to reduce computational complexity in machine learning. For𝐀∈ℝ 𝐼𝐴1 ×𝐼𝐴2 and 𝐁∈ℝ 𝐼𝐵1 ×𝐼𝐵2, the KPA of
+𝐂∈ℝ 𝐼𝐴1 𝐼𝐵1 ×𝐼𝐴2 𝐼𝐵2 is:
+𝐂≈𝐀⊗𝐁=
+⎡
+⎢
+⎢
+⎢
+⎢⎣
+𝑎11𝐁𝑎 12𝐁⋯𝑎 1𝐼𝐴2
+𝐁
+𝑎21𝐁𝑎 22𝐁⋯𝑎 2𝐼𝐴2
+𝐁
+⋮ ⋮ ⋱ ⋮
+𝑎𝐼𝐴1 1𝐁𝑎 𝐼𝐴1 2𝐁⋯𝑎 𝐼𝐴1 𝐼𝐴2
+𝐁
+⎤
+⎥
+⎥
+⎥
+⎥⎦
+.(12)
+This factorization enables substantial computational savings across diverse applications. In image processing,
+Moravitz Martin and Plemmons (1998) demonstrated that KPA reduces the cost of SVD-based restoration while
+preserving quality, Zhang et al. (2003) extended this framework with multiple Kronecker products for compact
+hierarchical encodings, and Duarte and Baraniuk (2011) exploited separable operators for efficient multidimensional
+recovery through Kronecker compressive sensing. In deep learning, Jose et al. (2018) showed that Kronecker Recurrent
+Units reduce parameter count by three orders of magnitude while retaining long-horizon stability, and Benzing et al.
+(2019) developed optimal Kronecker-sum approximations to Real-Time Recurrent Learning with unbiased gradient
+estimates. For spatiotemporal traffic modeling, Choi et al. (2025) demonstrated that Kronecker decomposition of
+covariance matrices reduces complexity while capturing separable space-time correlations in probabilistic forecasting.
+Kronecker product summation (KPS).The KPS approximation:𝐂𝑅 ≈ ∑𝑅
+𝑟=1 𝐀𝑟 ⊗𝐁 𝑟 generalizes KPA by relaxing
+the strict separability requirement in target matrices. Empirical evidence consistently shows thatleading KPS ranks
+capture most structured variance relevant to model inference.
+Greenewald et al. (2013) show that rank-1 Kronecker sum approximations capture 75–90% of spatiotemporal
+covariance energy in motion-capture data, indicating most structure lies in the first term. Genton (2007) find that
+separable Kronecker models yield near-lossless space–time representations, with covariance errors below 2% and
+predictionerrorsunder1%intheIrishwindstudy.LuttinenandIlin(2012)demonstratethatlow-ranksumsofseparable
+Kronecker products enable Gaussian-process inference on million-point datasets with linear scaling and competitive
+accuracy. Tsiligkaridis and Hero (2013) show that Kronecker PCA produces statistically efficient covariance estimates
+and better prediction, while Greenewald and Hero (2015) extend it with sparse corrections that preserve structure under
+heavy-tailed noise and outperform standard estimators.
+Altogether, these applications and observations motivate our use of KPA and KPS for modeling tractable spatiotem-
+poral attention maps, enabling compact representations of large-scale traffic dynamics that retain expressiveness.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 6 of 48
+
+--- PAGE 7 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+
+Basic
+P-KMV
+
+Kronecker matrix-vector 
+product (KMV)
+Spatiotemporal message passing
+(STMP)
+Tensor operations &
+GPU parallelization
+Vector-wise
+STMP (naïve)
+Graph
+Spatiotemporal
+attention map
+(STAM)
+Dynamic
+Attention
+Spatiotemporal
+graph
+MPNN
+Weaver
+Efficient
+P-KMVP -KMV
+Signed
+networks
+Tanimoto
+coefficient
+GPU-Parallelized
+STMP
+Generalized
+G-DPK,
+Adjacency
+Kronecker product
+approximation (KPA)
+Sparse manifold
+transform
+Traffic phase
+dictionary
+Geometric deep
+learning (GDL)
+Legend:
+Kronecker product
+G-DPKGraph generating dot-product kernel
+Graph
+Graph adjacency matrix (GAM)
+Attention map
+Message passing neural networkMPNN
+P-KMVParallel Kronecker Matrix Vector product
+Begin
+End
+Valence
+attention
+W-iKPS
+Multihead
+W-iKPS Weighted Implicit Kronecker Product Summation
+Figure 2:Flowchart of concept development inWeaver. For STMP, the P2-KMV is discussed in Section 3.1 and PΔ-KMV
+in Appendix F; Signed networks, valence attention and Tanimoto coefficient in Section 3.2; for model self-conditioning,
+the sparse manifold transform and traffic phase dictionary in Section 3.3; for KPS, see W-iKPS in Section 4.1.2 and
+Appendix E.1.
+3. PROBLEM STATEMENTS and PROPOSALS
+General problem statement.Given a traffic network with𝑁 spatially distinct nodes representing traffic detectors
+over𝑃observed time steps, the goal is to predict𝑄time steps ahead for all nodes:
+̂= ̂(), (13)
+where ∈ℝ 𝑃×𝑁×𝐶 represents the observed traffic states with feature dimension𝐶 (typically 𝐶= 1 ), ̂∈ℝ 𝑄×𝑁×𝐶
+denotes the predictions, and̂(⋅) is the predictive model to be specified and learned. We propose modelinĝ(⋅) as an
+MPNN which directly appliesspatiotemporal message passing (STMP)over a fully-connected spatiotemporal graph,
+ (Ω ,Θ  ), whereΩ ,|Ω  |=𝑃 𝑁 is the spatiotemporal node-set andΘ is the𝑃 𝑁×𝑃 𝑁 spatiotemporal
+attention map (STAM)defining all feasible edges.
+The primary contribution in this paper is approximating the STAM usingKronecker product approximation
+(KPA)(Section 2.3): Θ ≈ (Θ  ⊗Θ  ). Consequently, STMP can be parformed directly on the spatiotemporal graph
+induced via the correspondingKronecker graph product: ≈ 10 =  ⊗  (Appendix D.2). To this end, we
+approach short-term spatiotemporal traffic forecasting from a graph-theoretic and information-centric perspective,
+investigating computationally tractable spatiotemporal graph constructions and node representation learning.
+Outline.This section examines the graph topology characteristics ofΘ under KPA and addresses three major
+challenges in applying this framework to traffic networks, with a high-level summary provided in Figure 2.
+First, Section 3.1 analyzes the modeling mechanics under KPA and the resulting spatiotemporal message passing
+(STMP) over the TEN graph, revealing a computational bottleneck in the Kronecker matrix-vector product (KMV,
+Equations (18)).
+Second, Section 3.2 identifies and addresses fundamental misalignment between traffic network dynamics—which
+exhibit both positive and negative feedback—and classical positive-only row-normalized attention maps, limiting the
+representational capacity of spatiotemporal attention.
+Third, Section 3.3 observes that traffic datasets∈ℝ 𝑃×𝑁×𝐶 typically exhibit low feature dimensionality (𝐶= 1 ),
+creating a mismatch between the rich modeling capacity of TEN spatiotemporal attention and the limited input
+representation, necessitating strategies to enrich the input space through self-conditioning.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 7 of 48
+
+--- PAGE 8 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+1
+2
+4
+3
+
+Spatial
+node, Spatial
+edge
+2nd-order linkage
+Kronecker attention kernel
+Kronecker-TENC
+1 2 3
+Temporal
+node,
+Temporal
+edgeSpatial
+nodes
+t=1
+Spatiotemporal
+edge
+Time Expanded Network (TEN)B
+Time ID
+Spatiotemporal
+nodes
+Node
+ID
+t=2
+t=3
+t=4Graph
+snapshot
+Graph snapshotsA
+1st-order linkage
+Dot-product kernel
+1st-order linkage
+Dot-product kernel
+3,1
+3,2
+3,4
+3,3 1,1
+1,2
+1,4
+1,3
+Spatiotemporal nodes and edges
+in
+Spatiotemporal node
+( = 3, = 1)
+Spatiotemporal
+edge
+Figure 3:Common spatiotemporal graph representations and ourKronecker Time Expanded Network(Kronecker-TEN,
+10). (A)Graph snapshots: Each snapshot represents the network at a single time point with edges connecting nodes only
+within that time slice. (B)Time Expanded Networks (TEN): Nodes are identified by both location and time, with edges
+representing displacement across space and time. (C)Kronecker-TEN: Applying KPA to the STAM:Θ = Θ  ⊗Θ 
+induces a valid spatiotemporal graph via the Kronecker graph product: ≈ 10 =  ⊗ . First-order linkage (MP1)
+uses pairwise dot-product attention, while second-order linkage (MP2) applies the Kronecker attention kernel.
+3.1. Problem 1: The Kronecker-TEN (10) Spatiotemporal Network
+3.1.1. Spatiotemporal coherence of contemporary methods
+Currentapproaches.Oneclassicalmachinelearning(ML)approachinspatiotemporaltrafficmodelingrepresentsthe
+dynamic network graph as a sequence ofgraph snapshots(Figure 3A),𝑇 = { 1, 2,…, 𝑃 }, where each𝑡 = (, 𝑡)
+contains time-varying, prespecified edges𝑡 at time𝑡. However, spatial and temporal dependencies are modeled on
+separate architectures, typically spatial graph convolutions on𝑡 and temporal dependencies on recurrent units or
+temporal convolutions.
+To our knowledge, this separate treatment of spatial and temporal axes has remained pervasive in contemporary
+attentional deep learning methods, which typically employ heuristic fusion schemes (Figure 4):
+• Axis alternation(Figure 4A): Spatial (𝑁) and temporal (𝑃) dimensions are processed in alternating order—for
+example, applying spatial graph convolution then temporal recurrence (or the reverse). This pattern appears in
+models such as (Liu et al., 2023a; Xu et al., 2021; Chai et al., 2024; Bian et al., 2024).
+• Split-and-weld(Figure 4B): Spatial and temporal representations are computed independently and later fused,
+e.g., by concatenation with MLP/gating or via cross-attention between spatial–temporal and temporal–spatial
+embeddings. Models following this pattern include (Li et al., 2024; Lablack and Shen, 2023; Zheng et al., 2020).
+Consequently,thisdecouplingrequiresiterativeprocessingtoemulatecomplexspatiotemporaldependencies,introduces
+a bias toward local temporal coherence, and produces opaque graph-diffusion dynamics through heuristic fusion
+mechanisms, ultimately lacking true spatiotemporal cohesion since space and time are never modeled jointly.
+Spatiotemporal attention on Time-expanded networks (TEN).Holistic spatiotemporal modeling can be achieved
+using TEN frameworks (Ford Jr and Fulkerson, 1958), which preserve spatiotemporal cohesion by creating nodes and
+edgesindexedbybothspatial(e.g.,sensorIDs)andtemporal(e.g.,timestamps)identifiers(seeFigure3B).Thisproduces
+spatiotemporal nodes(Ω )and edges(  ) that evolve concurrently in space and time on the spatiotemporal graph
+ ∶=(Ω  ,  ).
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 8 of 48
+
+--- PAGE 9 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Temporalaxis
+Spatialaxis
+Temporalaxis
+Spatialaxis
+......
+Mix
+Mix
+Mix
+Swapaxis
+Swap
+Swap
+Split-and-weldB
+Temporalaxis Spatialaxis
+Concat. orcross-attention
+Mix
+Temporalaxis Spatialaxis
+...
+...
+Split
+...
+...
+Weld
+Split
+Axis alternationA
+Figure 4:Conventional heuristic spatiotemporal processing in classical and contemporary models. (A) Axis alternation
+swaps processing between temporal and spatial axes, requiring multiple iterations to emulate spatiotemporal graph diffusion.
+(B) Split-and-weld performs separate spatial and temporal analysis, then welds them via concatenation or cross-attention
+prior to parametric mixing, similarly requiring multiple iterations to emulate spatiotemporal graph diffusion.
+Previously, TENs have found numerous applications in network optimization problems, such as transit opera-
+tions (Köhler et al., 2002; Yook and Heaslip, 2015) and operational research (Silver and de Weck, 2007; Ho et al., 2014;
+Liu et al., 2023b), enabling conventional static network optimization techniques by converting dynamic spatial graphs
+intoquasi-staticspatiotemporalgraphs.However,TENshavenotseenwidespreadapplicationinmachinelearningdueto
+computational feasibility limitations. Specifically for dot-product attention, modeling attention over𝑃 𝑁 spatiotemporal
+nodes, i.e., ′ ∈ℝ 𝑃 𝑁×𝐶, incurs impractical(𝑃 2𝑁 2)complexity due to the𝑃 𝑁×𝑃 𝑁 spatiotemporal attention
+map (STAM)Θ𝑆𝑇 ∈ℝ 𝑃 𝑁×𝑃 𝑁 computation.
+3.1.2. Proposal: Kronecker-TEN representation of spatiotemporal Kronecker attention maps
+Kronecker product approximation (KPA) of STAM.To address the computational intractability of STAM, we
+propose applying KPA toΘ𝑆𝑇, where⊗is the Kronecker product (Appendix D):
+Θ𝑆𝑇 ≈ Θ 𝑇 ⊗Θ 𝑆 . (14)
+This defines theKronecker attention kernel (Kronecker kernel), a non-parametric spatiotemporal fusion technique
+with systematic graph connectivity patterns—we call the resulting structure theKronecker TEN(K-TEN,10),
+illustrated in Figure 3C. Appendix D.2 shows Equation(14) induces valid spatiotemporal graphs via the Kronecker
+graph product: ≈ 10 =  ⊗ . Structurally, this reformulates the TEN graph as10 = {Ω 10
+, 10
+}, with
+bipartite node-set Ω10
+= (Ω  ∪ Ω  ) where Ω = {𝜍 1,…, 𝜍 𝑁 } and Ω = {𝜏 1,…, 𝜏 𝑃 } are spatial and temporal
+node-sets.
+The Kronecker kernel enables theKronecker matrix-vector (KMV)product (Appendix D.1) to perform STMP
+directly on the induced10 spatiotemporal graph. Its bipartite structure requirestwomessage passing orders:(i)
+first-order MP1(local: space-space, time-time) models pairwise node edges, and(ii) second-order MP2(global:
+time-space) models intermodal spatiotemporal edges.
+First-order MP (MP1).MP1constructslatent graphsusinggraph-generating dot-product kernels (G-DPK)
+𝜑(⋅) which generates adaptive edges between receiver (r) and sender (s) nodes dependent on each node’srouting
+vectors: 𝐮𝑟,𝐮 𝑠 ∈ℝ 𝐸 (Figure 5). A similar framework was previously proposed in Chen et al. (2022a), but for
+softmax-normalizedexponentialkernels(e.g.,Equation (5)).Inotherwords,theG-DPKdynamicallygeneratespairwise
+node edges by decoding vector-geometry, where𝜑 >0 indicates a positive edge,𝜑= 0 no edge, and𝜑 <0 opposing or
+repelling edges (Shi et al., 2019). Common choices include the scaled dot-product (Equation(5)) and cosine coefficient
+(Equation (30)).
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 9 of 48
+
+--- PAGE 10 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+k
+q
+Sender
+(K)
+Receiver
+(Q)
+Attention map
+Sender
+Receiver
+Vector-geometry
+representationsDot-product
+kernel
+No edge
+With edge
+Opposing/repelling
+edge
+With edge
+No edge
+Opposing/
+repelling
+k
+q
+Latent
+edges
+Nodes
+Latent
+graph
+Routing vector
+Structural 
+encoding
+Edge-affinity
+function
+Figure 5: Latent graph representationsinduced by dot-product kernels𝜑 (e.g., dot-product attention, cosine similarity)
+between receiver (r, query) and sender (s, key) nodes. In typical attention, node routing vectors𝐮𝑟 and 𝐮𝑠 (typically node
+features) are projected by routing weights𝐖𝑞 and 𝐖𝑘, parameterizing a family of possible node-to-node relations. For
+each node-pair, the kernel𝜑(𝐪,𝐤) instantiates alatent edgeby producing an edge affinity (strength and polarity); stacking
+all affinities over node pairs, i.e.,𝜑(𝐐,𝐊) yields attention mapsΘ. The latent graph can be further shaped by augmenting
+the routing vectors, for example by appending structural encodings ̊𝐛∈ℝ 𝑁×𝑀 𝐵.
+The G-DPK enables departure from classical softmax-based SDPA formulation (Equations(5), (9)) and provides a
+unified vocabulary for graph theory and attention mechanisms. The G-DPK between a receiver𝑟and sender𝑠is:
+𝜑((𝐮𝑟, ̊𝐛𝑟),(𝐮 𝑠, ̊𝐛𝑠); ̊𝑟, ̊𝑠
+)=𝜑
+(
+⟨ ̊𝑟(𝐮𝑟, ̊𝐛𝑟), ̊𝑠(𝐮𝑠, ̊𝐛𝑠)⟩, ̊𝑟(𝐮𝑟, ̊𝐛𝑟), ̊𝑠(𝐮𝑠, ̊𝐛𝑠)
+)
+.(15)
+Here, 𝐮𝑟,𝐮 𝑠 ∈ℝ 1×𝐸 are routing vectors;̊𝐛𝑟, ̊𝐛𝑠 are structural encodings; and̊𝑟(⋅), ̊𝑠(⋅)areedge-affinity functions
+(e.g., MLPs) that map node states to𝐸-dimensional vectors, encoding latent edges via their lengths and angles. The
+G-DPK produces signed affinities, where𝜑 >0 indicates an attractive edge,𝜑= 0 no edge, and𝜑 <0 a repelling
+edge (Shi et al., 2019).
+For matrices of routing vectors,𝐔𝑟 ∈ℝ 𝑁𝑟×𝐸 and 𝐔𝑠 ∈ℝ 𝑁𝑠×𝐸, Equation(15) yields 𝑁𝑟 ×𝑁 𝑠 latent adjacencies
+(attention maps) with elementsΘ𝑟𝑠:
+Θ𝑟𝑠 =𝜑 ((𝐔𝑟, ̊𝐁𝑟),(𝐔 𝑠, ̊𝐁𝑠); ̊𝑟, ̊𝑠
+).(16)
+In standard attention form, the Query and Key are linear projections of the routing vectors. Stated without structural
+encodings for notational clarity:
+𝐐= ̊𝑟(𝐔𝑟) =𝐔 𝑟𝐖𝑄 ,𝐊= ̊𝑠(𝐔𝑠) =𝐔 𝑠𝐖𝐾 .(17)
+Second-order MP (MP2).Conversely,MP2is modeled by the Kronecker kernel (Equation(14)), and applies STMP
+through KMV for𝐯𝑒 ∈ℝ 𝑃 𝑁×1 through the10 graph, i.e., theKMV-MP:
+𝐳𝑒 = Θ  𝐯⟨0⟩
+𝑒 ≈ (Θ  ⊗Θ  )𝐯⟨0⟩
+𝑒 =Vec(Θ  𝐕⟨1⟩
+𝑒 Θ⊤
+ ),(18)
+where 𝑒∈ [𝐸] and 𝐕⟨𝛿⟩
+𝑒 =Vec −1(𝐯⟨𝛿−1⟩
+𝑒 ) ∈ℝ 𝑁×𝑃 denotes the vector folding (VF) of𝐯𝑒. Here,Vec(Θ 𝐕⟨𝛿⟩
+𝑒 Θ⊤
+ ) is the
+KMV-vectorizationoperation, and⟨𝛿⟩∈ {⟨0⟩,⟨1⟩,…,⟨Δ⟩}theKMV-vectorization depth.
+The KMV-vectorization bottleneck.To demonstrate the computational bottleneck in Equation(18), we apply
+thecolumn-wise picture of matrix multiplication (CMM)(Equation(72), Appendix A.2) to compactly express
+Equation (18) for𝑒= 1,…, 𝐸:
+(Θ ⊗Θ  )𝐕 ⟨0⟩ =
+[
+Vec(Θ 𝐕⟨1⟩
+1 Θ⊤
+ )⋯Vec(Θ  𝐕⟨1⟩
+𝐸 Θ⊤
+ )
+]
+.(19)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 10 of 48
+
+--- PAGE 11 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000016/uni00000011/uni0000001a/uni00000019/uni00000016/uni00000011/uni0000001a/uni0000001b/uni00000014/uni00000011/uni00000013/uni00000019/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni00000019/uni00000016/uni00000011/uni0000001a/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni00000017/uni00000015/uni00000011/uni00000018/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni0000001c/uni00000016/uni00000011/uni0000001b/uni00000013/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001c
+/uni00000016/uni00000011/uni0000001a/uni0000001b/uni00000016/uni00000011/uni00000014/uni00000016/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni00000017/uni0000001c/uni00000014/uni00000011/uni0000001b/uni00000019/uni00000013/uni00000011/uni0000001c/uni0000001b/uni00000013/uni00000011/uni0000001c/uni0000001b
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni0000001b/uni00000014/uni00000016/uni00000011/uni00000014/uni00000016/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni00000018/uni00000013/uni00000014/uni00000011/uni0000001b/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000015/uni00000011/uni00000013/uni00000013/uni00000014/uni00000011/uni00000013/uni00000014/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+dhead = 16
+/uni00000014/uni00000011/uni00000013
+/uni00000014/uni00000011/uni00000018
+/uni00000015/uni00000011/uni00000013
+/uni00000015/uni00000011/uni00000018
+/uni00000016/uni00000011/uni00000013
+/uni00000016/uni00000011/uni00000018
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053/uni00000003/uni00000055/uni00000044/uni00000057/uni0000004c/uni00000052
+Figure 6:Relative computational time comparison of P2-KMV on the NVidia A100 GPU using the Basic P2-KMV (Basic)
+and (R)-P2-KMV formulations for multihead tensors:∈ℝ 𝐵×𝐻×𝑑head×𝑁×𝑃 ,Θ  ∈ℝ 𝐵×𝐻×𝑁×𝑁 ,Θ  ∈ℝ 𝐵×𝐻×𝑃×𝑃 . For simplicity,
+𝐵= 32 and 𝑃= 12 . Heatmap values show the ratio of execution times:Speedup=𝑡 Basic∕𝑡Efficient. Values >1.0 indicate
+that the (R)-P2-KMV is faster. Execution times𝑡Basic, 𝑡Efficient are averaged over 10,000 trials. Numerical discrepancies are
+negligible, with absolute and relative differences of order10−5 and10 −7, respectively.
+Here, theVec(⋅)is the computational bottleneck, since each𝑒= 1,…, 𝐸 requires its own KMV-vectorization, which
+becomes costly when computed naïvely using for-loops and concatenation.
+Basic P2-KMV.Using BMM (Equation (79), Appendix A.3) we may instead use an𝐸-stratified tensor to parallelize
+Equation(19)onGPU-acceleratedframeworks.Putsimply,thebasicP 2-KMV(Parallel2DKroneckerMatrix-Vector
+product) can be summarized in two equations:
+ ⟨1⟩ =𝜣 !
+  ⟨1⟩(𝜣!
+ )⊤ ∈ℝ 𝐸×𝑁1×𝑃1,(20)
+= (𝚯  ⊗𝚯  ) ⟨0⟩ = [[[ [⟨1⟩
+[𝐸×𝑁1×𝑃1→𝑃1𝑁1×𝐸]] ]]] ∈ℝ 𝑃1𝑁1×𝐸,(21)
+where ⟨1⟩ ∈ℝ 𝐸×𝑃2×𝑁2, with𝜣 !
+ ∈ℝ 1!
+𝐸 ×𝑁1×𝑁2, and𝜣!
+ ∈ℝ 1!
+𝐸 ×𝑃1×𝑃2 using tensor broadcasting (see Appendix A).
+The (R)-P2-KMV.Efficiency on Equation(20) can be further improved on GPU-accelerated frameworks using the
+general (R)-PΔ-KMV (Right-handed PΔ-KMV) form derived in Appendix F.2 withΔ = 2, allowing us to exploit the
+invariance ofΘ andΘ  attention maps across𝐸. This replaces tensor broadcasting with tensor rearrangements:
+ ⟨2⟩ = ⟨3⟩(Θ )⊤ ∈ℝ 𝐸𝑃2×𝑁1,(22)
+ ⟨1⟩ = ⟨2⟩
+↫ (Θ )⊤ ∈ℝ 𝐸𝑁1×𝑃1,(23)
+= ⟨1⟩
+↫ ∈ℝ 𝑃1𝑁1×𝐸,(24)
+where  ⟨3⟩ ∈ℝ 𝐸𝑃2×𝑁2 and  ⟨2⟩
+↫ ∈ℝ 𝐸𝑁1×𝑃2. The ↫ (Kronecker-Tumble) tensor rearrangement comes from the
+general PΔ-KMV (see Appendix F.2). For brevity, we shall refer to this as P2-KMV moving forward.
+Multihead (R)-P2-KMV.Themultihead(R)-P 2-KMV is simply:
+ ⟨2⟩
+𝐻 = ⟨3⟩
+𝐻 (Θ𝐻, )⊤ ∈ℝ 𝐻×𝑑head𝑃2×𝑁1,(25)
+ ⟨1⟩
+𝐻 = ⟨2⟩
+𝐻,↫ (Θ𝐻, )⊤ ∈ℝ 𝐻×𝑑head𝑁1×𝑃1,(26)
+𝐻 = ⟨1⟩
+𝐻,↫ ∈ℝ 𝐻×𝑃 1𝑁1×𝑑head .(27)
+Here,  ⟨3⟩
+𝐻 ∈ℝ 𝐻×𝑑head𝑃2×𝑁2 and  ⟨2⟩
+𝐻,↫ ∈ℝ 𝐻×𝑑head𝑁1×𝑃2 with 𝐸=𝐻⋅𝑑 head, where𝐻 is the number of heads and
+𝑑head is the head dimension.
+Computational speedup, expressed as the execution time ratio𝑡Basic∕𝑡Efficient, is illustrated in Figure 6, where𝑡Basic
+denotes the runtime of the baseline implementation (Equations(20)–(21)) and𝑡Efficientcorresponds to the optimized
+formulation (Equations(25)–(27)). For moderately sized configurations (e.g.,𝑁= 64, 𝐻= 2 ), the proposed method
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 11 of 48
+
+--- PAGE 12 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+achieves up to a 3.80×speedup. In larger-scale settings, the gain converges toward∼1.0×, but likely due to memory
+bandwidth saturation on the A100 GPU (NVIDIA Corporation, 2023), although the advantage is expected to scale
+favorablywithfuturearchitecturesofferinghighermemorythroughputandimprovedtensorcoreperformance;additional
+results comparing different GPUs are provided in Appendix F.3.
+3.2. Problem 2: Traffic Network Dynamics, Why Signed Graph Representations Make Sense
+Since higher-order relationships inWeaverare explicitly captured inΘ = Θ  ⊗Θ , the role ofΘ and Θ is to
+portray node relationships accurately without redundant coupling. In this section, we discuss the relevance of signed
+graphs in traffic network representation, the downsides of traditional softmax attention, and propose Valence Attention
+to model signed edges using the continuous Tanimoto coefficient.
+3.2.1. The case for signed graphs
+Empirical evidence.Empirical analyses in Minneapolis–St. Paul reveal that a substantial fraction of traffic edge-pairs
+exhibit negative correlations during congestion (Ermagun and Levinson, 2018), particularly among competing roads
+where increased flow on one coincides with decreased flow on another. Similarly, Ermagun et al. (2017) demonstrate
+that,aftercontrollingfortemporaldemandeffects,correlationsarenotuniformlypositive:althoughpositivecorrelations
+dominate along consecutive links, negative correlations are also prevalent but generally weaker in magnitude under
+normal conditions, with stronger surges occurring across parallel or upstream segments during congestion. Real-world
+observationsofBraess’sParadox(Younetal.,2008)andsimulationstudies(BazzanandKlügl,2005)provideadditional
+confirmation of this phenomenon.
+Theoretical characteristics of softmax attention.Softmax attention cannot efficiently capture systematic inverse
+relationships because the softmax function𝑝𝑖 =𝑒 𝑧𝑖 ∕ ∑
+𝑗 𝑒𝑧𝑗 produces strictly positive normalized weights (𝑝𝑖 >0 ,∑
+𝑖 𝑝𝑖 = 1 ). This prevents modeling negative feedback from drivers’ route adaptations and network equilibration.
+Beyond sign constraints, softmax attention (SDPA, Equation(5)) introduces spurious structural dependencies through
+its Jacobian:
+𝜕𝛼𝑟,𝑠
+𝜕𝑧𝑟,𝑖
+=𝛼 𝑟,𝑠(𝛿𝑠𝑖 −𝛼 𝑟,𝑖), 𝛿 𝑖𝑗 =
+{
+1𝑖=𝑗 ,
+0𝑖≠𝑗 (28)
+where 𝑧𝑟,𝑖 =𝐪 ⊤
+𝑟 𝐤𝑖 is the attention logit and𝛼𝑟,𝑠 =
+exp(𝑧𝑟,𝑠)∑
+𝑗 exp(𝑧𝑟,𝑗 ) is the attention weight from query𝑟 (receiver) to key
+𝑠 (sender). Equation(28) shows that increasing one key’s score reduces all others’ contributions, creating artificial
+dependencies (Correia et al., 2019; Ye and Ji, 2021) despite traffic networks being sparse (Barthélemy, 2011; Tsiotas,
+2025). The normalization denominator∑
+𝑗 exp(𝑧𝑟,𝑗) inducesartificial higher-order coupling(Koohpayegani and
+Pirsiavash, 2024) unrepresentative of genuine traffic interactions. This Jacobian is zero-sum1 (Yan et al., 2025;
+Ramapuram et al., 2024), contradicting traffic observations where multiple sensors simultaneously gain influence
+during widespread events like congestion or weather disruptions (Kumar and Levinson, 1995; Liu et al., 2017; Loreti
+et al., 2024). Although Sparsemax (Martins and Astudillo, 2016) and Entmax (Peters et al., 2019) address this, they still
+introduce unwanted higher-order dependencies through row-normalization.
+3.2.2. Proposal: Tanimoto Valence Attention
+We proposeTanimoto Valence Attention (T-Valence), an attention mechanism that explicitly models polarity
+in signed networks. T-Valence builds on thecontinuous Tanimoto coefficient (CTC)(Anastasiu and Karypis, 2017;
+Willett et al., 1998):
+𝜑ctc(𝐪,𝐤) = 𝐪⊤𝐤
+‖𝐪‖2 +‖𝐤‖ 2 −𝐪 ⊤𝐤 ∈
+[
+− 1
+3 ,1
+]
+,(29)
+whose asymmetric bound[−1
+3 ,1]improves stability in signed networks.
+1Zero-sum game: increasing one participant’s reward necessarily decreases others’ proportionally, resulting in zero net change.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 12 of 48
+
+--- PAGE 13 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+0.5
+ 0.0 0.5 1.0 1.5 2.0 2.5
+X1
+0.5
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5X2 0.98
+0.98
+0.98
+0.94
+0.91
+0.92
+0.86
+0.77
+0.880.65
+0.73
+0.83
+0.39
+0.75
+0.70
+k
+T animoto Coefficient Map: 5 Circles, R = 0.2
+key-vector k
+query-vectors qi (color=Similarity)
+Origin (0,0)
+0.XX = T animoto coefficient
+2
+ 1
+ 0 1 2
+X1
+2
+1
+0
+1
+2X2
+k
+T animoto Coefficient Contour Map
+-0.18
+0.00
+0.11
+0.26
+0.41
+0.56
+0.70
+0.85
+query-vectors (orbits)
+0.XX=T animoto coef. (contours)
+0.333
+0.200
+0.000
+0.200
+0.400
+0.600
+0.800
+1.000
+T animoto Coefficient
+Figure 7:Visualization of 2D continuous Tanimoto coefficient (CTC) showing how CTC penalizes mismatches in both
+vector magnitude and angle through compact level sets.Left:Tanimoto coefficients (Equation(29)) computed between
+the 2D key vector⃗𝐤= ((0,0),(1,1)) (blue)and query vectors ⃗𝐪𝑟 = ((0,0),(𝑥 1, 𝑥2)𝑟) with endpoints (𝑥1, 𝑥2) placed on five
+concentric circles (radial spacingΔ𝑅= 0.2 ). Point colors indicate similarity values (yellow = high, purple = low). CTC
+values are labeled at staggered positions for readability.Right:Contour map of the continuous 2D Tanimoto topology
+with the query-vector orbits from the left panel superimposed. Unlike dot-product and cosine similarity, CTC produces
+compact, bounded level sets that provide numerical stability for signed network learning.
+Signed network dynamics.Prior work (Shi et al., 2019) identifiestwo instability regimeswhen negative edges
+encodeopposition: (i) node-state collapse when the graph lacksstructural balance2, and (ii) divergence when update
+operators violateeventual positivity, causing pathological growth of antagonistic influences over repeated updates (see
+also: Perron-Frobenius property (Berman and Plemmons, 1994; Horn and Johnson, 2012)). The CTC’s3∶1 positive-
+to-negative range naturally regularizes message aggregation, preventing negative-edge dominance while permitting
+antagonistic relationships (sketch-of-proof in Appendix E.2.2). Its asymmetric saturation resembles activations like
+ELU(Clevertetal.,2016;Klambaueretal.,2017;Trottieretal.,2017),potentiallypromotingself-normalizinggradients
+that improve training stability.
+Local characteristics.To understand CTC’s local stability properties, we analyze the stationary points of𝜑ctc with
+respect to the query vector𝐪 relative to the key vector𝐤. Derivations are provided in Appendix E.2.1, and results are
+summarized in Table 2.
+Critical point analysis reveals that CTC admits two stationary states: a stable maximum at𝐪∗ =𝐤 and a stable
+minimum at𝐪∗ = −𝐤, depending on whether the objective is maximized or minimized. Under gradient ascent, the
+system converges toward full alignment (𝐪→𝐤 ), while under gradient descent it converges toward full opposition
+(𝐪→−𝐤 ). The origin𝐪=𝟎 is not a stationary point—it lies on a sloped region where gradients align with𝐤—thus
+avoiding collapse into uninformative null states. This complementary stability pattern ensures optimization moves
+2A signed graph is structurally balanced if nodes divide into two groups with positive intra-group and negative inter-group edges; equivalently,
+no cycle has an odd number of negative edges (Shi et al., 2019).
+Table 2
+Stationary points of the Continuous Tanimoto Coefficient (CTC) and their local stability.
+Stationary Point Type CTC Value Local Stability
+Gradient Ascent Gradient Descent
+𝐪∗ =𝐤 Local Maximum 1 Stable Unstable
+𝐪∗ = −𝐤 Local Minimum −1∕3 Unstable Stable
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 13 of 48
+
+--- PAGE 14 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+0.5
+ 0.0 0.5 1.0 1.5 2.0 2.5
+X1
+0.5
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5X2
+1.56
+1.47
+1.22
+1.80
+1.13
+1.31
+1.57
+0.83
+1.840.85
+1.21
+2.19
+0.45
+2.12
+1.67
+k
+Scaled Dot Product Map: 5 Circles, R = 0.2
+key-vector k
+query-vectors qi (color=Similarity)
+Origin (0,0)
+X.XX = dot(qi, k)/ 2
+2
+ 1
+ 0 1 2
+X1
+2
+1
+0
+1
+2X2
+k
+Scaled Dot Product Contour Map
+-2.12
+-1.34 -0.55
+0.00
+0.24
+1.02
+1.81 2.59
+3.38
+4.16
+query-vectors (orbits)
+X.XX=dot(qi,k)/ 2 (contours)
+2
+1
+0
+1
+2
+3
+4
+Scaled Dot Product (dot/ 2)
+(a) Scaled dot-product (SDP:𝐪⊤
+𝑟 𝐤∕
+√
+𝑑𝑘 , 𝑑 𝑘 = 2) with non-compact level sets (unbounded longitudinal contours).
+0.5
+ 0.0 0.5 1.0 1.5 2.0 2.5
+X1
+0.5
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5X2 1.00
+0.99
+1.00
+1.00
+0.97
+0.96
+0.94
+0.98
+0.970.83
+0.84
+1.00
+0.87
+0.95
+0.87
+k
+Cosine Coefficient Map: 5 Circles, R = 0.2
+key-vector k
+query-vectors qi (color=Coefficient)
+Origin (0,0)
+0.XX = Cosine Coefficient
+2
+ 1
+ 0 1 2
+X1
+2
+1
+0
+1
+2X2
+k
+Cosine Coefficient Contour Map
+-0.88
+-0.76
+-0.65
+-0.53
+-0.41
+-0.29
+-0.18
+-0.06
+0.06
+0.18
+0.29
+0.41
+0.53
+0.65
+0.76 0.88
+query-vectors (orbits)
+0.XX=Cosine Coeff. (contours)
+1.00
+0.75
+0.50
+0.25
+0.00
+0.25
+0.50
+0.75
+1.00
+Cosine Coefficient
+(b) Cosine coefficient with radial non-compact level sets (unbounded radial contours).
+Figure 8:Comparative visualization of vector-similarity topologies for (a)scaled dot-product(SDPA) and (b)cosine
+coefficient. Both metrics produce non-compact level sets, lacking the bounded structure of CTC (Figure 7) needed for
+stable signed network dynamics. Interpretation of plot elements in both figures match Figure 7.
+decisively toward either alignment or opposition, rewarding clear relational polarity while penalizing ambiguity, which
+promotes well-defined signed graph structure in learned representations.
+Qualitative comparisons to SDP and Cosine coefficient.Figure 7 shows the CTC topology for 2D vectors, and
+Figure 8 shows the corresponding topologies for SDP and Cosine coefficients. The left panels display orbital samples
+of coefficients computed on 2D query vectors𝐪𝑖 around a fixed𝐤, while the right panels show contour maps of all
+pairwise coefficient values, with orbital traces from the left panel superimposed.
+TheScaled Dot-Product (SDP)(𝜑sdp) used in standard attention (without softmax) and theCosine coefficient
+(𝜑cos)—a potential alternative for Valence Attention with bounded range and support for negative similarity—are
+defined as:
+𝜑sdp = 𝐪⊤𝐤√
+𝑑𝑘
+∈ (−∞,∞), 𝜑 cos = 𝐪⊤𝐤
+‖𝐪‖ ‖𝐤‖ ∈ [−1,1],(30)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 14 of 48
+
+--- PAGE 15 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+where 𝑑𝑘 denotesthekeydimension.CTCexhibitssmooth,closed,andbipartitecontourssurroundingdistinctmaximum
+and minimum basins. In contrast, SDP shows open longitudinal contours without bounded extrema, while the Cosine
+coefficient forms radial contours with antipodal extrema but unbounded radial extent. The closed and bounded contour
+topology of CTC thus provides a well-defined optimization landscape with specific extrema, visually demonstrating the
+favorable training dynamics discussed above. Ablation studies in Section 3.2 empirically confirm these properties.
+3.3. Problem 3: The Model–Data Capacity Gap (Self-Conditioning on Traffic Phases)
+Mosttrafficdatasetsprovideonlyasinglemeasurementchannel( 𝐶= 1 ),suchasflow,speed,oroccupancy,yielding
+∈ℝ 𝑃×𝑁×1. This narrow feature space contrasts with the high representational capacity of𝑃 𝑁×𝑃 𝑁 attention
+mechanisms and richer multimodal inputs in domains like video or meteorology. Simple affine projections() merely
+reparameterize existing signals without introducing new information. To better utilizeWeaver’s modeling capacity, we
+introduce aself-conditioningmechanism based on Memory Augmented Neural Networks (MANN) (Graves et al., 2014,
+2016; Ma et al., 2023), where the model retrieves latent embeddings from a learned dictionary to condition downstream
+modules.
+Classical traffic flow theory provides a natural foundation for such conditioning. The Greenshields and Cell
+Transmission models (Greenshields et al., 1935; Daganzo, 1994) describe traffic dynamics through thefundamental
+diagram—a relationship among flow, density, and speed that implicitly encodes distinct operating regimes (free flow,
+saturation, congestion) through parameterization. These regimes indicate that mesoscopic traffic behavior organizes
+around distinctphasesgoverning local operating conditions. Accordingly, self-conditioning inWeaverretrieves phase-
+specific cofactors that explicitly capture these latent regimes, enabling the model to internalize shared, state-dependent
+structure underlying observed network dynamics.
+3.3.1. Proposal: Traffic Phase Dictionary (Retrieval-Based Self-Conditioning)
+Prior MANN-based Transformer models such as STTN (Xu et al., 2021) and STAEformer (Liu et al., 2023a)
+primarily learn network-specific embeddings rather than underlying dynamics. STTN encodes graph topology and
+temporal evolution directly within its embeddings, while STAEformer learns embeddings tied to fixed node positions
+and time indices. In both cases, node representations and graph structure become interdependent, making it unclear
+whether the learned embeddings reflect intrinsic node behavior or structural identity. This entanglement biases the
+model toward memorizing where and when measurements occur, rather than uncovering the underlying dynamics that
+generate those measurements.
+Motivatingwork.OurapproachbuildsonthepremiseofInteractionNetworks(IN)(Battagliaetal.,2016),whichlearn
+universal object–object interaction functions that generalize across configurations. Since identical physical quantities
+are observed at every traffic node, they should obey a common set of fundamental principles independent of spatial or
+temporal context.
+To design this dictionary, we require stable representations confined to bounded, continuous regions that avoid
+degeneracy while maintaining smooth, well-behaved mappings across downstreamWeavermodules. Chen et al. (2018,
+2022b) solved a related problem through theSparse Manifold Transform(SMT), a geometric framework in which
+dictionary atoms act as discretelandmarksapproximating a smooth underlying manifold. Each sample is expressed as a
+sparse convex combination of nearby landmarks, enabling interpolation within the learned manifold approximation.
+SMT enforces continuity, stability, and approximate invertibility by constraining activations to the convex hull of
+the manifold and by learning a linear, similarity-preserving embedding from local neighborhoods, originally temporal
+and later generalized to spatial and co-occurrence structures. These properties align with the goals of our dictionary
+design, promoting sparsity, preserving structural distinctions, and mitigating degeneracy among learned landmarks.
+Traffic Phase Dictionary.While SMT provides desirable theoretical guarantees, its two-step procedure is not
+directly compatible with end-to-end deep network training. For practical implementation, we therefore approximate
+SMT characteristics using differentiable components that preserve similar local smoothness and convex-combination
+behavior.
+We define theTraffic Phase Dictionaryas a shared sparse retrieval mechanism that conditions each spatiotemporal
+node in the𝑃×𝑁 graph (corresponding to time steps𝑃 and spatial nodes𝑁) on latent cofactors𝚵representing the
+local traffic phase:
+𝑆Ξ( ∼𝐗) =Entmax 1.5
+(Ξ ( ̃𝐗) ∕ (𝝉Ξ)+
+) ∈ℝ 𝑁×𝑀 Ξ (Sparse retrieval weights),(31)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 15 of 48
+
+--- PAGE 16 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+n
+n
+Traffic PhaseDictionary
+latent cofactors
+Inferred traffic
+interaction patterns
+TRAININGAPPLICATION
+Self-conditioning
+Feasible interactions
+t
+Speed
+Less viable
+interactions
+ Traffic state
+
+n
+
+n
+n  n
+n
+
+Figure 9:Traffic Phase Dictionary retrieval. Nodes query a learned dictionaryΞ with traffic statẽ𝐗to retrieve phase-specific
+cofactors𝚵that condition downstream interactions.
+∼𝚵=𝑆 Ξ( ∼) Ξ ∈ℝ 𝑁×𝑃 𝐾Ξ (Latent parameter retrieval),(32)
+𝚵= [[[ [∼ [𝑁×𝑃 𝐾Ξ→𝑃×𝑁×𝐾 Ξ] ] ]]] ∈ℝ 𝑃×𝑁×𝐾 Ξ (Latent cofactors),(33)
+where ̃𝐗∈ℝ 𝑁×𝑃 𝐶 denotes the node traffic-state matrix,Ξ ∶ℝ 𝑁×𝑃 𝐶 →ℝ 𝑁×𝑀 Ξ is an MLP that produces retrieval
+queries, and Ξ ∈ℝ 𝑀Ξ×𝑃 𝐾Ξ is is the learned dictionary of phase landmarks, representing a closed, continuous
+set of latent parameters∼𝚵 characterizing traffic phases. The resulting outputs,𝚵, are the node’slatent cofactors3:
+phase-specific parameters retrieved from the dictionary that modulate each spatiotemporal node’s participation in
+downstream processes such as latent edge formation and state transitions (Figure 9).
+To account for node-specific variability, learnable temperatures𝝉Ξ ∈ℝ 𝑁×1 modulate the dictionary access range
+(Figure 10) through a positivity constraint(⋅) +, e.g., Sof tplus(𝜏) = log(1 +𝑒 𝜏 ), preventing sign inversion. These
+lightweight parameters enable localized adaptation without over-specializing the shared dictionaryΞ to specific
+locales. In practice, the learned temperatures act asnode-local calibration factorsthat implicitly adjust for operational
+conditions such as speed limits, ramp proximity, and driver behavior, serving as statistical proxies for locality context.
+In Equation (31), the SMT is realized through the sparse retrieval mechanism𝑆Ξ( ̃𝐗) Ξ, which employs
+Entmax(Peters et al., 2019).Entmaxinterpolates between Softmax and Sparsemax (Martins and Astudillo, 2016),
+providing a differentiable means of enforcing convex-hull feasibility, continuity, and sparsity. TheEntmax1.5 variant
+admits the closed form:
+𝑝𝑖 = Entmax 1.5(𝑥)𝑖 = ReLU
+(𝑥𝑖
+2 −𝛾
+)2
+,s.t.
+∑
+𝑖
+𝑝𝑖 = 1.0,(34)
+where the threshold𝛾 is solved locally to ensure that the retrieval weights lie on the standard simplex. An exact
+(𝑑log𝑑) algorithm with near-Softmax runtime is provided in Peters et al. (2019). Unlike its typical probabilistic
+interpretation,Entmaxhere serves a geometric role—producing sparse, simplex-constrained attention over dictionary
+landmarks that approximates SMT behavior within a fully differentiable framework.
+3In biochemistry (Kara et al., 2014), a “cofactor” is a helper molecule (non-protein compound or metallic ion) that assists enzymes in catalyzing
+reactions during biotransformations.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 16 of 48
+
+--- PAGE 17 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+0 10 20
+Dictionary Landmarks
+0.0
+0.5
+1.0
+Entmax1.5(Logits/ )
+Active: 2
+Entropy: 0.690
+Max: 0.540
+Min: 0.460
+= 0.5
+0 10 20
+Dictionary Landmarks
+Active: 7
+Entropy: 1.196
+Max: 0.445
+Min: 0.001
+= 1.0
+0 10 20
+Dictionary Landmarks
+Active: 14
+Entropy: 1.932
+Max: 0.283
+Min: 0.000
+= 2.0
+0 10 20
+Dictionary Landmarks
+Active: 20
+Entropy: 2.679
+Max: 0.143
+Min: 0.001
+= 5.0
+Effect of Temperature ( ) on Entmax1.5 Landmark Acess Patterns
+Logits ~ (0.5, 1.0), Seed = 42
+Figure 10:Effect of temperature parameter 𝜏Ξ on sparsity within the Traffic Phase Dictionary manifold. Curves show
+retrieval weights for 20 logits sampled from(0.5,1.0) . Higher 𝜏Ξ produces broader activations blending multiple phase
+landmarks, whereas lower values yield sharper, more selective associations. Learned node-specific temperatures𝜏Ξ ∈ℝ 𝑁×1
+enable adaptive retrieval sharpness across traffic nodes, adjusting for local context while maintaining a shared dictionary
+manifold.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 17 of 48
+
+--- PAGE 18 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+4. METHODOLOGY
+In this section, we provide a high-level overview of theWeaverarchitecture (Figure 11) and its three primary
+modules: (A/B) Input processing and self-conditioning, (C) Kronecker Attention, and (C) State-transition. For the
+specific implementation of Weaver in this work, refer to Section 5; neural network components, see Appendix A.4.
+4.1. Main Components
+4.1.1. Input and Conditioning (Figure 11, A/B)
+TheTraffic Phase Dictionary(Figure 11,B2(Equations (35)–(38)), enables model self-conditioning by mapping
+node-wise traffic states∼∈ℝ 𝑁×𝑃 𝐶 to latent parameters∼𝚵∈ℝ 𝑁×𝑃 𝐾Ξ that characterize the traffic phase at each node.
+These parameters are rearranged to latent cofactors𝚵∈ℝ 𝑃×𝑁×𝐾 Ξ, which dictate the admissible spatiotemporal node
+feature transformations and latent edge formation in subsequent modules.
+The conditioned representation is formed by concatenating the raw input and cofactors(‖𝚵), then projecting into
+model space (Equations(39)–(41)) via gated transformations with residual connections (Figure 11,A1). This yields∼  ∈ℝ 𝐸×𝑁×𝑃 , which is rearranged to the P2-KMV compatible form: ∈ℝ 𝐸×𝑃×𝑁 .
+4.1.2. Kronecker Attention module (Figure 11, C)
+TheKronecker Attention modulehandles graph learning through a four-stage process.
+Stage 1: ATk-pooling C1.ATk-pooling(Equations(42)–(46)) aggregates spatiotemporal features of∼  into local
+representations of spatial nodes(𝐔 ∈ℝ 𝑁×𝐸 )and temporal nodes(𝐔 ∈ℝ 𝑃×𝐸 )with adaptive top-𝑘selection. The
+selection uses a pooling informativeness metric (PIM) which employs a heuristic to quantify node diversity among
+several linear top-𝑘-scorers (𝚪) to mitigate degenerate scoring, preferring the scorer that yields greater node variety.
+This approach builds upon top-k pooling methods (Gao and Ji, 2019; Cangea et al., 2018; Cheung et al., 2019; Sander
+et al., 2023) originally designed for node selection in static graph coarsening without feature aggregation. ATk-pooling
+extends this with top-k feature aggregation and selecting from multiple scorers to accommodate dynamic nodes.
+Stage 2: Local attention, C2/3.Local attention layers (Equations (47)–(54)) construct signed latent graphs
+independently for spatial and temporal nodes using multihead (MH) CTC kernels with domain-specific encodings.
+Forspatial attention(C2), Θ𝐻
+ , we use a data-driven structural encoding̊𝐁kern ∈ℝ 𝑁×𝐷kern representing persistent
+baseline spatial affinities. To enable state dependency, we leverage how ReLU-based MLPs inherently generate feature
+segmentations in latent subspace (i.e., polytopes) (Sattelberg et al., 2023; Tao et al., 2022; Zhang et al., 2018). These
+contextualized structural encodings induce dynamic node groupings in latent space, allowing dot-product kernels to
+form state-dependent latent graphs that capture spatial dynamics.
+Fortemporal attention(C3), Θ𝐻
+ , we apply cyclical sine/cosine encoding to time-of-day (TOD) and day-of-week
+(DOW) as dynamic temporal metadata to encode the inherent periodicity of daily and weekly cycles. We then apply a
+simple linear projection to map these encodings to the model space𝐸. While this dynamic encoding is optional—since
+Weaver operates in a traffic state-based regime—it can help improve performance, as we demonstrate in Section 6.
+Stage 3: P2-KMV message passing, C5.Spatiotemporal Kronecker attention(Equations(55)–(57)) weaves
+Θ𝐻
+ ,Θ 𝐻
+ and 𝐻
+ ∈ℝ 𝐻×𝑑head×𝑃×𝑁 into a multihead spatiotemporal representation viaP2-KMV message passing.
+Stage4:Multiheadconsolidation,M2.MHconsolidation(Equation (58))applieshead-mixingweights,analogous
+to output projection𝐖𝑂 in the original Transformer (Equation(7)). We show in Appendix E.1 that this operation is
+equivalent to a weighted implicit KPS (W-iKPS), which relaxes the Kronecker product separability requirement in KPA.
+At this strategic junction, GLU enhancement increases W-iKPS representational capacity by learning subsets of latent
+graph activations through multiplicative gating, followed by a residual self-loop connection from∼  , yielding the
+consolidated spatiotemporal representation ∈ℝ 𝑄×𝑁×𝐸 after rearrangement.
+4.1.3. Forecast (Figure 11, D)
+TheState Transition modulepredicts subsequent states using a shared residual MLP with LeakyReLU activation
+(D1,Equation (59))thatlearnsthebulksystemdynamicswhichintegratepriorstatesandgraphicalinteractions,followed
+by a linear readout layer (Equation (60)) that projects to the target output dimension,𝐶:̂∈ℝ 𝑄×𝑁×𝐶.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 18 of 48
+
+--- PAGE 19 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+5. MODEL SPECIFICATION
+This section provides implementation details for theWeavermodel components illustrated in Figure 11, including
+the Traffic Phase Dictionary, Kronecker Attention module, and State Transition module. For clarity and organization,
+we refer readers to:Entmax(Peters et al., 2019),RMSNorm(Zhang and Sennrich, 2019), andDropout(Srivastava et al.,
+2014) for implementation details.
+5.1. Input and dictionary augmentation
+5.1.1. Dictionary augmentation
+Compute latent cofactors𝚵∈ℝ 𝑃×𝑁×𝐾 Ξ via sparse dictionary lookup:
+̃= [ [[ [[𝑃×𝑁×𝐶]→[𝑁×𝑃 𝐶] ] ]]],(35)
+𝑆Ξ( ∼) =Entmax 1.5
+(Dropout(GLU( ̃𝐖 ̃ 𝑥+𝐛 ̃ 𝑥)) ∕Softplus(𝝉 Ξ) )∈ℝ 𝑁×𝑀 Ξ ,(36)
+∼𝚵=𝑆 Ξ( ∼) Ξ ∈ℝ 𝑁×𝑃 𝐾Ξ ,(37)
+𝚵= [[[ [∼𝚵[𝑁×𝑃 𝐾Ξ→𝑃×𝑁×𝐾 Ξ] ] ]]] ∈ℝ 𝑃×𝑁×𝐾 Ξ ,(38)
+5.1.2. Model space projection
+Project augmented input to model space ∈ℝ 𝐸×𝑁×𝑃 :
+∼ Ξ = (‖𝚵)𝐖 𝑥 ∈ℝ 𝑃×𝑁×𝐸 ,(39)
+∼  =Dropout (GLU(RMSNorm(∼ Ξ)𝐖 𝑈 ) )+ (∼ Ξ )res ∈ℝ 𝑃×𝑁×𝐸 ,(40)
+  = [[[ [∼ [𝑃×𝑁×𝐸→𝐸×𝑃×𝑁] ] ]]] ∈ℝ 𝐸×𝑃×𝑁 ,(41)
+5.2. Kronecker Attention Module
+5.2.1. ATk-pooling (local node representations)
+For brevity, only the spatial () version is presented, pooling on dimension𝑃 (mode-1) for∼  ∈ℝ 𝑃×𝑁×𝐸 and
+yields spatial node representations𝐔 ∈ℝ 𝑁×𝐸. The temporal ( ) version are similar but operates along dimension
+𝑁 andinvertsmode-1 with mode-2, yielding 𝐔 ∈ℝ 𝑃×𝐸. For tensor operations, see Appendix A.3; tensor mode
+summation is defined in Equation (76), tensor mode variance in Equation (77), and top-k selection in Equation (78).
+Local spatial node representations.We obtain𝐔 by aggregating features over the top-𝑘temporal nodes:
+𝐔 =
+𝑘∑
+𝑖=1
+[[[ [∼
+Top-k(𝑃 ,𝚪𝛾∗, )
+ ⊙ 
+𝛾
+] ]]]
+mode-1 ,(42)
+where𝑘=⌈𝜌  ⋅𝑃⌉with pooling ratio𝜌  ∈ (0,1], and the supporting components are defined as:
+
+𝛾 = Sof tmax
+((𝚪
+𝛾 ∗
+)Top-k(𝑃 ,𝚪 
+𝛾∗ ))
+∈ℝ 𝑘×𝑁×1 ,(43)
+𝚪
+𝛾 ∗ = argmax
+{
+
+𝛾
+(𝚪
+𝛾
+)}
+∈ℝ 𝑃×𝑁×1 ,(44)
+
+𝛾 (𝚪
+𝛾 ) =
+𝑁∑
+𝑛=1
+[[[ [Varmode-1
+(𝚪
+𝛾
+) ] ]]]
+mode-2 ∈ℝ 𝑀 
+𝛾 ,(45)
+𝚪
+𝛾 = ∼  𝐖
+𝛾 ∈ℝ 𝑃×𝑁×𝑀 
+𝛾 .(46)
+Here, 
+𝛾 are the aggregation weights computed via top-𝑘selection and softmax normalization;𝚪
+𝛾∗ is the scorer that
+maximizesthepoolinginformativenessmetric(PIM), 
+𝛾 ,whichheuristicallysummarizesscoringvarietybycomputing
+mode-1 variance summed over mode-2; and𝚪
+𝛾 are the pooling scores computed using vector-normalized weights
+𝐖
+𝛾 = ‖‖‖
+𝑀 
+𝛾
+𝑖=1
+𝐰
+𝛾, 𝑖
+‖𝐰
+𝛾, 𝑖 ‖ ∈ℝ 𝐸×𝑀 
+𝛾 , where𝑀 
+𝛾 is the number of scorers.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 19 of 48
+
+--- PAGE 20 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+5.2.2. Local attention layers (latent graphs, MP1)
+Both local spatial- and temporal-attention layers follow a common architecture with domain-specific encodings,
+where spatial attention operates over nodes (, dimension𝑁) and temporal attention operates over time steps ( ,
+dimension 𝑃),with 𝐸=𝐻𝑑 headformultihead(MH).TheValenceAttentionweightsarecomputedusingMHcontinuous
+Tanimoto coefficient (CTC) kernels (Equation (29)) in tensor form (omitting subscriptsorfor legibility):
+Θ𝐻 = ⊤
+‖‖2
+vec + (‖‖ 2
+vec )⊤ − ⊤ +𝜖 0
+,(47)
+withΘ  ∈ℝ 𝐻×𝑁×𝑁 for spatial andΘ ∈ℝ 𝐻×𝑃×𝑃 for temporal attention. Vector norms are:
+‖‖2
+vec =
+∑
+𝑑
+2
+ℎ…𝑑 ,‖‖ 2
+vec =
+∑
+𝑑
+2
+ℎ…𝑑 .(48)
+Multihead queries and keys are constructed via:
+= [[[ [𝐐[⋯×𝐻𝐷 head →𝐻×⋯×𝑑 head ]] ]]],= [ [[ [𝐊[⋯×𝐻𝐷 head →𝐻×⋯×𝑑 head ]] ]]](Figure 11, M1),(49)
+𝐐=𝐆 𝐖 Q ,𝐊=𝐆 𝐖 K ,(50)
+where 𝐖Q,𝐖K ∈ℝ 𝐸×𝐸, and𝐆represents the structurally-encoded representations that incorporate domain-specific
+inductive biases (spatial structure or dynamic metadata) into the query-key computations.
+Spatial structural encoding.The spatial representations𝐆 ∈ℝ 𝑁×𝐸 learns node relational information through a
+multi-layer network withReLU(⋅):
+𝐆 =ReLU (𝜅−1)
+(…ReLU (0)
+((𝐔 ‖ ̊𝐁kern)𝐖 
+0
+)𝐖
+1 … )𝐖
+𝜅 ,(51)
+where ̊𝐁kern ∈ℝ 𝑁×𝐷kern learns the graph kernel structure; the projection weights are:
+𝐖
+0 ∈ℝ (𝐸+𝐷kern) ×𝐷 1,𝐖 
+𝓁 ∈ℝ 𝐷𝓁×𝐷𝓁+1 for𝓁∈ [𝜅− 1],𝐖 
+𝜅 ∈ℝ 𝐷𝜅 ×𝐸.
+Temporal dynamic encoding.This can be omitted if temporal metadata is unavailable. The temporal representations
+𝐆 ∈ℝ 𝑃×𝐸 incorporate cyclical time features:
+𝐆 = (𝐔  ‖ ̊𝐁dyn)𝐖  , (52)
+where ̊𝐁dyn ∈ℝ 𝑃×4 concatenates cyclical encodings of time-of-day (TOD) and day-of-week (DOW):
+̊𝐁dyn = [̊𝐛cyc(𝑡TOD,1440)‖ ̊𝐛cyc(𝑡DOW,7) ],(53)
+̊𝐛cyc(𝑡, 𝑇period) =
+[
+sin ( 2𝜋 𝑡
+𝑇period
+),cos ( 2𝜋 𝑡
+𝑇period
+)]
+∈ℝ 2 ,(54)
+with𝑡 TOD ∈ [0,1439](minutes),𝑡 DOW ∈ [1,7](days), and𝐖  ∈ℝ (𝐸+4)×𝐸.
+5.2.3. Spatiotemporal Kronecker attention (MP2)
+Spatiotemporal message passing.Apply multihead spatiotemporal MP using P2-KMV with   from Equa-
+tion (41):
+ ⟨2⟩
+𝐻 = ⟨3⟩
+𝐻, (Θ𝐻
+ )⊤ ∈ℝ 𝐻×𝑑head𝑃×𝑁 ,(55)
+ ⟨1⟩
+𝐻 = ⟨2⟩
+𝐻,↫ (Θ𝐻
+ )⊤ ∈ℝ 𝐻×𝑑head𝑁×𝑃 ,(56)
+𝐻, = ⟨1⟩
+𝐻,↫ ∈ℝ 𝐻×𝑃 𝑁×𝑑head .(57)
+where ⟨3⟩
+𝐻, = [[[ [ [𝐻 𝑑 head×𝑃×𝑁→𝐻×𝑑 head𝑃×𝑁]
+] ]]]and ⟨2⟩
+𝐻,↫ ∈ℝ 𝐻×𝑑head𝑁×𝑃.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 20 of 48
+
+--- PAGE 21 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Multihead consolidation.Head-mixing weights with GLU enhancement and residual connection:
+ =GLU( ∼ 𝐖2𝑂) + ( ∼  )res ,(58)
+where𝐖 2𝑂 ∈ℝ 𝐸×2𝐸 and ∼ = [[[ [𝐻,[𝐻×𝑃 𝑁×𝑑 head→𝑃×𝑁×𝐻𝐷 head]
+] ]]].
+5.3. Forecast module
+Apply residual MLP with expansion factor𝑀𝑧 = 2:
+[1]
+ =
+(
+Dropout(LeakyReLU( 𝐖𝑧,up +𝐛 𝑧,up))𝐖𝑧,dn +𝐛 𝑧,dn
+)
++  ,(59)
+followed by linear readout to forecast horizon𝑄:
+̂= [1]
+ 𝐖ro +𝐛 ro , (60)
+where
+𝐖𝑧,up ∈ℝ 𝐸×𝑀𝑧𝐸,𝐛 𝑧,up ∈ℝ 𝑀𝑧𝐸,
+𝐖𝑧,dn ∈ℝ 𝑀𝑧𝐸×𝐸 ,𝐛 𝑧,dn ∈ℝ 𝐸,
+𝐖ro ∈ℝ 𝐸×𝑄𝐶 ,𝐛 ro ∈ℝ 𝑄𝐶 .
+5.4. Training objective
+The model uses Mean Absolute Error (MAE) training loss on original scale, consistent with prior spatiotemporal
+models in this domain:
+MAE = 1
+𝑄 𝑁 𝐶
+𝑄∑
+𝑞=1
+𝑁∑
+𝑛=1
+𝐶∑
+𝑐=1
+||| 𝑞𝑛𝑐 − ̂ 𝑞𝑛𝑐
+||| ,(61)
+where∈ℝ 𝑄×𝑁×𝐶 is the ground truth and̂∈ℝ 𝑄×𝑁×𝐶 is the predicted output.
+6. EXPERIMENTS and RESULTS
+6.1. Experiment Setup
+Training was conducted on theNVIDIA A100GPU (Google Colab) using theTorch Spatiotemporal Library
+(TSL)(Cini and Marisca, 2022) withPyTorch 2.8.0+cu126. Following standard procedures (Li et al., 2018a), data is
+split chronologically into training, validation, and testing sets (70:10:20). Two real-world traffic datasets were used (Li
+et al., 2018b; Cini and Marisca, 2022):
+1. PemsBay(Figure 12a): 6 months of traffic speed readings [MPH] collected every 5 minutes by 325 sensors on
+highways in the San Francisco Bay Area from 01/01/2017 to 05/31/2017. The reported missing rate is0.02%.
+2. MetrLA(Figure 12b): 4 months of traffic speed readings [MPH] collected every 5 minutes by 207 sensors on
+highways in Los Angeles County from 03/01/2012 to 06/30/2012. The reported missing rate is8.11%.
+For illustration, Figure 13 shows a sample full-day time series from three nodes (50, 125, 250). Thetaskis to forecast
+12 time steps forward (60 minutes, 5-minute intervals) given 12 time steps of input;sequence slicingin TSL produces
+overlapping 2-hour windows with a stride of one time step.
+Trainingconfiguration.Tominimizerelianceonoptimization-specifictuning,allmodelsweretrainedunderageneric
+a priori configuration: 32-sample batches (2 workers), Adam optimizer, and an exponential learning-rate scheduler
+(𝛾= 0.90 , 𝛼= 0.001 ), for up to 50 epochs with early stopping (patience = 10, minimum validation loss decrease:
+Δmin = 10 −3). Temporal metadata and graph connectivity were provided as required by specific architectures, with
+graph adjacency constructed using TSL defaults.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 21 of 48
+
+--- PAGE 22 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Data preprocessing.Default TSL masks∈ {0,1} 𝑆×𝑁×𝐶 are applied (𝑆: number of samples), and feature-wise
+standardization is performedbeforesequence slicing (StandardScaler(axis=(0,1))). Mean (𝜇𝑘) and standard
+deviation (𝜎𝑘) are computed using only training data to avoid information leakage:
+𝑋𝑖𝑗𝑘 =𝑀 𝑖𝑗𝑘
+𝑋𝑖𝑗𝑘 −𝜇 𝑘
+𝜎𝑘 +𝜖 𝜎
+, (62)
+𝜇𝑘 = 1
+𝑛𝑘
+∑
+𝑖,𝑗
+𝑀𝑖𝑗𝑘𝑋𝑖𝑗𝑘, 𝜎 𝑘 =
+√
+1
+𝑛𝑘
+∑
+𝑖,𝑗
+𝑀𝑖𝑗𝑘(𝑋𝑖𝑗𝑘 −𝜇 𝑘)2,(63)
+where 𝑛𝑘 = ∑
+𝑖,𝑗 𝑀𝑖𝑗𝑘 is the count of observed entries for channel𝑘, and𝜖𝜎 = 10 −8 avoids division by zero. This
+produces standardized inputs∈ℝ 𝑆×𝑁×𝐶.
+Metric reporting.All metrics and losses are computed on masked TSL datasets using the original data scale to
+preserve real-world error magnitudes. Values are averaged across multiple trials with different random seeds, with 95%
+confidence intervalscalculated using Student’st-distribution. Let𝑦𝑖 and ̂ 𝑦𝑖 denote theground-truth and predictedvalues
+for𝑛valid data points within the forecast horizon. Table 5 reports the following benchmark metrics:
+MAE= 1
+𝑛
+𝑛∑
+𝑖=1
+|𝑦𝑖 −̂ 𝑦𝑖|,(64)
+MAPE= 100%
+𝑛
+𝑛∑
+𝑖=1
+|||
+𝑦𝑖−̂ 𝑦𝑖
+𝑦𝑖
+||| ,(65)
+RMSE=
+√√√√ 1
+𝑛
+𝑛∑
+𝑖=1
+(𝑦𝑖 −̂ 𝑦𝑖)2 .(66)
+Here,MAE(Mean Absolute Error) measures the average magnitude of prediction errors, providing an interpretable
+value in the same unit as the data.MAPE(Mean Absolute Percentage Error) expresses the mean relative error as a
+percentage of the true values, reflecting proportional accuracy.RMSE(Root Mean Squared Error) emphasizes larger
+deviations by squaring residuals prior to averaging, thus being more sensitive to outliers and high-variance forecasts.
+6.1.1. Weaver hyperparameters
+The default values for Weaver are shown in Table 3, representing general-purpose configurations found to perform
+reliably across datasets without task-specific hyperparameter tuning. Ablation studies are provided in Section 7.
+6.1.2. Benchmark models
+To ensure consistency and fairness across all benchmarks,every model was uniformly provided with a 1-hour
+historical input window(12 time steps of 5 minutes), reflecting practical data availability and storage constraints.
+Representative models were selected from two architectural families, with hyperparameters reproduced from their
+original sources to the best of our knowledge (Table 8, Appendix B):
+Table 3
+Summary of Weaver hyperparameter values and configurations used in experiments. "Space metadata" describe network
+spatial configurations, e.g., sensor coordinates or graph connectivity. "Time metadata" are dynamic exogenous variables,
+i.e., cyclically encoded time-of-day (TOD) and day-of-week (DOW); "NT" (No Time) excludes time metadata.
+ConfigurationHeads
+𝐻
+Embed
+size
+𝐸
+Time
+metadata
+Space
+metadataDropoutTraffic Phase Dictionary ATk-Pooling K-Bias
+(TOD/DOW) Count
+𝑀Ξ
+Width
+𝐾Ξ
+Num.
+Scorers
+𝑁𝜅
+pooling
+ratio,𝜌
+(space)
+pooling
+ratio,𝜌
+(time)
+Count
+𝐷kern
+Num.
+Layers
+Weaver - - - - - - - - - - - -
+⊳Default(T) 8 128 ✓ ✗ 0.1 64 32 5 0.6 0.6 32 3
+⊳Default(NT) 8 128 ✗ ✗ 0.1 64 32 5 0.6 0.6 32 3
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 22 of 48
+
+--- PAGE 23 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+1. Transformer-based (computational complexities compared in Table 4):
+(a) STTN (Xu et al., 2021): Learns separate spatial (ℝ𝑁×𝑁) and temporal (ℝ𝑃×𝑃 ) embeddings to encode road
+topology and time-step information. These embeddings are concatenated with node features and passed
+throughstackedspatial-temporalblocks,wheremulti-headattentionalternatesbetweenspatialandtemporal
+transformers. Moreover, a fixed Chebyshev graph convolution layer encodes stationary spatial structure
+alongside spatial attention.
+(b) STAEformer(Liuetal.,2023a):Learnslookuptables 𝑇𝑤 ∈ℝ 𝑁𝑤×𝑑𝑓 and 𝑇𝑑 ∈ℝ 𝑁𝑑 ×𝑑𝑓,indexedrespectively
+by day-of-week (0–6. 𝑁𝑤 = 7) and time-of-day (0–287, corresponding to 5-minute intervals over 24 hours,
+𝑁𝑑 = 288). The retrieved embeddings (𝐄𝑡
+𝑤 ∈ℝ 𝑇×𝑑 𝑓, 𝐄𝑡
+𝑑 ∈ℝ 𝑇×𝑑 𝑓) are concatenated and broadcast across
+all nodes to form the periodicity embedding𝑝 ∈ℝ 𝑇×𝑁×2𝑑 𝑓. This is further concatenated with a learned
+spatiotemporal embedding (𝑎 ∈ℝ 𝑇×𝑁×𝑑 𝑎) and node-wise feature inputs (∈ℝ 𝑃×𝑁×1). The resulting
+joint representation is processed by sequential temporal and spatial transformer layers, where multi-head
+attention alternates along each axis (ℝ𝐻×𝑃×𝑁×𝑁 ↔ℝ 𝐻×𝑁×𝑃×𝑃 ) to capture spatiotemporal dependencies.
+2. GCN-based:
+(a) Graph Wavenet (Wu et al., 2019): Employs stacked dilated causal convolutional layers (directed, forward-
+time) to model long-range temporal dependencies, combined with diffusion-based graph convolutions
+that separately process forward and backward directional flows. The model uses a fixed, distance-derived
+adjacencymatrix,augmentedbyalearnableadjacencymatrixtrainedend-to-endtorefinegraphconnectivity.
+(b) ASTGCN (Guo et al., 2019): Analyzes traffic dynamics in three timescales across separate model blocks:
+recent (hourly), daily-periodic, and weekly-periodic sequences. Within each block, spatial and temporal
+attention modules adaptively weight correlations, while Chebyshev graph convolutions and 1D temporal
+convolutionsextractspatialandtemporalfeatures.Theoutputsarefusedthroughconcatenationandlearnable
+weighting to produce the final forecast. In our benchmark, only the one-hour history window is provided for
+uniformity.
+6.2. Results and Discussion
+Table 5 reports benchmarking results on both PemsBay and MetrLA using a standardized training configuration
+(Section 6.1). Baseline implementations occasionally yield different values from their original publications because all
+models are trained under identical optimizer settings and hyperparameters, ensuring that performance differences arise
+primarily from model design rather than tuning effort.
+OnPemsBay(minimal missing data, 0.02%), Graph WaveNet achieves the best performance at the 15-minute
+horizonacrossallmetrics.However,Weaver(Default(T))surpassesallbaselinesatlongerhorizons(30and60minutes),
+and achieves the best overall average performance (‘All’). This indicates that Weaver distributes prediction error
+differently across time horizons—with particular strength in long-range prediction. The advantage is consistent with
+the design of Kronecker Attention, whose TEN formulation enables higher-order interactions between node, time, and
+feature dimensions.
+Table 4
+Comparison of time and space complexity of Weaver versus Transformer models, whereLdenotes the number of stacked
+Transformer layers. "Graph connectivity" refers to handcrafted network graph features; "dynamic metadata" refers to
+time-varying exogenous features (e.g., time-of-day, day-of-week, weather). "N/A" indicates insufficient information.
+Model Time complexity Space complexity Learnable
+embedding
+Fixed
+positional
+encoding
+Structural
+encoding
+Metadata
+Graph
+connectivity
+Dynamic
+metadata
+Vanilla Transformer (𝐿𝑃2𝑁2) (𝐿𝑃2𝑁2) N/A Yes N/A N/A N/A
+STTN (𝐿(𝑃2 +𝑁 2)) (𝐿(𝑃2 +𝑁 2)) Yes N/A Yes, learned Yes Optional
+STAEformer (𝐿𝑃 𝑁(𝑃+𝑁) ) (𝐿𝑃 𝑁(𝑃+𝑁) ) Yes Yes N/A No Yes
+Weaver (proposed) (𝑃 𝑁(𝑃+𝑁) ) (𝑃 2 +𝑁 2) Yes No Yes, learned Optional Optional
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 23 of 48
+
+--- PAGE 24 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+OnMetrLA(high missing data, 8.11%), Weaver’s advantage becomes more pronounced. While Graph WaveNet
+remainsstrongatthe15-minutehorizon,Weaver(Default(T))achievesthebestperformanceat30and60minutesandon
+overall metrics. Importantly, Weaver exhibits tight 95% confidence intervals across all metrics (RMSE:∼ ±0.01–0.03,
+MAPE: ∼ ±0.03–0.07, MAE:∼ ±0.01), showing high stability even under imperfect and noisy data. Other baselines
+show substantially higher variance, especially on MetrLA: ASTGCN (RMSE:∼ ±0.03–0.16, MAPE:∼ ±0.01–0.37,
+MAE: ∼ ±0.01–0.12); STTN (RMSE:∼ ±0.15–0.42, MAPE:∼ ±0.33–0.96, MAE:∼ ±0.05–0.16); and even Graph
+WaveNet experiences increased variability (MAPE:∼ ±0.06–0.22on MetrLA vs.∼ ±0.01–0.02on PemsBay). This
+contrast suggests that several baselines are sensitive to missing data or initialization, whereas Weaver remains robust
+without specialized tuning.
+Thetime-metadatavariant(T)consistentlyoutperformsthenon-time-metadatavariant(NT),confirmingtheutilityof
+incorporatingtemporalcontextintoWeaver’sforecastingprocess.Evenwithouttemporalmetadata,Default(NT)remains
+competitiveorsuperiortobaselinesatlongerhorizons,indicatingthatWeavereffectivelylearnsspatiotemporalstructure
+directly from the network dynamics. Furthermore, Weaver maintains competitive parameter efficiency (0.32–0.34M),
+comparable to Graph WaveNet (0.30M), despite supporting richer representational capacity via Kronecker Attention,
+the Traffic Phase Dictionary, and Tanimoto Valence Attention.
+Cost-performance analysis.Beyond predictive accuracy, computational efficiency determines whether a model is
+deployable at scale. Figure 14 shows the cost–performance trade-off on PemsBay, where the bubble area reflects the
+compute cost of training each model for 100 epochs on an A100 GPU (Google Colab, 5.37 compute units per hour at
+$49.99 per 500 compute units). The summary performance score on the y-axis is computed as follows: for each metric
+𝜔∈ {RMSE All,MAPEAll,MAEAll}across the ‘All’ horizon, we apply min–max normalization,
+𝜔norm = 𝜔−𝜔 min
+𝜔max −𝜔 min
+, (67)
+where𝜔 min and𝜔 max denote the minimum and maximum values across models. To compute 1.0 as the highest score:
+Normalized Performance= 1 − 1
+3
+∑
+𝜔
+𝜔norm ,(68)
+Weaver attains the highest performance score (1.000) while requiring the lowest monetary cost ($0.82 for 100
+epochs). These costs correspond directly to the raw training durations in Figure 15: for 100 training epochs, Weaver
+requires 1.52 hours, compared to 4.04 hours for ASTGCN, 4.42 hours for Graph WaveNet, 8.48 hours for STTN, and
+13.10 hours for STAEformer. Thus, Weaver’s lower cost is a direct consequence of shorter per-epoch training duration
+and reflects reduced computational demand per optimization step.
+Table 5
+Performance metrics (RMSE, MAPE, MAE) averaged on the number of trials (Num. trials) acrossprediction horizons
+(15, 30, 60 minutes)andoverall metrics (All)across all horizons (15, 30, 45, 60 minutes). The corresponding95% error
+marginsare included in subscript: (±𝑋.𝑋𝑋). Results are averaged over multiple random seeds, potentially differing from
+the original papers. Lower values are better, the best results per dataset are marked withboldand asterisk (*).
+Data[Units]Model Avg. RMSE(95%𝐸𝑟𝑟.) Avg. MAPE(95%𝐸𝑟𝑟.) Avg. MAE(95%𝐸𝑟𝑟.) Num.(Missing rate)(Num. trials) 15 min 30 min 60 min All 15 min 30 min 60 min All 15 min 30 min 60 min AllParams.
+PemsBay2017Speed [MPH](0.02%)
+STTN (10) 2.86(±0.01)3.81(±0.01)4.62(±0.02)3.73(±0.02)2.91(±0.01) 3.85(±0.02) 4.81(±0.03) 3.72(±0.02) 1.37(±0.01)1.71(±0.01)2.05(±0.01)1.65(±0.01)0.59MSTAEformer (9)1 2.92(±0.03)3.90(±0.04)4.56(±0.04)3.76(±0.03)2.99(±0.05) 3.93(±0.06) 4.73(±0.07) 3.75(±0.05) 1.36(±0.01)1.68(±0.01)1.95(±0.02)1.61(±0.01)1.40MASTGCN (10)3.10(±0.03)4.35(±0.06)5.70(±0.14)4.38(±0.08)3.09(±0.01) 4.49(±0.06) 6.07(±0.16) 4.37(±0.07) 1.47(±0.01)1.95(±0.02)2.51(±0.04)1.90(±0.02)0.50MGraph WaveNet (10)𝟐.𝟕𝟑∗(±0.01)𝟑.𝟔𝟕∗(±0.01)4.45(±0.01)3.60(±0.02)𝟐.𝟔𝟗∗(±0.01) 𝟑.𝟔𝟑∗(±0.01) 4.59(±0.02) 3.50(±0.01) 𝟏.𝟑𝟎∗(±0.00)1.63(±0.01)1.96(±0.01)1.58(±0.04)0.30MWeaver(-) - - - - - - - - - - - - -⊳Default(T)(10)2.79(±0.01)𝟑.𝟔𝟕∗(±0.01)𝟒.𝟐𝟕∗(±0.01)𝟑.𝟓𝟓∗(±0.01)2.77(±0.00) 𝟑.𝟔𝟑∗(±0.01) 𝟒.𝟑𝟔∗(±0.02) 𝟑.𝟒𝟔∗(±0.01) 1.32(±0.00)𝟏.𝟔𝟏∗(±0.00)𝟏.𝟖𝟓∗(±0.00)𝟏.𝟓𝟒∗(±0.00)0.34M⊳Default(NT)(10)2.81(±0.01)3.71(±0.01)4.40(±0.01)3.61(±0.01)2.76(±0.01) 3.64(±0.01) 4.47(±0.02) 3.49(±0.01) 1.32(±0.00)1.63(±0.00)1.91(±0.00)1.57(±0.00)0.33M
+MetrLA2012Speed [MPH](8.11%)
+STTN (10) 5.54(±0.15)6.60(±0.29)7.73(±0.42)6.55(±0.29)7.68(±0.33) 9.31(±0.59) 11.21(±0.96) 9.16(±0.60) 2.86(±0.05)3.27(±0.10)3.75(±0.16)3.23(±0.10)0.57MSTAEformer (10)5.58(±0.06)6.62(±0.08)7.55(±0.04)6.51(±0.05)7.60(±0.18) 9.08(±0.31) 10.55(±0.27) 8.88(±0.24) 2.85(±0.02)3.21(±0.03)3.58(±0.02)3.16(±0.02)1.26MASTGCN (10)5.89(±0.10)7.22(±0.11)8.96(±0.16)7.27(±0.11)8.08(±0.20)10.41(±0.14)13.73(±0.37)10.42(±0.16)3.05(±0.05)3.63(±0.07)4.46(±0.12)3.62(±0.08)0.24MGraph WaveNet (10)𝟓.𝟏𝟗∗(±0.02)6.22(±0.04)7.34(±0.07)6.18(±0.04)𝟕.𝟎𝟒∗(±0.06) 8.61(±0.12) 10.50(±0.22) 8.50(±0.12) 2.73(±0.01)3.13(±0.02)3.61(±0.04)3.09(±0.02)0.30MWeaver(-) - - - - - - - - - - - - -⊳Default(T)(10)5.27(±0.02)𝟔.𝟏𝟖∗(±0.03)𝟕.𝟎𝟗∗(±0.02)𝟔.𝟏𝟏∗(±0.02)7.10(±0.03) 𝟖.𝟑𝟕∗(±0.04) 𝟗.𝟖𝟕∗(±0.04) 𝟖.𝟐𝟓∗(±0.03) 𝟐.𝟕𝟐∗(±0.01)𝟑.𝟎𝟒∗(±0.01)𝟑.𝟒𝟏∗(±0.01)𝟑.𝟎𝟎∗(±0.01)0.34M⊳Default(NT)(10)5.30(±0.02)6.24(±0.02)7.24(±0.03)6.19(±0.02)7.08(±0.05) 8.39(±0.06) 10.00(±0.07) 8.28(±0.05) 2.74(±0.01)3.08(±0.01)3.50(±0.01)3.05(±0.01)0.32M
+1 One trial excluded due to bad initialization.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 24 of 48
+
+--- PAGE 25 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+ThisefficiencyisconsistentwiththecomputationalcomplexityreportedinTable4.Weaverscalesas (𝑃 𝑁(𝑃+𝑁))
+in time and (𝑃 2 +𝑁 2) in space, without a multiplicative layer factor𝐿 because spatiotemporal interactions
+are computed in a single joint operation rather than accumulated across layers. In contrast, STAEformer ($7.03,
+1.40M parameters) and STTN ($2.37, 0.30M parameters) incur layer-dependent costs—(𝐿𝑃 𝑁(𝑃+𝑁)) and
+(𝐿(𝑃 2 +𝑁 2)), respectively—while standard Transformers require(𝐿𝑃 2𝑁 2)due to simultaneous spatial–temporal
+attention.ASTGCNshowsloweraccuracyyetstillincursnon-negligiblecost($2.17,0.50Mparameters).Thealignment
+between empirical compute cost and theoretical complexity indicates that coupling spatial and temporal dimensions
+during attention or convolution directly influences training efficiency.
+Practical implications and use cases.Weaver’s competitive prediction performance (Table 5), efficient training
+cost (Figure 14), and low training times (Figure 15) make it a strong candidate for practical deployment.
+Weaver’s stable long–horizon forecasts enable downstream decision-making that depends on anticipating future
+trafficstates.Inoperationalsettings,thissupportsproactivecongestionmanagementbyallowingtransportationagencies
+(e.g., DOTs, traffic management centers) to adjust signal timing, modify ramp-metering rates, and issue route-choice
+or departure-time recommendations. The same forecasts can be used forpredictive travel-time analysisin Advanced
+Traveler Information Systems (ATIS), providing expected delays and suggested alternatives before congestion forms.
+Weaver also trains significantly faster than baseline models, reducing the cost of retraining and enabling frequent
+model finetuning as new information becomes available. This is valuable when traffic conditions evolve due to seasonal
+variation, population shifts, infrastructure changes, or sensor updates. Because the model can be retrained quickly and
+cheaply, maintaining relevant predictions over time becomes operationally feasible, making Weaver well suited for
+continuous learning and deployment in evolving traffic systems.
+7. ABLATIONS
+In this section, we perform ablation studies onDefault(T) settings for the three majorWeavercomponents: (i)
+Kronecker Attention and10 (Section 3.1), (ii) Tanimoto Valence Attention (Section 3.2), and (iii) the Traffic Phase
+Dictionary (Section 3.3).
+7.1. Model Capacity and KPS: Embed Size and Multihead Count
+Weavermodels spatial and temporal relationships through𝐻 latent graphs generated via dot-product kernels
+during local spatial- and temporal-attention, then weaves them into a unified spatiotemporal representation using the
+P2-KMVforglobalmessagepassing(Section3.1).Finally,aweightedimplicitKroneckerproductsummation(W-iKPS,
+Appendix E.1) is performed during head mixing (Equation(58)). To study this mechanism, we vary the following
+parameters:
+•Embedding dimension(𝐸), to study its effect on overall representational capacity;
+•Number of heads(𝐻), to study the effects of subgraph partitioning in P2-KMV, which determines the number
+of summands in the W-iKPS; and
+• Head dimension(𝑑head =𝐸∕𝐻 ), computed for each(𝐸, 𝐻) combination as a more direct measure of per-head
+representational capacity.
+Twotestsetsaredesigned:(a)Fix 𝐻 andvary 𝐸 tostudytheeffectsofoverallrepresentationalcapacity,and(b)fix 𝑑head
+and vary𝐻 to study the effect of varying W-iKPS summands while maintaining constant per-head representational
+capacity.ThetestmetricsareaveragedoverseveraltrialsandsummarizedinTable6,whichalsoshowsthattheparameter
+count is highly dependent on𝐸.
+Weaverdemonstrates general robustness and stability across all combinations of𝐸 and 𝐻. Test metrics improve
+consistently as𝐸 and 𝐻 increase while95%error margins remain negligible across the board. However, in set (b), both
+𝐸= 96, 𝐻= 6 and 𝐸= 64, 𝐻= 4 result in elevated error margins (RMSE:∼ ±0.01, MAPE:∼ ±0.04-0.06, MAE:
+∼ ±0.01) compared to𝐸= 32, 𝐻= 8 from set (a) despite having significantly higher parameter counts (0.21M and
+0.12M versus 0.06M). This suggests that the number of W-iKPS summands (and by extension, latent subgraphs) plays
+a significant role in determining training stability and convergence consistency in Kronecker Attention, consistent with
+known properties of Kronecker product summations.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 25 of 48
+
+--- PAGE 26 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+7.2. Valence Attention
+Previousresearchontrafficnetworkbehaviorhasdeterminedthatnegativecorrelationsbetweenroadsarenon-trivial
+in traffic networks. In Section 3.2, we propose Valence Attention, an attention variant that also models negative node
+relationships,andemploythecontinuousTanimotoCoefficient(CTC)duetoitsabilitytorepresentnegativerelationships
+while having characteristics that favor stable model learning dynamics (e.g. self-normalization, local convex/concavity,
+non-trivial minima/maxima). In this section, we test Tanimoto Valence Attention against typical scaled dot-product
+attention (SDPA, Equation (5)) and the Cosine coefficient (tensor form):
+Θcos = ⊤
+‖‖vec ‖⊤‖vec +𝜖 0
+, 𝜖 0 = 10 −6 (69)
+Three test sets are designed with varying embedding dimensions: (a)𝐸= 32 , (b)𝐸= 80 , and (c)𝐸= 128 , to evaluate
+kernel performance across different model capacities. The averaged test metrics over several trials are summarized in
+Figure 16 (see Table 9 in Appendix C for full values).
+Tanimoto consistently outperforms both SDPA and Cosine across all embedding dimensions and metrics. The
+performance gap is most pronounced at lower capacities, with Cosine showing severe degradation in set (a) (RMSE:
+3.99 ± 0.06, MAPE:4.64 ± 0.12, MAE:1.84 ± 0.04) and elevated error margins (∼ ±0.12-0.15), while Tanimoto
+maintains stable test metrics and low error margins even at𝐸= 32 . SDPA shows moderate performance between
+Tanimoto and Cosine, but exhibits consistently higher test metrics across all horizons. As embedding dimension
+increases in sets (b) and (c), the gap narrows but Tanimoto retains its advantage with consistently lower test metrics and
+error margins across all configurations. The stability of Tanimoto is particularly evident in its consistently low error
+margins (∼ ±0.01-0.02) across all embedding dimensions, while Cosine’s error margins remain elevated even at higher
+capacities.
+In conclusion, these results demonstrate that Tanimoto’s inherent properties (self-normalization and bounded
+output range) provide both improved accuracy and training stability, particularly in capacity-constrained settings where
+modeling negative relationships becomes critical for capturing complex traffic dynamics. Interestingly, we observe that
+at 𝐸= 128 , Cosine marginally outperforms SDPA, which suggests that capturing negative relationships is inherently
+valuable for traffic forecasting.
+7.3. Traffic Phase Dictionary
+The Traffic Phase Dictionary (Section 3.3) enables Weaver to learn latent representations of traffic phases (e.g.,
+free flow, congestion), generatinglatent cofactors𝚵∈ℝ 𝑃×𝑁×𝐾 Ξ based on the input traffic measures at each node
+(node-state) ∼∈ℝ 𝑁×𝑃 𝐶. The dictionary size(𝑀Ξ)determines the number of landmarks in the dictionary manifold,
+whereas the cofactor dimension(𝐾Ξ)determines the representational capacity of each latent cofactor. Three test sets
+are designed: (a) vary𝑀Ξ and fix𝐾Ξ, (b) vary𝐾Ξ and fix𝑀Ξ, and (c) vary both𝑀Ξ and 𝐾Ξ maintaining a 2:1 ratio.
+The averaged test metrics over several trials are summarized in Table 7.
+Across all test sets, Weaver demonstrates robustness to variations in Traffic Phase Dictionary hyperparameters.
+In set (a), reducing dictionary size from 64 to 4 results in elevated error margins (MAPE:∼ ±0.08-0.10) compared
+Table 6
+Ablation test results on PemsBay data whenvarying model embed dimension𝐸 andnumber of heads 𝐻; Head dim.
+𝑑head =𝐸∕𝐻 . ‘All’ indicates metrics across all 15, 30, 45, 60 min horizons. Other hyperparameters follow the Default(T)
+hyperparameter set. The subscript "D" indicates the defaults. Difference in trials are due to training runs completed when
+compiling this work.
+Test
+set
+Embed
+dim.
+Num.
+heads
+Head
+dim.
+Num.
+trials Avg. RMSE Avg. MAPE Avg. MAE Num.
+Params.
+(𝐸) (𝐻) (𝑑head) 15 min 30 min 60 min All15 min 30 min 60 min All15 min 30 min 60 min All
+- 128𝐷 8𝐷 16 10 2.79(±0.01) 3.67(±0.01) 4.27(±0.01) 3.55(±0.01) 2.77(±0.00) 3.63(±0.01) 4.36(±0.02) 3.46(±0.01) 1.32(±0.00) 1.61(±0.00) 1.85(±0.00) 1.54(±0.00) 0.34M
+(a) 80 8 10 11 2.82(±0.00) 3.70(±0.01) 4.30(±0.01) 3.60(±0.01) 2.79(±0.01) 3.68(±0.01) 4.45(±0.01) 3.51(±0.01) 1.33(±0.00) 1.63(±0.00) 1.89(±0.00) 1.56(±0.00) 0.16M
+32 8 4 12 2.87(±0.00) 3.77(±0.01) 4.44(±0.01) 3.66(±0.01) 2.86(±0.01) 3.83(±0.01) 4.74(±0.02) 3.67(±0.01) 1.36(±0.02) 1.69(±0.00) 1.99(±0.00) 1.62(±0.00) 0.06M
+(b) 96 6 16 10 2.81(±0.01) 3.68(±0.01) 4.30(±0.01) 3.56(±0.01) 2.80(±0.03) 3.70(±0.04) 4.50(±0.04) 3.54(±0.04) 1.32(±0.00) 1.63(±0.01) 1.89(±0.00) 1.56(±0.00) 0.21M
+64 4 16 10 2.84(±0.01) 3.73(±0.01) 4.37(±0.02) 3.61(±0.01) 2.88(±0.06) 3.82(±0.06) 4.66(±0.05) 3.66(±0.06) 1.35(±0.01) 1.66(±0.01) 1.94(±0.01) 1.60(±0.01) 0.12M
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 26 of 48
+
+--- PAGE 27 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+to higher counts, suggesting that insufficient dictionary landmarks degrade training stability. However, test metrics
+remain comparable across𝑀Ξ = 8, 16, and 64, indicating diminishing returns beyond a minimum threshold. In set (b),
+varying cofactor dimension from 4 to 32 shows minimal impact on both test metrics and error margins, suggesting that
+𝐾Ξ has limited influence on model performance within this range. Set (c) demonstrates that scaling both parameters
+proportionally yields consistent improvements, with𝑀Ξ = 128, 𝐾Ξ = 64 achieving the best performance across all
+metrics while maintaining low error margins. These results suggest that dictionary size plays a more critical role than
+cofactor dimension in capturing diverse traffic patterns, though both contribute to overall model capacity.
+Table 7
+Ablation test results on PemsBay data whenvarying Traffic Phase Dictionary hyperparameters. Other hyperparameters
+follow the Default(T) hyperparameter set. The subscript "D" indicates the defaults. Difference in trials are due to training
+runs completed when compiling this work.
+Test
+set
+Landmark
+count
+Cofactor
+width
+Num.
+trials Avg. RMSE Avg. MAPE Avg. MAE Num.
+Params.
+(𝑀Ξ) (𝐾Ξ) 15 min 30 min 60 min All15 min 30 min 60 min All15 min 30 min 60 min All
+- 64𝐷 32𝐷 10 2.79(±0.01) 3.67(±0.01) 4.27(±0.01) 3.55(±0.01) 2.77(±0.00) 3.63(±0.01) 4.36(±0.02) 3.46(±0.01) 1.32(±0.00) 1.61(±0.00) 1.85(±0.00) 1.54(±0.00) 0.34M
+(a)
+4 32 10 2.86(±0.03) 3.72(±0.02) 4.32(±0.02) 3.60(±0.02) 3.07(±0.10) 3.89(±0.09) 4.62(±0.08) 3.74(±0.09) 1.37(±0.02) 1.67(±0.02) 1.91(±0.01) 1.60(±0.02) 0.32M
+8 32 11 2.82(±0.01) 3.70(±0.01) 4.30(±0.01) 3.57(±0.01) 2.79(±0.01) 3.65(±0.01) 4.39(±0.02) 3.48(±0.01) 1.33(±0.00) 1.62(±0.00) 1.87(±0.00) 1.56(±0.00) 0.32M
+16 32 10 2.81(±0.00) 3.68(±0.01) 4.28(±0.01) 3.56(±0.01) 2.77(±0.01) 3.63(±0.01) 4.37(±0.01) 3.47(±0.01) 1.32(±0.00) 1.62(±0.00) 1.86(±0.00) 1.55(±0.00) 0.32M
+(b)
+64 4 10 2.82(±0.01) 3.70(±0.01) 4.30(±0.02) 3.57(±0.01) 2.83(±0.03) 3.70(±0.04) 4.46(±0.05) 3.53(±0.04) 1.33(±0.01) 1.63(±0.01) 1.88(±0.01) 1.56(±0.01) 0.32M
+64 8 10 2.81(±0.00) 3.68(±0.00) 4.28(±0.01) 3.56(±0.00) 2.78(±0.01) 3.65(±0.01) 4.39(±0.01) 3.48(±0.01) 1.32(±0.00) 1.62(±0.00) 1.86(±0.00) 1.55(±0.00) 0.32M
+64 16 10 2.80(±0.00) 3.68(±0.01) 4.28(±0.01) 3.55(±0.01) 2.77(±0.01) 3.64(±0.02) 4.39(±0.02) 3.47(±0.02) 1.32(±0.00) 1.62(±0.00) 1.86(±0.00) 1.55(±0.00) 0.33M
+(c) 8 4 10 2.84(±0.03) 3.72(±0.02) 4.32(±0.02) 3.59(±0.02) 2.87(±0.12) 3.71(±0.10) 4.46(±0.07) 3.55(±0.10) 1.35(±0.02) 1.64(±0.01) 1.89(±0.01) 1.58(±0.02) 0.31M
+128 64 10 2.79(±0.00) 3.66(±0.01) 4.26(±0.01) 3.54(±0.01) 2.75(±0.01) 3.61(±0.01) 4.35(±0.02) 3.44(±0.01) 1.31(±0.00) 1.61(±0.00) 1.85(±0.00) 1.54(±0.00) 0.42M
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 27 of 48
+
+--- PAGE 28 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+P: History window
+Q: Forecast horizon
+N: Number of nodes
+C: Feature dimension
+E: Model space dimension,
+P-KMV
+Self-conditioning
+GLU
+ATK-pool
+(on space)
+ATK-pool
+(on time)
+Latent cofactors
+(Traffic phase conditioners)
+Traffic Phase Dictionary
+Concatenate
+
+MH
+MH
+MLP
+System-state input
+Consolidate
+MH
+B
+C1
+A
+A1
+B1
+h=1
+h=2
+h=3
+h=4
+M2
+C5
+Traffic states
+Forecast
+GLU
+h=1
+h=2
+h=3
+h=4
+GLU
+
+System
+state
+Structural
+encoding
+Dynamic
+metadata Encode
+Multihead
+(MH)M1
+RMSNorm
+Latent parameters
+D1
+C2Local Spatial-Attention
+Local Temporal-Attention C3
+Tanimoto Valence
+Attention (T-Valence) C4 State-transitionD
++
+Residual
+T-Valence
+Readout
+A1Residual
++
++
+GLU
+RMSNorm
+Dropout
+Residual
+Dropout
+LeakyReLU
+D1
++
+GLU
+M2Residual
+Readout
+Input processing/augmentation
+C Graphical modeling
+D Bulk system forecast
+C2Spatial latent graphs
+BA
+Temporal latent graphsC3
+M2Kronecker product summation
+Notable component roles:
+C5Spatiotemporal message passing
+Feedforward components :
+C Kronecker Attention
+Figure 11:Schematic diagram of theWeaverpipeline: (A,B) The model self-conditions through theTraffic Phase
+Dictionaryby mapping traffic states ∼ tolatent cofactors 𝚵, then conditions the input space on traffic phases via
+concatenation: (‖𝚵). (C) TheKronecker Attention modulegenerate local node representations with ATk-pooling,
+computes attention maps (Θ ,Θ ), then performsP 2-KMVfor spatiotemporal message passing byweavingmultihead
+Θ𝐻
+ ,Θ 𝐻
+ with  𝐻
+ . (D) TheState-transition modulepredicts ̂𝐘 via MLP and linear readout. Module configurations for
+(A1), (M2) and (D1) are along the bottom, where(⋅)are inputs from prior modules. Full details in Section 4 and 5.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 28 of 48
+
+--- PAGE 29 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+PemsBay Sensor Locations
+0
+50
+100
+150
+200
+250
+300
+Sensor Index
+(a) PemsBay sensor network in San Francisco Bay.
+MetrLA Sensor Locations
+0
+25
+50
+75
+100
+125
+150
+175
+200
+Sensor Index (b)MetrLAsensornetworkintheLosAngelesmetropolitan.
+Figure 12:Geographic distribution of traffic sensors across two major California highway networks. Color indicates sensor
+index (different from sensor ID) corresponding to the order of appearance in the original dataset from TSL.
+00:00 02:00 04:00 06:00 08:00 10:00 12:00 14:00 16:00 18:00 20:00 22:00 00:00
+Time of Day (24h)
+20
+30
+40
+50
+60
+70Traffic speed [MPH]
+PemsBay  Nodes 50, 125, 250  Time Series on 05/31/2017 (Wednesday)
+Early Off-Peak (04:00 06:00)
+Morning Peak (07:00 09:00)
+Midday Off-Peak (12:00 14:00)
+Evening Peak (17:00 19:00)
+Node 50 (full day)
+Node 125 (full day)
+Node 250 (full day)
+Figure 13:Example vehicle speeds [MPH] time series sampled from the PemsBay dataset on 05/31/2017 (Wednesday)
+from three nodes (node index: 50, 125, 250, in order of appearance in the TSL database), four distinct traffic phases are
+indicated: early off-peak, morning peak, midday off-peak, evening peak.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 29 of 48
+
+--- PAGE 30 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+0.2 0.4 0.6 0.8 1.0 1.2 1.4
+Number of Parameters (Millions)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0Normalized Performance (1 = Best)
+Bubble size  Training cost (USD per 100 epochs)
+Model Efficiency Performance Tradeoff
+PEMS-BAY (100 Epochs, NVIDIA A100, Regular RAM)
+Figure 14:Model efficiency trade-off analysis on PemsBay dataset. The x-axis shows parameters in millions (loweris
+better), y-axis shows normalized performance score where 1 = best, computed as average min-max normalized score
+across RMSE, MAPE, and MAE (higheris better), and bubble areas are proportional to training cost for 100 epochs on
+an A100 GPU (smalleris better). Training costs based on Google Colab pricing as of October 2025 (5.37 compute units
+per hour, $49.99 per 500 compute units, equivalent to $0.537/hour). Weaver achieves the best performance (1.000) with
+lowest training cost ($0.82) and compact model size (0.34M parameters).
+STTN STAEformer ASTGCN Graph
+WaveNet
+Weaver
+Model
+0
+100
+200
+300
+400
+Training time per epoch (s)
+Training time per epoch on PemsBay
+Figure 15:Trial-averaged training times on PemsBay forWeaverand baseline models using the A100 GPU (Google Colab),
+see Figure 14 for training cost conversion for A100 on Google Colab.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 30 of 48
+
+--- PAGE 31 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+15min 30min 60min All
+0
+1
+2
+3
+4
+5RMSE [MPH]
+(a) E=32
+RMSE [MPH]
+15min 30min 60min All
+0
+1
+2
+3
+4
+5
+6MAPE [%]
+MAPE [%]
+15min 30min 60min All
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5MAE [MPH]
+MAE [MPH]
+T animoto
+SDPA
+Cosine
+15min 30min 60min All
+0
+1
+2
+3
+4
+5RMSE [MPH]
+(b) E=80
+15min 30min 60min All
+0
+1
+2
+3
+4
+5
+6MAPE [%]
+15min 30min 60min All
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5MAE [MPH]
+15min 30min 60min All
+0
+1
+2
+3
+4
+5RMSE [MPH]
+(c) E=128
+15min 30min 60min All
+0
+1
+2
+3
+4
+5
+6MAPE [%]
+15min 30min 60min All
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5MAE [MPH]
+Horizon
+Figure 16:Comparisons of Tanimoto Valence Attention (Tanimoto) versus scaled dot-product attention (SDPA, using
+softmax) and Cosine coefficient (Cosine) on PemsBay data using the Default(T) hyperparameter set. Detailed results are
+available in Table 9 in Appendix C. Lower metrics value is better.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 31 of 48
+
+--- PAGE 32 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+8. CONCLUSION
+We introduced Weaver, a novel spatiotemporal forecasting architecture that addresses fundamental challenges in
+modeling complex traffic networks through three key contributions: (i) Kronecker Attention for efficient global message
+passing via P2-KMV and weighted implicit Kronecker product summation (W-iKPS), (ii) Valence Attention using the
+continuous Tanimoto coefficient (CTC) to model signed relationships in traffic networks, and (iii) the Traffic Phase
+Dictionary for learning latent traffic phase representations.
+OurexperimentalresultsdemonstratethatWeaverachievescompetitiveperformanceagainstcontemporarybaselines
+while exhibiting superior training stability across datasets with varying data quality. On PemsBay and MetrLA
+benchmarks, Weaver consistently outperforms existing methods at longer prediction horizons (30 and 60 minutes)
+and maintains low error margins even under challenging conditions with substantial missing data. Notably, Weaver
+achievescompetitiveperformanceevenwithouttemporalmetadata(NTvariants),demonstratingthatitlearnsunderlying
+physical principles rather than relying on cues from temporal metadata alone. Ablation studies confirm the robustness
+of Weaver’s components across varying hyperparameters, with the number of attention heads playing critical roles
+in training stability through adjusting Kronecker product summands. Furthermore, Weaver demonstrates robustness
+to parameter count variations, making it adaptable to different computational resource constraints and deployment
+scenarios.
+The success of Weaver’s Kronecker-based formulation suggests promising directions for future spatiotemporal
+modeling in transportation systems. The Kronecker tensor product structure naturally captures system-wide bulk
+behavior, which may explain Weaver’s strength in long-term forecasting. Weaver’s architectural organization, inspired
+by Interaction Networks (IN), is designed to reflect traditional physical modeling principles, making it naturally
+accommodating for physics-informed neural network approaches in future work. Additionally, Weaver is designed to
+flexibly accommodate various spatial and temporal metadata depending on availability, enhancing its applicability
+across diverse data scenarios. Furthermore, its adherence to Geometric Deep Learning (GDL) principles provides a
+naturalfoundationfortheoreticalanalysisandextension,offeringagroundedmathematicalbasisthatmakesthemodel’s
+behavior more predictable and interpretable while complementing the empirical findings from our ablation studies.
+8.1. Future Work
+Architectural extensions.Future work could explore extending Kronecker Attention to higher-order tensor
+decompositions and investigating adaptive mechanisms for the Traffic Phase Dictionary’s manifold structure, including
+fine-tuningstrategiesfortransferlearning,domainadaptationacrossdifferenttrafficnetworks,andcontinuallearningfor
+onlinetrafficpatternevolution.Anotherdirectionistoincorporatephysicalroadgeometry(e.g.,lanetopology,curvature,
+and ramp proximity) into the retrieval mechanism as (a fine-tuning step) of the Traffic Phase Dictionary to encode
+physical correspondence between nodes, keeping the trained dictionary frozen. This would enable geometry-aware
+retrieval without altering the underlying learned dictionary structure, allowing the model to disentangle behavioral
+dynamics from static infrastructure.
+Baseline and transferability.The present design deliberately omits physical node attributes to establish baseline
+modeling characteristics and to demonstrate that the model can learn fundamental traffic dynamics without preemptive
+structural bias. Future work may therefore investigate fine-tuning only the retrieval layer—while keeping the learned
+dictionary fixed—to incorporate physical geometry information. This would test whether the a priori trained dictionary
+serves as a transferable basis of systemic traffic behavior across networks.
+Domain-specific applications.Investigating how spatial and temporal metadata can be leveraged to inductively bias
+the formation of latent graphs for specific use cases could further enhance Weaver’s performance in domain-specific
+applications. Weaver could also be extended to related transportation forecasting domains including public transit
+operations, autonomous vehicle coordination, and air traffic management.
+Theoretical analysis.Additionally, theoretical analysis could focus on the convergence properties of W-iKPS, the
+convergent behavior and stability of CTC, and the topological properties of the induced latent graphs to provide deeper
+insights into the observed training stability and guide further architectural improvements.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 32 of 48
+
+--- PAGE 33 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+References
+Akhtar, M., Moridpour, S., and Nazem, M. (2021). Traffic forecasting in a freeway corridor using seasonal arima model. InAustralasian Transport
+Research Forum (ATRF), 42nd, 2021, Brisbane, Queensland, Australia.
+Anastasiu, D. C. and Karypis, G. (2017). Efficient identification of tanimoto nearest neighbors: All-pairs similarity search using the extended jaccard
+coefficient.International Journal of Data Science and Analytics, 4:153–172.
+Antelmi, A., Cordasco, G., Polato, M., Scarano, V., Spagnuolo, C., and Yang, D. (2023). A survey on hypergraph representation learning.ACM
+Computing Surveys, 56(1):24:1–24:38.
+Ba, J. L., Kiros, J. R., and Hinton, G. E. (2016). Layer normalization.arXiv preprint arXiv:1607.06450.
+Barthélemy, M. (2011). Spatial networks.Physics reports, 499(1-3):1–101.
+Battaglia,P.,Pascanu,R.,Lai,M.,JimenezRezende,D.,etal.(2016). Interactionnetworksforlearningaboutobjects,relationsandphysics.Advances
+in neural information processing systems, 29.
+Bazzan, A. L. and Klügl, F. (2005). Case studies on the braess paradox: simulating route recommendation and learning in abstract and microscopic
+models.Transportation Research Part C: Emerging Technologies, 13(4):299–319.
+Benzing, F., Gauy, M. M., Mujika, A., Martinsson, A., and Steger, A. (2019). Optimal kronecker-sum approximation of real time recurrent learning.
+InInternational Conference on Machine Learning, pages 604–613. PMLR.
+Berman, A. and Plemmons, R. J. (1994).Nonnegative matrices in the mathematical sciences. SIAM.
+Bian, Z., Gao, J., Ozbay, K., and Li, Z. (2024). Traffic prediction considering multiple levels of spatial-temporal information: A multi-scale graph
+wavelet-based approach.arXiv preprint arXiv:2406.13038.
+Cangea, C., Velickovic, P., Jovanovic, N., Kipf, T., and Liò, P. (2018). Towards sparse hierarchical graph classifiers.stat, 1050:3.
+Carianni, A. and Gemma, A. (2025). Overview of traffic flow forecasting techniques.IEEE Open Journal of Intelligent Transportation Systems.
+Chai,W.,Luo,Q.,Lin,Z.,Yan,J.,Zhou,J.,andZhou,T.(2024). Spatiotemporaldynamicmulti-hopnetworkfortrafficflowforecasting.Sustainability
+(2071-1050), (14).
+Chen, D., O’Bray, L., and Borgwardt, K. (2022a). Structure-aware transformer for graph representation learning. InInternational conference on
+machine learning, pages 3469–3489. PMLR.
+Chen, Y., Paiton, D., and Olshausen, B. (2018). The sparse manifold transform.Advances in neural information processing systems, 31.
+Chen, Y., Yun, Z., Ma, Y., Olshausen, B., and LeCun, Y. (2022b). Minimalistic unsupervised representation learning with the sparse manifold
+transform. InThe Eleventh International Conference on Learning Representations.
+Cheung, M., Shi, J., Jiang, L., Wright, O., and Moura, J. M. (2019). Pooling in graph convolutional neural networks. In2019 53rd Asilomar
+Conference on Signals, Systems, and Computers, pages 462–466. IEEE.
+Choi, S., Saunier, N., Zheng, V. Z., Trepanier, M., and Sun, L. (2025). Scalable dynamic mixture model with full covariance for probabilistic traffic
+forecasting.Transportation Science.
+Chowdhury, N. K., Nath, R. P. D., Lee, H., and Chang, J. (2009). Development of an effective travel time prediction method using modified moving
+average approach. InInternational Conference on Knowledge-Based and Intelligent Information and Engineering Systems, pages 130–138.
+Springer.
+Cini, A. and Marisca, I. (2022). Torch Spatiotemporal.
+Clevert, D.-A., Unterthiner, T., and Hochreiter, S. (2016). Fast and accurate deep network learning by exponential linear units (elus). InInternational
+Conference on Learning Representations (ICLR). Johannes Kepler University, Linz, Austria. arXiv:1511.07289v5.
+Correia, G. M., Niculae,V., and Martins, A.F. (2019). Adaptively sparse transformers. InProceedingsof the 2019Conference on Empirical Methods
+in Natural Language Processing (EMNLP), pages 2174–2184. Association for Computational Linguistics.
+Daganzo, C. F. (1994). The cell transmission model: A dynamic representation of highway traffic consistent with the hydrodynamic theory.
+Transportation research part B: methodological, 28(4):269–287.
+Dauphin, Y. N., Fan, A., Auli, M., and Grangier, D. (2017). Language modeling with gated convolutional networks. In Precup, D. and Teh, Y. W.,
+editors,Proceedings of the 34th International Conference on Machine Learning, volume 70 ofProceedings of Machine Learning Research, pages
+933–941. PMLR.
+Davis, G. A. and Nihan, N. L. (1991). Nonparametric regression and short-term freeway traffic forecasting.Journal of Transportation Engineering,
+117(2):178–188.
+Davis, G. A., Stephanedes, Y. J., and Kang, J.-G. (1995). Real-time traffic prediction for advanced traffic management systems: Phase i.
+Duarte, M. F. and Baraniuk, R. G. (2011). Kronecker compressive sensing.IEEE Transactions on Image Processing, 21(2):494–504.
+Dufter, P., Schmitt, M., and Schütze, H. (2022). Position information in transformers: An overview.Computational Linguistics, 48(3):733–775.
+Published under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0) license.
+Elfar, A., Xavier, C., Talebpour, A., and Mahmassani, H. S. (2018). Traffic shockwave detection in a connected environment using the speed
+distribution of individual vehicles.Transportation Research Record, 2672(20):203–214.
+Ermagun,A.,Chatterjee,S.,andLevinson,D.(2017). Usingtemporaldetrendingtoobservethespatialcorrelationoftraffic.PloSone,12(5):e0176853.
+Ermagun, A. and Levinson, D. M. (2018). Traffic flow variation and network structure. In97th Annual Meeting of the Transportation Research
+Board, Washington, D.C.
+Fan, Y. et al. (2023). Spatial-temporal graph sandwich transformer for traffic flow forecasting. InMachine Learning and Knowledge Discovery in
+Databases: Applied Data Science and Demo Track (ECML PKDD 2023), volume 14175 ofLecture Notes in Computer Science, pages 210–225.
+Springer.
+Ford Jr, L. R. and Fulkerson, D. R. (1958). Constructing maximal dynamic flows from static flows.Operations research, 6(3):419–433.
+Gao, H. and Ji, S. (2019). Graph u-nets. InProceedings of the 36th International Conference on Machine Learning (ICML).
+Genton, M. G. (2007). Separable approximations of space-time covariance matrices.Environmetrics: The official journal of the International
+Environmetrics Society, 18(7):681–695.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 33 of 48
+
+--- PAGE 34 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Gilmer, J., Schoenholz, S. S., Riley, P. F., Vinyals, O., and Dahl, G. E. (2017). Neural message passing for quantum chemistry. InProceedings of the
+34th International Conference on Machine Learning, ICML’17, pages 1263–1272. PMLR.
+Graves, A., Wayne, G., and Danihelka, I. (2014). Neural turing machines.arXiv preprint arXiv:1410.5401.
+Graves, A., Wayne, G., Reynolds, M., Harley, T., Danihelka, I., Grabska-Barwińska, A., Colmenarejo, S. G., Grefenstette, E., Ramalho, T., Agapiou,
+J., Puigdomènech Badia, A., Hermann, K. M., Zwols, Y., Ostrovski, G., Cain, A., King, H., Summerfield, C., Blunsom, P., Kavukcuoglu, K., and
+Hassabis, D. (2016). Hybrid computing using a neural network with dynamic external memory.Nature, 538(7626):471–476.
+Greenewald, K. and Hero, A. O. (2015). Robust kronecker product pca for spatio-temporal covariance estimation.IEEE Transactions on Signal
+Processing, 63(23):6368–6378.
+Greenewald, K., Tsiligkaridis, T., and Hero, A. O. (2013). Kronecker sum decompositions of space-time data. In2013 5th IEEE International
+Workshop on Computational Advances in Multi-Sensor Adaptive Processing (CAMSAP), pages 65–68. IEEE.
+Greenshields, B. D., Bibbins, J. R., Channing, W., and Miller, H. H. (1935). A study of traffic capacity. InHighway research board proceedings,
+volume 14, pages 448–477. Washington, DC.
+Guo, S., Lin, Y., Feng, N., Song, C., and Wan, H. (2019). Attention based spatial-temporal graph convolutional networks for traffic flow forecasting.
+InProceedings of the Thirty-Third AAAI Conference on Artificial Intelligence (AAAI-19), pages 922–929, Beijing, China. Association for the
+Advancement of Artificial Intelligence.
+He, K., Zhang, X., Ren, S., and Sun, J. (2016). Deep residual learning for image recognition. InProceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition (CVPR), pages 770–778. IEEE.
+Ho, K., De Weck, O. L., Hoffman, J. A., and Shishko, R. (2014). Dynamic modeling and optimization for space logistics using time-expanded
+networks.Acta Astronautica, 105(2):428–443.
+Horn, R. A. and Johnson, C. R. (2012).Matrix analysis. Cambridge university press.
+Hossain, M. T., Lee, J., Besenski, D., Dimitrijevic, B., and Spasovic, L. (2025). Developing a prediction model for real-time incident detection
+leveraging user-oriented participatory sensing data.Information, 16(6):423.
+Jose, C., Cissé, M., and Fleuret, F. (2018). Kronecker recurrent units. InInternational Conference on Machine Learning, pages 2380–2389. PMLR.
+Joshi, C. K. (2025). Transformers are graph neural networks.arXiv preprint arXiv:2506.22084.
+Kara, S., Schrittwieser, J. H., Hollmann, F., and Ansorge-Schumacher, M. B. (2014). Recent trends and novel concepts in cofactor-dependent
+biotransformations.Applied microbiology and biotechnology, 98(4):1517–1529.
+Kashyap, A. A., Raviraj, S., Devarakonda, A., Nayak K, S. R., KV, S., and Bhat, S. J. (2022). Traffic flow prediction models–a review of deep
+learning techniques.Cogent Engineering, 9(1):2010510.
+Kipf, T. N. and Welling, M. (2017). Semi-supervised classification with graph convolutional networks. InInternational Conference on Learning
+Representations (ICLR).
+Klambauer, G., Unterthiner, T., Mayr, A., and Hochreiter, S. (2017). Self-normalizing neural networks.Advances in Neural Information Processing
+Systems (NeurIPS), 30.
+Köhler, E., Langkau, K., and Skutella, M. (2002). Time-expanded graphs for flow-dependent transit times. InEuropean symposium on algorithms,
+pages 599–611. Springer.
+Kolda, T. G. and Bader, B. W. (2009). Tensor decompositions and applications.SIAM Review, 51(3):455–500.
+Koohpayegani, S. A. and Pirsiavash, H. (2024). Sima: Simple softmax-free attention for vision transformers. InProceedings of the IEEE/CVF Winter
+Conference on Applications of Computer Vision, pages 2607–2617.
+Kumar, A. and Levinson, D. (1995). Temporal variations on allocation of time.Transportation Research Record, (1493):118–127.
+Kumar, S. V. and Vanajakshi, L. (2015). Short-term traffic flow prediction using seasonal arima model with limited input data.European Transport
+Research Review, 7(3):21.
+Lablack, M. and Shen, Y. (2023). Spatio-temporal graph mixformer for traffic forecasting.Expert systems with applications, 228:120281.
+Larry, H. K. (1995). Event-based short-term traffic flow prediction model.Transportation Research Record, 1510:45–52.
+Leskovec, J., Chakrabarti, D., Kleinberg, J., and Faloutsos, C. (2005). Realistic, mathematically tractable graph generation and evolution, using
+kronecker multiplication. InEuropean conference on principles of data mining and knowledge discovery, pages 133–145. Springer.
+Leskovec,J.,Chakrabarti,D.,Kleinberg,J.,Faloutsos,C.,andGhahramani,Z.(2010). Kroneckergraphs:anapproachtomodelingnetworks.Journal
+of Machine Learning Research, 11(2).
+Li, Y., Yu, R., Shahabi, C., and Liu, Y. (2018a). Diffusion convolutional recurrent neural network: Data-driven traffic forecasting. InInternational
+Conference on Learning Representations (ICLR).
+Li, Y., Yu, R., Shahabi, C., and Liu, Y. (2018b). Diffusion convolutional recurrent neural network: Data-driven traffic forecasting. InInternational
+Conference on Learning Representations (ICLR). University of Southern California, California Institute of Technology.
+Li, Z., Zhou, J., Lin, Z., and Zhou, T. (2024). Dynamic spatial aware graph transformer for spatiotemporal traffic flow forecasting.Knowledge-based
+systems, 297:111946.
+Liu, C., Susilo, Y. O., and Karlström, A. (2017). Weather variability and travel behaviour–what we know and what we do not know.Transport
+reviews, 37(6):715–741.
+Liu, H., Dong, Z., Jiang, R., Deng, J., Deng, J., Chen, Q., and Song, X. (2023a). Staeformer: Spatio-temporal adaptive embedding makes vanilla
+transformer sota for traffic forecasting.Proceedings of the 32nd ACM International Conference on Information and Knowledge Management
+(CIKM ’23), page 5.
+Liu, W., Yang, H., and Li, J. (2023b). Multi-functional time expanded graph: A unified graph model for communication, storage, and computation for
+dynamic networks over time.IEEE Journal on Selected Areas in Communications, 41(2):418–431.
+Loreti, S., Keiler, M., and Zischg, A. P. (2024). A severe local flood and social events show a similar impact on human mobility.arXiv preprint
+arXiv:2403.17899.
+Luttinen, J. and Ilin, A. (2012). Efficient gaussian process inference for short-scale spatio-temporal modeling. InArtificial Intelligence and Statistics,
+pages 741–750. PMLR.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 34 of 48
+
+--- PAGE 35 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Lv, L., Chen, M., Liu, Y., and Yu, X. (2015). A plane moving average algorithm for short-term traffic flow prediction. InPacific-Asia Conference on
+Knowledge Discovery and Data Mining, pages 357–369. Springer.
+Ma, G., Vo, V. A., Willke, T. L., and Ahmed, N. K. (2023). Memory-augmented graph neural networks: A brain-inspired review.IEEE Transactions
+on Artificial Intelligence, 5(5):2011–2025.
+Ma, J., Zhao, J., and Hou, Y. (2024). Spatial–temporal transformer networks for traffic flow forecasting using a pre-trained language model.Sensors,
+24(17):5502.
+Martins, A. and Astudillo, R. (2016). From softmax to sparsemax: A sparse model of attention and multi-label classification. InInternational
+conference on machine learning, pages 1614–1623. PMLR.
+Mialon, G., Chen, D., Selosse, M., and Mairal, J. (2021). Graphit: Encoding graph structure in transformers.arXiv preprint arXiv:2106.05667.
+MoravitzMartin,P.andPlemmons,R.J.(1998). Kroneckerproductandsvdapproximationsinimagerestoration.LinearAlgebraanditsApplications,
+284:339–355.
+NVIDIA Corporation (2023).CUDA Toolkit Documentation. Accessed: 2024-07-16.
+Okutani, I. and Stephanedes, Y. J. (1984). Dynamic prediction of traffic volume through kalman filtering theory.Transportation Research Part B:
+Methodological, 18(1):1–11.
+Peters, B., Niculae, V., and Martins, A. F. T. (2019). Sparse sequence-to-sequence models. In Korhonen, A., Traum, D., and Màrquez, L., editors,
+Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pages 1504–1519, Florence, Italy. Association for
+Computational Linguistics.
+Pulugurtha, S. and Koilada, K. (2021). Exploring correlations between travel time based measures by year, day-of-the-week, time-of-the-day,
+week-of-the-year and the posted speed limit.Urban, Planning and Transport Research, 9(1):1–17.
+Ramapuram, J., Danieli, F., Dhekane, E., Weers, F., Busbridge, D., Ablin, P., Likhomanenko, T., Digani, J., Gu, Z., Shidani, A., et al. (2024). Theory,
+analysis, and best practices for sigmoid self-attention.arXiv preprint arXiv:2409.04431.
+Rampášek, L., Galkin, M., Dwivedi, V. P., Luu, A. T., Wolf, G., and Beaini, D. (2022). Recipe for a general, powerful, scalable graph transformer.
+Advances in Neural Information Processing Systems, 35:14501–14515.
+Razzouki, O. F., Charroud, A., Allali, Z. E., Chetouani, A., and Aslimani, N. (2024). A survey of advanced gradient methods in machine learning. In
+2024 7th International Conference on Advanced Communication Technologies and Networking (CommNet). IEEE.
+Rozemberczki, B., Scherer, P., He, Y., Panagopoulos, G., Riedel, A., Astefanoaei, M., Kiss, O., Beres, F., Lopez, G., Collignon, N., and Sarkar, R.
+(2021). PyTorch Geometric Temporal: Spatiotemporal Signal Processing with Neural Machine Learning Models. InProceedings of the 30th ACM
+International Conference on Information and Knowledge Management, page 4564–4573.
+Sander, M. E., Puigcerver, J., Djolonga, J., Peyré, G., and Blondel, M. (2023). Fast, differentiable and sparse top-k: a convex analysis perspective. In
+Proceedings of the 40th International Conference on Machine Learning (ICML).
+Sattelberg,B.,Cavalieri,R.,Kirby,M.,Peterson,C.,andBeveridge,R.(2023). Locallylinearattributesofreluneuralnetworks.FrontiersinArtificial
+Intelligence, 6:1255192.
+Schoenholz, S. S., Gilmer, J., Ganguli, S., and Sohl-Dickstein, J. (2017). Deep information propagation. InInternational Conference on Learning
+Representations.
+Shah, V., Pecheux, B., Kraemer, S., Ledbetter, G., et al. (2024). Predictive analytics for traffic management systems. Technical report, United States.
+Federal Highway Administration.
+Shi, G., Altafini, C., and Baras, J. S. (2019). Dynamics over signed networks.Siam review, 61(2):229–257.
+Silver, M. R. and de Weck, O. L. (2007). Time-expanded decision networks: A framework for designing evolvable complex systems.Systems
+Engineering, 10(2):167–186.
+Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., and Salakhutdinov, R. (2014). Dropout: a simple way to prevent neural networks from
+overfitting.The journal of machine learning research, 15(1):1929–1958.
+Sun, H., Liu, H. X., Xiao, H., He, R. R., and Ran, B. (2003). Use of local linear regression model for short-term traffic forecasting.Transportation
+Research Record, 1836(1):143–150.
+Tao, Q., Li, L., Huang, X., Xi, X., Wang, S., and Suykens, J. A. (2022). Piecewise linear neural networks and deep learning.Nature Reviews Methods
+Primers, 2(1):42.
+Taylor, C. E. and Meldrum, D. R. (2000). Evaluation of a fuzzy logic ramp metering algorithm: a comparative study among three ramp metering
+algorithms used in the greater seattle area. Technical report, Washington State Department of Transportation Olympia, WA, USA.
+Trottier, L., Giguère, P., and Chaib-draa, B. (2017). Parametric exponential linear unit for deep convolutional neural networks.arXiv preprint
+arXiv:1605.09332.
+Tsiligkaridis, T. and Hero, A. O. (2013). Covariance estimation in high dimensions via kronecker product expansions.IEEE Transactions on Signal
+Processing, 61(21):5347–5360.
+Tsiotas, D. (2025). Socioeconomic attributes in the topology of the intercity road network in greece.Future Transportation, 5(1):3.
+Van Loan, C. F. (2000). The ubiquitous kronecker product.Journal of Computational and Applied Mathematics, 123(1-2):85–100.
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention is all you need. In
+Advances in Neural Information Processing Systems, pages 5998–6008. Curran Associates, Inc.
+Wang, Q., Severino, J., Sorensen, H., Sanyal, J., Ugirumurera, J., Wang, C., Berres, A., Jones, W., Kohls, A., and VenkataDurga, R. P. R. (2022).
+Deploying a model predictive traffic signal control algorithm-a field deployment experiment case study. In2022 IEEE 25th International
+Conference on Intelligent Transportation Systems (ITSC), pages 3564–3570. IEEE.
+Wang, X. and Sun, L. (2023). Anti-circulant dynamic mode decomposition with sparsity-promoting for highway traffic dynamics analysis.
+Transportation research part C: emerging technologies, 153:104178.
+Weichsel, P. M. (1962). The kronecker product of graphs.Proceedings of the American mathematical society, 13(1):47–52.
+Willett, P., Barnard, J. M., and Downs, G. M. (1998). Chemical similarity searching.Journal of chemical information and computer sciences,
+38(6):983–996.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 35 of 48
+
+--- PAGE 36 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Wu, Y. and Tan, H. (2016). Short-term traffic flow forecasting with spatial-temporal correlation in a hybrid deep learning framework.arXiv preprint
+arXiv:1612.01022.
+Wu, Z., Pan, S., Long, G., Jiang, J., and Zhang, C. (2019). Graph wavenet for deep spatial-temporal graph modeling. InThe 28th International Joint
+Conference on Artificial Intelligence (IJCAI). International Joint Conferences on Artificial Intelligence Organization.
+Xu, M., Dai, W., Liu, C., Gao, X., Lin, W., Qi, G.-J., and Xiong, H. (2021). Spatial-temporal transformer networks for traffic flow forecasting.arXiv
+preprint arXiv:2001.02908.
+Yan, F., Nguyen, H., Akbarian, P., Ho, N., and Rinaldo, A. (2025). Sigmoid self-attention has lower sample complexity than softmax self-attention:
+A mixture-of-experts perspective.arXiv preprint arXiv:2502.00281.
+Yang, K., Yang, H., and Du, L. (2024). A data-driven traffic shockwave speed detection approach based on vehicle trajectories data.Journal of
+Intelligent Transportation Systems, 28(6):971–987.
+Ye, Y. and Ji, S. (2021). Sparse graph attention networks.IEEE Transactions on Knowledge and Data Engineering, 35(1):905–916.
+Ying, C., Cai, T., Luo, S., Zheng, S., Ke, G., He, D., Shen, Y., and Liu, T.-Y. (2021). Do transformers really perform badly for graph representation?
+Advances in neural information processing systems, 34:28877–28888.
+Yook, D. and Heaslip, K. (2015). Effective modeling for a distance-based fare structure with a time-expanded network.Journal of Public
+Transportation, 18(1):1–13.
+Youn, H., Gastner, M. T., and Jeong, H. (2008). Price of anarchy in transportation networks: efficiency and optimality control.Physical review
+letters, 101(12):128701.
+Yu, B., Yin, H., and Zhu, Z. (2017). Spatio-temporal graph convolutional networks: A deep learning framework for traffic forecasting.arXiv preprint
+arXiv:1709.04875.
+Yu, G., Hu, J., Zhang, C., Zhuang, L., and Song, J. (2003). Short-term traffic flow forecasting based on markov chain model. InIEEE IV2003
+Intelligent Vehicles Symposium. Proceedings (Cat. No. 03TH8683), pages 208–212. IEEE.
+Zhang, B. and Sennrich, R. (2019). Root mean square layer normalization.Advances in neural information processing systems, 32.
+Zhang, H., Qi, D., Tai, C.-L., and Bao, H. (2003). Representing images by multiple kronecker product sum.CAD/Graphics Macau.
+Zhang, L., Naitzat, G., and Lim, L.-H. (2018). Tropical geometry of deep neural networks. InInternational Conference on Machine Learning, pages
+5824–5832. PMLR.
+Zhang, S., Tong, H., Xu, J., and Maciejewski, R. (2019). Graph convolutional networks: a comprehensive review.Computational Social Networks,
+6(1):1–23.
+Zhang, T., Sun, L., Yao, L., and Rong, J. (2017). Impact analysis of land use on traffic congestion using real-time traffic and poi.Journal of Advanced
+Transportation, 2017(1):7164790.
+Zhao, L., Song, Y., Zhang, C., Liu, Y., Wang, P., Lin, T., Deng, M., and Li, H. (2020). T-gcn: A temporal graph convolutional network for traffic
+prediction.IEEE Transactions on Intelligent Transportation Systems, 21(9):3848–3858.
+Zhao, Z., Chen, W., Wu, X., Chen, P., Liu, J., and Liu, Y. (2017). Lstm network: A deep learning approach for short-term traffic forecast.IET
+Intelligent Transport Systems, 11(2):68–75.
+Zheng, C., Fan, X., Wang, C., and Qi, J. (2020). Gman: A graph multi-attention network for traffic prediction. InProceedings of the AAAI conference
+on artificial intelligence, volume 34, pages 1234–1241.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 36 of 48
+
+--- PAGE 37 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Appendix
+A. Notation and terminology
+In this section, we summarize the notation and terminology for tensors and neural networks used in this work. For
+general tensor notation, see Kolda and Bader (2009).
+A.1. Common Notations
+Vectorsare denoted by bold lowercase letters, e.g.𝐯, and are expressed incolumn-majorform:
+𝐯∈ℝ 𝐷𝑣×1. (70)
+Setsare denoted by calligraphic uppercase letters, e.g., unless stated otherwise.
+For brevity, we omit the leadingsample-batch mode4—denoted 𝐵—that is common to neural networks trained
+with Stochastic Gradient Descent (SGD) methods (Razzouki et al., 2024). Thus, a tensor with shapeℝ𝐵×𝑃×𝑁×𝐶 is
+written more compactly as
+ℝ𝑃×𝑁×𝐶 . (71)
+A.2. Matrix operations
+column-wise picture of matrix multiplication (CMM):
+𝐀 𝐁= [𝐀 𝐛1 𝐀 𝐛2 ⋯𝐀 𝐛 𝐶
+],(72)
+Where𝐀∈ℝ 𝐴×𝐵 and𝐁∈ℝ 𝐵×𝐶, and𝐛𝑖 ∈ℝ 𝐵×1, 𝑖∈ [𝐶]are column vectors of𝐁.
+A.3. Tensor operations
+For the tensor:
+∈ℝ 𝐼1×𝐼2×⋯×𝐼𝑚×⋯×𝐼𝑀 ,(73)
+themode 𝑚indexes specific axes of the tensor, with𝑚∈ {1,2,…, 𝑀} , and𝐼𝑚 is the size of the mode (i.e., the tensor
+dimension).
+Theconcatenationoperation is denoted simply by single "‖", and serial concatenations with "‖𝑛
+𝑖=1", where
+all concatenations are performed along the last dimension unless stated. Otherwise, we generally distinguish
+tensor-level operationsby [[[ [⋅] ]]]. For instance,concatenation along mode-𝑚 is stated as:[[[ [‖] ]]]mode-𝑚 for ∈
+ℝ𝐼𝐴,1×…×𝐼𝐴,𝑚×…𝐼𝐴,𝐷 ,∈ℝ 𝐼𝐵,1×…×𝐼𝐵,𝑚×…𝐼𝐵,𝐷 where necessarily𝐼𝐴,𝑖 =𝐼 𝐵,𝑖 for𝑖≠𝑚. Hence:
+[[[ [‖] ]]]mode-𝑚 =∈ℝ 𝐼𝐴,1×…×(𝐼𝐴,𝑚+𝐼𝐵,𝑚)×…×𝐼𝐴,𝐷 .(74)
+Tensor mode rearrangement(tensor rearrangement) covers permutation and flattening operations. They are
+denoted using:
+= [[[ [[original→target]
+] ]]],(75)
+where original denotes the ordered list of tensor modes in the input, andtarget denotes the target mode configuration
+in the output.
+Tensor mode summationalong a specific tensor mode𝑚 is denoted by∑𝐼𝑚
+𝑖=1[[[ [⋅] ]]]𝑚 ∶ℝ 𝐼1×𝐼2×…×𝐼𝑚×…×𝐼𝐷−1×𝐼𝐷,
+performing element-wise matrix summation along mode𝑚:
+𝐼𝑚∑
+𝑖=1
+[[[ [ ] ]]]
+mode-m =
+𝐼𝑚∑
+𝑖𝑚=1
+ [∶,…, 𝑖 𝑚 ,∶,…,∶] ,(76)
+4A tensormodeis colloquially referred to as a “tensor dimension.” Here we adopt the termmodeto emphasize operations along specific axes
+(cf. Kolda and Bader (2009)), and to avoid confusion with thefeature/channel dimensionoften used in machine learning to denote embedding width
+or feature count.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 37 of 48
+
+--- PAGE 38 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+where the subscript[∶,…, 𝑖𝑚,∶,…,∶ ]denotesslicing 5 along mode𝑚at index𝑖 𝑚 ∈ [𝐼 𝑚].
+Tensor mode variancecomputes the biased variance of a tensor along mode𝑚using tensor mode summation:
+Varmode-𝑚() = 1
+𝐼𝑚
+𝐼𝑚∑
+𝑖=1
+[[[ [(− ̄) 2] ]]]
+mode-𝑚 ∈ℝ 𝐼1×⋯×𝐼𝑚−1×𝐼𝑚+1×⋯×𝐼𝑀 ,(77)
+where ∈ℝ 𝐼1×⋯×𝐼𝑀, ̄∈ℝ 𝐼1×⋯×1×⋯×𝐼𝑀 is the mean of along mode𝑚(with its𝑚-th dimension collapsed to 1),
+and the squared difference(− ̄) 2 is applied element-wise.
+Thetop- 𝑘 selectionoperation extracts the𝑘 largest elements along a specified mode based on a scoring tensor. Let
+∈ℝ 𝐼1×𝐼2×⋯×𝐼𝐷 be thesource tensorand 𝚪∈ℝ 𝐼1×𝐼2×⋯×𝐼𝐷 its correspondingscore tensor. For mode𝑚, the top-𝑘
+selection induced by𝚪is defined as:
+Top-𝑘(𝐼𝑚,𝚪) = [∶,…, 𝑖 𝑚,1,…, 𝑖 𝑚,𝑘,…,∶] ∈ℝ 𝐼1×⋯×𝑘×⋯×𝐼𝐷 ,(78)
+where {𝑖𝑚,1,…, 𝑖 𝑚,𝑘} are the indices of the𝑘 largest entries of𝚪 along mode𝑚, sorted in descending order by their
+score values. The same index set can be used to select𝚪 itself, i.e.,𝚪Top-𝑘(𝐼𝑚) =𝚪 [∶,…, 𝑖 𝑚,1,…, 𝑖 𝑚,𝑘,…,∶] . This operation
+preserves the tensor structure while reducing the dimension𝐼𝑚 to𝑘.
+Tensor broadcastingis a mechanism in deep learning frameworks where dimensions of size1 are implicitly
+expanded (replicated) to match the size of corresponding dimensions in other tensors during operations. We denote
+broadcasted modeswith the “!” superscript, with the target dimension size shown in the subscript. For example,
+! ∈ℝ
+𝐼1×⋯×1!
+𝐼𝑖
+×⋯×𝐼𝐷×𝑀1×𝐶
+indicates that the broadcasted mode1!
+𝐼𝑖
+will be expanded to size𝐼𝑖 during computation.
+Broadcasting alters both the interpretation of batch structure and the effective memory/computation cost (NVIDIA
+Corporation, 2023).
+Batch matrix multiplication(BMM) is a common tensor operation in contemporary deep learning. For tensors
+∈ℝ 𝐼1×⋯×𝐼𝐷×𝑀1×𝐶 and∈ℝ 𝐼1×⋯×𝐼𝐷×𝑀2×𝐶, the BMM operation yields∈ℝ𝐼1×⋯×𝐼𝐷×𝑀1×𝑀2:
+𝑌𝑖1,…, 𝑖𝐷,𝓁, 𝑗 =
+𝐶∑
+𝑘=1
+𝐴𝑖1,…, 𝑖𝐷,𝓁,𝑘 𝐵𝑖1,…, 𝑖𝐷, 𝑗,𝑘 .(79)
+We denote this compactly as=  ⊤, where multiplications occur over the last index𝑘, and the batch modes
+𝐼1,…, 𝐼 𝐷 stratifysets of independent operations. This follows the convention oftorch.matmul in PyTorch, with
+the special case𝐷= 1 corresponding totorch.bmm. Importantly, tensor broadcasting affects BMM behavior, which
+requires additional consideration for the intended computational outcomes:
+• BMM with broadcasting:Flattening the batch dimensions would collapse replicated operations into a single
+index, obscuring the stratification structure,
+•BMM without broadcasting:Batch dimensions can be flattened without loss of generality:
+ ⊤ ≡ ∼ ∼
+⊤
+,where ∼∈ℝ (𝐼1⋯𝐼𝐷)×𝑀1×𝐶 , ∼∈ℝ (𝐼1⋯𝐼𝐷)×𝑀2×𝐶 .(80)
+A.4. Neural network components.
+Generally,learnable weights and biasesare respectively denoted by𝐖 and 𝐛, withmultiplication of tensors
+and matrices𝐖occur on the last two dimensions, i.e.:
+∈ℝ …×𝐼𝐷−1×𝐼𝐷 ,𝐖∈ℝ 𝐼𝐷×𝐸 ⇒𝐖∈ℝ …×𝐼𝐷−1×𝐸,(81)
+where "…" are placeholders for prior tensor dimensions. Theaddition of and vectors𝐛are applied to the last mode:
+𝐛∈ℝ 𝐸 ⇒𝐖+𝐛∈ℝ …×𝐼𝐷−1×𝐸.(82)
+5Refer to Kolda and Bader (2009) on slicing.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 38 of 48
+
+--- PAGE 39 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Additionally,ResNet-style residual connections(He et al., 2016) are applied to improve model training dynamics by
+reformulating learned functions in residual form:
+ℎ() = () res + Δℎ(),(83)
+Δℎ() =𝐹(;,), (84)
+where the subscript “res” denotes the residual (identity) connection, i.e.,()res = , and 𝐹(⋅;,) denotes an
+arbitrary MLP-type function parameterized by weights𝐖𝓁 ∈and biases𝐛 𝓁 ∈, for layers𝓁∈ {1,2,…, 𝐿}.
+Gated Linear Units(GLU) (Dauphin et al., 2017) are utilized for its simplicity, compactness, and expressiveness,
+which allows us to focus on core architectural innovations by standardizing hidden dimensions as2× the target output
+dimension. However, standard MLP implementations (e.g. using ReLU, GELU, etc.) remain viable alternatives, and it
+is still used in output processing. GLUs are self-gating mechanisms where for∈ℝ…× 2𝐷out:
+ signal = [ …,0∶𝐷 out] ∈ℝ …×𝐷out ,(85)
+ gate = [ …, 𝐸∶2𝐷out] ∈ℝ …×𝐷out ,(86)
+GLU() = signal ⊙ 𝜎( gate).(87)
+Here,thesubscript […, 𝐼 𝑎 ∶𝐼 𝑏],for 𝐼𝑎 < 𝐼 𝑏 and 𝐼𝑎, 𝐼𝑏 ∈ [𝐷out],indicatesslicingalongthecorrespondingdimensions,
+⊙denotes element-wise multiplication and𝜎(⋅)is the logistic sigmoid function. Overall, this yields the mapping:
+GLU∶ℝ …×2𝐸 →ℝ …×𝐸.(88)
+B. Benchmark Models Setup
+In this section, we list the model hyperparameters and PyTorch setup used to train each benchmark model in
+Section 6.1. For compatibility with the Torch Spatiotemporal (TSL) (Cini and Marisca, 2022) training interface, we
+use code from existing repositories and apply a minimally invasive wrapper class (see Listing 1) for input/output and
+hyperparameter handling. The summarized benchmark configurations are provided in Table 8.
+Listing 1: Example of generic model wrapper for TSL training interface.
+1class M o d e l W r a p p e r ( nn . Module ) :
+2def __init__ ( self , model_class , model_params , s t a t i c _ e x o g e n o u s = None ) :
+3...
+4self . model = m o d e l _ c l a s s (** model_params , **( s t a t i c _ e x o g e n o u s or {}) )
+5
+6def forward ( self , x , metadata = None ) :
+7if metadata is not None :
+8x = torch . cat ([ x , metadata ] , dim = -1)
+9return self . model ( x )
+C. Weaver Ablation Results
+The ablation results for Valence attention is shown in Table 9.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 39 of 48
+
+--- PAGE 40 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+Table 8
+Model-specific structural hyperparameters, associated papers, and source code references. Implementations were used for
+compatibility with the TSL framework.
+Model Hyperparameters / Metadata Paper Source Code
+STTN input channels,𝐶in = 1 ; embedding dimension,
+𝑑embed = 64; layers,𝐿= 3; Chebyshev order,𝐾= 3 ;
+heads,𝐻= 1 ; forward expansion,𝑟= 4 ; dropout,
+0.001.
+Xu et al. (2021). STTN (PyTorch) †.
+STAEformer feature embedding dimension,𝑑𝑓 = 24; adaptive
+embedding dimension,𝑑𝑎 = 80; layers,𝐿= 3; heads,
+𝐻= 4 ; dropout, 0.1; temporal metadata: TOD
+(indexed, 0–287), DOW (one-hot).
+Liu et al. (2023a). Liu et al. (2023a).
+ASTGCN spatial-temporal blocks,𝐵= 2; input channels,𝐶in = 3;
+Chebyshev order,𝐾= 3 ; graph convolution kernels,
+64; temporal convolution kernels, 64; temporal stride,
+1.
+Guo et al. (2019). Rozemberczki et al. (2021).
+Graph WaveNetinput channels,𝐶in = 2; hidden dimension,𝑑hid = 32;
+layers,𝐿= 8; diffusion step,𝐾= 2; node-embedding
+dimension,𝑑emb = 10; static graph adjacency; dropout,
+0.3.
+Wu et al. (2019). Wu et al. (2019).
+†Official repository uses TensorFlow. For compatibility with TSL, a PyTorch reimplementation of STTN was used:
+https://github.com/wubin5/STTN/tree/main/Batch_Training_Version.
+Table 9
+Comparisons of Tanimoto Valence Attention (Tanimoto) versus scaled dot-product attention (SDPA, using softmax) and
+Cosine coefficient (Cosine) on PemsBay data. Other hyperparameters use the Default(T) hyperparameter set. Differences
+in trials are due to training runs completed when compiling this work. See Figure 16 for visualizations.
+Configuration RMSE MAPE MAE
+Test set Embed size (E) Kernel 15 min 30 min 60 min All15 min 30 min 60 min All15 min 30 min 60 min All
+(a)32
+Tanimoto (12)2.87(±0.00) 3.77(±0.01) 4.44(±0.01) 3.66(±0.01) 2.86(±0.01) 3.83(±0.01) 4.74(±0.02) 3.67(±0.01) 1.36(±0.02) 1.69(±0.00) 1.86(±0.00) 1.62(±0.00)
+SDPA (10) 2.90(±0.00) 3.84(±0.01) 4.59(±0.01) 3.74(±0.01) 2.88(±0.01) 3.93(±0.01) 4.97(±0.02) 3.78(±0.01) 1.37(±0.00) 1.73(±0.00) 2.07(±0.01) 1.67(±0.00)
+Cosine (10) 3.20(±0.07) 4.09(±0.06) 4.79(±0.08) 3.99(±0.06) 3.86(±0.15) 4.76(±0.12) 5.66(±0.12) 4.64(±0.12) 1.58(±0.05) 1.89(±0.03) 2.19(±0.03) 1.84(±0.04)
+(b)80
+Tanimoto (11)2.82(±0.00) 3.70(±0.01) 4.30(±0.01) 3.60(±0.01) 2.79(±0.01) 3.68(±0.01) 4.45(±0.01) 3.51(±0.01) 1.33(±0.00) 1.63(±0.00) 1.89(±0.00) 1.56(±0.00)
+SDPA (10) 2.85(±0.00) 3.74(±0.01) 4.43(±0.01) 3.64(±0.01) 2.83(±0.01) 3.78(±0.01) 4.66(±0.01) 3.62(±0.01) 1.35(±0.00) 1.67(±0.00) 1.97(±0.00) 1.61(±0.00)
+Cosine (10) 2.85(±0.05) 3.72(±0.03) 4.33(±0.03) 3.60(±0.03) 2.96(±0.15) 3.86(±0.14) 4.69(±0.12) 3.71(±0.14) 1.36(±0.03) 1.67(±0.03) 1.93(±0.03) 1.60(±0.03)
+(c)128
+Tanimoto (10)2.79(±0.01) 3.67(±0.01) 4.27(±0.01) 3.55(±0.01) 2.77(±0.00) 3.63(±0.01) 4.36(±0.02) 3.46(±0.01) 1.32(±0.00) 1.61(±0.00) 1.85(±0.00) 1.54(±0.00)
+SDPA (10) 2.81(±0.00) 3.70(±0.01) 4.34(±0.01) 3.58(±0.01) 2.79(±0.00) 3.71(±0.01) 4.53(±0.01) 3.55(±0.01) 1.33(±0.00) 1.64(±0.00) 1.92(±0.00) 1.58(±0.00)
+Cosine (10) 2.80(±0.01) 3.68(±0.01) 4.28(±0.01) 3.55(±0.01) 2.80(±0.06) 3.66(±0.06) 4.46(±0.06) 3.51(±0.06) 1.32(±0.01) 1.62(±0.01) 1.88(±0.01) 1.56(±0.01)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 40 of 48
+
+--- PAGE 41 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+D. KRONECKER PRODUCT and OPERATIONS
+Kronecker productTheKronecker Product( ⊗,KP) of two arbitrary matrices𝐀∈ℝ 𝐼𝐴1 ×𝐼𝐴2 ,𝐁∈ℝ 𝐼𝐵1 ×𝐼𝐵2 is
+defined as:
+𝐀⊗𝐁=
+⎡
+⎢
+⎢
+⎢
+⎢⎣
+𝑎11𝐁𝑎 12𝐁⋯𝑎 1𝐼𝐴2
+𝐁
+𝑎21𝐁𝑎 22𝐁⋯𝑎 2𝐼𝐴2
+𝐁
+⋮ ⋮ ⋱ ⋮
+𝑎𝐼𝐴1 1𝐁𝑎 𝐼𝐴1 2𝐁⋯𝑎 𝐼𝐴1 𝐼𝐴2
+𝐁
+⎤
+⎥
+⎥
+⎥
+⎥⎦
+.(89)
+D.1. Kronecker Matrix-Vector product (KMV)
+TheKroneckerMatrix-Vectorproduct(KMV)isausefulKroneckerproductidentitythatconverts (𝐀⊗𝐁)Vec(𝐂)
+to the computationally efficient form Vec(𝐁 𝐂 𝐀⊤), where for some𝐂∈ℝ𝐼𝐴2 ×𝐼𝐵2:
+Kronecker Matrix-Vector product (KMV)
+⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞
+(𝐀⊗𝐁)Vec(𝐂) =Vec(𝐁𝐂𝐀 ⊤)
+⏟ ⏞⏞⏞⏞ ⏟ ⏞⏞⏞⏞ ⏟
+KMV vectorization (KMVV)
+∈ℝ 𝐼𝐴1 𝐼𝐵1 ×1 ,(90)
+and for arbitrary𝐃∈ℝ 𝐼1×𝐼2, the vectorization operation isVec(𝐃) ∶= [[[ [𝐃[𝐼1×𝐼2 →𝐼 2𝐼1×1]
+] ]]]and letvector folding (VF)
+for𝐝∈ℝ 𝐼2𝐼1×1 be Vec−1(𝐝) ∶= [[[ [𝐝[𝐼2𝐼1×1→𝐼 1×𝐼2]
+] ]]].
+D.2. Kronecker graph product in spatiotemporal graph composition
+TheKPhaslongbeenrecognizedasagraphcompositionoperatorthatcombinesgraphstructuressystematically(We-
+ichsel, 1962; Leskovec et al., 2005), we demonstrate here that the Kronecker kernel yields a valid spatiotemporal graph
+admissible to Spatiotemporal Message Passing (STMP) operations.
+Let 𝑆 = (Ω 𝑆 , 𝑆 ), 𝑇 = (Ω 𝑇 , 𝑇 ) define the spatial and temporal graphs, respectively, with corresponding nodes
+𝜔𝑆[𝑖] ∈ Ω 𝑆 , 𝜔𝑇[𝑖] ∈ Ω 𝑇 and edges𝜀𝑆[𝑖,𝑗] ∈ 𝑆 , 𝜀 𝑇[𝑖,𝑗] ∈ 𝑇, where𝜀[𝑖,𝑗] is a pairwise connection from node𝜔𝑖 to 𝜔𝑗.
+By definition (Weichsel, 1962; Leskovec et al., 2010), the KP of two graphs,𝑇 ⊗ 𝑆, is the KP of their respective
+adjacency matrices,𝐀𝑆 =𝐴( 𝑆 )and𝐀 𝑇 =𝐴( 𝑇 ):
+𝐀(𝑆𝑇 ) =𝐀( 𝑇 )⊗𝐀( 𝑆 ) ∶=𝐀 𝑇 ⊗𝐀 𝑆 ,(91)
+which directly determines the edge structure in the spatiotemporal graph𝑆𝑇.
+Having established that the Kronecker product generates valid spatiotemporal graphs, we leverage this result by
+applying graph-generating dot-product kernels (G-DPKs) (Equation(15)) to extend the definition in Equation(91) to
+Spatiotemporal attention maps (STAMs):
+Θ(𝑆𝑇 ) ≈ Θ( 10) = Θ( 𝑇 )⊗Θ( 𝑆 ) ∶= Θ 𝑇 ⊗Θ 𝑆 ,(92)
+toestablishthattheKroneckerattentionkernel(Equation (14)),proposedearlierviaKPA,generatesvalidspatiotemporal
+graphs through the Kronecker product of the spatial (Θ𝑆) and temporal (Θ𝑇) attention maps.
+Following Leskovec et al. (2010), the structure of edges in𝑆𝑇 is determined by the edges in the constituent spatial
+and temporal graphs. For spatial nodes𝜔𝑆[𝜍1], 𝜔𝑆[𝜍2] and temporal nodes𝜔𝑇[𝜏 1], 𝜔𝑇[𝜏 2]:
+(𝜀𝑆𝑇[𝜍 1𝜏1,𝜍2𝜏2] ∈ 𝑆𝑇 )⟺(𝜀 𝑆[𝜍1,𝜍2] ∈ 𝑆 ) ∩ (𝜀 𝑇[𝜏 1,𝜏2] ∈ 𝑇 ).(93)
+In other words, spatiotemporal edges exist if and only if both constituent spatial and temporal edges exist. Here,
+𝜔𝑆𝑇[𝜍 1𝜏1], 𝜔 𝑆𝑇[𝜍 2𝜏2] ∈ Ω 𝑆𝑇 are spatiotemporal nodes indexed by ordered pairs[𝜍1𝜏1], [𝜍2𝜏2] and connected by
+edge 𝜀𝑆𝑇[𝜍 1𝜏1,𝜍2𝜏2]. This establishes that the Kronecker product of𝑆 and 𝑇 yields a valid spatiotemporal graph
+𝑆𝑇 = (Ω 𝑆𝑇 , 𝑆𝑇 )with structural correspondence between constituent and spatiotemporal graph elements.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 41 of 48
+
+--- PAGE 42 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+E. PROPERTIES of WEAVER COMPONENTS
+E.1. W-iKPS: Relaxation of Kronecker Separability via Head-mixing Weights
+WedemonstratewithashortproofthataweightedimplicitKroneckerproductsummation(W-iKPS)isperformed
+when linear projection is applied via the head-mixing weight𝐖𝑂 (Equation(7)). Consequently, without additional
+mechanisms,thisimpliesthatthespatiotemporalattentionmap Θ doesnotnecessarilyhavetoconformtoaseparable
+Kronecker structure for P-KMV to be applicable. To establish a link between multihead and KPS, we start with a
+canonical form of KPS onΘ andΘ  using multihead indexing:
+Θ ≈
+𝐻∑
+ℎ=1
+(Θ(ℎ)
+ ⊗Θ (ℎ)
+ ),(94)
+Θ 𝐕≈
+𝐻∑
+ℎ=1
+(Θ(ℎ)
+ ⊗Θ (ℎ)
+ )𝐕 (ℎ) .(95)
+TomatchtheP-KMVform,thiscanbere-writteninastensorsbatchedontheheaddimension,firstintheunconsolidated
+form where𝜣 ∈ℝ 𝐻×𝑃 𝑁×𝑃 𝑁,𝜣  ∈ℝ 𝐻×𝑁×𝑁 ,𝜣  ∈ℝ 𝐻×𝑃×𝑃 , and∈ℝ 𝐻×𝑃 𝑁×𝐸:
+𝜣 ≈ (𝜣  ⊗𝜣  )∈ℝ 𝐻×𝑃 𝑁×𝐸 .(96)
+Then KPS is applied by summation on𝐻in tensor notation:
+Θ 𝐕≈ (𝜣  ⊗𝜣  )× 1 𝟏∈ℝ 𝑃 𝑁×𝐸 ,(97)
+with 𝟏= [1, ...,1] ∈ℝ 𝐻 a vector of ones, while×1 denotes themode-1 tensor product(i.e. on𝐻, see Kolda and Bader
+(2009)).
+Applying a standard graph propagation framework (refer to Equation(4)for example) to Equation(97), we may
+treat each head as independent message passing (MP) on graph variants. Hence, one possible way of applying the
+feature-mixing step useshead-specific weight matrices𝐖(ℎ) ∈ℝ 𝐸×𝐸 ′
+:
+𝐻∑
+ℎ=1
+(Θ(ℎ)
+ ⊗Θ (ℎ)
+ )𝐕 (ℎ)𝐖(ℎ) =
+(
+(𝜣 ⊗𝜣  )  𝐻
+)
+×1 𝟏∈ℝ 𝑃 𝑁×𝐸 ,(98)
+where  𝐻 ∈ℝ 𝐻×𝐸×𝐸 ′
+stacks 𝐖(ℎ) on 𝐻. Setting𝐸′ =𝐻𝐸 , we obtain 𝐻 ∈ℝ 𝐻×𝐸×𝐻𝐸 , which corresponds to
+𝐻⋅𝐸⋅𝐻𝐸=𝐻 2𝐸2 parameters—matching the capacity of the head-mixing weight𝐖𝑂 ∈ℝ 𝐻𝐸×𝐻𝐸 .
+The RHS of Equation (98) makes it clearer when applying head-mixing weights𝐖𝑂 using tensor operations:
+∼= (𝜣  ⊗𝜣  )∈ℝ 𝐻×𝑃 𝑁×𝐸 ,(99)
+= [[[ [∼[𝐻×𝑃 𝑁×𝐸→𝑃 𝑁×𝐻𝐸] ] ]]] ∈ℝ 𝑃 𝑁×𝐻𝐸 (Tensor rearrangement),(100)
+(
+(𝜣 ⊗𝜣  )  𝐻
+)
+×1 𝟏≅𝐖 𝑂 ,(101)
+where the congruency in Equation(101) comes from the fact that linear combinations can be written as other linear
+combinations. Thus, by transitive property of equality:
+𝐻∑
+ℎ=1
+(Θ(ℎ)
+ ⊗Θ (ℎ)
+ )𝐕 (ℎ)𝐖(ℎ) ≅𝐖 𝑂 ,(102)
+which demonstrates that application of head-mixing weights𝐖𝑂 in 𝐖𝑂 is animplicitversion of the head-specific
+weighted Kronecker product summation(W-KPS) in Equation(98). Therefore,𝐖𝑂 is aWeighted Implicit KPS
+(W-iKPS).
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 42 of 48
+
+--- PAGE 43 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+E.2. Characteristics of the Continuous Tanimoto Coefficient (CTC)
+E.2.1. Local Stability Analysis of CTC Critical Points
+The Jacobian of Equation(29) with respect to (wrt.)𝐪 is derived via quotient rule and set to𝟎 to determine the
+critical points (roots):
+∇𝐪
+𝐪⊤𝐤
+‖𝐪‖2 +‖𝐤‖ 2 −𝐪 ⊤𝐤 = (𝐪⊤𝐪+𝐤 ⊤𝐤)𝐤− 2(𝐪 ⊤𝐤)𝐪
+(𝐪⊤𝐪+𝐤 ⊤𝐤−𝐪 ⊤𝐤)2 =𝟎,(103)
+⇒2(𝐪 ⊤𝐤)𝐪= (𝐪 ⊤𝐪+𝐤 ⊤𝐤)𝐤,(104)
+where 𝟎∈ 0 𝐸×1 i.e., a vector of zeroes, and using the identity‖𝐚‖2 =𝐚 ⊤𝐚. Here, Equation(104)is feasibleiff 𝐪and 𝐤
+arecollinear vectors, i.e.:𝐤=𝑐𝐪for any𝑐∈ℝ. Hence, substituting for𝐤=𝑐𝐪to Equation (104):
+(𝑐2 − 1)𝐪=𝟎⇒𝑐= ±1,(105)
+𝑐= ±1⇒𝐪= ±𝐤,(Collinearity condition; roots 1 and 2). (106)
+To characterize the local behavior at the critical points, we perform a second-order analysis. Let𝐪=𝐪 ∗ +𝛿𝐪 where
+𝐪∗ denotes a critical point and‖𝛿𝐪‖ is small. Equation(104)is restated with𝐪,𝐤∈ℝ 𝐸×1 and assuming𝐤is constant:
+2(𝐪⊤𝐤)𝐪= (𝐪 ⊤𝐪+𝐤 ⊤𝐤)𝐤,
+To derive the Hessian, let𝑁=𝐪⊤𝐤and𝐷=‖𝐪‖ 2 +‖𝐤‖ 2 −𝐪 ⊤𝐤. We can rewrite the gradient as:
+∇𝑇= 𝐠
+𝐷2 where𝐠= (𝐷+𝑁)𝐤− 2𝑁𝐪,(107)
+The Hessian is obtained by applying the quotient rule:
+𝐇= 𝜕
+𝜕𝐪
+( 𝐠
+𝐷2
+)
+= 1
+𝐷2
+𝜕𝐠
+𝜕𝐪 − 2𝐠
+𝐷3
+(
+𝜕𝐷
+𝜕𝐪
+)⊤
+,(108)
+where:
+𝜕𝐷
+𝜕𝐪 = 2𝐪−𝐤, 𝜕𝐠
+𝜕𝐪 =𝐤(2𝐪−𝐤) ⊤ +𝐤𝐤 ⊤ − 2𝐤𝐪⊤ − 2(𝐪⊤𝐤)𝐈,(109)
+and𝐈is the𝐸×𝐸identity matrix.
+Root 1:𝐪∗ =𝐤 .At this critical point, 𝑁=‖𝐤‖ 2, 𝐷=‖𝐤‖ 2, and𝐠=𝟎 . Since𝐠vanishes, the Hessian simplifies to:
+𝐇||||𝐪=𝐤
+= 1
+𝐷2
+𝜕𝐠
+𝜕𝐪
+||||𝐪=𝐤
+= −2‖𝐤‖2𝐈
+‖𝐤‖4 = − 2𝐈
+‖𝐤‖2 ,(110)
+The Hessian is negative definite (all eigenvalues equal−2∕‖𝐤‖2 <0 ), confirming that𝐪∗ =𝐤 is alocal maximum
+with Tanimoto coefficient value𝑇= 1.
+Root 2:𝐪∗ = −𝐤.At this critical point,𝑁= −‖𝐤‖ 2,𝐷= 3‖𝐤‖ 2, and𝐠=𝟎. Evaluating the Hessian:
+𝜕𝐠
+𝜕𝐪
+||||𝐪=−𝐤
+=𝐤(−3𝐤) ⊤ +𝐤𝐤 ⊤ + 2𝐤𝐤⊤ + 2‖𝐤‖2𝐈= 2‖𝐤‖ 2𝐈.(111)
+Therefore:
+𝐇||||𝐪=−𝐤
+= 2‖𝐤‖2𝐈
+9‖𝐤‖4 = 2𝐈
+9‖𝐤‖2 .(112)
+The Hessian is positive definite (all eigenvalues equal2∕(9‖𝐤‖2)>0 ), confirming that𝐪∗ = −𝐤 is alocal minimum
+with Tanimoto coefficient value𝑇= −1∕3 . The stability of these critical points depends on the optimization objective.
+Under maximization ofΘCTC (gradient ascent: ̇𝐪= ∇𝑇):
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 43 of 48
+
+--- PAGE 44 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+•𝐪 ∗ =𝐤: Negative definite Hessian⇒stable equilibrium(attractor).
+•𝐪 ∗ = −𝐤: Positive definite Hessian⇒unstable equilibrium(repeller).
+Under minimization ofΘCTC (gradient descent: ̇𝐪= −∇𝑇):
+•𝐪 ∗ =𝐤: Negative definite Hessian⇒unstable equilibrium(repeller).
+•𝐪 ∗ = −𝐤: Positive definite Hessian⇒stable equilibrium(attractor).
+E.2.2. CTC and Positive Edge Dominance
+We provide a sketch of proof illustrating how the asymmetric CTC range promotes stable signed network dynamics
+through positive edge dominance. Consider a simplified message-passing process with score vector𝜽and feature vector
+𝐳, where we assume𝜃𝑖 ∼Bernoulli(𝑝) with non-stochastic𝑧𝑖 =𝑧 𝑗 for all𝑖≠𝑗 , representing a worst-case boundary
+scenario. The transformation
+(
+4
+3 𝜃𝑖 − 1
+3
+)
+remaps Bernoulli samples from{0,1} to the CTC range{− 1
+3 ,1}. Hence, the
+message𝑀is computed as:
+𝑀=𝜽 ⊤𝐳=
+𝑁∑
+𝑖=1
+(
+4
+3 𝜃𝑖 − 1
+3
+)
+𝑧𝑖.(113)
+The expected message magnitude is
+𝔼[𝑀] = 4𝑝− 1
+3
+𝑁∑
+𝑖=1
+𝑧𝑖, (114)
+which remains positive for𝑝 >0.25 when ∑
+𝑖 𝑧𝑖 >0 . This reflects an intrinsic bias toward positive edges, aligning with
+structural balance theory in signed networks (Shi et al., 2019), which posits that stable signed networks exhibit positive
+edge dominance.
+In contrast, a symmetric[−1,1] range (e.g., fromtanh or Cosine) obtained via(2𝜃𝑖 − 1) for {0,1}→{−1,1}
+yields 𝔼[𝑀] = (2𝑝− 1) ∑
+𝑖 𝑧𝑖, which crosses zero at𝑝= 0.5 . This symmetry introduces balanced positive–negative
+competition that can destabilize early signal propagation. By biasing expectations toward cooperation (𝑝 >0.25 ),
+the CTC formulation naturally favors stable, predominantly positive connectivity patterns—consistent with empirical
+findings in traffic networks where correlations between adjacent road segments are dominantly positive (Ermagun et al.,
+2017).
+Since this derivation assumes deterministic𝐳, a comprehensive analysis under fully stochastic conditions where𝐳 is
+random (e.g.,𝑧𝑖 ∼(𝜇 𝑖, 𝜎2
+𝑖 )in deep networks (Schoenholz et al., 2017)) is left for future work.
+F. Generalization of PΔ-KMV
+This section derives the higher-order generalization of P2-KMV: PΔ-KMV, by extending a multi-modal (Δ>2 )
+KMV-vectorization (Equation(121)–(124)) and resolving it by inferring the necessary tensor rearrangements via
+induction(Equations (125)–(128)).WefollowdirectlyfromthebasicP 2-KMVinEquations (20)–(21)fromSection3.1,
+replacing 𝐯𝑒,𝐕 𝑒 with 𝐳𝑒,𝐙 𝑒 for generalizable notation. This yields theright-handed P-KMV ((R)-P-KMV) forms
+computable via recursive tensor rearrangement, enabling GPU optimizations and other computational advantages.
+F.1. Nested multi-modal hierarchical Kronecker-TEN (Δ>2)
+We begin by describing extensions of the Kronecker-TEN framework from Section 3.1 to nested Kronecker
+hierarchical graphs, which provides consistent notation for subsequent derivations. Let= {𝑚 𝓁}𝐿
+𝓁=1 be anode-set
+withcardinality 𝑅=|| ,andnodeindex 𝓁∈ [𝐿] .Wedefinethehierarchicalorderofnode-setsas ↑ ≻≻ ↓,
+where ↑ and ↓ are theimmediate superordinateandimmediate subordinateto , respectively. Overloading the
+definition of anode𝑚𝓁 as a hyperedge (Antelmi et al., 2023), each node contains itself and its subordinate node-set:
+𝑚𝓁 = {𝓁,𝐮 𝓁, ↓|}, (115)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 44 of 48
+
+--- PAGE 45 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+where 𝐮𝓁 ∈ℝ 𝐸 are therouting vectors, and {⋅|} denotesnode-set membership. This allows compact
+representations of fully connected, recursively nested Kronecker hierarchical graphs.
+To defineΔ
+10 of depth-Δ, we now further refine withhierarchical-depth indexing 𝛿∈ {0,1,…,Δ} and
+introduce thehierarchical rule𝐻 defining the hierarchy ofnode-sets ordered by decreasing abstraction:
+𝐻 = ( [1] ≻⋯≻ [𝛿−1] ≻ [𝛿] ≻ [𝛿+1] ≻⋯≻{1} [Δ+1] ),(116)
+where1 ∈ {1}is the identity set indicating the presence of a node, for completeness.
+Thus, the correspondingΔ-hierarchical KMV(𝜅Δ
+KMV) representation of𝐻 is:
+𝐳′
+𝑒 = (Θ[1] ⊗Θ [2] ⋯⊗Θ [Δ] ⊗1 )𝐳𝑒 =
+(Δ+1⨂
+𝛿=1
+Θ 𝛿
+)
+𝐳𝑒 ,(117)
+whereΘ [𝛿] are attention maps at depth-𝛿, withΘ[Δ+1] ∶= 1for completeness.
+F.1.1. Hierarchical KMV-vectorization (KMVV).
+Using superscript⟨𝛿⟩ to indicate KMV-vectorization depth on𝐳, we can thus define two equivalenthierarchical
+KMVVpatterns of Equation (117) forΔ>2:
+𝐳′
+𝑒 =
+(
+Θ[1]
+Δ+1⨂
+𝛿=2
+Θ[𝛿]
+)
+𝐳𝑒 =Vec
+( [Δ+1⨂
+𝛿=2
+Θ[𝛿]
+]
+𝐙⟨1⟩
+𝑒 Θ⊤
+[1]
+)
+,(118)
+𝐳′
+𝑒 =
+( Δ⨂
+𝛿=1
+Θ[1] ⊗Θ [Δ+1]
+)
+𝐳𝑒 =Vec
+(
+Θ[Δ+1]
+[ Δ⨂
+𝛿=1
+Θ[𝛿] ⋅(𝐙 ⟨1⟩
+𝑒 )⊤
+]⊤ )
+,(119)
+where 𝐳𝑒 =Vec(𝐙 ⟨1⟩
+𝑒 )or equivalently,Vec−1(𝐳𝑒) =𝐙 ⟨1⟩
+𝑒 . We refer to Equation(118)as the "right-handed KMVV" (𝜅Δ
+𝑅)
+and(119) as the "left-handed KMVV" (𝜅Δ
+𝐿), each resulting in slightly different tensor operations when resolved via
+P-KMV. Put simply, using𝜅Δ
+𝑅 avoids the nested transpose operation in𝜅Δ
+𝐿 and retains the characteristic KMV form
+(𝐀⊗𝐁)𝐳 𝑒 in subsequent recursions, making it more intuitive in practice. Hence, we shall apply this in Appendix F.2
+when deriving the generalized P-KMV.
+F.2. The Right-Handed 3D P-KMV ((R)-P3-KMV) and generalized (R)-PΔ-KMV
+F.2.1. The (R)-P3-KMV
+For the 3D problem, we assume the Kronecker adjacency map,𝐊3 as follows using theright-handed KMVV
+((R)-KMVV) form in Equation (118):
+𝐊3 = (Θ [1] ⊗Θ [2] ⊗Θ [3] ⊗Θ [4]) = Θ [1]
+Δ+1⨂
+𝛿=2
+Θ[𝛿] ,(120)
+We first fully expand the3D hierarchical KMVV(𝜅3
+𝑅) from Equation (118):
+𝐊3 𝐙⟨0⟩ =
+( [Δ+1=4⨂
+𝛿=2
+Θ[𝛿]
+]
+𝐙⟨1⟩ Θ⊤
+[1]
+)
+,(121)
+[ 4⨂
+𝛿=2
+Θ[𝛿]
+]
+𝐙⟨1⟩ =
+( [ 4⨂
+𝛿=3
+Θ[𝛿]
+]
+𝐙⟨2⟩ Θ⊤
+[2]
+)
+,(122)
+[ 4⨂
+𝛿=3
+Θ[𝛿]
+]
+𝐙⟨2⟩ =
+(
+Θ[4] 𝐙⟨3⟩ Θ⊤
+[3]
+)
+(123)
+Θ[4]𝐙⟨3⟩ =
+(
+𝐙⟨4⟩ Θ⊤
+[4]
+)
+=𝐙 ⟨4⟩ (124)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 45 of 48
+
+--- PAGE 46 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+where Θ⟨4⟩ ∶= 1, |Θ⟨4⟩|= 1 is the identity mapping necessary for deriving the general case. Here, we can infer
+the dimensions of𝐙⟨𝛿⟩ from their corresponding matrix multiplications, i.e.:𝐙⟨0⟩ ∈ℝ
+∏Δ+1
+𝛿=1 𝐼𝛿×𝐼0, 𝐙⟨1⟩ ∈ℝ
+∏Δ+1
+𝛿=2 𝐼𝛿×𝐼1,
+𝐙⟨2⟩ ∈ℝ
+∏Δ+1
+𝛿=3 𝐼𝛿×𝐼2, and𝐙⟨3⟩ ∈ℝ 𝐼4×𝐼3.
+To resolve the𝜅3
+𝑅 without interrupting the isomorphism of⟨𝛿⟩, we can extend Equation(20) by induction to infer
+the necessary tensor rearrangements for Equations (121)–(124). Specifically, to get from𝑑= 0to𝑑= 1, we require:
+⟨0⟩ ∈ℝ
+∏4
+𝛿=1 𝐼𝛿×𝐼0 → ⟨1⟩ ∈ℝ 𝐼0×(∏4
+𝛿=2 𝐼𝛿×𝐼1),(125)
+and extending this to subsequent depths (𝛿 >1) resolves to:
+⟨1⟩ ∈ℝ 𝐼0×(∏4
+𝛿=1 𝐼𝛿×𝐼1) → ⟨2⟩ ∈ℝ 𝐼0×(𝐼1×∏4
+𝛿=3 𝐼𝛿×𝐼2),(126)
+⟨2⟩ ∈ℝ 𝐼0×(𝐼1×∏4
+𝛿=3 𝐼𝛿×𝐼2) → ⟨3⟩ ∈ℝ 𝐼0×(𝐼1×(𝐼2×𝐼4×𝐼3)),(127)
+⟨3⟩ ∈ℝ 𝐼0×(𝐼1×(𝐼2×𝐼4×𝐼3)) → ⟨4⟩ ∈ℝ 𝐼0×(𝐼1×(𝐼2×(𝐼3×𝐼4))).(128)
+Notably, if we assume homogenous attention mapsΘ⟨𝛿⟩ at every𝛿, certain dimensional stratifications "×" do
+not specialize information in the tensor (see Section A.3 on BMM) and can be removed to avoid redundancy while
+improving batched tensor operations on the GPU (NVIDIA Corporation, 2023). Put simply, we may write instead:
+⟨1⟩ ∈ℝ 𝐼0×(∏4
+𝛿=2 𝐼𝛿×𝐼1) ,(129)
+⟨2⟩ ∈ℝ
+∏1
+𝛿=0 𝐼𝛿×(∏4
+𝛿=3 𝐼𝛿×𝐼2) ,(130)
+⟨3⟩ ∈ℝ
+∏2
+𝛿=0 𝐼𝛿×(𝐼4×𝐼3) ,(131)
+⟨4⟩ ∈ℝ
+∏3
+𝛿=0 𝐼𝛿×𝐼4 . (132)
+Thus, we can obtain theP3-KMVas the solution to𝜅3
+𝑅 by resolving Equations(121)–(124) in reverse order using
+tensorrearrangements(Kronecker-Tumble( ↫))fromEquations (129)–(132)whileapplyingthecorrespondingattention
+maps. In other words, the P3-KMV is fully stated below:
+ ⟨3⟩ = ( ⟨4⟩ ⋅1) ↫ ∈ℝ
+∏2
+𝛿=0 𝐼𝛿×(𝐼4×𝐼3),(133)
+ ⟨2⟩ = ( ⟨3⟩Θ⊤
+⟨3⟩ )↫ ∈ℝ
+∏1
+𝛿=0 𝐼𝛿×(∏4
+𝛿=3 𝐼𝛿×𝐼2),(134)
+ ⟨1⟩ = ( ⟨2⟩Θ⊤
+⟨2⟩ )↫ ∈ℝ 𝐼0×(∏4
+𝛿=2 𝐼𝛿×𝐼1),(135)
+𝐊3 ⟨0⟩ = ⟨0⟩ = ( ⟨1⟩Θ⊤
+⟨1⟩ )↫ ∈ℝ
+∏4
+𝛿=1 𝐼𝛿×𝐼0.(136)
+F.2.2. The generalized (R)-PΔ-KMV and Kronecker-Tumble
+Although Equation (133) is an identity map, it enables thegeneral form of (R)-PΔ-KMV:
+ ⟨𝑑⟩ =
+(
+ ⟨𝑑+1⟩ Θ⊤
+⟨𝑑+1⟩
+)
+↫
+.(137)
+Induction is applied to infer thegeneral form of K-Tumble(↫) from Eqn. (133)–(136) as the tensor rearrangement:
+[[[ [⟨𝑑+1⟩] ]]]
+↫ =
+[[[ [
+⟨𝑑+1⟩[∏𝑑
+𝛼=0 𝐼𝛼× ∏Δ+1
+𝛿=𝑑+2 𝐼𝛿×𝐼 𝑑+1 → ∏𝑑−1
+𝛼=0 𝐼𝛼× ∏Δ+1
+𝛿=𝑑+1 𝐼𝛿×𝐼 𝑑
+]
+] ]]]
+= ⟨𝑑⟩ .(138)
+F.2.3. The Multihead (MH) (R)-PΔ-KMV
+Extending (R)-PΔ-KMV to multihead architectures requires a key modification. Standard (R)-PΔ-KMV assumes a
+homogeneous attention map at each depth, but multihead mechanisms learn distinct mappings per headℎ∈ [𝐻] . This
+is simply addressed by preserving𝐻as an independent mode in all (R)-PΔ-KMV and K-Tumble operations:
+ ⟨𝑑⟩
+𝐻 =
+(
+ ⟨𝑑+1⟩
+𝐻 Θ⊤
+𝐻 ⟨𝑑+1⟩
+)
+↫𝐻
+(139)
+And correspondingly, the multihead K-Tumble is also stratified on𝐻:
+[[[ [⟨𝑑+1⟩
+𝐻
+] ]]]
+↫ =
+[[[ [
+⟨𝑑+1⟩
+𝐻
+[
+𝐻×∏𝑑
+𝛼=0 𝐼𝛼× ∏Δ+1
+𝛿=𝑑+2 𝐼𝛿×𝐼 𝑑+1 →𝐻× ∏𝑑−1
+𝛼=0 𝐼𝛼× ∏Δ+1
+𝛿=𝑑+1 𝐼𝛿×𝐼 𝑑
+]
+] ]]]
+= ⟨𝑑⟩
+𝐻 .(140)
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 46 of 48
+
+--- PAGE 47 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000016/uni00000011/uni00000014/uni00000018/uni00000016/uni00000011/uni00000018/uni00000013/uni00000014/uni00000011/uni00000013/uni00000014/uni00000013/uni00000011/uni0000001c/uni00000018
+/uni00000016/uni00000011/uni0000001b/uni00000016/uni00000014/uni00000011/uni00000019/uni00000018/uni00000014/uni00000011/uni00000013/uni00000017/uni00000014/uni00000011/uni00000013/uni00000017
+/uni00000015/uni00000011/uni00000018/uni00000018/uni00000014/uni00000011/uni00000014/uni00000015/uni00000014/uni00000011/uni00000013/uni00000018/uni00000014/uni00000011/uni00000013/uni00000018
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni00000015/uni00000014/uni00000011/uni0000001a/uni00000017/uni00000013/uni00000011/uni0000001c/uni00000017/uni00000013/uni00000011/uni0000001b/uni0000001a
+/uni00000015/uni00000011/uni00000018/uni00000014/uni00000014/uni00000011/uni00000013/uni0000001b/uni00000013/uni00000011/uni0000001c/uni00000017/uni00000013/uni00000011/uni0000001b/uni0000001a
+/uni00000014/uni00000011/uni00000016/uni0000001c/uni00000014/uni00000011/uni00000013/uni0000001a/uni00000013/uni00000011/uni0000001c/uni00000016/uni00000013/uni00000011/uni0000001b/uni00000019
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000015/uni00000011/uni00000019/uni0000001a/uni00000014/uni00000011/uni00000015/uni00000014/uni00000014/uni00000011/uni00000014/uni00000013/uni00000014/uni00000011/uni00000013/uni0000001b
+/uni00000014/uni00000011/uni00000015/uni00000013/uni00000014/uni00000011/uni00000014/uni0000001c/uni00000014/uni00000011/uni00000013/uni0000001b/uni00000014/uni00000011/uni00000013/uni0000001a
+/uni00000014/uni00000011/uni00000015/uni00000013/uni00000014/uni00000011/uni00000014/uni0000001a/uni00000014/uni00000011/uni00000013/uni0000001a/uni00000014/uni00000011/uni00000013/uni00000019
+dhead = 16
+/uni00000014/uni00000011/uni00000013
+/uni00000014/uni00000011/uni00000018
+/uni00000015/uni00000011/uni00000013
+/uni00000015/uni00000011/uni00000018
+/uni00000016/uni00000011/uni00000013
+/uni00000016/uni00000011/uni00000018
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053/uni00000003/uni00000055/uni00000044/uni00000057/uni0000004c/uni00000052
+(a) T4 GPU
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000016/uni00000011/uni0000001a/uni00000019/uni00000016/uni00000011/uni0000001a/uni0000001b/uni00000014/uni00000011/uni00000013/uni00000019/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni00000019/uni00000016/uni00000011/uni0000001a/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni00000017/uni00000015/uni00000011/uni00000018/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni0000001c/uni00000016/uni00000011/uni0000001b/uni00000013/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001c
+/uni00000016/uni00000011/uni0000001a/uni0000001b/uni00000016/uni00000011/uni00000014/uni00000016/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni00000017/uni0000001c/uni00000014/uni00000011/uni0000001b/uni00000019/uni00000013/uni00000011/uni0000001c/uni0000001b/uni00000013/uni00000011/uni0000001c/uni0000001b
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni0000001b/uni00000014/uni00000016/uni00000011/uni00000014/uni00000016/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000016/uni00000011/uni00000018/uni00000013/uni00000014/uni00000011/uni0000001b/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000015/uni00000011/uni00000013/uni00000013/uni00000014/uni00000011/uni00000013/uni00000014/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+dhead = 16
+/uni00000014/uni00000011/uni00000013
+/uni00000014/uni00000011/uni00000018
+/uni00000015/uni00000011/uni00000013
+/uni00000015/uni00000011/uni00000018
+/uni00000016/uni00000011/uni00000013
+/uni00000016/uni00000011/uni00000018
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053/uni00000003/uni00000055/uni00000044/uni00000057/uni0000004c/uni00000052
+(b) A100 GPU
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000014/uni00000011/uni00000017/uni0000001a/uni00000014/uni00000011/uni00000019/uni00000015/uni00000014/uni00000011/uni00000013/uni00000013/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000014/uni00000011/uni00000016/uni0000001c/uni00000014/uni00000011/uni00000018/uni00000015/uni00000013/uni00000011/uni0000001c/uni0000001b/uni00000014/uni00000011/uni00000013/uni00000013
+/uni00000014/uni00000011/uni00000018/uni0000001b/uni00000014/uni00000011/uni00000016/uni00000018/uni00000013/uni00000011/uni0000001c/uni0000001b/uni00000014/uni00000011/uni00000013/uni00000013
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000014/uni00000011/uni00000017/uni00000013/uni00000014/uni00000011/uni00000019/uni00000013/uni00000014/uni00000011/uni00000013/uni00000013/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000014/uni00000011/uni00000015/uni00000016/uni00000014/uni00000011/uni00000019/uni00000018/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001a
+/uni00000014/uni00000011/uni0000001b/uni00000013/uni00000014/uni00000011/uni00000013/uni0000001b/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001a
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000014/uni00000011/uni00000017/uni00000015/uni00000014/uni00000011/uni00000018/uni00000016/uni00000013/uni00000011/uni0000001c/uni0000001c/uni00000013/uni00000011/uni0000001c/uni0000001b
+/uni00000014/uni00000011/uni0000001a/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001b/uni00000013/uni00000011/uni0000001c/uni0000001a/uni00000013/uni00000011/uni0000001c/uni0000001a
+/uni00000014/uni00000011/uni00000013/uni00000014/uni00000014/uni00000011/uni00000013/uni00000016/uni00000013/uni00000011/uni0000001c/uni0000001b/uni00000013/uni00000011/uni0000001c/uni0000001a
+dhead = 16
+/uni00000014/uni00000011/uni00000013
+/uni00000014/uni00000011/uni00000015
+/uni00000014/uni00000011/uni00000017
+/uni00000014/uni00000011/uni00000019
+/uni00000014/uni00000011/uni0000001b
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053/uni00000003/uni00000055/uni00000044/uni00000057/uni0000004c/uni00000052
+(c) RTX 4090
+Figure 17:Speedup heatmaps for the basic vs. efficient P2-KMV kernel, computed relative to the same GPU.
+F.3. Comparative GPU Performance on P2-KMV (Basic vs Efficient)
+This section compares multihead tensor computation performance between the basic (Equations(20)–(21)) and
+efficient (Equations(25)–(27)) P2-KMV kernels across GPUs with distinct architectural profiles. The NVIDIA T4
+(2018; 16GB GDDR6,∼320GB/s memory bandwidth) and A100 (2020; 40/80GB HBM2e,∼1.5–2.0TB/s memory
+bandwidth) are datacenter–class accelerators optimized for tensor computations, whereas the RTX 4090 (2022; 24GB
+GDDR6X, ∼1.0TB/s memory bandwidth) is a consumer GPU optimized primarily for graphics and rendering. In terms
+of raw memory throughput and tensor performance, the devices rank approximately asA100>RTX 4090>T4.
+Heatmap values report the ratio of execution times,Speedup=𝑡 Basic∕𝑡Efficient, where values>1.0 indicate that the
+efficient P2-KMV kernel executes faster. Execution times𝑡Basic and𝑡 Efficientare averaged over 10,000 trials.
+Same-GPU comparisons.Figure 17 presents speedups measured relative to the basic kernel on thesameGPU.
+Substantial gains are demonstrated for small-to-medium problems:(𝐻= 2, 𝑑 head = 4, 𝑁= 64) –(𝐻= 8, 𝑑 head =
+8, 𝑁= 128 )acrossallGPUs,especiallyonGPUsoptimizedfortensoroperations(T4,A100).Thesubsequentreduction
+to×1.00gains suggest bandwidth saturation in the GPU architecture.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 47 of 48
+
+--- PAGE 48 ---
+Weaver: Kronecker Product Approximations of Spatiotemporal Attention for Traffic Network Forecasting
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000016/uni00000011/uni00000014/uni00000018/uni00000016/uni00000011/uni00000018/uni00000013/uni00000014/uni00000011/uni00000013/uni00000014/uni00000013/uni00000011/uni0000001c/uni00000018
+/uni00000016/uni00000011/uni0000001b/uni00000016/uni00000014/uni00000011/uni00000019/uni00000018/uni00000014/uni00000011/uni00000013/uni00000017/uni00000014/uni00000011/uni00000013/uni00000017
+/uni00000015/uni00000011/uni00000018/uni00000018/uni00000014/uni00000011/uni00000014/uni00000015/uni00000014/uni00000011/uni00000013/uni00000018/uni00000014/uni00000011/uni00000013/uni00000018
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni0000001a/uni00000015/uni00000014/uni00000011/uni0000001a/uni00000017/uni00000013/uni00000011/uni0000001c/uni00000017/uni00000013/uni00000011/uni0000001b/uni0000001a
+/uni00000015/uni00000011/uni00000018/uni00000014/uni00000014/uni00000011/uni00000013/uni0000001b/uni00000013/uni00000011/uni0000001c/uni00000017/uni00000013/uni00000011/uni0000001b/uni0000001a
+/uni00000014/uni00000011/uni00000016/uni0000001c/uni00000014/uni00000011/uni00000013/uni0000001a/uni00000013/uni00000011/uni0000001c/uni00000016/uni00000013/uni00000011/uni0000001b/uni00000019
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000015/uni00000011/uni00000019/uni0000001a/uni00000014/uni00000011/uni00000015/uni00000014/uni00000014/uni00000011/uni00000014/uni00000013/uni00000014/uni00000011/uni00000013/uni0000001b
+/uni00000014/uni00000011/uni00000015/uni00000013/uni00000014/uni00000011/uni00000014/uni0000001c/uni00000014/uni00000011/uni00000013/uni0000001b/uni00000014/uni00000011/uni00000013/uni0000001a
+/uni00000014/uni00000011/uni00000015/uni00000013/uni00000014/uni00000011/uni00000014/uni0000001a/uni00000014/uni00000011/uni00000013/uni0000001a/uni00000014/uni00000011/uni00000013/uni00000019
+dhead = 16
+/uni00000014
+/uni00000015
+/uni00000016
+/uni00000017
+/uni00000018
+/uni00000019
+/uni0000001a
+/uni0000001b
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053
+/uni00000037/uni00000017/uni00000003/uni00000059/uni00000056/uni00000003/uni00000037/uni00000017
+/uni0000000b/uni00000046/uni00000052/uni0000004f/uni00000052/uni00000055/uni00000003/uni00000055/uni00000044/uni00000051/uni0000004a/uni00000048/uni0000001d/uni00000003/uni0000003e/uni00000014/uni00000011/uni00000013/uni0000000f/uni00000003/uni0000001b/uni00000011/uni00000013/uni00000040/uni00000003/uni0000005f/uni00000003/uni00000047/uni00000044/uni00000057/uni00000044/uni00000003/uni00000055/uni00000044/uni00000051/uni0000004a/uni00000048/uni0000001d/uni00000003/uni0000003e/uni00000013/uni00000011/uni0000001b/uni00000019/uni0000000f/uni00000003/uni00000016/uni00000011/uni0000001b/uni00000016/uni00000040/uni0000000c
+(a) T4 vs T4 GPU
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000017/uni00000011/uni00000014/uni00000016/uni00000016/uni00000011/uni00000018/uni00000014/uni00000015/uni00000011/uni0000001b/uni00000017/uni00000016/uni00000011/uni00000018/uni00000013
+/uni00000016/uni00000011/uni0000001a/uni0000001c/uni00000016/uni00000011/uni00000018/uni00000015/uni00000016/uni00000011/uni0000001a/uni00000014/uni00000016/uni00000011/uni0000001b/uni00000013
+/uni00000017/uni00000011/uni00000017/uni0000001a/uni00000016/uni00000011/uni00000016/uni00000016/uni00000016/uni00000011/uni0000001a/uni0000001c/uni00000016/uni00000011/uni0000001c/uni0000001c
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000016/uni00000011/uni00000018/uni00000017/uni00000016/uni00000011/uni00000018/uni00000018/uni00000017/uni00000011/uni00000018/uni0000001a/uni00000018/uni00000011/uni00000017/uni00000013
+/uni00000017/uni00000011/uni00000013/uni00000016/uni00000016/uni00000011/uni00000019/uni0000001c/uni00000018/uni00000011/uni00000014/uni0000001a/uni00000018/uni00000011/uni00000017/uni00000017
+/uni00000016/uni00000011/uni0000001c/uni0000001b/uni00000017/uni00000011/uni00000015/uni0000001b/uni00000018/uni00000011/uni00000015/uni0000001a/uni00000018/uni00000011/uni00000019/uni00000019
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000017/uni00000011/uni00000013/uni00000017/uni00000016/uni00000011/uni00000018/uni00000017/uni00000017/uni00000011/uni00000019/uni00000016/uni00000017/uni00000011/uni0000001a/uni0000001c
+/uni00000016/uni00000011/uni00000016/uni00000013/uni00000017/uni00000011/uni00000014/uni0000001a/uni00000017/uni00000011/uni00000018/uni0000001c/uni00000017/uni00000011/uni0000001b/uni00000013
+/uni00000016/uni00000011/uni0000001a/uni00000016/uni00000017/uni00000011/uni00000016/uni00000015/uni00000017/uni00000011/uni0000001a/uni0000001b/uni00000017/uni00000011/uni0000001b/uni00000019
+dhead = 16
+/uni00000014
+/uni00000015
+/uni00000016
+/uni00000017
+/uni00000018
+/uni00000019
+/uni0000001a
+/uni0000001b
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053
+/uni00000037/uni00000017/uni00000003/uni00000059/uni00000056/uni00000003/uni00000024/uni00000014/uni00000013/uni00000013
+/uni0000000b/uni00000046/uni00000052/uni0000004f/uni00000052/uni00000055/uni00000003/uni00000055/uni00000044/uni00000051/uni0000004a/uni00000048/uni0000001d/uni00000003/uni0000003e/uni00000014/uni00000011/uni00000013/uni0000000f/uni00000003/uni0000001b/uni00000011/uni00000013/uni00000040/uni00000003/uni0000005f/uni00000003/uni00000047/uni00000044/uni00000057/uni00000044/uni00000003/uni00000055/uni00000044/uni00000051/uni0000004a/uni00000048/uni0000001d/uni00000003/uni0000003e/uni00000015/uni00000011/uni0000001b/uni00000017/uni0000000f/uni00000003/uni00000018/uni00000011/uni00000019/uni00000019/uni00000040/uni0000000c
+(b) T4 vs A100 GPU
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni0000002b
+/uni00000019/uni00000011/uni00000013/uni00000018/uni00000018/uni00000011/uni0000001a/uni00000019/uni0000001a/uni00000011/uni00000016/uni0000001b/uni0000001b/uni00000011/uni00000015/uni00000014
+/uni00000017/uni00000011/uni0000001b/uni00000017/uni00000017/uni00000011/uni0000001c/uni0000001a/uni0000001b/uni00000011/uni00000014/uni00000014/uni0000001c/uni00000011/uni00000016/uni0000001b
+/uni0000001a/uni00000011/uni0000001a/uni00000017/uni0000001a/uni00000011/uni00000019/uni0000001b/uni0000001b/uni00000011/uni00000019/uni0000001c/uni0000001c/uni00000011/uni00000017/uni00000018
+dhead = 4
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000017/uni00000011/uni0000001a/uni0000001b/uni00000018/uni00000011/uni00000015/uni00000016/uni00000014/uni00000013/uni00000011/uni0000001a/uni00000013/uni00000014/uni00000014/uni00000011/uni0000001c/uni00000014
+/uni00000017/uni00000011/uni0000001a/uni00000019/uni00000019/uni00000011/uni0000001b/uni00000019/uni00000014/uni00000013/uni00000011/uni00000017/uni00000016/uni00000014/uni00000014/uni00000011/uni0000001c/uni0000001b
+/uni0000001b/uni00000011/uni0000001c/uni0000001c/uni0000001c/uni00000011/uni0000001b/uni00000014/uni00000014/uni00000013/uni00000011/uni00000018/uni0000001a/uni00000014/uni00000015/uni00000011/uni00000013/uni00000017
+dhead = 8
+/uni00000019/uni00000017/uni00000014/uni00000015/uni0000001b/uni00000018/uni00000014/uni00000015/uni00000014/uni00000013/uni00000015/uni00000017
+/uni00000031
+/uni00000015/uni00000017/uni0000001b
+/uni00000018/uni00000011/uni00000016/uni00000019/uni00000019/uni00000011/uni00000017/uni00000018/uni00000014/uni00000013/uni00000011/uni0000001b/uni00000016/uni00000014/uni00000014/uni00000011/uni00000015/uni00000018
+/uni0000001a/uni00000011/uni00000017/uni00000017/uni0000001c/uni00000011/uni00000015/uni00000015/uni00000014/uni00000013/uni00000011/uni00000014/uni00000017/uni00000014/uni00000013/uni00000011/uni00000019/uni0000001b
+/uni0000001b/uni00000011/uni00000014/uni00000019/uni0000001b/uni00000011/uni00000017/uni0000001c/uni00000014/uni00000013/uni00000011/uni00000014/uni00000014/uni00000014/uni00000013/uni00000011/uni00000017/uni0000001b
+dhead = 16
+/uni00000014
+/uni00000015
+/uni00000016
+/uni00000017
+/uni00000018
+/uni00000019
+/uni0000001a
+/uni0000001b
+/uni00000036/uni00000053/uni00000048/uni00000048/uni00000047/uni00000058/uni00000053
+/uni00000037/uni00000017/uni00000003/uni00000059/uni00000056/uni00000003/uni00000017/uni00000013/uni0000001c/uni00000013
+/uni0000000b/uni00000046/uni00000052/uni0000004f/uni00000052/uni00000055/uni00000003/uni00000055/uni00000044/uni00000051/uni0000004a/uni00000048/uni0000001d/uni00000003/uni0000003e/uni00000014/uni00000011/uni00000013/uni0000000f/uni00000003/uni0000001b/uni00000011/uni00000013/uni00000040/uni00000003/uni0000005f/uni00000003/uni00000047/uni00000044/uni00000057/uni00000044/uni00000003/uni00000055/uni00000044/uni00000051/uni0000004a/uni00000048/uni0000001d/uni00000003/uni0000003e/uni00000017/uni00000011/uni0000001a/uni00000019/uni0000000f/uni00000003/uni00000014/uni00000015/uni00000011/uni00000013/uni00000017/uni00000040/uni0000000c
+(c) T4 vs RTX 4090
+Figure 18:Speedup heatmaps for the basic vs efficient P2-KMV kernel across different GPUs using T4 as the control.
+Color maps are adjusted for uniform comparison.
+Comparisons relative to T4.Figure 18 normalizes all results to the T4 as a common reference, illustrating how
+performance scales on newer architectures: the observed gains reflect both the efficient kernel and improved hardware
+capability. On the A100 and RTX 4090, the normalized speedups remain high even for larger problem sizes (e.g.,
+beyond 𝐻= 8 , 𝑑head = 8, 𝑁= 128 ),suggestingthattheefficientP 2-KMVkernelcontinuestodeliverbenefitsastensor
+dimensions grow. It is worth noting that part of the apparent gain at larger scales may stem from the T4 degrading more
+rapidly than A100 or RTX 4090 at higher workloads; therefore, the figure should be interpreted as a relative scaling
+comparison, whereas absolute kernel efficiency is captured in the same-GPU results of Figure 17.
+C. Cheong, G. Davis, and S. Choi:Preprint submitted to ElsevierPage 48 of 48

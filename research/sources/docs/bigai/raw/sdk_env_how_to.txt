@@ -1,0 +1,211 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/env/how_to/?q=
+================================================================================
+
+如何构建自定义的env¶
+简介¶
+
+本小节将指导您如何在框架中构建自定义环境（Env）。环境是智能体与外部世界交互的接口，通过观察（Observe）和动作（Action）实现双向通信。框架提供了灵活的抽象层，使您能够轻松创建适用于不同场景的环境。
+
+核心概念¶
+
+在开始构建自定义环境前，需要理解以下核心概念：
+
+环境（Env）：智能体与外部世界交互的接口，管理观察和动作的流转
+观察（Observe）：环境向智能体提供的信息，如文本、音频等
+动作（Action）：智能体对环境执行的操作，如输出文本、播放音频等
+连接（Connection）：处理与外部系统的通信细节，如控制台IO、WebSocket等
+创建自定义环境的步骤¶
+步骤1：定义观察类型（Observe）¶
+
+观察类型定义了环境可以提供给智能体的信息类型。
+
+from sdk.base.env import Observe, ObserveManager
+
+from typing import ClassVar
+
+from pydantic import Field
+
+
+
+@ObserveManager.register  # 注册到全局管理器
+
+class CustomObserve(Observe):
+
+    observe_type: ClassVar[str] = "custom.type"  # 唯一标识符
+
+    data: str = Field(..., description="观察数据描述")
+
+
+
+    @classmethod
+
+    def description(cls) -> str:
+
+        return "自定义观察类型的描述"
+
+
+关键点：
+
+继承Observe基类
+定义唯一的observe_type类变量
+使用Pydantic的Field定义数据字段
+实现description类方法
+使用@ObserveManager.register装饰器注册
+步骤2：定义动作类型（Action）¶
+
+动作类型定义了智能体可以执行的操作类型。
+
+from sdk.base.env import Action, ActionManager
+
+from typing import ClassVar
+
+from pydantic import Field
+
+
+
+@ActionManager.register  # 注册到全局管理器
+
+class CustomAction(Action):
+
+    action_type: ClassVar[str] = "custom.action"  # 唯一标识符
+
+    command: str = Field(..., description="动作命令描述")
+
+
+
+    @classmethod
+
+    def description(cls) -> str:
+
+        return "自定义动作类型的描述"
+
+
+关键点：
+
+继承Action基类
+定义唯一的action_type类变量
+使用Pydantic的Field定义数据字段
+实现description类方法
+使用@ActionManager.register装饰器注册
+步骤3：实现连接类（Connection）¶
+
+连接类处理与外部系统的通信细节。
+
+from sdk.base.env import Connection
+
+from typing import Dict, Any
+
+import json
+
+
+
+class CustomConnection(Connection):
+
+    def __init__(self, connection_info: Dict[str, Any] = None):
+
+        super().__init__(connection_info)
+
+        # 初始化连接参数
+
+        self._param = self._connection_info.get("param", "default_value")
+
+
+
+    async def connect(self):
+
+        # 实现连接逻辑
+
+        print("已建立连接")
+
+
+
+    def close(self):
+
+        # 实现关闭连接逻辑
+
+        print("已关闭连接")
+
+
+
+    async def read(self) -> dict:
+
+        # 实现读取数据逻辑，返回字典格式数据
+
+        # 必须包含observe_type字段
+
+        return {"observe_type": "custom.type", "data": "读取的数据"}
+
+
+
+    async def send(self, data: dict):
+
+        # 实现发送数据逻辑
+
+        print(f"发送数据: {data}")
+
+
+关键点：
+
+继承Connection基类
+实现四个抽象方法：connect、close、read和send
+read方法必须返回包含observe_type字段的字典
+处理连接错误和重试逻辑
+步骤4：创建环境类（Env）¶
+
+环境类整合观察、动作和连接，提供完整的交互接口。
+
+from sdk.base.env import Env
+
+from typing import Type
+
+
+
+class CustomEnv(Env):
+
+    # 注册观察和动作类型
+
+    REGISTER_OBSERVES = [CustomObserve]
+
+    REGISTER_ACTIONS = [CustomAction]
+
+    # 指定连接类
+
+    connection_class = CustomConnection
+
+
+
+    def description(self) -> str:
+
+        return "自定义环境描述：支持特定类型的交互"
+
+
+关键点：
+
+继承Env基类
+通过REGISTER_OBSERVES和REGISTER_ACTIONS注册观察和动作类型
+指定connection_class
+实现description方法
+常见问题解答¶
+
+Q: 如何在不同环境间共享观察和动作类型？ A: 可以将共享的类型定义在单独的模块中，然后在不同环境中导入并注册。
+
+Q: 如何处理复杂的数据类型？ A: Pydantic支持嵌套模型，可以定义复杂的数据结构。例如：
+
+class ComplexData(BaseModel):
+
+    name: str
+
+    value: int
+
+
+
+class ComplexObserve(Observe):
+
+    observe_type: ClassVar[str] = "complex.data"
+
+    data: ComplexData
+
+
+Q: 如何测试自定义环境？ A: 可以参考ConsoleEnv的测试代码，创建一个简单的交互循环来测试环境功能。
+
+Q: 如何扩展现有环境？ A: 可以继承现有环境类，添加新的观察和动作类型，或者重写连接类来修改通信方式。

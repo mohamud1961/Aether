@@ -1,0 +1,223 @@
+SOURCE_SYSTEM_DOSSIER
+- system: a-evolve
+- dossier_status: wave_03_repair_pass_first_complete
+- source_scope:
+  - Primary source-backed surfaces read for this dossier: `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/trial.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/base.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/skillbench/backends.py`, `research/sources/codebases/a-evolve/examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py`.
+  - No direct A-Evolve runtime trajectory under `research/sources/trajectories/` was available in this repair pass, so this dossier is intentionally more source-heavy than the DeepAgents and KIRA dossiers.
+- architectural_core:
+  - A-Evolve is an evolution framework with a terminal harness inside it, not just a task runner. The architectural core is the split among agent, benchmark adapter, evolution engine, and versioned workspace, with `EvolutionLoop` handling solve, observe, snapshot, mutate, snapshot, and reload (`research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/base.py`).
+  - This makes A-Evolve the clearest Wave 03 source family for separating completion signaling from evaluation and from recovery. The agent can say "done," the benchmark can say pass or fail, and version control can still roll back or inspect intermediate states (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`).
+- tool_calling_and_execution:
+  - The Terminal-Bench agent surface is explicit and small: `bash`, `python`, and `submit`, all running inside a Docker container with per-call timeouts. `submit()` is a tool call, not a magical end-of-loop return (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`).
+  - `TerminalAgent` builds a strands agent over these tools, runs tasks inside a `TB2Container`, and copies verifier files only after solving so the agent cannot read test expectations during task execution (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`).
+  - SkillBench broadens execution further through native profiles and container-based verification, including task-skill injection, official or legacy Terminus profiles, and explicit native-vs-verifier result reconciliation (`research/sources/codebases/a-evolve/agent_evolve/agents/skillbench/backends.py`).
+- workflow_and_control_doctrine:
+  - `EvolutionLoop` is the central workflow contract: solve benchmark tasks, collect observations, commit a pre-evolution snapshot, let the evolution engine mutate the workspace, commit again, record cycle metadata, and reload the agent state (`research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`).
+  - `TrialRunner` formalizes solve-plus-evaluate as a reusable capability, which means validation is not an afterthought but a first-class primitive the evolution engines can invoke when considering mutations (`research/sources/codebases/a-evolve/agent_evolve/engine/trial.py`).
+  - The in-situ SkillBench cycle script makes the doctrine concrete: solve a task, if it fails evolve the workspace, retry the same task, persist traces and observations, and skip already completed tasks on later cycles (`research/sources/codebases/a-evolve/examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py`).
+- context_and_state_model:
+  - A-Evolve treats the workspace as the primary state object. Agents export to the filesystem, evolvers read observation artifacts, and the loop records cycle history and metrics in the `evolution/` directory (`research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`, `research/sources/codebases/a-evolve/examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py`).
+  - The TerminalAgent deliberately avoids injecting episodic memory into time-sensitive tasks. Its user prompt says no memory injection because memories dilute attention, while skills remain available as evolved reusable knowledge (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`).
+- memory_or_persistence_model:
+  - Persistence is strongest in git-backed workspace history. `VersionControl` initializes a repo, tags evolution points, preserves rejected states by rollback-as-new-commit, and supports worktree copies for inspection without rewriting history (`research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`).
+  - The loop also writes `history.jsonl`, `metrics.json`, traces, and observation summaries, so resumability and postmortem analysis are engineered through files plus git rather than hidden controller state (`research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`, `research/sources/codebases/a-evolve/examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py`).
+- verification_and_completion:
+  - A-Evolve has the clearest source-visible separation between completion and verification in the Wave 03 corpus. The solver calls `submit("DONE")` to claim task completion, but benchmark adapters and verifier backends independently decide whether that claimed completion earns a pass (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`).
+  - The TB2 adapter parses `passed=` and `eval_output` from the trajectory rather than trusting the mere presence of a submit call, making external adjudication explicit (`research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`).
+  - SkillBench backends go further by running `container.run_verification()`, tracking `reward_float`, `pass_binary`, `verifier_tail`, and `failure_class`, and then retrying only when the failure class is retryable. This is a fully layered completion contract: agent output, verifier output, failure taxonomy, and retry policy are separate surfaces (`research/sources/codebases/a-evolve/agent_evolve/agents/skillbench/backends.py`).
+- recovery_and_resumability:
+  - Recovery is source-backed and version-controlled. `rollback()` restores content from an earlier ref as a new commit rather than rewriting history, which is stronger than ad hoc cleanup because rejected states remain inspectable (`research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`).
+  - The loop itself is resumability-friendly: cycle metadata, observation batches, and per-task traces are persisted, and the in-situ cycle script explicitly reloads completed-task state and retries failures over multiple cycles (`research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`, `research/sources/codebases/a-evolve/examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py`).
+  - Wave 03 still lacks direct runtime trajectories for A-Evolve, so this dossier should be read as strong source-backed recovery substrate rather than direct behavioral proof of restart safety.
+- environment_and_permissions:
+  - Terminal execution is containerized. The terminal tools call `docker exec`, the agent runs as part of a benchmark container workflow, and evaluation occurs through copied-in test files or verifier artifacts after the solve stage (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`, `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`).
+  - `BYPASS_TOOL_CONSENT` is enabled in `TerminalAgent`, so the runtime assumes benchmark-controlled execution rather than an interactive human approval model (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`).
+- what_the_agent_sees:
+  - The ReAct solver sees a terminal-focused system prompt that demands analysis, plan, tool execution, and then `submit("DONE")` when finished. It is also told that bash and python tool calls are independent and that it must chain commands if sequential shell state matters (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`).
+  - The higher-level TerminalAgent sees the workspace system prompt plus available skills, but not verifier test files during solving. That separation is one reason A-Evolve is a strong anchor for "agent says done" versus "external verifier says pass" (`research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`).
+- relevant_trajectory_links:
+  - No direct A-Evolve runtime trajectory under `research/sources/trajectories/` was read in this repair pass.
+  - The closest behavior-bearing source surfaces are the trajectory-shaped outputs encoded by `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py` and `research/sources/codebases/a-evolve/agent_evolve/agents/skillbench/backends.py`.
+- contradictions_or_unknowns:
+  - This dossier is source-strong but behavior-thin. It should not be used to claim that A-Evolve's rollback and verifier logic are already empirically saturated in trajectories for this corpus slice.
+  - The repository shows multiple native profiles and legacy/official Terminus paths in SkillBench backends, but this repair pass did not reconcile their behavior differences with direct run captures (`research/sources/codebases/a-evolve/agent_evolve/agents/skillbench/backends.py`).
+- confidence_notes:
+  - High confidence: A-Evolve separates completion signaling, verification, and rollback/versioning more explicitly than any other source family read in Wave 03.
+  - Medium confidence: any broader behavioral claim about how often those mechanisms succeed in practice, because no direct A-Evolve trajectory bundle was read here.
+- downstream_relevance:
+  - A-Evolve is the best current source anchor for local harness designs that need explicit separation among execution loop, verification block, and recovery block. It is especially relevant for rollback-safe mutation, evaluator isolation, and benchmark-controlled completion contracts.
+  - Later waves should reuse this dossier when reasoning about self-improving harnesses, versioned rollback, and eval coupling, but should seek direct trajectories before promoting family-level behavioral claims.
+- wave_06_formal_pressure_update:
+  - Formal planning/replanning and utility/stop-policy literature strengthens A-Evolve’s interpretation as a source-visible explicit orchestration substrate (solve/evaluate/evolve/retry) rather than a monolithic agent loop.
+  - Formal delegation and topology debates also reinforce keeping A-Evolve’s architecture claim bounded: source-backed role separation is strong, but trajectory reconciliation remains required before broader behavioral promotion.
+  - Wave 06 implication: A-Evolve is a key source-side anchor for explicit orchestration control doctrine, still carried with behavior-thin caution.
+- wave_06_planning_orchestration_and_interactions_update:
+  - trajectory_pressure_scope:
+    - no direct A-Evolve trajectory slice was read in this Wave 06 trajectory lane pass.
+  - observations:
+    - Wave 06 required trajectory packet is BigAI-centric for this lane, so A-Evolve orchestration conclusions cannot be upgraded behaviorally here.
+  - inference:
+    - keep A-Evolve planning/delegation claims source-backed only until direct trajectory reconciliation is added.
+  - confidence:
+    - high (on the limitation statement)
+  - open_limit:
+    - prioritize adding at least one A-Evolve trajectory case under planning/delegation pressure before promoting Wave 06 cross-family orchestration claims.
+- wave_06_informal_pressure_update:
+  - observation: Informal pressure converges on pause/resume, checkpoint, and handoff contract quality as core reliability constraints for multi-role orchestration.
+  - inference: A-Evolve's source-visible separation of completion/evaluation/versioning remains strong, but Wave 06 should add explicit caution that delegation/handoff failures can still dominate if checkpoint and resume contracts are weak in practice.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+    - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+    - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+    - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+- wave_06_codebase_source_reconstruction_update:
+  - source_scope_delta:
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/algorithms/guided_synth/engine.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/conversation_manager.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/llm/bedrock.py`
+  - trajectory_pressure_scope:
+    - no additional direct a-evolve trajectory family was added in this codebase lane pass.
+  - observations:
+    - orchestration center remains explicit evolution-cycle control (`Solve -> Observe -> Snapshot -> EngineStep -> Snapshot -> Reload`).
+    - in-task delegation remains lighter-weight than BigAI role fanout; MCP path uses context/tool-scope governance (`PinnedFirstMessageManager`, `enabled_tools` filtering).
+  - inference:
+    - keep a-evolve as source-backed orchestration-control family with behavior-thin caution for Wave 06 required task slices.
+  - confidence:
+    - high on source claims, medium on behavior generalization
+  - open_limit:
+    - add direct a-evolve Wave 06 task-family trajectories before promoting stronger cross-family behavioral parity claims.
+- wave_01_literature_pressure_update_2026_04_10:
+  - context: formal Wave 01 pressure applied to execution-control and terminal-failure attribution.
+  - observation: Formal policy/runtime literature separates authorization policy from containment boundaries and treats gateway/runtime governance as an independent failure surface.
+  - inference: A-Evolve failure attribution should preserve explicit policy-runtime mismatch and environment-governance categories, rather than attributing all blocked/failed actions to planning quality.
+  - confidence: medium
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_07a953e6fbbf.txt`
+    - `research/sources/docs/src_doc_5438a826fc4c/artifact.txt`
+    - `research/sources/docs/src_doc_fc2c002988f2/artifact.txt`
+    - `research/sources/papers/papers_text/2603.00495.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - source_scope_delta:
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - trajectory_pressure_scope:
+    - no direct a-evolve Wave 01 trajectory family was added in this pass.
+  - observations:
+    - source keeps execution loop, verifier execution, and rollback/versioning as separate control surfaces.
+    - terminal solver includes explicit timeout and retry handling around LLM/tool operations.
+    - evaluator path reads pass/fail signals from trajectory output fields, keeping verifier judgment external to executor narrative.
+  - inference:
+    - a-evolve remains a strong source anchor for failure-family decomposition across loop control, verification omission, and repo-state drift.
+  - confidence:
+    - high on source claims, medium-low on Wave 01 behavioral prevalence without trajectory pressure
+  - open_limit:
+    - do not promote cross-family behavioral equivalence for a-evolve until direct Wave 01 task-family trajectories are added.
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - trajectory_pressure_scope:
+    - no required Wave 02 direct a-evolve trajectory slice was added in this lane packet.
+  - observations:
+    - a-evolve remains source-strong on separation of `submit("DONE")`, external verification, and rollback/versioning.
+    - required Wave 02 trajectory attribution still comes from BigAI/deepagents/KIRA slices.
+  - inference:
+    - retain a-evolve as mechanism/eval comparator for failure decomposition, but do not promote run-level Wave 02 failure prevalence claims without direct trajectories.
+  - confidence:
+    - high on source-structure claim
+    - low on Wave 02 behavioral prevalence claim (not promoted)
+  - evidence_paths:
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+  - trajectory_pressure_scope:
+    - direct Wave 02 A-Evolve task trajectories were not added in this pass.
+  - observations:
+    - source explicitly decouples completion claim (`submit`) from benchmark verdict (`passed` in adapter evaluation).
+    - benchmark adapter includes fallback parsing of output-string prefixes (`passed=True`) when stronger metadata is absent.
+    - recovery substrate is explicit and history-preserving through git rollback/versioning.
+  - inference:
+    - Wave 02 failure attribution for A-Evolve should treat `premature submit` and `adjudication mismatch` as first-class failure modes.
+    - keep behavior-thin caution until direct Wave 02 trajectories are read.
+  - confidence:
+    - high on source-backed completion/adjudication separation and rollback design
+    - medium-low on behavioral prevalence in this wave due to trajectory gap
+  - evidence_paths:
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+- wave_03_context_state_memory_workspace_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/history.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+  - trajectory_pressure_scope:
+    - direct Wave 03 a-evolve trajectory reconciliation is still missing in this packet.
+  - observations:
+    - workspace contract is explicit and file-native (`prompts`, `skills`, `tools`, `memory`, `evolution`), making artifact discipline a first-class state carrier.
+    - terminal agent explicitly disables memory injection for time-sensitive solve paths, separating workspace discipline from long-memory retrieval assumptions.
+    - rollback and history logic are git-backed and preserve rejected states as inspectable commits instead of destructive resets.
+  - inference:
+    - Wave 03 should treat a-evolve as a strong source anchor for splitting `workspace/version drift` from `memory retrieval drift`.
+    - keep behavior-prevalence claims low confidence until direct trajectory evidence is added.
+  - confidence:
+    - high on mechanism existence in source
+    - low-medium on Wave 03 behavioral prevalence due to trajectory gap
+  - evidence_paths:
+    - `research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/history.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - trajectory_pressure_scope:
+    - no required Wave 04 a-evolve trajectory slice was read in this lane packet.
+  - observations:
+    - Wave 04 updates for a-evolve remain reconciliation pressure only in this trajectory lane.
+  - inference:
+    - keep a-evolve Wave 04 statements source-comparator bounded; do not promote prevalence claims without direct required trajectory coverage.
+  - confidence: high on limitation statement
+- wave_04_codebase_source_reconstruction_update_2026_04_11:
+  - source_scope_delta:
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/swe/env.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/code_executor.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/bash.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/swe/tools/bash.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/mcp/tools/registry.yaml`
+  - trajectory_pressure_scope:
+    - no additional required Wave 04 a-evolve trajectory slice was added in this codebase lane packet.
+  - observations:
+    - source cleanly separates loop orchestration, benchmark timeout contracts, and tool execution timeouts.
+    - MCP path combines task-scoped tool filtering with high-call chained execution support.
+    - MCP seed workspace currently advertises an empty tool registry (`tools: []`).
+  - inference:
+    - a-evolve remains a strong source comparator for splitting `tool availability mismatch`, `timeout-heavy degradation`, and `coordination overhead` classes.
+    - keep prevalence claims bounded until direct required Wave 04 trajectories are expanded.
+  - confidence:
+    - high on source-backed mechanism structure
+    - medium on Wave 04 prevalence
+  - evidence_paths:
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/swe/env.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/code_executor.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/bash.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/swe/tools/bash.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/mcp/tools/registry.yaml`

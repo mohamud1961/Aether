@@ -1,0 +1,749 @@
+{
+  "agent_id": "policy_program_source_finder",
+  "bucket": "policy_program",
+  "run_date": "2026-03-24",
+  "status": "ok",
+  "records": [
+    {
+      "source_id": "src_cod_87b73c75d11a",
+      "title": "gpt-5.1-codex-max_prompt.md (Codex CLI system prompt)",
+      "canonical_url": "https://github.com/openai/codex/blob/ae057e0bb9f3cde31c54fcca59a78456f7805282/codex-rs/core/gpt-5.1-codex-max_prompt.md",
+      "date": "2026-01-12",
+      "authors_or_org": [
+        "OpenAI (openai/codex)"
+      ],
+      "source_type": "repo",
+      "artifact_type": "markdown",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "artifacts_workspace",
+        "verification",
+        "recovery"
+      ],
+      "mechanism_tags": [
+        "system_prompt_contract",
+        "git_safety_invariants",
+        "destructive_command_ban",
+        "unexpected_change_escalation",
+        "tool_preference_hierarchy"
+      ],
+      "failure_mode_tags": [
+        "workspace_drift",
+        "unsafe_git_operations"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "medium",
+      "task_regime": [
+        "terminal_agent",
+        "coding_agent"
+      ],
+      "models_if_named": [
+        "GPT-5"
+      ],
+      "environment_type": [
+        "local_fs",
+        "sandboxed_terminal"
+      ],
+      "evidence_scorecard": {
+        "provenance": 5,
+        "mechanistic_detail": 5,
+        "reproducibility": 4,
+        "ecological_validity": 4,
+        "decision_relevance": 5,
+        "recency": 4
+      },
+      "relevance_note": "Concrete program-layer operating contract for Codex CLI including stop/escalation rules and git safety constraints.",
+      "reason_included": "Open-source system prompt that encodes explicit invariants (e.g., stop on unexpected changes, avoid destructive git).",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "If you notice unexpected changes you didn't make while working, STOP IMMEDIATELY and ask the user how to proceed.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "NEVER use destructive git commands like `git reset --hard` or `git checkout --` unless specifically requested or approved by the user.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "Do not amend a commit unless explicitly requested to do so.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c4",
+          "claim_text": "When searching for text or files, prefer `rg` / `rg --files`; fall back to alternatives if `rg` is not found.",
+          "claim_status": "asserted"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "codex-rs/core/gpt-5.1-codex-max_prompt.md: section 'Editing constraints' (GitHub view lines 251-251)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "codex-rs/core/gpt-5.1-codex-max_prompt.md: section 'Editing constraints' (GitHub view lines 252-252)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "codex-rs/core/gpt-5.1-codex-max_prompt.md: section 'Editing constraints' (GitHub view lines 250-250)"
+        },
+        {
+          "claim_id": "c4",
+          "locator": "codex-rs/core/gpt-5.1-codex-max_prompt.md: section 'General' (GitHub view lines 240-240)"
+        }
+      ],
+      "dedupe_key": "github:openai/codex:codex-rs/core/gpt-5.1-codex-max_prompt.md@main"
+    },
+    {
+      "source_id": "src_doc_b977022f3f35",
+      "title": "Adding repository custom instructions for GitHub Copilot",
+      "canonical_url": "https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions",
+      "date": "2026-03-03",
+      "authors_or_org": [
+        "GitHub"
+      ],
+      "source_type": "official_doc",
+      "artifact_type": "docs_page",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "context"
+      ],
+      "mechanism_tags": [
+        "instruction_hierarchy",
+        "personal_repo_org_priority",
+        "directory_scoped_instructions",
+        "instruction_concatenation_order"
+      ],
+      "failure_mode_tags": [
+        "instruction_conflict"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "low",
+      "task_regime": [
+        "coding_agent",
+        "workflow_agent"
+      ],
+      "models_if_named": [],
+      "environment_type": [
+        "mixed"
+      ],
+      "evidence_scorecard": {
+        "provenance": 5,
+        "mechanistic_detail": 4,
+        "reproducibility": 4,
+        "ecological_validity": 4,
+        "decision_relevance": 4,
+        "recency": 5
+      },
+      "relevance_note": "Specifies how Copilot composes multiple instruction sources, including AGENTS.md locality precedence and instruction priority ordering.",
+      "reason_included": "Primary-source instruction-layering behaviour for Copilot agents (personal vs repo vs org; nearest AGENTS.md wins).",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "Personal instructions have the highest priority, repository instructions come next, and organization instructions are last; all sets of relevant instructions are provided to Copilot.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "You can store `AGENTS.md` anywhere in the repository; when Copilot is working, the nearest `AGENTS.md` file in the directory tree takes precedence.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "If repository-wide instructions exist and a path-specific instructions file matches a file Copilot is working on, instructions from both files are used.",
+          "claim_status": "asserted"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "Docs section 'Custom instructions in use' (GitHub Docs page lines 728-729)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "Docs section 'Creating custom instructions' (GitHub Docs page lines 504-508)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "Docs section 'Creating custom instructions' (GitHub Docs page lines 499-503)"
+        }
+      ],
+      "dedupe_key": "docs.github.com:copilot:add-repository-instructions"
+    },
+    {
+      "source_id": "src_doc_c55084f2b8ef",
+      "title": "About GitHub Copilot coding agent",
+      "canonical_url": "https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent",
+      "date": "2026-03-18",
+      "authors_or_org": [
+        "GitHub"
+      ],
+      "source_type": "official_doc",
+      "artifact_type": "docs_page",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "tool_gateway",
+        "verification",
+        "observability"
+      ],
+      "mechanism_tags": [
+        "sandboxed_execution_environment",
+        "internet_egress_firewall",
+        "branch_namespace_restriction",
+        "workflow_run_gating",
+        "prompt_injection_input_filtering"
+      ],
+      "failure_mode_tags": [
+        "prompt_injection",
+        "unauthorized_feedback",
+        "unsafe_external_network_access"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "low",
+      "task_regime": [
+        "coding_agent",
+        "workflow_agent"
+      ],
+      "models_if_named": [],
+      "environment_type": [
+        "sandboxed_terminal",
+        "remote_api"
+      ],
+      "evidence_scorecard": {
+        "provenance": 5,
+        "mechanistic_detail": 4,
+        "reproducibility": 3,
+        "ecological_validity": 5,
+        "decision_relevance": 4,
+        "recency": 5
+      },
+      "relevance_note": "About GitHub Copilot coding agent is a official doc source with details on sandboxed execution environment, internet egress firewall relevant to policy program.",
+      "reason_included": "Included for source-local evidence on policy program, tool gateway, verification.",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "Copilot coding agent works in a sandbox development environment with internet access controlled by a firewall and has read-only access to the repository it is assigned to work in.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "Copilot coding agent can only create and push to branches beginning with `copilot/` and cannot push to `main` or `master`.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "By default, GitHub Actions workflows are not triggered for Copilot coding agent pull requests until a user with write access clicks an approval to run workflows (optional auto-run can be configured).",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c4",
+          "claim_text": "GitHub filters hidden characters before passing user input to Copilot coding agent (e.g., HTML comments in issues/PR comments are not passed).",
+          "claim_status": "asserted"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "Docs section 'Built-in security protections' (GitHub Docs page lines 550-551)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "Docs section 'Built-in security protections' and 'Risks and mitigations' (GitHub Docs page lines 551-552, 569-570)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "Docs section 'Built-in security protections' and 'Risks and mitigations' (GitHub Docs page lines 555-556, 571-571)"
+        },
+        {
+          "claim_id": "c4",
+          "locator": "Docs section 'Risk: Prompt injection vulnerabilities' (GitHub Docs page lines 580-583)"
+        }
+      ],
+      "dedupe_key": "docs.github.com:copilot:about-coding-agent"
+    },
+    {
+      "source_id": "src_doc_e7c64f113146",
+      "title": "AGENTS.md (open format specification site)",
+      "canonical_url": "https://agents.md/",
+      "date": "2026-03-12",
+      "authors_or_org": [
+        "AGENTS.md / Agentic AI Foundation (Linux Foundation)"
+      ],
+      "source_type": "official_doc",
+      "artifact_type": "webpage",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "context",
+        "verification"
+      ],
+      "mechanism_tags": [
+        "instruction_precedence_nearest_file",
+        "user_prompt_override",
+        "nested_agents_md",
+        "test_before_finish"
+      ],
+      "failure_mode_tags": [
+        "instruction_conflict",
+        "missing_validation_steps"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "medium",
+      "task_regime": [
+        "coding_agent",
+        "terminal_agent"
+      ],
+      "models_if_named": [],
+      "environment_type": [
+        "mixed"
+      ],
+      "evidence_scorecard": {
+        "provenance": 4,
+        "mechanistic_detail": 3,
+        "reproducibility": 4,
+        "ecological_validity": 4,
+        "decision_relevance": 4,
+        "recency": 5
+      },
+      "relevance_note": "Defines cross-agent conventions for where to place project policy/instructions and states precedence and conflict resolution rules.",
+      "reason_included": "Open-format doctrine for instruction placement and conflict resolution (closest file wins; user prompt overrides).",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "The closest AGENTS.md to the edited file wins when instructions conflict; explicit user chat prompts override everything.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "Agents read the nearest AGENTS.md in the directory tree so subprojects can have tailored instructions via nested AGENTS.md files.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "If testing commands are listed in AGENTS.md, the agent will attempt to execute relevant programmatic checks and fix failures before finishing the task.",
+          "claim_status": "asserted"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "agents.md FAQ section 'What if instructions conflict?' (site lines 114-117)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "agents.md section 'Large monorepo? Use nested AGENTS.md files for subprojects' (site lines 99-102)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "agents.md FAQ section 'Will the agent run testing commands found in AGENTS.md automatically?' (site lines 118-120)"
+        }
+      ],
+      "dedupe_key": "agents.md"
+    },
+    {
+      "source_id": "src_doc_29494193a1c5",
+      "title": "Customize Gemini using AGENTS.md files (Android Studio)",
+      "canonical_url": "https://developer.android.com/studio/gemini/agent-files",
+      "date": "2026-03-06",
+      "authors_or_org": [
+        "Google (Android Developers)"
+      ],
+      "source_type": "official_doc",
+      "artifact_type": "docs_page",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "context"
+      ],
+      "mechanism_tags": [
+        "directory_scoped_context_discovery",
+        "preamble_context_injection",
+        "instruction_imports_at_syntax",
+        "gemini_md_precedence"
+      ],
+      "failure_mode_tags": [
+        "context_bloat",
+        "instruction_conflict"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "low",
+      "task_regime": [
+        "coding_agent"
+      ],
+      "models_if_named": [],
+      "environment_type": [
+        "local_fs"
+      ],
+      "evidence_scorecard": {
+        "provenance": 5,
+        "mechanistic_detail": 4,
+        "reproducibility": 4,
+        "ecological_validity": 4,
+        "decision_relevance": 3,
+        "recency": 5
+      },
+      "relevance_note": "Describes deterministic discovery order and inline import mechanism for AGENTS.md guidance in an IDE agent, including precedence with GEMINI.md.",
+      "reason_included": "Primary-source specification of how an agent ingests and prioritizes multiple instruction files (scan parents; prepend as preamble; GEMINI.md precedence).",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "Gemini scans the current directory and all parent directories for `AGENTS.md` files when you submit a query.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "Gemini automatically scans current and parent directories for `AGENTS.md` files and adds their content to the beginning of every prompt as a preamble.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "If `GEMINI.md` and `AGENTS.md` exist in the same directory, `GEMINI.md` takes precedence.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c4",
+          "claim_text": "AGENTS.md can import other markdown files using `@` followed by supported relative or absolute paths (e.g., `@./file.md`, `@../file.md`, `@/absolute/path/to/file.md`).",
+          "claim_status": "asserted"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "Android Developers page 'Customize Gemini using AGENTS.md files' step 1 (lines 414-416)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "Android Developers page section 'How AGENTS.md files work' (lines 460-463)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "Android Developers page note under 'How AGENTS.md files work' (lines 464-465)"
+        },
+        {
+          "claim_id": "c4",
+          "locator": "Android Developers page section 'Modularize your AGENTS.md files' (lines 440-447)"
+        }
+      ],
+      "dedupe_key": "developer.android.com:android-studio:gemini:agent-files"
+    },
+    {
+      "source_id": "src_doc_f1dc16d41a8d",
+      "title": "Use the Gemini Code Assist agent mode",
+      "canonical_url": "https://developers.google.com/gemini-code-assist/docs/use-agentic-chat-pair-programmer",
+      "date": "2026-02-24",
+      "authors_or_org": [
+        "Google (Gemini Code Assist)"
+      ],
+      "source_type": "official_doc",
+      "artifact_type": "docs_page",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "context",
+        "tool_gateway"
+      ],
+      "mechanism_tags": [
+        "context_file_scoping",
+        "multi_source_context_merging",
+        "trusted_workspace_gate",
+        "auto_approval_mode"
+      ],
+      "failure_mode_tags": [
+        "reckless_auto_approval",
+        "context_conflict"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "low",
+      "task_regime": [
+        "coding_agent",
+        "mixed"
+      ],
+      "models_if_named": [],
+      "environment_type": [
+        "mixed"
+      ],
+      "evidence_scorecard": {
+        "provenance": 5,
+        "mechanistic_detail": 4,
+        "reproducibility": 3,
+        "ecological_validity": 4,
+        "decision_relevance": 3,
+        "recency": 5
+      },
+      "relevance_note": "Defines how agent mode scopes persistent context (GEMINI.md) and how permissive auto-approval is gated by workspace trust.",
+      "reason_included": "Official doc describing instruction layering/override for context files plus explicit safety gate for auto-allow actions.",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "Agent mode in VS Code can load `GEMINI.md` context from multiple scopes (global `~/.gemini/GEMINI.md`, project parents up to project root/home, and subdirectories); more specific files override or supplement more general ones.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "The agent includes the information in your context file along with any prompts you send to it.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "Yolo mode (auto-allow agent actions) can only be used in a trusted workspace; in a restricted workspace, the agent will prompt before taking actions regardless of the yolo setting.",
+          "claim_status": "asserted"
+        },
+        {
+          "claim_id": "c4",
+          "claim_text": "In IntelliJ, enabling Auto-approve changes makes agent mode automatically approve all requests and not ask permission before taking actions.",
+          "claim_status": "asserted"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "Google Developers page section 'Create a context file' (lines 339-345)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "Google Developers page section 'Create a context file' (lines 346-347)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "Google Developers page section 'Always allow agent actions' (lines 379-396)"
+        },
+        {
+          "claim_id": "c4",
+          "locator": "Google Developers page section 'Use agent mode' / IntelliJ steps (lines 162-165)"
+        }
+      ],
+      "dedupe_key": "developers.google.com:gemini-code-assist:agent-mode"
+    },
+    {
+      "source_id": "src_iss_e4faff9a1db8",
+      "title": "[FEATURE] Allow teammates to use sub-agent MD as primary context instead of CLAUDE.md (Issue #24773)",
+      "canonical_url": "https://github.com/anthropics/claude-code/issues/24773",
+      "date": "2026-02-10",
+      "authors_or_org": [
+        "anthropics/claude-code community (@JosephDahan)"
+      ],
+      "source_type": "issue_thread",
+      "artifact_type": "issue",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "context",
+        "topology"
+      ],
+      "mechanism_tags": [
+        "teammate_context_inheritance",
+        "subagent_vs_teammate_capability_split",
+        "context_suppression_request",
+        "multi_agent_authority_rules"
+      ],
+      "failure_mode_tags": [
+        "identity_conflict",
+        "authority_confusion",
+        "context_bloat"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "low",
+      "task_regime": [
+        "terminal_agent",
+        "coding_agent",
+        "mixed"
+      ],
+      "models_if_named": [],
+      "environment_type": [
+        "local_fs",
+        "sandboxed_terminal",
+        "mixed"
+      ],
+      "evidence_scorecard": {
+        "provenance": 3,
+        "mechanistic_detail": 4,
+        "reproducibility": 2,
+        "ecological_validity": 4,
+        "decision_relevance": 4,
+        "recency": 5
+      },
+      "relevance_note": "User-reported failure mode: multi-agent context inheritance causes instruction/identity conflicts and large context overhead; proposes explicit opt-out for project context injection.",
+      "reason_included": "High-detail issue report capturing policy-layer failure (identity/authority confusion) and suggesting concrete contract fields (skip/context list).",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "When spawning a teammate with a custom agent definition, the teammate loads both the agent MD file and the project's `CLAUDE.md`, which can create identity conflicts and waste context window.",
+          "claim_status": "anecdotal"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "The issue reports there is no opt-out mechanism to load only the agent MD and skip `CLAUDE.md`; a workaround is to add a disambiguation block to every agent MD telling it to ignore `CLAUDE.md` identity instructions.",
+          "claim_status": "anecdotal"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "The issue contrasts sub-agents and teammates: sub-agents appear to avoid the CLAUDE.md inheritance problem but have a reduced toolset compared with teammates.",
+          "claim_status": "anecdotal"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "Issue #24773 description 'Problem' (lines 211-219)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "Issue #24773 description 'Problem' (lines 218-219)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "Issue #24773 section 'Why teammates over sub-agents?' (lines 238-245)"
+        }
+      ],
+      "dedupe_key": "github:anthropics/claude-code:issue:24773"
+    },
+    {
+      "source_id": "src_iss_98321aba9fd0",
+      "title": "CLAUDE.md startup instructions should be executed, not just loaded as context (Issue #34763)",
+      "canonical_url": "https://github.com/anthropics/claude-code/issues/34763",
+      "date": "2026-03-15",
+      "authors_or_org": [
+        "anthropics/claude-code community (@max-freddyfire)"
+      ],
+      "source_type": "issue_thread",
+      "artifact_type": "issue",
+      "time_window_status": "primary_window",
+      "exception_reason": null,
+      "bucket_primary": "policy_program",
+      "bucket_secondary": [],
+      "decision_targets": [
+        "policy_program",
+        "context",
+        "recovery",
+        "memory"
+      ],
+      "mechanism_tags": [
+        "startup_routine_instructions",
+        "instruction_execution_gap",
+        "project_vs_global_memory_scope"
+      ],
+      "failure_mode_tags": [
+        "startup_instruction_ignored",
+        "instruction_non_enforcement"
+      ],
+      "benchmark_tags": [],
+      "benchmark_contamination_risk": "low",
+      "task_regime": [
+        "terminal_agent",
+        "coding_agent"
+      ],
+      "models_if_named": [
+        "Claude Opus 4.6"
+      ],
+      "environment_type": [
+        "sandboxed_terminal",
+        "local_fs"
+      ],
+      "evidence_scorecard": {
+        "provenance": 3,
+        "mechanistic_detail": 4,
+        "reproducibility": 2,
+        "ecological_validity": 4,
+        "decision_relevance": 5,
+        "recency": 5
+      },
+      "relevance_note": "Shows failure mode where startup routines encoded in project policy file are not reliably enforced because they are injected as plain text rather than executed steps.",
+      "reason_included": "Concrete policy failure example (startup routine ignored) with explicit suggestion to treat startup rules as executable pre-steps rather than passive context.",
+      "claim_snippets": [
+        {
+          "claim_id": "c1",
+          "claim_text": "The issue states that CLAUDE.md startup instructions are loaded into the model\u2019s context as text but are not executed as actual steps, so the model can ignore them (especially on simple prompts).",
+          "claim_status": "anecdotal"
+        },
+        {
+          "claim_id": "c2",
+          "claim_text": "Example startup routine in CLAUDE.md is expressed as an ordered list (read README.md and AGENTS.md, read relevant skills, check agent memory).",
+          "claim_status": "anecdotal"
+        },
+        {
+          "claim_id": "c3",
+          "claim_text": "In the reproduced conversation, the reporter claims the model answered 'who are you?' with generic identity text rather than following the CLAUDE.md startup routine first.",
+          "claim_status": "anecdotal"
+        }
+      ],
+      "claim_locations": [
+        {
+          "claim_id": "c1",
+          "locator": "Issue #34763 summary section (lines 204-207)"
+        },
+        {
+          "claim_id": "c2",
+          "locator": "Issue #34763 'What happened' section (lines 209-215)"
+        },
+        {
+          "claim_id": "c3",
+          "locator": "Issue #34763 conversation transcript (lines 216-224, 229-233)"
+        }
+      ],
+      "dedupe_key": "github:anthropics/claude-code:issue:34763"
+    }
+  ],
+  "rejections": [
+    {
+      "candidate_title": "CVE-2026-5112 - Claude Code Path Restriction Bypass (Cymulate)",
+      "candidate_url": "https://cymulate.com/blog/cve-2026-5112-claude-code-path-restriction-bypass/",
+      "rejection_reason": "Third-party security blog; valuable exploit detail but outside program-layer doctrine focus and not a primary/vendor postmortem."
+    },
+    {
+      "candidate_title": "How to write a great agents.md file (GitHub blog)",
+      "candidate_url": "https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-file/",
+      "rejection_reason": "Guidance-oriented article; limited concrete mechanism beyond what is already captured in official docs/spec."
+    },
+    {
+      "candidate_title": "Prompt guidance for GPT-5.4 (OpenAI API docs)",
+      "candidate_url": "https://developers.openai.com/api/docs/guides/prompt-guidance",
+      "rejection_reason": "No explicit published/updated date surfaced in-page during this run; excluded to keep strict primary-window sourcing."
+    },
+    {
+      "candidate_title": "AI Context Steering: Better Agentic Coding with Contextual Files (arXiv)",
+      "candidate_url": "https://arxiv.org/abs/2603.02639",
+      "rejection_reason": "Research focuses on performance effects of contextual files rather than program-layer operating contracts; bucket is policy_program."
+    },
+    {
+      "candidate_title": "OpenAI Codex CLI integration docs (Portkey)",
+      "candidate_url": "https://docs.portkey.ai/docs/virtual_key_old/integrations/libraries/codex",
+      "rejection_reason": "Third-party integration/marketing documentation; not a primary source of harness policy or instruction doctrine."
+    },
+    {
+      "candidate_title": "Help! Copilot doesn't see my AGENTS.md file... (GitHub Community discussion)",
+      "candidate_url": "https://github.com/orgs/community/discussions/160293",
+      "rejection_reason": "Community support discussion; weaker provenance than GitHub Docs repo content and lacks stable mechanistic contract text."
+    },
+    {
+      "candidate_title": "OpenAI social post about Codex availability (Facebook)",
+      "candidate_url": "https://www.facebook.com/openai/posts/developers-codex-try-codex-for-free-with-expanded-limits/1448755343712738/",
+      "rejection_reason": "Social media post; not a technical source of policy doctrine."
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/documentation/model/?q=
+================================================================================
+
+模型¶
+
+TongAgent 不依赖特定供应商的 LLM 模型，也无需与 TongPL 绑定，您可以自由选择任何 LLM 模型，或使用我们提供的 TongPL。目前，TongAgent 支持以下 LLM 模型：
+
+TongPL（暂不对外开放）
+OpenAI-compatible LLM
+支持模型列表（部分）¶
+模型	模型提供商	兼容方式	model_name
+OpenAI GPT-4.5 Preview	OpenAI	OpenAI-compatible	gpt-4.5-preview-2025-02-27
+DeepSeek V3/R1	DeepSeek	OpenAI-compatible	deepseek-reasoner
+DeepSeek V3	DeepSeek	OpenAI-compatible	deepseek-chat
+通义千问-Max	阿里云百炼	OpenAI-compatible	qwen-max-latest
+ERNIE 4.0	百度智能云	OpenAI-compatible	ERNIE-4.0-8K-Latest
+豆包-1.5-pro-32k	火山引擎	OpenAI-compatible	doubao-1-5-pro-32k-250115
+
+TongAgent支持但不限于上述模型，满足OpenAI-compatible的模型均可使用。
+
+ModelConfig¶
+
+TongAgents通过ModelConfig配置LLM模型，ModelConfig定义了LLM模型的类型、API密钥、模型名称、模型参数等信息。
+
+对于所有的Agent，TongAgents都通过ModelConfig配置LLM模型。因此，大部分场景中用户不需要自己来实现LLM客户端。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig, ModelProvider
+
+model_config = ModelConfig(
+
+    model_name=os.environ.get("MODEL_NAME"),
+
+    url=os.environ.get("MODEL_URL"),
+
+    model_provider=ModelProvider.OPENAI_COMPATIBLE,
+
+    api_key=os.environ.get("MODEL_API_KEY"),
+
+    n=1,
+
+    stream=True,
+
+)
+
+其中，各参数的含义如下：
+
+model_name：模型名称
+url：模型URL
+model_provider：模型提供商，比如ModelProvider.OPEN_AI_COMPATIBLE
+api_key：API密钥
+n：为每个输入生成的回复数量
+stream：是否流式输出
+
+通过ModelConfig，tongagents 的 Agent/Workflow 可以灵活地选择不同的LLM模型，且不与特定供应商绑定。
+
+OpenAI-compatible LLM¶
+
+现有供应商通常会提供OpenAI-compatible的API，例如OpenAI、DeepSeek、Qwen等。当您使用OpenAI-compatible的LLM时，您需要提供模型名称、API密钥、API URL等信息。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig, ModelProvider
+
+from tongagents.agents.llm_agent.react_agent import LLMRunContext, ReactAgent, ReactAgentSetting
+
+
+
+model_config = ModelConfig(
+
+    model_name=os.environ.get("MODEL_NAME"),
+
+    url=os.environ.get("MODEL_URL"),
+
+    model_provider=ModelProvider.OPENAI_COMPATIBLE,
+
+    api_key=os.environ.get("MODEL_API_KEY"),
+
+    n=1,
+
+    stream=True,
+
+)
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings
+
+)
+
+
+通过OpenAIModel和ModelConfig，您可以灵活地选择不同的OpenAI-compatible的LLM，并将其传递给 tongagents 的 Agent/Workflow。
+
+实现自己的LLM模型¶
+
+为了实现对尚未被支持的模型的支持，您需要创建BaseChatModel的子类。
+
+对于流式模型，您需要实现request_stream方法。
+
+比如，如果实现一个用于单元测试的FakeModel，您可以参考如下代码：
+
+from tongagents.agents.llm.base import BaseChatModel
+
+from typing import Iterator
+
+class FakeModel(BaseChatModel):
+
+    def request_stream(self, messages: list[dict]) -> Iterator[str]:
+
+        for message in messages:
+
+            yield message["content"]
+
+
+
+    def request(self, messages: list[dict]) -> str:
+
+        return "".join(messages)
+
+
+如希望将您的模型集成到TongAgent中，请联系我们。

@@ -1,0 +1,495 @@
+from __future__ import annotations
+
+import asyncio
+import contextlib
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+import inspect
+import logging
+import re
+import time
+from typing import Any, Callable
+from uuid import uuid4
+
+from kiraclaw_agentd.engine import KiraClawEngine, RunResult
+from kiraclaw_agentd.memory_models import MemoryWriteRequest
+
+_CONVERSATION_HISTORY_TURNS = 6
+_CONVERSATION_TEXT_CHAR_LIMIT = 1_200
+
+logger = logging.getLogger(__name__)
+
+_SMALL_TALK_PATTERNS = [
+    r"\b(?:hi|hello|hey|thanks|thank you|thx|ok|okay|cool|great|nice|bye|good morning|good night|lol|haha)\b",
+    r"(?:안녕|고마워|감사|감사합니다|오케이|좋아|수고|잘자|ㅋㅋ|ㅎㅎ)",
+]
+_EXPLICIT_MEMORY_PATTERNS = [
+    r"\b(?:remember|save|record|note|memor(?:y|ize))\b",
+    r"(?:기억|저장|기록|메모)",
+]
+_DURABLE_SIGNAL_PATTERNS = [
+    r"\b(?:prefer|preference|like|dislike|plan|planned|decision|decided|project|follow[- ]?up|deadline|schedule|status|issue|setup|token|credential|workspace|path|channel|install|version)\b",
+    r"(?:선호|좋아하|싫어하|계획|결정|프로젝트|후속|마감|일정|상태|이슈|설정|토큰|자격증명|워크스페이스|경로|채널|설치|버전)",
+]
+_CAPABILITY_QUERY_PATTERNS = [
+    r"\b(?:what tools|what can you do|what mcp|available|can you use|supported|what integrations?)\b",
+    r"(?:뭐 할 수|무슨 툴|무슨 mcp|사용가능|가능해|지원해|연동돼)",
+]
+
+
+def _matches_any_pattern(text: str, patterns: list[str]) -> bool:
+    haystack = text.strip().lower()
+    if not haystack:
+        return False
+    return any(re.search(pattern, haystack, re.IGNORECASE) for pattern in patterns)
+
+
+def _should_auto_save(record: "RunRecord", response_text: str) -> bool:
+    prompt = record.prompt.strip()
+    response = response_text.strip()
+    if not prompt or not response:
+        return False
+
+    combined = f"{prompt}\n{response}"
+    result = record.result
+    tool_events = list(result.tool_events) if result else []
+    source = str(record.metadata.get("source", "")).strip().lower()
+
+    if _matches_any_pattern(combined, _EXPLICIT_MEMORY_PATTERNS):
+        return True
+    if tool_events:
+        return True
+    if _matches_any_pattern(prompt, _CAPABILITY_QUERY_PATTERNS):
+        return False
+
+    combined_length = len(combined)
+    if combined_length <= 120 and _matches_any_pattern(combined, _SMALL_TALK_PATTERNS):
+        return False
+
+    if _matches_any_pattern(combined, _DURABLE_SIGNAL_PATTERNS) and combined_length >= 80:
+        return True
+
+    if source in {"api", "", "scheduler"} and (len(prompt) >= 140 or len(response) >= 220):
+        return True
+
+    return False
+
+
+def _classify_auto_memory(record: "RunRecord", response_text: str) -> tuple[str, str] | None:
+    if not _should_auto_save(record, response_text):
+        return None
+
+    prompt = " ".join(record.prompt.strip().split())
+    response = " ".join(response_text.strip().split())
+    combined = f"{prompt}\n{response}"
+    result = record.result
+    tool_events = list(result.tool_events) if result else []
+
+    if _matches_any_pattern(combined, _EXPLICIT_MEMORY_PATTERNS):
+        return "semantic", _clip_auto_memory_text(response or prompt, 320)
+
+    if _matches_any_pattern(combined, _DURABLE_SIGNAL_PATTERNS):
+        return "semantic", _clip_auto_memory_text(response or prompt, 320)
+
+    if tool_events:
+        return "episodic", _clip_auto_memory_text(
+            f"Handled '{prompt}' and completed tool-backed work. Outcome: {response}",
+            420,
+        )
+
+    return "episodic", _clip_auto_memory_text(
+        f"Handled '{prompt}'. Outcome: {response}",
+        420,
+    )
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _external_response_text(record: RunRecord) -> str:
+    result = record.result
+    if result is None:
+        return ""
+
+    source = str(record.metadata.get("source", "")).strip().lower()
+    if result.spoken_messages:
+        return result.public_response_text
+    if source in {"", "api"}:
+        return result.internal_summary
+    if source in {
+        "slack-group",
+        "telegram-group",
+        "discord-group",
+        "slack-dm",
+        "telegram-dm",
+        "discord-dm",
+        "scheduler",
+    }:
+        return ""
+    return result.internal_summary
+
+
+@dataclass
+class RunRequest:
+    prompt: str
+    provider: str | None = None
+    model: str | None = None
+    context_prefix: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class RunRecord:
+    run_id: str
+    session_id: str
+    state: str
+    prompt: str
+    created_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
+    result: RunResult | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class SessionLane:
+    def __init__(
+        self,
+        session_id: str,
+        engine: KiraClawEngine,
+        idle_timeout_seconds: float,
+        build_context: Callable[[str, str, str | None], str | None],
+        build_memory_context: Callable[[str, str, dict[str, Any] | None], str | None],
+        on_record_complete: Callable[[RunRecord], Any],
+        on_record_update: Callable[[RunRecord], Any],
+        on_idle: Callable[[str, "SessionLane"], None],
+    ) -> None:
+        self.session_id = session_id
+        self.engine = engine
+        self.idle_timeout_seconds = max(0.05, idle_timeout_seconds)
+        self._build_context = build_context
+        self._build_memory_context = build_memory_context
+        self._on_record_complete = on_record_complete
+        self._on_record_update = on_record_update
+        self._on_idle = on_idle
+        self.queue: asyncio.Queue[tuple[RunRecord, asyncio.Future[RunRecord], RunRequest]] = asyncio.Queue()
+        self.worker_task: asyncio.Task[None] | None = None
+        self.last_activity_monotonic = time.monotonic()
+
+    @property
+    def active(self) -> bool:
+        return self.worker_task is not None and not self.worker_task.done()
+
+    def touch(self) -> None:
+        self.last_activity_monotonic = time.monotonic()
+
+    def ensure_worker(self) -> None:
+        if self.worker_task is None or self.worker_task.done():
+            self.worker_task = asyncio.create_task(self._worker(), name=f"session-lane:{self.session_id}")
+
+    async def enqueue(self, request: RunRequest, record: RunRecord) -> RunRecord:
+        self.touch()
+        self.ensure_worker()
+        future: asyncio.Future[RunRecord] = asyncio.get_running_loop().create_future()
+        await self.queue.put((record, future, request))
+        return await future
+
+    async def _worker(self) -> None:
+        try:
+            while True:
+                try:
+                    record, future, request = await asyncio.wait_for(
+                        self.queue.get(),
+                        timeout=self.idle_timeout_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    if self.queue.empty():
+                        break
+                    continue
+
+                self.touch()
+                try:
+                    record.state = "running"
+                    record.started_at = utc_now()
+                    record.result = RunResult(
+                        final_response="",
+                        streamed_text="",
+                        tool_events=[],
+                        spoken_messages=[],
+                    )
+                    maybe_result = self._on_record_update(record)
+                    if inspect.isawaitable(maybe_result):
+                        await maybe_result
+                    conversation_context = self._build_context(
+                        self.session_id,
+                        record.run_id,
+                        request.context_prefix,
+                    )
+                    memory_context = self._build_memory_context(
+                        request.prompt,
+                        self.session_id,
+                        request.metadata,
+                    )
+                    result = await asyncio.to_thread(
+                        self.engine.run,
+                        request.prompt,
+                        request.provider,
+                        request.model,
+                        conversation_context,
+                        memory_context,
+                        {**request.metadata, "session_id": self.session_id},
+                        live_result=record.result,
+                    )
+                    record.result = result
+                    record.state = "completed"
+                    record.finished_at = utc_now()
+                    maybe_result = self._on_record_complete(record)
+                    if inspect.isawaitable(maybe_result):
+                        await maybe_result
+                    if not future.done():
+                        future.set_result(record)
+                except Exception as exc:
+                    record.error = str(exc)
+                    record.state = "failed"
+                    record.finished_at = utc_now()
+                    if not future.done():
+                        future.set_result(record)
+                finally:
+                    self.touch()
+                    self.queue.task_done()
+        except asyncio.CancelledError:
+            while not self.queue.empty():
+                try:
+                    record, future, _request = self.queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                record.error = "Session lane was stopped before the run could start."
+                record.state = "failed"
+                record.finished_at = utc_now()
+                if not future.done():
+                    future.set_result(record)
+                self.queue.task_done()
+            raise
+        finally:
+            self.worker_task = None
+            self.touch()
+            self._on_idle(self.session_id, self)
+
+    async def stop(self) -> None:
+        task = self.worker_task
+        if task is None or task.done():
+            self.worker_task = None
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+class SessionManager:
+    def __init__(
+        self,
+        engine: KiraClawEngine,
+        memory_context_provider: Callable[[str, str, dict[str, Any]], str | None] | None = None,
+        on_record_complete: Callable[[MemoryWriteRequest], Any] | None = None,
+        record_observer: Callable[[RunRecord], Any] | None = None,
+    ) -> None:
+        self.engine = engine
+        self.record_limit = max(1, engine.settings.session_record_limit)
+        self.idle_timeout_seconds = max(0.05, engine.settings.session_idle_seconds)
+        self.memory_context_provider = memory_context_provider
+        self.on_record_complete = on_record_complete
+        self.record_observer = record_observer
+        self._lanes: dict[str, SessionLane] = {}
+        self._records: dict[str, list[RunRecord]] = {}
+
+    def _append_record(self, session_id: str, record: RunRecord) -> None:
+        records = self._records.setdefault(session_id, [])
+        records.append(record)
+        if len(records) > self.record_limit:
+            self._records[session_id] = records[-self.record_limit:]
+
+    def _release_lane(self, session_id: str, lane: SessionLane) -> None:
+        current_lane = self._lanes.get(session_id)
+        if current_lane is lane and lane.queue.empty() and not lane.active:
+            self._lanes.pop(session_id, None)
+
+    def _build_conversation_context(
+        self,
+        session_id: str,
+        current_run_id: str,
+        context_prefix: str | None = None,
+    ) -> str | None:
+        records = self._records.get(session_id, [])
+
+        recent_turns: list[RunRecord] = []
+        for record in records:
+            if record.run_id == current_run_id:
+                continue
+            if record.state != "completed" or record.result is None:
+                continue
+            response_text = _external_response_text(record)
+            if not record.prompt.strip() or not response_text.strip():
+                continue
+            recent_turns.append(record)
+
+        parts: list[str] = []
+        if context_prefix:
+            parts.append(context_prefix)
+
+        if recent_turns:
+            recent_turns = recent_turns[-_CONVERSATION_HISTORY_TURNS:]
+            lines = [
+                "Recent KiraClaw session history (oldest first). Use it as context only when it helps continue the same conversation:",
+            ]
+            for record in recent_turns:
+                lines.append(f"User: {_clip_conversation_text(record.prompt)}")
+                lines.append(f"Assistant: {_clip_conversation_text(_external_response_text(record))}")
+            parts.append("\n".join(lines))
+
+        return "\n\n".join(parts) if parts else None
+
+    def _build_memory_context(
+        self,
+        prompt: str,
+        session_id: str,
+        metadata: dict[str, Any] | None,
+    ) -> str | None:
+        if self.memory_context_provider is None:
+            return None
+        try:
+            return self.memory_context_provider(prompt, session_id, metadata or {})
+        except Exception as exc:
+            logger.warning("Memory context retrieval failed for %s: %s", session_id, exc)
+            return None
+
+    async def _notify_record_complete(self, record: RunRecord) -> None:
+        if (
+            self.on_record_complete is None
+            or record.state != "completed"
+            or record.result is None
+        ):
+            return
+        response_text = _external_response_text(record)
+        if not response_text.strip():
+            return
+        classified = _classify_auto_memory(record, response_text)
+        if classified is None:
+            return
+        memory_kind, summary = classified
+        request = MemoryWriteRequest(
+            session_id=record.session_id,
+            prompt=record.prompt,
+            response=response_text,
+            created_at=record.finished_at or record.created_at,
+            metadata=record.metadata,
+            memory_kind=memory_kind,
+            summary=summary,
+        )
+        try:
+            maybe_result = self.on_record_complete(request)
+            if inspect.isawaitable(maybe_result):
+                await maybe_result
+        except Exception as exc:
+            logger.warning("Memory save enqueue failed for %s: %s", record.run_id, exc)
+
+    async def _observe_record(self, record: RunRecord) -> None:
+        if self.record_observer is None:
+            return
+        try:
+            maybe_result = self.record_observer(record)
+            if inspect.isawaitable(maybe_result):
+                await maybe_result
+        except Exception as exc:
+            logger.warning("Record observer failed for %s: %s", record.run_id, exc)
+
+    def _get_lane(self, session_id: str) -> SessionLane:
+        lane = self._lanes.get(session_id)
+        if lane is None:
+            lane = SessionLane(
+                session_id=session_id,
+                engine=self.engine,
+                idle_timeout_seconds=self.idle_timeout_seconds,
+                build_context=self._build_conversation_context,
+                build_memory_context=self._build_memory_context,
+                on_record_complete=self._notify_record_complete,
+                on_record_update=self._observe_record,
+                on_idle=self._release_lane,
+            )
+            self._lanes[session_id] = lane
+        return lane
+
+    async def run(
+        self,
+        session_id: str,
+        prompt: str,
+        provider: str | None = None,
+        model: str | None = None,
+        context_prefix: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> RunRecord:
+        lane = self._get_lane(session_id)
+        record = RunRecord(
+            run_id=str(uuid4()),
+            session_id=session_id,
+            state="queued",
+            prompt=prompt,
+            created_at=utc_now(),
+            metadata=metadata or {},
+        )
+        self._append_record(session_id, record)
+        await self._observe_record(record)
+        record = await lane.enqueue(
+            RunRequest(
+                prompt=prompt,
+                provider=provider,
+                model=model,
+                context_prefix=context_prefix,
+                metadata=metadata or {},
+            ),
+            record,
+        )
+        await self._observe_record(record)
+        return record
+
+    def list_sessions(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        session_ids = sorted(set(self._records.keys()) | set(self._lanes.keys()))
+        for session_id in session_ids:
+            lane = self._lanes.get(session_id)
+            records = self._records.get(session_id, [])
+            latest = records[-1] if records else None
+            rows.append(
+                {
+                    "session_id": session_id,
+                    "queued_runs": lane.queue.qsize() if lane is not None else 0,
+                    "active": lane.active if lane is not None else False,
+                    "latest_state": latest.state if latest else None,
+                    "latest_run_id": latest.run_id if latest else None,
+                    "latest_finished_at": latest.finished_at if latest else None,
+                }
+            )
+        return rows
+
+    def get_session_records(self, session_id: str) -> list[RunRecord]:
+        return list(self._records.get(session_id, []))
+
+    async def stop(self) -> None:
+        lanes = list(self._lanes.values())
+        for lane in lanes:
+            await lane.stop()
+        self._lanes.clear()
+
+
+def _clip_conversation_text(text: str) -> str:
+    stripped = " ".join(text.strip().split())
+    if len(stripped) <= _CONVERSATION_TEXT_CHAR_LIMIT:
+        return stripped
+    return stripped[: _CONVERSATION_TEXT_CHAR_LIMIT - 1].rstrip() + "…"
+
+
+def _clip_auto_memory_text(text: str, limit: int) -> str:
+    stripped = " ".join(text.strip().split())
+    if len(stripped) <= limit:
+        return stripped
+    return stripped[: limit - 1].rstrip() + "…"

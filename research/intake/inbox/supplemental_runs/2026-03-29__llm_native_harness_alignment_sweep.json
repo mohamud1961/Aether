@@ -1,0 +1,1311 @@
+[
+  {
+    "agent_id": "llm_native_harness_alignment_sweep_agent",
+    "bucket": "llm_native_harness_alignment_sweep",
+    "run_date": "2026-03-29",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_a955d80dfb69",
+        "title": "Introducing advanced tool use on the Claude Developer Platform",
+        "canonical_url": "https://www.anthropic.com/engineering/advanced-tool-use",
+        "date": "2025-11-24",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "tooling_tool_gateway",
+        "bucket_secondary": [
+          "cost_token_management",
+          "context_engineering"
+        ],
+        "decision_targets": [
+          "tool_gateway",
+          "context",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "model_x_tools",
+          "tool_search",
+          "programmatic_tool_calling",
+          "tool_use_examples",
+          "defer_loading"
+        ],
+        "failure_mode_tags": [
+          "tool_definition_bloat",
+          "wrong_tool_selection",
+          "parameter_misuse",
+          "context_pollution"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [
+          "claude_opus_4",
+          "claude_opus_4_5"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Provider mechanism note on matching Claude to large tool libraries.",
+        "reason_included": "Concrete provider mechanisms for native large-tool operation.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Tool Search Tool defers most tool definitions and expands only matched tools into context, reducing initial tool overhead from ~77K tokens to ~8.7K tokens in the example and preserving 95% of the context window.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Internal MCP evals improved with Tool Search Tool enabled: Opus 4 from 49% to 74%, and Opus 4.5 from 79.5% to 88.1%.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Programmatic Tool Calling lets Claude orchestrate tools through code so intermediate results do not all enter model context and do not require a full inference pass per tool call.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Tool Search Tool', lines 43-59"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Tool Search Tool', lines 57-59"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'Programmatic Tool Calling', lines 121-126"
+          }
+        ],
+        "dedupe_key": "anthropic:engineering:advanced-tool-use"
+      },
+      {
+        "source_id": "src_doc_c91153d296ea",
+        "title": "Effective harnesses for long-running agents",
+        "canonical_url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+        "date": "2025-11-26",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "context_engineering",
+        "bucket_secondary": [
+          "artifact_workspace",
+          "execution_control"
+        ],
+        "decision_targets": [
+          "context",
+          "artifacts_workspace",
+          "execution_loop",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "model_x_context",
+          "initializer_agent",
+          "handoff_artifacts",
+          "multi_session_handoff"
+        ],
+        "failure_mode_tags": [
+          "context_anxiety",
+          "half_implemented_state",
+          "session_memory_loss"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "claude_opus_4_5"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Effective harnesses for long-running agents is a engineering writeup source with details on model x context, initializer agent relevant to context engineering.",
+        "reason_included": "Included for source-local evidence on context, artifacts workspace, execution loop.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Anthropic's two-fold solution for long-running work uses an initializer agent on the first run and a coding agent that makes incremental progress while leaving clear artifacts for the next session.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Compaction alone was not sufficient: Opus 4.5 on Claude Agent SDK, looped across context windows with only a high-level prompt, fell short of building a production-quality web app.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "A dominant failure pattern was attempting too much at once, exhausting context mid-implementation and forcing the next session to guess what happened from a half-implemented undocumented state.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Intro, lines 20-21"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'The long-running agent problem', lines 24-25"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'The long-running agent problem', lines 25-26"
+          }
+        ],
+        "dedupe_key": "anthropic:engineering:effective-harnesses-for-long-running-agents"
+      },
+      {
+        "source_id": "src_doc_f4ab21a8c943",
+        "title": "Harness design for long-running application development",
+        "canonical_url": "https://www.anthropic.com/engineering/harness-design-long-running-apps",
+        "date": "2026-03-24",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "execution_control",
+        "bucket_secondary": [
+          "agent_architecture",
+          "context_engineering"
+        ],
+        "decision_targets": [
+          "execution_loop",
+          "context",
+          "topology",
+          "verification"
+        ],
+        "mechanism_tags": [
+          "model_x_workflow",
+          "generator_evaluator_loop",
+          "context_resets",
+          "planner_agent"
+        ],
+        "failure_mode_tags": [
+          "context_anxiety",
+          "continuous_session_drift"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "claude_sonnet_4_5",
+          "claude_opus_4_5"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Direct comparison of harness choices across Sonnet 4.5 and Opus 4.5.",
+        "reason_included": "Shows model-family-specific workflow changes rather than generic agent advice.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The earlier long-running harness used an initializer agent, a coding agent working one feature at a time, and context resets between sessions to keep Sonnet 4.5 on task because of a 'context anxiety' tendency.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "With Opus 4.5, that behavior was largely removed, so the updated harness dropped context resets and ran as one continuous session with automatic compaction handling context growth.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The new system added a planner agent that expands a short user prompt into a full product spec, shifting the harness from requiring a detailed upfront spec to generating one.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'The architecture', lines 60-60"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'The architecture', lines 60-61"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'The architecture', lines 62-63"
+          }
+        ],
+        "dedupe_key": "anthropic:engineering:harness-design-long-running-apps"
+      },
+      {
+        "source_id": "src_doc_31348971d5a0",
+        "title": "Code execution with MCP: building more efficient AI agents",
+        "canonical_url": "https://www.anthropic.com/engineering/code-execution-with-mcp",
+        "date": "2025-11-04",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "foundational_exception",
+        "exception_reason": "Foundational provider mechanism for programmatic tool calling and native code-execution orchestration that directly informs later 2025-2026 harness patterns.",
+        "bucket_primary": "tooling_tool_gateway",
+        "bucket_secondary": [
+          "cost_token_management",
+          "execution_control"
+        ],
+        "decision_targets": [
+          "tool_gateway",
+          "execution_loop",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "programmatic_tool_calling",
+          "native_code_execution",
+          "model_x_tools",
+          "mcp_orchestration"
+        ],
+        "failure_mode_tags": [
+          "multi_turn_tool_overhead",
+          "context_pollution",
+          "tool_serialization_latency"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "workflow_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "claude"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 2
+        },
+        "relevance_note": "Provider writeup on native code execution as a harness primitive.",
+        "reason_included": "Foundational mechanism source for model-native code/tool orchestration.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Anthropic built an MCP code-execution server so Claude can write and run code inside a single generation, avoiding repeated model turns for each computational step.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "This pattern offloads computation from the model to code, which improves efficiency, keeps intermediate execution details out of the context window, and reduces turn-by-turn tool overhead.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Anthropic frames code execution as especially useful when tasks need large-scale data processing, precise deterministic calculation, or algorithmic iteration that would be inefficient in pure text reasoning.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Intro and architecture discussion, lines 22-29"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section on efficiency and context, lines 30-35"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Use cases section, lines 36-42"
+          }
+        ],
+        "dedupe_key": "anthropic:engineering:code-execution-with-mcp"
+      },
+      {
+        "source_id": "src_iss_819b6ec7ad57",
+        "title": "Too much context in one request can cause degraded performance in Claude Code",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/16506",
+        "date": "2026-01-06",
+        "authors_or_org": [
+          "Anthropic",
+          "anthropics/claude-code"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "context_engineering",
+        "bucket_secondary": [
+          "execution_control"
+        ],
+        "decision_targets": [
+          "context",
+          "execution_loop",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "model_x_context",
+          "session_reset",
+          "prompt_minimalism"
+        ],
+        "failure_mode_tags": [
+          "overloaded_context",
+          "reasoning_degradation",
+          "drift"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [
+          "claude_sonnet_4_5",
+          "claude_opus_4_5"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Issue thread documenting model-harness mismatch from context overload.",
+        "reason_included": "Concrete failure report with direct harness implication: prune and reset.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "A Claude Code maintainer states that too much context in one request can make performance degrade significantly and recommends reducing request size or starting a new session.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The thread links degraded behavior to a large amount of accumulated request context rather than a generic model-quality regression.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Maintainer comment by @ezyang, issue thread"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Issue discussion and maintainer response"
+          }
+        ],
+        "dedupe_key": "github:anthropics/claude-code:issue:16506"
+      },
+      {
+        "source_id": "src_iss_2da54ef1607a",
+        "title": "Add support for Claude Opus 4.5 auto-compact handling",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/27032",
+        "date": "2026-02-20",
+        "authors_or_org": [
+          "Anthropic",
+          "anthropics/claude-code"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "context_engineering",
+        "bucket_secondary": [
+          "cost_token_management",
+          "execution_control"
+        ],
+        "decision_targets": [
+          "context",
+          "cost_budget",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "auto_compaction",
+          "model_x_context",
+          "model_specific_compaction"
+        ],
+        "failure_mode_tags": [
+          "compaction_mismatch",
+          "manual_compaction_overhead"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [
+          "claude_opus_4_5"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 3,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Maintainer discussion that Opus 4.5 changed compaction expectations.",
+        "reason_included": "Model-specific compaction behavior with direct harness-design implications.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The issue requests support for Opus 4.5 automatic compaction handling, indicating the harness must adapt compaction behavior for this model family.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The thread implies a mismatch between existing compaction strategy and the newer model's native context-handling behavior.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue title and issue body"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Issue discussion"
+          }
+        ],
+        "dedupe_key": "github:anthropics/claude-code:issue:27032"
+      },
+      {
+        "source_id": "src_iss_b8d7092a954f",
+        "title": "Claude Code sometimes gets worse after compaction",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/28469",
+        "date": "2026-02-25",
+        "authors_or_org": [
+          "Anthropic",
+          "anthropics/claude-code"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "context_engineering",
+        "bucket_secondary": [
+          "recovery"
+        ],
+        "decision_targets": [
+          "context",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "model_x_context",
+          "compaction_regression",
+          "state_x_recovery"
+        ],
+        "failure_mode_tags": [
+          "post_compaction_regression",
+          "lost_implicit_state",
+          "quality_drop_after_reset"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [
+          "claude"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 3,
+          "reproducibility": 2,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Concrete post-compaction failure report in a real agent shell workflow.",
+        "reason_included": "Useful failure signal for model-specific reset and recovery design.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The issue reports that Claude Code can perform worse after compaction, indicating that compaction can discard or distort state the model was relying on.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The failure is framed as a context-management problem rather than a generic coding-quality issue.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue title and user description"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Issue discussion"
+          }
+        ],
+        "dedupe_key": "github:anthropics/claude-code:issue:28469"
+      },
+      {
+        "source_id": "src_doc_0fb97c233e73",
+        "title": "Codex Prompting Guide",
+        "canonical_url": "https://cookbook.openai.com/examples/gpt-5/codex_prompting_guide",
+        "date": "2026-02-25",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "policy_program",
+        "bucket_secondary": [
+          "execution_control",
+          "verification_completion"
+        ],
+        "decision_targets": [
+          "policy_program",
+          "execution_loop",
+          "verification"
+        ],
+        "mechanism_tags": [
+          "prompt_minimalism",
+          "agentic_prompting",
+          "model_x_workflow",
+          "verification_cadence"
+        ],
+        "failure_mode_tags": [
+          "over_scaffolding",
+          "instruction_bloat",
+          "premature_delegation"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [
+          "gpt_5_codex"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "OpenAI operational guidance explicitly tuned to Codex agent behavior.",
+        "reason_included": "Direct provider-native prompting guidance with concrete harness implications.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "OpenAI recommends keeping prompts short and crisp for Codex, because it is trained to ask clarifying questions and work autonomously; long process-heavy instructions can reduce effectiveness.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The guide recommends stating a high-level execution loop in the prompt, such as understanding the codebase, forming a plan, executing incrementally, and verifying before finishing.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Codex is described as responding better to the structure of a plan and verification rubric than to dense meta-scaffolding about how to think.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Sections 'Keep prompts short and crisp' and 'Give it enough autonomy'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Specify the loop'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Prompting guidance examples and narrative sections"
+          }
+        ],
+        "dedupe_key": "openai:cookbook:codex_prompting_guide"
+      },
+      {
+        "source_id": "src_doc_7ab6c0af53c0",
+        "title": "Unrolling the Codex agent loop",
+        "canonical_url": "https://openai.com/index/unrolling-the-codex-agent-loop/",
+        "date": "2026-01-23",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "execution_control",
+        "bucket_secondary": [
+          "verification_completion",
+          "context_engineering"
+        ],
+        "decision_targets": [
+          "execution_loop",
+          "verification",
+          "context"
+        ],
+        "mechanism_tags": [
+          "model_x_workflow",
+          "plan_execute_verify_loop",
+          "self_verification",
+          "handoff_summary"
+        ],
+        "failure_mode_tags": [
+          "loop_without_verification",
+          "unbounded_search",
+          "summary_loss"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [
+          "codex"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "OpenAI engineering note exposing the internal loop structure of Codex.",
+        "reason_included": "Explicit model-native execution loop details with verification and summary behavior.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Codex is described as following an iterative loop of exploring the repo, proposing a plan, editing, running commands/tests, and then summarizing what changed and why.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The writeup emphasizes verification through tests and command output before completion rather than treating file edits alone as progress.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The loop includes concise summaries that help preserve continuity across long tasks and reduce the need to keep raw history verbatim.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Main loop description sections"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Verification and completion discussion"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Summary and context continuity discussion"
+          }
+        ],
+        "dedupe_key": "openai:index:unrolling-the-codex-agent-loop"
+      },
+      {
+        "source_id": "src_doc_96f6c7c863dc",
+        "title": "Equipping the Responses API with a computer environment",
+        "canonical_url": "https://openai.com/index/equipping-the-responses-api-with-a-computer-environment/",
+        "date": "2026-03-11",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "tooling_tool_gateway",
+        "bucket_secondary": [
+          "environment_adapters",
+          "execution_control"
+        ],
+        "decision_targets": [
+          "tool_gateway",
+          "execution_loop",
+          "topology"
+        ],
+        "mechanism_tags": [
+          "native_tool_calling",
+          "computer_environment",
+          "tool_call_serialization",
+          "model_x_tools"
+        ],
+        "failure_mode_tags": [
+          "wrapped_protocol_overhead",
+          "browser_action_fragility"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "browser_agent",
+          "api_agent",
+          "mixed"
+        ],
+        "models_if_named": [
+          "gpt_5"
+        ],
+        "environment_type": [
+          "browser",
+          "remote_api",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Provider-native tool/environment interface for agentic interaction.",
+        "reason_included": "Concrete tool-environment mechanism designed around model-native API usage.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "OpenAI presents the computer environment as a native capability in the Responses API, allowing the model to interact with a computer through structured actions rather than a custom wrapper protocol built outside the API.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The environment exposes screen observation and action primitives that are serialized through the model's native response/tool interface.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "This design is positioned as reducing the gap between reasoning and acting by giving the model an operating substrate aligned with the provider's own agent runtime.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Intro and API capability description"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Environment primitives and action descriptions"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Framing and design rationale sections"
+          }
+        ],
+        "dedupe_key": "openai:index:responses_api_computer_environment"
+      },
+      {
+        "source_id": "src_doc_18ed4c80ce9e",
+        "title": "Prompt Caching 201",
+        "canonical_url": "https://cookbook.openai.com/examples/prompt_caching101",
+        "date": "2026-02-18",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "cost_token_management",
+        "bucket_secondary": [
+          "context_engineering",
+          "tooling_tool_gateway"
+        ],
+        "decision_targets": [
+          "cost_budget",
+          "context",
+          "tool_gateway"
+        ],
+        "mechanism_tags": [
+          "prompt_caching",
+          "previous_response_id",
+          "model_x_context",
+          "encrypted_reasoning_items",
+          "allowed_tools"
+        ],
+        "failure_mode_tags": [
+          "cache_busting_compaction",
+          "tool_surface_ambiguity",
+          "prefix_instability"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "gpt_5_2",
+          "gpt_5_2_codex"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Prompt Caching 201 is a official doc source with details on prompt caching, previous response id relevant to cost token management.",
+        "reason_included": "Included for source-local evidence on cost budget, context, tool gateway.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "OpenAI reports that internal benchmarks show 40-80% better cache utilization on Responses than Chat Completions because Responses persists raw chain-of-thought tokens between turns via `previous_response_id` or encrypted reasoning items.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Compaction and other context-engineering steps can break the cache, so context engineering and prompt caching are presented as competing objectives that must be balanced.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "A common failure mode is an overgrown tool set that creates tool-choice ambiguity; the guide recommends keeping the tool surface minimal and using `allowed_tools` to prune per request without busting the cache.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Use the Responses API instead of Chat Completions', lines 587-589"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Be thoughtful about Context Engineering', lines 590-593"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section on tools and failures, lines 556-556 and 601-602"
+          }
+        ],
+        "dedupe_key": "openai:cookbook:prompt_caching_201"
+      },
+      {
+        "source_id": "src_doc_469b0fb9e00f",
+        "title": "Changelog | OpenAI API",
+        "canonical_url": "https://developers.openai.com/api/docs/changelog",
+        "date": "2026-03-17",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "tooling_tool_gateway",
+        "bucket_secondary": [
+          "cost_token_management"
+        ],
+        "decision_targets": [
+          "tool_gateway",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "custom_tool_call",
+          "reasoning_effort_control",
+          "model_x_tools"
+        ],
+        "failure_mode_tags": [
+          "schema_mismatch",
+          "over_reasoning_cost"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "api_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "gpt_5"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 3,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Thin but explicit platform-level changes affecting harness design.",
+        "reason_included": "Included because it dates two native control primitives in the primary window.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "OpenAI introduced the `minimal` reasoning-effort value for GPT-5 models to optimize for faster responses.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "OpenAI introduced a `custom` tool-call type that allows freeform inputs to and outputs from the model when tool calling.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "March 2026 entries, lines 1142-1142"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "March 2026 entries, lines 1143-1144"
+          }
+        ],
+        "dedupe_key": "openai:api:changelog"
+      },
+      {
+        "source_id": "src_doc_c5bd8650dded",
+        "title": "Run long horizon tasks with Codex",
+        "canonical_url": "https://developers.openai.com/blog/run-long-horizon-tasks-with-codex/",
+        "date": "2026-02-23",
+        "authors_or_org": [
+          "Derrick Choi",
+          "OpenAI"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "artifact_workspace",
+        "bucket_secondary": [
+          "verification_completion",
+          "execution_control"
+        ],
+        "decision_targets": [
+          "artifacts_workspace",
+          "verification",
+          "execution_loop",
+          "context"
+        ],
+        "mechanism_tags": [
+          "durable_project_memory",
+          "milestone_validation",
+          "runbook_files",
+          "model_x_verification"
+        ],
+        "failure_mode_tags": [
+          "drift",
+          "spec_erosion",
+          "unverified_progress"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "gpt_5_3_codex"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Official long-run Codex case study with concrete artifact stack and validation rules.",
+        "reason_included": "Mechanism-rich source on durable memory files and milestone verification.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The run used GPT-5.3-Codex at Extra High reasoning for about 25 hours, and OpenAI describes the run as succeeding on following the spec, staying on task, running verification, and repairing failures as it went.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "OpenAI attributes the run to durable project memory stored in markdown files for spec, plan, execution instructions, and status so the agent could revisit them and keep a stable definition of done.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The plan file encoded milestone-sized checkpoints, acceptance criteria, validation commands, and a stop-and-fix rule that required repair before moving on if validation failed.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Introduction and setup, lines 472-474 and 535-536"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'The key idea: durable project memory', lines 536-543 and 579-589"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section on Plan.md, lines 554-563"
+          }
+        ],
+        "dedupe_key": "openai:blog:run-long-horizon-tasks-with-codex"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "Claude Code auto mode: a safer way to skip permissions",
+        "candidate_url": "[https://www.anthropic.com/engineering/claude-code-auto-mode](https://www.anthropic.com/engineering/claude-code-auto-mode)",
+        "rejection_reason": "Outside the requested primary window by one day (published 2026-03-25)."
+      },
+      {
+        "candidate_title": "Best Practices for Claude Code",
+        "candidate_url": "[https://code.claude.com/docs/en/best-practices](https://code.claude.com/docs/en/best-practices)",
+        "rejection_reason": "Useful operational guidance, but the page lacks an explicit publication or update date and overlaps stronger dated sources."
+      },
+      {
+        "candidate_title": "Create custom subagents",
+        "candidate_url": "[https://code.claude.com/docs/en/sub-agents](https://code.claude.com/docs/en/sub-agents)",
+        "rejection_reason": "Operationally relevant, but the page lacks an explicit publication or update date and overlaps stronger dated engineering sources."
+      },
+      {
+        "candidate_title": "Orchestrate teams of Claude Code sessions",
+        "candidate_url": "[https://code.claude.com/docs/en/agent-teams](https://code.claude.com/docs/en/agent-teams)",
+        "rejection_reason": "Relevant to parallelism, but the page lacks an explicit publication or update date and overlaps the dated compiler-team writeup."
+      },
+      {
+        "candidate_title": "Model configuration",
+        "candidate_url": "[https://code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config)",
+        "rejection_reason": "Relevant effort controls, but the page lacks an explicit publication or update date and overlaps stronger dated provider docs and changelog entries."
+      },
+      {
+        "candidate_title": "Introducing Claude Opus 4.6",
+        "candidate_url": "[https://www.anthropic.com/news/claude-opus-4-6](https://www.anthropic.com/news/claude-opus-4-6)",
+        "rejection_reason": "Contains some harness-adjacent anecdotes, but mechanism density is lower than the accepted engineering writeups."
+      },
+      {
+        "candidate_title": "Unlocking the Codex harness: how we built the App Server",
+        "candidate_url": "[https://openai.com/index/unlocking-the-codex-harness/](https://openai.com/index/unlocking-the-codex-harness/)",
+        "rejection_reason": "Good detail, but it overlaps stronger accepted sources on the Codex loop and shell-computer environment."
+      }
+    ]
+  },
+  {
+    "agent_id": "manual_upload",
+    "bucket": "llm_native_harness_alignment_sweep",
+    "run_date": "2026-04-06",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_pap_2603_25723",
+        "title": "Natural-Language Agent Harnesses",
+        "canonical_url": "https://www.alphaxiv.org/abs/2603.25723",
+        "date": "2026-03-24",
+        "authors_or_org": [
+          "Anonymous"
+        ],
+        "source_type": "paper",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "llm_native_harness_alignment",
+        "bucket_secondary": [
+          "execution_control",
+          "policy_program"
+        ],
+        "decision_targets": [
+          "execution_loop",
+          "policy_program",
+          "topology"
+        ],
+        "mechanism_tags": [
+          "natural_language_harness",
+          "intelligent_harness_runtime",
+          "explicit_contracts",
+          "portable_harness_artifacts"
+        ],
+        "failure_mode_tags": [
+          "baked_controller_logic",
+          "runtime_opaque_conventions"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "harness_runtime"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "A primary architectural blueprint for portable, NL-based harness control.",
+        "reason_included": "Directly mirrors our objective of externalizing harness logic into NL artifacts.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Agent performance is increasingly dependent on 'harness engineering,' yet harness design is typically obscured within controller code.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "We introduce Natural-Language Agent Harnesses (NLAHs) where harness behavior is expressed in editable natural language and executed by an Intelligent Harness Runtime (IHR).",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Introduction"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Proposed Approach"
+          }
+        ],
+        "dedupe_key": "arxiv:2603.25723"
+      },
+      {
+        "source_id": "src_doc_bitter_lesson_eng",
+        "title": "Bitter Lesson Engineering",
+        "canonical_url": "https://danielmiessler.com/blog/bitter-lesson-engineering",
+        "date": "2026-03-15",
+        "authors_or_org": [
+          "Daniel Miessler"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "llm_native_harness_alignment",
+        "bucket_secondary": [
+          "experiment_methodology"
+        ],
+        "decision_targets": [
+          "topology",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "bitter_lesson",
+          "scale_over_heuristics",
+          "search_and_learning"
+        ],
+        "failure_mode_tags": [
+          "hand_coded_heuristics",
+          "domain_knowledge_bottleneck"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 3,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "A high-level philosophical guide for avoiding over-engineering hacks in favor of scalable primitives.",
+        "reason_included": "Guiding principle for 'Lego block' composition.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The biggest mistake in AI engineering is trying to bake in human domain knowledge rather than building systems that can search and learn.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Core Thesis"
+          }
+        ],
+        "dedupe_key": "miessler:bitter-lesson-engineering"
+      }
+    ]
+  }
+]

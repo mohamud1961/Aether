@@ -1,0 +1,1270 @@
+--- PAGE 1 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+Alexandre Lacoste1 Nicolas Gontier1 Oleh Shliazhko1 Aman Jaiswal1,3 Kusha Sareen1,6,7 Shailesh Nanisetty1
+Joan Cabezas Manuel Del Verme 2 Omar G. Younis2 Simone Baratta2 Matteo Avalle2 Imene Kerboua7 Xing Han
+L`u6,7 Elron Bandel4 Michal Shmueli-Scheuer4 Asaf Yehudai4 Leshem Choshen4 Jonathan Lebensold5 Sean
+Hughes1 Massimo Caccia1 Alexandre Drouin1,7 Siva Reddy6,7 Tao Yu8 Yu Su9 Graham Neubig10 Dawn
+Song11
+1ServiceNow AI Research 2Silverstream.ai 3Dalhousie 4IBM Research
+5Jetty 6McGill 7Mila
+8HKU 9OSU 10CMU 11UC Berkeley
+Abstract
+The proliferation of agent benchmarks has created
+critical fragmentation that threatens research pro-
+ductivity. Each new benchmark requires substan-
+tial custom integration, creating an “integration
+tax” that limits comprehensive evaluation.We
+propose CUBE (Common Unified Benchmark
+Environments), a universal protocol standard
+built on MCP and Gym that allows bench-
+marks to be wrapped once and used every-
+where. By separating task, benchmark, pack-
+age, and registry concerns into distinct API lay-
+ers, CUBE enables any compliant platform to
+access any compliant benchmark for evaluation,
+RL training, or data generation without custom
+integration. We call on the community to con-
+tribute to the development of this standard before
+platform-specific implementations deepen frag-
+mentation as benchmark production accelerates
+through 2026.
+1. Introduction
+The field of Artificial Intelligence (AI) is experiencing a
+remarkable surge in benchmark development for AI agents.
+The research community has created an impressive ecosys-
+tem of complex, interactive environments designed to test
+the limits of autonomous agents (Yehudai et al., 2025; Mo-
+hammadi et al., 2025). This diversity presents tremendous
+opportunities: researchers can now evaluate agents across
+. Correspondence to: Alexandre Lacoste <alexan-
+dre.lacoste@servicenow.com>, Nicolas Gontier <nico-
+las.gontier@servicenow.com>.
+Preprint. March 18, 2026.
+broad task distributions and leverage large-scale training
+on varied environments. However, realizing this potential
+requires solving a critical integration challenge. The ef-
+fort required to incorporate these diverse benchmarks into
+evaluation and training pipelines has become a significant
+bottleneck. In practice, this limits which labs can afford to
+evaluate across many benchmarks, and shapes what research
+gets done as a result (Bandel et al., 2026a).
+As we move toward generalist agents, the need for a general
+framework supporting both evaluation and post-training on
+diverse task distributions becomes critical. We seek agents
+that reason, use tools (Xu et al., 2025; Shen, 2024), and
+navigate unseen environments. With proper tools and a con-
+sistent interface, a generalist agent should handle any bench-
+mark (Bandel et al., 2026c). Yet integrating new bench-
+marks remains time-consuming, forcing researchers to act
+more like systems engineers than AI scientists.
+To address this integration tax, several platforms have
+emerged, such as NeMo Gym (NVIDIA, 2025), Har-
+bor (Shaw, 2025), HAL (Kapoor et al., 2025), and OpenEnv
+(Meta PyTorch Team and Hugging Face, 2025), among oth-
+ers. These platforms integrate existing benchmarks and pro-
+vide tooling to author new environments, but each proposes
+its own environment interface. As a result, maintainers
+must build connectors to move benchmarks across them, a
+growing burden as benchmark production accelerates. Rec-
+ognizing this, the community has also begun proposing
+open benchmark interface standards: the Agentified Agent
+Assessment (AAA) paradigm in AgentBeats (AgentBeats
+Team and Berkeley RDI, 2025) and CUBE (this paper) are
+concurrent efforts sharing this motivation, though differing
+in scope and design choices, as discussed in Section 4.
+Competition between platforms is a valuable market force
+and drives innovation. They should compete on features,
+1
+arXiv:2603.15798v1  [cs.AI]  16 Mar 2026
+
+--- PAGE 2 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+usability, scalability, and other value metrics. Yet without
+a common benchmark interface, competition skews toward
+the size of their integration catalog instead.
+The Core Position
+The community needs a standard that allows
+practitioners to wrap agentic benchmarks once
+and have it work everywhere, for evaluation and
+for training, at scale.
+Any platform that implements the standard would instantly
+gain access to every compliant benchmark. This would
+eliminate redundant integration work and let us focus on
+understanding and improving agent behavior. By moving to-
+ward a universal standard, we can turn the current landscape
+of isolated silos into a thriving, interoperable ecosystem.
+The importance of multi-benchmarking cannot be overstated.
+There are currently over 300 agentic benchmarks available,
+many of which are highly innovative but remain largely
+unknown because they are too difficult to set up. By simpli-
+fying and scaling cross-benchmark evaluation, we can gain
+a much deeper understanding of agent capabilities across
+a vast distribution of tasks. Given the rapid rise of coding
+agents (Yang et al., 2024; Wang et al., 2024b; Jimenez et al.,
+2024; Deng et al., 2025) and the increasing interest in post-
+training and RL on diverse tasks (Khatri et al., 2025; Park
+et al., 2025), we forecast this number to double by the end
+of 2026. Without a standard, the field is destined for unman-
+ageable fragmentation as benchmark production outstrips
+integration capacity.
+2. The Current Landscape and its Challenges
+To understand why a standard is necessary, consider the
+engineer bridging a benchmark and a generalist agent, trans-
+lating raw implementations into agent-compatible interfaces
+through technical hurdles rarely discussed in papers.
+Unlike static datasets, agentic benchmarks require live, in-
+teractive environments (Trivedi et al., 2024; Merrill et al.,
+2026) with diverse infrastructure needs spanning web nav-
+igation (Drouin et al., 2024; Zhou et al., 2024; Koh et al.,
+2024), software engineering (Jimenez et al., 2024; Li et al.,
+2025), operating systems (Xie et al., 2024; Bonatti et al.,
+2025), and mobile devices (Rawles et al., 2025; Chen et al.,
+2025). Some require shared servers common to all tasks,
+preventing simple per-task deployment. To make it concrete,
+Table 1 summarizes the shape and challenges of 4 popular
+benchmarks.
+Furthermore, deployment on high-performance computing
+platforms often runs into port configuration conflicts. De-
+fault ports are frequently blocked, requiring custom reconfig-
+uration for every single deployment. Resource scaling also
+varies wildly, from lightweight scripts to heavy simulation
+environments that demand massive amounts of RAM and
+disk I/O. The result is an environment where reproducibil-
+ity is hampered by the sheer complexity of the underlying
+stack.
+The diversity of these requirements creates what we call
+the Integration Tax. When a researcher wants to evaluate
+an agent on five different benchmarks, they often have to
+write five unique “drivers” or “wrappers.” If they decide to
+switch from one evaluation framework to another, they must
+often start this work from scratch. This N-to-M mapping of
+agents to benchmarks is a massive waste of human capital.
+3. The CUBE Standard Proposal
+We propose CUBE (Common Unified Benchmark Envi-
+ronments), a protocol standard designed to unify the ML
+Community by establishing a universal interface between
+benchmarks and evaluation frameworks.1 The core insight
+is simple: if we define a consistent API contract, any CUBE-
+compliant benchmark becomes immediately usable by any
+CUBE-compliant platform. Whether for evaluation or post-
+training, with minimal custom integration work. Most im-
+portantly, we communicate this early to allow the commu-
+nity to steer the standard before it reaches a more rigid
+state.
+For generality and clarity, we present CUBE’s interface us-
+ing RPC (Remote Procedure Call) notation, but the standard
+supports both a Python and RPC interface (see Sec. 3.5 and
+Fig. 1). The RPC layer enables process isolation and cross-
+language communication, while the direct Python interface
+reduces cross-process serialization overhead and may lead
+to necessary speedup for some post-training applications.
+Four-layer Schema:To achieve a standard where a general-
+ist agent could interact with a new benchmark with minimal
+to no human involvement, we are mindful of 4 different
+levels of interaction:
+1. Task level:We define how agents interact with indi-
+vidual task instances, how they observe state, execute
+actions, and receive feedback (Sec. 3.1).
+2. Benchmark level:We specify how evaluation har-
+nesses discover available tasks and spawn new instances
+(Sec. 3.2).
+3. Package level:We standardize installation and paral-
+lelization across compute infrastructures (Sec. 3.3).
+4.Registry level:We provide a centralized metadata cata-
+log for discovery and filtering (Sec. 3.4)
+Each layer can be accessed either via direct Python calls
+1Reference implementation:
+github.com/The-AI-Alliance/cube-standard
+(Lacoste et al., 2026)
+2
+
+--- PAGE 3 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+Table 1.A comparative analysis of the infrastructure and operational requirements across current agentic benchmarks. The lack of
+uniformity in how these environments are hosted, controlled, and reset creates a significant overhead for cross-benchmark evaluation.
+FeatureWEBARENA
+(Zhou et al., 2024)
+SWE-BENCH
+(Jimenez et al., 2024)
+OSWORLD
+(Xie et al., 2024)
+GAIA
+(Mialon et al., 2024)
+Environment
+Type
+Simulated Web: A private
+micro-internet (GitLab, Reddit
+clone, etc.).
+Coding Workspace: A specific
+software repository and dev
+toolchain.
+Desktop OS: A full graphical
+operating system
+(Ubuntu/Windows).
+The Real World: Live internet
+access and local document sets.
+Hosting
+Format
+Benchmark-level VM: One shared
+world per task run. High AWS
+costs.
+Task-level Container:
+Lightweight, ephemeral Docker
+images per task.
+Benchmark-level VM: OS VM
+with Task-level Snapshots.
+Static Files: Task files on HF
+Hub; users provide tool
+implementations.
+Action Space
+(Tooling)
+Flexible/Provided: Playwright
+basics provided, but usually
+swapped for custom abstractions
+(e.g., BrowserGym).
+Fixed Shell: Standard
+terminal-based actions
+(Bash/Git).
+Native GUI: Hard-coded
+mouse/keyboard coordinate
+actions.
+None (BYOT): Users must build
+tools (Search, PDF reader)
+from scratch.
+Integration
+Effort
+High: Requires solving rigid
+networking (port mapping) and
+building a perception bridge to the
+HTML.
+Moderate: Standard Docker
+orchestration; agents speak
+Terminal natively.
+Moderate: Authors provide the
+VM/API, but vision-to-action
+grounding is a high hurdle.
+High: The researcher must
+provide a broad range of tools.
+Scalability
+Bottleneck
+State Reset Latency:VMs require
+high resources. Benchmark
+recommends sequential evaluation
+of all tasks.
+Disk I/O Churn: Constant
+building/pulling of unique task
+images saturates the filesystem.
+RAM & Snapshots: 20 GB+
+memory per agent and heavy disk
+I/O for state resets.
+API & Rate Limits: Capped by
+external search quotas and
+LLM token costs.
+for same-process execution or via RPC for distributed and
+cross-platform scenarios.
+This separation of concerns is deliberate. A benchmark au-
+thor implements their environment once in Python, exposing
+the required methods as a standard class. The CUBE frame-
+work automatically provides the RPC wrapper, meaning the
+benchmark becomes immediately usable both locally and
+remotely without additional work. A platform developer
+can point their harness at any CUBE benchmark and im-
+mediately begin evaluation, choosing between local Python
+instantiation for performance or RPC connection for flexi-
+bility. A researcher can filter and install benchmarks based
+on their available compute resources, without reading docu-
+mentation or reverse-engineering setup scripts.
+3.1. Task-Level Interface
+The task-level interface defines how agents interact with
+individual task instances. At its core, an agent needs to
+observe the environment’s state, execute actions, and receive
+feedback on its progress. The Gym interface (Towers et al.,
+2024; Brockman et al., 2016) established this pattern for RL,
+but modern agent benchmarks introduce new requirements
+that demand extensions to the traditional blocking step
+function.
+The Async Problem:Consider an agent navigating a re-
+search task that requires web search. When the agent calls a
+search API, waiting 3 seconds for results while blocking all
+other operations is inefficient. The agent should be able to
+plan its next move, process partial results, or manage mul-
+tiple concurrent tool calls. Benchmarks like ARE (Froger
+et al., 2025) and GAIA-2 (Lab et al., 2026) explicitly re-
+quire this asynchronous capability, where agents coordinate
+multiple long-running operations without blocking. The
+traditional Gym step function, designed for synchronous
+state transitions, cannot support these patterns.
+MCP + Gym Fusion:CUBE addresses this by building on
+the Model Context Protocol (MCP), which already defines a
+non-blocking tools/call API for asynchronous action
+execution. MCP also handles automatic action space discov-
+ery through tools/list2, eliminating the need for agents
+to know tool signatures in advance. We augment MCP
+with Gym-style evaluation semantics: cube/evaluate
+returns reward and termination status, cube/reset reini-
+tializes tasks with optional seeding, and cube/close han-
+dles cleanup. This fusion creates a superset where both
+established APIs can be recovered, and a new async-Gym
+API supports non-blocking interaction patterns.
+Tool Configuration:Many benchmarks are designed ag-
+nostically to the specific tools used for task completion. For
+example, WebArena (Zhou et al., 2024) defines the environ-
+ment, task descriptions, and evaluation functions, but leaves
+browser interaction mechanisms to the agent designer. This
+design choice enables comparative evaluation of different
+browser automation tools. However, without specified tools,
+benchmarks cannot expose Gym or MCP interfaces. CUBE
+resolves this by requiring benchmark authors to wrap their
+environments with default tools, enabling immediate usabil-
+ity. To preserve tool variability for research, benchmarks
+accept a tool config parameter at initialization (see Sec-
+tion 3.3), allowing researchers to substitute alternative tool
+implementations without modifying the benchmark code.
+Benchmarks provide domain-appropriate tools matched to
+2Gym also provides action space, but MCP’s format is
+more aligned with LLM expectations
+3
+
+--- PAGE 4 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+their environment types. Browser-based benchmarks ship
+with web automation tools, coding benchmarks provide shell
+access, and GUI benchmarks offer mouse and keyboard con-
+trol. Researchers can reconfigure these tools at benchmark
+initialization through the tool config parameter (see
+Section 3.3), enabling experiments with different tool im-
+plementations without modifying the benchmark itself.
+Privileged Information for Evaluation:Beyond basic task
+execution, CUBE supports scalable evaluation infrastruc-
+ture through privileged information. As task repositories
+expand, manual analysis of agent behavior becomes infeasi-
+ble, leading practitioners to rely on automated judge-based
+evaluation for large-scale failure analysis. However, LLM-
+based judges suffer from well-documented limitations (L`u
+et al., 2025) and frequently misidentify failure root causes.
+To enhance judge accuracy, we standardize the communi-
+cation of privileged information at both the task and step
+levels through the info field. This information may in-
+clude the evaluation function’s source code, ground-truth
+answers, or concise summaries of the environment’s internal
+state. Benchmark designers curate this optional field to fa-
+cilitate more accurate failure diagnosis. Beyond evaluation,
+privileged information enables privileged policy distillation
+during training, where a student policy learns from a teacher
+with access to additional context, and aids in identifying
+benchmarks with erroneous evaluation logic or ambiguous
+task specifications.
+Table 2 details the complete API. The MCP methods handle
+action execution and tool discovery. The CUBE-specific
+methods extend this with evaluation semantics and privi-
+leged information access.
+RPC separation
+Task
+Tools
+MCP
+CUBE-Task
+RPC-Client
+Gym-API
+Environment
+Task
+Tools
+Gym-API
+Environment
+Figure 1.Task-level diagram for CUBE’s API.Left:Separation
+between tasks and tools and the possibility to reconfigure the
+tools. Only the Gym-API is exposed.Right:By implementing
+base classes, CUBE’s implementation can automatically expose
+an RPC layer, including the well-known MCP API. On the client
+side, the Gym-API is exposed.
+3.2. Benchmark-Level Interface
+The benchmark-level interface (also available as both
+Python methods and RPC endpoints) manages shared infras-
+tructure and orchestration. While the task-level interface
+handles individual agent-environment interactions, many
+benchmarks require shared infrastructure that spans multiple
+tasks. WebArena (Zhou et al., 2024), for instance, deploys
+a persistent set of web services (GitLab, e-commerce sites,
+forums) that form a coherent “micro-internet”. OSWorld
+(Xie et al., 2024) maintains a full desktop operating system
+with pre-installed applications. These benchmark-level re-
+sources are expensive to initialize and are designed to be
+reused across many task instances.
+The benchmark-level interface exists to manage this shared
+infrastructure and to provide discovery and orchestration
+capabilities. Table 3 specifies the required methods. The
+cube/info endpoint returns metadata about the bench-
+mark, including its name, version, and resource require-
+ments. The cube/tasks method lists available tasks,
+supporting pagination and filtering for benchmarks with
+large task sets.
+Task instantiation occurs through cube/spawn, which ac-
+cepts a task identifier and an optional random seed. The
+seed parameter is required for benchmarks with stochas-
+tic task generation or variable initial states. For instance,
+a benchmark might generate synthetic websites with ran-
+domized layouts, requiring seed control for reproducibility.
+Upon spawning, the benchmark returns a URL endpoint
+for the new task instance. This endpoint exposes the task-
+level API described in Section 3.1. The separation between
+benchmark and task endpoints enables efficient resource
+sharing. A single benchmark server can manage dozens of
+concurrent task instances, each with its own isolated state,
+while sharing the underlying infrastructure. The task-level
+API naturally supports asynchronous execution patterns and
+multi-agent scenarios: multiple agents can interact with
+the same task instance or separate instances simultaneously,
+with the benchmark coordinating state updates and turn-
+taking as needed.
+The cube/status method provides health monitoring for
+active tasks, reporting resource usage and connection status.
+Finally, cube/shutdown handles cleanup, accepting an
+optional session identifier to terminate specific tasks or, if
+omitted, shutting down all active instances.
+3.3. Package-Level Standard
+The main responsibility of the package-level standard is to
+expose a hook for starting the RPC server (if requested)
+and initializing the common resources. After package in-
+stallation, users or harnesses can use the following Python
+API:
+4
+
+--- PAGE 5 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+Table 2.Task-Level API. Methods available as both Python class methods (e.g., task.reset()) and RPC endpoints (e.g.,
+cube/reset). The first part is the well-known MCP protocol. The second part adds observation, step, and evaluation functions
+aligned with the Gym API.
+Method Namespace For Arguments Returns Description
+tools/list MCP Agent none Tool[] List actions
+tools/callMCPAgent{name, args} {content[], isError}Execute action
+resources/list MCP Agent none Resource[] List resources
+resources/readMCPAgent{uri} {contents[]}Read obs/task
+cube/evaluate CUBE Harness none {obs, reward, terminated,
+truncated, info}
+Eval state
+cube/resetCUBEHarness{seed?} {obs, info}Reset task
+cube/step CUBE Agent {action} {obs, reward, terminated,
+truncated, info}
+Execute action and
+evaluate
+cube/close CUBE Harness none void Cleanup
+cube/privileged infoCUBEHarnessnoneString Privileged context for
+judge-based evaluation
+Table 3.Benchmark-Level API. Methods available as both Python class methods and RPC endpoints for discovering benchmarks, listing
+tasks, and orchestrating task instances. Each spawned task exposes its own Task-Level API endpoint.
+Method Namespace For Arguments Returns Description
+cube/info CUBE Harness none BenchmarkInfo Benchmark metadata
+cube/tasksCUBEHarness{filter?}TaskListList available tasks
+cube/spawn CUBE Harness {task id,
+seed?}
+url Start task, return end-
+point
+cube/statusCUBEHarnessnoneTaskStatus[]Health of running tasks
+cube/shutdown CUBE Harness {session id?} void Cleanup all or specific
+importmy_cube
+benchmark = my_cube.Benchmark()
+benchmark.start(available_ports, tool_config)
+A corresponding command-line interface is also exposed
+for non-Python access.
+Separating What from How:CUBE separateswhata
+benchmark requires fromhowthose resources are pro-
+visioned. Benchmark authors declare resource require-
+ments through typed configuration objects ( VMConfig,
+ContainerConfig), while harness operators supply a
+matching backend that handles provisioning. Pluggable
+backends cover the full range of compute environments,
+from local development to cloud containers, major cloud
+VM providers, and SLURM-based HPC clusters. Switching
+from local to cloud requires changing a single backend con-
+figuration object, with no benchmark code changes. CUBE
+also distinguishesbenchmark-levelshared resources (e.g.,
+the persistent web server that WebArena shares across all
+task instances) fromtask-levelresources (e.g., a per-task
+container). Benchmark authors initialize shared resources
+once in Benchmark.setup(), making them available
+through aRuntimeContextpassed to each task.
+Debug Tasks and Debug Agent:To ensure correctness
+and enable continuous integration, every CUBE package
+must expose two additional elements at the Python level:
+get debug task configs(), which returns a small
+set of representative task configurations with known correct
+behavior, and make debug agent(task id), which
+returns a scripted agent guaranteed to solve a given debug
+task. These primitives allow any consumer of the bench-
+mark, or the CUBE compliance suite itself, to run a full
+episode end-to-end and assert that the reward reaches 1.0,
+without requiring a live language model. This makes CUBE
+benchmarks testable in standard CI pipelines.
+Stress Testing and Compliance:Beyond basic correctness,
+CUBE defines a stress test suite that validates benchmark
+behavior under parallel load and resource constraints. This
+includes verifying that task resets are idempotent, that con-
+current task instances remain isolated, and that resource
+usage stays within declared bounds. A benchmark that
+5
+
+--- PAGE 6 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+passes the stress suite earns a compliance badge visible in
+the registry, giving platform developers confidence before
+large-scale integration.
+3.4. CUBE Registry
+The CUBE Registry serves as a centralized discovery mech-
+anism for available benchmarks. Without a registry, re-
+searchers must rely on word-of-mouth, social media an-
+nouncements, or manual literature searches to find relevant
+evaluation environments. This creates a significant barrier
+for newer benchmarks, which may remain unknown despite
+their technical merit simply because they lack visibility in
+the community.
+Table 4 specifies the metadata required for each registered
+benchmark. Beyond basic identification fields like name
+and version, the registry captures critical operational in-
+formation that enables automated filtering. The runtime
+field specifies the deployment model (Docker, Apptainer,
+VM, or live internet access), allowing researchers to im-
+mediately exclude benchmarks incompatible with their in-
+frastructure. The hardware object details resource re-
+quirements, preventing researchers from attempting to run
+memory-intensive benchmarks on constrained systems.
+The registry also addresses legal and compliance con-
+cerns that often block benchmark adoption. The
+package license and benchmark license fields
+distinguish between the wrapper code license and the un-
+derlying task data license, as these often differ. The
+content notice field warns about special considera-
+tions, such as benchmarks containing cloned websites or
+copyrighted materials.
+Crucially, the registry does not host benchmark code or data.
+It simply indexes metadata and points to standard distribu-
+tion platforms like PyPI via thepackage field. This design
+keeps the registry lightweight and ensures that benchmark
+authors retain full control over their distributions. To ensure
+quality, once a benchmark is registered, it triggers a GitHub
+job to verify compliance.
+This automated discovery mechanism democratizes bench-
+mark visibility. A graduate student publishing a novel bench-
+mark can register it once and immediately make it discov-
+erable to the entire community, without requiring social
+media threads, blog posts, or conference presentations to
+gain adoption. This enables broader evaluation across di-
+verse benchmark suites (Liu et al., 2023; Ma et al., 2024;
+Wang et al., 2024a) and tool-use scenarios (Wang et al.,
+2025; Lei et al., 2025; Luo et al., 2025).
+3.5. Python-First Design with RPC Fallback
+CUBE supports both local (same-process) and remote (RPC)
+execution through a unified interface. Benchmark authors
+implement Python classes; CUBE auto-generates RPC
+servers exposing identical methods over HTTP. Switching
+modes requires only connection changes.
+Local execution eliminates serialization, reducing latency
+for high-frequency RL loops and enabling unified debug-
+ging. Remote execution handles: (1) non-containerizable
+production benchmarks, (2) cross-platform scenarios, (3)
+multi-language ecosystems, and (4) fault isolation.
+3.6. Adoption Strategy
+CUBE faces a classic two-sided adoption challenge: plat-
+forms will hesitate to implement the standard without a crit-
+ical mass of compliant benchmarks, and benchmark authors
+will hesitate to wrap their environments without platform
+demand. We break this deadlock by recruiting an initial
+consortium of early platform supporters who are committed
+to implementing reference connectors, while simultaneously
+wrapping a high-value corpus that provides those platforms
+with immediate utility.
+Call for CollaborationThe authorship of this proposal
+spans major technology companies, academic laboratories,
+and startups, organizations that independently converged on
+the Integration Tax as a bottleneck to their own research.
+This convergence is itself evidence that the problem de-
+mands a coordinated response rather than competing propri-
+etary solutions.
+Initial implementationWe propose to deliver a reference
+architecture of the CUBE standard as a starting point for
+community feedback, alongside an initial corpus of wrapped
+benchmarks spanning web navigation, software engineering,
+and desktop environments. By building reference connec-
+tors for platforms such as NVIDIA NeMo Gym and Ope-
+nEnv, we ensure that this corpus has immediate consumabil-
+ity in existing training and evaluation infrastructure. This
+dual initiative—benchmarks and connectors—is designed
+to demonstrate the standard’s value and enable immediate
+collaboration with the broader community.
+Direct Benchmark Creator OutreachWe will directly
+engage authors of recently published benchmarks, offering
+integration support and highlighting the viability benefits
+of registry inclusion. For benchmark authors, CUBE solves
+the discovery problem: wrap once, and gain immediate
+access to the ecosystems of every training and evolution
+platform with CUBE-support. We will provide integration
+templates and registry submission assistance to minimize
+barriers, targeting critical mass by the end of 2026.
+6
+
+--- PAGE 7 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+Table 4.Registry Fields. Each registered benchmark exposes this metadata for discovery, installation, and compliance verification.
+Field Type Description
+id string Unique identifier (e.g.,webarena-verified)
+name string Human-readable name
+version string Semantic version (e.g.,1.2.0)
+authors string[] Package authors
+paper string? Related paper URL (if any)
+package string PyPI package name forpip install
+benchmark license string Benchmark data/tasks license (e.g.,CC-BY-NC-4.0)
+content notice string? Copyright warning (e.g.,"Contains cloned websites")
+compliance string[] Compliance badges (e.g.,["no-docker-root", "task-isolated"])
+runtime enum docker|apptainer|vm|docker-root|docker-in-docker|live
+hardware object {ram gb, gpu, disk gb}
+task count int Number of tasks in benchmark
+Table 5.Comparison of CUBE with existing agent benchmark frameworks, based on features and documentation at the time of writing.
+Feature CUBE NeMo Gym AgentBeats OpenEnv Harbor
+Primary Focus Protocol standard for
+wrapping benchmarks once,
+usable for evaluation, RL
+training, and data
+generation
+Infrastructure to develop
+environments and scale
+rollout collection,
+battle-tested in Nemotron 3
+Evaluation orchestration;
+benchmarks become judge
+agents assessing subject
+agents via A2A and MCP
+Framework for creating and
+sharing new RL
+environments; standardizes
+the environment side of
+post-training
+Evaluation and RL rollout
+framework; adapts existing
+benchmarks into a standard
+container-based format
+Coverage 9 CUBEs (early stage);
+wraps any benchmark type
+including
+shared-infrastructure and
+VM-based ones
+40+ environments across
+math, coding, tool use, and
+safety, and integrations
+with other environment
+libraries and benchmarks
+250+ benchmarks across 17
+domains, covering both
+static datasets (GAIA,
+SWE-Bench) and
+interactive environments
+30+ environments across
+coding, games, web, and
+simulation; designed for
+new environment creation
+46+ adapters for
+established benchmarks
+(SWE-Bench,
+Terminal-Bench, GPQA,
+ARC-AGI-2) with parity
+validation
+Agent Interface MCPtools/callfor
+actions; Gym-style
+cube/reset,
+cube/step,
+cube/evaluate
+Tools contract through
+OpenAI Responses API
+spec; flexible Agent
+scaffolding, easy to plug in
+any environment and
+Gym-like APIs
+implementable through
+HTTP servers
+A2A for task delegation;
+MCP for tool access;
+judge + subject + delegator
+roles
+HTTP Gym API
+(reset/step/state);
+MCP tool-calling interface
+for agent-environment
+interaction
+Wraps full coding agents
+(Claude Code, OpenHands,
+etc.); MCP servers
+configurable per task; ATIF
+trajectory format
+RL Training Gym-compatible
+evaluate/reset/step;
+Python in-process for
+low-latency loops
+Ray-powered rollout;
+NeMo RL, OpenRLHF,
+Unsloth integrations
+Gym-to-MCP bridge
+available; primarily an
+evaluation platform
+TRL, TorchForge, Unsloth,
+SkyRL integrations;
+composable Rubric reward
+system
+QueueOrchestrator for
+dynamic RL loops; ATIF
+captures token IDs and
+logprobs
+Adding a New
+Benchmark
+Implement a Python class
+once; works across all
+CUBE-compatible
+platforms via thin
+connectors
+Supports integrating
+benchmarks and creating
+new environments via
+separation of concerns
+between the Agent Harness
+and Environment
+Resources
+Implement a judge agent
+(A2A + MCP)
+Design a Docker
+environment with FastAPI
+and MCP tools; supports
+both new environments and
+wrappers around existing
+frameworks
+Writetask.toml+
+instruction.md+
+Dockerfile +test.sh;
+Harbor-specific
+Scale &
+Deployment
+CUBE-harness uses Ray
+for parallel rollout;
+benchmarks declare
+resource requirements
+(what), while pluggable
+backends dispatch to local
+or cloud infrastructure
+(how)
+Async first, server-based
+design; Ray for thousands
+of parallel rollouts
+Five operation modes from
+local development to hosted
+deployment; GitHub
+Actions CI used for
+competition leaderboards
+Docker locally;
+HuggingFace Spaces for
+sharing; Kubernetes for
+scaling
+Docker, Daytona, Modal,
+E2B, GKE;
+QueueOrchestrator for
+parallel trials
+Registry &
+Discovery
+Structured metadata:
+licenses, compliance
+badges, hardware
+requirements, runtime type
+Structured metadata:
+licenses, environment
+profiling, description, value;
+environments on GitHub,
+datasets on HuggingFace
+Registry for judge and
+subject agents; leaderboard
+and web UI
+HuggingFace Hub with
+from hub()discovery;
+tool registry planned
+harborframework.com;
+dataset@version
+versioning; 46+ curated
+adapters
+4. Related Work
+The problem of benchmark fragmentation and the need for
+a unified evaluation infrastructure have been recognized by
+several communities, leading to a variety of platforms that
+attempt to address different aspects of this challenge (Bandel
+et al., 2026b). We organize our discussion by first examin-
+ing domain-specific platforms that unify benchmarks within
+7
+
+--- PAGE 8 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+a particular task category, then surveying broader platforms
+that attempt cross-domain coverage, before presenting a de-
+tailed comparison of how these approaches relate to CUBE.
+4.1. Domain-Specific Unification Efforts
+Several platforms have emerged to standardize evaluation
+within specific task categories. BrowserGym (de Chezelles
+et al., 2025) provides a unified Gym-like environment for
+web agent research, integrating multiple web agent bench-
+marks under a common observation and action space. This
+ecosystem has significantly reduced fragmentation within
+the web agent community and demonstrated the value of
+standardized interfaces. However, BrowserGym is inher-
+ently limited to browser-based tasks and does not extend
+to other agent modalities such as terminal environments,
+desktop GUI control, or multi-modal reasoning tasks. Simi-
+larly, CUA-Bench (Team, 2025) and related computer-use
+benchmarks focus specifically on desktop GUI interactions,
+while coding agent benchmarks like SWE-bench (Jimenez
+et al., 2024) maintain their own evaluation harnesses. Each
+of these efforts represents valuable progress within its re-
+spective domains, but the proliferation of domain-specific
+standards compounds rather than resolves the overall frag-
+mentation problem.
+4.2. Broader Platform Efforts
+Several platforms provide infrastructure for agent evaluation
+or training with some level of generality.
+NeMo GymNVIDIA’s NeMo Gym (NVIDIA, 2025) pro-
+vides a high-performance suite of RL training environments
+for domain-specific LLM tasks, including mathematics, sci-
+ence, coding, and tool-use. Rather than a specific envi-
+ronment interface, it introduces a highly scalable architec-
+ture that enforces a separation of concerns between the
+Agent Scaffolding/Harness , the Environment
+Resources, and the LLM Model APIs . By decoupling
+these components, NeMo Gym allows for independent scal-
+ing of compute-intensive models and complex environment
+simulations. NeMo Gym’s contribution to standardization
+is mainly at the training harness layer, making it comple-
+mentary to CUBE’s focus on benchmark packaging and
+cross-platform portability.
+AgentBeatsAgentBeats (AgentBeats Team and Berke-
+ley RDI, 2025) proposes an Agentified Agent Assessment
+(AAA) paradigm where benchmarks are realized as judge
+agents that evaluate subject agents through standardized
+A2A and MCP protocols, reducing N×M agent-benchmark
+integrations to N+M protocol-level ones. The platform sup-
+ports five operation modes from local development to hosted
+deployment, and hosts a public registry of assessments span-
+ning coding, web, and multi-agent domains. These layers
+are composable: an AgentBeats judge agent could consume
+a CUBE-compliant benchmark through a thin connector,
+combining CUBE’s portable infrastructure packaging with
+AgentBeats’ evaluation protocol.
+OpenEnvMeta and Hugging Face’s OpenEnv (Meta
+PyTorch Team and Hugging Face, 2025) provides a
+Gymnasium-style framework for creating and sharing RL
+training environments via a centralized HuggingFace Hub,
+with native integrations into TRL, TorchForge, Unsloth,
+SkyRL, and other training frameworks. An MCP tool-
+calling interface is available for agent-environment inter-
+action, and a composable Rubric reward system is in ac-
+tive development. OpenEnv covers both new environ-
+ments and wrappers around existing frameworks, including
+BrowserGym benchmarks (WebArena, VisualWebArena,
+WorkArena). Benchmarks requiring shared infrastructure
+must be provisioned externally by the user via environment
+variables; OpenEnv provides no lifecycle management for
+shared services or VM snapshots.
+HarborHarbor (Shaw, 2025) emerged from Terminal-
+Bench as a framework for evaluating agents and generat-
+ing RL rollouts in container environments, with cloud de-
+ployment via Daytona, Modal, E2B, GKE, and Runloop.
+The framework integrates benchmarks throughadapters
+validated via parity experiments, and introduces the ATIF
+trajectory format capturing token IDs, logprobs, and tool
+definitions for RL and SFT pipelines; a QueueOrchestrator
+supports dynamic parallel rollout loops. MCP servers are
+configurable per task, and Harbor is designed to wrap full
+coding agents (Claude Code, OpenHands, Codex CLI, and
+others) rather than exposing a raw execution API. The per-
+task container model does not include lifecycle management
+for persistent shared infrastructure across tasks, which is
+reflected in the current adapter catalog not including bench-
+marks such as WebArena or OSWorld.
+HALThe Holistic Agent Leaderboard (HAL) (Kapoor
+et al., 2025) from Princeton provides cost-controlled bench-
+marking across coding, web, science, and customer ser-
+vice domains. Its three-dimensional analysis (models, scaf-
+folds, benchmarks) and LLM-aided log inspection offer
+valuable insights. However, it serves as an evaluation leader-
+board rather than a training infrastructure, without Gym-
+compatible semantics, MCP-native tools, or support for RL
+rollout generation.
+ExgenticExgentic, introduced inGeneral Agent Evalua-
+tion, is a practical framework for evaluating general agents
+across heterogeneous benchmarks through a Unified Proto-
+col that mediates between agent interfaces and benchmark
+protocols. It is designed so that any supported agent can
+be run on any supported benchmark task while preserving
+8
+
+--- PAGE 9 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+native agent and benchmark behavior through external adap-
+tors rather than intrusive modifications. The framework
+emphasizes scalable, reproducible evaluation, with support
+for parallel execution, isolated runs, standardized trajecto-
+ries and cost reports, and an open general-agent leaderboard
+(Bandel et al., 2026a;c;b). While Exgentic focuses on trans-
+lating between heterogeneous existing protocols to enable
+unified evaluation, it does not primarily aim to specify the
+benchmark interface standard that should be adopted going
+forward; this is the layer CUBE targets.
+4.3. Comparison Summary
+Table 5 presents a detailed comparison of these platforms
+across key dimensions. The fundamental insight is that ex-
+isting platforms have evolved from specific niches: NeMo
+Gym from RL training, AgentBeats from competition in-
+frastructure, OpenEnv from the HuggingFace ecosystem,
+Harbor from SWE evaluation, and HAL from academic
+benchmarking. Each serves its origin community well, and
+together they address the agentic stack from complementary
+angles. The benchmark packaging and infrastructure lifecy-
+cle layer (how benchmarks declare resource requirements,
+manage shared services across tasks, and expose a portable
+interface independent of any particular harness) is the spe-
+cific gap CUBE addresses by defining a minimal interface
+contract that any platform can implement, enabling bench-
+marks to be wrapped once and used everywhere, regardless
+of whether the downstream application is evaluation, train-
+ing, or data generation.
+5. Alternative Views
+The Status Quo: Let Market Forces DecideThe
+most common alternative maintains the current compet-
+itive landscape, letting natural selection determine dom-
+inance. However, platforms are already fragmenting by
+focus—evaluation vs. training, or domain-specific vs gen-
+eral—suggesting no single winner will emerge but rather
+multiple platforms adopted by research area. As noted in
+Section 1, without a shared interface, this competition skews
+towards integration catalog size, distracting from innovation
+while producing a divided ecosystem where platform choice
+determines benchmark access rather than technical merit.
+The “wait for a winner” strategy may simply result in per-
+manent fragmentation organized by subfield rather than true
+consolidation.
+Lighter-Weight AlternativesRather than a comprehen-
+sive standard, the community could adopt lighter-weight
+solutions such as converter libraries that translate between
+existing platform formats or middleware layers that provide
+adapters without requiring changes to underlying bench-
+marks. Alternatively, the focus could shift from integration
+to curation, where the community selects a small canonical
+set of benchmarks that provide sufficient coverage of agent
+capabilities, eliminating the integration scaling problem
+by simply reducing the number of targets. This approach
+acknowledges that not all benchmarks need to be equally
+accessible and that research progress may be better served
+by depth on a few well-understood tasks rather than breadth
+across hundreds of environments. Yet converter libraries
+still require someone to write N-to-M translation layers,
+merely shifting the integration burden rather than elimi-
+nating it, and they introduce additional failure modes and
+maintenance overhead. Benchmark curation, while valu-
+able, conflicts with the goal of building generalist agents
+that should succeed across diverse task distributions. Re-
+stricting evaluation to a small set risks overfitting our agent
+designs to those specific environments, and history suggests
+that canonical benchmark sets calcify and become divorced
+from real-world performance as the field advances.
+Alternative Technical DesignsCUBE’s specific design
+choices are debatable. Critics might prefer explicit async
+primitives as first-class features, a simpler standard with
+fewer abstraction layers, pure Gym without MCP, or
+message-passing over RPC. The benchmark/task interface
+separation and centralized registry add complexity that may
+be unnecessary for some use cases. These concerns are
+valid. However, the key insight is not that CUBE’s design
+is optimal, but that some standard is necessary. Building
+on established protocols like MCP and Gym minimizes the
+learning curve. The design should evolve through commu-
+nity feedback, but waiting for perfection ensures we never
+escape current fragmentation.
+6. The Path Forward: A Call to Action
+The transition to a standard is never easy. It requires a collec-
+tive agreement to prioritize interoperability over individual
+framework growth. However, the current trajectory of agent
+research is leading toward a fragmentation that will even-
+tually stifle progress. We are spending too much time on
+DevOps and not enough time on AI.
+We call on the authors of new evaluation platforms and
+benchmarks to join this effort. By adopting a standard like
+CUBE, we can ensure that every new benchmark is imme-
+diately available to the entire research community. We can
+create a world where a new breakthrough in agent architec-
+ture can be tested against hundreds of diverse environments
+within hours, rather than weeks.
+The draft proposal presented here is just the beginning. We
+need a community-driven process to refine the API, de-
+fine compliance levels, and build the registry. We invite
+researchers, developers, and platform owners to contribute
+to this discussion. The goal is shared infrastructure that
+9
+
+--- PAGE 10 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+lowers the barrier for everyone, not a mandate on how to do
+research.
+References
+AgentBeats Team and Berkeley RDI. Agentbeats: To-
+wards agentified agent assessment (aaa). https://
+agentbeats.org, 2025. Platform for standardized
+agent evaluation using the Agentified Agent Assessment
+paradigm.
+Bandel, E., Yehudai, A., Eden, L., Sagron, Y ., Perlitz, Y .,
+Venezian, E., Razinkov, N., Ergas, N., Ifergan, S. S.,
+Shlomov, S., Jacovi, M., Choshen, L., Ein-Dor, L.,
+Katz, Y ., and Shmueli-Scheuer, M. General agent eval-
+uation, 2026a. URL https://arxiv.org/abs/
+2602.22953.
+Bandel, E., Yehudai, A., Eden, L., Sagron, Y ., Perlitz, Y .,
+Venezian, E., Razinkov, N., Ergas, N., Shachor Ifergan,
+S., Shlomov, S., Jacovi, M., Choshen, L., Ein-Dor,
+L., Katz, Y ., and Shmueli-Scheuer, M. General agent
+evaluation. InICLR Blogposts, 2026b. URL https:
+//iclr-blogposts.github.io/2026/blog/
+2026/general-agent-evaluation/.
+Bandel, E., Yehudai, A., Lacoste, A., Ghosh, A., Neubig, G.,
+Mitchell, M., Shmueli-Scheuer, M., and Choshen, L. Po-
+sition: Agentic systems should be general. InICLR 2026
+Workshop on Agents in the Wild, 2026c. URL https:
+//openreview.net/forum?id=CbJpizP0vJ.
+Bonatti, R., Zhao, D., Bonacci, F., Dupont, D., Abdali, S., Li,
+Y ., Lu, Y ., Wagle, J., Koishida, K., Bucker, A., Jang, L. K.,
+and Hui, Z. Windows agent arena: Evaluating multi-
+modal OS agents at scale. InF orty-second International
+Conference on Machine Learning, 2025. URL https:
+//openreview.net/forum?id=W9s817KqYf.
+Brockman, G., Cheung, V ., Pettersson, L., Schneider, J.,
+Schulman, J., Tang, J., and Zaremba, W. Openai gym.
+ArXiv, abs/1606.01540, 2016. URL https://api.
+semanticscholar.org/CorpusID:16099293.
+Chen, J., Yuen, D., Xie, B., Yang, Y ., Chen, G., Wu, Z., Yix-
+ing, L., Zhou, X., Liu, W., Wang, S., Zhou, K., Shao, R.,
+Nie, L., Wang, Y ., HAO, J., Wang, J., and Shao, K. SPA-
+BENCH: A COMPREHENSIVE BENCHMARK FOR
+SMARTPHONE AGENT EV ALUATION. InThe Thir-
+teenth International Conference on Learning Represen-
+tations, 2025. URL https://openreview.net/
+forum?id=OZbFRNhpwr.
+de Chezelles, T. L. S., Gasse, M., Lacoste, A., Caccia,
+M., Drouin, A., Boisvert, L., Thakkar, M., Marty, T.,
+Assouel, R., Shayegan, S. O., Jang, L. K., L `u, X. H.,
+Yoran, O., Kong, D., Xu, F. F., Reddy, S., Neubig, G.,
+Cappart, Q., Salakhutdinov, R., and Chapados, N. The
+browsergym ecosystem for web agent research.Transac-
+tions on Machine Learning Research, 2025. ISSN 2835-
+8856. URL https://openreview.net/forum?
+id=5298fKGmv3. Expert Certification.
+Deng, X., Da, J., Pan, E., He, Y ., Ide, C., Garg, K., Lauf-
+fer, N., Park, A., Pasari, N., Rane, C., Sampath, K., Kr-
+ishnan, M., Kundurthy, S., Hendryx, S. M., Wang, Z.,
+Zhang, C. B. C., Jacobson, N., Liu, B., and Kenstler,
+B. Swe-bench pro: Can ai agents solve long-horizon
+software engineering tasks?ArXiv, abs/2509.16941,
+2025. URL https://api.semanticscholar.
+org/CorpusID:281421060.
+Drouin, A., Gasse, M., Caccia, M., Laradji, I. H., Del Verme,
+M., Marty, T., Vazquez, D., Chapados, N., and Lacoste,
+A. Workarena: How capable are web agents at solving
+common knowledge work tasks? InInternational Con-
+ference on Machine Learning, pp. 11642–11662. PMLR,
+2024.
+Froger, R., Do, V ., Garreau, E., Gaya, J.-B., Laurenc ¸on, H.,
+Lecanu, M., Malkan, K., Mekala, D., Mialon, G., M´enard,
+P., Bertran, G. M.-T., Piterbarg, U., Rita, M., Rusakov,
+A., Scialom, T., Wang, M., et al. Are: Scaling up agent
+environments and evaluations, 2025. URL https://
+arxiv.org/abs/2509.17158.
+Jimenez, C. E., Yang, J., Wettig, A., Yao, S., Gaunt, K.,
+Juefe-Xu, F., and Narasimhan, K. Swe-bench: Can lan-
+guage models resolve real-world github issues? InThe
+Twelfth International Conference on Learning Represen-
+tations (ICLR), 2024.
+Kapoor, S., Stroebl, B., Kirgis, P., Nadgir, N., Siegel, Z. S.,
+Wei, B., Xue, T., Chen, Z., Chen, F., Utpala, S., Ndzomga,
+F., Oruganty, D., Luskin, S., Liu, K., Yu, B., Arora, A.,
+Hahm, D., Trivedi, H., Sun, H., Lee, J., Jin, T., Mai,
+Y ., Zhou, Y ., Zhu, Y ., Bommasani, R., Kang, D., Song,
+D., Henderson, P., Su, Y ., Liang, P., and Narayanan, A.
+Holistic agent leaderboard: The missing infrastructure
+for ai agent evaluation, 2025. URL https://arxiv.
+org/abs/2510.11977.
+Khatri, D., Madaan, L., Tiwari, R., Bansal, R., Duvvuri,
+S. S., Zaheer, M., Dhillon, I. S., Brandfonbrener, D.,
+and Agarwal, R. The art of scaling reinforcement
+learning compute for llms.ArXiv, abs/2510.13786,
+2025. URL https://api.semanticscholar.
+org/CorpusID:282102889.
+Koh, J. Y ., Lo, R., Jang, L., Duvvur, V ., Lim, M. C., Huang,
+P.-Y ., Neubig, G., Zhou, S., Salakhutdinov, R., and
+Fried, D. Visualwebarena: Evaluating multimodal agents
+on realistic visual web tasks.ArXiv, abs/2401.13649,
+10
+
+--- PAGE 11 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+2024. URL https://api.semanticscholar.
+org/CorpusID:267199749.
+Lab, M. A. et al. Gaia2: Benchmarking llm agents on
+dynamic and asynchronous environments. InInterna-
+tional Conference on Learning Representations (ICLR),
+2026. URL https://openreview.net/forum?
+id=9gw03JpKK4.
+Lacoste, A. et al. CUBE: Common unified bench-
+mark environments – reference implementation.
+https://github.com/The-AI-Alliance/
+cube-standard, 2026.
+Lei, F., Yang, Y ., Sun, W., and Lin, D. Mcpverse: An
+expansive, real-world benchmark for agentic tool
+use.ArXiv, abs/2508.16260, 2025. URL https:
+//api.semanticscholar.org/CorpusID:
+280709049.
+Li, B., Wu, W., Tang, Z., Shi, L., Yang, J., Li, J., Yao,
+S., Qian, C., Hui, B., Zhang, Q., Yu, Z., Du, H., Yang,
+P., Lin, D., Peng, C., and Chen, K. Prompting large
+language models to tackle the full software development
+lifecycle: A case study. InCOLING, pp. 7511–7531,
+2025. URL https://aclanthology.org/2025.
+coling-main.502/.
+Liu, X., Yu, H., Zhang, H., Xu, Y ., Lei, X., Lai, H., Gu, Y .,
+Gu, Y ., Ding, H., Men, K., Yang, K., Zhang, S., Deng, X.,
+Zeng, A., Du, Z., Zhang, C., Shen, S., Zhang, T., Shen, S.,
+Su, Y ., Sun, H., Huang, M., Dong, Y ., and Tang, J. Agent-
+bench: Evaluating llms as agents.ArXiv, abs/2308.03688,
+2023. URL https://api.semanticscholar.
+org/CorpusID:260682249.
+Luo, Z., Shen, Z., Yang, W., Zhao, Z., Jwala-
+puram, P., Saha, A., Sahoo, D., Savarese, S.,
+Xiong, C., and Li, J. Mcp-universe: Benchmark-
+ing large language models with real-world model
+context protocol servers.ArXiv, abs/2508.14704,
+2025. URL https://api.semanticscholar.
+org/CorpusID:280691759.
+L`u, X. H., Kazemnejad, A., Meade, N., Patel, A., Shin,
+D., Zambrano, A., Sta ´nczak, K., Shaw, P., Pal, C. J.,
+and Reddy, S. Agentrewardbench: Evaluating automatic
+evaluations of web agent trajectories, 2025. URLhttps:
+//arxiv.org/abs/2504.08942.
+Ma, C., Zhang, J., Zhu, Z., Yang, C., Yang,
+Y ., Jin, Y ., Lan, Z., Kong, L., and He, J.
+Agentboard: An analytical evaluation board of
+multi-turn llm agents.ArXiv, abs/2401.13178,
+2024. URL https://api.semanticscholar.
+org/CorpusID:267199917.
+Merrill, M. A., Shaw, A. G., Carlini, N., Li, B., Raj, H.,
+Bercovich, I., Shi, L., Shin, J. Y ., Walshe, T., Buchanan,
+E. K., Shen, J., Ye, G., Lin, H., Poulos, J., Wang, M.,
+Nezhurina, M., Jitsev, J., Lu, D., Mastromichalakis,
+O. M., Xu, Z., Chen, Z., Liu, Y ., Zhang, R., Chen, L. L.,
+Kashyap, A., Uslu, J.-L., Li, J., Wu, J., Yan, M., Bian,
+S., Sharma, V ., Sun, K., Dillmann, S., Anand, A., Lan-
+pouthakoun, A., Koopah, B., Hu, C., Guha, E., Dreiman,
+G. H. S., Zhu, J., Krauth, K., Zhong, L., Muennighoff,
+N., Amanfu, R., Tan, S., Pimpalgaonkar, S., Aggarwal,
+T., Lin, X., Lan, X., Zhao, X., Liang, Y ., Wang, Y ., Wang,
+Z., Zhou, C., Heineman, D., Liu, H., Trivedi, H., Yang,
+J., Lin, J., Shetty, M., Yang, M., Omi, N., Raoof, N., Li,
+S., Zhuo, T. Y ., Lin, W., Dai, Y ., Wang, Y ., Chai, W.,
+Zhou, S., Wahdany, D., She, Z., Hu, J., Dong, Z., Zhu,
+Y ., Cui, S., Saiyed, A., Kolbeinsson, A., Hu, J., Rytting,
+C. M., Marten, R., Wang, Y ., Dimakis, A., Konwinski, A.,
+and Schmidt, L. Terminal-bench: Benchmarking agents
+on hard, realistic tasks in command line interfaces, 2026.
+URLhttps://arxiv.org/abs/2601.11868.
+Meta PyTorch Team and Hugging Face. Openenv:
+An interface library for rl post training with envi-
+ronments, 2025. URL https://github.com/
+meta-pytorch/OpenEnv. GitHub repository.
+Mialon, G., Fourrier, C., Peladere, G., Goulian, T., Wolf, T.,
+Joulin, A., and Scialom, T. Gaia: a benchmark for general
+ai assistants. InThe Twelfth International Conference on
+Learning Representations (ICLR), 2024.
+Mohammadi, M., Li, Y ., Lo, J., and Yip, W. Eval-
+uation and benchmarking of llm agents: A sur-
+vey.Proceedings of the 31st ACM SIGKDD Confer-
+ence on Knowledge Discovery and Data Mining V .2,
+2025. URL https://api.semanticscholar.
+org/CorpusID:280337602.
+NVIDIA. Nemo gym: An open source library for scaling
+reinforcement learning environments for llm.https://
+github.com/NVIDIA-NeMo/Gym, 2025. GitHub
+repository.
+Park, C., Han, S., Guo, X., Ozdaglar, A. E., Zhang,
+K., and Kim, J.-K. Maporl: Multi-agent post-
+co-training for collaborative large language mod-
+els with reinforcement learning. InAnnual Meet-
+ing of the Association for Computational Linguistics,
+2025. URL https://api.semanticscholar.
+org/CorpusID:276580906.
+Rawles, C., Clinckemaillie, S., Chang, Y ., Waltz, J., Lau,
+G., Fair, M., Li, A., Bishop, W. E., Li, W., Campbell-
+Ajala, F., Toyama, D. K., Berry, R. J., Tyamagundlu, D.,
+Lillicrap, T. P., and Riva, O. Androidworld: A dynamic
+benchmarking environment for autonomous agents. In
+11
+
+--- PAGE 12 ---
+CUBE: A Standard for Unifying Agent Benchmarks
+The Thirteenth International Conference on Learning
+Representations, 2025. URL https://openreview.
+net/forum?id=il5yUQsrjC.
+Shaw, A. Harbor Framework, November 2025. URL
+https://github.com/laude-institute/
+harbor.
+Shen, Z. Llm with tools: A survey.ArXiv, abs/2409.18807,
+2024. URL https://api.semanticscholar.
+org/CorpusID:272968969.
+Team, C. A. Cua-bench: Technical report. 2025. URL
+https://cuabench.ai.
+Towers, M., Kwiatkowski, A., Terry, J., Balis, J. U., De Cola,
+G., Deleu, T., Goul˜ao, M., Kallinteris, A., Krimmel, M.,
+KG, A., et al. Gymnasium: A standard interface for
+reinforcement learning environments.arXiv preprint
+arXiv:2407.17032, 2024.
+Trivedi, H., Khot, T., Hartmann, M., Manku, R., Dong, V .,
+Li, E., Gupta, S., Sabharwal, A., and Balasubramanian,
+N. Appworld: A controllable world of apps and people
+for benchmarking interactive coding agents. InProceed-
+ings of the 62nd Annual Meeting of the Association for
+Computational Linguistics (ACL), 2024.
+Wang, J., Ma, Z., Li, Y ., Zhang, S., Chen, C.,
+Chen, K., and Le, X. Gta: A benchmark
+for general tool agents.ArXiv, abs/2407.08713,
+2024a. URL https://api.semanticscholar.
+org/CorpusID:271097480.
+Wang, X., Wang, Z., and team, O. Openhands: An open
+platform for ai software developers as generalist agents.
+arXiv preprint arXiv:2407.16741, 2024b.
+Wang, Z., Chang, Q., Patel, H., Biju, S., Wu, C.-
+E., Liu, Q., Ding, A., Rezazadeh, A., Shah, A.,
+Bao, Y ., and Siow, E. Mcp-bench: Benchmark-
+ing tool-using llm agents with complex real-world
+tasks via mcp servers.ArXiv, abs/2508.20453,
+2025. URL https://api.semanticscholar.
+org/CorpusID:280949860.
+Xie, T., Zhang, F., Chen, Z., Ye, Z., Xia, S., Liu, W., Liang,
+Z., Shang, M., Miao, S., Cheng, D., et al. Osworld:
+Benchmarking multimodal agents for open-ended tasks
+in real world computer systems. InThe Thirty-eighth
+Annual Conference on Neural Information Processing
+Systems (NeurIPS), 2024.
+Xu, W., Huang, C., Gao, S., and Shang, S. Llm-based
+agents for tool learning: A survey.Data Science
+and Engineering, 10:533 – 563, 2025. URL https:
+//api.semanticscholar.org/CorpusID:
+279637071.
+Yang, J., Jimenez, C. E., et al. Swe-bench verified: En-
+hancing software engineering evaluation with human-
+annotated unit tests.OpenAI Blog / Technical Re-
+port, 2024. URL https://openai.com/index/
+introducing-swe-bench-verified/.
+Yehudai, A., Eden, L., Li, A., Uziel, G., Zhao, Y ., Bar-
+Haim, R., Cohan, A., and Shmueli-Scheuer, M. Survey
+on evaluation of llm-based agents, 2025. URL https:
+//arxiv.org/abs/2503.16416.
+Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar,
+A., Cheng, X., Ou, T., Bisk, Y ., Fried, D., Alon, U.,
+and Neubig, G. Webarena: A realistic web environ-
+ment for building autonomous agents. InThe Twelfth
+International Conference on Learning Representations,
+2024. URL https://openreview.net/forum?
+id=oKn9c6ytLx.
+12

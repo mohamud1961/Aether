@@ -1,0 +1,1031 @@
+--- PAGE 1 ---
+On the Reliability Limits of LLM-Based Multi-Agent Planning
+Ruicheng Ao1 Siyang Gao2 David Simchi-Levi1,3,4
+March 31, 2026
+Abstract
+This technical note studies the reliability limits of LLM-based multi-agent planning as
+a delegated decision problem. We model the LLM-based multi-agent architecture as a
+finite acyclic decision network in which multiple stages process shared model-context
+information, communicate through language interfaces with limited capacity, and may
+invoke human review. We show that, without new exogenous signals, any delegated
+network is decision-theoretically dominated by a centralized Bayes decision maker with
+access to the same information. In the common-evidence regime, this implies that op-
+timizing over multi-agent directed acyclic graphs under a finite communication budget
+can be recast as choosing a budget-constrained stochastic experiment on the shared
+signal. We also characterize the loss induced by communication and information com-
+pression. Under proper scoring rules, the gap between the centralized Bayes value and
+the value after communication admits an expected posterior divergence representation,
+which reduces to conditional mutual information under logarithmic loss and to expected
+squared posterior error under the Brier score. These results characterize the fundamen-
+tal reliability limits of delegated LLM planning. Experiments with LLMs on a controlled
+problem set further demonstrate these characterizations.
+Keywords:LLM agents, decision theory, information structure, delegated decisions
+1 Introduction
+LLM-based multi-agent planning is now widely used for operational tasks that require de-
+composition, tool use, verification, and exception handling, such as customer service han-
+dling, document-based analysis, scheduling and coordination, and web-based task execution.
+1Operations Research Center, Massachusetts Institute of Technology, Cambridge, MA 02139.
+2Department of Systems Engineering, City University of Hong Kong, Kowloon, Hong Kong.
+3Institute for Data, Systems, and Society, Massachusetts Institute of Technology, Cambridge, MA 02139.
+4Department of Civil and Environmental Engineering, Massachusetts Institute of Technology, Cambridge,
+MA 02139.
+*Authors are listed in alphabetical order. E-mail:aorc@mit.edu,siygao@cityu.edu.hk,
+dslevi@mit.edu.
+1
+arXiv:2603.26993v1  [cs.MA]  27 Mar 2026
+
+--- PAGE 2 ---
+From an operations research perspective, these systems can be naturally viewed as delegated
+decision networks, where different stages process shared model-context information, commu-
+nicate through language interfaces with limited capacity, and may invoke human review. In
+this setting, the key design question is not how many roles the system contains, but whether
+the added roles change the information structure, where here the information structure
+means what decision-relevant signals enter the system and what part of those signals is still
+available when the terminal action is chosen.
+This distinction is central in current LLM-based agent systems because many architec-
+tures add roles without adding new decision-relevant signals. Planner, worker, critic, and
+reviewer modules are often built from the same model family, operate on overlapping re-
+trieved context, and communicate through free-form language. In such cases, the added
+stages mainly transform and relay shared evidence rather than expand the information
+available for the terminal decision.
+Recent empirical work is consistent with this concern. Performance on web-interaction,
+assistant, and computer-use tasks often remains fragile as tasks involve more steps, more
+tool use, and more coordination (Liu et al. 2023, Zhou et al. 2024, Mialon et al. 2024, Xie
+et al. 2024). Reported failures frequently arise from specification and coordination rather
+than from base-model capability (Cemri et al. 2025), and simpler single-agent designs can
+match multi-agent performance at lower cost while longer multi-step systems may amplify
+the errors (Xia et al. 2024, Kim et al. 2025, Wan et al. 2025, Wynn et al. 2025).
+At the same time, recent developments on LLM agents suggest which changes may help.
+Reasoning models can improve performance by investing more inference-time computation
+on the same evidence, while protocols on tool use help when they introduce genuinely new
+exogenous signals rather than merely reprocessing shared context (Wan et al. 2025, Xu et al.
+2026). These observations point to a common mechanism that architecture matters through
+the information made available for the terminal decision.
+This note provides a decision-theoretic account of this mechanism by modeling an LLM-
+based agent system as a finite acyclic delegated decision network.
+First, we show a basic limit that, without new exogenous signals, a delegated network
+cannot outperform a centralized Bayes decision maker that observes the same information.
+In the common-evidence regime, optimizing over multi-agent directed acyclic graphs under
+a finite communication budget is equivalent to choosing how to compress and pass along the
+shared signal.
+Second, we characterize the cost of communication and the role of human review. Un-
+der proper scoring rules, the gap between the centralized Bayes value and the value after
+communication is exactly the loss from posterior distortion. Under logarithmic loss, this
+becomes conditional mutual information, and under the Brier score, it becomes expected
+2
+
+--- PAGE 3 ---
+squared posterior error. Human review should therefore focus on cases with high posterior
+risk.
+Third, we test these ideas on a controlled problem set using recent LLMs, and find
+qualitative patterns consistent with the theory.
+The main contribution of this research is to identify what kind of design can actually
+improve the reliability of LLM-based agent systems. Added stages help only when they
+bring in new exogenous signals, preserve decision-relevant information under communication
+constraints, or provide non-redundant review. Otherwise, they mainly reorganize the same
+evidence. In this note, we use the term reliability in an operational sense, namely as the
+quality of the terminal decision under a specified loss function. In the analysis, this is
+represented by Bayes risk or expected loss.
+Related work.This research builds on the team decision theory (Radner 1962, Marschak
+and Radner 1972, Ho and Chu 1972), which studies decentralized decision making under
+shared and private information, and on the Blackwell comparison of experiments (Blackwell
+1953, Torgersen 1991), which formalizes when one information structure is more informative
+than another. Our analysis of communication loss uses proper scoring rules (Gneiting and
+Raftery 2007), and our result on selective review relates to reject-option classification (Chow
+1970, El-Yaniv and Wiener 2010). More broadly, the operations research literature on pre-
+scriptive analytics studies how information quality affects decision quality (Bertsimas and
+Kallus 2020, Elmachtoub and Grigas 2022, Bastani 2021), and our framework applies the
+same principle to LLM-based multi-agent workflows, where the information is the terminal
+communication state and the decision is the final action. On the LLM side, recent work
+reports failure modes in multi-agent systems (Cemri et al. 2025, Wan et al. 2025, Huang
+et al. 2024, Kim et al. 2025) and compares them with simpler single agent alternatives (Xia
+et al. 2024, Xu et al. 2026).
+The starting point of this research differs from the studies mentioned above. We do
+not aim to propose a new multi-agent workflow or to add one more empirical comparison
+among agentic variants, but rather to develop a minimal decision-theoretic model in which
+alternative LLM-based multi-agent workflows can be compared through the information
+available for the final choice, the communication constraints imposed between stages, and
+the availability of selective review. This model is useful for operations research because it
+recasts workflow design as a stochastic problem of information, communication, and costly
+recourse, rather than as a taxonomy of software roles.
+3
+
+--- PAGE 4 ---
+2 Delegated Decision Model
+An LLM-based agent system usually operates through a simple workflow. A user request or
+task instance first provides the shared context for the system. The task is then processed
+through several stages, such as planning, tool use, execution, verification, and final decision
+making. Different agents or modules may handle different stages, exchange intermediate
+messages, and in some cases call external tools or escalate difficult cases for human review.
+We model such a system as a finite directed acyclic graphG= (V, E). This abstraction is
+naturalbecauseitrepresentseachstageasadecisionnodeandeachcommunicationlinkasan
+edge that carries information to later stages. It captures the aspects of agent-based systems
+that matter for reliability (specifically, the information that is entered, communicated, and
+available for the terminal action). A hidden task stateX∈ Xdetermines the relevant facts,
+constraints, and environment conditions. LetYdenote the target of interest, such as the
+correct action or label. The network does not observeXorYdirectly. Instead, it acts on
+the basis of signals generated from the task state.
+The system may observe a common signalB, drawn from a kernelK 0(· |X). This
+signal represents the shared model-context information available to the network, such as
+the user request, retrieved documents, task instructions, or a common workspace. Node
+vmay also observe a private exogenous signalZv, drawn from a kernelKv(· |X). These
+private signals represent new information that enters at a particular stage, such as a tool
+output, a database lookup, executable feedback, or an environment observation. We write
+ZV :={Z v :v∈V}andE exo := (B, Z V), where the objectE exo is the total exogenous
+information available to the delegated system. Each edgee= (u, v)∈Ecarries a message
+from nodeuto nodev. LetU u denote the upstream workspace at nodeu. The message
+sent on edgeeisT e =T u→v =σ e(Uu, ξe), whereσ e is a measurable communication rule
+andξ e is ancillary randomization. Nodevthen acts according to a measurable decision rule
+Av =π v(Hv, ξv), whereH v collects incoming messages together with any exogenous signals
+observed at nodev. Letξcollect all ancillary randomness and assume thatξis independent
+ofY|E exo. Since the graph is acyclic, the full protocol induces a measurable terminal
+actionA= Π(G, E exo, ξ).
+Note that this formulation works at the level of information structure rather than token-
+level generation. This level is the one most relevant for the reliability.
+For a loss functionℓ:A × Y →[0,∞], we define the Bayes risk under information state
+Hby
+V(H;ℓ) := inf
+δ∈D(H)
+E[ℓ(δ(H), Y)],
+which we use as a decision-theoretic measure of reliability. HereD(H)denotes the class
+of decision rules measurable with respect to the universal completion ofσ(H). This is the
+4
+
+--- PAGE 5 ---
+standard convention in stochastic control on standard Borel spaces. It ensures the existence
+ofε-optimal decision rules and does not affect the finite-action cases used later.
+An important special case for our analysis is the common-evidence regime, defined by
+Zv ≡∅for allv∈V. In this case,E exo =B, so all nodes process the same underlying
+evidence. This regime is not only analytically convenient. It is also common in practice and
+is especially relevant for planner, worker, critic, and reviewer architectures that share the
+same prompt, retrieval context, or message history. In such settings, added roles often do
+not bring new decision-relevant signals. They mainly reprocess shared evidence and pass
+along a compressed version of it.
+When communication limits matter, we summarize what reaches the final decision stage
+by a terminal communication stateM. This object may be a transcript, a structured state
+record, or any equivalent bundle of information. Any object visible to the terminal decision
+can be folded intoM. We also allow a review option at the final stage. In that case, the
+action set is augmented by△, where△denotes escalate. Review incurs conditional loss
+Rh(H), which may depend on the information state through review cost, delay, or reviewer
+quality.
+All probability spaces, state spaces, action spaces, and signal spaces are assumed to be
+standard Borel, and all kernels are measurable. Table 1 summarizes the abstract variables
+in our delegated decision network and the corresponding components of LLM-based multi-
+agent planning (shared context, stage-specific inputs, inter-agent communication, and the
+final information available for the terminal decision). It clarifies how the abstract objects in
+our model map to a typical LLM-based multi-agent workflow.
+3 Preliminaries
+This section provides several basic lemmas that support the analysis in the next sections.
+Throughout the note, when we say that a rule isH-measurable, we mean measurable with
+respect to the universal completion ofσ(H). We only needε-optimal attainment unless exact
+attainment is stated explicitly. On standard Borel spaces, regular conditional distributions,
+lower semianalytic value functions, and universally measurableε-optimal selectors are avail-
+able by standard results. See, for example, Bertsekas and Shreve (1978) and Kallenberg
+(2002). When the action space is finite, this distinction from ordinary Borel measurability
+disappears. We adopt this convention only to avoid compactness or continuity assumptions
+that are not needed for the finite-message and finite-action applications in the paper.
+Lemma 1.LetHbe any information state and letℓ:A × Y →R + be bounded. Define
+5
+
+--- PAGE 6 ---
+Table 1: Mapping LLM-based multi-agent planning to the decision model.
+LLM-planning element Model primitive Decision-theoretic interpretation
+Planner / worker / critic /
+reviewer
+nodevwith decision
+ruleπ v
+local decision maker in a delegated
+network
+Shared base model /
+overlapping retrieved context
+/ common prompt
+common signalBshared exogenous information source
+Tool call / database query /
+API output / environment
+observation
+private exogenous
+signalZ v
+additionalinformationchannel(signal
+expansion)
+Inter-agent prompt relay /
+summary / scratchpad
+update
+messageT u→v endogenous communication; possible
+garbling
+Terminal transcript / shared
+workspace
+Mterminal communication state deliv-
+ered to the output stage
+Verifier test / executable
+check / external validator
+verifier signalWnonredundant inspection stage
+Human approval / exception
+handling
+escalate action△review or recourse option
+Agent graph / orchestration
+graph
+directed acyclic graph
+G= (V, E)
+delegated information structure
+Λ(h, a) :=E[ℓ(a, Y)|H=h]. Then the Bayes riskV(H;ℓ)satisfies
+V(H;ℓ) =E
+
+inf
+a∈A
+Λ(H, a)
+
+.
+Moreover, for everyε >0, there exists anH-measurable selectorδε such thatΛ(H, δ ε(H))≤
+inf a∈A Λ(H, a) +εalmost surely, and thereforeE[ℓ(δ ε(H), Y)]≤V(H;ℓ) +ε.
+Proof.Letν h(·) :=P(Y∈ · |H=h)be a regular conditional distribution ofYgivenH.
+Then
+Λ(h, a) =
+Z
+Y
+ℓ(a, y)ν h(dy),
+which is jointly measurable in(h, a)becauseℓis measurable andh7→ν h is a kernel. The
+value functionv(h) := inf a∈A Λ(h, a)is lower semianalytic, and thus universally measurable.
+For anyH-measurable ruleδ,
+E[ℓ(δ(H), Y)|H] = Λ(H, δ(H))≥inf
+a∈A
+Λ(H, a)a.s.
+TakingexpectationsandinfimizingoverallH-measurableδgivesV(H;ℓ)≥E[inf a∈A Λ(H, a)].
+Conversely, by a standard measurable-selection theorem for lower semianalytic costs on
+standard Borel spaces (Bertsekas and Shreve 1978), for everyε >0there exists anH-
+6
+
+--- PAGE 7 ---
+measurable selectorδ ε satisfying
+Λ(H, δε(H))≤inf
+a∈A
+Λ(H, a) +εa.s.
+Taking expectations givesE[ℓ(δε(H), Y)]≤E[inf a∈A Λ(H, a)] +ε. Sinceε >0is arbitrary,
+V(H;ℓ)≤E[inf a∈A Λ(H, a)].□
+Lemma 1 gives a convenient representation of the best achievable loss under a given
+information state. It will be used when we replace a terminal decision rule by a Bayes-
+optimal one and when we need anε-optimal measurable selector (Proposition 6, Theorem 7,
+and Theorem 10).
+Lemma 2.LetHbe any information state,Γ(· |H)be anH-measurable kernel onA, and
+AΓ be an action drawn fromΓ(· |H)such thatP(A Γ ∈C|H, Y) = Γ(C|H)a.s. for every
+Borel setC⊆ A. ThenE[ℓ(A Γ, Y)]≥V(H;ℓ). Consequently, ifMis generated fromHby
+a kernel that is independent ofYconditional onH, thenV(M;ℓ)≥V(H;ℓ).
+Proof.LetΛbe as in Lemma 1. Conditional onH,E[ℓ(A Γ, Y)|H] =
+R
+A Λ(H, a) Γ(da|
+H)≥inf a∈A Λ(H, a)a.s. Taking expectations and applying Lemma 1 givesE[ℓ(AΓ, Y)]≥
+V(H;ℓ).
+For the second claim, fix anyM-measurable ruleδ(M). SinceMis generated fromH
+through a kernel that is conditionally independent ofY, the random actionδ(M)satisfies
+P(δ(M)∈C|H, Y) =P(δ(M)∈C|H)a.s. for every BorelC⊆ A. Applying the first part
+withA Γ =δ(M)and infimizing overM-measurableδgivesV(M;ℓ)≥V(H;ℓ).□
+Lemma2statesthatonceinformationiscompressedthroughaconditionallyindependent
+channel, decision quality cannot improve. This is the basic comparison step behind the later
+resultsondelegatednetworksandcommunication(Proposition6, Theorem7, andLemma4).
+Lemma 3.AssumeYis finite. LetM=µ(H, ζ), whereζ⊥ ⊥Y|H, and defineπ H(y) :=
+P(Y=y|H),π M(y) :=P(Y=y|M). Then, for everyy∈ Y,P(Y=y|H, M) =π H(y)
+a.s. andπ M(y) =E[π H(y)|M]a.s.
+Proof.Fixy∈ Y. Letf(H, M)be any bounded measurable function. SinceMis measurable
+with respect to(H, ζ)andζ⊥ ⊥Y|H,
+E[1{Y=y}f(H, M)|H] =π H(y)E[f(H, M)|H].
+Taking expectations givesE[1{Y=y}f(H, M)] =E[π H(y)f(H, M)]. Since this holds for
+every bounded measurablef(H, M), the characterizing property of conditional expectation
+givesP(Y=y|H, M) =π H(y)a.s. Conditioning onMand using the tower property,
+πM(y) =E[P(Y=y|H, M)|M] =E[π H(y)|M].□
+7
+
+--- PAGE 8 ---
+Lemma 3 describes how the posterior changes after communication. It is the main
+posterior identity used to express communication loss as posterior distortion (Theorem 8).
+Lemma 4.LetSandTbe two information states aboutY, both taking values in standard
+Borel spaces.
+(a) IfSis generated fromTthrough a conditionally independent kernel, thenV(S;ℓ)≥
+V(T;ℓ)for every bounded lossℓ.
+(b) IfSis not Blackwell-dominated byT, then there exist a finite action set ˜Aand a
+bounded loss ˜ℓ: ˜A × Y →Rsuch thatV(S; ˜ℓ)< V(T; ˜ℓ).
+Proof.Part (a) is immediate from Lemma 2 withH=TandM=S. For part (b),
+Blackwell’s theorem on experiment comparison (Blackwell 1953, Torgersen 1991) implies
+that ifSis not Blackwell-dominated byT, then there exist a finite action set ˜Aand a
+bounded utility functionu: ˜A × Y →Rwith strict expected-utility separation. Setting
+˜ℓ(a, y) :=C−u(a, y)forC >sup a,y u(a, y)converts the utility gap toV(S; ˜ℓ)< V(T; ˜ℓ).□
+Lemma 4 gives the comparison result that we use to distinguish redundant signals from
+signals that can improve the decision problem. This lemma is used when we discuss verifi-
+cation gain and new exogenous information (Corollary 9).
+Lemma 5.Consider a terminal decision stage that observes informationHand may es-
+calate the case for human review and letℓ:A × Y →R + be bounded. LetR a(H) :=
+inf a∈A E[ℓ(a, Y)|H]and let escalation incur a measurable conditional lossR h(H)with
+E[Rh(H)]<∞. Then every policy kernel onA∪{△}satisfiesE[loss]≥E[min{R a(H), Rh(H)}].
+Moreover, for everyε >0there exists a threshold policy that automates on{R a(H)≤
+Rh(H)}and escalates on{Ra(H)> R h(H)}, with expected loss at mostE[min{Ra(H), Rh(H)}]+
+ε. If the infimumRa(H)is attained by anH-measurable Bayes acta∗(H), then the threshold
+rule usinga ∗(H)is exactly optimal.
+Proof.Let ¯A:=A ∪ {△}. Consider anyH-measurable policy kernelΓ(d¯a|H)on ¯A. Write
+ρ(H) := Γ({△} |H)andα(· |H) := Γ(· ∩ A |H). Thenρ(H) +α(A |H) = 1a.s., and
+E[loss|H] =
+Z
+A
+E[ℓ(a, Y)|H]α(da|H) +ρ(H)R h(H)≥min{R a(H), Rh(H)},
+becauseE[ℓ(a, Y)|H]≥R a(H)for everyaand the coefficients are nonnegative and sum to
+1. Taking expectations leads to the lower bound.
+For the upper bound, fixε >0. By Lemma 1, there exists anH-measurable selector
+aε(H)withE[ℓ(a ε(H), Y)|H]≤R a(H)+εa.s. Usea ε(H)on{R a(H)≤R h(H)}and esca-
+late otherwise. The resulting conditional loss satisfiesE[lossε |H]≤min{R a(H), Rh(H)}+
+8
+
+--- PAGE 9 ---
+ε. Taking expectations gives the claim. IfRa(H)is attained bya ∗(H), takinga ε =a ∗ gives
+an exact optimizer.□
+Lemma 5 gives the basic rule for human review. The optimal decision compares au-
+tomated posterior risk with review loss at each information state. This lemma is used to
+characterize the optimal selective review (Theorem 10).
+4 Information Structure and Communication
+This section examines the role of information structure in LLM-based multi-agent planning,
+focusing on what an architecture can change in the underlying decision problem. We begin
+with a general limit, where Proposition 6 shows that delegation alone does not improve the
+decision problem. We then turn to the common-evidence regime, with Theorem 7 showing
+that in this case, the design problem can be stated in a simpler form. This result also sets
+up the later sections, where we study the cost of communication and the value of added
+signals or human review.
+Proposition 6.Consider any finite directed acyclic delegated networkG= (V, E)with ex-
+ogenous signalsEexo = (B, ZV), endogenous internal messages, and ancillary randomization
+ξsatisfyingξ⊥ ⊥Y|E exo. Then for every bounded lossℓ1,
+E[ℓ(A, Y)]≥V(E exo;ℓ).
+Equivalently, the delegated network is decision-theoretically dominated by a centralized Bayes
+decision maker observing the same exogenous signalsEexo.
+Proof.LetE:=E exo. SinceGis acyclic, the delegated protocol induces a measurable
+terminal actionA= Π(G, E, ξ). The key observation is thatAdepends onYonly through
+E. Sinceξ⊥ ⊥Y|E, the conditional law ofAgivenEdoes not involveY. In the language
+of Lemma 2,Ais a randomized garbling ofE, so
+E[ℓ(A, Y)]≥V(E;ℓ).
+Thus internal communication and ancillary randomization cannot improve on the Bayes
+value determined byE.□
+Proposition 6 identifies the basic ceiling for delegated planning under fixed exogenous
+information, stating that neither internal communication nor randomization can improve
+upon the Bayes value of the available signals.
+1Boundednessisassumedforsimplicity. Theresultsextendtointegrablelossesbystandardapproximation
+arguments.
+9
+
+--- PAGE 10 ---
+We now focus on the common-evidence regime, in which all nodes act on the same under-
+lying signal and no stage receives new exogenous information. This case is both practically
+relevant for many LLM multi-agent workflows and conceptually useful, because it separates
+the effect of communication from that of signal acquisition.
+Theorem 7.Work in the standard Borel setting of Section 2 and in the common-evidence
+regimeE exo =B. For a common-evidence information structureG, letA G denote its ter-
+minal action and letMG ∈ M G denote the finite terminal communication state delivered to
+the output stage. Define the communication budgetC(G) := log|M G|. Here the budget is
+the cardinality budget of the terminal communication state observed by the output stage. Let
+IC be the class of common-evidence information structures withC(G)≤C. Then for every
+bounded lossℓ,
+inf
+G∈IC
+E[ℓ(AG, Y)] = inf
+Mfinite, M∼Q(·|B)
+log|M|≤C
+V(M;ℓ),
+where the infimum on the right is over all stochastic encodersQfromBto a finite message
+M.
+Proof.To prove the equality stated in the theorem, we establish matching lower and upper
+bounds.
+For the lower bound, fixG ∈ I C. By the definition of the terminal state, the output
+stage observes onlyMG and then chooses the terminal action through someMG-measurable
+kernel. Replacing this output rule by a Bayes-optimal decision rule based onMG can only
+improve performance, so Lemma 2 gives
+E[ℓ(AG, Y)]≥V(M G;ℓ).
+Since we are in the common-evidence regime, the terminal communication stateM G is
+generated from the common signalBtogether with ancillary randomization. Therefore its
+conditional law givenB,Q G(· |B) :=P(M G ∈ · |B), defines a stochastic encoder fromB
+to the finite message spaceMG. By construction,log|M G| ≤C. Therefore everyG ∈ I C
+induces an admissible encoder on the right-hand side, and
+inf
+G∈IC
+E[ℓ(AG, Y)]≥inf
+Mfinite, M∼Q(·|B)
+log|M|≤C
+V(M;ℓ).
+For the upper bound, fix any finite-valued encoderQ(· |B)withlog|M| ≤Cand any
+ε >0. Construct a two-stage common-evidence information structure. An encoder node
+samplesM∼Q(· |B). An output node applies anM-measurableε-optimal selectorδ ε
+satisfyingE[ℓ(δ ε(M), Y)]≤V(M;ℓ) +εby Lemma 1. This information structure belongs
+10
+
+--- PAGE 11 ---
+toI C, so
+inf
+G∈IC
+E[ℓ(AG, Y)]≤V(M;ℓ) +ε.
+Taking the infimum over admissible encodersQand then lettingε↓0proves the reverse
+inequality. □
+Theorem 7 shows that, in the common-evidence regime, a multi-agent directed acyclic
+graph is decision-theoretically equivalent to the finite experimentQ(m|B)that it induces
+on the shared signal. At a fixed budget, any loss from delegation therefore comes from acting
+onMrather than on the original signalB.
+Remark1.Theorem 7 places the common-evidence design problem within familiar decision-
+theoretic frameworks. Choosing the encoderQ(m|B)to minimize expected loss at a
+given budget is a Bayesian persuasion problem (Kamenica and Gentzkow 2011) in which
+the information structure selects what the output stage will observe. The same problem can
+be formulated as a rational inattention problem (Sims 2003) when the budget is measured
+by Shannon mutual information, and as an information bottleneck problem (Tishby et al.
+2000) when relevance is measured byI(M;Y). In decentralized settings with genuinely
+privatesignals, Witsenhausen’scounterexampleshowsthatoptimalrulescanrequireimplicit
+signaling through actions (Witsenhausen 1968). This is why our reduction is specific to the
+common-evidence regime. The contribution here is to show that LLM-based multi-agent
+planning in the common-evidence regime fits exactly into this class of signal design problems.
+When agents instead observe genuinely different private signals, the problem returns to a
+nontrivial team decision setting and the reduction no longer applies.
+Remark2.At a fixed budget, suppose a structured interfaceM s Blackwell-dominates a
+free-text relayM t for the targetY. Then any information structure that usesMt is weakly
+dominated by one that usesMs. The relevant design object is not the role label but the
+experiment induced by the communication interface.
+Remark3.Theorem 7 has a useful methodological implication. In empirical evaluations
+of LLM agent architectures, improvements are often attributed to better coordination or
+better decomposition even when the compared systems differ simultaneously in tool access,
+retrieved context, or transcript length. Our result shows that such comparisons cannot
+distinguish a genuine architecture effect from a change in information. When exogenous
+information and terminal communication budget are not held fixed, any observed gain may
+reflect added information rather than improved delegation. Accordingly, a clean evaluation
+of multi-agent planning should compare architectures under matched exogenous signals and
+matched terminal state capacity, and should treat any additional retrieval, tool output, or
+larger shared workspace as a change in information structure rather than as a pure archi-
+tecture effect. This also implies that many reported multi-agent gains should be interpreted
+11
+
+--- PAGE 12 ---
+as gains from altered information access unless the comparison explicitly controls for both
+exogenous signals and communication capacity.
+5 Communication Loss and Posterior Distortion
+In this section, we measure the loss from communication. Under proper scoring rules,
+the Bayes value depends only on the posterior. This allows us to write the gap between
+the centralized Bayes value and the value after communication as an expected posterior
+distortion. The next theorem gives this representation and yields the log-loss and Brier-
+score formulas stated below. In this section we assume thatYis finite, so that posteriors
+can be represented as elements of∆(Y).
+Theorem 8.LetHbe any information state and letM=µ(H, ζ), whereζis independent
+ofY|H. Consider the action space to be the report space∆(Y), so that a decision rule
+reports someq(H)∈∆(Y). Writeπ H :=P(Y∈ · |H)andπ M :=P(Y∈ · |M). Let
+s: ∆(Y)× Y →[0,∞]be a proper scoring rule such thatE[s(π H , Y)]andE[s(π M , Y)]are
+finite, and define its pointwise divergence byDs(p, q) :=P
+y∈Y p(y)
+ 
+s(q, y)−s(p, y)
+
+. Then
+V(M;s)−V(H;s) =E
+
+Ds(πH , πM)
+
+≥0.
+In particular, ifH=BandMis the terminal communication state induced by a common-
+evidence information structure, then the left-hand side is exactly the gap between the cen-
+tralized Bayes value and the value after communication. Ifsis strictly proper, this gap is
+zero if and only ifπH =π M almost surely.
+Proof.Here the decision problem is a reporting problem with action space∆(Y). Sinces
+is proper, the Bayes-optimal report under any information state is the true posterior. For-
+mally, for any admissible∆(Y)-valued reportq(H), propriety givesP
+y πH(y)s(q(H), y)≥P
+y πH(y)s(πH , y)pointwise. ConditioningonHandtakingexpectationsgivesE[s(q(H), Y)]≥
+E[s(πH , Y)]. Choosingq(H) =π H shows thatV(H;s) =E[s(π H , Y)]. The same argument
+withMin place ofHgivesV(M;s) =E[s(π M , Y)].
+It remains to compute the differenceV(M;s)−V(H;s). SinceM=µ(H, ζ)with
+ζ⊥ ⊥Y|H, Lemma 3 givesP(Y=y|H, M) =π H(y)a.s. for everyy∈ Y. Then,
+conditional on(H, M),
+E[s(πM , Y)−s(π H , Y)|H, M] =
+X
+y∈Y
+πH(y)
+ 
+s(πM , y)−s(π H , y)
+
+=D s(πH , πM).
+TakingexpectationsgivesV(M;s)−V(H;s) =E[D s(πH , πM)]. Propriety impliesDs(p, q)≥
+0for everyp, q, so the right-hand side is nonnegative. Ifsis strictly proper, thenDs(p, q) = 0
+12
+
+--- PAGE 13 ---
+if and only ifp=q, so the gap vanishes if and only ifπH =π M a.s.□
+Theorem 8 shows that, under proper scoring rules, the cost of communication is exactly
+the amount by which communication distorts the posterior used for the final decision. The
+next examples show how this gap reduces to familiar quantities under common scoring rules.
+Logarithmic loss.For log losss log(q, y) =−logq(y), interpreted as+∞whenq(y) = 0,
+V(M;s log)−V(H;s log) =I(Y;H|M).
+Then, ifH=Bin the common-evidence regime, the exact communication loss is
+V(M;s log)−V(B;s log) =I(Y;B|M).
+Under log loss, the pointwise divergence is the Kullback–Leibler divergence, soDslog(p, q) =
+KL(p∥q). Theorem 8 therefore gives
+V(M;s log)−V(H;s log) =E[KL(π H ∥πM)].
+By Lemma 3,P(Y=y|H, M) =π H(y)andP(Y=y|M) =π M(y)a.s., so
+I(Y;H|M) =E
+
+X
+y∈Y
+P(Y=y|H, M) log P(Y=y|H, M)
+P(Y=y|M)
+
+ =E[KL(π H ∥πM)].
+Brier score.For the multiclass Brier score
+sBr(q, y) =
+X
+y′∈Y
+ 
+q(y ′)−1{y ′ =y}
+2,
+V(M;s Br)−V(H;s Br) =E∥π H −π M ∥2
+2.
+Indeed, P
+y p(y)sBr(q, y) = 1−2⟨p, q⟩+∥q∥ 2
+2. Subtracting the same expression atq=p
+givesD sBr(p, q) =∥p−q∥ 2
+2. Applying Theorem 8 leads to the claim.
+Serial communication under logarithmic loss.LetM 0 =Hand suppose
+Y→M 0 →M 1 → · · · →M L
+is a serial communication chain. Then
+V(M L;s log)−V(M 0;s log) =
+LX
+ℓ=1
+I(Y;M ℓ−1 |M ℓ).
+13
+
+--- PAGE 14 ---
+Thus each communication stage contributes a nonnegative term under log loss, and the
+total communication loss on a serial path is additive. To see this, fixk∈ {1, . . . , L}. Since
+Y→M k−1 →M k is Markov and the spaces are standard Borel, the kernel fromMk−1 to
+Mk admits a universal-randomization representation. There exist ancillary randomnessζk
+withζ k ⊥ ⊥Y|M k−1 and a measurable mapµ k such thatM k =µ k(Mk−1, ζk)(see, e.g.,
+Bertsekas and Shreve 1978, Kallenberg 2002). The log-loss identity above then applies to
+each pair(M k−1, Mk), giving
+V(M k;s log)−V(M k−1;s log) =I(Y;M k−1 |M k).
+Summing fromk= 1toLgives the result.
+Remark4.In many empirical studies for LLM-based multi-agent planning, communication
+is assessed through coarse proxies such as transcript length, number of roles, or number of
+rounds. Theorem 8 shows that these proxies are not the relevant object for reliability. The
+relevant object is the posterior distortion. Two systems with the same number of stages can
+have very different communication loss if one preserves the decision-relevant posterior and
+the other does not. Likewise, a longer multi-stage system need not be worse if the extra stage
+preserves the posterior, while a short system can still be highly destructive if it compresses
+the shared signal poorly. Accordingly, when architectures are compared under the same
+exogenous information, the right question is not whether one system communicates more,
+but whether its communication preserves the information needed for the terminal decision.
+Under proper scoring rules, Theorem 8 gives an exact way to state this comparison. It
+therefore suggests a more informative evaluation criterion for agent systems. One should
+measure reliability loss at the level of posterior distortion induced by communication, rather
+than infer it from organizational complexity alone.
+6 Signal Acquisition and Human Review
+This section studies two ways to improve reliability once the terminal information state is
+given. One is to add a new exogenous signal, which can improve the decision problem if it
+contributes non-redundant information. The other is to add a human review option, which
+changes the available action at the terminal stage. These two interventions serve different
+purposes. New signals improve the information available for the final decision, while review
+changes how the system responds when uncertainty remains. The next corollary studies the
+value of added signals, and the theorem after that characterizes the optimal selective review.
+Corollary 9.LetMbe the terminal information state of an automated information struc-
+ture. If an additional verifier signalWis available at the terminal stage, then for every
+14
+
+--- PAGE 15 ---
+bounded lossℓ,V((M, W);ℓ)≤V(M;ℓ), with strict inequality for some bounded loss when-
+ever(M, W)is not Blackwell-dominated byMas an experiment aboutY(that is, whenever
+the additional signalWis not redundant givenMfor the purpose of predictingY). In par-
+ticular, self-critique that only re-readsMcannot move the Bayes envelope, but executable
+tests or external validators can.
+Proof.AnyM-measurable decision rule is also(M, W)-measurable, so the infimum over
+(M, W)-measurable rules can only be smaller, i.e.,V((M, W);ℓ)≤V(M;ℓ)for every
+bounded lossℓ. IfWis Blackwell-redundant relative toMforY, meaning that(M, W)
+is generated fromMthrough a conditionally independent kernel as an experiment about
+Y, then Lemma 4(a) implies equality for every bounded loss. Conversely, ifWis not
+Blackwell-redundant, then(M, W)is not Blackwell-dominated byM, and Lemma 4(b)
+yields a bounded loss ˜ℓwithV((M, W); ˜ℓ)< V(M; ˜ℓ)(applying the Blackwell-Sherman-
+Stein comparison theorem (Blackwell 1953, Torgersen 1991)).□
+Corollary 9gives thedecision-theoretic meaning of verification at the terminal stage, such
+as a verifier signal, an executable test, or an external check. Its function is to distinguish
+two cases that are often grouped together in practice. If verification only reprocesses the
+terminal state, then it does not change the decision problem. If it adds a further signal at
+the terminal stage, then it changes the information available for the final action and may
+improve the Bayes value. This separation is useful for the next result, which studies review
+as a different intervention. Review does not refine the information state itself. Instead, it
+changes the set of feasible responses once the terminal information state has already been
+formed.
+Theorem 10.Consider a review-capable terminal stage with informationH. LetRa(H) :=
+inf a∈A E[ℓ(a, Y)|H]be the minimum automated posterior risk, and let escalation (to human
+review) incur a measurable conditional lossRh(H)withE[R h(H)]<∞. Then the optimal
+value is
+inf
+δ
+E[loss underδ] =E[min{R a(H), Rh(H)}].
+Moreover, for everyε >0there exists anε-optimal threshold policy that automates on
+{Ra(H)≤R h(H)}and escalates on{R a(H)> R h(H)}. If the automated infimumRa(H)
+is attained by anH-measurable Bayes acta∗(H), then an exact Bayes-optimal decision rule
+is
+δ∗(H) =
+
+
+
+a∗(H),ifR a(H)≤R h(H),
+△,ifR a(H)> R h(H).
+Proof.The lower bound and theε-optimal threshold construction follow from Lemma 5.
+At each realizationH=h, the decision is a pointwise comparison between the automated
+15
+
+--- PAGE 16 ---
+posterior riskR a(h)and the review lossR h(h). Since expected loss is linear in the choice
+between automate and escalate, the optimal rule selects the smaller quantity pointwise.□
+Theorem 10 shows that selective review is not a heuristic but a posterior-risk com-
+parison rule. It also clarifies how review relates to the earlier analysis of communication.
+Communication determines the information stateHat the terminal stage, and the theorem
+characterizes the best use of review given that state. In this sense, communication and
+review address different parts of the design problem. Better communication lowersRa(H)
+by preserving decision-relevant information. Review matters for the cases in whichRa(H)
+still exceeds the review loss.
+Remark5.According to Theorem 10, review should not be triggered by fixed stage counts,
+by the presence of disagreement alone, or by a blanket rule that sends all difficult tasks to a
+human after several rounds of internal discussion. These practices treat review as a property
+of the workflow. The theorem shows that the relevant object is instead the posterior risk
+at the terminal information state. A long interaction need not require review if the final
+state supports a low-risk action, and a short interaction may require review if uncertainty
+remains high. Thus the right review signal is decision quality conditional on the available
+information, not the organizational form that produced that information.
+Remark6.Summarizing the analysis in Sections 4-6, the design for LLM-based multi-agent
+planning can be separated into three distinct questions. The first question concerns in-
+formation acquisition, namely whether the system obtains any additional exogenous signal
+beyond the shared evidence. The second concerns communication, namely what terminal
+information state is produced from the available evidence under the chosen interface. The
+third concerns recourse, namely whether the residual uncertainty at that terminal state is
+low enough for automation or should instead trigger review. This decomposition is useful
+because it separates three effects that are often mixed together in practice. It also makes
+clear which part of a system change should be credited when reliability improves.
+7 Numerical Experiments
+This section numerically evaluates the theory with controlled LLM experiments. The eval-
+uation uses 200 four-way multiple-choice questions from MMLU (Hendrycks et al. 2021),
+with the model selecting one answer from{A, B, C, D}under nine experimental conditions
+(denoted as(A),(B 2),(B),(B 5),(B post),(C),(D),(D same), and(S)). These nine
+conditions correspond to workflows that differ in one design dimension at a time, namely
+delegation depth, communication format, or access to external signals. We also include a
+coarse posterior distortion analysis for the relay settings using model output distributions
+as a proxy for belief change across stages. This design helps identify which performance
+16
+
+--- PAGE 17 ---
+Table 2: Empirical results on 200 MMLU questions (conditions A-D) and 200 synthetic KB
+questions (condition S).
+Condition ModelNAcc. CI
+A′ (centralized) 4.1-mini 5973 .907 .007
+A (centralized) o4-mini 6000 .899 .008
+B2 (2-agent relay) 4.1-mini 2000 .412 .022
+B (3-agent relay) 4.1-mini 5138 .435 .014
+B5 (5-agent relay) 4.1-mini 1993 .225 .018
+B (3-agent relay) o4-mini 1275 .370 .027
+Bpost (3-agent, posterior) 4.1-mini 750 .752 .031
+C (single + wiki) 4.1-mini 5973 .872 .008
+D (wiki + scholar) 4.1-mini 5972 .898 .008
+Dsame (wiki + wiki) 4.1-mini 1995 .898 .013
+S (synthetic KB, no tool) 4.1-mini 4000 .243 .013
+S (synthetic KB, with tool) 4.1-mini 4000 .827 .012
+changes are associated with deeper delegation, different communication interfaces, or the
+introduction of new information. Details of the experimental setup are provided in Ap-
+pendix A.
+Table 2 reports the main comparison results for the nine experimental conditions, in-
+cluding the number of evaluated runsN, the accuracyAcc.(computed as the fraction of
+runs in which the model’s final answer matches the correct option), and the corresponding
+confidence intervalCI. The first pattern that can be observed concerns delegation under
+shared information. Relative to the centralized baseline(A), the relay conditions(B 2),
+(B), and(B 5)add stages without adding new exogenous signals, and their performance is
+substantially lower. Ongpt-4.1-mini, accuracy falls from90.7%in(A)to41.2%in(B 2),
+43.5%in(B), and22.5%in(B 5). Ono4-mini, the analogous drop from(A)to(B)is from
+89.9%to37.0%. This is the clearest pattern in the table and is consistent with Proposition 6
+and Theorem 8 that when added stages mainly reprocess the same underlying information,
+reliability is limited by how well communication preserves decision-relevant content.
+The second pattern concerns interface design while holding workflow depth fixed. Com-
+paring(B)with(B post)keeps the three-stage relay structure but changes the message
+format. Condition(B post), which uses a more structured posterior-style message format,
+performs better than condition(B), which uses free-form prose, reaching75.2%rather than
+58.1%at three stages (on 50 questions; see Figure 3). This suggests that the key design ob-
+ject is not only how many stages communicate, but what information the interface preserves
+for the final decision.
+The third pattern concerns added signals. Conditions(C),(D),(D same), and(S)
+compare settings in which the system may obtain external information beyond the baseline
+17
+
+--- PAGE 18 ---
+1 (baseline) 2 3 50
+25
+50
+75
+100
+Number of relay agents
+Accuracy (%)
+Chance (25%)
+gpt-4.1-mini
+o4-mini
+Figure 1: Accuracy versus relay length on MMLU (200 questions). A single agent achieves
+∼90%on both models. Each additional communication stage degrades accuracy. At five
+agents, performance falls below the25%chance baseline.
+context. Condition(C)(single agent with Wikipedia) reaches87.2%, which is below the
+centralized baseline, while(D)(Wikipedia + Semantic Scholar) and(D same)(Wikipedia
++ Wikipedia) both achieve89.8%. On the synthetic task(S), by contrast, tool access raises
+accuracy from24.3%to82.7%. These comparison results are consistent with Corollary 9
+that additional modules help when they add decision-relevant signal, not merely when they
+enlarge the workflow.
+Figures 1-4 further extend the comparisons in Table 2. Figure 1 focuses on delegation
+depth by comparing(A),(B 2),(B), and(B 5). Ongpt-4.1-mini, accuracy declines from
+90.7%with one stage to41.2%with two stages,43.5%with three stages, and22.5%with
+five stages. Although the two-stage and three-stage relays are close in this finite sample,
+the broader pattern is that longer relay chains do not recover reliability and may instead
+amplify loss, with the five-stage relay numerically below the25%chance level for a four-way
+task.
+Figure2turnsfromoverallaccuracytoacoarseproxyforthemechanisminTheorem8. It
+relates per-questionKL(π A∥πB)to the corresponding accuracy drop. The correlation isr=
+0.72for condition(B)andr= 0.44for condition(B 5). The extracted model probabilities
+are only proxies for the formal posteriors in the theorem, so the plot should be interpreted
+qualitatively. Even so, the direction is informative. Questions with larger relay distortion
+also tend to show larger performance losses, which supports the view that communication
+quality matters through its effect on the belief state used for the final decision.
+Figure 3 compares(B)with(B post). The workflow is held fixed at three stages, so
+the difference comes from the message format rather than from the number of relays. The
+posteriorrelaydegradesatabout2.8pointsperstage, whiletheproserelaydegradesatabout
+8.5points per stage. At three stages,(Bpost)reaches75.2%accuracy compared with58.1%
+18
+
+--- PAGE 19 ---
+0 1 2 3 4 5 6 7−0.5
+0
+0.5
+1
+1.5
+KL(πA∥πcond)per question
+Accuracy drop (A−cond)
+B (3-agent),r=0.72
+B5 (5-agent),r=0.44
+Figure 2: Per-question posterior distortion versus accuracy drop relative to the single-agent
+baseline. Each point is one MMLU question (averaged across runs). Questions with larger
+KL divergence suffer larger accuracy losses.
+Direct Stage 1 Stage 2 Stage 330
+40
+50
+60
+70
+80
+90
+100
+Communication stage
+Accuracy (%)Posterior relay (−2.8pts/stage)
+Prose relay (−8.5pts/stage)
+Figure 3: Accuracy versus communication stage for posterior vector relay and natural-
+language prose relay (50 MMLU questions,n=750per condition).The posterior interface
+degrades much more slowly.
+for(B). This shows that communication loss depends not only on the number of stages
+but also on the interface, with a more structured relay preserving more decision-relevant
+information.
+Figure 4 examines conditions(C),(D),(D same), and(S). In Table 2, condition(C)
+achieves87.2%, which does not improve on the90.7%baseline in(A), suggesting that
+Wikipedia search is largely redundant in this setting. By contrast, on the synthetic task in
+condition(S), accuracy rises from24.3%without the tool to82.7%with tool access. This
+pattern is consistent with Corollary 9, which predicts gains when an added signal contributes
+genuinely new information.
+19
+
+--- PAGE 20 ---
+MMLU Synthetic KB
+0
+25
+50
+75
+100
+chance
+82.4
+24.3
+87 82.7
+Accuracy (%)
+A (no tool) C (with tool)
+Figure 4: Redundant versus non-redundant tool access (Corollary 9). Both groups use
+the same single-agent architecture with optional tool lookup.Left (MMLU):the model’s
+parametric knowledge already covers the questions, so the tool adds little (+3.8pts).Right
+(Synthetic KB):200 fictional entities unknown to the model. Without the tool the model
+is near chance (24.3%), with the tool accuracy reaches82.7%(+58.4pts).
+8 Conclusion
+This note develops a decision-theoretic framework for LLM-based multi-agent planning. We
+represent a multi-agent system as a finite acyclic delegated decision network with exogenous
+signals, endogenous communication, and optional review. This framework allows us to relate
+architecture design to information structure, to characterize the common-evidence regime
+as a budget-constrained signal-design problem, and to express the effect of communication
+under proper scoring rules as an expected posterior-distortion divergence. We also incorpo-
+rate signal acquisition and human review into the analysis and illustrate the resulting statics
+through controlled LLM experiments.
+Our analysis suggests a useful way to study LLM-based agent systems in operations
+research. Thesesystemscanbetreatednotonlyascomputationalworkflowsbutasdelegated
+decision mechanisms whose performance is governed by what information enters the system,
+how that information is transformed across stages, and what is ultimately made available at
+the point of choice. This perspective helps separate organizational appearance from decision-
+relevant content and places the evaluation of agent architectures within the framework of
+Bayes risk, experiment comparison, and information design. In this way, the research can
+provide a solid foundation for future work on communication-constrained planning, tool-
+mediated decision support, and human-AI systems with structured recourse.
+References
+Hamsa Bastani. Predicting with proxies.Management Science, 67(5):2964–2984, 2021.
+20
+
+--- PAGE 21 ---
+Dimitri P. Bertsekas and Steven E. Shreve.Stochastic Optimal Control: The Discrete-Time Case.
+Academic Press, 1978.
+Dimitris Bertsimas and Nathan Kallus. From predictive to prescriptive analytics.Management
+Science, 66(3):1025–1044, 2020.
+David Blackwell. Equivalent comparisons of experiments.Annals of Mathematical Statistics, 24(2):
+265–272, 1953.
+Mert Cemri, Melissa Pan, Shuyi Yang, et al. Why do multi-agent LLM systems fail?arXiv preprint
+arXiv:2503.13657, 2025.
+C. K. Chow. On optimum recognition error and reject tradeoff.IEEE Transactions on Information
+Theory, 16(1):41–46, 1970.
+Ran El-Yaniv and Yair Wiener. On the foundations of noise-free selective classification.Journal of
+Machine Learning Research, 11:1605–1641, 2010.
+Adam N. Elmachtoub and Paul Grigas. Smart “Predict, then optimize”.Management Science, 68
+(1):9–26, 2022.
+Tilmann Gneiting and Adrian E. Raftery. Strictly proper scoring rules, prediction, and estimation.
+Journal of the American Statistical Association, 102(477):359–378, 2007.
+Dan Hendrycks, Collin Burns, Steven Basart, Andy Zou, Mantas Mazeika, Dawn Song, and Jacob
+Steinhardt. Measuring massive multitask language understanding. InInternational Conference
+on Learning Representations, 2021.
+Yu-Chi Ho and Kuo-Chu Chu. Team decision theory and information structures in optimal control
+problems—Part I.IEEE Transactions on Automatic Control, 17(1):15–22, 1972.
+Jie Huang, Xinyun Chen, Swaroop Mishra, Huaixiu Steven Zheng, Adams Wei Yu, Xinying Song,
+and Denny Zhou. Large language models cannot self-correct reasoning yet without external
+feedback. InInternational Conference on Learning Representations, 2024.
+Olav Kallenberg.Foundations of Modern Probability. Springer, 2nd edition, 2002.
+Emir Kamenica and Matthew Gentzkow. Bayesian persuasion.American Economic Review, 101(6):
+2590–2615, 2011.
+Yubin Kim, Ken Gu, Chanwoo Park, Samuel Schmidgall, Paul Pu Liang, Yilun Du, Tim Althoff,
+Daniel McDuff, and Xin Liu. Towards a science of scaling agent systems.arXiv preprint
+arXiv:2512.08296, 2025.
+Xiao Liu, Hao Yu, Hanchen Zhang, Yifan Xu, Xuanyu Lei, Hanyu Lai, Yu Gu, Hangliang Ding,
+Kaiwen Men, Kejuan Yang, et al. AgentBench: Evaluating LLMs as agents.arXiv preprint
+arXiv:2308.03688, 2023.
+Jacob Marschak and Roy Radner.Economic Theory of Teams. Yale University Press, 1972.
+Grégoire Mialon, Roberto Dessì, Maria Lomeli, Christoforos Nalmpantis, Ramakanth Pasunuru,
+Roberta Raber, Jack Farina, Yonatan Bisk, Edouard Grave, et al. GAIA: A benchmark for
+general AI assistants.arXiv preprint arXiv:2311.12983, 2024.
+Roy Radner. Team decision problems.Annals of Mathematical Statistics, 33(3):857–881, 1962.
+21
+
+--- PAGE 22 ---
+Christopher A. Sims. Implications of rational inattention.Journal of Monetary Economics, 50(3):
+665–690, 2003.
+Naftali Tishby, Fernando C. Pereira, and William Bialek. The information bottleneck method.
+InProceedings of the 37th Allerton Conference on Communication, Control, and Computing,
+pages 368–377, 2000.
+Erik Torgersen.Comparison of Statistical Experiments. Cambridge University Press, 1991.
+Yizhong Wan, Wenhu Du, Hannaneh Hajishirzi, et al. Stop overvaluing multi-agent debate. In
+International Conference on Machine Learning, 2025.
+Hans S. Witsenhausen. A counterexample in stochastic optimum control.SIAM Journal on Control,
+6(1):131–147, 1968.
+Andrea Wynn, Harsh Satija, and Gillian Hadfield. Talk isn’t always cheap: Understanding failure
+modes in multi-agent debate.arXiv preprint arXiv:2509.05396, 2025.
+Chunqiu Steven Xia, Yinlin Deng, Soren Dunn, and Lingming Zhang. Agentless: Demystifying LLM-
+based software engineering agents. InACM SIGSOFT International Symposium on Founda-
+tions of Software Engineering, 2024.
+Tianbao Xie, Danyang Zhang, Jixuan Chen, et al. OSWorld: Benchmarking multimodal agents for
+open-ended tasks in real computer environments.arXiv preprint arXiv:2404.07972, 2024.
+Zhiyu Xu, Yanqi Liu, Hao Peng, et al. Rethinking the value of multi-agent workflow: A strong single
+agent baseline.arXiv preprint arXiv:2601.12307, 2026.
+Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng,
+Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. WebArena: A realistic web environment for
+building autonomous agents.arXiv preprint arXiv:2307.13854, 2024.
+A Experiment Details
+This appendix provides details for the experiments in Section 7.
+A.1 Experimental Setup
+We use 200 four-way multiple-choice questions from MMLU (Hendrycks et al. 2021)that
+are balanced between STEM, Humanities, Social Sciences, and Other. Two OpenAI models
+are used in the experiments:gpt-4.1-mini, which provides token log-probabilities, and
+o4-mini, a reasoning model without log-probability access. Although MMLU itself is not a
+planning benchmark, it provides a controlled setting for studying multi-stage LLM workflows
+and the information passed to the final decision.
+Table 3 summarizes the nine conditions. Conditions(A),(B),(C),(D), and(S)use 30
+runs per question. Conditions(B2),(B 5),(B post), and(D same)use 10 runs per question.
+All prompts require a single answer from{A, B, C, D}.
+22
+
+--- PAGE 23 ---
+In the relay conditions, downstream stages see only the relayed message and not the orig-
+inal question. This restriction is important because in this way, any change in performance
+then comes from the information passed through the workflow rather than from repeated
+direct access to the source problem. Total API cost is approximately $70 for the original
+conditions and $15-25 for the additional conditions.
+Table 3: Summary of experimental conditions.
+Cond.Task Workflow Signal? Message Purpose
+(A)MMLU Single agent No Direct Centralized baseline
+(B2)MMLU 2-stage relay No Prose Short relay
+(B)MMLU 3-stage relay No Prose Delegation w/o new info
+(B5)MMLU 5-stage relay No Prose Long relay
+(Bp)MMLU 3-stage relay No Posterior Structured interface
+(C)MMLU Agent + Wikipedia Yes Tool External signal
+(D)MMLU 2 specialists + agg. Yes Reports Signal diversity
+(Ds)MMLU 2 Wiki spec. + agg. Low Reports Same-tool ablation
+(S)Synth. Agent + lookup Yes Tool Nonredundant signal
+The nine conditions fall into four groups.
+Centralized baseline.Condition(A)is the single-agent baseline. The model sees the
+question directly and outputs one answer.
+Delegation depth under shared evidence.Conditions(B 2),(B), and(B 5)are serial
+prose relays of different lengths. They add intermediate stages without adding new external
+signals. These conditions study how performance changes when the final decision depends
+on a relayed message rather than on the original question.
+Communication format.Condition(B post)uses the same three-stage workflow as(B),
+but replaces free-text relay with a four-class posterior vector. This condition keeps the
+workflow fixed and changes only the communication format.
+Signal acquisition.Conditions(C),(D),(D same), and(S)examine the role of added
+signals. Condition(C)gives a single agent access to Wikipedia. Condition(D)uses two
+specialists with different tools, one with Wikipedia and one with Semantic Scholar, and an
+aggregatorcombinestheiroutputs. Condition(D same)usestwoWikipediaspecialists, sothe
+number of agents increases but the external source does not become more diverse. Condition
+(S)is a separate synthetic knowledge-base task with 200 fictional entities whose answers
+are available only through tool lookup. Its role is different from the MMLU conditions. It
+is included to provide a setting in which tool access is clearly needed for the final decision
+and not already contained in the model’s parametric knowledge. It should therefore be read
+as a mechanism check for added external information rather than as a direct benchmark
+comparison with the MMLU conditions.
+Figure 5 shows the information flow for three representative conditions.
+23
+
+--- PAGE 24 ---
+(A)
+(B)
+(C)
+Question Agent Answer
+B
+Question Analyzer Reasoner Decider Answer
+B T1 T2
+Question Agent
+Wikipedia
+Answer
+B
+Z
+Figure 5: Information flow for three representative conditions. (A) centralized, where a
+single agent observesBdirectly. (B) serial relay, where each stage sees only the previous
+message. (C) tool-augmented, where the agent acquires an external signalZ. Prompt
+templates are shown in Boxes 1-5.
+A.2 Prompt Templates
+Theboxesbelowshowrepresentativeprompttemplatesforthemainconditions. Theremain-
+ing conditions use the same structure with the condition-specific changes described above.
+The centralized baseline in Box 1 asks the model to answer directly. The relay conditions
+in Boxes 2-3 progressively restrict what each stage can see. The tool-based conditions in
+Boxes 4-5 give the agent access to external retrieval.
+Box 1: Condition A. Single Agent
+Answer the following multiple choice question. Think step by step, then
+provide your final answer.
+Question: {question}
+A) {A} B) {B} C) {C} D) {D}
+Respond with ONLY the letter of your answer (A, B, C, or D) on the last line.
+24
+
+--- PAGE 25 ---
+Box 2: Condition B. Agent 1, Analyzer
+You are a question analyzer. Read the following question carefully and
+provide a detailed analysis of what the question is asking and what knowledge
+domains are relevant. Do NOT answer the question.
+Question: {question}
+A) {A} B) {B} C) {C} D) {D}
+Provide your analysis in 2–3 paragraphs.
+Agent 2 receives only Agent 1’s output and reasons through the choices. Agent 3 receives
+only Agent 2’s output and selects the final letter. In conditions(B2)and(B 5), the same
+relay idea is used with two and five stages respectively. In all relay conditions, downstream
+stages do not see the original question.
+Box 3: Condition B post. Posterior V ector Relay
+Read the following multiple choice question. Output ONLY four numbers
+separated by spaces, your probability estimates for choices A, B, C, and
+D respectively. The four numbers must sum to 1.0.
+Question: {question}
+A) {A} B) {B} C) {C} D) {D}
+Probabilities (A B C D):
+This condition uses the same three-stage workflow as(B), but the relayed message is a
+posterior vector(ˆpA,ˆpB,ˆpC,ˆpD)rather than prose. The final stage picks the letter with the
+highest relayed probability.
+Box 4: Condition C. Single Agent with Wikipedia
+You can search Wikipedia for information to help answer the question. Use
+the search_wikipedia function if needed.
+Question: {question}
+A) {A} B) {B} C) {C} D) {D}
+Respond with ONLY the letter of your answer.
+Condition(D)uses two specialists, one with Wikipedia and one with Semantic Scholar, and
+an aggregator combines their outputs. Condition(Dsame)gives both specialists Wikipedia.
+25
+
+--- PAGE 26 ---
+Box 5: Condition S. Synthetic Knowledge Base
+Answer the following question about a specific entity. You may use the
+lookup_entity function to retrieve information.
+Question: {question}
+A) {A} B) {B} C) {C} D) {D}
+Respond with ONLY the letter of your answer.
+The knowledge base contains 200 fictional entities with fabricated attributes. The model has
+no parametric knowledge of these entities, so correct answers require tool use. This condition
+is included to show a case where the added tool signal is clearly needed for the final decision.
+A.3 Posterior Extraction
+For allgpt-4.1-miniconditions, we extract the token log-probabilities for the four answer
+tokens A, B, C, and D from the final generation step and normalize them with softmax to
+obtain the four-class distributionπ= (π A, πB, πC, πD).
+In the relay conditions(B),(B 2), and(B 5), we also probe each intermediate stage by
+appending the follow-up query “If you had to answer now, which letter would you choose?”
+The log-probabilities from this probe yield the per-stage distributionsπ0, π1, . . . , πL. From
+these distributions we compute the per-handoff KL divergenceKL(πk−1∥πk)and the total
+distortionKL(π A∥πB,final)reported in Section 7. The KL and accuracy scatter in Figure 2
+uses the per-question average across 30 runs.
+These extracted distributions are not literal Bayesian posteriors in the formal sense of the
+theory. They are used as an operational proxy for how much the downstream stage’s belief
+changes relative to direct access to the original question. Sinceo4-minidoes not expose to-
+ken log-probabilities, this posterior distortion analysis is carried out only forgpt-4.1-mini.
+26

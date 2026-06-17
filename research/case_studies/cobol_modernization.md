@@ -1,0 +1,81 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_06_cobol_modernization
+- wave: wave_06_planning_orchestration_and_interactions
+- task_family: cobol-modernization
+- systems_compared:
+  - `BigAI`
+- run_paths:
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/1478ab91-572c-445e-ba77-807d2cd03d4c.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/5bcfcd9d-0551-4227-9e9a-26d104728d76.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/b131ce4a-2242-4467-ad17-acbcd3b2abd6.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/d7f5f2b6-aede-4480-9cbe-ce5a89ab0342.json`
+  - [private-source: BigAI/cobol-modernization-trajectory]
+  - [private-source: BigAI/cobol-modernization-trajectory]
+  - [private-source: BigAI/cobol-modernization-trajectory]
+  - [private-source: BigAI/cobol-modernization-trajectory]
+  - [private-source: BigAI/cobol-modernization-trajectory]
+- outcome_profile:
+  - all 5 sampled runs pass
+  - all 5 runs use safety-first initial plans
+  - 4/5 runs use verifier closure; 1/5 run (`23f3...`) has no visible verifier role
+  - 1/5 runs uses two executors (`23f3...`), others remain single-executor
+- per_run_notes:
+  - `1478...`: six-todo plan, verifier-gated pass, and backup/isolation-heavy execution sequence.
+  - `23f3...`: two-executor run with one planner `plan_update`, no verifier, and command-level errors (`execution` + `git status`), yet final pass.
+  - `5bcf...`: strongest environment-discovery churn (`sudo` missing, path mismatch, diff retries) before verifier pass.
+  - `b131...`: highest error density among required runs; repeated exploratory COBOL probes before converging to verifier pass.
+  - `d7f5...`: cleanup and exploratory compile probes fail intermittently but pipeline still closes through verifier pass.
+- cross_run_comparison:
+  - planning remains stable and front-loaded across all runs.
+  - orchestration variance is mainly in gate usage (verifier-present vs no-verifier variant), not in abandoning planner-first flow.
+  - command-level failure noise is common and does not imply orchestration collapse when replanning or retries are available.
+- failure_point_comparison:
+  - most failures are local execution failures (missing tools, wrong paths, probe scripts) rather than immediate planning collapse.
+  - higher command error count correlates with longer runs but not necessarily failure.
+  - no-verifier pass path exists and is a real governance risk because it bypasses explicit external adjudication.
+- source_or_architecture_links:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_support_delegation_interaction_map.md`
+- behavioral_reconstruction_caveats:
+  - BigAI scheduler internals and verifier policy are not source-visible; this is trajectory reconstruction only.
+- mechanism_implications:
+  - safety-first planning is stable in this task family, but verifier participation is optional in at least one passing regime.
+  - role separation appears strong but should be modeled as mode-dependent rather than mandatory.
+- failure_implications:
+  - orchestration can absorb substantial command noise when plan structure is preserved.
+  - no-verifier completions should be treated as high-risk interaction-contract variants.
+- confidence_notes:
+  - high confidence in plan style and role-transition observations.
+  - medium confidence in causal interpretation of no-verifier pass behavior.
+- wave_06_codebase_source_reconstruction_addendum:
+  - additional_systems_compared:
+    - `deepagents`
+    - `terminus-kira`
+  - additional_run_paths:
+    - [private-source: deepagents/cobol-modernization-trajectory]
+    - [private-source: terminus-kira/cobol-modernization-trajectory]
+  - source_reconciliation_links:
+    - [private-source: codebase/deepagents]
+    - [private-source: codebase/KIRA]
+  - observations:
+    - deepagents cobol run shows heavy inline verification script discipline under single-agent loop.
+    - terminus-kira cobol run shows analysis/plan protocol and completion-checklist gating with repeated completion calls.
+    - BigAI cobol runs remain role-separated with optional verifier closure variants.
+  - inference:
+    - cobol-modernization reinforces that planning/orchestration variability is family-level (not only task-level): terminal-first single-agent loops and role-separated orchestration both achieve passes via different governance surfaces.
+  - confidence:
+    - medium
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - wave_04_relevance:
+    - required comparator for delegation/handoff mismatch and long-horizon orchestration stress under pass outcomes.
+  - wave_04_observations:
+    - one required pass run has no visible verifier role (`23f3...`) while others remain verifier-present.
+    - long-run passes can carry elevated error counts (`b131...`, `5bcf...`) without collapsing final outcome.
+  - wave_04_inference:
+    - Wave 04 must treat role-handoff governance variability and long-horizon degradation as distinct from binary pass/fail status.
+  - evidence_paths:
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/b131ce4a-2242-4467-ad17-acbcd3b2abd6.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/5bcfcd9d-0551-4227-9e9a-26d104728d76.json`
+  - confidence: medium

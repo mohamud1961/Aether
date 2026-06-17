@@ -1,0 +1,206 @@
+# Failure Taxonomy Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: failure_taxonomy
+- objective: Build the first evidence-backed taxonomy of recurrent harness failure patterns, with explicit separation between model, harness, environment, and eval failure contributions.
+- exact_question: Which failure patterns recur across the in-scope systems, where and why do they appear, which mechanisms seem to mitigate them, and which failure attributions remain uncertain or mixed?
+- why_now: `mechanism_map` is now accepted through Wave 06, so failure attribution can inherit a stable mechanism spine instead of improvising its own mechanism surface.
+- inputs:
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - prompts/deep_synthesis_shared_policy_prompt.md
+  - prompts/deep_synthesis_support_subagent_prompt.md
+  - prompts/deep_synthesis_trajectory_failure_analyst_prompt.md
+  - prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md
+  - prompts/deep_synthesis_eval_benchmark_analyst_prompt.md
+  - prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md
+  - prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md
+  - prompts/deep_synthesis_contradiction_analyst_prompt.md
+  - prompts/deep_synthesis_checklist_adjudicator_prompt.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/deep_synthesis_setup/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - research/analysis/bigai_trace_layer/output/answered_questions.md
+  - research/sources/trajectories/
+  - research/sources/codebases/
+  - research/sources/benchmarks/
+  - research/sources/papers/
+  - research/sources/docs/
+  - research/sources/informal/
+  - research/sources/issues/
+  - research/sources/postmortems/
+  - blocks/
+  - runner/
+  - evals/
+  - FAILURE_CARD_SCHEMA.md
+  - TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md
+- preflight_requirements:
+  - confirm the active scope against `scope_anchor_paths`, the organizer, and the upstream mechanism handoff before making claims
+  - list the planned read order across trajectories, source, eval, formal literature, and informal evidence
+  - name critical sources selected for the first pass
+  - surface coverage risks and likely blind spots before synthesis claims
+  - stop and hand control back to the principal if structural blockers prevent honest attribution
+- scope_anchor_paths:
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- organizer_paths:
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md
+- evidence_classes_in_scope:
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - trajectories
+  - mirrored codebases
+  - eval repos
+  - benchmark captures
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `extract-moves-from-video` triad across `BigAI`, `deepagents`, and `terminus-kira`
+  - `gpt2-codegolf` cross-family cluster, keeping the Terminus-KIRA artifact gap visible
+  - `db-wal-recovery` triad for recovery, rollback, and verifier-visible cleanup
+  - timeout-heavy BigAI slices highlighted in `research/analysis/bigai_trace_layer/output/answered_questions.md`, especially `torch-pipeline-parallelism`, `train-fasttext`, `caffe-cifar-10`, and `qemu-startup`
+- mirrored_source_targets:
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/codebases/src_cod_564b05dcc95b/capture.json`
+  - `research/sources/codebases/src_cod_ad409dc1ebde/capture.json`
+  - `research/sources/codebases/src_cod_e231561a3d69/capture.json`
+  - `research/sources/codebases/src_cod_a1e1a27e13a1/capture.json`
+  - `research/sources/codebases/src_cod_18ba360eb4b2/capture.json`
+- behavior_reconstruction_targets:
+  - `research/sources/trajectories/BigAI/`
+  - no-source or partial-source failure attribution that must be inferred from direct runs
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- eval_and_benchmark_targets:
+  - `research/sources/codebases/deepagents/libs/evals/`
+  - `research/sources/benchmarks/`
+  - local `evals/`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+- required_case_slices:
+  - `Failure-heavy multimodal triad`
+  - `Failure-heavy coding-control cluster`
+  - `Stateful recovery triad`
+  - `Timeout-heavy systems cluster`
+- extraction_level_cap: `L4`
+- serious_wave_default_main_lanes:
+  - `trajectory/failure analyst`
+  - `codebase/source-reconstruction analyst`
+  - `literature/papers/docs analyst`
+  - `informal/issues/postmortems analyst`
+- optional_fifth_lane_rule:
+  - activate `eval/benchmark analyst` only when verifier, grader, replay, or benchmark contract logic materially shapes failure attribution
+- support_track_dependencies:
+  - `coverage_register`
+  - `source_system_dossiers`
+  - `trajectory_case_studies`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+  - `eval_benchmark_dossiers` when the fifth lane is activated or eval logic materially shapes attribution
+- coverage_register_rule:
+  - every serious wave must read `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis and checklist adjudication must state what changed in coverage and what remains thin
+- gate_review_usage:
+  - primary contradiction and checklist files are canonical GPT gate outputs
+  - optional Gemini breadth or Claude contradiction checks should be written as model-suffixed sibling files, never as replacements
+- required_dossier_updates:
+  - the active wave packet must say which case studies, dossiers, or clusters should be updated directly
+  - if no dossier update is required, the packet must justify that explicitly
+- citation_contract:
+  - every `L3` or `L4` failure claim must cite repo-local paths
+  - failure attribution should cite direct trajectory or benchmark evidence first
+  - mixed model-versus-harness cases must remain explicitly mixed when evidence is not decisive
+  - no-source failure attribution from trajectories must stay below source-backed certainty unless corroborated elsewhere
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` failure claim must say what weakens it
+- contradiction_hand_off:
+  - route the first-pass outputs to `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/contradiction_analyst.md`
+  - attack over-attribution, model-versus-harness confusion, thin evidence, and fake coverage
+- adversarial_checkpoint:
+  - contradiction analyst runs after first-pass outputs and before principal synthesis is accepted
+- carry_forward_operating_rules:
+  - stay on `corpus__captured_for_synthetic_prep.json` as the intake integrity anchor
+  - keep organizer-routed non-intake evidence in scope
+  - do not treat organizer matrices as substitute evidence
+  - confirm placeholder matrix tags against underlying artifacts
+  - carry mechanism definitions forward from `mechanism_map` rather than reinventing them silently
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+  - `support_artifacts_used`
+  - `support_artifacts_requested_or_deferred`
+  - `coverage_register_updates_needed`
+  - `required_dossier_updates`
+  - `coverage_used` must list concrete repo-local paths or path globs actually read in the current wave
+- exclusions:
+  - do not open `eval_implications` from inside this artifact
+  - do not produce final variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - first-pass outputs should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/informal_issues_postmortems_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/eval_benchmark_analyst.md` when the sidecar is activated
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/literature_papers_docs_analyst.md` when a formal-source sidecar is activated
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/outputs/contradiction_analyst.md`
+  - principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/principal_synthesis.md`
+  - checklist adjudication for new waves should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_<nn>_<slug>/adjudication/checklist_adjudicator.md`
+  - optional external gate reviews for new waves should land in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_<nn>_<slug>/outputs/contradiction_analyst__gemini.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_<nn>_<slug>/outputs/contradiction_analyst__opus.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_<nn>_<slug>/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_<nn>_<slug>/adjudication/checklist_adjudicator__opus.md`
+  - cumulative accepted state should be maintained in:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - the principal synthesis must emit failure cards using `FAILURE_CARD_SCHEMA.md`
+  - every output must include `coverage_used`, `coverage_not_yet_used`, `evidence_classes_touched`, and `priority_sources_not_yet_read`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, plus optional eval/benchmark fifth lane when needed, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. `failure_taxonomy` is now the active second core artifact after accepted `mechanism_map` Wave 06.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - eval/benchmark analyst (fifth main lane when needed)
+  - contradiction analyst
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/handoff_to_failure_taxonomy.md`
+- handoff_requirements:
+  - after principal synthesis, emit a structured handoff to `eval_implications`
+  - store it at `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/handoff_to_eval_implications.md`
+  - use `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_HANDOFF_SCHEMA.md`
+- evidence_expectations:
+  - preserve failure symptoms separately from inferred causes
+  - do not collapse model, harness, environment, and eval failure without evidence
+  - keep no-source and partial-source attribution honest
+  - use issues and postmortems for contradiction pressure, not for silent upgrades in confidence
+  - keep timeout, verifier-absence, and artifact-gap distortions visible
+  - leave severity, recoverability, downstream-effect, or interaction fields unresolved when evidence is weak instead of over-filling the schema
+- decision_needed_from_human: None. `failure_taxonomy` is now active in the governed artifact order.
+- done_condition: The planned `failure_taxonomy` waves defined in the Deep Synthesis wave plan are complete or their remaining gaps are explicitly accepted by the human owner, contradiction review is complete, and principal synthesis plus cumulative state files produce evidence-backed failure cards with explicit coverage accounting and visible uncertainty.

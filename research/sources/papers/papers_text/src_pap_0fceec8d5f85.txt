@@ -1,0 +1,732 @@
+--- PAGE 1 ---
+Large Language Models as Bidding Agents in
+Repeated HetNet Auction
+Ismail Lotfi∗, Ali Ghrayeb ∗, Samson Lasaulce †, and M ´erouane Debbah ‡
+∗College of Science and Engineering, Hamad Bin Khalifa University, Doha, Qatar
+†CNRS, Universite de Lorraine, CRAN, France
+‡Department of Computer Science, Khalifa University, Abu Dhabi, UAE
+(e-mail: {ilotfi, aghrayeb}@hbku.edu.qa, samson.lasaulce@univ-lorraine.fr, merouane.debbah@ku.ac.ae)
+Abstract—This paper investigates the integration of large
+language models (LLMs) as reasoning agents in repeated spec-
+trum auctions within heterogeneous networks (HetNets). While
+auction-based mechanisms have been widely employed for ef-
+ficient resource allocation, most prior works assume one-shot
+auctions, static bidder behavior, and idealized conditions. In
+contrast to traditional formulations where base station (BS)
+association and power allocation are centrally optimized, we
+propose a distributed auction-based framework in which each
+BS independently conducts its own multi-channel auction, and
+user equipments (UEs) strategically decide both their association
+and bid values. Within this setting, UEs operate under budget
+constraints and repeated interactions, transforming resource
+allocation into a long-term economic decision rather than a one-
+shot optimization problem. The proposed framework enables the
+evaluation of diverse bidding behaviors—from classical myopic
+and greedy policies to LLM-based agents capable of reasoning
+over historical outcomes, anticipating competition, and adapting
+their bidding strategy across episodes. Simulation results reveal
+that the LLM-empowered UE consistently achieves higher chan-
+nel access frequency and improved budget efficiency compared to
+benchmarks. These findings highlight the potential of reasoning-
+enabled agents in future decentralized wireless networks markets
+and pave the way for lightweight, edge-deployable LLMs to sup-
+port intelligent resource allocation in next-generation HetNets.
+Index Terms —6G Networks, generative AI, HetNet, large
+language models, repeated auction.
+I. I NTRODUCTION
+A. Background
+Dynamic spectrum allocation in mobile networks is a
+critical and ongoing challenge, particularly in heterogeneous
+networks (HetNets) where macro and small cells coexist to
+support diverse user demands and service requirements [1].
+Traditional allocation techniques include fixed or semi-static
+frequency assignments, centralized optimization algorithms,
+and distributed load-balancing schemes. However, the growing
+complexity and dynamic nature of wireless environments have
+led to the emergence of auction-based mechanisms as promis-
+ing solutions, particularly when demands exceed the available
+spectrum [1], [2]. These mechanisms leverage economic prin-
+ciples to incentivize users to reveal their true preferences and
+allocate limited spectrum resources efficiently.
+Several auction-based mechanisms have been proposed in
+the literature for resource allocation in HetNets, with the
+majority focusing on single-round (one-shot) auctions where
+users submit bids and receive allocations in a single in-
+stance [3], [4]. These models typically assume non-strategic
+users who truthfully report their valuations, often equated with
+their achievable channel capacity under ideal conditions. While
+such formulations simplify the analysis, they overlook the
+inherently dynamic nature of real-world wireless networks. In
+practical HetNet deployments -especially in mobile or dense
+urban scenarios- resource allocation decisions must be revis-
+ited frequently due to the rapid fluctuations in user demands,
+channel conditions, and network loads. This naturally gives
+rise to repeated auction settings, where spectrum resources
+are re-allocated periodically [5]. In repeated auctions, user
+equipments (UEs) can observe patterns in the bidding behav-
+ior of others, estimate likely winning bids, and adjust their
+strategies across rounds to maximize their long-term utility.
+However, relatively little attention has been paid to how users
+can strategically learn and optimize their bids in these dynamic
+environments.
+B. Related Works
+Another important dimension often overlooked in the ex-
+isting literature concerns the architectural assumptions un-
+derlying the auction process. In many auction-based spec-
+trum allocation studies (e.g., [3], [4]), a centralized entity
+is assumed to orchestrate the resource distribution process
+across all base stations (BSs). Under this assumption, users
+typically submit a single bid that applies uniformly across
+BSs, allowing the central controller to select winners and
+allocate channels optimally. While this simplifies the allo-
+cation logic, it abstracts away from the decentralized and
+heterogeneous nature of practical HetNets. In reality, users
+often encounter multiple BSs, each with its own traffic load,
+interference profile, and pricing strategy. In such distributed
+settings, users must make a two-stage decision: first, select
+a BS for potential association, and second, determine a bid
+tailored to that BS’s characteristics. This layered decision-
+making introduces complex strategic considerations -such as
+load balancing, bid competition, and risk management- that
+are not captured by conventional single-auction models. These
+limitations highlight the need to explore distributed auction
+mechanisms and intelligent user-side decision strategies in
+more depth.
+arXiv:2603.04455v1  [cs.NI]  2 Mar 2026
+
+--- PAGE 2 ---
+Recently, large language models (LLMs) have demon-
+strated remarkable abilities in context understanding, prob-
+abilistic reasoning, and strategy formulation across diverse
+domains [6], [7]. These models can interpret rich interac-
+tion histories, infer opponent behavior, and generate adaptive
+actions aligned with long-term objectives. Such capabilities
+make them promising candidates for integration into UE
+decision-making processes, particularly in dynamic wireless
+environments where budget constraints, user heterogeneity,
+and competitive bidding interplay. Moreover, the emergence
+of Agentic-AI frameworks has enabled LLMs to act as au-
+tonomous agents capable of negotiation, collaboration, and
+strategic competition [6], [8]. For instance, in [9], a Microsoft
+team demonstrated that LLMs could successfully participate
+in single-shot, first-price auctions, highlighting their potential
+to internalize game-theoretic reasoning. Building upon these
+insights, our work extends the application of LLMs to a more
+complex and realistic setting -repeated multi-channel spectrum
+auctions in HetNets- where resource availability, interference,
+and budget dynamics evolve over time.
+C. Contributions
+In this work, we propose a distributed, repeated multi-
+channel auction framework for HetNets where each BS inde-
+pendently allocates spectrum, and UEs autonomously decide
+their association and bid values under budget constraints.
+This decentralized formulation captures realistic congestion
+scenarios where user demand exceeds available channels,
+transforming resource allocation into a long-term economic
+decision rather than a static optimization problem. Within
+this framework, we investigate LLM-driven UEs that reason
+over past outcomes and adapt bidding strategies to maximize
+long-term utility. The heterogeneous HetNet environment -
+with diverse BS types, interference levels, and cost structures-
+provides an ideal testbed to evaluate such reasoning capabili-
+ties. Our contributions are summarized as follows:
+• We introduce a novel framework for repeated multi-
+channel spectrum auctions in distributed HetNets, where
+UEs employ LLMs as strategic reasoning agents to guide
+bidding and association decisions.
+• Unlike traditional studies that focus solely on auctioneer-
+side optimization, we analyze how UEs with budget
+constraints develop bidding strategies in dynamic, multi-
+BS settings. We explore several strategies, including
+myopic, greedy and LLM-based reasoning, and examine
+their impact on long-term utility and channel allocation
+efficiency.
+• Through extensive simulations, we analyze the behavior
+of LLM-based UEs relative to classical bidding strate-
+gies. Results show that the LLM-enabled UE discov-
+ers adaptive, utility-enhancing behaviors, achieving up
+to 50% higher bid precision and 20% greater channel
+access frequency compared to both myopic and greedy
+counterparts [5], [10].
+The rest of the paper is organized as follows. In Section II
+we present our studied system and define the evaluation
+metrics. In Section III we derive the BS selection and channel
+allocation procedures. We present our results in Section IV
+and conclude the paper in Section V.
+II. S YSTEM MODEL
+A. System Description
+Consider a two-tier HetNet comprising a single macro base
+station (MBS) and M − 1 small base stations (SBSs) as
+illustrated in Figure 1. S represents the set of BSs and Cs
+denotes the set of sub-channels available to each BS where
+s ∈ S . We assume that each BS s transmits over sub-
+channel k ∈ C s with a fixed power level denoted by Ps.
+The transmit power of the SBSs is assumed to be equal
+while that of the MBS is much higher. Let U be the set
+of N UEs located within the service area of the HetNet and
+Ψ = {ψ1, ψ2, . . . , ψi, . . . , ψN } denote the set of budgets for
+each UE. Each UE i ∈ U requests a downlink data rate
+Ri ∈ Ω, where Ω is a predefined discrete set representing
+the available service classes (in bits per second) 1.
+Cross-tier interference
+Co-tier interference
+UE--MBS connection
+UE--SBS connection
+Figure 1. An example of a two-tier HetNet including one
+macrocell BS and four small BSs.
+B. Evaluation Metrics: Data Rate and QoS
+The achievable data rate Rs,i for UE i on a sub-channel of
+BS s is modeled using the Shannon capacity formula as [11]:
+Rs,i = W · log2(1 + γs,i), (1)
+where W is the bandwidth of a single sub-channel and
+γs,i is the instantaneous signal-to-interference-plus-noise ratio
+(SINR) at UE i, when served by BS s. To model the total
+data rate achieved by UE i, we introduce the following binary
+decision variables:
+• xs,i ∈ {0, 1}: Indicates whether UE i is associated with
+BS s (i.e., xs,i = 1 if UE i is served by BS s, otherwise
+0).
+• y(k)
+s,i ∈ { 0, 1}: Indicates whether a sub-channel k is
+allocated by BS s to UE i.
+Then, the total data rate ˆRs,i achieved by UE i across all
+its allocated Ns,i sub-channels from BS s is given by:
+1Note that, hereinafter, the terms service classes and quality-of-service
+(QoS) levels are used interchangeably.
+
+--- PAGE 3 ---
+ˆRs,i =
+X
+s∈S
+xs,i
+X
+k∈Cs
+y(k)
+s,i · Rs,i. (2)
+Note here that in our system, UE i can be only associated
+to one BS as in [11], i.e.,:
+X
+s∈S
+xs,i ≤ 1, ∀i ∈ U . (3)
+Additionally, for assignment feasibility, a minimum QoS
+should be guaranteed by the BS serving UE i, which is
+translated into the following constraint:
+ˆRs,i ≥ Ri, ∀i ∈ U . (4)
+C. Utility Functions
+1) BS Utility: Since electricity consumption constitutes a
+significant portion of a BS’s operational cost, we model the
+downlink operational cost primarily in terms of energy expen-
+diture. Specifically, we define the operational cost incurred by
+BS s when transmitting on a sub-channel as:
+rs = µbPs, (5)
+where µb is the unit price of transmission power at BS s. The
+operational cost defined in (5) is considered as the reservation
+price (i.e., minimum price) set by the BS for each sub-channel.
+As the MBS consumes more energy to transmit, its reservation
+price is considered to be much higher than that of the SBSs.
+The utility of BS s from serving UE i at time period t is
+then defined as the difference between the payment received
+from UE i at time period t and the operational cost, which we
+denote formally as:
+u(t)
+s→i = Ns,i(π(t)
+i − rs), (6)
+where π(t)
+i is the payment of UE i for each allocated sub-
+channel at time period t.
+2) UE Utility: The utility of UE i is defined as the differ-
+ence between its valuation of all the allocated sub-channels
+and the payment given to BS s. Formally, this is expressed by
+the following quasilinear preference function:
+u(t)
+i→s =
+(
+Ns,i(v(t)
+i→s − π(t)
+i ), if UE i wins,
+0, otherwise. (7)
+where v(t)
+i→s is the per-channel valuation of UE i at time period
+t.
+A fundamental outcome of any auction is the partition of
+participants into winners and losers. For wireless users, losing
+an auction round has a direct behavioral consequence: since
+connectivity is required continuously to sustain the target QoE,
+each missed opportunity increases the urgency of securing
+resources in subsequent rounds. This urgency translates into a
+dynamic adjustment of the user’s valuation of spectrum access.
+We capture this effect by modeling the valuation of UE i for
+association with BS s at round t through a time-dependent
+quasi-linear utility function:
+v(t)
+i→s = α(t)
+i Rs,i, (8)
+where Rs,i is the achievable data rate defined in (1), and
+α(t)
+i is a user-specific scaling parameter that evolves with
+time. The parameter α(t)
+i reflects how strongly throughput
+translates into perceived utility, capturing both the intrinsic
+service requirements of the user (e.g., real-time vs. elastic
+traffic) and the urgency induced by repeated failures to secure
+a channel. We model the time evolution of the per-user scaling
+parameter α(t)
+i as a function of the user’s history of missed
+allocations. Let hi(t) denote the number of consecutive rounds
+up to t in which UE i failed to obtain a channel. Let α(0)
+i
+denote the baseline scaling and ¯αi a user-specific upper bound
+(urgency ceiling). The update rule is then defined as:
+α(t)
+i = min
+n
+¯αi, α (0)
+i + εi hi(t)
+o
+, (9)
+where εi = (¯αi −α(0)
+i )/Hsat and Hsat is the number of failures
+to reach saturation (e.g., Hsat = 5). This formulation indicates
+that each consecutive failure increases urgency by a fixed
+increment εi, until capped at ¯αi2. By adapting this formulation,
+user valuations become endogenously time-varying rather than
+fixed constants, linking auction outcomes to future bidding
+behavior.
+III. P ROBLEM FORMULATION : AUCTION -BASED
+DISTRIBUTED CHANNEL ALLOCATION
+In this section, we formalize the problem setting and the
+decision-making processes of both UEs and BSs. Existing
+works typically assume that BS selection is centrally opti-
+mized by the MBS under strict rate and power constraints,
+often resulting in NP-hard formulations that are relaxed and
+solved using centralized heuristics [1]. While effective in static
+settings, such approaches limit scalability and responsiveness
+in dynamic HetNets. In contrast, we focus on the more realistic
+scenario of congestion, where user requests exceed the number
+of available channels, necessitating competitive allocation. To
+address this, we adopt a UE-driven association model in which
+each UE initially requests service from the SBS with the
+highest SINR and only resorts to the MBS if unsuccessful.
+A. BS Selection Procedure (UE-Side Decision)
+The UE-based association changes the decision structure
+compared to existing works: instead of being forced by fea-
+sibility (e.g., power constraint), the UE must anticipate which
+association request is most likely to succeed and which option
+maximizes its expected utility subject to winning. A naive BS
+selection rule would be to always associate with the SBS pro-
+viding the highest SINR. While this maximizes signal quality,
+it also concentrates competition, driving up clearing prices
+and reducing the likelihood of winning. On the other hand,
+consistently choosing the MBS increases winning probability
+2Note that other quasi-linear variants (e.g., logarithmic or sigmoidal)
+are straightforward to incorporate within the same framework and yield
+qualitatively similar dynamics.
+
+--- PAGE 4 ---
+but incurs higher payments, leading to rapid budget depletion
+and inefficient connectivity. These trade-offs highlight the need
+for more strategic and context-aware decision-making, where
+UEs weigh both expected utility and winning probability. To
+this end, we investigate three approaches for UE-side decision-
+making in BS and bid selection: myopic [5], greedy [10], [12],
+and LLM-based strategies.
+1) Myopic Truthful Strategy : The UE ignores cross-BS
+tradeoffs and simply bids its true valuation at the BS with the
+highest achievable rate as defined in (2).
+2) Greedy Bayesian Strategy : The UE evaluates both SBS
+and MBS in the current round, comparing expected utilities
+(defined below), and chooses the pair of selected BS and
+bid value (s⋆, b⋆) that maximizes the instantaneous expected
+utility. Formally, the expected utility for UE i from association
+with BS s at time period t is defined as:
+ˆUi(b, s) = Pr( win | b) ·
+
+v(t)
+i,s − E[ps](t)
+
+, (10)
+where Pr(win | b) is the winning probability at BS s with
+bidding b and E[ps](t) denotes the expected payment at BS s.
+a) Winning probability and expected payment: UE i wins
+a channel at BS s with bid b if fewer than Cs competitors
+submit bids strictly greater than b. Let Ns be the number
+of competing UEs at BS s and B−i = {Bj}j̸=i be the
+random bids of the other m = Ns − 1 competitors. The
+number of competitors whose bids exceed b follows a binomial
+distribution with parameters m and plose(b) = 1 − Fs(b) where
+Fs(b) = Pr
+ 
+Bj ≤ b
+
+is the CDF of the competitors bids at
+BS s. Hence, the win probability is 3:
+Pr(win | b) =
+Cs−1X
+j=0
+m
+j
+ 
+1 − Fs(b)
+j 
+Fs(b)
+ m−j
+. (11)
+This expression integrates over all events where exactly j
+competitors outbid user i, and user i still ranks among the
+top Cs bidders. Here we sum only up to Cs − 1 because the
+UE can tolerate at most Cs − 1 competitors outbidding it and
+still winning one of the Cs available sub-channels. However,
+unlike theoretical models where Fs is known, a UE in practice
+must infer it from broadcast information. In practice, the BS
+may either (i) broadcast a full vector of winning payments,
+or (ii) broadcast only the marginal clearing price (i.e., the
+highest losing bid). The former provides complete information
+but incurs significantly higher signaling overhead, as the BS
+must communicate one payment per allocated channel in every
+round. By contrast, the latter requires broadcasting only one
+value -the marginal clearing price (the Cs-th order statistic)-
+which greatly reduces control-channel load and still provides
+sufficient statistics for UEs to estimate the competitiveness
+of the market. In this work, we adopt the single-clearing-
+price model to keep the feedback lightweight, though ex-
+tending to per-winner payment broadcasts is conceptually
+3Here we assumes that all competing bids are independent and identically
+distributed (i.i.d.) according to the empirical CDF Fs(·) of BS s, which is
+common in auction theory practices [13].
+LLM Prompt Template:
+Given the following network and economic context:
+- Your valuations for BSs in S′
+- Your budget: βi
+- Number of sub-channels required for each BS: Ns,i
+Please analyze and provide:
+1. The optimal BS s∗ to associate with, provided it has the highest
+expected utility.
+2. Recommended bid value for BS b∗ .
+3. A brief explanation of your reasoning.
+Expected Response Format:
+Selected BS and bid value: [value]
+Explanation: "[Short textual reasoning]"
+Figure 2. Template of the LLM prompt and expected response
+structure used for strategic BS selection and bidding.
+straightforward. From the sequence of clearing prices up-to
+time period t: {p(1)
+s , p(2)
+s , . . . , p(t)
+s }, UE i builds an empirical
+distribution [10]:
+ˆF (t)
+s (x) = 1
+t
+tX
+τ =1
+1{p(τ )
+s ≤ x}. (12)
+where 1{·} is the indicator function. This estimated CDF ˆFs
+feeds directly into Eq. (11), allowing each UE to compute its
+personalized probability of winning at bid b. From this em-
+pirical distribution, the expected marginal payment is directly
+estimated as:
+E[ps](t) ≈ 1
+t
+tX
+τ =1
+p(τ )
+s . (13)
+b) Association decision: UE i constructs a candidate
+bid set Bi as a discrete grid around two anchors: its own
+valuation v(t)
+i,s and the last observed minimum clearing price
+ˆp(t)
+s . This ensures exploration of both aggressive (above ˆp(t)
+s )
+and conservative (near v(t)
+i,s) bids, while maintaining budget
+feasibility. Finally, the UE solves:
+(s⋆, b⋆) = arg max
+s∈S, b ∈Bi
+ˆUi(b, s). (14)
+3) LLM-based Strategy : To support advanced decision-
+making, recent studies have highlighted the potential of LLMs
+as lightweight yet powerful solvers for complex optimization
+tasks when guided by carefully designed prompts [14]. Moti-
+vated by this, we explore an LLM-driven bidding policy, where
+each UE relies on an embedded LLM agent to determine
+both the preferred BS and the corresponding bid to submit.
+Specifically, for each candidate BS s ∈ S ′, the UE assembles
+a structured prompt that summarizes its current requirements.
+This prompt is processed by the internal LLM module, which
+outputs a decision tuple (s∗, b∗, E). Here, s∗ denotes the
+chosen BS, b∗ is the recommended bid value, and E is a
+natural language explanation detailing the reasoning behind
+the suggestion. An illustrative example of such an LLM-
+based prompt, along with a representative response format,
+is depicted in Fig. 2.
+B. Channel Allocation Procedure (BS-Side decision)
+After selecting a serving BS, each UE i submits a single
+association request within a given time slot. This request
+
+--- PAGE 5 ---
+specifies both the desired number of sub-channels and the
+price it is willing to pay. Furthermore, the resource allocation
+at each BS is carried out through an auction mechanism that
+operates periodically over an allocation window of length
+Tc. We assume Tc coincides with the coherence time of the
+channel, i.e., the duration for which the channel state remains
+approximately constant. This design allows the system to re-
+optimize allocation at a timescale consistent with physical-
+layer dynamics, thereby accommodating traffic fluctuations
+and varying channel conditions while containing signaling
+overhead4. An entrance fee is considered for each UE that
+chooses to participate in the auction regardless of the auction
+outcome. Here, the BSs adopt the widely studied multi-unit
+Vickrey–Clarke–Groves (VCG) auction [13]. In VCG, each
+winning bidder pays the marginal externality it imposes on
+others. This mechanism is incentive-compatible in a single-
+shot setting without budget limits, where truthful bidding
+forms a Nash equilibrium.
+IV. E XPERIMENTAL ANALYSIS
+To evaluate the efficacy of the proposed LLM-based bidding
+strategy, we conduct a series of simulations where multiple
+UEs compete for sub-channel allocations through repeated
+VCG auctions. Performance is assessed in terms of average
+utility, bid-winning frequency, and channel access rates across
+varying auction horizons and system parameters. We consider
+a two-tier HetNet composed of one MBS and two SBSs.
+Unless otherwise specified, the number of available sub-
+channels per BS is set to Cs = 4, and the number of UEs is set
+to 40. Each UE is equipped with a finite budget ψi = 15 units
+that is not refilled over the simulation horizon. For the LLM-
+based bidder, we employ the gpt-5-mini model, chosen for
+its favorable trade-off between reasoning capability and low
+inference latency.
+A. LLM and Greedy UEs Competing in a Myopic Population
+We first consider a scenario with myopic majority where
+only one UE uses LLM-based reasoning and one UE uses
+the greedy method while the remaining UEs use the myopic
+strategy. The results in Figure 3 demonstrate a clear increase
+in average utility (i.e., the mean utility over multiple simu-
+lation runs -computed per user for the LLM-based and the
+greedy UEs, and averaged across all users for the myopic
+UEs) for all bidding strategies as the maximum number of
+episodes grows. This trend arises because, in early-ending
+auctions, many UEs still retain unused budget, preventing them
+from fully realizing their potential gains. When comparing
+strategies, the LLM-based UE consistently outperforms both
+myopic and greedy UEs, and the performance gap widens with
+longer horizons. The superiority of the LLM stems from its
+ability to reason strategically about budget allocation across
+future rounds. Unlike myopic and greedy strategies, which
+bid aggressively without foresight, the LLM anticipates lower
+4Note that while current LLMs exhibit higher inference latency than
+heuristic methods, this limitation is expected to diminish with the advent
+of lightweight and optimized future LLM models.
+competition in later episodes. By conserving budget early on,
+it is able to exploit reduced bidding intensity in subsequent
+rounds, where VCG payments are typically lower due to
+weaker competition [13]. This budget-aware reasoning enables
+the LLM to achieve substantially higher utilities, particularly
+in longer auction horizons, highlighting its effectiveness in
+repeated spectrum allocation settings.
+Max	Number	of	Episodes
+10 20 30 40
+Average	utility
+0
+0.5
+1
+1.5
+2
+2.5
+3
+3.5
+4
+Myopic	UEs
+Greedy	UE
+LLM	UE
+Figure 3. Average utility for different bidding strategies.
+To further understand why the LLM is able to outperform
+other methods, we plot in Figure 4 the average number of
+channel access and bid precision for the different bidding
+strategies. The bid precision is defined as the proportion
+of bids that resulted in a win ((analogous to precision in
+classification tasks in machine learning). The LLM bidder
+consistently secures a greater number of sub-channels and
+bid precision compared to both myopic and greedy UEs. This
+high bid precision of the LLM UE indicates that the UE bids
+with greater confidence, successfully acquiring the resources
+it requests, whereas myopic and greedy UEs must bid in every
+round regardless of their chances of winning. By leveraging
+this advantage, the LLM can bid selectively—focusing only on
+situations where allocation is most beneficial, such as urgent
+demand or critical resource requirements—thereby improving
+overall efficiency and utility.
+This performance gain arises from the LLM’s reasoning
+capabilities, which enables it to strategically allocate its budget
+across auction rounds. By conserving resources in early rounds
+and targeting high-probability winning opportunities, the LLM
+effectively leverages accumulated savings -reflected in the in-
+creased utility shown in Figure 4(a)- to acquire approximately
+15% more sub-channels than the other users. Furthermore, the
+high bid precision of the LLM UE help reduce unnecessary
+participation fees, giving access to more resources compared to
+the other strategies. This illustrates how budget-aware, LLM-
+based foresighted bidding can translate into tangible resource
+advantages in repeated auction settings.
+B. Single LLM Against a Greedy Population
+Building on the earlier results where the LLM consistently
+outperformed both myopic and greedy strategies, we now
+examine whether this advantage persists in a more competitive
+setting where the majority of UEs adopt a greedy bidding strat-
+egy. As observed from Figure 5(a), the relative performance
+shifts: the LLM no longer always outperforms its greedy
+competitors. Instead, its performance converges toward the
+top-performing greedy UEs. In some instances, greedy users
+
+--- PAGE 6 ---
+Bidding	strategy
+Myopic	UEs Greedy	UE LLM	UE
+Avg.	Channel	Access
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+(a)
+Bidding	strategy
+Myopic	UEs Greedy	UE LLM	UE
+Bid	Precision
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1 (b)
+Figure 4. (a) average number of channel access and (b) bid
+precision for different bidding strategies.
+surpass the LLM in terms of average utility. This phenomenon
+arises because a predominantly greedy population generates
+more volatile and competitive clearing prices, reducing the
+stability and predictability that the LLM exploited in the first
+scenario.
+However, despite the reduced utility margin, the LLM-based
+UE continues to dominate in terms of channel access fre-
+quency, as shown in Figure 5(b), particularly in short-horizon
+simulations. For a small maximum number of episodes, the
+LLM secures significantly more sub-channel allocations than
+its greedy counterparts. This advantage arises from its bid
+precision and reasoning capability, which allow it to selectively
+participate only in rounds with a high probability of success,
+thereby conserving budget and avoiding unnecessary auction
+entrance costs. Such behavior is particularly advantageous
+in HetNets, where fluctuating interference and user density
+demand adaptive decision-making. This suggests that when a
+UE urgently needs to secure sub-channels within a limited
+number of rounds (e.g., under high-traffic or delay-sensitive
+conditions), LLM-guided bidding provides a clear advantage.
+Although the gap narrows over longer horizons -as all UEs
+gradually deplete their budgets- the LLM-based UE still
+maintains roughly a 10% improvement in spectrum access
+efficiency.
+Greedy	UEs LLM	UE
+Bidding	Strategy
+Average	Utility
+0.5
+1
+1.5
+2
+2.5
+3
+(a)
+Max	Number	of	Episodes
+10 20 30 40
+Avg.	Channel	Access
+0
+2
+4
+6
+8
+10
+12 LLM-based	UE
+Greedy	UEs (b)
+Figure 5. (a) utility variability and (b) average number of
+channel access for the LLM UE and the other greedy UEs in
+greedy majority population.
+V. C ONCLUSION
+This paper presented a novel exploration of LLM-
+augmented bidding strategies in repeated multi-channel spec-
+trum auctions for HetNets. We proposed a distributed archi-
+tecture where each BS independently runs its own auction,
+and UE agents strategically select both the BS to associate
+with and the corresponding bid value. By integrating reasoning
+capabilities into UEs’ decision-making, our framework bridges
+auction theory with emerging AI-driven autonomy in next-
+generation wireless systems. Simulation results revealed that
+the LLM-based UE achieves higher bid precision and more fre-
+quent channel access compared to classical myopic and greedy
+bidders, particularly in short-horizon and congested auction
+settings. Even when the competitive dynamics reduce the
+utility margin, the LLM agent maintains a consistent advantage
+in access efficiency, highlighting its ability to adaptively man-
+age budget and participation. These findings demonstrate the
+potential of reasoning-driven bidding as a foundation for future
+adaptive spectrum management mechanisms. While current
+LLMs remain computationally demanding for deployment on
+mobile devices, ongoing advancements in lightweight mod-
+els and edge inference suggest that such intelligent bidding
+systems could become practical components of future mobile
+networks.
+REFERENCES
+[1] Y . Zhang, C. Lee, D. Niyato, and P. Wang, “Auction approaches for re-
+source allocation in wireless systems: A survey,” IEEE Communications
+Surveys & Tutorials , vol. 15, no. 3, pp. 1020–1041, 2013.
+[2] L. Ismail, D. Niyato, S. Sun, and D. I. Kim, “Social welfare maxi-
+mization auction in joint radar communication systems for autonomous
+vehicles,” in 2021 IEEE Global Communications Conference (GLOBE-
+COM), 2021, pp. 1–6.
+[3] W. Dong, S. Rallapalli, L. Qiu, K. K. Ramakrishnan, and Y . Zhang,
+“Double auctions for dynamic spectrum allocation,” in IEEE INFOCOM
+2014 - IEEE Conference on Computer Communications , 2014, pp. 709–
+717.
+[4] A. M. H. Alibraheemi, M. N. Hindia, T. F. Tengku Mohmed Noor Izam,
+and K. Dimyati, “Spectrum efficient mode selection and resource
+allocation optimization for d2d communication in hetnet: A multi-agent
+q-learning approach,” IEEE Access, vol. 12, pp. 131 217–131 229, 2024.
+[5] M. Khaledi and A. A. Abouzeid, “Optimal bidding in repeated wireless
+spectrum auctions with budget constraints,” in 2016 IEEE Global
+Communications Conference (GLOBECOM) , 2016, pp. 1–6.
+[6] I. Lotfi, N. Alabbasi, and O. Alhussein, “Rethinking strategic mecha-
+nism design in the age of large language models: New directions for
+communication systems,” IEEE Internet of Things Magazine , pp. 1–9,
+2025.
+[7] H. Sun, Y . Wu, Y . Cheng, and X. Chu, “Game theory meets large
+language models: A systematic survey,” CoRR, vol. abs/2502.09053,
+2025.
+[8] J. S. Park, J. O’Brien, C. J. Cai, M. R. Morris, P. Liang, and M. S.
+Bernstein, “Generative agents: Interactive simulacra of human behavior,”
+in Proceedings of the 36th Annual ACM Symposium on User Interface
+Software and Technology , ser. UIST ’23. ACM, Oct. 2023, p. 1–22.
+[9] S. Mao, Y . Cai, Y . Xia, W. Wu, X. Wang, F. Wang, Q. Guan, T. Ge, and
+F. Wei, “ALYMPICS: LLM agents meet game theory,” inProceedings of
+the 31st International Conference on Computational Linguistics , 2025,
+pp. 2845–2866.
+[10] S. Athey and P. Haile, “Empirical models of auctions,” 2006.
+[11] T. Z. Oo, N. H. Tran, W. Saad, D. Niyato, Z. Han, and C. S. Hong,
+“Offloading in hetnet: A coordination of interference mitigation, user
+association, and resource allocation,” IEEE Transactions on Mobile
+Computing, vol. 16, no. 8, pp. 2276–2291, 2017.
+[12] M. S. Baltaoglu, L. Tong, and Q. Zhao, “Online learning of optimal
+bidding strategy in repeated multi-commodity auctions,” Advances in
+Neural Information Processing Systems , vol. 30, 2017.
+[13] V . Krishna, Auction theory . Academic press, 2009.
+[14] C. Yang, X. Wang, Y . Lu, H. Liu, Q. V . Le, D. Zhou, and X. Chen,
+“Large language models as optimizers,” in ICLR, 2023.

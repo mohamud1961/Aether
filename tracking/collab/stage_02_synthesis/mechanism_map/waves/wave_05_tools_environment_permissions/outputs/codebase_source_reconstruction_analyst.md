@@ -1,0 +1,314 @@
+CODEBASE_SOURCE_RECON_OUTPUT
+- artifact: mechanism_map/wave_05_tools_environment_permissions
+- role: codebase/source-reconstruction analyst
+- preflight_scope_confirmed:
+  - confirmed this lane is a vertical mechanism-domain pass on tool gateways, environment handling, sandbox/approval boundaries, and cwd/workdir discipline (not generic execution control).
+  - confirmed trajectory/failure remains the empirical anchor and codebase/source reconstruction remains the implementation anchor for this lane.
+  - confirmed optional eval/benchmark fifth lane stays inactive in this pass because no benchmark-contract or evaluator-side environment constraint became load-bearing in the inspected evidence.
+  - minimal-sufficient baseline kept visible: explicit shell-plus-file tooling with stable workspace/cwd control and explicit permission boundaries (allow/deny/ask and/or HITL), before richer MCP/browser stacks.
+- preflight_planned_read_order:
+  - trajectory slices first: required DeepAgents, Terminus-KIRA, BigAI slices for headless-terminal, extract-moves-from-video, cancel-async-tasks.
+  - mirrored source second: deepagents, KIRA, a-evolve, claw-code quarantine.
+  - local harness third: `blocks/`, `runner/`, `evals/` surfaces relevant to execution/tool/sandbox/cwd.
+  - behavioral reconstruction pressure fourth: BigAI trace-layer reconstruction outputs.
+  - support synthesis fifth: lane support artifacts for cross-family gateway/environment/permission mapping.
+- preflight_critical_sources_selected:
+  - trajectories:
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+    - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+  - source systems:
+    - deepagents: `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/`, `.../middleware/filesystem.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/`
+    - KIRA: `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/`, `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+    - a-evolve: `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/`, `.../agents/mcp/`, `.../agents/swe/`, `research/sources/codebases/a-evolve/seed_workspaces/`
+    - claw-code archive pressure: `research/sources/codebases/quarantine/claw-code/src/`, `research/sources/codebases/quarantine/claw-code/README.md`
+  - local harness surfaces:
+    - `blocks/tools/*.py`, `blocks/orientation/*.py`, `runner/*.py`
+- preflight_coverage_risks:
+  - deepagents required extract-moves trajectory is a two-step cancel trace, so empirical exercise of deepagents tool-environment substrate is uneven across required slices.
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md` was requested by packet but does not exist at that path in the current tree.
+  - local harness (`blocks/`, `runner/`) currently exposes stubs/docstrings rather than runnable mechanism code, limiting direct local implementation reconciliation.
+  - claw-code evidence is explicitly quarantine/porting pressure and cannot be promoted as first-class runtime equivalence.
+- preflight_likely_blind_spots:
+  - no-source internals for BigAI (all implementation claims remain behavioral reconstruction only).
+  - long-tail trajectory pressure not yet sampled in this pass (optional `git-multibranch`, extra BigAI cancel variants).
+  - formal docs/papers and informal issue/postmortem contradiction pressure deferred to their lanes for this wave.
+- preflight_blockers: []
+- coverage_used:
+  - control/wave scaffolding:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/inputs/support_subagent_rules.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - deepagents source:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/sandbox.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/composite.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/protocol.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/utils.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/agent.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/local_context.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/mcp_tools.py`
+    - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/mcp_trust.py`
+  - KIRA source:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/files_mcp_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/mcp_runtime.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+  - a-evolve source:
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/docker_env.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/swe/env.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/tools.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/docker_env.py`
+    - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/registry.yaml`
+    - `research/sources/codebases/a-evolve/seed_workspaces/terminal/prompts/system.md`
+    - `research/sources/codebases/a-evolve/seed_workspaces/terminal/skills/environment-discovery/SKILL.md`
+    - `research/sources/codebases/a-evolve/seed_workspaces/mcp/manifest.yaml`
+    - `research/sources/codebases/a-evolve/seed_workspaces/mcp/tools/registry.yaml`
+  - archive pressure:
+    - `research/sources/codebases/quarantine/claw-code/src/tools.py`
+    - `research/sources/codebases/quarantine/claw-code/src/permissions.py`
+    - `research/sources/codebases/quarantine/claw-code/src/tool_pool.py`
+    - `research/sources/codebases/quarantine/claw-code/src/query_engine.py`
+    - `research/sources/codebases/quarantine/claw-code/src/runtime.py`
+    - `research/sources/codebases/quarantine/claw-code/README.md`
+  - local harness code:
+    - `blocks/tools/raw_bash.py`
+    - `blocks/tools/structured.py`
+    - `blocks/tools/reasoning_tools.py`
+    - `blocks/orientation/prompt_plus_env.py`
+    - `blocks/orientation/prompt_plan_env.py`
+    - `runner/agent.py`
+    - `runner/docker_sandbox.py`
+    - `runner/evaluator.py`
+  - trajectories and reconstruction:
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+    - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+    - `research/analysis/bigai_trace_layer/output/question_answers.json`
+- coverage_not_yet_used:
+  - `research/sources/papers/**`
+  - `research/sources/docs/**`
+  - `research/sources/informal/**`
+  - `research/sources/issues/**`
+  - `research/sources/postmortems/**`
+  - optional long-tail trajectories: `research/sources/trajectories/*/git-multibranch/**`
+  - additional BigAI trajectories in required task families not sampled in this pass (for example `17f3a357-...`, `d7992f9a-...`).
+  - eval/benchmark repositories and contracts (fifth lane inactive).
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - relevant local analysis
+  - relevant local harness code
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - optional pressure: `research/sources/trajectories/*/git-multibranch/*.txt`
+  - contradiction pressure from `research/sources/informal/**`, `research/sources/issues/**`, `research/sources/postmortems/**`
+  - formal anchor pass from `research/sources/docs/**` and `research/sources/papers/**`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_tool_gateway_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_environment_permission_map.md`
+- support_artifacts_requested_or_deferred:
+  - deferred (not yet produced):
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_approval_boundary_map.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_browser_terminal_substrate_map.md`
+- coverage_register_updates_needed:
+  - mark Wave 05 codebase lane as in-progress with first-pass output present.
+  - keep carry-forward caveat explicit: BigAI remains behavioral reconstruction.
+  - add lane-level caveat: deepagents required extract-moves slice is cancel-only (`CancelledError`) and weakens trajectory-side reconciliation for that family.
+  - add artifact hygiene note: required case-study path `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md` is currently absent and should be reconciled with existing case-study naming.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+- source_backed_mechanisms:
+  - claim_01:
+    - confidence: high
+    - observation: deepagents separates file tooling from execution capability and runtime-filters `execute` when backend execution support is absent.
+    - inference: tool gateway exposure is capability-gated at runtime, reducing false tool affordances in non-executable backends.
+    - evidence_paths:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/composite.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/protocol.py`
+  - claim_02:
+    - confidence: high
+    - observation: deepagents local-shell backend explicitly documents host-level unrestricted execution (`shell=True`, no sandbox/isolation) and still uses configurable cwd/env/timeouts.
+    - inference: in deepagents, "sandbox" safety depends on backend choice plus HITL policy, not on middleware alone.
+    - evidence_paths:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/agent.py`
+  - claim_03:
+    - confidence: high
+    - observation: deepagents path discipline is explicit in both instruction and enforcement layers (`validate_path`, absolute-path doctrine, avoid `cd` guidance).
+    - inference: path/cwd control is treated as a first-class mechanism separate from sandbox and approval.
+    - evidence_paths:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/utils.py`
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/agent.py`
+  - claim_04:
+    - confidence: high
+    - observation: KIRA/KiraClaw threads allow/deny/ask command policy through both interactive bash tool configuration and background process lifecycle (`check_command`, cwd resolution, workspace defaults).
+    - inference: KIRA models permission boundary as command-policy + process-governance, not only as container/sandbox boundary.
+    - evidence_paths:
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/settings.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+  - claim_05:
+    - confidence: medium
+    - observation: KIRA family has mixed permission doctrine: strong allow/deny/ask in KiraClaw, but `permission_mode="bypassPermissions"` appears in KIRA-Slack bot-call-detector path with explicit disallowed tools.
+    - inference: permission mechanism is subsystem-specific rather than globally uniform across the broader KIRA family.
+    - weakens_confidence: this lane sampled one Slack-side agent path and did not exhaust all KIRA subprojects.
+    - evidence_paths:
+      - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py`
+  - claim_06:
+    - confidence: high
+    - observation: a-evolve terminal baseline intentionally exposes a minimal tool family (`bash`, `python`, `submit`) running through Docker `exec`, while MCP mode discovers tool schemas dynamically and applies task-level enabled-tool filtering.
+    - inference: a-evolve implements a two-tier gateway pattern: minimal deterministic terminal baseline plus broader dynamic MCP expansion.
+    - evidence_paths:
+      - `research/sources/codebases/a-evolve/seed_workspaces/terminal/tools/registry.yaml`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/agent.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/tools.py`
+  - claim_07:
+    - confidence: medium
+    - observation: a-evolve terminal prompt asserts each bash call is independent and requires explicit chaining; container exec helper supports optional workdir.
+    - inference: a-evolve path/process doctrine emphasizes explicit command composition over persistent shell session state.
+    - weakens_confidence: trajectory-side confirmation in required slices is stronger for KIRA/BigAI than for a-evolve in this wave packet.
+    - evidence_paths:
+      - `research/sources/codebases/a-evolve/seed_workspaces/terminal/prompts/system.md`
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/docker_env.py`
+  - claim_08:
+    - confidence: low
+    - observation: quarantine claw-code provides mirrored tool/permission snapshots and simulated runtime summaries, while README states it is not full runtime-equivalent to original TypeScript system.
+    - inference: claw-code should be used as contradiction/pressure input only, not promoted as source-backed implementation parity.
+    - weakens_confidence: snapshot lineage and execution equivalence are explicitly incomplete.
+    - evidence_paths:
+      - `research/sources/codebases/quarantine/claw-code/src/tools.py`
+      - `research/sources/codebases/quarantine/claw-code/src/runtime.py`
+      - `research/sources/codebases/quarantine/claw-code/README.md`
+- behavioral_reconstructions:
+  - reconstruction_01:
+    - confidence: medium
+    - label: behavioral reconstruction
+    - observation: BigAI trajectories show planner/executor/verifier role separation plus planner-first `save_plan` orchestration and heavy shell tool usage (`run_shell_command`, `wait_shell_command`, `interact_with_shell`).
+    - inference: BigAI likely uses a planner-mediated shell orchestration substrate with explicit role-bound tool surfaces.
+    - weakens_confidence: no mirrored source; mechanism internals remain hidden.
+    - evidence_paths:
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+      - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+      - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+      - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - reconstruction_02:
+    - confidence: low
+    - label: behavioral reconstruction
+    - observation: BigAI traces include task-directory/cwd doctrine in prompts and team-space policy text, but no code-level confirmation of enforced path guards.
+    - inference: apparent cwd/workspace discipline may be prompt-governed policy rather than hard runtime enforcement.
+    - weakens_confidence: absence of source prevents mechanism verification.
+    - evidence_paths:
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+- subsystem_findings:
+  - deepagents:
+    - backend/middleware split is explicit and composable; execution is feature-gated and trust/approval surfaces are distinct from sandbox implementation.
+  - KIRA:
+    - engine orchestrates mixed static + MCP tool surfaces; process manager enforces command and cwd policy; MCP runtime has per-server startup controls.
+  - a-evolve:
+    - minimal terminal tool baseline plus dynamic MCP expansion; containerized substrate is central; approval semantics are thinner in terminal path.
+  - BigAI:
+    - observable role-and-tool substrate is rich, but remains reconstruction-only.
+  - claw-code quarantine:
+    - useful pressure signal for mirrored inventories and denied-tool motifs, but explicitly not runtime-equivalent source.
+  - local harness:
+    - currently interface-only stubs; no executable source surface to reconcile with trajectory behavior yet.
+- source_behavior_matches:
+  - match_01:
+    - confidence: high
+    - observation: KIRA source exposes native `image_read` and command-execution tool model; required KIRA extract trajectory repeatedly uses `bash_command` and `image_read`.
+    - inference: trajectory tool substrate aligns with exposed KIRA native tool architecture.
+    - evidence_paths:
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - match_02:
+    - confidence: high
+    - observation: deepagents source defines filesystem-centric tool stack with execute/writes/edits; required deepagents trajectories show `execute`, `write_file`, `edit_file`, `read_file`, `grep` usage with sandbox env context packets.
+    - inference: observed deepagents behavior is consistent with source-visible tool primitives and environment prompting.
+    - evidence_paths:
+      - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+      - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+      - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+- source_behavior_mismatches:
+  - mismatch_01:
+    - confidence: medium
+    - observation: deepagents source surface supports richer environment/MCP and execution-governance features than what required deepagents trajectories exercise; extract-moves slice is cancel-only and does not test gateway behavior.
+    - inference: current behavior evidence under-samples deepagents source-visible tool/environment doctrine in Wave 05 required slices.
+    - weakens_confidence: one required slice terminated at `CancelledError` without tool execution.
+    - evidence_paths:
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/local_context.py`
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/mcp_tools.py`
+      - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+  - mismatch_02:
+    - confidence: medium
+    - observation: KIRA extract trajectory shows repeated command-format errors and noisy command-stream handling while source advertises structured native tool routing.
+    - inference: tool schema existence does not guarantee robust command hygiene under long OCR/video extraction chains.
+    - weakens_confidence: mismatch is task-regime specific (video/OCR heavy) and may not generalize.
+    - evidence_paths:
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - mismatch_03:
+    - confidence: medium
+    - observation: local harness code under `blocks/` and `runner/` is currently docstring/interface text, so no direct mechanism parity can be established against external family trajectories.
+    - inference: local-harness implications in this wave are directional (what to build) rather than source-to-behavior reconciliation.
+    - weakens_confidence: implementation absence, not contradictory behavior.
+    - evidence_paths:
+      - `blocks/tools/raw_bash.py`
+      - `blocks/tools/structured.py`
+      - `blocks/tools/reasoning_tools.py`
+      - `runner/agent.py`
+      - `runner/docker_sandbox.py`
+      - `runner/evaluator.py`
+- archive_or_visibility_limits:
+  - BigAI remains no-source and must stay behavioral reconstruction only.
+  - claw-code quarantine is not runtime-equivalent according to its own README and should not be promoted as first-class implementation fact.
+  - required deepagents extract trajectory is cancel-only; trajectory-side exercise depth is uneven for that family.
+  - packet-requested case-study path `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md` is absent in current tree.
+- confidence_notes:
+  - high confidence claims are source-backed implementation observations or direct source-trajectory alignments.
+  - medium confidence claims reflect cross-family unification or mismatch interpretation where trajectory saturation is uneven.
+  - low confidence claims are explicitly limited to archive/no-source surfaces (quarantine claw-code equivalence and BigAI internal enforcement).
+- open_questions:
+  - does deepagents trajectory coverage outside required slices (for example optional long-tail branches) exercise MCP trust gating and approval surfaces in practice?
+  - how often do KIRA permission settings (`ask_by_default`, allow/deny patterns) materially change outcomes across task families beyond multimedia extraction tasks?
+  - should Wave 05 standardize on explicit mechanism split labels: command-policy boundary vs approval boundary vs sandbox boundary vs cwd/workdir boundary?
+  - should missing `trajectory_case_studies/headless_terminal.md` be created under that exact path for packet conformance or remapped to existing naming conventions?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst.md`

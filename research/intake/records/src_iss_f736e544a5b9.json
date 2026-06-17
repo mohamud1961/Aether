@@ -1,0 +1,109 @@
+{
+  "source_id": "src_iss_f736e544a5b9",
+  "title": "Claude Code hangs indefinitely during context compaction #19567",
+  "canonical_url": "https://github.com/anthropics/claude-code/issues/19567",
+  "date": "2026-01-20",
+  "authors_or_org": [
+    "anthropics/claude-code",
+    "GitHub issue author: TPG24"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "issue",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "context_engineering",
+  "bucket_secondary": [],
+  "decision_targets": [
+    "context",
+    "recovery",
+    "observability"
+  ],
+  "mechanism_tags": [
+    "compaction_trigger_in_client",
+    "large_session_file_compaction"
+  ],
+  "failure_mode_tags": [
+    "compaction_hang",
+    "non_interruptible_compaction",
+    "orphan_process",
+    "resource_exhaustion",
+    "missing_timeout"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "terminal_agent",
+    "coding_agent",
+    "mixed"
+  ],
+  "models_if_named": [],
+  "environment_type": [
+    "local_fs",
+    "sandboxed_terminal"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 4,
+    "reproducibility": 3,
+    "ecological_validity": 5,
+    "decision_relevance": 4,
+    "recency": 5
+  },
+  "relevance_note": "Detailed repro of compaction hang and non-interruptibility (Ctrl+C ineffective), including orphaned process resource usage and large session-file size.",
+  "reason_included": "High-value failure mode for compaction stop conditions/timeouts in terminal agents: compaction can freeze UI and leak resources for many hours.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "The issue links the hang to very large session state (example: ~23+ MB session file) and long tool-heavy workflows with multiple tool calls and subagents.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "The issue reports Claude Code becomes completely unresponsive when compaction/summarisation triggers on a large context; the terminal freezes and Ctrl+C has no effect.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The report states the Claude process becomes orphaned (PPID=1) and continues running, consuming high CPU and RAM (example: ~277% CPU and ~11.8 GB RAM) for 26+ hours until manually killed.",
+      "claim_status": "anecdotal"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Issue body: Steps to Reproduce + Diagnostic Information (session file size)"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Issue body: Summary + Actual Behavior"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Issue body: Actual Behavior + Diagnostic Information (resource usage and orphan process details)"
+    }
+  ],
+  "dedupe_key": "github_issue:anthropics/claude-code#19567",
+  "canonical_locator": "github_issue:anthropics/claude-code#19567",
+  "discovered_in_batches": [
+    "2026-03-25__context_engineering.json#obj1.1",
+    "2026-03-25__context_engineering.json#obj1|bucket=context_engineering|run_date=2026-03-24|agent=context_engineering_source_finder"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_f736e544a5b9::github:anthropics/claude-code#19567::2026-03-25__context_engineering.json#obj1::r14"
+  ],
+  "origin_buckets": [
+    "context_engineering"
+  ],
+  "origin_batch_buckets": [
+    "context_engineering"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_f736e544a5b9/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/anthropics/claude-code/issues/19567",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "artifact_relpath": "research/sources/issues/src_iss_f736e544a5b9"
+}

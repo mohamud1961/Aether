@@ -1,0 +1,44 @@
+# Mechanism Map Wave 01 Exploratory Anchor: Interaction Analysis
+
+INTERACTION_ANALYSIS
+- artifact: `mechanism_map`
+- wave: `wave_01_exploratory_anchor`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/eval_benchmark_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/*.pdf`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/trajectories/*/extract-moves-from-video/*`
+  - `research/sources/informal/*.md` (most)
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - benchmark captures
+  - docs
+  - informal sources
+- priority_sources_not_yet_read:
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/papers/src_pap_f6aa42bfdc1a/artifact.pdf`
+  - `research/sources/trajectories/{BigAI,deepagents,terminus-kira}/extract-moves-from-video/*`
+- interaction_pairs:
+  - `execution_control × verification_or_completion`
+    - `[high]` The clearest Wave 01 interaction. Planner/executor loops cannot be judged in isolation because external grader artifacts and explicit verifier work change what counts as done. Evidence: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/outputs/eval_benchmark_analyst.md`
+  - `tool_gateway × sandbox_or_environment`
+    - `[medium]` Tool contracts and backend selection are intertwined. DeepAgents looks schema-disciplined at the surface, but backend choice can change whether execution is sandboxed at all. Evidence: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/outputs/literature_papers_docs_analyst.md`
+  - `state × recovery`
+    - `[high]` Stateful tasks like `db-wal-recovery` show that backup-first policy, verification on copies, and restore-before-done are not separable from state handling. Evidence: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/outputs/eval_benchmark_analyst.md`
+  - `artifacts_or_workspace × completion`
+    - `[high]` Repo hygiene, branch cleanup, and delivery-state cleanup visibly affect benchmark success. Workspace discipline is part of completion doctrine, not a peripheral clean-up step. Evidence: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/outputs/informal_issues_postmortems_analyst.md`
+  - `context × tool_output_handling`
+    - `[medium]` Wave 01 surfaces a likely interaction between long-output offload, file-backed context, and summary quality, but it remains mostly source/doc/informal-backed rather than trajectory-confirmed. Evidence: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/codebase_source_reconstruction_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/outputs/informal_issues_postmortems_analyst.md`
+  - `observability × recovery`
+    - `[medium]` Issue reports about stuck threads, missing terminal events, and unrecoverable resume state imply that recovery quality depends on explicit trace and turn-finalization machinery. Evidence: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/informal_issues_postmortems_analyst.md`
+- interaction_gaps:
+  - The wave did not yet read enough paper content to pressure-test interaction claims formally.
+  - `claw-code` and deeper `src_cod_*` excavation are missing, so source-backed interaction detail is incomplete.
+  - Long-tail trajectory regimes were not covered, so interaction claims are still biased toward the easier shared slices.

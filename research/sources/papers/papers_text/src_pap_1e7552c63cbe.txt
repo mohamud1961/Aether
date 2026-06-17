@@ -1,0 +1,1911 @@
+--- PAGE 1 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for
+Cloud-Assisted LLM Agents
+Guangsheng Yu1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+1University of Technology Sydney| 2CSIRO Data61, Australia
+Abstract
+Cloud-hosted large language models (LLMs) have become the de
+facto planners in agentic systems, coordinating tools and guiding
+execution over local environments. In many deployments, however,
+the environment being planned over is private, containing source
+code, files, credentials, and metadata that cannot be exposed to
+the cloud. Existing solutions address adjacent concerns, such as
+execution isolation, access control, or confidential inference, but
+they do not control what cloud planners observe during planning:
+within the permitted scope,raw environment state is still exposed.
+We introducePlanTwin, a privacy-preserving architecture for
+cloud-assisted planning without exposing raw local context. The
+key idea is to project the real environment into aplanning-oriented
+digital twin: a schema-constrained and de-identified abstract graph
+that preserves planning-relevant structure while removing recon-
+structable details. The cloud planner operates solely on this san-
+itized twin through a bounded capability interface, while a local
+gatekeeper enforces safety policies and cumulative disclosure bud-
+gets. We further formalize the privacy–utility trade-off as a capa-
+bility granularity problem, define architectural privacy goals using
+(𝑘, 𝛿)-anonymity and 𝜖-unlinkability, and mitigate compositional
+leakage through multi-turn disclosure control.
+We implementPlanTwinas middleware between local agents
+and cloud planners and evaluate it on 60 agentic tasks across ten do-
+mains with four cloud planners.PlanTwinachieves full sensitive-
+item non-disclosure (SND = 1.0) while maintaining planning quality
+close to full-context systems: three of four planners achieve PQS
+>0.79, and the full pipeline incurs less than 2.2% utility loss.
+Keywords
+LLM, Agents, Privacy, Planning, Information Disclosure, Cloud
+1 Introduction
+Large language models are increasingly used as planners in agentic
+systems, where a cloud-hosted model coordinates tools, decom-
+poses tasks, and guides execution. Production systems such as
+Claude Code [4], OpenAI Codex [28], Cursor, and GitHub Copilot
+illustrate this design point: a powerful remote model reasons over
+code, files, and project context, while a local runtime executes the
+resulting plan. In many deployments, however, the environment
+being planned over is private. It contains source files, identifiers,
+logs, credentials, and sensitive metadata that cannot be exposed
+to the cloud. This creates a fundamental systems challenge:how
+can a local edge agent benefit from cloud-scale planning intelligence
+without revealing the real underlying state?
+Current systems address this challenge only partially. Claude
+Code’s sandboxing architecture [5] enforces filesystem and network
+isolation at the OS level, preventing access outside approved direc-
+tories or connections to unapproved servers. OpenAI Codex [28]
+executes tasks in a cloud sandbox with internet disabled, confining
+execution to a preloaded repository snapshot. The Model Context
+Protocol (MCP) [3] standardizes tool interfaces through schema-
+constrained descriptions and capability whitelisting. These mecha-
+nisms improve execution integrity, constrain side effects, and reduce
+blast radius. Some also coarsely restrict what the model can reach.
+But within the approved scope,the cloud planner still sees raw con-
+text. File contents, code structure, and project metadata inside the
+permitted boundary are transmitted directly as prompt context.
+Existing mechanisms mostly control what the agent cando, and
+only coarsely what it canreach; they do not control theabstraction
+levelof what the cloud planner observes once access is granted.
+This exposes a missing design point. Existing approaches largely
+fall into four categories: (1)full-context upload[ 4, 28], where raw or
+lightly filtered context is sent to the cloud and privacy relies on trust
+and contractual guarantees; (2)Personally Identifiable Information
+(PII) redaction[ 22, 34], which removes recognized tokens before
+transmission but misses domain-specific secrets and leaves struc-
+tural metadata that can still support re-identification; (3)fully local
+inference[ 7, 27], which avoids cloud exposure but is constrained
+by local resources and cannot match the planning capability of
+frontier models; and (4)trusted execution environments (TEEs)[ 2? ?
+], which protect data during cloud inference but require specialized
+hardware and do not answer the semantic question of how much
+information the planner actually needs.
+The central question is therefore not only how to secure execu-
+tion, but how little information a cloud planner can observe while
+still producing useful plans. Our premise is that high-level orches-
+tration rarely requires full descriptive fidelity of the underlying
+environment. For many workflows, useful planning depends on ob-
+ject types, relations, risk levels, action affordances, and dependency
+constraints, rather than raw file contents or precise identifiers. This
+suggests a different systems interface: the local environment should
+be exposed not as a compressed replica of reality, but as aplanning-
+orientated control surface.
+We presentPlanTwin, aprivacy-preserving digital twin 1 archi-
+tecture that realizes this idea. The local agent projects the real en-
+vironment into a schema-constrained, de-identified, and planning-
+sufficient abstract representation through a four-stage projection
+pipeline (Πextract →Π redact →Π generalize →Π schema). The cloud
+planner operates only on this sanitized twin and emits declarative
+plans over a bounded set of local capabilities. All raw-data access,
+policy enforcement, execution, and output sanitization remain lo-
+cal. A Policy Enforcement Gatekeeper mediates every interaction
+through disclosure budgeting, safety validation, and optional hu-
+man approval, ensuring that the cloud assists with planning but
+never directly accesses the real local world.
+1We use the termdigital twindeliberately. The core pattern is that a local system
+exports a machine-reasonable surrogate to a remote decision-maker.
+arXiv:2603.18377v2  [cs.CR]  20 Mar 2026
+
+--- PAGE 2 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+We complement recent capability-based control for LLM agents
+[14, 30, 38]. Those systems regulatewhat actions the agent may
+execute; we regulatewhat information the planner may observe. The
+two are orthogonal and naturally composable, combining execution-
+time access control with planning-time privacy control. From this
+perspective, the central design question becomes thegranularity
+of the capability interface, which governs the privacy–utility trade-
+off. If capabilities are too coarse, most reasoning collapses back to
+the local side and the cloud provides limited planning benefit. If
+capabilities are too fine-grained, the planner regains utility only
+through repeated interaction, increasing cumulative disclosure. The
+desirable operating point lies near theorchestration boundary, where
+the cloud determines workflow logic and the edge performs content-
+sensitive inspection and enforcement [20].
+Contributions.We make the following contributions:
+• We formulatecloud-assisted planning without raw-context
+exposureas a system problem and position it against exist-
+ing approaches including sandboxing, access control, PII
+redaction, and confidential computing (§2).
+• We propose a four-stage local projection pipeline that con-
+verts the real environment into a sanitized, schema-constrained
+abstract graph. Unlike token-level masking, this design is
+structurally bounded: the cloud planner never receives free-
+form raw context (§4).
+• We introduce a declarative capability-based planning pro-
+tocol and formalize the privacy-utility trade-off as agranu-
+larity problem, showing how capability design governs both
+planning effectiveness and disclosure cost (§4.2).
+• We design a local gatekeeper that enforces cumulative disclo-
+sure budgets during planning, limiting how much structural
+information can be revealed to the cloud. We further formal-
+ize privacy goals for planning-time context control, ensuring
+that planner-visible abstractions do not uniquely identify un-
+derlying artifacts ((𝑘, 𝛿)-anonymity) and cannot be reliably
+linked across sessions (𝜖-unlinkability) (§4.4).
+• We implementPlanTwinas middleware between local agents
+and cloud planners and show, on 60 tasks across ten domains
+with nineteen method configurations and four cloud plan-
+ners, that strong cloud planning can be retained without
+exposing raw local context (§5).
+2 Background and Related Work
+Cloud-assisted agent systems typically separateplanningfromex-
+ecution: a powerful remote model reasons over user context and
+produces plans, while a local runtime executes tool calls or gener-
+ated code. This architecture motivated several independent lines
+of work, including execution sandboxing, capability and access
+control, privacy-preserving context handling, and agent security.
+We summarize the qualitative design space in Table 1.
+2.1 Agent Architecture and Execution Isolation
+Modern agentic coding tools have largely converged on a common
+architecture in which a cloud LLM reasons over code, files, and
+project context, while a local or containerized runtime executes the
+resulting plan. In this setting, the dominant systems concern has
+beenexecution isolation.
+Table 1: Privacy/security approaches for LLM agent systems.
+Approach① ② ③ ④ ⑤
+Claude Code Sandboxing [5] ✓ ✗ ✗ ✗ ✓
+OpenAI Codex Sandbox [28] ✓ ✗ ✗ ✗ ✓
+MCP Specification [3] ✓◦✓ ✗ ✓
+E2B / Firecracker VMs [9] ✓ ✗ ✗ ✗ ✓
+Progent [30] ✓ ✗ ✗ ✗ ✓
+MiniScope [38] ✓ ✗ ✗ ✗ ✓
+SEAgent [14] ✓ ✗ ✗ ✗ ✓
+PII Redaction (regex) [22] ✗◦✗ ✗ ✓
+TEE (H100 CC, Intel TDX) [13, 26]✓ ✓ ✗ ✗ ✗
+Local-only [7, 27] ✓ ✓N/A N/A✓
+PlanTwin(Ours) ✓ ✓ ✓ ✓ ✓
+①Controls agent actions,②Controls planner observations
+③Schema-bounded context④Multi-turn disclosure
+⑤No specialized HW
+Claude Code [5] implements OS-level sandboxing using platform-
+specific primitives such as sandbox-exec on macOS and seccomp
+with landlock on Linux, providing filesystem and network isola-
+tion. OpenAI Codex [28] executes tasks in a cloud sandbox over
+a preloaded repository snapshot, with internet access disabled.
+E2B [9] provides Firecracker microVM-based sandboxes with fast
+startup, and Agent Sandbox for Kubernetes [31] relies on gVisor-
+based userland kernels with optional Kata Containers support.
+These systems improve execution integrity and reduce blast ra-
+dius once a plan is issued. However, their main protection boundary
+iswhat the agent can do, notwhat the planner can observe. Within
+the permitted scope, the cloud planner still commonly sees raw
+files, code semantics, and project metadata.
+2.2 Capability Interfaces and Access Control
+A second line of work addressesauthorization: what tools and
+resources an agent may access. Progent [30] introduces a domain-
+specific policy language for tool-level privilege control. MiniS-
+cope [38] enforces least-privilege authorization by reconstructing
+permission hierarchies with low runtime overhead. SEAgent [14]
+proposes mandatory access control through attribute-based policies
+and information-flow constraints. Li et al. [ 19] further argue for
+richer policy models that can capture the semantic ambiguity of
+human–LLM interaction.
+MCP [3] fits into this broader direction by standardizing schema-
+constrained tool descriptions and capability declarations. In this
+sense, it provides a partialcapability interface. However, MCP does
+not itself constrain thecontextaccompanying tool use: servers
+may still expose arbitrary raw resources, and planner-visible state
+remains largely unconstrained.
+Recent studies show that schema-constrained tool interfaces
+alone do not prevent information leakage [36, 37]. Reported attacks
+include tool shadowing by malicious MCP servers [ 32], Log-To-
+Leak [12], which induces agents to invoke attacker-controlled log-
+ging tools, and MCP-SafetyBench [39], which reports substantial
+task compromise rates. Prior evidence further suggests that models
+may still infer or propagate sensitive state through contextual inter-
+actions and tool outputs [35]. API- or schema-level constraints are
+
+--- PAGE 3 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+insufficient. More broadly, representation-level transformations can
+preserve functionality while still changing observable signals and
+enabling downstream inference, so abstraction alone does not guar-
+antee observation privacy [16]. The distinction between controlling
+actionsand controllingobservationsis explicit.
+Our work targets the latter: it constrains what the planner sees
+before execution, which is orthogonal to and composable with
+execution-time access control, even when capabilities are exposed
+to the planner as high-levelskill-like operations [15].
+2.3 Privacy-Preserving Context Mechanisms
+A third line of work seeks to reduce privacy exposure in the context
+provided to LLMs [20].
+PII redaction.Production systems such as Microsoft Presidio [ 22]
+and Strands Agents [34] combine regex and NER to remove struc-
+tured sensitive tokens. These approaches are useful for obvious
+PII, but they often miss domain-specific identifiers, secrets embed-
+ded in code or configuration files, and higher-order structural cues.
+They also typically operate on a per-request basis and do not track
+cumulative disclosure across turns.
+Differential privacy.Differential privacy [ 1, 8] provides a princi-
+pled way to bound information leakage through calibrated noise.
+However, applying DP directly to free-text prompts or rich project
+context remains difficult because of the high dimensionality and
+semantic sensitivity of natural language. In practice, DP is more
+naturally applied to training or aggregate analytics than to planning-
+time context exchange.
+Embedding leakage.Prior work shows that learned representa-
+tions can themselves leak sensitive information. Song and Raghu-
+nathan [33] study attribute leakage from embeddings, while Morris
+et al. [24] and Li et al. [18] demonstrate approximate text or sen-
+tence reconstruction. These results motivate our decision to keep
+retrieval and raw-context handling on the trusted local side rather
+than exposing vectorized surrogates to the cloud.
+Confidential computing.TEE-based LLM inference [ 6, 26?] pro-
+tects data during cloud computation through hardware-enforced
+isolation. This addresses data-in-use protection against the cloud
+infrastructure, but not the semantic question central to our setting:
+how much information the planner should observe in the first place.
+Local-only inference.Systems such as PrivateGPT [7], Ollama [27],
+and related local-serving frameworks avoid cloud exposure entirely,
+but they also give up the planning capability of frontier cloud mod-
+els, especially for long-horizon or multi-step reasoning tasks.
+These approaches expose a missing design point. Existing work
+either keeps strong planning by revealing raw context, or preserves
+privacy by weakening or relocating the planner. Our goal is instead
+to retain strong remote planning while restricting the planner to a
+bounded, sanitized abstraction of the local environment.
+2.4 Agent Security Threats and Design Gap
+A growing body of work documents the security risks of LLM agents.
+A comprehensive SoK [10] synthesizing 78 studies reports prompt
+injection success rates exceeding 85%. Hung et al. [ 21] analyze
+vulnerabilities specific to coding agents, including attacks mediated
+through tool ecosystems such as MCP. Real-world incidents include
+CVE-2025-53773 [25], a critical GitHub Copilot vulnerability, as
+well as prompt-injection attacks against cloud-based agent systems
+exploiting whitelisted integrations.
+These attacks are amplified when the planner directly consumes
+raw local content. Once arbitrary files, logs, and metadata are ad-
+mitted into the planning context, malicious instructions embedded
+in local artifacts can influence remote reasoning, and sensitive in-
+formation can be exposed even if execution is later sandboxed. This
+observation motivates the design point ofPlanTwin. Rather than
+relying solely on execution isolation, access control, or token-level
+redaction, we constrain theplanner-visible observation surfaceitself.
+The cloud planner reasons over a schema-constrained digital twin
+rather than raw local artifacts, reducing both privacy exposure and
+the attack surface associated with planning over untrusted content.
+3 System Model
+We define the system boundary, threat model, and formal objective
+ofPlanTwin. Table 7 summarizes notations used throughout.
+3.1 System Overview
+PlanTwinfollows a split architecture in which planning is dele-
+gated to a strong cloud model, while raw-state access and enforce-
+ment remain local. As shown in Fig. 1, the system consists of two
+asymmetric components.
+• Trusted local layer.The local side has direct access to the
+real environment and is responsible for privacy projection,
+policy enforcement, execution, and output sanitization. It
+may use deterministic scanners and optionally a small local
+language model to extract planning-relevant structure from
+raw artifacts.
+• Untrusted cloud planner.The cloud side performs high-level
+reasoning and plan synthesis, but never accesses raw files,
+paths, credentials, or unsanitized execution outputs. Its view
+is restricted to the sanitized digital twin and the exposed
+capability interface.
+The end-to-end information flow is
+𝑋𝑡
+Π
+− →𝑍𝑡
+Φ
+− →𝑃𝑡
+Ψ
+− →𝑌𝑡,(1)
+where 𝑋𝑡 denotes the real local environment, Π the privacy pro-
+jection pipeline, 𝑍𝑡 the planner-visible digital twin, Φ cloud-side
+planning, 𝑃𝑡 the declarative plan emitted by the cloud planner, Ψ
+local validation and execution, and 𝑌𝑡 the sanitized output returned
+after local execution. This decomposition captures the central de-
+sign choice ofPlanTwin: the cloud plans over an abstract view,
+while all interaction with the real environment remains on the
+trusted local side. In this way, the cloud contributes planning capa-
+bility without controlling what is revealed, executed, or returned.
+3.2 Threat Model
+We treat the cloud planner as untrusted with respect to privacy.
+Our primary model ishonest-but-curious: the planner follows the
+protocol for producing plans, but may attempt to infer sensitive in-
+formation from everything it observes. We also consider a stronger
+semi-honest with auxiliary knowledgeadversary that may correlate
+multiple observations and combine them with external information.
+Concretely, the adversary may observe all sanitized twin states
+𝑍1:𝑇 across turns, the sequence of requested capabilities and their
+
+--- PAGE 4 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+Figure 1: End-to-end architecture ofPlanTwin. The trusted local edge layer (left) transforms raw context 𝑋𝑡 through a
+four-stage privacy projection pipeline into a sanitized digital twin 𝑍𝑡 , which crosses the trust boundary to the cloud planner
+(center-right). The planner reasons over the typed abstract graph and capability catalog to produce a declarative plan 𝑃𝑡 . The
+trusted local execution plane (right) validates each step through a gatekeeper, executes on raw data, and sanitizes outputs via
+Πout before returning results𝑌 𝑡 . The cloud never observes raw files, paths, credentials, or code.
+abstract outputs, and timing or structural patterns arising during
+planning and execution. We also allow the adversary to combine
+these observations with auxiliary knowledge, such as public repos-
+itories, known project templates, or likely technology stacks.
+The adversary doesnotdirectly observe raw local files, meta-
+data, secrets, or unsanitized outputs. The local layer, including the
+projection pipeline, gatekeeper, and output sanitizer, is part of the
+trusted computing base.
+Adversary goals.We focus on three privacy goals that capture the
+main ways a planner-visible abstraction may still leak information.
+Goal 1: Identity re-identification.Given transcript 𝑍1:𝑇 and a tar-
+get object 𝑜 ∗, an adversary outputs a guess ˆ𝑜 for the real-world iden-
+tity𝑜 ∗. We capture resistance to this attack via(𝑘, 𝛿)-anonymity:
+Pr[A (𝑍1:𝑇 )=𝑜 ∗] ≤ 1
+𝑘 +𝛿,(2)
+where 𝑘 is the anonymity set size induced by schema projection.
+Appendix B formalizes the bound under assumptions on attribute
+distribution and disclosure budgeting.
+Goal 2: Cross-session linkage.Given transcripts from two sessions
+𝑍 (1)
+1:𝑇1 and 𝑍 (2)
+1:𝑇2, the adversary determines whether the same real ob-
+ject appears in both. We capture resistance through𝜖-unlinkability:
+ln Pr[A (𝑍 (1) , 𝑍 (2) )=1|same]
+Pr[A (𝑍 (1) , 𝑍 (2) )=1|diff] ≤𝜖.(3)
+where A is a linkage adversary, superscripts (1) and (2) index
+the two sessions, and same (resp. diff) denotes the event that both
+transcripts contain the same (resp. distinct) real-world object. Fresh
+random object identifiers, bounded vocabularies, and cumulative
+disclosure limits are intended to keep this quantity small. Appen-
+dix B connects unlinkability bound to disclosure budget.
+Goal 3: Structural inference.Even when content and identities are
+hidden, the adversary may infer sensitive properties such as project
+type, stack composition, or organizational structure from graph
+topology and capability patterns. This form of leakage is harder to
+characterize formally because structure itself is informative. We
+mitigate it through bounded edge vocabularies and controlled rela-
+tional disclosure, but do not assume it can be eliminated entirely.
+Auxiliary knowledge.A realistic adversary may already know
+partial facts about the target environment. For example, know-
+ing that the target is likely a Django project may make schema
+attributes such as semantic_class = authentication_module
+more identifying. Our goal is therefore not privacy against an om-
+niscient adversary, but bounded exposure under realistic auxiliary
+knowledge and limited observation.
+3.3 Problem Formulation
+At time 𝑡, let 𝑋𝑡 denote the full local environment, including raw ar-
+tifacts, metadata, logs, sensitive values, and interaction history. The
+local side does not expose 𝑋𝑡 directly. Instead, it applies the privacy
+projection pipeline Π to construct a sanitized planner-visible state
+𝑍𝑡 =Π(𝑋 𝑡 ). Given 𝑍𝑡 and capability catalog C, the cloud planner
+produces a declarative plan 𝑃𝑡 =Φ(𝑍 𝑡,C) , which the trusted local
+side then validates and executes under policy set Ω to produce the
+final outcome𝑌 𝑡 =Ψ(𝑃 𝑡, 𝑋𝑡 ,Ω).
+The design objective is to retain as much planning utility as
+possible while keeping cumulative disclosure bounded:
+maxU(𝑃 𝑡, 𝑌𝑡 )subject toL (𝑍 1:𝑡, 𝑌1:𝑡 ) ≤𝜖.(4)
+Here U denotes task utility and L measures cumulative exposure.
+In our design, disclosure is tracked per object through a budget
+𝐵(𝑜) , and L is conservatively taken as the maximum disclosure
+over all referenced objects, since over-exposing even a single object
+may already suffice for re-identification.
+This formulation captures the core trade-off inPlanTwin: the
+planner should observe enough structure to generate useful plans,
+but not enough detail to reconstruct, identify, or reliably link the
+underlying local artifacts.
+
+--- PAGE 5 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+Figure 2: The 4-stage privacy projection pipeline. Raw local context enters Stage 1 (typed extraction via local small language
+model (SLM) and heuristics), proceeds through Stage 2 (sensitive entity redaction via deterministic regex patterns with code-
+specific rules), Stage 3 (value generalization into bounded buckets), and Stage 4 (schema projection into fixed JSON). The output
+is a planning-sufficient digital twin 𝑍𝑡 that contains no raw text, filenames, paths, or credentials. A companion output sanitizer
+Πout applies Stages 2–4 to execution results before cloud exposure.
+4 Our Approach:PlanTwin
+PlanTwinis built around a simple idea: the cloud should help
+withplanning, but it should never need to observe the real local
+environment directly. To make this possible, the system combines
+three mechanisms. First, the local side converts raw context into
+a sanitized digital twin through a four-stage projection pipeline.
+Second, the cloud planner operates only through a bounded capabil-
+ity interface, so planning is expressed as declarative requests over
+abstract objects rather than direct access to local artifacts. Third, a
+local gatekeeper validates every step, enforces policy, and meters
+cumulative disclosure across turns.
+These mechanisms separatereasoningfromexposure. The cloud
+contributes planning intelligence over an abstract view, while the
+trusted local side retains control over raw-state access, execution,
+and what information is ultimately released.
+4.1 Privacy-Preserving Planning Abstraction
+The first component ofPlanTwinis a local projection pipeline
+that transforms the real environment into a planning-sufficient but
+reconstruction-resistant twin. Formally,
+Π=Π schema ◦Π generalize ◦Π redact ◦Π extract,(5)
+that is, the local side first extracts structure, then redacts sensitive
+entities, then generalizes precise values, and finally projects the
+result into a fixed schema.
+Pipeline.The role of this pipeline is not to summarize the environ-
+ment as accurately as possible. Instead, it exposes only the structure
+needed for planning while suppressing content that would support
+reconstruction or re-identification.
+Stage 1: Typed extraction.The local extractor identifies object
+modality, coarse semantic role, and task affordances using a light-
+weight on-device small language model (SLM) with deterministic
+heuristics. Objects are mapped to coarse kinds such as code_file,
+log_stream, structured_record, config, secret_container, and
+document. In parallel, the extractor assigns usability tags such as
+constraint_source,requires_local_tool,schema_bearing,
+comparable and summarizable. This stage determines what the
+object can be used for in planning, without yet deciding what may
+safely leave the trusted boundary.
+Stage 2: Sensitive entity detection and redaction.The second stage
+removes or masks obvious identifiers and secrets before any higher-
+level abstraction is exposed. This includes names, email addresses,
+phone numbers, URLs, IPs, hostnames, paths, repository identifiers,
+ticket IDs, keys, tokens, and other secrets. We use a deterministic
+detector combining regex rules for well-structured entities with
+keyword-based sensitivity classification for more contextual identi-
+fiers such as git metadata or internal hostnames.
+Stage 3: Generalization and bucketization.To reduce inversion
+risk, exact values are replaced by coarse categories. For example,
+byte sizes are mapped to {small, medium, large}, timestamps to
+{today, recent, stale}, counts to {one, few, many}, and sensitivity to
+{low, restricted, high}. This preserves planning-relevant distinctions
+while suppressing details that are unnecessarily identifying.
+Stage 4: Schema projection. Finally, the processed object is pro-
+jected into a fixed JSON schema. A typical object takes the form:
+{" object_id ": " artifact_17 " ,
+" kind ": " document " ,
+" semantic_class ": " req ui re me nts _s pe c " ,
+" sensitivity ": " restricted " ,
+" freshness ": " recent " ,
+" size_bucket ": " medium " ,
+" contains ": [" tables " ," dates " ," constraints "] ,
+" usable_for ": [" compare " ," e x t r a c t _ c o n s t r a i n t s "] ,
+" confidence ": 0.86}
+
+--- PAGE 6 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+This schema contains no filename, path, raw quote, or free-form
+text. The planner can reason over object roles and affordances, but
+not inspect the underlying content directly.
+Output sanitization.The same principle also applies to execution
+results. We therefore define a companion output sanitizer Πout that
+applies Stages 2–4 to local outputs before they are returned to the
+cloud. Stage 1 is omitted because result types are already known
+from the capability specification.
+Security implication.Because raw local artifacts never enter the
+cloud-visible channel, the design also narrows the direct prompt-
+injection surface relative to raw-context systems. A remaining risk
+is that malicious local content may still influence Stage 1 extrac-
+tion indirectly by causing the local SLM to misclassify objects. We
+mitigate this through deterministic cross-checks and by routing
+low-confidence extractions to review.
+Planning abstraction as a typed graph.On the cloud side, the
+planner-visible abstraction is represented as a typed graph 𝐺𝑡 =
+(V𝑡,E 𝑡 ,A 𝑡 ). Nodes in V𝑡 correspond to anonymous artifacts (e.g.,
+artifact_i), edges in E𝑡 encode coarse relations such as depen-
+dency, derivation, similarity, blocking, capability requirement, and
+conflict, and attributes in A𝑡 capture bounded properties such as
+sensitivity, freshness, readiness, confidence, and usability tags. The
+output ofΠ(𝑋 𝑡 )is concretely this graph representation.
+This graph view is important because the planner does not reason
+over isolated objects. It reasons over object roles, dependencies,
+and action affordances. The abstraction therefore preserves the
+relational structure needed for orchestration while withholding the
+raw artifacts from which that structure was derived.
+Running examples.Consider a coding-assistant task in which a
+developer asks:“Review the authentication module for security issues
+and compare it with the payment module. ”
+In local environments,𝑋𝑡 contains files such asauth_service.py
+and payment_handler.py, a .env file with live API keys, and git
+history containing developer identities. After projection, the twin
+𝑍𝑡 exposes only two code-file nodes with semantic classes such
+as “authentication module” and “payment module, ” with a secret-
+container node and a small number of typed dependency edges. No
+filenames beyond these abstract roles, no developer identities, no
+API keys, and no git history cross the boundary.
+The cloud planner therefore reasons over the abstract struc-
+ture rather than the raw files. It may request a security audit of
+the two modules, compare the resulting findings, and generate an
+anonymized summary of the differences. These requests are then
+checked and executed locally on the real files.
+4.2 Capability-Based Planning
+Once the planning abstraction has been constructed, the cloud
+planner no longer interacts with the local environment directly.
+Instead, it operates through a restricted capability interface C=
+{𝑐1, . . . , 𝑐𝑛 }, where each capability is a safe typed operation such
+as constraint extraction, object comparison, issue classification, or
+security auditing. In this way, the planner reasons over abstract
+objects rather than raw files or unconstrained tool access.
+The planner output is therefore not arbitrary code, but a struc-
+tured action graph,
+𝑃𝑡 ={(𝑠 𝑖, 𝑐𝑖, 𝐼𝑖, 𝑂𝑖, 𝜌𝑖 )} 𝐾
+𝑖=1,(6)
+Table 2: Capability granularity trade-off.
+Granularity Example Utility↑Privacy Cost↓
+Too coarse process_project Low Low
+Orchestration security_audit(art_1) High Medium
+Too fine read_line(art_1, 42) High High
+Table 3: Schema field disclosure costs.
+Field𝑤 𝑓 Rationale
+kind 0.5 Low entropy, many objects share types
+semantic_class 2.0 Higher specificity
+contains(per tag) 1.0 Content indicators
+usable_for(per tag) 0.5 Functional, less identifying
+Typed edge (per edge)3.0 Relational structure is highly identifying
+freshness 0.5 Temporal bucket, coarse
+sensitivity 1.0 Policy-relevant
+where 𝑠𝑖 is a step identifier, 𝑐𝑖 a chosen capability, 𝐼𝑖 abstract in-
+puts, 𝑂𝑖 the expected abstract output, and 𝜌𝑖 a policy annotation.
+This keeps planning declarative: the cloud specifieswhat operation
+should be performed, while the trusted local side retains control over
+howit is executed on raw data.
+A central design choice is the granularity of this capability inter-
+face. If capabilities are too coarse, the local side must perform most
+of the reasoning itself and the cloud adds little value. If they are too
+fine-grained, the planner can recover utility only through repeated
+interaction, which increases cumulative disclosure. The privacy-
+utility trade-off is therefore governed not only by what capabilities
+exist, but by how much abstraction each capability exposes.
+We capture this trade-off throughgrain(C) , the expected num-
+ber of weighted schema fields revealed per capability call, using the
+disclosure model introduced in §4.4. Let U(C) denote planning util-
+ity and 𝐷(C, 𝑇) cumulative disclosure over 𝑇 turns. The resulting
+design objective is
+C∗ =arg max
+C
+U(C)s.t.𝐷(C, 𝑇) ≤𝜖.(7)
+In practice, the useful operating point lies near what we call the
+orchestration boundary: capabilities should expose the workflow-
+level action to perform, but should not become a low-level channel
+for content inspection. Table 2 illustrates this intuition.
+4.3 Local Policy Enforcement
+Cloud-generated plans are never executed directly. Every re-
+quested step is first mediated by a trusted local gatekeeper, which
+connects planning-time abstraction with execution-time enforce-
+ment. Its purpose is to ensure that each requested operation is valid
+for the referenced objects, consistent with local policy, and safe to
+execute on the real environment.
+Operationally, the gatekeeper performs six checks in sequence:
+capability validation, policy validation, safety bounding, local exe-
+cution, output sanitization, and escalation to a human when a step
+is ambiguous or high-risk. The full procedure is summarized in
+Algorithm 1.
+
+--- PAGE 7 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+Algorithm 1Gatekeeper Validation and Execution
+Require:Plan step(𝑠 𝑖, 𝑐𝑖, 𝐼𝑖, 𝑂𝑖, 𝜌𝑖 ), context𝑋 𝑡 , policyΩ, budgets{𝐵(𝑜) }
+Ensure:Sanitized result𝑦 𝑖 or rejection signal
+1:if𝑐 𝑖 ∉Allowlist(type(𝐼 𝑖 ) )then
+2:return⊥ reject {Capability not allowed}
+3:end if
+4:foreach object𝑜∈𝐼 𝑖 do
+5:Δ←EstimateCost(𝑐 𝑖, 𝑜){Weighted field cost}
+6:if𝐵(𝑜) +Δ>𝜏(𝑜)then
+7:return⊥ reject {Budget exceeded}
+8:end if
+9:end for
+10:if𝜌 𝑖 requireshuman_approvalthen
+11: approved←HumanGate(𝑠 𝑖 )
+12:if¬approvedthen
+13:return⊥ escalate
+14:end if
+15:end if
+16:𝑟 𝑖 ←Execute(𝑐 𝑖, 𝐼𝑖, 𝑋𝑡 ){Local execution on raw data}
+17:𝑦 𝑖 ←Π out (𝑟𝑖 ){Sanitize output}
+18:foreach object𝑜∈𝐼 𝑖 do
+19:𝐵(𝑜) ←𝐵(𝑜) +Δ 𝑡 (𝑜){Update budget}
+20:end for
+21:return𝑦 𝑖
+Algorithm 2PlanTwin: End-to-End Planning Cycle
+Require: Context 𝑋𝑡 , projection Π, capabilities C, policy Ω, planner Φ, thresholds
+{𝜏(𝑜) }
+Ensure:Sanitized result𝑌 𝑡
+1: Initialize𝐵(𝑜) ←0for all tracked objects𝑜
+2:foreach task request or planning cycle𝑡do
+3:𝑋 𝑡 ←ObserveLocalState( )
+4:𝑍 𝑡 ←Π(𝑋 𝑡 ) {4-stage projection: extract → redact → generalize → schema}
+5:foreach object𝑜in𝑍 𝑡 do
+6:if𝐵(𝑜) +Δ(𝑜)>𝜏(𝑜)then
+7: Suppress new fields or refuse disclosure
+8:end if
+9:end for
+10: Send𝑍 𝑡 ,Cto cloud planner
+11:𝑃 𝑡 ←Φ(𝑍 𝑡 ,C ){Receive declarative plan}
+12:foreach step(𝑠 𝑖, 𝑐𝑖, 𝐼𝑖, 𝑂𝑖, 𝜌𝑖 )in𝑃 𝑡 do
+13:𝑦 𝑖 ←GatekeeperValidateAndExecute(𝑠 𝑖, 𝑋𝑡 ,Ω){Algorithm 1}
+14:if𝑦 𝑖 =⊥reject or𝑦 𝑖 =⊥escalate then
+15: Handle rejection / escalation
+16:end if
+17:end for
+18:𝑌 𝑡 ←AggregateResults( {𝑦 𝑖 } )
+19: Log disclosure event to audit trail
+20:end for
+21:return𝑌 𝑡
+Formally, the local outcome is
+𝑌𝑡 =
+ 
+
+Πout (Exec(𝑃 𝑡 , 𝑋𝑡 ))if policy-compliant,
+⊥reject if policy-violating,
+⊥escalate if ambiguous or high-risk.
+(8)
+This boundary ensures that cloud planning remains advisory
+rather than authoritative. The cloud may propose an operation, but
+admissibility, execution over raw data, and any returned abstract
+result are all determined on the trusted local side. If a request is
+rejected or escalated, no new information is released to the cloud
+andΔ 𝑡 (𝑜)=0for all involved objects
+This same boundary also limits plan-injection attempts. The
+cloud may request operations, but it cannot directly force raw-
+state disclosure or bypass local validation. Per-step controls such
+as capability whitelisting, output sanitization, and optional human
+approval bound what any single request may reveal, while cumula-
+tive controls such as disclosure budgeting and rate limits constrain
+what can be learned over repeated interaction.
+4.4 Multi-Turn Disclosure Control
+Single-turn redaction is not sufficient in an interactive planning
+setting. Even when each individual response appears harmless,
+repeated queries may gradually reveal a distinctive fingerprint of
+an object.PlanTwintherefore treats disclosure as cumulative and
+tracks it across turns at the object level.
+For each object𝑜, cumulative disclosure is defined as
+𝐵(𝑜)=
+𝑇∑︁
+𝑡=1
+Δ𝑡 (𝑜),(9)
+where Δ𝑡 (𝑜) is the newly disclosed information at turn 𝑡. The gate-
+keeper checks every proposed release against an object-specific
+threshold 𝜏(𝑜) and blocks additional disclosure once the threshold
+would be exceeded.
+Weighted field-cost model.We instantiate this mechanism with
+a simple weighted field-cost model in which each schema field 𝑓 is
+assigned a base disclosure weight 𝑤 𝑓 reflecting its re-identification
+potential. Table 3 lists the default costs used in our prototype.
+At turn𝑡, the newly incurred disclosure is
+Δ𝑡 (𝑜)=
+∑︁
+𝑓∈newly disclosed
+𝑤 𝑓 .(10)
+A new release is permitted only if
+𝐵(𝑜) +Δ 𝑇+1 (𝑜) ≤𝜏(𝑜),(11)
+where𝜏(𝑜)may vary across object classes and sensitivity levels.
+This mechanism is simple and operational. It is not presented as
+a full information-theoretic guarantee, but as a concrete local rule
+for limiting cumulative exposure in an interactive system.
+Advanced disclosure tracking.The weighted budget is only one pos-
+sible instantiation. Stronger variants could quantify Δ𝑡 (𝑜) through
+entropy reduction, online 𝑘-anonymity monitoring, or differential
+privacy composition when individual disclosures satisfy suitable
+privacy guarantees. We mention these alternatives to clarify that
+the budgeting framework is general, even though the present im-
+plementation adopts a lightweight field-cost model.
+Local retrieval and embedding exposure.All retrieval and simi-
+larity computation remain local. The cloud sees only abstract match
+outcomes or anonymized object identifiers, avoiding the embedding
+leakage and inversion risks demonstrated in prior work [18, 24, 33].
+5 Evaluation
+We evaluatePlanTwinalong several dimensions. We summarize
+our results in Table 4.
+5.1 Experimental Settings
+Prototype.We implementPlanTwinas a Python middleware
+between a local agent runtime and a cloud LLM API. The system
+enforces a strict split between local projection and remote plan
+synthesis. By default, Stage 1 uses deterministic heuristic extrac-
+tion for robustness and low latency, while a local Qwen3.5-family
+SLM [29] can optionally be used for richer semantic classification.
+
+--- PAGE 8 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+Table 4: Evaluation roadmap.
+Evaluation dimensions Ref. Results
+Planning utility §5.2 Table 5, Fig.3
+Sensitive-item non-disclosure §5.2 Table 5
+System overhead §5.4 Table 6
+Per-domain generalization §5.5 Table 5
+Adversarial re-identification risk §5.6 Fig.4, Fig.6
+Pipeline stage ablation §5.7 Fig.5
+Budget threshold sensitivity §5.8 Fig.7
+Multi-turn budget depletion §5.9 Fig.8, Fig.9
+Budget-footprint behavior §5.3 Table 5
+Stage 2 uses regex-based entity detection with custom rules for code-
+specific secrets and identifiers, and Stages 3–4 are deterministic
+transformations. The disclosure budget manager maintains per-
+object state with per-field deduplication. Unless otherwise stated,
+all experiments use the default heuristic extraction pipeline.
+Cloud planners.We evaluate four frontier cloud planners through
+OpenRouter, using the sanitized twin as the only planner-visible
+context:Kimi K2.5[ 17],Gemini 3 Flash,MiniMax M2.5[ 23], and
+GLM 5[ 11]. All planners are configured with high reasoning ef-
+fort for consistency. All local processing, including projection and
+gatekeeper, runs on a single machine without GPU requirements.
+Tasks.We construct a benchmark of 60 synthetic agentic tasks
+spanning ten domains: coding assistant, document review, multi-
+step debugging, DevOps, data pipelines, security incident response,
+ML operations, frontend development, database administration, and
+API integration. These tasks cover realistic agent workflows and
+embed sensitive artifacts such as PII, API keys, tokens, connection
+strings, internal hostnames, and infrastructure secrets.
+Baselines.We comparePlanTwinagainst four baseline families.
+(i)Raw Contextsends the full local environment to the cloud plan-
+ner and serves as a utility upper bound without privacy protection.
+(ii)PII Redactionapplies regex-based redaction before sending con-
+text to the cloud, but does not track cumulative disclosure across
+turns. (iii)Local-Onlyperforms planning entirely with a local SLM
+without cloud assistance; we evaluate six models spanning three
+families and four scales: SmolLM2-360M-Instruct, Qwen3.5-0.8B,
+Qwen3.5-2B, Qwen3.5-4B, Qwen3.5-9B (with thinking mode), and
+Gemma-3-1B-it (instruction-tuned, no thinking mode). (iv)Heuristic
+(Oracle)uses manually curated keyword-to-capability rules without
+any cloud LLM, isolating the disclosure-budget mechanism from
+cloud planning quality. Combined with four cloud planners for
+PlanTwin, PII Redaction, and Raw Context, these baselines yield
+19 method configurations in total.
+PlanTwinconfiguration.Unless otherwise noted,PlanTwin
+uses heuristic Stage 1 extraction, capability-aware lazy disclosure,
+and askill promptthat teaches the cloud planner the twin’s data
+format and capability semantics. We instantiate this configura-
+tion with each of the four cloud planners above (all with think-
+ing mode enabled), yielding a total of 19 method configurations
+(4 planners× 3 modes + 6 local-only models + 1 heuristic) to sys-
+tematically evaluate the privacy–utility–latency trade-off space.
+Metrics.We report four metrics. (i)Plan quality score (PQS) ↑ is
+the task-averaged 𝐹1 between approved and expected capabilities,
+capturing both over-generation and missing capabilities; we also
+report precision separately in the main results table. (ii)Sensitive
+non-disclosure (SND) ↑ measures the fraction of sensitive items in
+the raw environment that do not appear in the planner-visible
+payload. (iii)Normalized leakage (NL) ↓ measures the fraction of the
+disclosure budget consumed; for raw-context methods, we set NL=
+1.0by convention. (iv)Latency overheadmeasures the additional
+per-task cost introduced by projection and gatekeeper validation.
+5.2 Planning Utility and Privacy
+Table 5 presents the main comparison across all nineteen configu-
+rations on the full 60-task benchmark.
+PlanTwinachieves complete sensitive-item non-disclosure (SND
+=1.0) across all planners/domains: no API keys, passwords, PII, con-
+nection strings, SSH keys, or sensitive artifacts from the raw envi-
+ronment reach the cloud. This guarantee comes from architecture:
+the projection pipeline strips raw content before cloud exposure,
+and the planner only sees bounded categorical abstractions.
+With Kimi K2.5,PlanTwinreaches a combined PQS of 0.808
+on the 60-task benchmark, compared with 0.843 for Raw Context.
+Two tasks produced degenerate outputs for all fourteen methods
+and were excluded from paired testing, leaving 58 common tasks.
+A paired Wilcoxon signed-rank test finds no significant difference
+betweenPlanTwinand Raw Context under Kimi ( 𝑇= 182.5,
+𝑝= 0.079, Bonferroni-corrected 𝑝= 0.555, 𝑟= 0.230), indicating
+that the planning abstraction preserves utility close to unrestricted
+context disclosure despite removing all raw content. This trend is
+consistent across planners: GLM 5 achieves PQS = 0.810 and Mini-
+Max M2.5 reaches 0.792, both statistically indistinguishable from
+Kimi. Gemini 3 Flash is weaker at PQS = 0.689, but also much faster,
+with 2.6× lower median latency (45.2 s vs. 119.6 s), highlighting a
+quality–latency trade-off.
+PII redactionachieves the highest plan quality (PQS=0.887 with
+Kimi) but only SND=0.835. Its failures are concentrated in cod-
+ing tasks, where SND drops to 0.12 because regex-based redaction
+misses hardcoded connection strings and inline secret assignments.
+Across domains, SND ranges from 0.12 to 1.0, and overall PII redac-
+tion leaks 16.5% of sensitive items, whereasPlanTwinleaks none.
+Local-only planning achieves perfect non-disclosure (SND =
+1.0) but plan quality is bounded by model capacity. Qwen3.5-2B
+produces PQS = 0.283, covering fewer than one of three expected
+capabilities per task; models at or below 2B (including SmolLM2-
+360M and Qwen3.5-0.8B) yield identical fallback plans. Scaling to
+Qwen3.5-4B improves PQS to 0.484 and Qwen3.5-9B reaches 0.531,
+but both exhibit high per-domain variance (9B: 0.10 on coding vs.
+0.93 on security IR). Gemma-3-1B-it achieves the highest local-only
+PQS (0.567) with only 1B parameters, outperforming both Qwen3.5-
+4B and 9B while maintaining consistent cross-domain performance
+(0.44–0.86). Results indicate that instruction-tuning quality matters
+more than raw parameter count for structured plan generation.
+Nevertheless, the best local-only model (PQS=0.567) still falls 30%
+below cloud-assistedPlanTwin(PQS=0.810 with GLM 5), showing
+that local SLMs alone cannot replace cloud-assisted planning.
+The Heuristic (Oracle) baseline achieves PQS = 0.653 with SND =
+1.0, but its per-domain scores vary widely (0.43–0.90) depending on
+how well the manually curated keyword rules match each domain’s
+
+--- PAGE 9 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+Table 5: Main results across ten task domains (60-task evaluation per method)
+Planner Method Per-Domain PQS Combined(𝑛=60)
+Code Doc Debug DevOps Pipe. SecIR MLOps Front. DB API-I PQS↑Prec↑SND↑NL↓
+Cloud LLM Planners
+Kimi K2.5 Raw Context 0.77 0.77 0.67 0.81 0.85 0.80 0.93 0.84 0.93 0.98 0.843 0.831 0.000 1.000
+Kimi K2.5 PII Redaction 0.85 0.80 0.75 0.88 0.93 0.93 0.89 0.88 0.88 1.00 0.887 0.886 0.835 0.165
+Kimi K2.5 PlanTwin 0.79 0.80 0.68 0.72 1.00 0.74 0.79 0.67 0.90 0.91 0.808 0.776 1.000 0.617
+Gemini 3 Flash Raw Context 0.81 0.40 0.67 0.90 0.95 0.88 0.87 0.78 0.91 1.00 0.832 0.833 0.000 1.000
+Gemini 3 Flash PII Redaction 0.89 0.40 0.71 0.95 0.89 0.91 1.00 0.90 0.83 0.95 0.861 0.848 0.835 0.165
+Gemini 3 Flash PlanTwin 0.71 0.68 0.57 0.72 0.93 0.48 0.68 0.70 0.66 0.77 0.689 0.604 1.000 0.582
+MiniMax M2.5 Raw Context 0.79 0.65 0.67 0.76 0.83 0.77 0.87 0.78 0.95 0.89 0.802 0.761 0.000 1.000
+MiniMax M2.5 PII Redaction 0.65 0.75 0.73 0.77 0.78 0.79 0.87 0.75 0.91 0.83 0.788 0.747 0.835 0.165
+MiniMax M2.5 PlanTwin 0.75 0.69 0.67 0.83 1.00 0.70 0.86 0.73 0.72 0.81 0.792 0.799 1.000 0.590
+GLM 5 Raw Context 0.77 0.40 0.60 0.89 0.90 0.87 1.00 0.90 0.82 0.98 0.834 0.845 0.000 1.000
+GLM 5 PII Redaction 0.77 0.40 0.67 0.94 0.95 0.95 1.00 0.93 0.78 0.94 0.855 0.872 0.835 0.165
+GLM 5 PlanTwin 0.81 0.75 0.64 0.72 0.98 0.80 0.87 0.67 0.93 0.83 0.810 0.765 1.000 0.615
+Local Baselines (No Cloud)
+No cloud Local (SmolLM2-360M)‡ 0.10 0.50 0.50 0.12 0.38 0.50 0.17 0.33 0.17 0.17 0.283 0.567 1.000 0.000
+No cloud Local (Qwen 3.5-0.8B)‡ 0.10 0.50 0.50 0.12 0.38 0.50 0.17 0.33 0.17 0.17 0.283 0.567 1.000 0.000
+No cloud Local (Gemma-3-1B) 0.55 0.86 0.50 0.54 0.60 0.57 0.55 0.55 0.55 0.44 0.567 0.559 1.000 0.000
+No cloud Local (Qwen 3.5-2B) 0.10 0.50 0.50 0.12 0.38 0.50 0.17 0.33 0.17 0.17 0.283 0.567 1.000 0.000
+No cloud Local (Qwen 3.5-4B) 0.27 0.40 0.50 0.46 0.58 0.50 0.52 0.70 0.54 0.30 0.484 0.656 1.000 0.000
+No cloud Local (Qwen 3.5-9B) 0.10 0.50 0.86 0.12 0.64 0.93 0.73 0.50 0.45 0.60 0.531 0.642 1.000 0.000
+No cloud Heuristic (Oracle) 0.53 0.50 0.50 0.78 0.90 0.70 0.59 0.54 0.43 0.84 0.653 0.782 1.000 0.558
+- PQS = Plan Quality Score (↑,𝐹 1 of capability precision and recall), Prec = Capability Precision (↑).
+- SND = Sensitive Non-Disclosure (↑), NL = Normalized Leakage (↓).
+-‡ Models≤0.8B fail to generate valid JSON plans; all PQS values reflect the single-capability fallback.
+vocabulary; cloud-assistedPlanTwinconsistently outperforms it
+on domains where keyword rules are weaker (coding: 0.79 vs. 0.53,
+debugging: 0.68 vs. 0.50, frontend: 0.67 vs. 0.54).
+A Friedman test across all nineteen methods (repeated measures
+on 58 paired tasks) confirms globally significant differences in PQS
+distributions (𝜒 2 = 237.55, 𝑝< 0.001, Kendall’s𝑊= 0.315). Pair-
+wise Wilcoxon signed-rank tests with Bonferroni correction (18
+comparisons vs.PlanTwin+Kimi) show thatPlanTwin(Kimi)
+vs. Raw Context (Kimi) isnotsignificant ( 𝑝Bonf = 1.0, 𝑟= 0.230),
+and neither are Raw Context with Gemini (𝑝Bonf = 1.0), MiniMax
+(𝑝Bonf = 1.0), or GLM ( 𝑝Bonf = 1.0). AmongPlanTwinvariants,
+both MiniMax ( 𝑝Bonf = 1.0, 𝑟= 0.034) and GLM ( 𝑝Bonf = 1.0,
+𝑟= 0.049) are statistically indistinguishable from Kimi, while Gem-
+ini is significantly lower (𝑝Bonf = 0.004, 𝑟= 0.475). PII Redaction
+(Kimi) achieves significantly higher PQS thanPlanTwin(Kimi)
+(𝑝Bonf = 0.013, 𝑟= 0.429), the trade-off for its 16.5% leakage.
+PlanTwin(Kimi) is significantly better than Heuristic (Oracle)
+(𝑝Bonf < 0.001, 𝑟= 0.596) and all six local-only models ( 𝑝Bonf <
+0.001for all,𝑟≥0.596).
+Privacy-utility.PlanTwinis the only method that achieves
+complete sensitive-item protection (snd= 1.0) while match-
+ing full disclosure on 3 of 4 cloud planners; PII redaction
+yields higher PQS but leaks 16.5% of sensitive items.
+Fig.3 visualizes the privacy-utility trade-off across all fourteen
+configurations, plotting SND (privacy) against PQS (utility) with
+per-task standard deviation error bars computed over all 60 tasks.
+The fourPlanTwinconfigurations cluster in the upper-right quad-
+rant (high SND, high PQS), achieving an operating point that no
+PlanTwin+Kimi
+PlanTwin+Gemini
+PlanTwin+MiniMax
+PlanTwin+GLM
+Raw+Kimi
+Raw+Gemini
+Raw+MiniMax
+Raw+GLM
+PII+Kimi
+PII+Gemini
+PII+MiniMax
+PII+GLM
+Heuristic (Oracle)
+Local-Only
+0.0 0.2 0.4 0.6 0.8 1.0
+SND (Privacy)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0PQS (Utility)
+Ideal
+Figure 3: Privacy-utility trade-off for 19 configurations over
+60 tasks in 10 domains. OnlyPlanTwinreaches the ideal
+high-privacy/utility region, achieving SND=1.0 with PQS>0.7.
+Error bars show per-task standard deviation.
+other method reaches. Raw Context methods cluster in the lower-
+right (high PQS, zero SND), while Local-Only occupies the upper-
+left corner (perfect SND, low PQS).
+
+--- PAGE 10 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+5.3 Privacy Budget Analysis
+Average budget utilization across all 60 tasks reaches approximately
+60% for all fourPlanTwinconfigurations (Kimi NL = 0.617, GLM
+NL = 0.615, MiniMax NL = 0.590, Gemini NL = 0.582), compared
+to 55.8% for the Heuristic (Oracle) baseline. The tight NL range
+(0.582–0.617) across four diverse planners confirms that budget
+consumption is driven by the local gatekeeper’s disclosure policy,
+not the cloud planner’s behavior. Only thekind field is disclosed
+at registration (0.5 cost), and additional fields are disclosed on-
+demand per capability via CAPABILITY_REQUIRED_FIELDS. No
+object exceeds its threshold𝜏(𝑜) . PII redaction, by contrast, achieves
+low NL (0.165) only because it sends less structured metadata—but
+this comes at the cost of leaking raw content (SND = 0.835).
+Budget effectiveness.Capability-aware lazy disclosure
+keeps normalized leakage near 60% across planners, pre-
+serving headroom for multi-turn interaction. Budget use is
+enforced locally by the gatekeeper.
+5.4 System Overhead
+Table 6 reports per-task latency broken down intolocal projection
+(twin construction, including optional SLM-backed extraction) and
+cloud API(planner round-trip). For baselines without schema projec-
+tion (Raw Context, PII Redaction), the local component is negligible
+(<1 ms); the entire latency is the cloud API call. ForPlanTwin,
+the local projection phase includes Qwen 3.5-2B–backed extrac-
+tion for Stage 1, adding 7–26 s of SLM inference depending on task
+complexity. With heuristic-only extraction (no SLM), this drops
+to <1 ms; the deterministic Stages 2–4 and gatekeeper contribute
+<1 ms regardless. For local-only baselines, latency scales with model
+size: Qwen3.5-2B runs at median 6.7 s, Gemma-3-1B at 14.3 s, while
+Qwen3.5-4B (126.1 s) and 9B (159.8 s) incur high overhead due to
+thinking-mode token generation (max 8192 tokens).
+The phase reveals that local SLM projection is consistent across
+planners (13–34 s), while cloud API latency varies substantially.
+ForPlanTwinwith Kimi K2.5, the cloud API dominates (mean
+81.2 s, median 119.6 s) with high variance due to API load. With
+MiniMax M2.5 (thinking), the cloud API averages 19.3 s, yielding a
+median total of 56.1 s. GLM 5 (thinking) falls between Kimi and Min-
+iMax at 32.1 s mean API time (median total 63.3 s). Gemini 3 Flash
+(thinking) is fastest at 8.9 s mean API time (median total 45.2 s).
+The projection overhead is partially offset by prompt compres-
+sion: on DevOps tasks,PlanTwin+Kimi (65.5 s) is faster than
+Raw+Kimi (88.0 s) because the compact twin reduces prompt to-
+kens. With heuristic-only extraction (no SLM), the local phase drops
+to<1 ms, reducing total latency to the cloud API time alone.
+Practical overhead.Total latency is dominated by SLM
+extraction (13–34 s) and cloud API time; the deterministic
+projection pipeline adds < 1ms. End-to-end latency ranges
+from 45 s to 120 s, and with heuristic extraction it is approxi-
+mately the cloud API time.
+Complexity analysis, token scaling, and deployment considera-
+tions are discussed in §6.2.
+5.5 Per-Domain Analysis
+Table 5 presents per-domain PQS across all ten domains. With
+Kimi K2.5,PlanTwinachieves PQS ranging from 0.67 (frontend) to
+1.00 (data pipeline). Data pipeline tasks yield perfect PQS because
+their structured ETL workflows align naturally with the typed
+abstract graph representation. Database (0.90) and API integration
+(0.91) tasks also achieve high PQS, confirming that the projection
+pipeline generalizes well to structured integration workflows.
+Cross-planner comparison reveals that Kimi, MiniMax, and GLM
+produce similar per-domain profiles: data pipeline (1.00/1.00/0.98),
+API integration (0.91/0.81/0.83), and database (0.90/0.72/0.93). The
+largest inter-planner variation occurs on security IR, where Kimi
+(0.74) and GLM (0.80) outperform MiniMax (0.70) and Gemini (0.48),
+suggesting that multi-step reasoning over the structured twin ben-
+efits from stronger planners. On DevOps tasks, all four planners
+are tightly clustered (0.72/0.72/0.83/0.72), while data pipeline tasks
+yield near-perfect PQS across the board, confirming that highly
+structured ETL workflows are planner-agnostic.
+PII redaction’s SND varies sharply by domain: coding tasks
+achieve only SND = 0.12 (regex misses 88% of code-embedded
+secrets), while documents and API integration reach SND = 1.0.
+Database tasks show intermediate SND = 0.73, where regex par-
+tially captures connection strings but misses embedded PGP keys.
+PlanTwinmaintains SND = 1.0 across all ten domains without
+exception, as the architectural guarantee is independent of sensitive-
+item distribution.
+Domain generalization.PlanTwingeneralizes across ten
+domains and four cloud planners, sustainingsnd = 1.0with
+PQS of 0.67-1.00. Consistent domain-level trends indicate
+planner-agnostic privacy-preserving projection.
+5.6 Adversarial Re-identification.
+We empirically evaluate the re-identification risk of the twin’s
+schema fields through a game-based experiment aligned with Goal 1
+(§3.2). An adversary with auxiliary knowledge observes a target ob-
+ject’s twin and attempts to match it to the correct file in a candidate
+pool of size 𝑘. We model four adversary strategies with increasing
+auxiliary knowledge: (1)Randomguessing (baseline), (2)Kind-only
+Random Kind
+only
+Kind+
+Semantic
+Full
+fingerprint
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0Re-identification Accuracy
+6.6%
+33.5%
+78.6%
+94.1%
+1/k = 6.7%
+Figure 4: Adversarial re-identification accuracy by strategy
+with 𝑘= 15candidate files. Error bars show standard devi-
+ation, and the dashed line marks the random baseline1 /𝑘.
+Full fingerprint matching reaches 94.1% accuracy.
+
+--- PAGE 11 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+Table 6: Per-task overhead breakdown (seconds)
+Planner Method Phase (mean) Per-Domain Total Latency Med.
+Proj. API Code Doc Debug DevOps Pipe. SecIR MLOps Front. DB API-I
+Cloud LLM Planners
+Kimi K2.5 Raw Context — 53.0 s 67.9 s 101.5 s 52.7 s 88.0 s 105.4 s 111.2 s 95.4 s 48.4 s 248.2 s 137.9 s 66.8 s
+Kimi K2.5 PII Redaction <0.1 s 79.1 s 92.3 s 60.1 s 34.9 s 73.7 s 92.4 s 102.4 s 42.6 s 306.7 s 109.6 s 332.5 s 75.2 s
+Kimi K2.5 PlanTwin 13.3 s 81.2 s 204.2 s 135.2 s 264.8 s 65.5 s 66.7 s 112.4 s 303.8 s 377.0 s 115.9 s 103.2 s 119.6 s
+Gemini 3 Flash Raw Context — 6.5 s 17.8 s 11.5 s 12.9 s 13.6 s 12.2 s 19.9 s 19.3 s 15.5 s 17.1 s 13.4 s 14.4 s
+Gemini 3 Flash PII Redaction <0.1 s 8.5 s 23.0 s 12.8 s 19.1 s 14.9 s 18.8 s 28.8 s 16.3 s 17.6 s 23.7 s 27.4 s 19.3 s
+Gemini 3 Flash PlanTwin 25.0 s 8.9 s 43.0 s 34.2 s 41.4 s 54.6 s 42.1 s 65.4 s 52.3 s 31.7 s 52.5 s 46.4 s 45.2 s
+MiniMax M2.5 Raw Context — 28.6 s 14.1 s 19.9 s 30.5 s 16.5 s 95.9 s 15.8 s 17.0 s 9.7 s 20.0 s 24.7 s 16.6 s
+MiniMax M2.5 PII Redaction <0.1 s 44.8 s 29.4 s 135.0 s 22.6 s 28.8 s 30.4 s 16.0 s 16.7 s 115.4 s 13.9 s 55.3 s 15.3 s
+MiniMax M2.5 PlanTwin 34.3 s 19.3 s 40.1 s 36.6 s 37.0 s 61.6 s 56.2 s 69.0 s 64.3 s 42.6 s 64.3 s 50.1 s 56.1 s
+GLM 5 Raw Context — 44.9 s 44.9 s 17.3 s 34.0 s 23.1 s 28.2 s 32.9 s 43.3 s 41.1 s 34.4 s 154.2 s 28.4 s
+GLM 5 PII Redaction <0.1 s 66.6 s 44.0 s 36.7 s 44.5 s 48.6 s 53.4 s 61.3 s 43.3 s 72.2 s 206.5 s 49.9 s 48.0 s
+GLM 5 PlanTwin 33.4 s 32.1 s 46.0 s 34.6 s 38.0 s 70.2 s 60.8 s 102.3 s 67.6 s 49.5 s 91.6 s 77.4 s 63.3 s
+Local Baselines (No Cloud)
+No cloud Local (SmolLM2-360M)‡ — 12.3 s† 9.7 s 0.7 s 3.1 s 28.9 s 1.9 s 2.8 s 5.7 s 32.5 s 33.4 s 4.6 s 5.2 s
+No cloud Local (Qwen 3.5-0.8B)‡ — 3.6 s† 6.1 s 2.6 s 2.8 s 4.4 s 2.8 s 2.8 s 5.6 s 2.9 s 2.9 s 2.9 s 2.9 s
+No cloud Local (Gemma-3-1B) — 15.1 s † 18.9 s 11.8 s 17.2 s 17.5 s 13.4 s 14.0 s 15.8 s 14.3 s 14.2 s 13.7 s 14.3 s
+No cloud Local (Qwen 3.5-2B) — 15.6 s † 8.8 s 1.9 s 2.1 s 49.1 s 4.9 s 12.0 s 8.2 s 61.8 s 5.1 s 2.2 s 6.7 s
+No cloud Local (Qwen 3.5-4B) — 142.3 s † 179.4 s 22.8 s 234.9 s 171.2 s 93.3 s 234.3 s 117.7 s 126.7 s 125.4 s 117.6 s 126.1 s
+No cloud Local (Qwen 3.5-9B) — 137.6 s † 42.7 s 34.9 s 226.8 s 80.7 s 177.6 s 228.1 s 192.8 s 73.0 s 151.1 s 168.5 s 159.8 s
+No cloud Heuristic (Oracle) <0.1 s — <0.1 s<0.1 s<0.1 s<0.1 s<0.1 s<0.1 s<0.1 s<0.1 s<0.1 s<0.1 s <0.1 s
+- Proj. = mean local projection time (twin construction + optional SLM extraction), API = mean cloud planner API round-trip.
+- Per-domain columns report mean total latency. All four cloud planners use thinking mode. Kimi K2.5 exhibits high variance due to API load.
+-† Local SLM inference (no cloud API); model size indicated in parentheses. “—” = not applicable.
+-‡ Models≤0.8B fail to generate valid JSON plans (fallback only).
+matching using the file type field, (3)Kind+Semanticmatching using
+both kind and semantic_class, and (4)Full fingerprintmatching
+using all disclosed twin fields (kind, semantic_class, contains,
+sensitivity). Each strategy selects the candidate that maximizes
+field overlap with the target twin. We run 500 trials with pool size
+𝑘= 15and 5 target objects per trial, drawing from a diverse tem-
+plate library spanning coding, configuration, documentation, and
+infrastructure files.
+Fig.4 presents the results. Random guessing achieves 6.6% ac-
+curacy, matching the theoretical1 /𝑘= 6.7%. Knowing only the
+file type (kind) increases accuracy to 33.5%, because the six kind
+categories already partition the pool into smaller anonymity sets.
+Adding the semantic_class field raises accuracy to 78.6%, since se-
+mantic labels such asauthentication_module or payment_service
+are highly identifying. With the full fingerprint, accuracy reaches
+94.1% (MRR = 0.973), confirming that the twin’s combined schema
+fields carry substantial re-identification potential when disclosed
+without budget control.
+To evaluate how the anonymity set size affects re-identification
+risk, we repeat the experiment with pool sizes𝑘∈ { 5, 10, 15, 20, 25, 30}
+(300 trials each). Fig.6 shows the results. Random accuracy scales as
+1/𝑘, decreasing from 19.3% (𝑘= 5) to 4.3% (𝑘= 30). Kind-only and
+Kind+Semantic strategies degrade with increasing𝑘, dropping from
+63.1% and 94.1% at 𝑘= 5to 19.7% and 63.3% at 𝑘= 30, respectively.
+However, the full fingerprint adversary remains above 88.3% even
+at 𝑘= 30, indicating that the twin’s combined fields are inherently
+identifying regardless of pool size. This result empirically motivates
+the disclosure budget mechanism (§4.4): absent per-object budget
+limits, an adversary with auxiliary knowledge can re-identify files
+from the twin alone with high confidence.
+Re-identification risk.Without disclosure budget control,
+an adversary with full auxiliary knowledge achieves 94.1%
+re-identification accuracy (𝑘= 15) and >88% even at 𝑘= 30.
+This empirically validates the need for per-object disclosure
+budgets: individual schema fields are not identifying, but
+their combination creates a unique fingerprint.
+5.7 Pipeline Stage Ablation
+We isolate the contribution of each pipeline stage by running four
+variants: (1)Full(all four stages), (2)No Redaction(skip Stage 2,
+sensitive entity redaction), (3)No Generalize(skip Stage 3, value
+generalization), and (4)Extract+Schema(Stages 1–2 only, extract
+metadata and build typed graph but skip generalization and schema
+projection). All variants use Kimi K2.5 with plan-aware prompting
+on the same 58-task benchmark.
+Fig.5 presents the results. Across all four variants, SND remains
+1.0, confirming that the typed abstract graph representation pro-
+vides architectural data isolation regardless of whether downstream
+redaction or generalization stages are active. PQS ranges from 0.773
+(Full) to 0.790 (No Redaction), a spread of only 0.017. Skipping
+redaction yields a marginal PQS improvement (+2.2%) because the
+planner receives slightly richer metadata fields, while skipping
+generalization has negligible effect (+0.2%). The Extract+Schema
+variant (0.788) performs comparably to Full, suggesting that the
+core utility derives from the structured twin representation itself
+rather than the privacy-hardening stages.
+
+--- PAGE 12 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+Full
+(4 stages)
+No
+Redaction
+No
+Generalize
+Extract+
+Schema
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2Score
+0.773 0.790 0.775 0.788
+1.00 1.00 1.00 1.00
+PQS
+SND
+Figure 5: Pipeline stage ablation across four variants. All
+maintain SND = 1.0, while PQS stays within 0.773–0.790, in-
+dicating minimal utility loss from privacy hardening. Error
+bars show per-task standard deviation.
+Per-domain analysis reveals that data pipeline tasks achieve PQS
+= 1.00 across all four variants, while coding tasks show the largest
+inter-variant spread (0.534–0.753), reflecting their higher sensitivity
+to metadata granularity. Normalized leakage (NL) is lowest for No
+Redaction (0.553) and Extract+Schema (0.566), as fewer pipeline
+stages consume less disclosure budget per object.
+Pipeline ablation.The privacy-hardening stages (redaction,
+generalization) impose <2.2% PQS cost while the typed ab-
+stract graph representation alone guarantees SND = 1.0. The
+full 4-stage pipeline offers the best privacy–utility balance:
+minimal utility loss with maximum defense-in-depth.
+5.8 Budget Threshold Sensitivity
+We vary the disclosure budget threshold by applying scale factors
+𝛼∈ { 0.25, 0.5, 0.75, 1.0, 1.5} to the default per-object budget 𝜏(𝑜) ,
+yielding effective thresholds 𝛼·𝜏(𝑜) . Lower 𝛼 restricts disclosure
+more aggressively; higher𝛼permits more fields to be revealed.
+Fig.7 shows the privacy–utility trade-off. At 𝛼= 0.25(quarter
+budget), PQS drops to 0.513 as the gatekeeper aggressively with-
+holds twin fields, starving the planner of context. Doubling the
+budget to 𝛼= 0.5recovers PQS to 0.639. At 𝛼= 0.75, PQS reaches
+0.801, matching the default (𝛼= 1.0, PQS = 0.801) and indicating
+that the default threshold already provides near-saturated utility.
+Increasing to 𝛼= 1.5yields PQS = 0.783, a slight decrease likely
+due to stochastic variation rather than a meaningful trend; SND
+remains 1.0 throughout.
+Normalized leakage exhibits an inverted-U pattern: NL peaks at
+𝛼= 0.75(0.777) then decreases at 𝛼= 1.0(0.626) and 𝛼= 1.5(0.466).
+This occurs because larger budgets leave more unused headroom
+per object, reducing the fraction of budget consumed. The practical
+implication is that 𝛼∈ [ 0.75, 1.0] represents a sweet spot: PQS is
+saturated while NL remains moderate.
+Budget sensitivity.PQS saturates at 𝛼≥ 0.75, confirming
+that the default budget threshold is not over-restrictive. Re-
+ducing the budget to 𝛼= 0.25halves PQS, while 𝛼= 1.5
+provides no additional utility. The sweet spot 𝛼∈ [ 0.75, 1.0]
+achieves PQS>0.80 with NL<0.78.
+5 10 15 20 25 30
+Pool Size (k)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0Re-identification Accuracy
+Random
+Kind-only
+Kind+Semantic
+Full fingerprint
+Theoretical (1/k)
+Figure 6: Re-identification accuracy versus anonymity set
+size 𝑘. Full fingerprint matching remains above 88% even at
+𝑘= 30, while weaker strategies degrade with larger pools.
+Shaded regions denote±1std. dev.
+0.25 0.50 0.75 1.00 1.50
+Budget Scale Factor
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0PQS
+PQS
+NL
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Normalized Leakage
+Figure 7: Budget threshold sensitivity versus scale factor 𝛼.
+PQS saturates at 𝛼≥ 0.75, while normalized leakage peaks
+at 𝛼= 0.75and then declines as larger budgets leave more
+headroom. Shading denotes±1std. dev. in PQS.
+5.9 Multi-Turn Budget Depletion
+We evaluate the disclosure budget mechanism under multi-turn
+usage, where the middleware persists across all 58 tasks and budget
+consumption accumulates. This simulates a realistic deployment
+where an agent processes a sequence of tasks over a session, pro-
+gressively depleting per-object budgets.
+Fig.8 compares per-domain PQS. Overall PQS decreases from
+0.773 (single-turn) to 0.767 (multi-turn), a modest−0.8% degradation.
+The largest drops occur on coding ( −0.233, from 0.753 to 0.520)
+and data pipeline (−0.167, from 1.000 to 0.833), where objects are
+accessed across multiple tasks, depleting their budgets and forcing
+the gatekeeper to withhold fields. Conversely, document (+0.133),
+security IR (+0.185), and database (+0.006) tasks show slight PQS
+increasesin multi-turn mode, because the planner benefits from
+residual context in the persistent twin graph.
+Fig.9 reveals the privacy side: multi-turn drives NL to 1.0 across
+all ten domains, compared to a mean of 0.611 in single-turn mode.
+This confirms that cumulative disclosure fully exhausts per-object
+budgets over a 58-task session. Importantly, SND remains 1.0 in both
+modes—the budget mechanism caps total leakage at 𝜏(𝑜) per object
+without ever exposing raw content. During the multi-turn run, 8
+
+--- PAGE 13 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+objects were excluded entirely (“budget exceeded at registration”),
+demonstrating the gatekeeper’s enforcement of hard budget limits.
+Multi-turn depletionMulti-turn budget accumulation low-
+ers PQS by 0.8%, while NL reaches 1.0. The system degrades
+gracefully: over-budget objects are excluded rather than leak-
+ing additional information, and SND stays at 1.0 throughout.
+6 Discussion
+We now discuss whyPlanTwinprovides privacy benefits beyond
+execution isolation alone, what leakage channels remain, how the
+design scales with environment and workflow size, and the main
+limitations of the current study.
+6.1 Privacy and Security Discussion
+PlanTwindoes not aim to make cloud planningcryptographically
+private. Instead, it reduces exposure architecturally by constraining
+what the planner can observe through schema projection, bounded
+capabilities, and cumulative disclosure control.
+Content reconstruction.For raw-content reconstruction, the
+design is structurally restrictive. The cloud never receives raw files,
+free-form text, paths, credentials, or unsanitized execution outputs.
+All planner-visible state is produced by the projection pipeline and
+expressed through bounded schema fields.
+As a result, the cloud-visible channel excludes raw content by
+construction rather than attempting to scrub it after the fact. Re-
+construction therefore becomes possible only if the local projection
+itself emits overly specific attributes.
+Re-identification.For object re-identification (Goal 1), privacy
+depends not only on the schema vocabulary but also on how much
+of it is disclosed over time. As shown in §5.6, disclosing all twin
+fields allows an adversary to recover object identity with high confi-
+dence. This means the twin is not intrinsically anonymous. Instead,
+privacy comes frompartial observability: the gatekeeper prevents
+the planner from accumulating a complete object fingerprint by
+enforcing per-object disclosure budgets. In this sense, the budget is
+a core security mechanism rather than a secondary optimization.
+Cross-session linkage.For cross-session linkage (Goal 2), fresh
+random object identifiers prevent trivial reuse of IDs across sessions.
+However, identifier randomization alone is insufficient. Repeated
+disclosure of rare semantic or relational patterns may still support
+linkage if the same object induces a distinctive signature across
+sessions. In practice, unlinkability is improved by the combination
+of session-local IDs, bounded vocabularies, and cumulative disclo-
+sure limits. The goal is not to make objects indistinguishable in
+principle, but to prevent the planner from observing enough stable
+attributes to link them reliably.
+Structural inference.For structural inference (Goal 3),PlanTwin
+reduces but does not eliminate leakage. Graph topology is itself
+informative: unusual dependency patterns, rare capability require-
+ments, or asymmetric connectivity may reveal properties of the un-
+derlying project even when node attributes are sanitized. Bounded
+edge vocabularies and disclosure budgets reduce this signal, but
+cannot remove it entirely without also reducing planning utility.
+This is a structural trade-off rather than an implementation artifact.
+API-ICodePipe. DB
+DebugDevOps
+Doc
+Front.MLOpsSecIR
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0PQS
+Single-turn
+Multi-turn
+Figure 8: Per-domain PQS under single- and multi-turn bud-
+geting. Multi-turn most degrades data-pipeline and coding
+tasks. Repeated access to the same objects exhausts budgets.
+API-ICodePipe. DB
+DebugDevOps
+Doc
+Front.MLOpsSecIR
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0Normalized Leakage
+Single-turn
+Multi-turn
+Figure 9: Per-domain normalized leakage in single-/multi-
+turn modes. Multi-turn drives NL to 1.0 across domains.
+Prompt- and plan-level attack surfaces.The design also nar-
+rows two common attack surfaces. First, prompt-injection oppor-
+tunities are reduced because the cloud planner never receives raw
+local artifacts, only schema-constrained abstractions. Second, un-
+safe or privacy-invasive plans are contained locally: every step is
+mediated by capability validation, policy checks, disclosure account-
+ing, and optional human approval. Even if the planner proposes an
+overreaching plan, enforcement remains on the trusted local side.
+6.2 Complexity and Scalability
+Let 𝑛 be the number of tracked objects,𝑚 the number of typed edges
+in the twin graph, and 𝑘 the number of plan steps. Let |𝐹𝑖 | denote
+the token volume of object 𝑖, and let 𝑑 be the average number of
+retained schema fields per object.
+Projection cost.Stage 1 dominates local preprocessing when SLM-
+backed extraction is used, with cost
+𝑂
+ ∑︁
+𝑖
+|𝐹𝑖 | ·𝑐 SLM
+!
+,
+where 𝑐SLM is the effective per-token extraction cost. Stages 2–4
+are linear in the number of retained fields and relations,
+𝑂(𝑛𝑑+𝑚),
+
+--- PAGE 14 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+since redaction, generalization, and schema projection operate over
+object-local metadata and typed graph structure.
+Budget and gatekeeping cost.Disclosure accounting scales with
+the number of newly referenced objects and fields per turn. Under
+bounded capability arity, this is effectively 𝑂( 1) per step and 𝑂(𝑘)
+per planning cycle; under a more general formulation it is upper
+bounded by 𝑂(𝑛) if every tracked object must be checked. Local
+validation and execution contribute 𝑂(𝑘𝛼) , where 𝛼 is the average
+cost of one validated capability execution.
+Cloud planning cost.Cloud planning is dominated by model
+inference over the sanitized twin and prompt state, which we write
+abstractly as𝑂(𝐿) , where𝐿 captures planner inference cost. Because
+the twin is much smaller and more structured than raw context,
+this cost depends primarily on the size of the abstract state and the
+complexity of the requested workflow rather than the full volume
+of local artifacts.
+Combining these terms, the per-cycle cost is
+𝑂
+ ∑︁
+𝑖
+|𝐹𝑖 | ·𝑐 SLM +𝑛𝑑+𝑚+𝐿+𝑘𝛼
+!
+.
+In practice, this yields two main regimes. For large local en-
+vironments, Stage 1 extraction dominates because the local side
+must summarize many raw artifacts into schema form. For smaller
+environments or long-horizon workflows, cloud inference domi-
+nates. This matches the empirical results in §5.4, where total latency
+is driven primarily by SLM extraction and cloud API time, while
+deterministic projection and gatekeeping add negligible overhead.
+Scalability implication.The deterministic parts of the pipeline scale
+well, but end-to-end latency is bounded by whichever reasoning
+layer is active: local extraction for environment-heavy workloads,
+or cloud planning for reasoning-heavy workloads. Capability design
+and projection selectivity therefore matter not only for privacy, but
+also for performance.
+6.2.1 Toward Production Deployment.The current prototype trans-
+mits the sanitized twin 𝑍𝑡 as a single JSON payload to the cloud
+planner, which reasons declaratively over the abstract graph with-
+out any execution environment. A natural next step iscloud-side
+sandbox construction: upon receiving 𝑍𝑡 , the cloud instantiates an
+ephemeral container whose directory structure, file stubs, and type
+annotations mirror the schema graph. Concretely, each node in the
+typed abstract graph 𝐺𝑡 maps to a synthetic artifact (e.g., a code file
+containing only the declaredsemantic_class, import stubs match-
+ing the contains tags, and size-appropriate placeholder bodies).
+The planner then iterates with this sandbox twin, running linters,
+test harnesses, and static analyzers before producing a verified plan.
+This design raises a synthetic-population privacy trade-off: the
+sandbox must contain enough semantic structure for meaningful
+tool execution, yet each synthetic artifact is derived solely from
+the bounded schema fields already disclosed under the budget 𝜏(𝑜) .
+We give a concise privacy argument showing that the sandbox
+construction preserves all existing guarantees.
+Proposition 6.1 (Synthetic-population privacy bound).Let
+Synth : Z → S be a (possibly randomized) sandbox generator that
+takes as input only the sanitized twin 𝑍𝑡 =Π(𝑋 𝑡 ). Let 𝑅1:𝑇 denote
+the sequence of tool outputs produced by the planner interacting with
+the sandbox content 𝑆=Synth(𝑍 𝑡 ), where the planner’s interaction
+policy is a function of 𝑆 alone and does not incorporate auxiliary
+knowledge correlated with 𝑋𝑡 beyond what 𝑍𝑡 already discloses. Then:
+𝑋𝑡 →𝑍 𝑡 →𝑆→𝑅 1:𝑇 .(12)
+By the Markov property (conditional independence):
+𝐼(𝑋 𝑡 ;𝑆, 𝑅 1:𝑇 |𝑍 𝑡 )=0,(13)
+i.e., the sandbox and all interaction transcripts are conditionally inde-
+pendent of the real environment given𝑍 𝑡 . Consequently:
+(1) The (𝑘, 𝛿) -anonymity bound (Theorem 1) holds with identical
+parameters, since the adversary’s posterior over object identity
+is fully determined by𝑍 𝑡 .
+(2) The 𝜖-unlinkability bound (Theorem 2) holds by the post-
+processing property of 𝐷∞: for any (randomized) function 𝑓 ,
+𝐷∞ (𝑓(𝑀(𝑜)) ∥𝑓(𝑀(𝑜 ′))) ≤𝐷 ∞ (𝑀(𝑜) ∥𝑀(𝑜 ′)) (see Appen-
+dix B, Theorem 2).
+(3) The composition bound (Theorem 3) is unchanged, since sand-
+box interactions consume no additional budget beyond the
+fields already disclosed in𝑍 𝑡 .
+Two assumptions matter here. First, Synth uses only 𝑍𝑡 : it has
+no access to the real environment, no external knowledge base
+conditioned on the user’s identity, and no retrieval-augmented gen-
+eration over corpora that could correlate with the original content.
+Second, the planner’s interaction policy within the sandbox must
+not incorporate side information correlated with𝑋𝑡 beyond what𝑍𝑡
+discloses (e.g., through pretraining memorization of specific code-
+bases). Violations of either assumption break the Markov property
+and require separate analysis.
+From an engineering perspective, lightweight sandbox runtimes
+such as E2B [9] (cold start∼150 ms, per-request ephemeral lifecycle)
+or gVisor-based isolation [31] provide the necessary infrastructure.
+The sandbox is destroyed after each planning cycle, ensuring no
+persistent state accumulates across sessions. Integrating sandbox
+construction with the existing MCP capability interface [3] follows
+naturally from the architecture: each declared capability maps to
+a sandbox-side tool endpoint, and the gatekeeper validates sand-
+box tool invocations against the same policy as direct execution.
+Stateful tools and asynchronous invocations require additional
+scoping logic that we do not address here. We leave empirical evalu-
+ation of sandbox-assisted planning quality and the design of Synth
+generators that maximize tool utility within the privacy bound of
+Proposition 6.1 to future work.
+7 Conclusion
+We presentedPlanTwin, a system for privacy-preserving cloud-
+assisted LLM planning. Instead of exposing raw local context to a
+strong remote planner,PlanTwinrestricts planning to a bounded
+abstract view generated locally and enforced through capability me-
+diation and multi-turn disclosure budgets.PlanTwinachieves full
+sensitive-item non-disclosure while maintaining planning quality
+close to full-context cloud planning across 60 tasks, outperforming
+both simple redaction and local weak-model baselines in privacy-
+utility trade-offs. Our design is planner-agnostic and remains robust
+under ablations and budget-constrained multi-turn interaction.
+
+--- PAGE 15 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+Table 7: Notation.
+Symbol Meaning
+𝑋𝑡 Full local context at time𝑡
+𝑍𝑡 Sanitized digital twin (=𝐺𝑡)
+Π(·) Privacy projection operator (4-stage pipeline)
+Πout Output sanitizer (Stages 2–4 on execution results)
+𝐺𝑡 =(V𝑡,E 𝑡,A𝑡) Typed abstract graph (nodes, edges, attributes)
+C={𝑐 1, . . . , 𝑐𝑛} Local capability catalog
+𝑃𝑡 Cloud-generated plan at time𝑡
+Φ(·) Cloud planner function
+𝑌𝑡 Sanitized execution result
+Ψ(·) Local gatekeeper + executor
+Ω Policy set
+𝐵(𝑜) Cumulative disclosure budget for object𝑜
+Δ𝑡 (𝑜) New disclosure at turn𝑡for object𝑜
+𝜏(𝑜) Disclosure threshold for object𝑜
+L System-wide leakage:max𝑜 𝐵(𝑜)
+𝜖 Privacy budget bound
+𝑤𝑓 Base disclosure cost of schema field𝑓
+grain(C) Avg. weighted schema fields per capability call
+- Upper part: system components.Lower part: privacy analysis.
+Our results show that strong cloud planning doesNOTrequire
+raw-context exposure. Planning-time observability should therefore
+be treated as a first-class systems interface in privacy-aware agents.
+References
+[1] Martin Abadi, Andy Chu, Ian Goodfellow, H Brendan McMahan, Ilya Mironov,
+Kunal Talwar, and Li Zhang. 2016. Deep Learning with Differential Privacy. In
+ACM SIGSAC conference on computer and communications security (CCS). 308–318.
+[2] Osman Akgul et al. 2024. OLLM: Oblivious Large Language Model Serving with
+Confidential Computing. InUSENIX Security Symposium.
+[3] Anthropic. 2024. Introducing the Model Context Protocol.https:// www.anthropic.
+com/ news/ model-context-protocol(2024). Accessed: 2026-03-01.
+[4] Anthropic. 2025. Best Practices for Claude Code. https://code.claude.com/docs/
+en/best-practices. Accessed: 2026-03-01.
+[5] Anthropic. 2025. Introducing Sandbox Mode for Claude Code. https://code.claude.
+com/docs/en/sandboxing. Accessed: 2026-03-01.
+[6] Dong Ben, Hui Feng, and Qian Wang. 2025. Distilled Large Language
+Model in Confidential Computing Environment for System-on-Chip Design.
+arXiv:2507.16226 [cs.AI] https://arxiv.org/abs/2507.16226
+[7] Zylon by PrivateGPT. 2023. PrivateGPT. https://github.com/zylon-ai/private-gpt.
+[8] Cynthia Dwork, Frank McSherry, Kobbi Nissim, and Adam Smith. 2006. Cali-
+brating Noise to Sensitivity in Private Data Analysis. InTheory of Cryptography
+Conference (TCC). Springer, 265–284.
+[9] E2B. 2025. E2B: Open-source Cloud Runtime for AI Agents. https://github.com/
+e2b-dev/e2b. Apache 2.0 License.
+[10] Tongcheng Geng, Zhiyuan Xu, Yubin Qu, and W Eric Wong. 2026. Prompt
+Injection Attacks on Large Language Models: A Survey of Attack Methods, Root
+Causes, and Defense Strategies.Computers, Materials, & Continua87, 1 (2026).
+[11] GLM-5-Team. 2026. GLM-5: from Vibe Coding to Agentic Engineering. Accessed
+via OpenRouter API with thinking mode enabled.
+[12] Yuepeng Hu, Chongyu Fan, Sirat Samyoun, and Jian Du. 2026. Log-To-Leak:
+Prompt Injection Attacks on Tool-Using LLM Agents via Model Context Protocol.
+https://openreview.net/forum?id=UVgbFuXPaO
+[13] Intel. 2026. Intel Trust Domain Extensions (Intel TDX) Overview.
+https://www.intel.com/content/www/us/en/developer/tools/trust-domain-
+extensions/overview.html. Accessed 2026-03-18.
+[14] Zimo Ji, Daoyuan Wu, Wenyuan Jiang, Pingchuan Ma, Zongjie Li, Yudong
+Gao, Shuai Wang, and Yingjiu Li. 2026. Taming Various Privilege Escala-
+tion in LLM-Based Agent Systems: A Mandatory Access Control Framework.
+arXiv:2601.11893 [cs.CR] https://arxiv.org/abs/2601.11893
+[15] Yanna Jiang, Delong Li, Haiyu Deng, Baihe Ma, Xu Wang, Qin Wang, and Guang-
+sheng Yu. 2026. SoK: Agentic Skills–Beyond Tool Use in LLM Agents.arXiv
+preprint arXiv:2602.20867(2026).
+[16] Yanna Jiang, Guangsheng Yu, Qingyuan Yu, Yi Chen, and Qin Wang. 2026. Why
+Neural Structural Obfuscation Can’t Kill White-Box Watermarks for Good!arXiv
+preprint arXiv:2603.12679(2026).
+[17] Kimi Team. 2026. Kimi K2: Open Agentic Intelligence.arXiv preprint
+arXiv:2507.20534(2026). 1T MoE, 32B active parameters, 256K context, open-
+weight.
+[18] Haoran Li, Mingshi Xu, and Yangqiu Song. 2023. Sentence Embedding Leaks
+More Information than You Expect: Generative Embedding Inversion Attack to
+Recover the Whole Sentence. InFindings of the Association for Computational
+Linguistics: (ACL). 14022–14040.
+[19] Xinfeng Li, Dong Huang, Jie Li, Hongyi Cai, Zhenhong Zhou, Wei Dong, XiaoFeng
+Wang, and Yang Liu. 2025. A Vision for Access Control in LLM-based Agent
+Systems. arXiv:2510.11108 [cs.MA] https://arxiv.org/abs/2510.11108
+[20] Baihe Ma, Yanna Jiang, Xu Wang, Guangsheng Yu, Qin Wang, Caijun Sun, Chen
+Li, Xuelei Qi, Ying He, Wei Ni, et al . 2025. SoK: Semantic Privacy in Large
+Language Models.arXiv preprint arXiv:2506.23603(2025).
+[21] Narek Maloyan and Dmitry Namiot. 2026. Prompt Injection Attacks on Agentic
+Coding Assistants: A Systematic Analysis of Vulnerabilities in Skills, Tools, and
+Protocol Ecosystems. arXiv:2601.17548 [cs.CR] https://arxiv.org/abs/2601.17548
+[22] Microsoft. 2025. Microsoft Presidio: Data Protection and De-identification SDK.
+https://github.com/microsoft/presidio.
+[23] MiniMax. 2026. MiniMax M2.5: Large-Scale Language Model with Extended Rea-
+soning. https://www.minimax.io/news/minimax-m25. Accessed via OpenRouter
+API with thinking mode enabled.
+[24] John Morris, Volodymyr Kuleshov, Vitaly Shmatikov, and Alexander M Rush.
+2023. Text Embeddings Reveal (Almost) As Much As Text. InProceedings of the
+Conference on Empirical Methods in Natural Language Processing (ACL). 12448–
+12460.
+[25] National Vulnerability Database. 2025. CVE-2025-53773 Detail. https://nvd.nist.
+gov/vuln/detail/CVE-2025-53773. National Institute of Standards and Technology
+(NIST), published 2025-08-12, last modified 2025-08-15, accessed 2026-03-18.
+[26] NVIDIA. 2023. Confidential Computing on NVIDIA H100 GPUs for Secure and
+Trustworthy AI. https://developer.nvidia.com/blog/confidential-computing-on-
+h100-gpus-for-secure-and-trustworthy-ai/. Accessed 2026-03-18.
+[27] Ollama. 2026. Ollama. https://ollama.ai.
+[28] OpenAI. 2025. Introducing Codex. https://openai.com/index/introducing-codex/.
+Accessed: 2026-03-01.
+[29] Qwen Team. 2025. Qwen3 Technical Report.arXiv preprint arXiv:2505.09388
+(2025).
+[30] Tianneng Shi, Jingxuan He, Zhun Wang, Hongwei Li, Linyu Wu, Wenbo Guo,
+and Dawn Song. 2025. Progent: Programmable Privilege Control for LLM Agents.
+arXiv preprint arXiv:2504.11703(2025).
+[31] SkyPilot. 2025. Agent Sandbox for Kubernetes. https://github.com/skypilot-
+org/skypilot. gVisor-based isolation.
+[32] Snyk. 2026. Snyk Agent Scan. https://github.com/snyk/agent-scan. GitHub
+repository, accessed 2026-03-17.
+[33] Congzheng Song and Ananth Raghunathan. 2020. Information Leakage in Em-
+bedding Models. InACM SIGSAC Conference on Computer and Communications
+Security (CCS). 377–390.
+[34] strands-agents. 2026. Strands Agents: Open-Source AI Agent Framework. https:
+//github.com/strands-agents/sdk-python. Built-in PII redaction module.
+[35] Qin Wang, Guangsheng Yu, Yilin Sai, HMN Dilum Bandara, and Shiping Chen.
+2025. Is your AI truly yours? Leveraging blockchain for copyrights, provenance,
+and lineage.IEEE Transactions on Services Computing (TSC)(2025).
+[36] Hanrong Zhang, Jingyuan Huang, Kai Mei, Yifei Yao, Zhenting Wang, Chenlu
+Zhan, Hongwei Wang, and Yongfeng Zhang. 2025. Agent Security Bench (ASB):
+Formalizing and Benchmarking Attacks and Defenses in LLM-based Agents.
+arXiv:2410.02644 [cs.CR] https://arxiv.org/abs/2410.02644
+[37] Shuli Zhao, Qinsheng Hou, Zihan Zhan, Yanhao Wang, Yuchong Xie, Yu Guo, Libo
+Chen, Shenghong Li, and Zhi Xue. 2025. Mind Your Server: A Systematic Study
+of Parasitic Toolchain Attacks on the MCP Ecosystem. arXiv:2509.06572 [cs.CR]
+https://arxiv.org/abs/2509.06572
+[38] Jinhao Zhu, Kevin Tseng, Gil Vernik, Xiao Huang, Shishir G. Patil, Vivian Fang,
+and Raluca Ada Popa. 2025. MiniScope: A Least Privilege Framework for Autho-
+rizing Tool Calling Agents. arXiv:2512.11147 [cs.CR] https://arxiv.org/abs/2512.
+11147
+[39] Xuanjun Zong, Zhiqi Shen, Lei Wang, Yunshi Lan, and Chao Yang. 2026. MCP-
+SafetyBench: A Benchmark for Safety Evaluation of Large Language Models with
+Real-World MCP Servers. InInternational Conference on Learning Representations
+(ICLR).
+A Disclosure Cost Accounting
+The weighted field-cost model assigns each schema field a base cost
+𝑤 𝑓 reflecting its re-identification potential. For an object 𝑜 with
+
+--- PAGE 16 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+attribute set𝐴(𝑜), the initial disclosure cost is
+Δ0 (𝑜)=
+∑︁
+𝑓∈𝐴(𝑜)
+𝑤 𝑓 .(14)
+For subsequent turns, only new reveals incur additional cost:
+Δ𝑡 (𝑜)=
+∑︁
+𝑓∈𝐴 𝑡 (𝑜)\𝐴 1:𝑡−1 (𝑜)
+𝑤 𝑓 ,(15)
+where 𝐴𝑡 (𝑜) is the set of fields disclosed at turn 𝑡 and 𝐴1:𝑡−1 (𝑜) is
+the set disclosed previously. Thus, retransmitting the same twin
+state without new fields incurs zero additional disclosure cost.
+B Security Proofs
+This appendix formalizes the security properties stated as design
+goals in §3.2. We prove (𝑘, 𝛿)-anonymity under schema projection
+(Theorem 1), 𝜖-unlinkability under fresh session IDs (Theorem 2),
+and a composition bound on cumulative disclosure across𝑇turns
+(Theorem 3).
+B.1 Notation and Setup
+For the proofs below, we abstract away implementation details and
+work directly with the projected attribute space induced by the
+planner-visible abstraction.
+Let O={𝑜 1, . . . , 𝑜𝑛 } be the set of real-world objects in the lo-
+cal environment. The schema projection Π maps each object to
+a planner-visible representation 𝑧=Π(𝑜) drawn from a finite at-
+tribute space
+Z=K × S ×2 T ×2 U × F × R,
+where K is the set of kind labels (|K |= 6), S is the set of semantic-
+class labels, T is the set of content tags, U is the set of usability
+tags, F is the set of freshness buckets (|F |= 3), and R is the set of
+sensitivity levels (|R |=3).
+Let fields(𝑧) denote the set of fields present in 𝑧. For a repre-
+sentation 𝑧 with disclosed field subset 𝐷⊆fields(𝑧) , define the
+equivalence class
+EC(𝑧, 𝐷)={𝑜 ′ ∈ O |Π(𝑜 ′)| 𝐷 =𝑧| 𝐷 },(16)
+that is, the set of objects whose projected representation agrees
+with𝑧on all disclosed fields.
+The disclosure budget for object 𝑜 after 𝑇 turns is 𝐵𝑇 (𝑜)=Í𝑇
+𝑡=1 Δ𝑡 (𝑜), capped by threshold𝜏(𝑜)(Eq. 11).
+Auxiliary-knowledge model.For Theorem 1, we model adversar-
+ial side information by a random variable I. We assume a bounded-
+likelihood-ratio condition inside each equivalence class: there ex-
+ists a bound 𝜂≥ 1such that for every disclosed pattern 𝑥, every
+𝑜, 𝑜′ ∈ O 𝑥 :=EC(𝑥, 𝐷), and every realization𝑖ofI,
+Pr[I=𝑖|𝑂=𝑜]
+Pr[I=𝑖|𝑂=𝑜 ′] ≤𝜂.(17)
+Thus, auxiliary knowledge may bias the posterior within an equiv-
+alence class, but cannot arbitrarily single out one member.
+Cost calibration model.For Theorems 2 and 3, let 𝐹𝑡 denote the
+set of newly disclosed fields about object𝑜 at turn 𝑡, so that Δ𝑡 (𝑜)=Í
+𝑓∈𝐹 𝑡 𝑤 𝑓 . For each field𝑓, define itsworst-case branching factor
+𝑏 𝑓 :=max
+𝐷,𝑥
+{𝑣∈ V 𝑓 :∃𝑜∈EC(𝑥, 𝐷)withΠ 𝑓 (𝑜)=𝑣}
+,(18)
+where V𝑓 is the value domain of field 𝑓 , and the maximum ranges
+over all previously disclosed field sets 𝐷 and patterns 𝑥 on 𝐷. We
+assume field costs are calibrated as
+𝑤 𝑓 ≥ln𝑏 𝑓 .(19)
+Hence, revealing field 𝑓 can refine an existing equivalence class by
+at most a multiplicative factor𝑒 𝑤𝑓 in the worst case.
+B.2 Theorem 1: (𝑘, 𝛿) -Anonymity under Schema
+Projection
+Theorem 1 (Re-identification Bound).Let the adversary ob-
+serve 𝑧∗ =Π(𝑜 ∗) with disclosed field set 𝐷 ∗ such that Í
+𝑓∈𝐷 ∗ 𝑤 𝑓 ≤
+𝜏(𝑜 ∗)(enforced by the gatekeeper’s per-object budget). Assume:
+(1) the prior 𝜇 is uniform within each equivalence class, that is,
+conditional on Π(𝑂)| 𝐷∗ =𝑥 , every object in O𝑥 is equally
+likely a priori;
+(2) the adversary’s side informationI satisfies the bounded-likelihood-
+ratio condition(17).
+If|EC(𝑧 ∗, 𝐷∗)| ≥𝑘, then for any adversaryA,
+Pr[A (𝑧∗|𝐷∗,I)=𝑜 ∗] ≤ 𝜂
+𝜂+𝑘−1 .(20)
+Equivalently,
+Pr[A (𝑧∗|𝐷∗,I)=𝑜 ∗] ≤ 1
+𝑘 +𝛿,(21)
+where
+𝛿:= 𝜂
+𝜂+𝑘−1 − 1
+𝑘 = (𝜂−1) (𝑘−1)
+𝑘(𝜂+𝑘−1) .(22)
+Proof. Fix the disclosed pattern 𝑥 :=𝑧 ∗|𝐷∗ and write 𝐸 :=O 𝑥 =
+EC(𝑧 ∗, 𝐷∗),𝑚:=|𝐸|. By assumption,𝑚≥𝑘.
+Step 1 (Posterior inside the equivalence class).Since all objects in
+𝐸 induce the same disclosed pattern 𝑥, Bayes’ rule gives, for any
+𝑜∈𝐸and side-information realization𝑖,
+Pr[𝑂=𝑜|Π(𝑂)| 𝐷∗ =𝑥,I=𝑖]=
+Pr[I=𝑖|𝑂=𝑜]Pr[𝑂=𝑜|Π(𝑂)| 𝐷∗ =𝑥]Í
+𝑜′ ∈𝐸 Pr[I=𝑖|𝑂=𝑜 ′]Pr[𝑂=𝑜 ′ |Π(𝑂)| 𝐷∗ =𝑥] . (23)
+By the uniform-within-class prior assumption,
+Pr[𝑂=𝑜|Π(𝑂)| 𝐷∗ =𝑥]= 1
+𝑚
+for all𝑜∈𝐸. The1/𝑚factors cancel, yielding
+Pr[𝑂=𝑜|Π(𝑂)| 𝐷∗ =𝑥,I=𝑖]= Pr[I=𝑖|𝑂=𝑜]Í
+𝑜′ ∈𝐸 Pr[I=𝑖|𝑂=𝑜 ′] .(24)
+Step 2 (Bounding the maximum posterior mass).Let ˆ𝑜∈𝐸 maxi-
+mize the posterior in (24). By the likelihood-ratio bound (17), for
+every𝑜 ′ ∈𝐸\ { ˆ𝑜},
+Pr[I=𝑖|𝑂=𝑜 ′] ≥ 1
+𝜂 Pr[I=𝑖|𝑂= ˆ𝑜].
+Therefore,
+∑︁
+𝑜′ ∈𝐸
+Pr[I=𝑖|𝑂=𝑜 ′] ≥Pr[I=𝑖|𝑂= ˆ𝑜]+(𝑚−1)· 1
+𝜂 Pr[I=𝑖|𝑂= ˆ𝑜].
+(25)
+Substituting into (24),
+max
+𝑜∈𝐸
+Pr[𝑂=𝑜|𝑥, 𝑖] ≤ 1
+1+ (𝑚−1)/𝜂 = 𝜂
+𝜂+𝑚−1 .(26)
+
+--- PAGE 17 ---
+PlanTwin: Privacy-Preserving Planning Abstractions for Cloud-Assisted LLM Agents Conference’17, July 2017, Washington, DC, USA
+Since𝑚≥𝑘and𝑢↦→𝜂/(𝜂+𝑢−1)is decreasing in𝑢,
+max
+𝑜∈𝐸
+Pr[𝑂=𝑜|𝑥, 𝑖] ≤ 𝜂
+𝜂+𝑘−1 .(27)
+Step 3 (Optimal adversary success probability).Given (𝑥, 𝑖), the
+optimal re-identification strategy is MAP decoding, whose success
+probability equals the maximum posterior mass. Hence the bound
+applies to every adversaryA:
+Pr[A (𝑧∗|𝐷∗,I)=𝑜 ∗] ≤ 𝜂
+𝜂+𝑘−1 .
+The equivalent form with𝛿follows immediately.□
+Interpretation.When 𝜂= 1, the bound reduces to the classical1 /𝑘
+anonymity guarantee. Empirically, the re-identification experiment
+in §5.6 corresponds to the unrestricted case in which all twin fields
+are disclosed; the budgeted setting limits the disclosed field set and
+enlarges the resulting equivalence class.
+B.3 Theorem 2:𝜖-Unlinkability across Sessions
+Theorem 2 (Cross-Session Unlinkability).Let sessions 𝑠1, 𝑠2
+assign fresh random object IDs independently. For a target object
+𝑜, let 𝐷 (1) and 𝐷 (2) be the disclosed field sets in the two sessions,
+and let 𝑈 :=𝐷 (1) ∩𝐷 (2) be the overlap of fields visible in both
+sessions. Denote the overlap-pattern random variable 𝑋𝑈 :=Π(𝑂)| 𝑈 ,
+where 𝑂 is drawn from prior 𝜇. Assume 𝑋𝑈 is uniform on its support
+Z𝑈 ⊆ Î
+𝑓∈𝑈 V𝑓 , that is,
+Pr[𝑋𝑈 =𝑥]= 1
+|Z𝑈 |
+for all𝑥∈ Z 𝑈 . Then for any adversaryA,
+ln Pr[A (𝑍 (1) , 𝑍 (2) )=1|same]
+Pr[A (𝑍 (1) , 𝑍 (2) )=1|diff] ≤𝜖,(28)
+where 𝜖=ln|Z 𝑈 |. Moreover, under the cost calibration assump-
+tion(19)and budget enforcement Í
+𝑓∈𝐷 (𝑖) 𝑤 𝑓 ≤𝜏(𝑜),
+𝜖≤
+∑︁
+𝑓∈𝑈
+ln𝑏 𝑓 ≤
+∑︁
+𝑓∈𝑈
+𝑤 𝑓 ≤𝜏(𝑜).(29)
+Proof. Let 𝑇1, 𝑇2 denote the transcripts seen by the adversary
+in the two sessions, restricted to the overlap fields𝑈 . Fresh random
+IDs carry no cross-session information, so any linking rule depends
+only on the overlap attributes.
+Step 1 (Distribution under “same” and “diff”).The projection Π is
+deterministic, so under the hypothesissame(both sessions involve
+the same object 𝑂), both transcripts produce the identical over-
+lap pattern: (𝑇1, 𝑇2)=(𝑋 𝑈 , 𝑋𝑈 ). Under the hypothesisdiff(two
+independent objects 𝑂1, 𝑂2 ∼𝜇 ), the overlap patterns are i.i.d.:
+(𝑇1, 𝑇2)=(𝑋 (1)
+𝑈 , 𝑋 (2)
+𝑈 )with𝑋 (1)
+𝑈 ⊥𝑋 (2)
+𝑈 .
+Step 2 (Max-divergence computation).For any adversary A with
+acceptance region𝑅⊆ Z 𝑈 × Z𝑈 ,
+Pr[A=1|same]=
+∑︁
+𝑥:(𝑥,𝑥) ∈𝑅
+Pr[𝑋𝑈 =𝑥],(30)
+Pr[A=1|diff]=
+∑︁
+(𝑥,𝑦) ∈𝑅
+Pr[𝑋𝑈 =𝑥]Pr[𝑋 𝑈 =𝑦] ≥
+∑︁
+𝑥:(𝑥,𝑥) ∈𝑅
+Pr[𝑋𝑈 =𝑥] 2.
+(31)
+The inequality holds because the off-diagonal terms in 𝑅 only in-
+crease the denominator. Under the uniform-on-support assumption,
+Pr[𝑋𝑈 =𝑥]=1/𝑁where𝑁=|Z 𝑈 |. Hence
+Pr[A=1|same]
+Pr[A=1|diff] ≤
+Í
+𝑥:(𝑥,𝑥) ∈𝑅 1/𝑁
+Í
+𝑥:(𝑥,𝑥) ∈𝑅 1/𝑁 2 =𝑁=|Z 𝑈 |.(32)
+This bound is tight: the adversary A∗ (𝑥, 𝑦)= 1[𝑥=𝑦=𝑥 0] for
+any fixed𝑥 0 ∈ Z𝑈 achieves ratio exactly𝑁.
+Step 3 (Budget connection).The support size satisfies |Z𝑈 | ≤Î
+𝑓∈𝑈 |V𝑓 |. Under the cost calibration (19),|V 𝑓 | ≤𝑏 𝑓 ≤𝑒 𝑤𝑓 , so
+𝜖=ln|Z 𝑈 | ≤
+∑︁
+𝑓∈𝑈
+ln|V 𝑓 | ≤
+∑︁
+𝑓∈𝑈
+𝑤 𝑓 .(33)
+Since 𝑈⊆𝐷 (𝑖) for each session𝑖, and the budget enforcesÍ
+𝑓∈𝐷 (𝑖) 𝑤 𝑓 ≤
+𝜏(𝑜), we obtain𝜖≤𝜏(𝑜).□
+Interpretation.The parameter 𝜖 is directly bounded by the overlap
+of disclosed fields across sessions, and therefore by the disclosure
+budget 𝜏(𝑜) . Tighter budgets reduce the attribute overlap available
+for linkage. When no fields overlap across sessions, 𝜖= 0and
+linkage through planner-visible attributes becomes impossible.
+Remark (non-uniform distributions).For non-uniform 𝑋𝑈 , the worst-
+case adversary achieves ratio1 /min𝑥∈supp Pr[𝑋𝑈 =𝑥] , giving 𝜖=
+−ln min 𝑥 Pr[𝑋𝑈 =𝑥] . This can exceed ln|Z 𝑈 | when the distribu-
+tion is skewed. The budget connection still bounds the number of
+distinguishable overlap patterns, even when their frequencies are
+not uniform.
+B.4 Theorem 3: Composition Bound for
+Multi-Turn Disclosure
+Theorem 3 (Seqential Composition).Consider an object 𝑜 ob-
+served across 𝑇 turns. Let 𝐷𝑡 be the cumulative disclosed field set after
+turn 𝑡, and let EC𝑡 :=EC(Π(𝑜), 𝐷 𝑡 ) be the corresponding equivalence
+class. Assume the field costs satisfy the calibration condition (19).
+Then
+|EC𝑇 | ≥ |EC 0|exp
+
+−
+𝑇∑︁
+𝑡=1
+Δ𝑡 (𝑜)
+
+.(34)
+In particular, if the gatekeeper enforces 𝐵𝑇 (𝑜)= Í𝑇
+𝑡=1 Δ𝑡 (𝑜) ≤𝜏(𝑜) ,
+then
+|EC𝑇 | ≥ |EC 0|𝑒 −𝜏(𝑜) .(35)
+Proof. For each turn 𝑡, let 𝐹𝑡 :=𝐷 𝑡 \𝐷 𝑡−1 be the set of newly
+disclosed fields, so thatΔ 𝑡 (𝑜)= Í
+𝑓∈𝐹 𝑡 𝑤 𝑓 .
+Step 1 (Monotone shrinkage).Because 𝐷𝑡−1 ⊆𝐷 𝑡 , every object
+consistent with the disclosures at turn 𝑡 is also consistent at turn
+𝑡−1. Hence EC 𝑡 ⊆EC 𝑡−1 and|EC 𝑡 | ≤ |EC 𝑡−1 |.
+Step 2 (Per-field refinement bound).Fix turn 𝑡 and suppose one
+additional field 𝑓∈𝐹 𝑡 is revealed. Within the pre-existing class
+EC𝑡−1 , disclosure of𝑓 partitions that class into at most𝑏 𝑓 subclasses
+by definition of the branching factor (18). The subclass selected by
+the true value of field 𝑓 therefore has size at least |EC𝑡−1 |/𝑏𝑓 . Using
+the cost calibration (19), 𝑏 𝑓 ≤𝑒 𝑤𝑓 , so revealing field 𝑓 shrinks the
+class by at most a factor𝑒 𝑤𝑓 :
+|EC (𝑓) | ≥ |EC 𝑡−1 |𝑒 −𝑤 𝑓 .(36)
+
+--- PAGE 18 ---
+Conference’17, July 2017, Washington, DC, USA Guangsheng Yu 1, Qin Wang1,2, Rui Lang1, Shuai Su1, Xu Wang1
+Applying this sequentially to all newly revealed fields in𝐹 𝑡 gives
+|EC𝑡 | ≥ |EC 𝑡−1 |exp
+
+−
+∑︁
+𝑓∈𝐹 𝑡
+𝑤 𝑓
+
+=|EC 𝑡−1 |𝑒 −Δ𝑡 (𝑜) .(37)
+Step 3 (Sequential composition over 𝑇 turns).Iterating (37) over
+𝑡=1, . . . , 𝑇yields
+|EC𝑇 | ≥ |EC 0|
+𝑇Ö
+𝑡=1
+𝑒 −Δ𝑡 (𝑜) =|EC 0|exp
+
+−
+𝑇∑︁
+𝑡=1
+Δ𝑡 (𝑜)
+
+,(38)
+which proves (34). Budget enforcement 𝐵𝑇 (𝑜) ≤𝜏(𝑜) immediately
+gives (35).□
+Interpretation.Once the budget is exhausted, the gatekeeper either
+withholds the object from the planner-visible abstraction or refuses
+further field disclosures. This yields graceful degradation: the plan-
+ner may lose utility, but the equivalence class is prevented from
+shrinking beyond the budget-implied bound.
+Empirical alignment.The multi-turn experiment (§5.9) is consistent
+with this bound: after 58 tasks, NL reaches 1.0 while several objects
+are excluded by the gatekeeper, demonstrating hard enforcement
+of the budget cap. PQS degrades only modestly, indicating graceful
+degradation rather than catastrophic failure.
+Corollary (product-form bound).Since 𝑒 −𝑥 ≥ 1 −𝑥 for 𝑥≥ 0, we also
+obtain
+|EC𝑇 | ≥ |EC 0|
+𝑇Ö
+𝑡=1
+ 1−Δ 𝑡 (𝑜),(39)
+whenever each Δ𝑡 (𝑜) is normalized to lie in [0, 1]. This product
+form is weaker but sometimes more intuitive.
+B.5 Assumptions and Empirical Alignment
+Table 8 summarizes how each formal result connects to the em-
+pirical evaluation and highlights the main modeling assumption
+behind the corresponding bound.
+Table 8: Mapping between formal security properties, as-
+sumptions, and empirical evidence.
+Thm. Property Key assumption Empirical evidence
+1 (𝑘, 𝛿)-anonymity 𝜂-bounded side info §5.6: 94.1% w/o budget
+2 𝜖-unlinkability Uniform on support 𝜖≤𝜏(𝑜)via budget
+3 Composition boundCost calibration𝑤𝑓 ≥ln𝑏𝑓 §5.9: NL=1.0
+The formal guarantees rely on three modeling assumptions:
+• Bounded side information within equivalence classes(Theo-
+rem 1). The likelihood-ratio bound (17) limits how strongly
+auxiliary knowledge can skew the posterior within an equiv-
+alence class. When 𝜂= 1, the classical1 /𝑘 guarantee is
+recovered exactly.
+• Uniform overlap-pattern distribution(Theorem 2). Cross-session
+linkage reduces to distinguishing overlap attribute patterns
+once fresh IDs remove identifier-based matching. The uni-
+form assumption yields the clean bound𝜖=ln|Z 𝑈 |; skewed
+distributions can only worsen it.
+• Field-cost calibration(Theorems 2 and 3). The condition
+𝑤 𝑓 ≥ln𝑏 𝑓 ensures that each field cost upper-bounds the
+logarithmic refinement induced by disclosing that field. This
+links the unlinkability and composition results to the single
+budget parameter𝜏(𝑜).

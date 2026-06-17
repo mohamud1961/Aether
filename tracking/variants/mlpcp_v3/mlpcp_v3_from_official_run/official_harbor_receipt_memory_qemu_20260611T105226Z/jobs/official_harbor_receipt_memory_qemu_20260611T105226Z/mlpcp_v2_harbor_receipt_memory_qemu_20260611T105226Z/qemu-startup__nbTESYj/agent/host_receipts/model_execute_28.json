@@ -1,0 +1,53 @@
+{
+  "call_id": "qemu-startup__nbTESYj_execute_28",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && (qemu-system-x86_64 -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -drive file=/app/alpine.iso,media=cdrom,readonly=on -boot d -net none >/tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid) && sleep 2 && python3 - <<'PY'\\nimport socket,sys,time\\nhost='127.0.0.1'; port=6665\\nend=time.time()+60\\nbuf=b''\\nwhile time.time()<end:\\n    try:\\n        s=socket.create_connection((host,port),timeout=2)\\n        s.settimeout(2)\\n        for _ in range(20):\\n            try:\\n                data=s.recv(4096)\\n                if not data:\\n                    break\\n                buf += data\\n                if b'login:' in buf.lower():\\n                    print(buf.decode('utf-8','replace'))\\n                    sys.exit(0)\\n            except socket.timeout:\\n                pass\\n        s.close()\\n    except Exception:\\n        pass\\n    time.sleep(1)\\nprint(buf.decode('utf-8','replace'))\\nsys.exit(1)\\nPY\",\"receipt_requested\":true,\"timeout_ms\":120000},{\"type\":\"plan_update\",\"content\":\"Started QEMU in background with Alpine ISO and telnet serial on 127.0.0.1:6665; probing for login prompt and will preserve running instance if successful.\"}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && (qemu-system-x86_64 -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -drive file=/app/alpine.iso,media=cdrom,readonly=on -boot d -net none >/tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid) && sleep 2 && python3 - <<'PY'\\nimport socket,sys,time\\nhost='127.0.0.1'; port=6665\\nend=time.time()+60\\nbuf=b''\\nwhile time.time()<end:\\n    try:\\n        s=socket.create_connection((host,port),timeout=2)\\n        s.settimeout(2)\\n        for _ in range(20):\\n            try:\\n                data=s.recv(4096)\\n                if not data:\\n                    break\\n                buf += data\\n                if b'login:' in buf.lower():\\n                    print(buf.decode('utf-8','replace'))\\n                    sys.exit(0)\\n            except socket.timeout:\\n                pass\\n        s.close()\\n    except Exception:\\n        pass\\n    time.sleep(1)\\nprint(buf.decode('utf-8','replace'))\\nsys.exit(1)\\nPY\",\"receipt_requested\":true,\"timeout_ms\":120000},{\"type\":\"plan_update\",\"content\":\"Started QEMU in background with Alpine ISO and telnet serial on 127.0.0.1:6665; probing for login prompt and will preserve running instance if successful.\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "cd /app && (qemu-system-x86_64 -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -drive file=/app/alpine.iso,media=cdrom,readonly=on -boot d -net none >/tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid) && sleep 2 && python3 - <<'PY'\nimport socket,sys,time\nhost='127.0.0.1'; port=6665\nend=time.time()+60\nbuf=b''\nwhile time.time()<end:\n    try:\n        s=socket.create_connection((host,port),timeout=2)\n        s.settimeout(2)\n        for _ in range(20):\n            try:\n                data=s.recv(4096)\n                if not data:\n                    break\n                buf += data\n                if b'login:' in buf.lower():\n                    print(buf.decode('utf-8','replace'))\n                    sys.exit(0)\n            except socket.timeout:\n                pass\n        s.close()\n    except Exception:\n        pass\n    time.sleep(1)\nprint(buf.decode('utf-8','replace'))\nsys.exit(1)\nPY",
+        "receipt_requested": true,
+        "timeout_ms": 120000
+      },
+      {
+        "type": "plan_update",
+        "content": "Started QEMU in background with Alpine ISO and telnet serial on 127.0.0.1:6665; probing for login prompt and will preserve running instance if successful."
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 2527,
+    "cached_input_tokens": 0,
+    "output_tokens": 723,
+    "total_tokens": 3250,
+    "provider_usage_raw": {
+      "completion_tokens": 723,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 71,
+        "engine_ttlt_ms": 3843,
+        "pre_inference_ms": 91,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 666,
+        "service_ttlt_ms": 4435,
+        "total_duration_ms": 4351,
+        "user_visible_ttft_ms": 576
+      },
+      "prompt_tokens": 2527,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 3250
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

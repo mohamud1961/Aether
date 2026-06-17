@@ -1,0 +1,408 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceFinderBatch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agent_id",
+    "bucket",
+    "run_date",
+    "status",
+    "records",
+    "rejections"
+  ],
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "bucket": {
+      "type": "string",
+      "enum": [
+        "policy_program",
+        "agent_architecture",
+        "tooling_tool_gateway",
+        "execution_control",
+        "context_engineering",
+        "state_management",
+        "artifact_workspace",
+        "memory",
+        "verification_completion",
+        "recovery_fault_tolerance",
+        "observability_audit",
+        "environment_substrate",
+        "evals_benchmarking",
+        "cost_token_management"
+      ]
+    },
+    "run_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "insufficient_high_quality_sources_found"
+      ]
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceRecord"
+      }
+    },
+    "rejections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejectionRecord"
+      }
+    }
+  },
+  "$defs": {
+    "sourceRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "title",
+        "canonical_url",
+        "date",
+        "authors_or_org",
+        "source_type",
+        "artifact_type",
+        "time_window_status",
+        "bucket_primary",
+        "bucket_secondary",
+        "decision_targets",
+        "mechanism_tags",
+        "failure_mode_tags",
+        "benchmark_tags",
+        "benchmark_contamination_risk",
+        "task_regime",
+        "models_if_named",
+        "environment_type",
+        "evidence_scorecard",
+        "relevance_note",
+        "reason_included",
+        "claim_snippets",
+        "claim_locations",
+        "dedupe_key"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "pattern": "^src_(pap|doc|bnm|cod|trc|iss|pmt)_[a-f0-9]{12}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^([0-9]{4}(-[0-9]{2}(-[0-9]{2})?)?|unknown)$"
+        },
+        "authors_or_org": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "paper",
+            "official_doc",
+            "engineering_writeup",
+            "repo",
+            "issue_thread",
+            "benchmark_site",
+            "trace",
+            "postmortem"
+          ]
+        },
+        "artifact_type": {
+          "type": "string",
+          "enum": [
+            "pdf",
+            "webpage",
+            "repo",
+            "markdown",
+            "issue",
+            "docs_page",
+            "codebase",
+            "trace_archive",
+            "log"
+          ]
+        },
+        "time_window_status": {
+          "type": "string",
+          "enum": [
+            "primary_window",
+            "foundational_exception"
+          ]
+        },
+        "exception_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bucket_primary": {
+          "type": "string"
+        },
+        "bucket_secondary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decision_targets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "policy_program",
+              "tool_gateway",
+              "execution_loop",
+              "context",
+              "state",
+              "artifacts_workspace",
+              "memory",
+              "verification",
+              "recovery",
+              "observability",
+              "topology",
+              "eval_design",
+              "cost_budget"
+            ]
+          },
+          "minItems": 1
+        },
+        "mechanism_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          }
+        },
+        "failure_mode_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          }
+        },
+        "benchmark_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          }
+        },
+        "benchmark_contamination_risk": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "task_regime": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "terminal_agent",
+              "coding_agent",
+              "browser_agent",
+              "workflow_agent",
+              "benchmark_agent",
+              "api_agent",
+              "mixed"
+            ]
+          }
+        },
+        "models_if_named": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "environment_type": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "sandboxed_terminal",
+              "docker",
+              "local_fs",
+              "browser",
+              "remote_api",
+              "benchmark_harness",
+              "mixed"
+            ]
+          }
+        },
+        "evidence_scorecard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provenance",
+            "mechanistic_detail",
+            "reproducibility",
+            "ecological_validity",
+            "decision_relevance",
+            "recency"
+          ],
+          "properties": {
+            "provenance": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "mechanistic_detail": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "reproducibility": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "ecological_validity": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "decision_relevance": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "recency": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          }
+        },
+        "relevance_note": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "reason_included": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "claim_snippets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_id",
+              "claim_text",
+              "claim_status"
+            ],
+            "properties": {
+              "claim_id": {
+                "type": "string",
+                "pattern": "^c[1-5]$"
+              },
+              "claim_text": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "claim_status": {
+                "type": "string",
+                "enum": [
+                  "measured",
+                  "asserted",
+                  "anecdotal"
+                ]
+              }
+            }
+          }
+        },
+        "claim_locations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_id",
+              "locator"
+            ],
+            "properties": {
+              "claim_id": {
+                "type": "string",
+                "pattern": "^c[1-5]$"
+              },
+              "locator": {
+                "type": "string",
+                "maxLength": 240
+              }
+            }
+          }
+        },
+        "dedupe_key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "time_window_status": {
+                "const": "foundational_exception"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "exception_reason"
+            ],
+            "properties": {
+              "exception_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "rejectionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_title",
+        "candidate_url",
+        "rejection_reason"
+      ],
+      "properties": {
+        "candidate_title": {
+          "type": "string"
+        },
+        "candidate_url": {
+          "type": "string"
+        },
+        "rejection_reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

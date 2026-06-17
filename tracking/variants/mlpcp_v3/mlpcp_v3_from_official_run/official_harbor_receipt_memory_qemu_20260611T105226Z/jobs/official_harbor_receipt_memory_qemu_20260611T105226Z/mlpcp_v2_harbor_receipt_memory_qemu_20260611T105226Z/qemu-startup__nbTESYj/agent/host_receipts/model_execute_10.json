@@ -1,0 +1,56 @@
+{
+  "call_id": "qemu-startup__nbTESYj_execute_10",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\n# discover qemu binary\\nQEMU=\\\"\\\"\\nfor c in qemu-system-x86_64 qemu-system-i386 qemu-system-x86_64-static qemu-system-i386-static; do\\n  if command -v \\\"$c\\\" >/dev/null 2>&1; then QEMU=$(command -v \\\"$c\\\"); break; fi\\ndone\\nprintf 'QEMU=%s\\\\n' \\\"$QEMU\\\"\\nif [ -z \\\"$QEMU\\\" ]; then echo 'qemu binary not found' >&2; exit 1; fi\\n# launch in background if not already running for this image/port\\nif ! pgrep -af \\\"${QEMU}.*alpine\\\\.iso.*6665|${QEMU}.*6665.*alpine\\\\.iso\\\" >/dev/null 2>&1; then\\n  nohup \\\"$QEMU\\\" -m 512 -nographic -cdrom /app/alpine.iso -boot d -netdev user,id=n1,hostfwd=tcp::6665-:23 -device e1000,netdev=n1 >/tmp/alpine-qemu.log 2>&1 &\\n  echo $! > /tmp/alpine-qemu.pid\\n  echo 'launched'\\nelse\\n  echo 'already-running'\\nfi\\n\",\"receipt\":\"receipt:0011_action_raw_bash\"},{\"type\":\"probe_service\",\"host\":\"127.0.0.1\",\"port\":6665,\"expect\":\"Alpine login prompt\",\"timeout_seconds\":180,\"receipt\":\"receipt:0012_action_probe_service\"}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\n# discover qemu binary\\nQEMU=\\\"\\\"\\nfor c in qemu-system-x86_64 qemu-system-i386 qemu-system-x86_64-static qemu-system-i386-static; do\\n  if command -v \\\"$c\\\" >/dev/null 2>&1; then QEMU=$(command -v \\\"$c\\\"); break; fi\\ndone\\nprintf 'QEMU=%s\\\\n' \\\"$QEMU\\\"\\nif [ -z \\\"$QEMU\\\" ]; then echo 'qemu binary not found' >&2; exit 1; fi\\n# launch in background if not already running for this image/port\\nif ! pgrep -af \\\"${QEMU}.*alpine\\\\.iso.*6665|${QEMU}.*6665.*alpine\\\\.iso\\\" >/dev/null 2>&1; then\\n  nohup \\\"$QEMU\\\" -m 512 -nographic -cdrom /app/alpine.iso -boot d -netdev user,id=n1,hostfwd=tcp::6665-:23 -device e1000,netdev=n1 >/tmp/alpine-qemu.log 2>&1 &\\n  echo $! > /tmp/alpine-qemu.pid\\n  echo 'launched'\\nelse\\n  echo 'already-running'\\nfi\\n\",\"receipt\":\"receipt:0011_action_raw_bash\"},{\"type\":\"probe_service\",\"host\":\"127.0.0.1\",\"port\":6665,\"expect\":\"Alpine login prompt\",\"timeout_seconds\":180,\"receipt\":\"receipt:0012_action_probe_service\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\n# discover qemu binary\nQEMU=\"\"\nfor c in qemu-system-x86_64 qemu-system-i386 qemu-system-x86_64-static qemu-system-i386-static; do\n  if command -v \"$c\" >/dev/null 2>&1; then QEMU=$(command -v \"$c\"); break; fi\ndone\nprintf 'QEMU=%s\\n' \"$QEMU\"\nif [ -z \"$QEMU\" ]; then echo 'qemu binary not found' >&2; exit 1; fi\n# launch in background if not already running for this image/port\nif ! pgrep -af \"${QEMU}.*alpine\\.iso.*6665|${QEMU}.*6665.*alpine\\.iso\" >/dev/null 2>&1; then\n  nohup \"$QEMU\" -m 512 -nographic -cdrom /app/alpine.iso -boot d -netdev user,id=n1,hostfwd=tcp::6665-:23 -device e1000,netdev=n1 >/tmp/alpine-qemu.log 2>&1 &\n  echo $! > /tmp/alpine-qemu.pid\n  echo 'launched'\nelse\n  echo 'already-running'\nfi\n",
+        "receipt": "receipt:0011_action_raw_bash"
+      },
+      {
+        "type": "probe_service",
+        "host": "127.0.0.1",
+        "port": 6665,
+        "expect": "Alpine login prompt",
+        "timeout_seconds": 180,
+        "receipt": "receipt:0012_action_probe_service"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 2544,
+    "cached_input_tokens": 0,
+    "output_tokens": 727,
+    "total_tokens": 3271,
+    "provider_usage_raw": {
+      "completion_tokens": 727,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 4,
+        "engine_ttft_ms": 49,
+        "engine_ttlt_ms": 2831,
+        "pre_inference_ms": 105,
+        "service_tbt_ms": 4,
+        "service_ttft_ms": 640,
+        "service_ttlt_ms": 3417,
+        "total_duration_ms": 3322,
+        "user_visible_ttft_ms": 535
+      },
+      "prompt_tokens": 2544,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 3271
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

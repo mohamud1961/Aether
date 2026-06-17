@@ -1,0 +1,248 @@
+# Wave 05 Contradiction Analyst Output
+
+```text
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: mechanism_map
+- wave: wave_05_tools_environment_permissions
+- reviewer_type: primary_gpt
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - confirmed this is a vertical contradiction pass for tools/environment/permissions and not a generic execution-control or memory-wave review.
+  - confirmed trajectory/failure is the empirical anchor and codebase/source is the implementation anchor.
+  - confirmed eval lane is inactive by packet default and was not silently reactivated in promoted claims.
+  - confirmed wave acceptance is not mechanism_map completion.
+- preflight_planned_read_order:
+  - control surfaces first:
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md
+    - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+    - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md
+    - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - mandatory Wave 05 first-pass lane outputs:
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_papers_docs_analyst.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md
+  - materially cited support artifacts:
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_tool_environment_matrix.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_permission_boundary_cases.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_tool_gateway_map.md
+    - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_environment_permission_map.md
+    - tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md
+    - tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md
+    - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md
+  - direct spot-checks on raw trajectory/source paths for high-impact claims (cwd/path, tool-surface, permission-policy heterogeneity).
+- preflight_critical_sources_selected:
+  - trajectory anchors:
+    - research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt
+    - research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt
+    - research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt
+    - research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt
+    - research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt
+    - research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt
+    - research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt
+    - research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt
+    - research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt
+  - source anchors:
+    - research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py
+    - research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/utils.py
+    - research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py
+    - research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py
+  - behavioral-reconstruction anchor:
+    - research/analysis/bigai_trace_layer/output/question_answers.json
+  - contradiction-pressure anchors:
+    - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+    - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+- preflight_coverage_risks:
+  - deepagents `extract-moves-from-video` required slice is cancel-only; trajectory depth is uneven for that family in this wave.
+  - BigAI remains no-source; internal permission/sandbox enforcement can only be treated as behavioral reconstruction.
+  - required case-study path `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md` is still absent.
+  - coverage register still reports Wave 05 as not started while first-pass artifacts now exist.
+- preflight_likely_blind_spots:
+  - full prevalence of browser crash/recovery and prompt-storm behavior outside issue-heavy families.
+  - eval-contract implications under inactive eval lane.
+  - full cross-task saturation outside the required trajectory slices.
+- preflight_blockers:
+  - none structural for contradiction-gate progression; wave can proceed with explicit carry-forward warnings.
+- coverage_used:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md
+  - tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_papers_docs_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_tool_environment_matrix.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_permission_boundary_cases.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_tool_gateway_map.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_environment_permission_map.md
+  - tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md
+  - tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md
+  - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md
+  - research/analysis/bigai_trace_layer/output/question_answers.json
+  - direct spot-check evidence:
+    - research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt
+    - research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt
+    - research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt
+    - research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt
+    - research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py
+    - research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py
+    - research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py
+    - research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/utils.py
+- coverage_not_yet_used:
+  - optional long-tail trajectory pressure:
+    - research/sources/trajectories/*/git-multibranch/**
+  - optional additional BigAI cancel variants for this wave:
+    - research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt
+    - research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt
+  - deferred docs/papers/issues listed by first-pass lanes as not-yet-read.
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - papers/docs (via literature lane and dossier support)
+  - informal/issues/postmortems (via informal lane and cluster dossier)
+  - relevant local analysis (BigAI trace-layer outputs)
+  - control surfaces (coverage register, cumulative synthesis)
+- priority_sources_not_yet_read:
+  - research/sources/trajectories/*/git-multibranch/**
+  - research/sources/docs/src_doc_1ebb8bf0aacd/artifact.txt
+  - research/sources/docs/src_doc_695f1b9755d4/artifact.txt
+  - research/sources/papers/papers_text/2603.00324.txt
+  - research/sources/issues/src_iss_677a876a6ea9/artifact.txt
+  - research/sources/informal/cursor_cursorbench.md
+- support_artifacts_used:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_tool_environment_matrix.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_permission_boundary_cases.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_tool_gateway_map.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_environment_permission_map.md
+  - tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md
+  - tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md
+  - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md
+- support_artifacts_requested_or_deferred:
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_approval_boundary_map.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_support_browser_terminal_substrate_map.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_support_tool_gateway_cluster.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_support_environment_permission_cluster.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_support_approval_sandbox_terms.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_support_sandbox_permission_cluster.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_support_tool_friction_cluster.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_support_cwd_workdir_env_mismatch_cluster.md
+- support_artifact_gaps:
+  - no structural gap in required support artifacts for contradiction pass; required trajectory and codebase support outputs are now present.
+  - governance/support gap remains on required case-study update path:
+    - tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md (missing)
+- coverage_register_consistency:
+  - inconsistent as-of this review: register still says Wave 05 packet prepared/not started while four first-pass lane artifacts now exist.
+  - contradiction verdict keeps this as a governance warning rather than a synthesis blocker.
+- coverage_register_updates_needed:
+  - update Wave 05 status from packet-prepared to first-pass-lanes-complete before/with principal synthesis.
+  - keep explicit carry-forward warnings attached to accepted state (BigAI reconstruction boundary, source-capacity vs behavior-exercise mismatch, anti-flattening family rule).
+- required_dossier_updates:
+  - present in-wave outputs:
+    - tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md
+    - tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md
+    - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md
+  - still required for full packet hygiene check in principal synthesis:
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md
+    - tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md
+    - tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md
+    - tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md
+- supported_findings:
+  - finding_id: SF-01
+    - observation: distinct tool gateway families are directly visible in trajectories (DeepAgents execute/file tools; KIRA bash+image_read; BigAI run/wait/kill/interact shell tools).
+    - inference: tool-gateway family separation is supported and not fake sophistication.
+    - confidence: high
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_support_tool_environment_matrix.md
+  - finding_id: SF-02
+    - observation: source lane explicitly distinguishes approval/policy surfaces from sandbox/capability boundaries (DeepAgents HITL + unsandboxed local shell; KIRA allow/deny/ask + bypassPermissions path; a-evolve container boundary with thinner terminal approval semantics).
+    - inference: permission doctrine is layered and heterogeneous across families; claims are source-backed.
+    - confidence: high
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+      - research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py
+      - research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py
+      - research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py
+  - finding_id: SF-03
+    - observation: first-pass lanes consistently keep BigAI bounded as behavioral reconstruction and do not promote no-source internals as source fact.
+    - inference: BigAI boundary discipline is currently upheld.
+    - confidence: high
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+  - finding_id: SF-04
+    - observation: formal and informal lanes both include explicit caveats that doctrine/reports do not prove runtime enforcement.
+    - inference: browser/tool prestige and formal-permission rhetoric are not being presented as sufficient proof on their own.
+    - confidence: medium
+    - weakens_confidence: some formal claims remain architecture-heavy and need trajectory/source reconciliation in principal synthesis.
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_papers_docs_analyst.md
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md
+- unsupported_or_overclaimed_findings:
+  - finding_id: UF-01
+    - observation: trajectory lane promotes medium-confidence environment-discovery regularity across families with heavy reliance on BigAI trace-layer summaries and prompt-shape cues.
+    - inference: keep this promoted family at cautionary status until more direct per-run environment-discovery evidence is enumerated outside reconstruction summaries.
+    - confidence: medium
+    - weakens_confidence: BigAI no-source boundary and prompt-heavy KIRA evidence in this claim.
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+      - research/analysis/bigai_trace_layer/output/question_answers.json
+  - finding_id: UF-02
+    - observation: required case-study update path for `headless_terminal.md` remains absent.
+    - inference: support-track completeness is still imperfect and should be carried as a governance warning.
+    - confidence: high
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md
+      - tracking/collab/stage_02_synthesis/trajectory_case_studies/
+- missing_evidence_classes:
+  - none structural for contradiction gate; all four core evidence classes required for serious-wave synthesis are represented by first-pass outputs.
+  - missing depth remains (not class-level): optional long-tail trajectories and deferred support artifacts.
+- reconciliation_failures:
+  - RF-01:
+    - observation: source shows richer permission/approval machinery than required trajectories visibly exercise.
+    - inference: maintain explicit `source-capacity vs behavior-exercise gap` warning in Wave 05 principal synthesis.
+    - confidence: high
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md
+  - RF-02:
+    - observation: informal issue pressure indicates policy-runtime mismatch and prompt-storm regressions that are only partially visible in required trajectories.
+    - inference: do not overgeneralize trajectory-side permission safety from current wave slice.
+    - confidence: medium
+    - weakens_confidence: issue concentration in a few public systems.
+    - evidence_paths:
+      - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md
+      - tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md
+- coverage_blind_spots:
+  - optional `git-multibranch` pressure for cwd/workdir mechanisms remains unread in this contradiction pass.
+  - browser reliability claims are still mostly issue-driven rather than trajectory-saturated.
+  - eval contract pressure is deferred by packet design and should remain explicitly inactive here.
+- required_repairs_before_acceptance:
+  - no blocker repair required before principal synthesis.
+  - required carry-forward repair before claiming stronger saturation:
+    - resolve missing case-study path `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md` or formally remap packet pathing.
+    - update coverage register Wave 05 status to match real execution state.
+    - keep BigAI strictly bounded as behavioral reconstruction.
+- optional_pressure_tests:
+  - add optional long-tail pressure from `research/sources/trajectories/*/git-multibranch/**` for cwd/workdir and path-discipline robustness.
+  - add explicit trajectory-to-source reconciliation table for approval-policy behavior in KIRA/DeepAgents high-friction slices.
+  - stress browser crash-recovery claims with additional trajectory evidence (not issue-only).
+- gate_review_recommendations:
+  - proceed to Wave 05 principal synthesis under `pass_with_warnings`.
+  - keep carry-forward caution enforcement explicit in synthesis:
+    - Wave 03 cautions: BigAI behavioral reconstruction; restart/resume under-evidenced; organizer weak.
+    - Wave 04 cautions: artifact-first baseline; source-capacity vs behavior-exercise gap; anti-flattening mechanism families.
+  - preserve explicit distinction: accepting this wave gate does not complete mechanism_map artifact.
+- confidence:
+  - high on gate verdict that the wave is materially useful and not structurally unsupported.
+  - medium on cross-system saturation for permission enforcement and browser reliability because evidence remains uneven across trajectory families.
+```

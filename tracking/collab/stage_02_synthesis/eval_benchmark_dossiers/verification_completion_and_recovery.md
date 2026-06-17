@@ -1,0 +1,144 @@
+EVAL_BENCHMARK_DOSSIER
+- dossier_type: wave-specific eval benchmark dossier
+- target: verification_completion_and_recovery
+- source_scope:
+  - `evals/README.md`
+  - `evals/verification_eval.py`
+  - `evals/context_eval.py`
+  - `evals/step_efficiency_eval.py`
+  - `research/sources/codebases/deepagents/libs/evals/README.md`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/README.md`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/deepagents_wrapper.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+  - `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/match.py`
+  - `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/llm.py`
+  - `research/sources/codebases/langchain/openevals/python/openevals/llm.py`
+  - `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+- contract_or_logic:
+  - DeepAgents visible eval logic splits into hard correctness assertions, soft efficiency expectations, benchmark-specific state replay, and optional LLM-judge grading (`research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`).
+  - `agentevals` supplies deterministic reference-based trajectory matching plus trajectory LLM-as-judge, while `openevals` supplies generic structured judge infrastructure and a conversation-level task-completion prompt (`research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/match.py`, `research/sources/codebases/langchain/agentevals/python/agentevals/trajectory/llm.py`, `research/sources/codebases/langchain/openevals/python/openevals/llm.py`, `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`).
+  - SWE-bench Verified, ImpossibleBench, and SlopCodeBench captures mostly expose benchmark contracts and scaffold/setup assumptions rather than full grader code (`research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`, `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`, `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`).
+- verifier_or_grader_structure:
+  - DeepAgents `TrajectoryScorer.success(...)` is the clearest hard gate in the read local code; `.expect(...)` is diagnostic only (`research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`).
+  - BFCL v3 grading replays benchmark ground truth on fresh API instances and compares final state; tau2 grading replays expected actions on a fresh DB and combines DB-state and communicate scores (`research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`).
+  - LLM judges are present in both DeepAgents and LangChain eval infrastructure, but they are more prompt- and model-dependent than the replay/state gates (`research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`, `research/sources/codebases/langchain/openevals/python/openevals/llm.py`).
+- replay_or_state_logic:
+  - DeepAgents Harbor logs trajectories in ATIF format and supports deterministic LangSmith dataset/example IDs (`research/sources/codebases/deepagents/libs/evals/README.md`, `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`).
+  - BFCL and tau2 both use fresh-state replay logic as their strongest correctness anchor (`research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`).
+  - BigAI shows repeated verifier cycles and verifier fail-to-pass recovery in local reconstruction artifacts, but this remains behavioral reconstruction rather than source-backed replay logic (`research/analysis/bigai_trace_layer/output/question_answers.json`).
+- judge_risk_or_gaming_surface:
+  - Substring answer checks, product-style reward formulas, soft efficiency expectations, and conversation-level completion prompts can all generate fake-good signals when treated as stronger than artifact/state checks (`research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`, `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`, `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`).
+  - Benchmark prestige can also hide setup drift: the SWE-bench capture explicitly warns that mini-SWE-agent version changes and action-interface changes affect comparability (`research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`).
+  - ImpossibleBench is specifically about cheating/spec-gaming, so transcript-only analysis can itself become part of the gaming surface (`research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`).
+- local_eval_links:
+  - `evals/verification_eval.py`
+  - `evals/context_eval.py`
+  - `evals/step_efficiency_eval.py`
+  - These files currently define intended eval dimensions only; no visible grader implementation is present in the files read this turn.
+- mechanism_relevance:
+  - The eval layer supports at least three mechanism families for this wave:
+    - direct artifact/assertion proof
+    - replay/state-diff proof
+    - judge-mediated completion or trajectory grading
+  - This directly matters for mechanism cards about completion proof, false-completion prevention, cleanup confirmation, and verifier coupling.
+- failure_relevance:
+  - Verifier pass is not equivalent to final success in the BigAI reconstruction artifacts (`research/analysis/bigai_trace_layer/output/question_answers.json`).
+  - Judge-mediated or substring-based checks can over-credit plausible but weak completion.
+  - Soft expectations can hide drift in step shape or tool usage without failing the run.
+- contradictions:
+  - Benchmark pages describe contracts and comparability goals, but the visible grader code shows multiple non-equivalent proof styles.
+  - The local harness names eval dimensions, but the currently visible hard gates live in external-source DeepAgents code rather than local implementations.
+  - BigAI reconstruction suggests a strong verifier regime, but it still records verifier-pass / overall-fail divergence.
+- confidence_notes:
+  - High confidence for visible DeepAgents, `agentevals`, and `openevals` code-path claims.
+  - Medium confidence for any BigAI eval-layer claim because it remains behavioral reconstruction.
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - required_wave_eval_pressure_paths:
+    - required run bundles under:
+      - `research/sources/trajectories/BigAI/db-wal-recovery/*.tar.gz`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/*.tar.gz`
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/*.tar.gz`
+      - `research/sources/trajectories/deepagents/db-wal-recovery/*.tar.gz`
+      - `research/sources/trajectories/deepagents/cancel-async-tasks/*.tar.gz`
+      - `research/sources/trajectories/deepagents/extract-moves-from-video/*.tar.gz`
+      - `research/sources/trajectories/terminus-kira/db-wal-recovery/*.tar.gz`
+      - `research/sources/trajectories/terminus-kira/cancel-async-tasks/*.tar.gz`
+      - `research/sources/trajectories/terminus-kira/extract-moves-from-video/*.tar.gz`
+  - observations:
+    - required Wave 02 bundles expose concrete `in-run success` vs `final gate fail` mismatches for cancellation and extraction families.
+    - cancellation edge `test_tasks_cancel_above_max_concurrent` is the most repeated failing contract across BigAI/deepagents required runs.
+    - extraction family fails mostly on content-similarity despite file-exists or completion signaling.
+  - inference:
+    - Wave 02 should keep replay/grader/final-acceptance mismatch as a first-class failure family, not a residual caveat.
+  - confidence:
+    - high (direct bundle-level verifier outcomes)
+- wave_02_formal_supplement_2026_04_10:
+  - observations:
+    - formal benchmarks define completion through explicit contract checks, not assistant confidence
+    - replay/provenance sources explicitly separate decision determinism from trajectory/provenance determinism
+    - verifier-driven orchestrators and rubric systems confirm that evaluation quality depends on explicit criteria and independent checking roles
+  - implications_for_eval_lane:
+    - keep `inline proof`, `verifier`, `grader`, `replay`, and `final acceptance` as separate scored surfaces
+    - include mismatch probes where verifier passes but replay/grader fails (and vice versa)
+    - add recovery probes where restore/resume succeeds but postcondition validity regresses
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`
+    - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`
+    - `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`
+    - `research/sources/papers/papers_text/src_pap_567951e5e0b3.txt`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_scope_delta:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - observations:
+    - hard correctness, replay/state checks, judge grading, and diagnostic expectations are distinct evaluator modes in read source.
+    - fallback behavior (`no verifier_result -> reward 0.0`) is explicit in Harbor feedback pipeline.
+    - local harness eval files remain spec-level stubs, so Wave 02 eval logic currently relies on external-source families more than local code.
+  - inference:
+    - Wave 02 eval attribution should explicitly split failures into `missing verifier artifact`, `weak acceptance criterion`, `replay/state mismatch`, and `judge disagreement`.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `evals/verification_eval.py`
+- wave_02_eval_benchmark_lane_update_2026_04_10:
+  - scope:
+    - Failure Taxonomy Wave 02 eval-lane contract mapping with required run-bundle mismatch evidence.
+  - observations:
+    - DeepAgents eval code keeps correctness (`.success`) separate from diagnostic expectations (`.expect`) and uses replay/state scoring paths for BFCL/tau2.
+    - Harbor feedback plumbing falls back to reward `0.0` when verifier artifacts are missing.
+    - Required cancel/extract slices show verifier or completion narratives diverging from bundle-level acceptance (`reward.txt` + `ctrf.json`).
+  - inference:
+    - Wave 02 attribution should explicitly separate `inline/local checks`, `task verifier outputs`, `replay/state grader`, `LLM-judge layer`, and `final acceptance reward`.
+    - `missing verifier artifact` should remain a distinct failure mode from explicit test failure.
+  - confidence:
+    - high for source-backed DeepAgents and Harbor behavior.
+    - medium for BigAI-specific evaluator internals (`behavioral reconstruction`).
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf.tar.gz`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd.tar.gz`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/outputs/eval_support_verifier_benchmark_contract_map.md`

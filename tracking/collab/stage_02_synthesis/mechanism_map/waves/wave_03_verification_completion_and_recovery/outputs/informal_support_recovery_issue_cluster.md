@@ -1,0 +1,48 @@
+DEEP_SYNTHESIS_SUPPORT_OUTPUT
+- artifact: mechanism_map
+- wave: wave_03_verification_completion_and_recovery
+- calling_lane: informal/issues/postmortems analyst
+- support_task_type: issue clustering
+- bounded_scope_confirmed: yes
+- files_or_paths_read:
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_949d7288362a/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- structured_findings:
+  - `Cluster 1: false completion without target-side proof.`
+    - `research/sources/issues/src_iss_5d861db09829/artifact.txt` reports repeated `[completed]` status after host-side copy operations despite no confirmation that the target device booted or ran the deployed code.
+    - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt` and `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt` instead describe environments where validation, review queues, logs, metrics, and isolated worktrees are treated as part of trustworthy completion.
+  - `Cluster 2: resume index drift and stale snapshot recovery.`
+    - `research/sources/issues/src_iss_613424e145e5/artifact.txt` reports missing or stale `sessions-index.json` files that hide recent sessions from `--resume`.
+    - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt` reports `--resume` restoring hours-old context instead of the latest session state.
+  - `Cluster 3: crash leaves the system in a non-terminal state.`
+    - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt` reports a crashed Codex thread left permanently in `thinking` because the persisted rollout ended with unfinished reasoning and no terminal event.
+    - `research/sources/issues/src_iss_da41417f5655/artifact.txt` reports browser-crash recovery failure in OpenHands, where the agent hangs waiting for browser responses and never auto-recovers.
+    - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt` reports silent resume failure when a subagent transcript ends with an API error instead of an explicit recoverable terminal state.
+  - `Cluster 4: restore and rewind can corrupt live state rather than safely restoring it.`
+    - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt` reports `rewind_async` nullifying initial session-state keys that were not represented in the event stream, making rewind unsafe for production contexts that inject tenant or auth state at session creation time.
+  - `Cluster 5: recovery semantics are still too opaque to the model.`
+    - `research/sources/issues/src_iss_f07284ab370e/artifact.txt` argues that tools internally classify fatal versus recoverable errors, but do not expose that structure back to the agent, causing retry loops or premature abandonment.
+  - `Cluster 6: one selected capture is not usable evidence as-is.`
+    - `research/sources/issues/src_iss_949d7288362a/artifact.txt` did not resolve to the titled interruption/resume issue on read and should be treated as a capture-validation problem rather than promoted evidence.
+- unresolved_gaps:
+  - `The selected scope is strong on failure reports but weak on issue-resolution outcomes; it does not establish whether the cited systems later closed these gaps.`
+  - `The selected scope is skewed toward Codex and Claude operational surfaces, so prevalence across the full corpus remains uncertain.`
+  - `No direct benchmark or source reconciliation was attempted inside this support artifact.`
+- handoff_notes_for_calling_lane:
+  - `Use Clusters 2 through 5 as contradiction pressure against any claim that restart/resume/recovery is already stable cross-system.`
+  - `Keep Cluster 1 visible when comparing simple postcondition checks against heavier verifier stacks; the core failure is not missing sophistication, it is missing target-side proof.`
+  - `Treat Cluster 6 as a coverage caveat, not as evidence.`
+- not_promoted_claims:
+  - `This is a support artifact only and does not decide the mechanism family verdict.`
+  - `Issue reports remain anecdotal until reconciled with trajectories, source, or eval surfaces.`
+- output_path: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_support_recovery_issue_cluster.md`

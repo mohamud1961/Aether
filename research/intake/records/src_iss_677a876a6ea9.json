@@ -1,0 +1,112 @@
+{
+  "source_id": "src_iss_677a876a6ea9",
+  "title": "[Bug]: Slow startup (several minutes) on Linux due to Ripgrep download hang",
+  "canonical_url": "https://github.com/google-gemini/gemini-cli/issues/18045",
+  "date": "2026-02-01",
+  "authors_or_org": [
+    "sotokisehiro",
+    "Google"
+  ],
+  "source_type": "issue_thread",
+  "artifact_type": "issue",
+  "time_window_status": "primary_window",
+  "exception_reason": null,
+  "bucket_primary": "environment_substrate",
+  "bucket_secondary": [
+    "tooling_tool_gateway",
+    "recovery_fault_tolerance"
+  ],
+  "decision_targets": [
+    "tool_gateway",
+    "execution_loop",
+    "recovery",
+    "cost_budget"
+  ],
+  "mechanism_tags": [
+    "search_binary_bootstrap",
+    "system_tool_fallback",
+    "environment_diagnosis",
+    "localization_x_environment"
+  ],
+  "failure_mode_tags": [
+    "ripgrep_bootstrap_failure",
+    "wrong_package_assumption",
+    "startup_blocking_dependency",
+    "dependency_misdiagnosis"
+  ],
+  "benchmark_tags": [],
+  "benchmark_contamination_risk": "low",
+  "task_regime": [
+    "coding_agent",
+    "terminal_agent"
+  ],
+  "models_if_named": [
+    "gemini-3-flash-preview"
+  ],
+  "environment_type": [
+    "local_fs"
+  ],
+  "evidence_scorecard": {
+    "provenance": 4,
+    "mechanistic_detail": 4,
+    "reproducibility": 4,
+    "ecological_validity": 5,
+    "decision_relevance": 4,
+    "recency": 5
+  },
+  "relevance_note": "Shows tool bootstrap assumptions can block search before exploration begins.",
+  "reason_included": "Useful environment-diagnosis failure where system `rg` exists but harness logic ignores it.",
+  "claim_snippets": [
+    {
+      "claim_id": "c1",
+      "claim_text": "Setting `\"useRipgrep\": false` in settings bypasses ripgrep initialization and immediately removes the startup delay.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c2",
+      "claim_text": "Installing ripgrep system-wide at `/usr/bin/rg` does not help because the CLI looks only in its internal bin directory.",
+      "claim_status": "anecdotal"
+    },
+    {
+      "claim_id": "c3",
+      "claim_text": "The issue reports multi-minute startup stalls because the CLI tries to download ripgrep to `~/.gemini/bin/rg` during initialization.",
+      "claim_status": "anecdotal"
+    }
+  ],
+  "claim_locations": [
+    {
+      "claim_id": "c1",
+      "locator": "Issue description, line 214"
+    },
+    {
+      "claim_id": "c2",
+      "locator": "Issue description, lines 210-214"
+    },
+    {
+      "claim_id": "c3",
+      "locator": "Issue description, 'What happened?', lines 205-214"
+    }
+  ],
+  "dedupe_key": "github_issue:google-gemini/gemini-cli#18045",
+  "canonical_locator": "github_issue:google-gemini/gemini-cli#18045",
+  "discovered_in_batches": [
+    "2026-03-30__problem_localization_exploration_strategy_sweep.json#obj1.2",
+    "2026-03-30__problem_localization_exploration_strategy_sweep.json#obj2|bucket=|run_date=2026-03-29|agent=problem_localization_exploration_strategy_sweep_agent"
+  ],
+  "merged_from_candidate_keys": [
+    "src_iss_677a876a6ea9::github:google-gemini/gemini-cli/issues/18045::2026-03-30__problem_localization_exploration_strategy_sweep.json#obj2::r6"
+  ],
+  "origin_buckets": [
+    "environment_substrate"
+  ],
+  "capture_metadata_matches": {
+    "capture_exists": true,
+    "capture_path": "research/sources/issues/src_iss_677a876a6ea9/capture.json",
+    "capture_kind": "issue",
+    "capture_canonical_url": "https://github.com/google-gemini/gemini-cli/issues/18045",
+    "canonical_url_match": true
+  },
+  "artifact_class": "issue",
+  "origin_batch_buckets": [],
+  "artifact_relpath": "research/sources/issues/src_iss_677a876a6ea9"
+}

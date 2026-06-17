@@ -1,0 +1,91 @@
+# KiraClaw Desktop
+
+KiraClaw Desktop is a small Electron shell over the same local engine that Slack uses.
+
+Current scope:
+
+- start and stop the local KIRA Engine
+- edit `~/.kira/config.env`
+- run direct desktop chat through the same daemon API
+- surface a simple branded home screen for the local agent
+- expose name and persona settings for the agent identity
+- show skills and schedules from the current workspace
+
+The code is intentionally split by responsibility.
+
+Main process:
+
+- `main.js`: app bootstrap only
+- `lib/config-store.js`: `.kira/config.env` read and write
+- `lib/daemon-controller.js`: daemon lifecycle and health checks
+- `lib/create-window.js`: BrowserWindow construction
+- `lib/register-ipc.js`: Electron IPC registration
+
+Renderer:
+
+- `renderer/app/index.mjs`: renderer bootstrap and orchestration
+- `renderer/app/home.mjs`: landing and engine status UI
+- `renderer/app/settings.mjs`: settings form state and provider-specific fields
+- `renderer/app/chat.mjs`: direct chat surface
+- `renderer/app/navigation.mjs`: sidebar navigation
+- `renderer/app/branding.mjs`: agent name and copy updates
+- `renderer/app/dom.mjs`: small DOM helpers and secret field toggles
+- `renderer/app/state.mjs`: shared renderer state
+
+Slack remains the first real channel, with Telegram as a lightweight second channel.
+Desktop direct chat is still a thin client over the same daemon API, but it now exposes both:
+
+- internal run summaries
+- spoken outward replies when the agent actually uses `speak`
+
+The daemon API also returns `internal_summary` explicitly now. The older `final_response`
+wire field is still present for compatibility, but it refers to the same internal summary.
+
+## Bridge Build
+
+KiraClaw keeps its own dev identity, but bridge releases for existing KIRA-Slack users
+should preserve the old updater lineage.
+
+Use:
+
+- `npm run verify:bridge`
+- `npm run build:bridge`
+- `npm run build:bridge:mac`
+- `npm run build:bridge:win`
+- `npm run deploy:bridge:mac:skip-notarize`
+- `npm run build:bridge:smoke`
+- `npm run build:bridge:smoke:dir`
+
+The bridge build config is:
+
+- [electron-builder.bridge.json](/Users/batteryho/Documents/github/KIRA/KiraClaw/apps/desktop/electron-builder.bridge.json)
+- [electron-builder.bridge.smoke.json](/Users/batteryho/Documents/github/KIRA/KiraClaw/apps/desktop/electron-builder.bridge.smoke.json)
+
+Current scope of the bridge scaffold:
+
+- preserves `com.krafton.kira`
+- preserves the S3 updater feed
+- reuses the old icons and mac entitlements
+- stages the KiraClaw Python project under `process.resourcesPath/kiraclaw`
+- packaged app starts the daemon with `uv run kiraclaw-agentd`
+- packaged app resolves `krim` and `krim-sdk` from published Python packages using the bundled lockfile
+
+Smoke build scope:
+
+- disables mac signing, hardened runtime, and notarization
+- targets a local packaged app smoke run first
+- keeps the same staged `process.resourcesPath/kiraclaw` layout so daemon startup can be checked before release signing work
+
+Current bridge runtime behavior:
+
+- packaged bridge builds try to auto-install `uv` on the target machine if it is missing
+- a temporary `skip-notarize` deploy path exists for mac bridge releases when Apple notarization is blocked by account agreements
+- dev mode still expects the local development environment to be set up already
+
+Bridge preflight currently verifies:
+
+- local `node` and `npm`
+- bridge identity and updater config shape
+- desktop syntax checks
+- full KiraClaw test suite
+- packaged smoke bridge resource layout

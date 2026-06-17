@@ -1,0 +1,31 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: failure_taxonomy / wave_03_context_state_memory_workspace_failures
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed: Confirmed execution of Gemini gate review for contradiction stage. Focus is on attacking weak artifacts and ensuring evidence claims for context, state, memory, and workspace failures are robust across all four executed lanes (codebase, trajectory, literature, informal). Eval lane remained intentionally inactive as benchmark internal state contracts were not strictly required to attribute these failure families.
+- preflight_planned_read_order: 1) Wave 03 brief, README output paths, and coverage register. 2) Completed lane outputs (codebase, trajectory, literature, informal). 3) Contradiction analysis and gap identification.
+- preflight_critical_sources_selected: 
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_issues_postmortems_analyst.md`
+- preflight_coverage_risks: The primary risk remains BigAI being constrained strictly to `behavioral reconstruction` without source verification. Trajectory evidence sample limits could obscure true failure frequencies.
+- preflight_likely_blind_spots: Lack of an active eval lane leaves benchmark grader internals/state-contracts as a potential hidden attribution surface. Informal reports rely heavily on user self-reporting (e.g., path contamination or compaction hangs).
+- preflight_blockers: none
+- coverage_used: All four required lane outputs in `outputs/` directory. Coverage register `current_status.md` and wave `brief.md`.
+- coverage_not_yet_used: Eval/benchmark contracts.
+- evidence_classes_touched: Lane analysis across source code, trajectories, papers, documentation, issues, postmortems, and wave control documents.
+- priority_sources_not_yet_read: Full `research/sources/benchmarks/**` internals (as eval lane is inactive).
+- support_artifact_gaps: The trajectory lane deferred `trajectory_support_context_workspace_failure_matrix.md` and `trajectory_support_memory_state_drift_cases.md` to follow-ups. The informal lane deferred its explicit cluster markdown artifact. These are acceptable but reduce immediate matrix-level visibility.
+- coverage_register_consistency: Strong. The analysts correctly adhered to the carry-forward warnings, notably keeping BigAI explicitly as `behavioral reconstruction` and treating A-Evolve trajectory behavior as distinct from its robust source-backed capabilities.
+- supported_findings: 
+  - Distinct failure boundaries: context/state memory loss vs. workspace/path/branch drift vs. resume/session failure are clearly backed by intersecting codebase and issue/trajectory findings.
+  - Runtime allocator memory (e.g., `SIGSEGV` in `custom-memory-heap-crash`) is cleanly segregated from coding-agent context memory failures.
+  - The risk of compaction logic serving as both a mitigation tool and a direct failure source (hangs, loss of instruction, accounting errors) is thoroughly documented across codebase (fallback mechanisms), informal issues, and literature.
+- unsupported_or_overclaimed_findings: The codebase lane correctly self-limits claims about A-Evolve's trajectory relevance to "low for prevalence" while noting its source mechanism exists. No lane makes unsupported generalizations collapsing harness and model errors.
+- missing_evidence_classes: Eval/benchmark lane was inactive. This is permissible per wave policy unless benchmark state contracts become load-bearing. 
+- reconciliation_failures: Minor mismatch observed between product/narrative claims in the informal/literature lanes (treating resumability and compaction as solved or protective measures) and actual trajectory/issue behavior (where both introduce drift, hangs, and state corruption). Analysts rightly flagged this as contradiction pressure rather than smoothing it away.
+- coverage_blind_spots: Exact incidence/frequency estimates for failure modes across the full captured run inventory are still missing since support matrices were deferred.
+- required_repairs_before_acceptance: None structurally block the progression of the taxonomy; the deferred support matrices should eventually be generated to quantify failure frequency.
+- optional_pressure_tests: Reactivating the eval lane to verify whether benchmark grader implementations contribute to workspace/path state drift (e.g. strict vs relative test file paths).
+- gate_review_recommendations: Proceed to principal synthesis. Explicitly enshrine the anti-collapse rules separating compaction failure, workspace/path drift, session persistence failure, and allocator memory failure into distinct Failure Taxonomy families. Maintain the BigAI `behavioral reconstruction` caveat throughout principal artifacts.
+- confidence: medium-high

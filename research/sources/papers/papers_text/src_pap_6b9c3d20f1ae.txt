@@ -1,0 +1,1344 @@
+--- PAGE 1 ---
+XGrammar-2: Efficient Dynamic Structured Generation Engine
+for Agentic LLMs
+Linzhang Li∗
+blemiade_qinchuan@sjtu.edu.cn
+Shanghai Jiao Tong University
+Yixin Dong∗†
+yixind@andrew.cmu.edu
+Carnegie Mellon University
+Guanjie Wang
+irfnfnkemed@sjtu.edu.cn
+Shanghai Jiao Tong University
+Ziyi Xu
+xzy2022@sjtu.edu.cn
+Shanghai Jiao Tong University
+Alexander Jiang
+akj2@andrew.cmu.edu
+Carnegie Mellon University
+Tianqi Chen†
+tqchen@cmu.edu
+Carnegie Mellon University, NVIDIA
+Abstract
+Modern LLM agents increasingly rely on dynamic structured gener-
+ation, such as tool calling and response protocols. Unlike traditional
+structured generation with static structures, these workloads vary
+both across requests and within a request, posing new challenges
+to existing engines. We present XGrammar-2, a structured gener-
+ation engine for dynamic agentic workloads. Our design is based
+on two key ideas: first-class support for tag-triggered structure
+switching, and fine-grained reuse across requests with different
+output structures. Concretely, XGrammar-2 introduces TagDispatch
+for dynamic structural dispatching and Cross-Grammar Cache for
+substructure-level cache reuse across grammars. It further improves
+efficiency with an Earley-based adaptive token mask cache, just-in-
+time compilation, and repetition state compression. Experiments
+show that XGrammar-2 achieves over 6× faster compilation than
+prior structured generation engines, and incurs near-zero end-to-
+end overhead in modern LLM serving systems.
+CCS Concepts
+•Computing methodologies→Intelligent agents.
+Keywords
+Agents, Structured Generation, Large Language Models
+ACM Reference Format:
+Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi
+Chen. 2026. XGrammar-2: Efficient Dynamic Structured Generation Engine
+for Agentic LLMs. InProceedings of Under Review.ACM, New York, NY,
+USA, 14 pages. https://doi.org/XXXXXXX.XXXXXXX
+1 Introduction
+Modern LLM agents demonstrate strong capabilities and increas-
+ingly rely on complex tool calling and code generation [26]. These
+∗Both authors contributed equally to this research.
+†Corresponding authors.
+Permission to make digital or hard copies of all or part of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed
+for profit or commercial advantage and that copies bear this notice and the full citation
+on the first page. Copyrights for components of this work owned by others than the
+author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or
+republish, to post on servers or to redistribute to lists, requires prior specific permission
+and/or a fee. Request permissions from permissions@acm.org.
+Under Review, 27
+©2026 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+ACM ISBN 978-x-xxxx-xxxx-x/YYYY/MM
+https://doi.org/XXXXXXX.XXXXXXX
+agentic applications impose strong requirements on structured
+generation, especially for small [27] or compressed models. Con-
+strained decoding [8, 15] is widely adopted to guarantee structural
+validity by masking invalid tokens at each generation step, enabling
+reliable downstream applications with minimal overhead.
+Tool Calling:
+Llama Tool Calling
+(defined by request’s
+tool set)
+Response Protocol:
+OpenAI Harmony
+Response Format
+Dispatched StructureTag
+<function=get_weather>
+{"city": ".*"}</function>
+<function=search>
+{"url": ".*"}</function>
+<|channel|>analysis
+<|message|>".*"
+<|channel|>commentary
+to=functions.get_weather
+<|message|>{"city": ".*"}
+Generation Structure
+OK, I need to call a function.
+<function=get_weather> {"city":
+"Shanghai"}
+<|channel|>analysis
+<|message|>OK, I need to think
+about it.
+<|channel|>commentary
+to=fucntions.get_weather
+<|message|>{"city": "Shanghai"}
+Output of LLM
+Free-form Text
+Figure 1: Some examples of tool calling and response proto-
+cols.
+However, existing constrained decoding methods [ 9, 12, 33]
+largely assume all structures are static and known in advance.
+Nowadays, a key characteristic of agentic LLM applications is the
+extensive use of tool calling to handle complex tasks. Each LLM re-
+quest may contain dozens or even hundreds of possible tools, which
+greatly violates the structure assumption: the output structure be-
+comes highly dynamic, both across requests and within a single
+request. Thisstructural dynamismposes significant efficiency
+and expressiveness challenges to existing constrained decoding
+systems. We classify the challenge of structural dynamism into two
+categories:
+Inter-request dynamism.In agent serving scenarios, each request
+may expose a different set of tools and schemas, often with per-tool
+access control [20, 25]. As a result, the space of possible output
+grammars becomes combinatorially large, and each grammar can
+itself be complex. Prior approaches typically preprocess the en-
+tire grammar and cache it at the request level to reuse identical
+structures. Under dynamic tool sets, such caching becomes ineffec-
+tive, forcing expensive per-request preprocessing and significantly
+increasing time-to-first-token (TTFT).
+arXiv:2601.04426v2  [cs.AI]  26 Mar 2026
+
+--- PAGE 2 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+Intra-request dynamism.Within a single request, the model needs
+to follow a response protocol such as OpenAI Harmony [16], and
+choose from many candidate tools. This requires the structural
+constraint to switch depending on the previous LLM output. For
+example, generating a tool name determines the JSON schema of
+the subsequent arguments [19, 28], while a channel tag token con-
+strains the following content to a specific channel, such as reasoning
+or output. Such dispatching is difficult to express efficiently with
+the Backus-Naur Form (BNF)-like grammars used by existing con-
+strained decoding methods, and the large number of tools further
+challenges efficient mask generation.
+To address these challenges, we propose XGrammar-2, a struc-
+tured generation engine for dynamic agentic workloads. Our de-
+sign is based on two key ideas: first-class support for tag-triggered
+structure switching in agent outputs, and fine-grained reuse across
+requests with different output structures. For the former, we intro-
+duce TagDispatch, a first-class grammar construct for expressing
+tag-triggered structural dispatching within a request. For the latter,
+we design a cross-grammar cache that reuses shared substructures
+across different grammar combinations. To make this design ef-
+ficient in practice, we further develop an Earley-based adaptive
+token mask cache, together with just-in-time compilation and rep-
+etition compression, to reduce compilation overhead and improve
+end-to-end efficiency.
+We implement XGrammar-2 as a structured generation engine
+compatible with modern LLM inference systems. XGrammar-2 sup-
+ports tool-calling formats across major models and enforces strict
+compliance with the OpenAI Harmony Response Format [16]. Ex-
+perimental results show that XGrammar-2 achieves over 6×tool-
+calling compilation speed improvement compared to prior state-of-
+the-art methods, while introducing near-zero latency overhead. We
+have incorporated XGrammar-2 into open-source serving frame-
+works such as SGLang [37] and vLLM [17], improving output relia-
+bility in agentic tasks. XGrammar-2 is open-source and has been
+adopted in both industry systems and open-source inference en-
+gines.
+2 Background
+2.1 Constrained Decoding and Context-free
+Grammar
+LLMs like Deepseek-R1 [ 7], gpt-oss [24] all generate the tokens
+autoregressively, predicting the next token based on the previous
+output. Each time the LLM needs to output a token, it will calculate a
+logit vector for the vocabulary and then convert it into a probability
+distribution with the softmax function [4]. In the end, a sampler
+will choose an output token based on the distribution to output.
+Constrained decoding [ 8] is a technique for guiding LLMs to
+generate text according to a specified grammar. During each decod-
+ing step, tokens that do not conform to the grammar are marked as
+invalid, and their corresponding logit values are set to−∞ to assign
+them zero probability, thus preventing them from being sampled
+and ensuring the output of LLMs follows the grammar.
+Context-free Grammar (CFG) [6] is generally used to define the
+grammar structures, and it is described by Extended Backus-Naur
+Form (EBNF) [1] in most constrained decoding methods. An EBNF
+consists of a set of production rules, each representing a symbol
+that can be expanded into a sequence of terminal characters or
+references to other symbols. With the rule references, EBNF can
+naturally express complex recursive structures.
+2.2 XGrammar
+Constrained decoding modifies the logit vector before the LLM
+outputs the next token, requiring a runtime check to determine
+whether the token is valid across the entire vocabulary. Without
+optimization, this process introduces significant overhead, which
+substantially slows down the output speed of LLMs.
+XGrammar [9] is designed to achieve near-zero overhead to-
+ken mask generation. XGrammar employs a pushdown automaton
+parser to trace the output of LLMs. Its key insight is that for each
+state in CFGs, there are a lot of tokens that can be determined
+to be accepted or rejected within the state’s rule, and there are a
+few context-dependent tokens that need the context information
+to determine whether they can be accepted by the current state
+at runtime. XGrammar stores the pre-computed accepted tokens,
+rejected tokens, and context-dependent tokens into the adaptive
+token mask cache. With the token mask cache, XGrammar can
+skip massive computation for accepted tokens and rejected tokens
+at runtime. Moreover, XGrammar further increases the cache hit
+rate by introducing context expansion, which leverages the rule
+reference structure in the grammar to further check and reject
+context-dependent tokens.
+With the optimization techniques, XGrammar can handle static
+structured generation tasks well. However, XGrammar needs to
+compile all the grammars ahead of time, which is not suitable
+for dynamic structured generation tasks, since the grammars can
+be sent to the engine at runtime. Thus, how to efficiently handle
+dynamic structured generation tasks remains a challenge.
+3 Methods
+3.1 Overview
+XGrammar-2 addresses dynamic agentic workloads with a uni-
+fied design centered on first-class structural dispatching and fine-
+grained reuse across dynamically changing grammars. TagDispatch
+(Section 3.2) captures intra-request dynamism by expressing tag-
+triggered switching between free-form text and structured sub-
+grammars. Cross-grammar cache (Section 3.3) handles inter-request
+dynamism by reusing token mask caches across grammars with
+shared substructures. To support efficient execution on dynamic
+and complex grammars, XGrammar-2 adopts an Earley-based adap-
+tive token mask cache (Section 3.4) as the cache mechanism. JIT
+compilation (Section 3.5) further amortizes cache construction over
+decoding steps instead of materializing the full cache upfront. Rep-
+etition state compression (Section 3.6) reduces runtime overhead
+and improves robustness for recurring grammar patterns.
+3.2 TagDispatch: Dynamic Dispatch Semantics
+Intra-request dynamism: prior output determines subsequent struc-
+tures. This requires free-formed text interleaved by structure con-
+straints separated by certain triggers, such as a tool name or a
+channel control token. Although this semantics can in principle
+be encoded in plain EBNF, the encoding becomes cumbersome
+
+--- PAGE 3 ---
+XGrammar-2 : Efficient Dynamic Structured Generation Engine for Agentic LLMs Under Review, Feb, 27
+Prior LLM Output
+Adaptive Cache
+on Earley
+Parser (§3.4)
+Retrieve by
+Sub-Structure
+Current Parser State
+Token Mask Cache
+…
+Token Mask Cache Pool
+“+” • [0-9]
+• “+” [0-9] “+” • [0-9]
+• “+” [a-z] “+” • [a-z]
+Cross-grammar Cache (§3.3)
+Inter-request Dynamism
+Token Mask Cache Accepted
+Tokens
+Rejected
+Tokens
+Uncertain Tokens
+(Need to be Checked at Runtime)
+Retrieve Token
+Mask Cache
+Token Mask
+TagDispatch (§3.2)
+Intra-request Dynamism Dispatching FSM
+Dispatching Root
+Grammar 1 Grammar 2 Grammar 3
+Tag 1 Tag 2 Tag 3
+Earley Parser State
+A rule in the grammar.
+The dot means the
+current state postion.
+TagDispatch(
+    (Tag 1, Grammar 1),
+    (Tag 2, Grammar 2),
+    …
+)
+Parse
+Other Optimizations
+(§3.6)
+Other
+Characters
+Compared by
+Hash Value
+The pool is initially
+empty and
+managed by JIT
+compilation
+system (§3.5).
+Figure 2: Overview of our approach. We design a new dynamic dispatching semantics, TagDispatch (§3.2), to efficiently support
+intra-request dynamism. To leverage the sub-structures across different grammars, we designed a cross-grammar caching
+algorithm (§3.3) based on the Earley parser (§3.4) to handle inter-request dynamism. We also design a JIT compilation method
+(§3.5) to optimize the efficiency for the inter-request dynamism. We also introduce a repetition state compression algorithm
+(§3.6) to handle repetition structures.
+and inefficient, since it must simultaneously accept arbitrary non-
+tag text, recognize multiple tags, and route each tag to a different
+sub-grammar.
+To effectively express such structures, we introduce TagDispatch,
+an EBNF-compatible grammar intrinsic to describing tag-triggered
+switching between free-form text and structured sub-grammars. As
+shown in Figure 3, a TagDispatch is parameterized by (i) a list of
+tag–grammar pairs (𝑡𝑖, 𝐺𝑖 ), where emitting tag 𝑡𝑖 dispatches decod-
+ing to sub-grammar 𝐺𝑖, and (ii) a set of stop stringsstop_strs that
+terminate dispatching. Conceptually, TagDispatch partitions decod-
+ing into two modes:dispatchinganddispatched. Decoding starts
+in the dispatching mode, where the engine accepts ordinary text
+while continuously matching registered tags. Once a tag is matched,
+the engine switches to the dispatched mode and constrains subse-
+quent decoding with the corresponding sub-grammar. After that
+sub-grammar completes, decoding returns to the dispatching mode.
+If a stop string is matched in the dispatching mode, TagDispatch
+exits.
+In the dispatching mode, we use an Aho–Corasick automaton
+(AC automaton) [2] to match multiple tags simultaneously. The
+automaton compiles all candidate tags into a single deterministic
+finite automaton (DFA), enabling incremental matching over the
+generated text. When a partial match fails, the automaton falls back
+to a previously matched state and continues matching. This enables
+efficient online trigger matching over free-form text.
+TagDispatch can effectively describe agentic output structures.
+For example, a snippet of LLM output with tool calling is OK, I
+will call a tool. <function=get_weather>{"city":"San
+Francisco"} </function> . The prefix<function=get_weather>
+can be registered as a tag in TagDispatch, and dispatches decoding
+to the JSON-argument grammar (and optional wrapper grammar)
+associated with get_weather. After the dispatched grammar com-
+pletes, TagDispatch returns to the dispatching mode, allowing the
+model to continue generating free-form text or trigger another tag.
+The same abstraction also applies to channelized outputs, where a
+channel tag is followed by a channel-specific structure.
+3.3 Cross-Grammar Cache
+Different requests’ grammars often share some common sub-structures.
+Even within a single grammar, some sub-structures are still du-
+plicated. These repeated compilation leads to large overhead. To
+leverage the token mask caches of these sub-structures, we design
+aCross-Grammar Cacheto avoid recomputation.
+In XGrammar-2, structures are represented as multiple FSMs.
+Each FSM can have edges referring to another FSM to represent the
+
+--- PAGE 4 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+TagDispatch Intrinsic
+TagDispatch(
+(“<function=”, grammar1),
+(“<think>”, grammar2),
+stop_strs = “end”
+)
+Dispatching
+<
+Other
+Strings
+Other
+Characters
+function= think>
+grammar1 grammar2
+𝜀 𝜀
+Dispatched
+end Quit Continuous
+Matching
+Figure 3: The definition and the constructed automata from
+TagDispatch.
+recursive structure in EBNF. To efficiently reuse the token mask
+caches of the common sub-structures, we have two main challenges:
+(1) How to detect the common substructures.We need to deter-
+mine whether two FSMs are equivalent; since each FSM can
+refer to other FSMs, the checker also needs to check the
+referred FSM, and the reference structure may contain loops.
+(2) How to reuse the token mask caches from other FSMs.In
+XGrammar, the token mask cache not only considers FSM’s
+structural information, but also how this FSM is referred to
+by other FSMs to further increase cache hit rate (see context-
+expansion in XGrammar paper). Even though the structure
+of two FSM matches, the cache may not be simply reused
+because they have different referencing structure. [9].
+For the first challenge, we designed ahierarchical hash algo-
+rithmfor FSMs to detect the same sub-structures. The algorithm
+first processes FSMs with no rule-reference edges, then FSMs whose
+references form an acyclic reference graph, and finally simple cycles
+where each FSM has at most one reference into the cycle. With
+the algorithm, we can maximally hash the FSMs and use the hash
+values to detect the same sub-structures, and consistently number
+the nodes of the FSM.
+In our design, we perform a BFS based on the sorted edges, assign
+these nodes with consistent state_ids, and hash the information,
+including final states and edges. The algorithm is shown in 1.
+FSM A
+Lookahead y
+FSM A
+Lookahead x
+Global Cache Pool
+FSM A
+Input
+…
+With Lookahead A
+Without Lookahead
+Perfect Cache Hit
+Get the Cache Directly
+Partial Cache Hit
+Re-check
+Uncertain Tokens
+Figure 4: The perfect cache hit and the partial cache hit.
+Algorithm 1FSM Hash Algorithm for roots of subtrees in FSM
+Reference
+Input:Finite state machine (FSM) 𝑓 𝑠𝑚 with edges 𝐸, final states
+𝐹, and initial state 𝑠0. All the FSMs referred to by 𝑓 𝑠𝑚 have been
+hashed.
+Output:Hash Valueℎ
+Initialize:Queue 𝑄← [𝑠 0 ], mapping from state to node ID
+𝑀← {𝑠 0 : 0},ℎ←0
+Const:A value 𝑘 to represent that the edge is a non-terminal
+edge.
+Sort all the terminal edges with the character range and the
+target. Sort all the FSM reference edges with the hash value of
+the FSM and the target.
+while𝑄is not emptydo
+𝑠←𝑄 .pop()
+Visit(𝑠)
+end while
+functionVisit(FSM State𝑠)
+ℎ←Hash(ℎ,[𝑠∈𝐹], 𝑘, 𝑘)
+foreach edge𝑒in𝐸[𝑠]do
+if𝑒.target is not in𝑀then
+𝑀[𝑒.target] ← |𝑀|
+𝑄 .push(𝑡)
+end if
+if𝑒is a terminal edgethen
+ℎ←HashCombine(ℎ, 𝑒.lower_bound)
+ℎ←HashCombine(ℎ, 𝑒.upper_bound)
+else if𝑒is a rule referencethen
+ℎ←HashCombine(ℎ, 𝑘, 𝑟𝑒 𝑓_𝑓 𝑠𝑚.hash)
+else if𝑒is an epsilon edgethen
+ℎ←HashCombine(ℎ, 𝑘, 𝑘)
+end if
+ℎ←HashCombine(ℎ, 𝑀[𝑒.target])
+end for
+end function
+This algorithm will be applied to the FSMs hierarchically in the
+order mentioned before. However, how to hash the FSMs in the
+cycles remains a challenge. To address this problem, we design a
+cycle hash algorithm to handle simple cycles (among each FSM’s
+references, there is at most one FSM in the reference cycle). We will
+assign a special value to the rule-reference edges with unhashed
+FSMs, and then we can treat them as normal rule-reference edges.
+Then, we can apply 1 on them as usual. Since in a simple cycle of the
+FSM reference graph, each such edge points to the next FSM in the
+cycle. Then, we can generate a hash value for the FSMs in the simple
+cycle as all the FSM-referenced edges are assigned. However, these
+FSMs’ hash values ignore the information cycle structure in the
+FSM reference. To solve the problem, we need to apply Algorithm 2
+to perform a cycle hash algorithm [13]. It will use the hash values
+of the FSMs in the cycle in order to generate the different final
+hash values for each FSM, which ensures the uniqueness of the
+hash values. Because our hash_combine is non-commutative, each
+FSM’s hash value is unique.
+
+--- PAGE 5 ---
+XGrammar-2 : Efficient Dynamic Structured Generation Engine for Agentic LLMs Under Review, Feb, 27
+For the second challenge, in the cross-grammar cache, with a
+given rule with the FSM 𝐴, we will check if the token mask caches
+for the same FSM have been computed Figure 4. If there is, then it
+is a cache hit. If the rules share the same lookahead assertion, then
+it is a perfect cache hit, and we can reuse the token mask cache
+directly. Otherwise, it is a partial cache hit, and we need to recheck
+all the uncertain tokens and the tokens that are validated by the
+original lookahead assertion. Then, we add the new cache to the
+global cache pool. In this method, most of the token mask cache
+will be reused.
+In summary, this cross-grammar cache can handle single FSMs,
+FSMs forming a tree reference structure, and also FSMs forming a
+graph with simple cycles, and maximize the cache reuse between
+and within grammars.
+3.4 Adaptive Token Mask Cache with Earley
+Parsing
+Prior works, such as XGrammar [ 9], use a token mask cache to
+accelerate mask generation by preprocessing the majority of tokens
+ahead of time. However, this design is tied to the state organization
+of pushdown automata. Under non-deterministic grammars, the
+number of PDA states can grow exponentially, which degrades both
+grammar compilation and runtime mask generation. To preserve
+the benefit of caching while improving efficiency on more complex
+grammars, we build a new adaptive cache mechanism on top of
+the Earley parser. This design inherits the cache-based accelera-
+tion strategy of prior work, while leveraging the stronger parsing
+efficiency of Earley parsing for complex context-free grammars.
+The Earley parser [10] maintains, at each input position, a set of
+partial parsing states. Each state records a production rule, a dot
+position within that rule, and the input position where the matching
+of this rule began. Together, these states define the current parsing
+frontier. This state organization provides a natural foundation for
+token-mask caching, while also requiring the cache to be defined
+over Earley parsing frontiers rather than the state representation
+used in PDA-based parsing.
+Based on this observation, we design an adaptive token mask
+cache mechanism for the Earley parser. The key idea is to cache to-
+ken validity only for the part of the parsing frontier that can directly
+affect the next decoding step. In Earley parsing, only scannable
+states, i.e., states whose next symbol is a terminal, can immedi-
+ately determine whether a token may be accepted. We therefore
+construct caches only for these scannable states. Non-scannable
+states, whose next symbol is a non-terminal, are not considered in
+caching; instead, they will be expanded through Earley’s prediction
+and completion operations into scannable states.
+Regarding the cache content, we adapt XGrammar’s token mask
+categorization to the Earley parser, categorizing tokens into ac-
+cepted, rejected, and context-dependent cases. The first two cate-
+gories can be determined by the current partial Earley parser state,
+while the context-dependent tokens require the whole parsing state
+history to be determined. At runtime, to compute the full token
+mask, we first retrieve the mask cache with the current scannable
+states, and then check the context-dependent tokens against the full
+Earley context. This design reduces cache construction overhead,
+enables effective cache reuse, and ensures efficient mask generation
+for complex non-deterministic grammars.
+3.5 JIT Compilation of Adaptive Token Mask
+Cache
+Prior efficient constrained decoding works, such as Outlines and
+XGrammar, have a compilation stage that computes a token mask
+cache for every possible state in the grammar. However, due to the
+intra-request dynamism in agentic tasks, one request may allow
+dozens or even hundreds of tools, resulting in a huge grammar that
+is too expensive to compile at the beginning. To avoid the large
+compilation overhead, we design aconfigurable JITcompilation
+system to amortize the grammar compilation overhead over the
+mask generation phase and avoid compilation for states that are
+never used.
+To achieve JIT compilation, we design a token mask cache pool
+to store the generated token mask caches. This pool stores the cache
+corresponding to each grammar state and is initially empty. Each
+time we visit a new state, we will retrieve the pool for the state
+with the hash algorithm described in Section 3.3. If cache hits, we
+can reuse the token mask cache directly. Otherwise, we need to
+generate the token mask cache at runtime and update the token
+mask cache pool.
+JIT compilation of the token mask cache amortizes computation
+from compile time to runtime. Runtime computation is overlapped
+with decoding, influencing per-token latency, while compilation is
+overlapped with prefilling and influences the time to the first token.
+We wish both to be hidden. It would be better hidden if we could
+flexibly adjust the ratio of compile-time computation amortized to
+runtime. Thus, we design the configurable JIT method to utilize the
+time. During preprocessing, we will estimate the time to generate
+the token mask cache for each state. Then, we will try to calculate𝐾
+most time-consuming token mask, when the LLM is prefilling(𝐾 is
+a fixed value, which is adjusted for the best performance). With this
+method, we can overlap the time of prefilling and preprocessing,
+and the time of decoding and mask generation well, achieving
+zero-overhead token mask generation.
+3.6 Repetition State Compression
+Grammar
+String → [^\”]{20,  1024}
+Accept <1024 - k
+characters … Accept 1022
+characters
+Accept 1024
+characters
+Expand the States and
+Generate Token Mask Caches
+Compress into One State Keep Uncompressed
+Accept 1023
+characters
+Figure 5: Repetition State Compression.
+
+--- PAGE 6 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+Repetition is widely used in grammar, especially in JSON schema.
+Keywords like MinLength, MaxLength, MinItems, MaxItems ,
+etc., will generate repetition structures. If we handle the repetition
+structures trivially, then we need to generate a token mask cache
+for each possible grammar state, which is linear to the repetition
+times and time-consuming.
+We design a repetition state compression algorithm to speed up
+the process. The key insight is that in many cases, the differences
+between states within a repetition are minimal, as illustrated in Fig-
+ure 5, and we can compress the states, which bounds the size of the
+grammar. Formally, for a rule R, we introduce a special construct
+R{l, r} to describe the repetition structure. We require thatR must
+consume at least one character to avoid repetition of zero length.
+The parser state for R{l, r} is (R{l, r}, k) , where k denotes
+the time that R has repeated.
+We can divide the raw repetition structures into three cases: (1)
+For R{l,r}, if r is small, then we expand the repetition structure as
+usual, since the grammar size is small. (2) If both l and r are large,
+then we can compress this structure. The structure will be further
+transformed into a sequence of R{l - t,r - t} (t is a chosen
+threshold constant) and t of the rule R. (3) If l is small, then we
+divide the R{l, r} into R{l,t} and R{t, r} . Then, we can handle
+each one in (1) and (2), respectively. The full algorithm is shown in
+Algorithm 3.
+After the repetition state compression algorithm, all the unex-
+panded repetition structures will have a subsequence of t times
+of the rule R. Thus, when generating token mask caches, we can
+perceive the repetition structures as a single state thatonlyaccepts
+sequences conforming to R{0, t + 1} , and it significantly reduces
+the uncertainty of the token mask caches’ repetition structures. At
+runtime, we use the k of (R{l, r}, k) to check the uncertain
+tokens, which guarantees the correctness.
+This method strikes a balance between the number of states and
+the uncertainty of the token mask cache. The number of states
+remains bounded by a constant, even for large repetition ranges,
+which increases the efficiency and the robustness.
+4 Evaluation
+In this section, we evaluate the efficiency and accuracy of XGrammar-
+2 and compare XGrammar-2 with state-of-the-art structured gen-
+eration engines. Our experiments are motivated by the following
+questions:
+• How to quantify the dynamism in agentic tasks, and how
+does it affect the efficiency of structured generation? (§4.1)
+• Can XGrammar-2 handle grammar compilation and mask
+generation efficiently? (§4.2)
+• Can XGrammar-2 achieve minimal overhead for end-to-end
+function calling in LLM serving? (§4.3)
+• How effective is each optimization technique introduced in
+XGrammar-2? (§4.4)
+• Can XGrammar-2 work correctly to constrain the LLMs’
+outputs in agentic tasks? (§4.5)
+For experiments focusing on the efficiency of token mask gen-
+eration (§4.1, §4.2, §4.4, §E), we use an AMD EPYC 9654 processor.
+For the end-to-end experiment (§4.3), the setup includes an Nvidia
+RTX 5090 GPU and an Intel(R) Xeon(R) Platinum 8470Q CPU. For
+accuracy evaluation (§4.5), we utilize an Nvidia B200 GPU and an
+Intel(R) Xeon(R) Platinum 8570 CPU. The software versions are as
+follows: XGrammar, v0.1.19; llguidance, v1.2.0; Outlines, v0.2.11;
+and SGLang, v0.5.3.post3. All mask generation engines are run with
+a single thread.
+4.1 Quantifying Dynamism in Agentic Tasks
+In this section, we quantify the dynamism in agentic tasks and
+justify the necessity of abstractions and optimizations introduced
+in this work, especially the TagDispatch intrinsic and the Cross-
+grammar Cache.
+Inter-request Dynamism.The main challenge for inter-request
+dynamism is that different requests often require different struc-
+tures, making full-grammar reuse ineffective. We therefore quantify
+both whole-grammar overlap and reusable substructure overlap
+across requests.
+We choose a tool pool of 100 distinct tools from BFCL [27] and
+construct two scenarios, each containing 100 requests. In thestatic
+setting, every request uses the same 5, 20, or 50 tools to build the
+grammar. In thedynamicsetting, each request samples 5, 20, or 50
+tools uniformly at random from the tool pool. For each setting, we
+measure the reuse rate of full structures and substructures across
+requests, and report grammar compilation time in Figure 6.
+As shown in Table 1, inter-request dynamism significantly re-
+duces the reuse of complete grammar structures in the dynamic
+setting. In contrast, substructure reuse remains much higher, in-
+dicating that although full grammars change frequently across
+requests, many underlying components can still be reused. This
+suggests that reuse opportunities exist primarily below the whole-
+grammar level. Figure 6 further shows that, in the dynamic setting,
+XGrammar’s compilation cost increases rapidly with the number of
+tools due to the lack of fine-grained cache, whereas XGrammar-2
+scales much more gently with the cross-grammar cache.
+Overall, inter-request dynamism makes whole-grammar reuse
+ineffective, since complete grammars change frequently across re-
+quests. At the same time, substantial reusable substructures remain,
+motivating cross-grammar reuse for efficient structured generation.
+Intra-request Dynamism.The main challenge for intra-request
+dynamism is handling free-form text together with tag-triggered
+dynamic structures within a single request, which is cumbersome
+to express in EBNF and difficult to scale.
+To quantify this complexity, we consider a natural construc-
+tion of plain EBNF dispatching: we first build an Aho–Corasick
+automaton for tag matching and then translate it into EBNF. In this
+translation, each automaton node corresponds to a rule, and each
+transition corresponds to a rule reference. We therefore record the
+number of automaton states, the number of automaton transitions,
+and the size of the resulting EBNF to reflect the amount of grammar
+structure needed to encode the dispatching logic.
+As shown in Table 2, both the automaton size and the result-
+ing EBNF size grow rapidly as the number of tags increases. This
+indicates that implementing dispatching through plain EBNF be-
+comes increasingly cumbersome and scales poorly. In contrast,
+TagDispatch represents the dispatch structure directly, making the
+implementation much clearer and more compact.
+
+--- PAGE 7 ---
+XGrammar-2 : Efficient Dynamic Structured Generation Engine for Agentic LLMs Under Review, Feb, 27
+Total Tool
+Number
+Structure Reuse Rate (%) Substructure Reuse Rate (%)
+Static Dynamic Static Dynamic
+5 99.0 0 99.1 42.7
+20 99.0 0 99.1 51.7
+50 99.0 0 99.2 50.7
+Table 1: Structure and substructure reuse rate for static and
+dynamic workloads. Dynamic workloads fail to reuse the
+full structure, but can effectively reuse substructures.
+5 20 50
+T otal T ool Number
+10 1
+100
+101
+102
+103
+104
+Grammar Compilation Time (ms)
+28.64
+66.50
+157.64
+2175.8
+7018.9
+16581.2
+0.59 0.84
+1.31
+16.07 22.73
+42.37
+Grammar Compilation Time by T otal T ool Number
+XGrammar static
+XGrammar dynamic
+XGrammar-2 static
+XGrammar-2 dynamic
+Figure 6: Average Grammar compilation time for static and
+dynamic workloads. Dynamic workloads significantly in-
+crease compile time.
+#Tags Total Length of Tags AC#𝑆 AC#𝐸 EBNF Size
+5 50 50 98 341
+20 200 197 392 1356
+50 500 477 952 3299
+100 1000 942 1882 6529
+Table 2: Measured sizes of the naturally constructed EBNF
+grammar. AC #S means the number of states in the AC Au-
+tomaton; AC #E is the number of transitions in the AC Au-
+tomaton.
+4.2 Grammar Processing Efficiency
+In this section, we will evaluate the efficiency of grammar compi-
+lation and mask generation among several structured generation
+engines. We evaluate two major structures for agent tasks: function
+calling and response protocols are common scenarios for dynamic
+structured generation.
+In this part, we choose CONFETTI [3] as our dataset. CONFETTI
+provides a collection of functions and ground-truth contexts for
+large language models, consisting of both natural language text and
+function calls. This dataset effectively simulates real-world function-
+calling scenarios. We modify the dataset to two common formats:
+Llama’s tool calling format and OpenAI Harmony Response Format.
+The results are shown in Figure 7, Figure 8.
+0% 20% 40% 60% 80% 100%
+Cumulative Distribution Function
+101
+102
+103
+Time (us)
+Per-token-mask Generation Time(Llama's T ool Calling Format)
+llguidance
+XGrammar
+XGrammar-2
+0% 20% 40% 60% 80% 100%
+Cumulative Distribution Function
+101
+102
+103
+Time (us)
+Per-token-mask Generation Time(OpenAI Harmony Response Format)
+llguidance
+XGrammar
+XGrammar-2
+Figure 7: Average Per-token Overhead in Llama’s Tool Calling
+Format and OpenAI Harmony Response Format.
+0% 20% 40% 60% 80% 100%
+Cumulative Distribution Function
+101
+102
+103
+104
+Time (ms)
+Grammar Compilation Time(Llama's T ool Calling Format)
+llguidance
+XGrammar
+XGrammar-2
+0% 20% 40% 60% 80% 100%
+Cumulative Distribution Function
+101
+102
+103
+104
+Time (ms)
+Grammar Compilation Time(OpenAI Harmony Response Format)
+llguidance
+XGrammar
+XGrammar-2
+Figure 8: Compilation Time in Llama’s Tool Calling Format
+and OpenAI Harmony Response Format.
+
+--- PAGE 8 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+The results show that XGrammar-2 has an advantage in per-
+token overhead, while llguidance has about 250 us per-token over-
+head with OpenAI Harmony Response Format and a more than 1000
+us per-token overhead with Llama’s Tool Calling Format. XGram-
+mar also performs well on per-token overhead. However, for dy-
+namic structured generation tasks, mask generation engines cannot
+know all the grammar at the very beginning. It will introduce huge
+overhead if the engine needs a long compilation time. The results
+of compilation time show that XGrammar-2 has a compilation time
+of about 10 ms, while XGrammar needs more than 1000 ms to com-
+pile. XGrammar-2 performs well on both per-token overhead and
+compilation time, which demonstrates that XGrammar-2 shows
+superior performance in grammar execution.
+4.3 End-to-end LLM Engine Evaluation
+The results in §4.2 demonstrate that XGrammar-2 shows superior
+performance in grammar execution. In this section, we evaluate
+the overhead introduced by constrained decoding in real-world
+settings and examine whether our method achieves low-overhead
+structured generation for dynamic structured generation. We adopt
+BFCL-v3[27] as the dataset. BFCL-v3 is a dataset consisting of com-
+binations of tools and prompts, which can be used to measure
+models’ ability to call functions. Thus, we can apply structured
+generation engines on the models to stimulate the real serving
+scenarios. We use Qwen-0.6B, Llama3.2-1B, Llama3.2-3B-Instruct,
+and Llama3.1-8B as the test models, and run the test with SGLang.
+SgLang-v0.5.3.post3 with Outlines-v0.2.11 cannot support dynamic
+structured generation like tool-calling. SgLang-v0.5.3.post3 with
+llguidance-v1.2.0 can support dynamic structured generation, but it
+results in empty outputs for Qwen3-0.6B and induces language drift
+from pure English to other languages in Llama3.1-8B. The results
+are shown in Figure 9 and Table 3.
+Qwen3-0.6B Llama3.2-1B Llama3.2-3B Llama3.1-8B
+Model
+250
+500
+750
+1000
+1250
+1500
+1750
+2000
+2250
+2500Latency (ms)
+235.31
+286.01
+463.08
+1276.29
+1662.05
+1291.99
+1441.20
+2258.77
+314.19
+506.80
+249.88
+297.48
+466.83
+1296.36
+End-to-end Average Latency per Request (per Model)
+Without Constraints
+XGrammar
+llguidance
+XGrammar-2
+Figure 9: End-to-end Function Calling Latency.
+The results in Figure 9 show that compared to XGrammar, XGrammar-
+2 has about a 7x speedup over the end-to-end latency, and also a
+larger total token throughput. Besides, the gap between the re-
+sult of XGrammar-2 and the result without constraints is no more
+than 6%. Compared with llguidance, XGrammar-2 shows a small
+latency and better compatibility. The output token throughput in Ta-
+ble 3 also shows that XGrammar-2 is superior to XGrammar. This
+demonstrates that XGrammar-2 can support dynamic structured
+generation efficiently.
+Model Name Type Batch Size
+1 16 128
+Qwen3-0.6B XGrammar 462 1712 3021
+XGrammar-2 599 4287 9475
+Llama-3.2-1B XGrammar 274 861 1147
+XGrammar-2 441 2933 6640
+Llama-3.2-3B XGrammar 139 597 791
+XGrammar-2 184 1655 3830
+Llama-3.1-8B XGrammar 83 525 738
+XGrammar-2 96 920 1938
+Table 3: The output token throughput (token/s) With Differ-
+ent Models and Batch Size.
+4.4 Ablation Study of Optimization Techniques
+In this section, we further investigate the efficiency improvements
+brought by our various optimizations to better illustrate the reasons
+for our design decisions. We start with a baseline implementation
+using the Earley parser and without any of the optimizations. Based
+on the baseline, we incrementally apply the proposed optimizations,
+namely JIT compilation, cross-grammar cache, and repetition state
+compression. We choose JSONSchemaBench [ 11] as the dataset.
+JSONSchemaBench collects about 11k JSON Schemas from about 20
+lines to more than 200k lines. This dataset can be used to measure
+each optimization technique from multiple angles.
+Table 4: Ablation study of optimization techniques.
+Optimization preprocessing time to generate
+time(𝑚𝑠) the mask(𝜇𝑠)
+Baseline 4960.04 45.50
+↓
++JIT 612.07 722.47
+↓(8.1×↓) (15.9×↑)
++ Cross-grammar 534.80 333.75
+Cache (1.1×↓) (2.2×↓)
+↓
++Repetition State 5.37 126.49
+Compression (99.6×↓) (2.6×↓)
+The results show that JIT serves as a general optimization tech-
+nique that substantially improves preprocessing time, although it in-
+troduces additional overhead to generate the mask. Cross-Grammar
+Caching can generally reduce the time to generate the mask to an
+acceptable level. Besides, Repetition Compression achieves signifi-
+cant improvements on some long-tail cases.
+We also want to measure the advantages of the Earley Parser as
+an ablation study. Thus, we evaluate the efficiency of XGrammar-2,
+with PDA based parser and the Earley Parser, respectively, and both
+of them will compile the JSON schemas ahead of time. The dataset
+is JSONSchemaBench [11], and the result in Figure 10 shows that
+the Earley Parser can significantly reduce the grammar compilation.
+
+--- PAGE 9 ---
+XGrammar-2 : Efficient Dynamic Structured Generation Engine for Agentic LLMs Under Review, Feb, 27
+0.0 0.2 0.4 0.6 0.8 1.0
+Cumulative Distribution Function
+0.01
+0.10
+1
+10
+100
+1,000
+10,000
+100,000
+1,000,000Time (ms)
+JSON Schema Compilation Time
+PDA Version
+Earley Parser Version
+Figure 10: Comparison between the Earley Parser and PDA
+on JSONSchemaBench.
+Note that the long-tail is caused by the huge inputs, instead of the
+complexity of the algorithm.
+4.5 Correctness and Task-level Effectiveness
+By construction, constrained decoding guarantees that generated
+outputs conform to the target structure (e.g., JSON schema or tool-
+calling format). XGrammar-2 preserves the same constraint se-
+mantics as XGrammar, and thus both achieve 100% schema-valid
+tool-call arguments whenever a tool call is produced; the difference
+is efficiency (Section 4.3).
+Model Name Type Correct
+Call Rate
+Correct
+Schema Rate
+Llama-3.2-1B w/o XGrammar-2 6.07% 22.07%
+w/ XGrammar-2 32.84% 100.00%
+Llama-3.2-3B w/o XGrammar-2 33.12% 40.70%
+w/ XGrammar-2 77.75% 100.00%
+Llama-3.1-8B w/o XGrammar-2 59.48% 66.95%
+w/ XGrammar-2 80.93% 100.00%
+Llama-3.1-70B w/o XGrammar-2 45.60% 51.94%
+w/ XGrammar-2 86.41% 100.00%
+Table 5: The function calling accuracy rate and the JSON
+schema validity rate.
+To validate end-to-end correctness and quantify task-level im-
+pact in realistic agent settings, we evaluate on BFCL-v3 [ 27]. As
+shown in Table 5, grammar-constrained decoding (XGrammar-2)
+substantially improves BFCL function-calling outcomes for most
+models, primarily by eliminating malformed tool calls (e.g., invalid
+JSON or schema violations) that would otherwise be unexecutable
+and scored as failures. Constraint enforcement can also narrow the
+gap between small and large models; for example, XGrammar-2 en-
+ables Llama-3.2-3B to outperform an unconstrained Llama-3.1-70B
+baseline on BFCL.
+5 Related Work
+Several works focus on LLMs’ structured generation. In the very
+beginning, [35] proposed a new architecture to guide the output of
+models with pre-defined rules. PICARD[30] designs an algorithm
+to parse incrementally for Constrained Auto-Regressive decoding
+from language models. [22] proposes controlled decoding for align-
+ment of LLMs. [31] explores utilizing prompts to specify the LLMs’
+generation structure. [5, 18, 29] design finetuning technologies for
+higher quality structured generation. XGrammar-2 is orthogonal
+to these methods, and can be easily combined with them to better
+support structured generation.
+Several frameworks have been proposed to support constrained
+decoding. Outlines [33] designs an FSM-based lexer and parser, and
+it caches several of the most common lexer tokens to speed up. How-
+ever, when the LLMs output contains multiple lexemes, the caching
+algorithm cannot perform well. XGrammar [9] utilizes pushdown
+automata as the parsing backend, and it caches all the token mask
+caches in advance for better performance at runtime. However, it
+will suffer from a long compilation time in dynamic structured gen-
+eration. llguidance [12] employs an Earley parser to parse the prior
+LLM output, and it applies a series of optimization algorithms to
+reduce per-token latency. But it targets specific JSON structures and
+has not yet generalized well to dynamic structured generation in
+agentic tool-calling use cases. WGRAMMAR [32] provides a struc-
+tural template to reuse the token mask caches in the template to
+accelerate. But it has not generalized it to all similar grammar struc-
+tures. XGrammar-2 builds on top and complements these previous
+approaches by enabling dynamic structured generation through
+tag dispatch, JIT-based cross-grammar cache mechanism, Earley
+parser, and the token mask cache.
+Several LLM serving engines [ 14, 17, 21, 37] employ different
+techniques to support efficient LLM generation for multiple con-
+current users. They design various techniques such as continuous
+batching [36] for dynamic request scheduling, low-level KV cache
+technique PagedKVCache [17] for efficient memory management,
+and [34] for a more customizable and efficient attention engine.
+These LLM serving engines can leverage XGrammar-2 for more
+efficient dynamic structured generation.
+6 Conclusion
+We proposed XGrammar-2, an efficient structured generation en-
+gine for LLMs’ dynamic structured generation tasks. We designed
+a dynamic dispatching semantics to efficiently support dynamic
+structured generation. Additionally, we designed a cross-grammar
+caching mechanism based on the Earley parser. We also introduce
+just-in-time (JIT) compilation for token mask caching, building
+upon the work of XGrammar. Finally, we design a repetition com-
+pression algorithm to handle several long-tail cases. Experimental
+results demonstrate that XGrammar-2 supports dynamic structured
+generation tasks with near-zero overhead. We hope that XGrammar-
+2 can significantly enhance the efficiency of dynamic structured
+generation tasks.
+Acknowledgements
+This work is supported in part by Bosch and gifts from NVIDIA
+and Google. We also acknowledge the support of DGX B200 from
+
+--- PAGE 10 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+NVIDIA. We would also like to thank, listed alphabetically, Databricks,
+the SGLang team, the TensorRT-LLM team, the vLLM team, and
+xAI, as well as Yi Wang, Xinyu Yang, Jieyu Zhang, Wenxin Zheng,
+and Ligeng Zhu, for their insightful feedback.
+References
+[1] 1996. Information technology — Syntactic metalanguage — Extended BNF.
+[2] Alfred V. Aho and Margaret J. Corasick. 1975. Efficient string matching: an aid
+to bibliographic search.Commun. ACM18, 6 (June 1975), 333–340. doi:10.1145/
+360825.360855
+[3] Tamer Alkhouli, Katerina Margatina, James Gung, Raphael Shu, Claudia Zaghi,
+Monica Sunkara, and Yi Zhang. 2025. CONFETTI: Conversational Function-
+Calling Evaluation Through Turn-Level Interactions. arXiv:2506.01859 [cs.CL]
+https://arxiv.org/abs/2506.01859
+[4] John Bridle. 1989. Training Stochastic Model Recognition Algorithms as Net-
+works can Lead to Maximum Mutual Information Estimation of Parameters. In
+Advances in Neural Information Processing Systems, D. Touretzky (Ed.), Vol. 2.
+Morgan-Kaufmann. https://proceedings.neurips.cc/paper_files/paper/1989/file/
+0336dcbab05b9d5ad24f4333c7658a0e-Paper.pdf
+[5] Sahil Chaudhary. 2023. Code Alpaca: An Instruction-following LLaMA model
+for code generation. https://github.com/sahil280114/codealpaca.
+[6] N. Chomsky. 1956. Three models for the description of language.IRE Transactions
+on Information Theory2, 3 (1956), 113–124. doi:10.1109/TIT.1956.1056813
+[7] DeepSeek-AI, Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu
+Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, Xiaokang
+Zhang, Xingkai Yu, Yu Wu, Z. F. Wu, Zhibin Gou, Zhihong Shao, Zhuoshu Li,
+Ziyi Gao, Aixin Liu, Bing Xue, Bingxuan Wang, Bochao Wu, Bei Feng, Chengda Lu,
+Chenggang Zhao, Chengqi Deng, Chenyu Zhang, Chong Ruan, Damai Dai, Deli
+Chen, Dongjie Ji, Erhang Li, Fangyun Lin, Fucong Dai, Fuli Luo, Guangbo Hao,
+Guanting Chen, Guowei Li, H. Zhang, Han Bao, Hanwei Xu, Haocheng Wang,
+Honghui Ding, Huajian Xin, Huazuo Gao, Hui Qu, Hui Li, Jianzhong Guo, Jiashi Li,
+Jiawei Wang, Jingchang Chen, Jingyang Yuan, Junjie Qiu, Junlong Li, J. L. Cai, Jiaqi
+Ni, Jian Liang, Jin Chen, Kai Dong, Kai Hu, Kaige Gao, Kang Guan, Kexin Huang,
+Kuai Yu, Lean Wang, Lecong Zhang, Liang Zhao, Litong Wang, Liyue Zhang,
+Lei Xu, Leyi Xia, Mingchuan Zhang, Minghua Zhang, Minghui Tang, Meng Li,
+Miaojun Wang, Mingming Li, Ning Tian, Panpan Huang, Peng Zhang, Qiancheng
+Wang, Qinyu Chen, Qiushi Du, Ruiqi Ge, Ruisong Zhang, Ruizhe Pan, Runji
+Wang, R. J. Chen, R. L. Jin, Ruyi Chen, Shanghao Lu, Shangyan Zhou, Shanhuang
+Chen, Shengfeng Ye, Shiyu Wang, Shuiping Yu, Shunfeng Zhou, Shuting Pan, S. S.
+Li, Shuang Zhou, Shaoqing Wu, Shengfeng Ye, Tao Yun, Tian Pei, Tianyu Sun,
+T. Wang, Wangding Zeng, Wanjia Zhao, Wen Liu, Wenfeng Liang, Wenjun Gao,
+Wenqin Yu, Wentao Zhang, W. L. Xiao, Wei An, Xiaodong Liu, Xiaohan Wang,
+Xiaokang Chen, Xiaotao Nie, Xin Cheng, Xin Liu, Xin Xie, Xingchao Liu, Xinyu
+Yang, Xinyuan Li, Xuecheng Su, Xuheng Lin, X. Q. Li, Xiangyue Jin, Xiaojin Shen,
+Xiaosha Chen, Xiaowen Sun, Xiaoxiang Wang, Xinnan Song, Xinyi Zhou, Xianzu
+Wang, Xinxia Shan, Y. K. Li, Y. Q. Wang, Y. X. Wei, Yang Zhang, Yanhong Xu,
+Yao Li, Yao Zhao, Yaofeng Sun, Yaohui Wang, Yi Yu, Yichao Zhang, Yifan Shi,
+Yiliang Xiong, Ying He, Yishi Piao, Yisong Wang, Yixuan Tan, Yiyang Ma, Yiyuan
+Liu, Yongqiang Guo, Yuan Ou, Yuduan Wang, Yue Gong, Yuheng Zou, Yujia He,
+Yunfan Xiong, Yuxiang Luo, Yuxiang You, Yuxuan Liu, Yuyang Zhou, Y. X. Zhu,
+Yanhong Xu, Yanping Huang, Yaohui Li, Yi Zheng, Yuchen Zhu, Yunxian Ma,
+Ying Tang, Yukun Zha, Yuting Yan, Z. Z. Ren, Zehui Ren, Zhangli Sha, Zhe Fu,
+Zhean Xu, Zhenda Xie, Zhengyan Zhang, Zhewen Hao, Zhicheng Ma, Zhigang
+Yan, Zhiyu Wu, Zihui Gu, Zijia Zhu, Zijun Liu, Zilin Li, Ziwei Xie, Ziyang Song,
+Zizheng Pan, Zhen Huang, Zhipeng Xu, Zhongyu Zhang, and Zhen Zhang. 2025.
+DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement
+Learning. arXiv:2501.12948 [cs.CL] https://arxiv.org/abs/2501.12948
+[8] Daniel Deutsch, Shyam Upadhyay, and Dan Roth. 2019. A General-Purpose
+Algorithm for Constrained Sequential Inference. InProceedings of the 23rd Con-
+ference on Computational Natural Language Learning (CoNLL), Mohit Bansal and
+Aline Villavicencio (Eds.). Association for Computational Linguistics, Hong Kong,
+China, 482–492. doi:10.18653/v1/K19-1045
+[9] Yixin Dong, Charlie F Ruan, Yaxing Cai, Ruihang Lai, Ziyi Xu, Yilong Zhao, and
+Tianqi Chen. 2024. Xgrammar: Flexible and efficient structured generation engine
+for large language models.Proceedings of Machine Learning and Systems 7(2024).
+[10] Jay Earley. 1970. An efficient context-free parsing algorithm.Commun. ACM13,
+2 (1970), 94–102. doi:10.1145/362007.362035
+[11] Saibo Geng, Hudson Cooper, Michał Moskal, Samuel Jenkins, Julian Berman,
+Nathan Ranchin, Robert West, Eric Horvitz, and Harsha Nori. 2025. Gen-
+erating Structured Outputs from Language Models: Benchmark and Studies.
+arXiv:2501.10868 [cs.CL] https://arxiv.org/abs/2501.10868
+[12] Guidance-ai. 2024. GitHub - guidance-ai/llguidance: Super-fast Structured Out-
+puts — github.com. https://github.com/guidance-ai/llguidance. [Accessed 13-10-
+2025].
+[13] Caleb Helbling. 2020. Directed Graph Hashing.CoRRabs/2002.06653 (2020).
+arXiv:2002.06653 https://arxiv.org/abs/2002.06653
+[14] hiworldwzj, shihaobai, sufubao, WANDY666, FlyingFlame, llehtahw, LiangLiu,
+wxd000000, fuheaven, XHPlus, Chielo, Yang Yong, and_gate, sangchengmeng,
+wangzhihong, singularity, Shuo Yang, Wu SiYu, Tracin, Elsa Granger, Hamel
+Husain, S A G A R, SunXiaoye, Tao Peng, Uranus, Yunfeng Bai, Yunqian Fan,
+bingo, liuhuakai, and XFPlus. 2024.ModelTC/lightllm. https://github.com/
+ModelTC/lightllm
+[15] Michael Kuchnik, Virginia Smith, and George Amvrosiadis. 2023. Validating
+large language models with relm.Proceedings of Machine Learning and Systems5
+(2023), 457–476.
+[16] Dominik Kundel. 2025. OpenAI Harmony Response Format. https://cookbook.
+openai.com/articles/openai-harmony/. Accessed: 2025-10-27.
+[17] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng,
+Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Efficient Mem-
+ory Management for Large Language Model Serving with PagedAttention. In
+Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles.
+[18] Raymond Li, Loubna Ben Allal, Yangtian Zi, Niklas Muennighoff, Denis Kocetkov,
+Chenghao Mou, Marc Marone, Christopher Akiki, Jia Li, Jenny Chim, Qian Liu,
+Evgenii Zheltonozhskii, Terry Yue Zhuo, Thomas Wang, Olivier Dehaene, Mishig
+Davaadorj, Joel Lamy-Poirier, João Monteiro, Oleh Shliazhko, Nicolas Gontier,
+Nicholas Meade, Armel Zebaze, Ming-Ho Yee, Logesh Kumar Umapathi, Jian Zhu,
+Benjamin Lipkin, Muhtasham Oblokulov, Zhiruo Wang, Rudra Murthy, Jason
+Stillerman, Siva Sankalp Patel, Dmitry Abulkhanov, Marco Zocca, Manan Dey,
+Zhihan Zhang, Nour Fahmy, Urvashi Bhattacharyya, Wenhao Yu, Swayam Singh,
+Sasha Luccioni, Paulo Villegas, Maxim Kunakov, Fedor Zhdanov, Manuel Romero,
+Tony Lee, Nadav Timor, Jennifer Ding, Claire Schlesinger, Hailey Schoelkopf, Jan
+Ebert, Tri Dao, Mayank Mishra, Alex Gu, Jennifer Robinson, Carolyn Jane Ander-
+son, Brendan Dolan-Gavitt, Danish Contractor, Siva Reddy, Daniel Fried, Dzmitry
+Bahdanau, Yacine Jernite, Carlos Muñoz Ferrandis, Sean Hughes, Thomas Wolf,
+Arjun Guha, Leandro von Werra, and Harm de Vries. 2023. StarCoder: may the
+source be with you! arXiv:2305.06161 [cs.CL] https://arxiv.org/abs/2305.06161
+[19] Meta-AI. 2024. Tool calling with Llama. https://www.llama.com/resources/
+cookbook/toolcalling-with-llama/. Accessed: 2025-10-27.
+[20] Microsoft. 2026.What is Foundry Agent Service?Microsoft. https://learn.
+microsoft.com/en-us/azure/ai-foundry/agents/overview Accessed: 2026-02-22;
+Microsoft Learn documentation on Azure AI Foundry Agent Service overview.
+[21] MLC team. 2023. MLC-LLM. https://github.com/mlc-ai/mlc-llm
+[22] Sidharth Mudgal, Jong Lee, Harish Ganapathy, YaGuang Li, Tao Wang, Yan-
+ping Huang, Zhifeng Chen, Heng-Tze Cheng, Michael Collins, Trevor Strohman,
+Jilin Chen, Alex Beutel, and Ahmad Beirami. 2024. Controlled Decoding from
+Language Models. arXiv:2310.17022 [cs.LG] https://arxiv.org/abs/2310.17022
+[23] Andreas Opedal, Ran Zmigrod, Tim Vieira, Ryan Cotterell, and Jason Eisner.
+2023. Efficient Semiring-Weighted Earley Parsing. arXiv:2307.02982 [cs.CL]
+https://arxiv.org/abs/2307.02982
+[24] OpenAI, :, Sandhini Agarwal, Lama Ahmad, Jason Ai, Sam Altman, Andy Apple-
+baum, Edwin Arbus, Rahul K. Arora, Yu Bai, Bowen Baker, Haiming Bao, Boaz
+Barak, Ally Bennett, Tyler Bertao, Nivedita Brett, Eugene Brevdo, Greg Brockman,
+Sebastien Bubeck, Che Chang, Kai Chen, Mark Chen, Enoch Cheung, Aidan Clark,
+Dan Cook, Marat Dukhan, Casey Dvorak, Kevin Fives, Vlad Fomenko, Timur
+Garipov, Kristian Georgiev, Mia Glaese, Tarun Gogineni, Adam Goucher, Lukas
+Gross, Katia Gil Guzman, John Hallman, Jackie Hehir, Johannes Heidecke, Alec
+Helyar, Haitang Hu, Romain Huet, Jacob Huh, Saachi Jain, Zach Johnson, Chris
+Koch, Irina Kofman, Dominik Kundel, Jason Kwon, Volodymyr Kyrylov, Elaine Ya
+Le, Guillaume Leclerc, James Park Lennon, Scott Lessans, Mario Lezcano-Casado,
+Yuanzhi Li, Zhuohan Li, Ji Lin, Jordan Liss, Lily, Liu, Jiancheng Liu, Kevin Lu,
+Chris Lu, Zoran Martinovic, Lindsay McCallum, Josh McGrath, Scott McKin-
+ney, Aidan McLaughlin, Song Mei, Steve Mostovoy, Tong Mu, Gideon Myles,
+Alexander Neitz, Alex Nichol, Jakub Pachocki, Alex Paino, Dana Palmie, Ashley
+Pantuliano, Giambattista Parascandolo, Jongsoo Park, Leher Pathak, Carolina
+Paz, Ludovic Peran, Dmitry Pimenov, Michelle Pokrass, Elizabeth Proehl, Huida
+Qiu, Gaby Raila, Filippo Raso, Hongyu Ren, Kimmy Richardson, David Robinson,
+Bob Rotsted, Hadi Salman, Suvansh Sanjeev, Max Schwarzer, D. Sculley, Harshit
+Sikchi, Kendal Simon, Karan Singhal, Yang Song, Dane Stuckey, Zhiqing Sun,
+Philippe Tillet, Sam Toizer, Foivos Tsimpourlas, Nikhil Vyas, Eric Wallace, Xin
+Wang, Miles Wang, Olivia Watkins, Kevin Weil, Amy Wendling, Kevin Whin-
+nery, Cedric Whitney, Hannah Wong, Lin Yang, Yu Yang, Michihiro Yasunaga,
+Kristen Ying, Wojciech Zaremba, Wenting Zhan, Cyril Zhang, Brian Zhang, Ed-
+die Zhang, and Shengjia Zhao. 2025. gpt-oss-120b & gpt-oss-20b Model Card.
+arXiv:2508.10925 [cs.CL] https://arxiv.org/abs/2508.10925
+[25] OpenAI Help Center. 2025. Apps in ChatGPT. https://help.openai.com/en/articles/
+11487775-apps-in-chatgpt. https://help.openai.com/en/articles/11487775-apps-
+in-chatgpt Accessed: 2026-02-27.
+[26] Joon Sung Park, Joseph C. O’Brien, Carrie J. Cai, Meredith Ringel Morris, Percy
+Liang, and Michael S. Bernstein. 2023. Generative Agents: Interactive Simulacra of
+Human Behavior. InIn the 36th Annual ACM Symposium on User Interface Software
+and Technology (UIST ’23)(San Francisco, CA, USA)(UIST ’23). Association for
+Computing Machinery, New York, NY, USA.
+
+--- PAGE 11 ---
+XGrammar-2 : Efficient Dynamic Structured Generation Engine for Agentic LLMs Under Review, Feb, 27
+[27] Shishir G. Patil, Huanzhi Mao, Charlie Cheng-Jie Ji, Fanjia Yan, Vishnu Suresh, Ion
+Stoica, and Joseph E. Gonzalez. 2025. The Berkeley Function Calling Leaderboard
+(BFCL): From Tool Use to Agentic Evaluation of Large Language Models. In
+Forty-second International Conference on Machine Learning.
+[28] Qwen. 2024. Function Calling – Qwen. https://qwen.readthedocs.io/en/latest/
+framework/function_call.html. Accessed: 2025-10-27.
+[29] Baptiste Rozière, Jonas Gehring, Fabian Gloeckle, Sten Sootla, Itai Gat, Xiao-
+qing Ellen Tan, Yossi Adi, Jingyu Liu, Romain Sauvestre, Tal Remez, Jérémy
+Rapin, Artyom Kozhevnikov, Ivan Evtimov, Joanna Bitton, Manish Bhatt, Cris-
+tian Canton Ferrer, Aaron Grattafiori, Wenhan Xiong, Alexandre Défossez, Jade
+Copet, Faisal Azhar, Hugo Touvron, Louis Martin, Nicolas Usunier, Thomas
+Scialom, and Gabriel Synnaeve. 2024. Code Llama: Open Foundation Models for
+Code. arXiv:2308.12950 [cs.CL] https://arxiv.org/abs/2308.12950
+[30] Torsten Scholak, Nathan Schucher, and Dzmitry Bahdanau. 2021. PICARD:
+Parsing Incrementally for Constrained Auto-Regressive Decoding from Language
+Models. arXiv:2109.05093 [cs.CL] https://arxiv.org/abs/2109.05093
+[31] Bailin Wang, Zi Wang, Xuezhi Wang, Yuan Cao, Rif A. Saurous, and Yoon Kim.
+2023. Grammar Prompting for Domain-Specific Language Generation with Large
+Language Models. arXiv:2305.19234 [cs.CL] https://arxiv.org/abs/2305.19234
+[32] Ran Wang, Xiaoxuan Liu, Hao Ren, Gang Chen, Fanchao Qi, and Maosong
+Sun. 2025. WGRAMMAR: Leverage Prior Knowledge to Accelerate Structured
+Decoding. arXiv:2507.16768 [cs.AI] https://arxiv.org/abs/2507.16768
+[33] Brandon T. Willard and Rémi Louf. 2023. Efficient Guided Generation for Large
+Language Models. arXiv:2307.09702 [cs.CL] https://arxiv.org/abs/2307.09702
+[34] Zihao Ye, Lequn Chen, Ruihang Lai, Wuwei Lin, Yineng Zhang, Stephanie Wang,
+Tianqi Chen, Baris Kasikci, Vinod Grover, Arvind Krishnamurthy, and Luis Ceze.
+2025. FlashInfer: Efficient and Customizable Attention Engine for LLM Inference
+Serving. arXiv:2501.01005 [cs.DC] https://arxiv.org/abs/2501.01005
+[35] Pengcheng Yin and Graham Neubig. 2017. A Syntactic Neural Model for General-
+Purpose Code Generation. arXiv:1704.01696 [cs.CL] https://arxiv.org/abs/1704.
+01696
+[36] Gyeong-In Yu, Joo Seong Jeong, Geon-Woo Kim, Soojeong Kim, and Byung-
+Gon Chun. 2022. Orca: A Distributed Serving System for Transformer-Based
+Generative Models. In16th USENIX Symposium on Operating Systems Design and
+Implementation (OSDI 22). USENIX Association, Carlsbad, CA, 521–538. https:
+//www.usenix.org/conference/osdi22/presentation/yu
+[37] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Chuyue Sun, Jeff Huang,
+Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E. Gonzalez, Clark
+Barrett, and Ying Sheng. 2024. SGLang: Efficient Execution of Structured Lan-
+guage Model Programs. arXiv:2312.07104 [cs.AI] https://arxiv.org/abs/2312.07104
+A The Hash Algorithm for Simple Cycle
+Structure
+Algorithm 2 is the algorithm to hash the FSMs in a simple cycle
+structure.
+B The Algorithm for Repetition State
+Compression
+Algorithm 3 shows the algorithm to perform repetition state com-
+pression algorithm in detail.
+Algorithm 2Handle Simple Cycle Structure in FSM Reference
+Input:List of local hash values of simple-cycle FSMs𝐿
+Output:List of final hash values of simple-cycle FSMs𝐻
+Initialize:𝐻← [ ]
+for𝑖in range(|𝐿|)do
+ℎ←0
+for𝑗in range(|𝐿|)do
+ℎ←Hash(ℎ, 𝐿[(𝑖+𝑗)mod|𝐿|])
+end for
+𝐻 .push(ℎ)
+end for
+Algorithm 3Repetition State Compression Algorithm
+Input:A triplet(𝑚𝑖𝑛, 𝑚𝑎𝑥, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡)
+Output:A expression𝑒𝑥𝑝𝑟
+Const:𝑘𝑅𝑒𝑝𝑒𝑡𝑖𝑡𝑖𝑜𝑛𝑇 ℎ𝑟𝑒𝑠ℎ𝑜𝑙𝑑←𝑡
+if𝑚𝑎𝑥≤𝑡then
+𝑒𝑥𝑝𝑟←Expand(𝑚𝑖𝑛, 𝑚𝑎𝑥, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡)
+return
+end if
+if𝑚𝑖𝑛<𝑡then
+𝑜𝑡ℎ𝑒𝑟_𝑐ℎ𝑜𝑖𝑐𝑒𝑠←Expand(𝑚𝑖𝑛, 𝑡, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡)
+𝑐ℎ𝑜𝑖𝑐𝑒←Concat(Repeat(𝑡, 𝑚𝑎𝑥, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡),
+Expand(0, 𝑚𝑎𝑥−𝑡, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡))
+𝑒𝑥𝑝𝑟←Union(𝑐ℎ𝑜𝑖𝑐𝑒, 𝑜𝑡ℎ𝑒𝑟_𝑐ℎ𝑜𝑖𝑐𝑒𝑠)
+return
+end if
+for𝑖∈range(𝑡)do
+𝑒𝑥𝑝𝑟←Concat(𝑒𝑥𝑝𝑟, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡)
+end for
+𝑒𝑥𝑝𝑟←Concat(𝑒𝑥𝑝𝑟,Repeat(𝑚𝑖𝑛−𝑡, 𝑚𝑎𝑥−𝑡, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡))
+functionRepeat(𝑚𝑖𝑛, 𝑚𝑎𝑥, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡)
+returna repetition expression that accepts 𝑐𝑜𝑛𝑡𝑒𝑥𝑡 at least
+𝑚𝑖𝑛times and at most𝑚𝑎𝑥times
+end function
+functionExpand(𝑚𝑖𝑛, 𝑚𝑎𝑥, 𝑐𝑜𝑛𝑡𝑒𝑥𝑡)
+returnan explicit expansion equivalent to the repetition ex-
+pression
+end function
+functionUnion(𝑒𝑥𝑝𝑟 1, 𝑒𝑥𝑝𝑟 2)
+returnan expression that matches either𝑒𝑥𝑝𝑟 1 or𝑒𝑥𝑝𝑟 2
+end function
+functionConcat(𝑒𝑥𝑝𝑟 1, 𝑒𝑥𝑝𝑟 2)
+returnan expression that matches𝑒𝑥𝑝𝑟 1 followed by𝑒𝑥𝑝𝑟 2
+end function
+C More Explanation of the Hash Algorithm
+For most FSMs, this algorithm generates a consistent hash value.
+However, there are two cases where it may produce different hash
+values for FSMs with the same structure: (1) the FSM is not a de-
+terministic finite automaton (DFA); (2) there are duplicated FSMs
+in the grammars, and they are referenced by a common FSM. In
+these cases, the algorithm may generate inconsistent hash values.
+Nevertheless, this does not undermine the sufficiency of the algo-
+rithm: if two FSMs share the same hash value, they must have the
+same structure. In addition, in our implementation, we attempt
+to transform most FSMs into DFAs. Moreover, since we have a
+deterministic conversion function for JSON Schemas and regular
+expressions, two FSMs with the same structure are likely to produce
+the same hash value due to this deterministic transformation. As
+a result, we can detect and reuse identical structures within and
+across grammars maximally.
+
+--- PAGE 12 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+D Formal Definitions of the Earley Parser and
+the Token Mask Generation with Cache
+Table 6 shows the formal definition of the Earley Parser, and the
+formal definition of the token mask generation with cache.
+
+--- PAGE 13 ---
+XGrammar-2 : Efficient Dynamic Structured Generation Engine for Agentic LLMs Under Review, Feb, 27
+Earley Parser Token Mask Generation with Cache
+InputString𝑥, Length𝑁, Start Symbol𝑆,InputVocabularyV
+Grammar ProductionsP
+VariablesIndices𝑖, 𝑗, 𝑘∈ [𝑁],Token Mask Cache[∗,∗, 𝐴→𝜇 • 𝑎𝜈] → ( A,R,U )
+Non-terminals𝐴, 𝐵,A,R,U ⊂ V, 𝐴⊔ R ⊔ U=V
+Sequences𝜇, 𝜈, 𝜌, Terminal𝑎∈Σ,
+Augmented Start Symbol𝑆 ′
+State[𝑖, 𝑗, 𝐴→𝜇 • 𝜈]AcceptedA={𝑣∈𝑉:∃ [∗,|𝑣|,∗]
+derived from[0,0, 𝐴→ •𝑎𝜇]and input𝑣}
+Initialize[0,0, 𝑆 ′ → •𝑆]UncertainU={𝑣∈𝑉\ A:∃𝑖<|𝑣|,[0, 𝑖, 𝐴→𝑎𝜈 •]
+derived from[0,0, 𝐴→ •𝑎𝜈]and input𝑣 0:𝑖 }
+Goal[0, 𝑁 , 𝑆 ′ →𝑆 •]RejectedR=𝑉\ ( A ∪ U )
+Rules Generate Token Mask(At runtime):
+①Predict Rule [𝑖, 𝑗, 𝐴→𝜇 • 𝐵 𝜈] (𝐵→𝜌) ∈ P
+[𝑗, 𝑗, 𝐵→ •𝜌] ①Retrieve Token Mask
+Cache
+( A,R,U )from state[𝑖, 𝑗, 𝐴→𝜇 • 𝑎𝜈]
+②Scan Rule [𝑖, 𝑗, 𝐴→𝜇 • 𝑎 𝜈]𝑥 𝑗 =𝑎
+[𝑖, 𝑘, 𝐴→𝜇 𝑎 • 𝜈] ②Check UncertainU A ={𝑣∈ U:∃ [∗, 𝑗+ |𝑣|,∗]
+derived from[𝑖, 𝑗, 𝐴→𝜇 • 𝜈]and input𝑣}
+UR =U \ U A
+③Complete
+Rule
+[𝑗, 𝑗, 𝐵→ •𝜌] [𝑗, 𝑘, 𝐵→𝜌 • ]
+[𝑖, 𝑘, 𝐴→𝜇 𝐵 • 𝜈] ③Output Token Mask( A ′,R ′ ),A ′ =A ∪ U A,R ′ =R ∪ U R
+Table 6: Formal definitions of the Earley parser[23] and the token mask generation with cache.
+
+--- PAGE 14 ---
+Under Review, Feb, 27 Linzhang Li, Yixin Dong, Guanjie Wang, Ziyi Xu, Alexander Jiang, and Tianqi Chen
+E Mask Generation Efficiency on JSON Schemas
+Although this paper focuses on dynamic structure generation in
+agentic use cases, it is still interesting to see how XGrammar-2
+performs on generations with pre-defined static JSON schemas.
+The dataset in JSONSchemaBench [11]. The results are in Figure 11.
+XGrammar-2 can also perform well on static structured genera-
+tion tasks. Additionally, XGrammar-2 brings improved grammar
+compilation time to compile most JSON Schemas within 1 ms.
+0.0 0.2 0.4 0.6 0.8 1.0
+Cumulative Distribution Function
+0.01
+0.10
+1
+10
+100
+1,000
+10,000
+100,000
+1,000,000Time (ms)
+JSON Schema Compilation Time
+llguidance
+XGrammar
+Outlines
+XGrammar-2
+0.0 0.2 0.4 0.6 0.8 1.0
+Cumulative Distribution Function
+1
+10
+100
+1,000
+10,000Time (us)
+Per-token-mask Generation Time in JSON format
+llguidance
+XGrammar
+Outlines
+XGrammar-2
+Figure 11: JSONSchemaBench.

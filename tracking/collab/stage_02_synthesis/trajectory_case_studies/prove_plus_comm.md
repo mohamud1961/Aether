@@ -1,0 +1,78 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_06_prove_plus_comm
+- wave: wave_06_planning_orchestration_and_interactions
+- task_family: prove-plus-comm
+- systems_compared:
+  - `BigAI`
+- run_paths:
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/9d65fa58-b782-4b19-8cd2-f68bbc5e4604.json`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/cd0d69dd-3cac-47e0-9777-51327561ff6d.json`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/e2156559-1778-4aeb-93d5-3d627dc5896a.json`
+  - `research/sources/trajectories/BigAI/prove-plus-comm/9d65fa58-b782-4b19-8cd2-f68bbc5e4604-traj.txt`
+  - `research/sources/trajectories/BigAI/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9-traj.txt`
+  - `research/sources/trajectories/BigAI/prove-plus-comm/e2156559-1778-4aeb-93d5-3d627dc5896a-traj.txt`
+  - `research/sources/trajectories/BigAI/prove-plus-comm/cd0d69dd-3cac-47e0-9777-51327561ff6d.tar.gz`
+- outcome_profile:
+  - all four sampled runs pass
+  - 3/4 runs remain single-executor; 1 run escalates to two executors
+  - verifier present in all 4 runs
+  - one run exhibits explicit `FAILED -> PASSED` verifier recovery (`a3dd...`)
+- per_run_notes:
+  - `9d65...`: canonical linear flow (`planner -> executor-0 -> verifier`) with one plan, one finish signal, and final verifier pass.
+  - `a3dd...`: strongest replanning evidence in the task family. Planner marks done early, verifier fails, planner emits plan update, `executor-1` is delegated a repair branch, verifier then passes.
+  - `cd0d...`: pass with two command-level errors and no visible plan update, indicating local executor recovery without branch expansion.
+  - `e215...`: exploration-first plan style but still role-consistent and verifier-gated; command-level errors appear in exploration and cleanup phases and are absorbed before final pass.
+- cross_run_comparison:
+  - planning contract is stable: initial plan at step 3, executor handoff at step 4 in all runs.
+  - verifier gate is stable across this family; no no-verifier variant observed here.
+  - replanning depth varies by verifier pressure: shallow in clean passes, deep in the single fail-then-recover run.
+- failure_point_comparison:
+  - dominant failure pressure in this family is proof-correctness adjudication rather than environment setup.
+  - nonzero command exits can occur in passing runs; they are not terminal unless verifier still rejects proof state.
+  - the main drift risk is premature planner completion signaling before verifier closure.
+- source_or_architecture_links:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_support_planning_timeline.md`
+- behavioral_reconstruction_caveats:
+  - All claims are behavioral reconstruction from trajectory artifacts; hidden controller scheduling and policy logic remain unobserved.
+- mechanism_implications:
+  - `prove-plus-comm` supports a mechanism card for verifier-triggered replanning with role-boundary preservation.
+  - planner done-signaling should be treated as provisional until verifier acceptance.
+- failure_implications:
+  - without verifier gate, this family would likely over-accept early planner completion.
+  - explicit delegation after verifier failure appears to be a reliable recovery path in this slice.
+- confidence_notes:
+  - high confidence in role order, verifier gate presence, and the single explicit fail-then-recover loop.
+  - medium confidence in generalizing this proof-task behavior to broader non-proof tasks.
+- wave_06_codebase_source_reconstruction_addendum:
+  - additional_systems_compared:
+    - `deepagents`
+    - `terminus-kira`
+  - additional_run_paths:
+    - `research/sources/trajectories/deepagents/prove-plus-comm/e4e670dd-4a41-4366-a1ca-fc78daca1471.tar.gz`
+    - `research/sources/trajectories/terminus-kira/prove-plus-comm/790cd7ff-9610-46c7-bd4d-b86abf611418.tar.gz`
+  - source_reconciliation_links:
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - observations:
+    - deepagents prove-plus-comm sample is single-agent tool-loop with repeated `coqc` checks and explicit verify prompting; no explicit planner/executor/verifier role packets.
+    - terminus-kira prove-plus-comm sample follows analysis/plan + command-batch protocol with two-step `mark_task_complete` gating.
+    - BigAI sample remains planner/executor/verifier role-separated.
+  - inference:
+    - `prove-plus-comm` now demonstrates at least two distinct orchestration families: single-agent terminal contract (deepagents, terminus-kira) versus role-separated controller contract (BigAI behavioral reconstruction).
+  - confidence:
+    - medium
+- wave_04_tools_environment_coordination_and_long_horizon_failures_update_2026_04_11:
+  - wave_04_relevance:
+    - required role-handoff/delegation comparator for Wave 04 mixed-cause attribution.
+  - wave_04_observations:
+    - required run metadata shows explicit verifier-failed-to-replan recovery (`a3dd...`) plus otherwise stable pass closures.
+    - role packetization is strong, but this remains BigAI behavioral reconstruction.
+  - wave_04_inference:
+    - delegation/replan can be a robust recovery mechanism, but it does not remove the need for explicit mixed-cause attribution elsewhere.
+  - evidence_paths:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/9d65fa58-b782-4b19-8cd2-f68bbc5e4604.json`
+  - confidence: medium-high

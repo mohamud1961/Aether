@@ -1,0 +1,129 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/features/tools/overview/?q=
+================================================================================
+
+工具功能¶
+
+TongAgents 提供丰富的内置工具，支持智能体的各种能力需求。
+
+工具分类¶
+1. LLM 调用工具¶
+from tongagents.tools import LLMTool
+
+
+
+llm_tool = LLMTool(
+
+    model="gpt-4",
+
+    temperature=0.7
+
+)
+
+2. 搜索工具¶
+from tongagents.tools import SearchTool
+
+
+
+search = SearchTool(
+
+    provider="google",
+
+    max_results=5
+
+)
+
+3. 文件处理工具¶
+from tongagents.tools import FileTool
+
+
+
+file_tool = FileTool(
+
+    base_dir="/data"
+
+)
+
+4. 代码执行工具¶
+from tongagents.tools import CodeExecutionTool
+
+
+
+code_exec = CodeExecutionTool(
+
+    language="python",
+
+    timeout=30
+
+)
+
+5. Web 工具¶
+from tongagents.tools import WebFetchTool
+
+
+
+web_fetch = WebFetchTool()
+
+6. 数据库工具¶
+from tongagents.tools import DatabaseTool
+
+
+
+db_tool = DatabaseTool(
+
+    connection_string="postgresql://..."
+
+)
+
+内置工具列表¶
+工具名称	功能	使用场景
+llm_call	LLM 模型调用	文本生成、问答
+search	搜索引擎	信息检索
+web_fetch	网页抓取	内容获取
+code_execute	代码执行	计算、编程
+file_read	文件读取	数据加载
+file_write	文件写入	数据保存
+json_parse	JSON 解析	数据处理
+http_request	HTTP 请求	API 调用
+database	数据库操作	数据存取
+git	Git 操作	版本控制
+自定义工具¶
+from tongagents import Tool
+
+
+
+class MyCustomTool(Tool):
+
+    name = "my_custom_tool"
+
+    description = "自定义工具描述"
+
+
+
+    def run(self, input_data):
+
+        # 自定义逻辑
+
+        return {"result": "success"}
+
+工具注册¶
+from tongagents import Agent
+
+
+
+agent = Agent(
+
+    tools=[llm_tool, search, web_fetch, code_exec]
+
+)
+
+工具选择策略¶
+
+Agent 可以根据任务自动选择合适的工具：
+
+agent = Agent(
+
+    tools=[search, web_fetch, file_tool, db_tool],
+
+    tool_selection="auto"  # 自动选择
+
+)

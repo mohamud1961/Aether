@@ -1,0 +1,228 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: `failure_taxonomy/wave_03_context_state_memory_workspace_failures`
+- overall_verdict: `pass_with_warnings`
+- preflight_scope_confirmed:
+  - Confirmed review scope is Wave 03 failure attribution integrity (not primary synthesis authoring): context/state/memory/workspace family separation, runtime-memory anti-collapse, BigAI behavioral-only constraints, and mixed-cause honesty.
+  - Confirmed optional eval/benchmark fifth lane remains inactive by packet default; no first-pass claim requires forced eval-lane reactivation to avoid structural contradiction.
+- preflight_planned_read_order:
+  - Wave controls (`brief`, output manifest, `decision`, cumulative synthesis, coverage register, contradiction packet).
+  - All Wave 03 first-pass lane outputs.
+  - Cited support outputs and support-track artifacts used by lanes.
+  - Spot checks on direct trajectory/source/issue paths for promoted claims.
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_context_state_failure_map.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_workspace_persistence_map.md`
+- preflight_coverage_risks:
+  - Wave uses uneven evidence maturity across lanes (trajectory/source stronger for some families; issue-heavy pressure for others).
+  - BigAI remains no-source; mechanism causality must stay behavioral reconstruction.
+  - Some first-pass prevalence language is stronger than current sample depth.
+- preflight_likely_blind_spots:
+  - Benchmark/grader workspace-contract internals (eval lane inactive).
+  - Additional BigAI sidecar artifacts beyond `*-traj.txt` in required slices.
+  - Cross-platform reproducibility for Windows-heavy path/session corruption issues.
+- preflight_blockers: []
+- coverage_used:
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/inputs/contradiction_packet.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_context_state_failure_map.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_workspace_persistence_map.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace_failures.md`
+  - `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`
+  - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+  - `research/sources/trajectories/terminus-kira/break-filter-js-from-html/eaf5da17-d140-4652-bd00-3e6a83bf66cf-traj.txt`
+  - `research/sources/trajectories/BigAI/custom-memory-heap-crash/11834f22-09ea-4bc7-9a11-68f574976a10-traj.txt`
+  - `research/sources/trajectories/deepagents/custom-memory-heap-crash/aa903d02-9999-4aa2-8d70-3a73a4eb6d8c-traj.txt`
+  - `research/sources/trajectories/terminus-kira/custom-memory-heap-crash/3c178f63-b5da-4ffa-b4c3-225d919b72ec-traj.txt`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_runtime.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_store.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+  - `blocks/context/full_history.py`
+  - `blocks/context/sliding_window.py`
+  - `blocks/context/summarize_on_overflow.py`
+  - `blocks/context/structured_sections.py`
+  - `runner/agent.py`
+  - `runner/evaluator.py`
+  - `runner/logger.py`
+  - `evals/context_eval.py`
+  - `evals/verification_eval.py`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/benchmarks/**`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_support_context_workspace_failure_matrix.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_support_memory_state_drift_cases.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/literature_support_context_memory_failure_cluster.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_support_context_workspace_failure_cluster.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/eval_benchmark_analyst.md`
+  - full maintainer-comment threads for issue captures (HTML/comment bodies not fully traversed in this contradiction pass)
+- evidence_classes_touched:
+  - wave governance/control docs
+  - trajectory lane output and direct trajectory traces
+  - codebase lane output and direct mirrored source reads
+  - literature lane output and refreshed literature/theme dossiers
+  - informal lane output and direct issue captures
+  - local harness source surfaces (`blocks/`, `runner/`, `evals/`)
+- priority_sources_not_yet_read:
+  - `research/sources/benchmarks/**` (only needed if benchmark-contract causality is promoted)
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md` (explicitly deferred in codebase lane)
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/schedule_store.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+  - long-tail Wave 03 issue captures listed as priority by informal lane but not contradiction-checked in this pass
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_context_state_failure_map.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_workspace_persistence_map.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace_failures.md`
+- support_artifacts_requested_or_deferred:
+  - deferred by lanes: trajectory matrix pair, literature support cluster, informal support cluster
+  - contradiction view: acceptable as carry-forward only if explicitly marked as deferred debt before checklist/principal gate
+- support_artifact_gaps:
+  - Missing-on-disk support outputs expected by Wave 03 README (trajectory/literature/informal support cluster files) are currently deferred, not produced.
+  - No eval support artifact is present; consistent with inactive eval lane but must remain explicit in gate notes.
+- coverage_register_consistency:
+  - inconsistency_found: yes
+  - details:
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` still states Wave 03 as `packet-prepared, not started`, while first-pass outputs now exist for all four default lanes.
+    - This is a control-surface staleness issue that should be repaired before checklist adjudication to prevent false governance state.
+- supported_findings:
+  - finding_id: `sf_01`
+    - observation: first-pass outputs preserve family separation between context/compaction, stale memory retrieval, workspace/path drift, session persistence drift, and runtime allocator-memory.
+    - inference: no structural collapse of Wave 03 families is present in current first-pass synthesis.
+    - confidence: high
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+  - finding_id: `sf_02`
+    - observation: runtime allocator-memory surface is explicitly isolated via `custom-memory-heap-crash` evidence and source/trajectory notes.
+    - inference: anti-collapse rule against conflating runtime memory with coding-agent context memory is satisfied.
+    - confidence: high
+    - evidence_paths:
+      - `research/sources/trajectories/terminus-kira/custom-memory-heap-crash/3c178f63-b5da-4ffa-b4c3-225d919b72ec-traj.txt`
+      - `research/sources/trajectories/deepagents/custom-memory-heap-crash/aa903d02-9999-4aa2-8d70-3a73a4eb6d8c-traj.txt`
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+  - finding_id: `sf_03`
+    - observation: BigAI claims remain marked as behavioral reconstruction in all first-pass lanes.
+    - inference: no hard policy violation on BigAI source-promotion is currently visible.
+    - confidence: high
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/literature_papers_docs_analyst.md`
+  - finding_id: `sf_04`
+    - observation: mixed-cause uncertainty is repeatedly preserved instead of single-cause collapse across trajectory/codebase/informal lanes.
+    - inference: attribution discipline is generally aligned with packet requirements.
+    - confidence: medium-high
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_issues_postmortems_analyst.md`
+- unsupported_or_overclaimed_findings:
+  - finding_id: `uf_01`
+    - observation: trajectory lane compares cross-system drift intensity from thin run slices (often one required run per system/task) while using language that can be read as prevalence.
+    - inference: downgrade cross-system prevalence framing to sampled-observation wording unless backed by the deferred trajectory support matrices.
+    - confidence: medium
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/trajectory_failure_analyst.md`
+  - finding_id: `uf_02`
+    - observation: informal lane marks some cross-project clusters `high` confidence although evidence is largely issue self-report (with duplicates/not-planned closures and platform concentration).
+    - inference: keep cluster existence high, but lower confidence on cross-system causal unification until trajectory/source corroboration is expanded.
+    - confidence: medium
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_issues_postmortems_analyst.md`
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - finding_id: `uf_03`
+    - observation: codebase lane contains a path-accounting inconsistency (`research/sources/analysis/...`) that does not exist in repo topology (actual path family is `research/analysis/...`).
+    - inference: coverage accounting needs normalization to avoid citation drift and audit confusion.
+    - confidence: high
+    - evidence_paths:
+      - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+- missing_evidence_classes:
+  - none structural for the four-lane default Wave 03 packet
+  - optional-but-unread: eval/benchmark evidence class remains inactive; any strong benchmark-contract attribution should be blocked pending eval-lane reactivation
+- reconciliation_failures:
+  - `rf_01`: lane outputs acknowledge Wave 02 recovery/resume overlap, but no explicit cross-lane merge note yet demarcates exact boundary between Wave 02 recovery family and Wave 03 persistence-drift family.
+  - `rf_02`: source-rich KIRA/deepagents persistence capabilities vs trajectory-visible collapse is described but not yet reduced into a unified contradiction-resolution note consumable by principal synthesis.
+- coverage_blind_spots:
+  - trajectory prevalence quantification for Wave 03 families (deferred trajectory matrix)
+  - benchmark-contract adjudication for workspace/path assumptions (eval lane inactive)
+  - BigAI internal persistence mechanism remains opaque (behavioral-only)
+  - issue-comment/maintainer-resolution depth not systematically integrated
+- coverage_register_updates_needed:
+  - update Wave 03 status from `packet-prepared, not started` to `in progress` with all four first-pass lane outputs present
+  - add contradiction output presence and verdict at this path
+  - record deferred support artifact debt explicitly (trajectory/literature/informal support outputs)
+- required_dossier_updates:
+  - no new contradiction-only dossier edits required before gate
+  - preserve lane-declared dossier updates as pending governance follow-through; do not mark complete implicitly from contradiction pass
+- required_repairs_before_acceptance:
+  - repair control-surface staleness in `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`.
+  - normalize path accounting typo in codebase lane (`research/sources/analysis/...` -> `research/analysis/...`).
+  - either produce deferred Wave 03 support artifacts (trajectory/literature/informal) or explicitly ratify deferral with bounded impact before checklist adjudication.
+  - tighten wording on cross-system prevalence claims where current sample depth is thin.
+- optional_pressure_tests:
+  - run a bounded trajectory inventory matrix over required Wave 03 families to convert qualitative drift comparison into count-backed statements.
+  - perform a small eval-reactivation probe only for benchmark path-contract sensitivity in `break-filter-js-from-html` and `git-multibranch`.
+  - add one contradiction memo that explicitly partitions Wave 02 recovery vs Wave 03 persistence subfamilies for principal synthesis.
+- gate_review_recommendations:
+  - proceed to principal synthesis with `pass_with_warnings` only after required repairs above are completed.
+  - do not promote any Wave 03 family to `decision_ready`; keep all as bounded `candidate`/`emerging` pending repaired control surfaces and checklist pass.
+  - preserve BigAI behavioral-reconstruction caveat unchanged.
+- confidence:
+  - overall: medium-high
+  - what lowers confidence:
+    - thin prevalence support for some cross-system comparisons
+    - deferred support artifacts not yet materialized
+    - stale coverage register state relative to actual wave execution

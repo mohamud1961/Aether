@@ -1,0 +1,238 @@
+# Mechanism Map Wave 06 Planning Orchestration And Interactions Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- wave: wave_06_planning_orchestration_and_interactions
+- wave_focus_domain: planning_orchestration_and_interactions
+- objective: Build behavior-anchored mechanism cards for planning doctrine, replanning triggers, role separation, delegation, subagent use, interaction contracts, and orchestration control across the major harness families.
+- exact_question: How do the in-scope systems plan, replan, delegate, coordinate specialized roles or subagents, and keep multi-step or multi-role interaction from collapsing into hidden coupling, false confidence, or coordination drift across trajectories, source, formal literature, and informal reports?
+- new_resolution_goal: Resolve whether planning, orchestration, delegation, and interaction contracts form stable cross-system mechanism families with visible behavior and source reconciliation, or whether they are still being flattened into vague “agentic workflow” language.
+- why_prior_waves_were_not_enough: `wave_02_execution_control_and_terminal_grounding` centered control substrate, `wave_03_verification_completion_and_recovery` centered proof and cleanup, `wave_04_context_state_memory_workspace` centered state carriers, and `wave_05_tools_environment_permissions` centered tools, environment, and permissions. None made planning, replanning, role separation, delegation, or multi-agent interaction the central question.
+- why_now: The compressed 14-wave plan makes `planning_orchestration_and_interactions` the final `mechanism_map` wave. The accepted carry-forward state now isolates enough of execution, proof, state, and tool substrate to study orchestration doctrine directly instead of confusing it with lower-level mechanism surfaces.
+- lane_completion_rule: First-pass lane outputs are not wave-sufficient by default. A lane only becomes wave-sufficient if contradiction review plus principal synthesis say it is sufficient for this domain.
+- eval_fifth_lane_activated: `no`
+- eval_reactivation_rule: Activate the optional `eval/benchmark` fifth lane only if benchmark contracts or evaluator-side planner/verifier role splits become load-bearing during Wave 06 preflight.
+- support_track_dependencies:
+  - `coverage_register`
+  - `trajectory_case_studies`
+  - `source_system_dossiers`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/planning_and_replanning.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/delegation_and_role_separation.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md`
+- required_case_study_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/prove_plus_comm.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cobol_modernization.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/openssl_selfsigned_cert.md`
+- what_can_remain_unfinished_without_blocking_contradiction_review:
+  - second-tier papers beyond the selected planning, delegation, and coordination anchors
+  - long-tail issue clustering outside the selected planner drift, subagent interaction, and role handoff families
+  - extra benchmark or evaluator-role inspection unless the eval lane is reactivated
+  - dossier polish after the wave if the current wave still cites the updated support artifacts honestly
+- inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md`
+  - `prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `prompts/deep_synthesis_checklist_adjudicator_prompt.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/inputs/support_subagent_rules.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/analysis/bigai_trace_layer/output/`
+  - `research/sources/trajectories/`
+  - `research/sources/codebases/`
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - `blocks/`
+  - `runner/`
+  - `evals/`
+  - `MECHANISM_CARD_SCHEMA.md`
+  - `TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md`
+- preflight_requirements:
+  - confirm this is a vertical mechanism-domain wave centered on planning, orchestration, delegation, and interactions rather than generic execution control, state, or tool use
+  - confirm `trajectory/failure` is the primary empirical anchor and `codebase/source reconstruction` is the primary implementation anchor
+  - state explicitly why the optional `eval/benchmark` fifth lane is inactive unless reactivated during preflight
+  - list the planned read order across trajectories, source, formal literature, informal contradiction pressure, and relevant local harness surfaces
+  - name the critical trajectory slices, source systems, and contradiction-pressure sources selected for the wave
+  - identify at least one minimal-sufficient baseline that must stay visible against prestige orchestration rhetoric, such as single-agent planning with explicit replanning and no hidden subagent fan-out
+  - say which support artifacts are required before the lane can claim strong coverage
+  - stop and hand control back to the principal if the wave lacks enough trajectory or source visibility to support honest orchestration synthesis
+- scope_anchor_paths:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- evidence_classes_in_scope:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/`
+  - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/`
+  - `research/sources/trajectories/BigAI/`
+  - optional long-tail pressure from `research/sources/trajectories/*/protein-assembly/`
+  - optional long-tail pressure from `research/sources/trajectories/*/large-scale-text-editing/`
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to planning, tool sequencing, delegation, or multi-role orchestration
+- behavior_reconstruction_targets:
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - `research/analysis/bigai_trace_layer/output/question_coverage.json`
+  - `research/analysis/bigai_trace_layer/output/run_index.jsonl`
+  - `research/analysis/bigai_trace_layer/output/runs/`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - planning drift and replan trigger clusters
+  - delegation and subagent coordination clusters
+  - role handoff and interaction-contract failure clusters
+- required_case_slices:
+  - `planner-first sequencing and replanning`
+  - `delegation and subagent boundary control`
+  - `role separation and interaction contracts`
+  - `single-agent baseline versus orchestration-heavy doctrine`
+- extraction_level_cap: `L4`
+- citation_contract:
+  - every `L3` or `L4` claim must cite repo-local paths
+  - behavior claims must anchor in trajectories first
+  - implementation claims must anchor in visible source first
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+  - formal literature can sharpen or challenge claims, but should not outrank stronger direct trajectory or source evidence
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- support_subagent_policy:
+  - bounded support sub-agents are standard infrastructure for this wave
+  - use them for inventories, matrices, route maps, subsystem maps, archive triage, file discovery, paper grouping, and issue clustering
+  - support outputs must be saved explicitly and cited by the owning lane
+  - support outputs do not count as promoted mechanism claims on their own
+- contradiction_hand_off:
+  - route the first-pass lane outputs and any material follow-ups to `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst.md`
+  - attack fake orchestration prestige, unsupported multi-agent claims, hidden planner/executor coupling, weak delegation evidence, and any collapse of interaction doctrine into generic planning language
+- gate_review_plan:
+  - primary contradiction:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst.md`
+  - optional external breadth review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst__gemini.md`
+  - optional external adversarial contradiction or acceptance review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst__claude.md`
+  - primary checklist adjudication:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/adjudication/checklist_adjudicator.md`
+  - optional external checklist reviews:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/adjudication/checklist_adjudicator__claude.md`
+- carry_forward_operating_rules:
+  - update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` after the wave
+  - update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` after principal synthesis and again after checklist adjudication if the gate changes the accepted status
+  - keep `coverage_access` and extraction caveats visible rather than pretending they are closed
+  - organizer routing is still secondary to direct path accounting while organizer coverage stays incomplete
+  - keep the Wave 05 terminal-first baseline visible while testing richer orchestration and delegation stacks
+  - do not let subagent prestige outrank stronger direct single-agent or lightly structured planning evidence
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+  - `support_artifacts_used`
+  - `support_artifacts_requested_or_deferred`
+  - `coverage_register_updates_needed`
+  - `required_dossier_updates`
+  - `coverage_used` must list concrete repo-local paths or path globs actually read in the current wave
+- exclusions:
+  - do not treat this wave as `mechanism_map` completion
+  - do not produce final failure-taxonomy, eval-policy, or variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - primary main-lane outputs should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_issues_postmortems_analyst.md`
+  - if the eval fifth lane is reactivated, its output should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/eval_benchmark_analyst.md`
+  - support outputs should land in the same wave outputs directory with descriptive names such as:
+    - `trajectory_support_planning_timeline.md`
+    - `trajectory_support_delegation_interaction_map.md`
+    - `codebase_support_planner_runtime_map.md`
+    - `codebase_support_subagent_delegation_map.md`
+    - `literature_support_planning_delegation_cluster.md`
+    - `informal_support_orchestration_failure_cluster.md`
+    - `eval_support_role_contract_map.md`
+  - follow-up outputs should use:
+    - `__followup_01`
+    - `__followup_02`
+    - `__revision_01`
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst.md`
+  - interaction analysis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/interaction_analysis.md`
+  - wave principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/adjudication/checklist_adjudicator.md`
+  - cumulative artifact state must be updated at:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - coverage register must be updated at:
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis must include explicit sections for:
+    - `what_this_wave_resolved`
+    - `what_still_requires_another_wave`
+    - `local_harness_implications`
+    - `coverage_not_yet_used`
+    - `priority_sources_not_yet_read`
+    - `support_track_updates`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. This is the next governed multi-agent `mechanism_map` wave under the compressed 14-wave model.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - contradiction analyst
+  - checklist adjudicator
+  - optional eval/benchmark analyst if the fifth lane is reactivated during preflight
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`

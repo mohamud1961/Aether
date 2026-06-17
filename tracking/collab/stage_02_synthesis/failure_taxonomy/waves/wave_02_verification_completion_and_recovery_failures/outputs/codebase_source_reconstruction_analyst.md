@@ -1,0 +1,165 @@
+CODEBASE_SOURCE_RECON_OUTPUT
+- artifact: `failure_taxonomy`
+- role: `codebase/source-reconstruction analyst`
+- preflight_scope_confirmed:
+  - This pass is scoped to Wave 02 failure attribution for verifier omission, false completion, cleanup-confirmed invalid completion, replay/grader mismatch, and recovery/resume breakdown.
+  - `eval/benchmark` is treated as load-bearing for attribution boundaries, but this lane remains codebase-first and does not replace the dedicated eval lane.
+  - BigAI claims remain explicitly `behavioral reconstruction`.
+- preflight_planned_read_order:
+  - Control surfaces and wave packet: wave brief, support-subagent rules, output contract, artifact decision/cumulative synthesis, coverage register, operating plan, lane-closure criteria, Wave 01 adjudication, Wave 03 mechanism principal synthesis.
+  - Source families: `research/sources/codebases/deepagents/`, `research/sources/codebases/KIRA/`, `research/sources/codebases/a-evolve/`.
+  - Local harness surfaces: `blocks/`, `runner/`, `evals/`.
+  - Behavioral pressure for no-source family and source-behavior mismatches: required trajectory slices plus `research/analysis/bigai_trace_layer/output/`.
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+  - `research/sources/codebases/deepagents/libs/acp/deepagents_acp/server.py`
+  - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/{engine.py,session_manager.py,run_log_store.py,system_prompt.py}`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/{react_solver.py,tools.py}`
+  - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+  - `blocks/verification/{trust_model.py,checkpoint_verify.py,double_confirm.py,agent_writes_tests.py}`
+  - `blocks/recovery/{rollback.py,no_recovery.py,remediation_inject.py}`
+  - `runner/{evaluator.py,agent.py,logger.py}`
+  - `evals/{verification_eval.py,README.md}`
+  - `research/sources/trajectories/deepagents/{db-wal-recovery,cancel-async-tasks}/**/*.txt`
+  - `research/sources/trajectories/terminus-kira/{cancel-async-tasks,extract-moves-from-video}/**/*.txt`
+  - `research/sources/trajectories/BigAI/{db-wal-recovery,cancel-async-tasks,extract-moves-from-video}/**/*.txt`
+  - `research/analysis/bigai_trace_layer/output/{answered_questions.md,question_answers.json,final_harness_reconstruction.md}`
+- preflight_coverage_risks:
+  - No mirrored BigAI source is available.
+  - No direct A-Evolve trajectory run under `research/sources/trajectories/` was added in this pass.
+  - Local harness verifier/recovery/evaluator files are still scaffold-level stubs, limiting direct local implementation attribution.
+  - Several BigAI evidence bundles are tar archives; only selected text trajectories and trace-layer outputs were read.
+- preflight_likely_blind_spots:
+  - Hidden BigAI controller logic for when verifier pass still yields overall failure.
+  - Exact runtime join between DeepAgents trajectory-visible inline checks and its reusable eval harness codepath per task.
+  - A-Evolve behavior prevalence for Wave 02 task families without direct trajectory pressure.
+  - Benchmark-contract details in uninspected benchmark repos beyond read slices.
+- preflight_blockers:
+  - none.
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/{brief.md,inputs/support_subagent_rules.md,outputs/README.md}`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/{decision.md,synthesis/cumulative_synthesis.md}`
+  - `tracking/collab/stage_02_synthesis/{coverage_register/current_status.md,DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md,DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md}`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/{utils.py,external_benchmarks.py,llm_judge.py,tau2_airline/evaluation.py}`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/langsmith.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+  - `research/sources/codebases/deepagents/libs/acp/deepagents_acp/server.py`
+  - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/{engine.py,session_manager.py,run_log_store.py,system_prompt.py}`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/{react_solver.py,tools.py}`
+  - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+  - `blocks/README.md`
+  - `blocks/verification/{trust_model.py,checkpoint_verify.py,double_confirm.py,agent_writes_tests.py}`
+  - `blocks/recovery/{rollback.py,no_recovery.py,remediation_inject.py}`
+  - `runner/{agent.py,evaluator.py,logger.py}`
+  - `evals/{README.md,verification_eval.py,context_eval.py,step_efficiency_eval.py}`
+  - `research/sources/trajectories/deepagents/{db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt,cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt}`
+  - `research/sources/trajectories/terminus-kira/{cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt,extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt}`
+  - `research/sources/trajectories/BigAI/{db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt,cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt,extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt}`
+  - `research/analysis/bigai_trace_layer/output/{answered_questions.md,question_answers.json,final_harness_reconstruction.md}`
+- coverage_not_yet_used:
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`
+  - `research/sources/codebases/KIRA/KiraClaw/scripts/verify_bridge_release.sh`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+  - direct A-Evolve trajectory slices for Wave 02 task families under `research/sources/trajectories/`
+  - full BigAI tar bundles in required tasks beyond read text slices
+  - broader benchmark repos under `research/sources/benchmarks/` not directly opened this lane
+- evidence_classes_touched:
+  - `mirrored source code`
+  - `local harness code`
+  - `trajectory traces`
+  - `behavioral reconstruction outputs`
+  - `wave governance/control surfaces`
+  - `support artifacts`
+- priority_sources_not_yet_read:
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`
+  - `research/sources/benchmarks/src_bnm_f6e5d4c3b2a1/artifact.txt`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/runner.py`
+  - `research/sources/codebases/KIRA/KiraClaw/scripts/verify_bridge_release.sh`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/outputs/codebase_support_verifier_recovery_failure_map.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/outputs/codebase_support_completion_cleanup_map.md`
+- support_artifacts_requested_or_deferred:
+  - Requested support artifacts were produced directly in-lane; no additional bounded support sub-agent run was used in this pass.
+- coverage_register_updates_needed:
+  - Mark Wave 02 as `in progress` with codebase lane first-pass output present.
+  - Add produced codebase support artifacts to Wave 02 support-track state.
+  - Keep explicit warning: BigAI remains behavioral-only; A-Evolve behavior coverage remains thin.
+- required_dossier_updates:
+  - Updated this pass:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/verification_and_replay.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/checkpoint_restore_and_resumability.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_recovery_failures.md`
+    - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+    - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_recovery_failures.md`
+  - Required case-study files updated this pass:
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+- source_backed_mechanisms:
+  - `deepagents` layered verifier stack is source-visible and non-monolithic. Observation: `TrajectoryScorer.success()` hard-fails while `.expect()` logs only; separate modules implement substring checks, replay/state checks, and LLM judging. Inference: verifier omission and acceptance-quality failures must be attributed by layer (`hard assertion`, `soft expectation`, `judge`, `replay`). Confidence: `high`. Evidence: `research/sources/codebases/deepagents/libs/evals/tests/evals/{utils.py,external_benchmarks.py,tau2_airline/evaluation.py,llm_judge.py}`.
+  - `deepagents` recovery/resume substrate is source-visible but correctness-independent. Observation: state backend is step-checkpointed per thread; ACP runtime injects checkpointer and supports resume commands; session metadata persists in SQLite. Inference: resumability claims should stay separate from completion-proof claims. Confidence: `high`. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/acp/deepagents_acp/server.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`.
+  - `KIRA` completion is explicitly two-phase. Observation: first completion call triggers checklist confirmation message; template requires minimal-state-change verification. Inference: KIRA has a built-in anti-premature-completion gate, but it is protocol-level and depends on actual test quality. Confidence: `high`. Evidence: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`.
+  - `KIRA` has a source-visible run-state and trace substrate. Observation: session lanes track run lifecycle and run logs persist trace/tool events and summaries. Inference: replay/forensics support is present, but this does not automatically guarantee recovery correctness. Confidence: `high`. Evidence: `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/{session_manager.py,run_log_store.py,engine.py}`.
+  - `a-evolve` explicitly decouples completion signal from verdict. Observation: solver stops on `submit`, while benchmark adapter computes `passed` from verifier/eval outputs. Inference: failure taxonomy must treat `submit` as claim, not proof. Confidence: `high`. Evidence: `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/{react_solver.py,tools.py}`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`.
+  - `a-evolve` recovery is source-backed via versioning. Observation: rollback restores prior state as new commit (history-preserving), with tag/worktree support. Inference: recovery mechanism supports forensic rollback attribution, not silent reset. Confidence: `high`. Evidence: `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`.
+  - `local harness` verifier/recovery interfaces are defined but unimplemented in read files. Observation: `blocks/verification/*`, `blocks/recovery/*`, `runner/evaluator.py`, and `evals/verification_eval.py` are docstring stubs. Inference: current local harness cannot yet provide defended Wave 02 failure controls in code. Confidence: `high`. Evidence: `blocks/verification/trust_model.py`, `blocks/recovery/rollback.py`, `runner/evaluator.py`, `evals/verification_eval.py`.
+- behavioral_reconstructions:
+  - `BigAI` shows planner/executor/verifier role separation and repeated verifier loops. Observation: trace-layer outputs report explicit verifier statuses and fail-to-pass recovery patterns. Inference: strong verifier-mediated behavioral family exists, but mechanism internals remain unobserved. Confidence: `medium` (weakened by no source). Evidence: `research/analysis/bigai_trace_layer/output/{answered_questions.md,question_answers.json,final_harness_reconstruction.md}`.
+  - `BigAI` shows verifier-pass/overall-failure divergence. Observation: trace-layer synthesis records runs where verifier `PASSED` still coexists with failed overall outcome. Inference: final acceptance must remain separate from verifier status in taxonomy. Confidence: `medium` (behavioral reconstruction). Evidence: `research/analysis/bigai_trace_layer/output/{answered_questions.md,question_answers.json}`.
+- subsystem_findings:
+  - `verifier layer`: DeepAgents has plural verifier modes; KIRA has completion-gate protocol; A-Evolve externalizes adjudication; BigAI behaviorally externalizes verifier role.
+  - `completion layer`: A-Evolve `submit` and KIRA `task_complete` are explicit completion-claim APIs; neither alone is benchmark proof.
+  - `cleanup layer`: BigAI and KIRA trajectories show cleanup/delivery hygiene pressure; DeepAgents trajectories show inline cleanup checks; cleanup is inconsistently first-class in source code across families.
+  - `replay/recovery layer`: DeepAgents and KIRA expose persistent state/session infrastructure; A-Evolve exposes git rollback/versioning; BigAI recovery is behavioral-only.
+  - `local-harness gap`: planned block interfaces exist but code-level verifier/recovery logic is not yet implemented in read local files.
+- source_behavior_matches:
+  - KIRA two-step completion source matches repeated `mark_task_complete` confirmation prompts in trajectory pressure runs. Evidence: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+  - DeepAgents source-visible separation of hard/soft eval checks matches trajectory pattern where strong inline checks are needed before defended closure. Evidence: `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`.
+  - A-Evolve source split between submit and external evaluation matches source-level benchmark adapter contract (`passed` derived externally). Evidence: `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`, `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`.
+- source_behavior_mismatches:
+  - KIRA completion-gate protocol can still reach contested completion pressure in perception-heavy runs with unresolved count contradictions (`201`/`230`/`262`). This weakens any claim that gate protocol alone prevents false completion. Confidence: `medium`. Evidence: `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`.
+  - DeepAgents has rich reusable eval code, but required trajectories often rely on inline run-authored checks instead of clearly traceable framework verifier path for that task. Confidence: `medium` (join incomplete). Evidence: `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`.
+  - BigAI behavioral verifier strength cannot be mapped to source-backed mechanisms due to missing source tree. Confidence: `high` on limitation. Evidence: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`.
+- archive_or_visibility_limits:
+  - BigAI: no mirrored source repository available in corpus.
+  - BigAI: many run bundles are tar archives; this lane used selected readable trajectories and trace-layer syntheses.
+  - A-Evolve: no direct Wave 02 trajectory family under `research/sources/trajectories/` was added in this pass.
+  - Local harness: many relevant files are still interface stubs with no implementation to inspect.
+- confidence_notes:
+  - `high`: source claims tied directly to inspected files in DeepAgents/KIRA/A-Evolve.
+  - `medium`: source-to-trajectory joins where runtime path is plausible but not fully traced (especially DeepAgents task-level verifier path).
+  - `medium`: BigAI mechanism claims (behavioral reconstruction only).
+  - Weakening factors for medium claims: missing BigAI source, sparse A-Evolve behavior pressure, and uninspected benchmark long-tail code.
+- open_questions:
+  - Which Wave 02 failures are dominated by weak acceptance policy (`soft checks`, judge-only checks) versus genuine model/tool errors?
+  - In DeepAgents-required Wave 02 tasks, what fraction of defended success comes from framework evaluators versus inline run-authored checks?
+  - For KIRA, can completion checklists be bound to mandatory executable checks to reduce contested completion on multimodal tasks?
+  - For A-Evolve, how often does `submit` precede eventual benchmark failure in direct trajectories for this wave family?
+  - Which benchmark-contract mismatches are attributable to grader design versus harness completion doctrine?
+- next_hand_off_target:
+  - `trajectory/failure analyst` to tighten per-run causal attribution on contested completion and recovery loops.
+  - `eval/benchmark analyst` to pin benchmark-contract and grader/replay mismatch boundaries.
+  - `principal synthesis` after contradiction pass, with BigAI still marked behavioral-only and no decision-ready promotion.

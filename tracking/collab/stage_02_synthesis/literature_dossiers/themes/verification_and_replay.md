@@ -1,0 +1,200 @@
+LITERATURE_DOSSIER
+- dossier_type: theme
+- topic:
+  - `verification and replay`
+- scope:
+  - Formal benchmark-contract, verifier, replay, and provenance sources relevant to completion proof, false-completion prevention, and replay/verification coupling in tool-using agent systems.
+  - Keeps formal literature subordinate to stronger trajectory and source evidence on minimal-sufficient artifact-backed proof, family-local completion doctrine, and cleanup confirmation.
+- primary_sources:
+  - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt` - `Terminal-Bench: Benchmarking Agents on Hard, Realistic Tasks in Command Line Interfaces`
+  - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt` - `VeRO: An Evaluation Harness for Agents to Optimize Agents`
+  - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt` - `DeepPlanning: Benchmarking Long-Horizon Agentic Planning with Verifiable Constraints`
+  - `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt` - `MCPAgentBench: A Real-world Task Benchmark for Evaluating LLM Agent MCP Tool Use`
+  - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt` - `Verified Multi-Agent Orchestration: A Plan-Execute-Verify-Replan Framework for Complex Query Resolution`
+  - `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt` - `Agentic Rubrics: Scaling Test-Time Verification for Software Engineering`
+  - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt` - `Replayable Financial Agents: A Determinism-Faithfulness Assurance Harness for Tool-Using LLM Agents`
+  - `research/sources/papers/papers_text/src_pap_45e5459616e1.txt` - `Reasoning Provenance for Autonomous AI Agents: Structured Behavioral Analytics Beyond State Checkpoints and Execution Traces`
+- secondary_sources:
+  - `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt` - `Harness design for long-running application development`
+  - `research/sources/docs/bigai/translated/architecture_plan_execute.md` - `Tong-Agent Architecture: Planner and Executor`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+- coverage_used:
+  - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_2531fb990b03.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_d4370863a7e0.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_9c739fa97b90.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.{txt,meta.json}`
+  - `research/sources/papers/papers_text/src_pap_45e5459616e1.{txt,meta.json}`
+  - `research/sources/docs/src_doc_f4ab21a8c943/{artifact.txt,capture.json}`
+  - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__claude.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__gemini.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`
+  - `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`
+  - `research/sources/papers/papers_text/2603.17100.txt`
+  - `research/sources/papers/papers_text/src_pap_ca5c7b42ffd1.txt`
+  - `research/sources/papers/papers_text/src_pap_7a8b9c0d1e2f.txt`
+- evidence_classes_touched:
+  - `papers`
+  - `docs`
+  - `trajectory contradiction pressure`
+  - `source contradiction pressure`
+  - `wave synthesis outputs`
+- priority_sources_not_yet_read:
+  - `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`
+  - `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`
+  - `research/sources/papers/papers_text/2603.17100.txt`
+  - `research/sources/papers/papers_text/src_pap_ca5c7b42ffd1.txt`
+  - `research/sources/papers/papers_text/src_pap_7a8b9c0d1e2f.txt`
+- formal_claims:
+  - observation: The strongest formal sources treat completion as a layered contract rather than a single stop rule. `Terminal-Bench`, `DeepPlanning`, and `MCPAgentBench` define externally checkable task success, while `VeRO` adds standardized observation, versioning, and trace capture around evaluation. Evidence: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`. Inference: formal benchmark doctrine is strong on completion contracts and replay surfaces, but it does not collapse those into one mechanism. Confidence: `high`
+  - observation: The formal literature slice is verifier-heavy. `Verified Multi-Agent Orchestration` puts verification inside a replan loop, `Agentic Rubrics` turns repository-grounded criteria into explicit test-time verification, and the Anthropic and Tong-Agent docs both describe planner-executor-review patterns. Evidence: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`. Inference: formal sources disproportionately emphasize explicit verifier or evaluator stacks relative to lighter-weight self-audit patterns. Confidence: `high`
+  - observation: Replay literature separates correctness from reproducibility and from reasoning transparency. `Replayable Financial Agents` distinguishes trajectory determinism, decision determinism, and faithfulness, while `VeRO` and `Reasoning Provenance` argue for structured trace and provenance capture beyond a raw final answer. Evidence: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`. Inference: replay, provenance, and grading are adjacent but distinct mechanism families, not mere implementation details of verification. Confidence: `high`
+- benchmark_or_definition_notes:
+  - `Terminal-Bench` is outcome-driven and checks final container state rather than the agent's command stream or console narrative: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`.
+  - `DeepPlanning` evaluates long-horizon planning under verifiable constraints and rule-based checkers rather than free-form human judgment: `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`.
+  - `MCPAgentBench` combines completion with efficiency and distractor-tool pressure in a local MCP setting: `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`.
+  - `VeRO` makes harness versioning, structured observation, and reproducible execution part of the benchmark contract itself: `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`.
+  - `Replayable Financial Agents` uses `trajectory determinism`, `decision determinism`, and `pass@k` style replay assurance terminology rather than a single binary replay concept: `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`.
+- mechanism_relevance:
+  - This theme supports a mechanism split between benchmark-visible completion, in-loop verifier gating, and replay/provenance assurance rather than one merged `verification` mechanism: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`.
+  - It is directly useful when comparing explicit verifier stacks to lighter completion proof patterns in DeepAgents, KIRA, and A-Evolve, where the direct evidence still supports minimal-sufficient artifact-backed proof as a real family: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+- failure_relevance:
+  - The verifier-heavy formal slice is useful for false-completion prevention, but it says less about cleanup confirmation and delivery hygiene than the trajectory and source lanes do: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`.
+  - Cleanup-confirmation remains underrepresented in the formal corpus despite being load-bearing in Wave 03 direct evidence: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`.
+- eval_relevance:
+  - This theme is load-bearing for eval design because benchmark contracts, evaluator loops, replay fidelity, and provenance requirements all change what counts as `complete` or `verified`: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`.
+  - It also sharpens the distinction between a verifier passing and an overall run succeeding, which the Wave 03 contradiction passes explicitly keep separate: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__claude.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst__gemini.md`.
+- contradictions:
+  - Formal sources overrepresent explicit verifier stacks, while direct evidence still supports minimal-sufficient artifact-backed proof and lightweight confirmation gates as real completion families rather than degenerate cases: `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+  - Formal benchmark contracts mostly validate end state, efficiency, or structured trace quality, but Wave 03 direct evidence shows that family-local completion doctrine also includes cleanup confirmation and delivery hygiene: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`.
+  - Provider docs from Anthropic and Tong-Agent are useful intent surfaces, but they do not outrank stronger trajectory or source evidence and should not be treated as direct implementation proof: `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+- confidence_notes:
+  - High confidence: the formal corpus is strong on benchmark contracts, explicit verifier architectures, replay fidelity, and provenance vocabulary because those claims rest on clean paper captures with convergent findings: `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`, `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`, `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`, `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`, `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`, `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`.
+  - Medium confidence: Anthropic and Tong-Agent help characterize stated verifier intent, but they are provider documentation rather than stronger code or trajectory evidence: `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`, `research/sources/docs/bigai/translated/architecture_plan_execute.md`.
+  - Medium confidence: the current judgment that cleanup confirmation is formally underrepresented could change if unread sources prove unusually strong on delivery hygiene or cleanup proof. Weakening factors: `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`, `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`, `research/sources/papers/papers_text/2603.17100.txt`.
+- open_questions:
+  - Is there a clean formal source that represents the minimal-sufficient artifact-backed proof family already visible in DeepAgents, KIRA, and A-Evolve better than the current verifier-heavy slice does?
+  - Which unread formal sources, if any, elevate cleanup confirmation or delivery-directory hygiene into a first-class completion criterion?
+  - How should replay determinism and reasoning provenance be weighted when a verifier passes but overall completion still fails?
+- downstream_use:
+  - `mechanism_map` synthesis for verification/completion/replay cards
+  - `eval_implications` work on benchmark contracts, replay, and grader separation
+  - `variant_family_seeds` work that needs to distinguish explicit verifier stacks from lighter proof surfaces
+- wave_01_literature_pressure_update_2026_04_10:
+  - context: `failure_taxonomy` Wave 01 (`execution_control_and_terminal_failures`) formal-lane carry-forward.
+  - observation: Benchmark and replay papers define completion by measured contracts (tests/end state, efficiency, replay fidelity), not by plausible terminal narratives.
+  - inference: Wave 01 must carry `verifier omission` and `benchmark-blindness` as explicit failure axes whenever run behavior is not checked against benchmark contract surfaces.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`
+    - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+    - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - observations:
+    - Wave 01 trajectories repeatedly show that execution-control success claims fail without explicit verifier closure or artifact-level postcondition checks.
+    - KIRA two-step completion and BigAI verifier-role closures are convergent anti-false-success controls, but neither removes the need for robust case design and cleanup checks.
+    - DeepAgents headless and WAL slices reinforce that inline verification can be strong, but verifier-path attribution must remain explicit when source linkage is incomplete.
+  - inferences:
+    - failure taxonomy should separate `verification presence`, `verification quality`, and `cleanup-gated acceptance` as distinct axes.
+    - replay-friendly evidence (scripts, outputs, explicit pass/fail markers) is load-bearing for contradiction review in execution-control waves.
+  - confidence:
+    - high for observed trajectory-level failure patterns
+    - medium for source-level causality where verifier internals are unmirrored
+  - evidence_paths:
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - trajectory_pressure_alignment:
+    - required Wave 02 trajectories show direct instances where in-run verifier/success signaling diverges from final benchmark acceptance.
+  - observations:
+    - replay/grader-final acceptance mismatch is concrete in required cancel and extract slices (`reward.txt`/`ctrf.json` fail despite in-run success claims).
+    - verifier omission in high-risk extraction slices creates a direct false-completion path.
+  - inference:
+    - Wave 02 failure taxonomy should promote a dedicated family for `in-run verification signal != final acceptance gate` rather than folding this into generic verifier weakness.
+  - confidence:
+    - high (paired trajectory + verifier bundle evidence)
+  - evidence_paths:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf.tar.gz`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd.tar.gz`
+- wave_02_verification_completion_recovery_failures_update_2026_04_10:
+  - scope:
+    - Failure Taxonomy Wave 02 formal-source attribution for verifier omission, false completion, replay mismatch, and benchmark-contract blindness.
+  - newly_read_sources:
+    - `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`
+    - `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`
+    - `research/sources/docs/src_doc_c91153d296ea/artifact.txt`
+  - observations:
+    - Benchmark papers continue to define completion by external contracts, not by self-reported completion.
+    - Verifier-rich papers/docs separate generation and evaluation as independent roles with explicit stop conditions or gates.
+    - Replay/provenance work distinguishes decision-level agreement from trace/provenance consistency, preserving mismatch risk.
+    - Deterministic policy/provenance guardrails are proposed because model-only safety/verifier heuristics are insufficient in adversarial settings.
+  - inferences:
+    - `verifier omission` and `benchmark-contract blindness` should remain explicit failure families in Wave 02.
+    - `verifier pass != final success` remains a required anti-collapse guardrail for contradiction review.
+    - `replay/grader/final acceptance mismatch` is formally expected, not an edge-case artifact.
+  - confidence:
+    - high for benchmark-contract and verifier-layer separation claims
+    - medium for direct transfer of safety-policy papers into all benchmark-contract regimes
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+    - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+    - `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`
+    - `research/sources/papers/papers_text/src_pap_dfc5da528d9d.txt`
+    - `research/sources/papers/papers_text/src_pap_45e5459616e1.txt`
+    - `research/sources/papers/papers_text/src_pap_815287df3ad8.txt`
+    - `research/sources/papers/papers_text/src_pap_6560d0e7d057.txt`
+    - `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt`
+    - `research/sources/docs/src_doc_c91153d296ea/artifact.txt`
+- wave_02_codebase_source_reconstruction_pressure_update_2026_04_10:
+  - observation:
+    - source-backed code paths in DeepAgents and A-Evolve show that completion adjudication is multi-layered (`hard assertions`, `replay/state checks`, `judge checks`, `external pass/fail parsing`) and can diverge from agent completion signals.
+    - KIRA source adds explicit completion-confirmation protocol but not a hard binding from checklist to executable verifier proof.
+  - inference:
+    - Wave 02 failure taxonomy should explicitly separate `completion asserted`, `verifier passed`, `replay/state contract passed`, and `final benchmark acceptance`.
+    - verifier-heavy formal claims remain useful, but required source slices show concrete mixed-mode adjudication that can produce mismatch failures.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+- wave_02_eval_benchmark_lane_update_2026_04_10:
+  - observations:
+    - Formal benchmark contracts in captured benchmark pages emphasize externally checkable success and comparability constraints, but do not supply full grader implementation in this corpus slice.
+    - Mirrored eval source confirms operational separation between hard correctness checks, replay/state checks, and judge-based criteria.
+  - inference:
+    - For Wave 02 failure attribution, formal benchmark prose should pressure taxonomy labels, while implementation-level causal claims should anchor on mirrored code and verifier bundles.
+  - confidence:
+    - high for boundary claim (`contract prose` vs `implementation proof`).
+  - evidence_paths:
+    - `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+    - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/artifact.txt`
+    - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/artifact.txt`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/external_benchmarks.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py`
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/llm_judge.py`

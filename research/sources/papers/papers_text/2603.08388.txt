@@ -1,0 +1,1870 @@
+--- PAGE 1 ---
+A Hierarchical Error-Corrective Graph Framework for Autonomous
+Agents with LLM-Based Action Generation
+Cong Caoa, Jingyao Zhangb and Kun Tongc
+aIndependent Researcher, Hangzhou, Zhejiang, China
+bBeihang University, Hangzhou, Zhejiang, China
+cBeihang University, Hangzhou, Zhejiang, China
+ARTICLE INFO
+Keywords:
+LLM autonomous planning
+robot action execution
+graph retrieval
+transition policy
+ABSTRACT
+While the integration of Reinforcement Learning (RL) and Large Language Models (LLMs) has
+enabled agents to generate high-level action plans for complex embodied tasks, robust execution
+remains an open challenge. Existing approaches struggle with three critical limitations: Firstly,
+traditional methods typically rely on single-dimensional metrics or simple weighted scoring mech-
+anisms, which makes it difficult to comprehensively characterize the transferability of strategies
+in different tasks. This limitation is particularly pronounced in dynamic or partially observable
+environments.Secondly,currentagentfeedbackmechanismsoftenfocussolelyonoveralltasksuccess
+orfailure,withoutprovidingstructuredattributionforthecausesoffailure.Finally,existingRetrieval-
+Augmented Generation (RAG) methods have achieved some success in mitigating LLM hallucina-
+tions, but their retrieval processes primarily depend on vector similarity or token-based matching,
+capturingonlysuperficialsemanticproximityandfailingtofullyleveragethestructuredrelationships
+among historical experiences, actions, and events. This limitation restricts retrieval quality, semantic
+alignment, and contextual consistency. To address these issues, we propose a Hierarchical Error-
+CorrectiveGraphFramework(HECG)forAutonomousAgentswithLLM-BasedActionGeneration,
+which incorporates three core innovations: (1) Multi-Dimensional Transferable Strategy (MDTS):
+By integrating task quality, execution cost, risk, and LLM-based semantic reasoning scores, MDTS
+achieves multi-dimensional alignment for the precise selection of high-quality candidate strategies,
+effectively reducing negative transfer risk. (2) Error Matrix Classification (EMC): Unlike simple
+confusion matrices, EMC provides structured attribution by categorizing errors into ten types based
+on severity and recoverability, offering clear and actionable guidance for subsequent error correction
+andreplanning.(3)Causal-ContextGraphRetrieval(CCGR):CCGRconstructgraphsfromhistorical
+states, actions, and event sequences to identify subgraphs most relevant to the current context. This
+captures deep structural dependencies beyond flat vector similarity, allowing agents to accelerate
+strategy adaptation and improve execution reliability. Extensive experiments in simulated embodied
+environments (e.g., VirtualHome) demonstrate that HECG significantly outperforms state-of-the-art
+LLM planners, achieving substantial improvements in task success rates, execution efficiency, and
+errorrecovery.Ultimately,ourframeworkbridgesthegapbetweenhigh-levelsemanticreasoningand
+robust low-level execution in complex, multi-step tasks. The implementation and experimental code
+are publicly available at:https://gitlab.com/magicmaster356a/cozy-hierplan
+1. Introduction
+Recentadvancesinautonomousroboticsandmulti-robot
+systems have enabled increasingly complex tasks in un-
+structured and dynamic environments. Robots are now ex-
+pected to perform sequential actions, adapt to unforeseen
+disturbances, and collaborate efficiently with other agents.
+Traditional approaches often include three core aspects of
+autonomous/multi-robotsystems:Perception,Planning,and
+Collaboration [1].
+A number of recent works have explored hybrid or
+learning-based solutions that partially alleviate execution
+uncertaintyandcoordinationcomplexity.Forinstance,com-
+bining classical planning with reinforcement learning (RL)
+has shown promise in dynamic and multi-agent navigation
+settings. A recent study by Zhao [2] integrates Voronoi par-
+titioning with deep RL to improve multi-robot exploration
+efficiencyanddynamicobstacleavoidanceinunknownenvi-
+ronments. Similarly, decentralized, real-time, asynchronous
+∗Corresponding author: magicmaster356a@gmail.com
+ORCID(s):
+probabilistic trajectory planning frameworks have demon-
+strated improved success rates in cluttered and dynami-
+cally changing scenarios. In industrial and applied robotics,
+collaborative paradigms—such as those discussed in sur-
+veys from venues like Sukhatme’s research—emphasize ro-
+bustness, safety, and real-world timing constraints, high-
+lighting the need for adaptive and intelligent coordination
+strategies beyond idealized simulation environments [3].
+However, while these approaches enhance adaptability and
+navigation robustness, they do not directly address several
+deeper structural limitations in transfer and error reason-
+ing. Most existing transfer mechanisms still rely primarily
+on single-dimensional performance indicators (e.g., cumu-
+lative reward or success rate), which are insufficient to
+capture semantic compatibility and contextual alignment
+between source and target tasks. As a result, policy selec-
+tion may remain vulnerable to negative transfer despite im-
+proved learning-based control. Likewise, execution failures
+are often summarized through aggregate metrics, without a
+structured mechanism to analyze failure type, source, and
+severity—limitingthesystem’sabilitytoperformsystematic
+C. Cao et al.:Preprint submitted to ElsevierPage 1 of 19
+arXiv:2603.08388v3  [cs.AI]  22 Mar 2026
+
+--- PAGE 2 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 1:A categorization of autonomous robot methods.
+corrective refinement. Furthermore, retrieval or reuse of
+priorexperienceindynamicenvironmentstypicallydepends
+on flat similarity matching, overlooking the causal and se-
+quential dependencies embedded in historical state–action
+trajectories, thereby constraining generalization and long-
+horizon adaptability.
+This paper proposes a Hierarchical Error Correction
+(HEC) framework that integrates large language model
+based action generation with structured error-driven execu-
+tion. In this framework, an LLM outputs a set of optional
+actions(actioncandidates),whichareexecutedsequentially.
+Execution outcomes are monitored using task-specific error
+metrics:
+•If the observed error is below a defined threshold, the
+system proceeds to the next step automatically.
+•Iftheerrorexceedsthethreshold,amulti-levelcorrec-
+tion mechanism is triggered.
+The HECG framework operates across three hierarchical
+levels. At the first level, Local Correction performs fine-
+grained parameter adjustments to individual actions (e.g.,
+minor end-effector repositioning). The second level, Op-
+tional Action Switching, enables strategy-level corrections
+by selecting alternative actions from a predefined optional
+set (e.g., switching from grasping to pushing when dealing
+with obstacles). Task Re-Planning is the third level, which
+provides high-level corrections by regenerating the entire
+action sequence while preserving historical failure informa-
+tion,ensuringthatpreviouslyunsuccessfulstrategiesarenot
+repeated. A key innovation of this work is the integration
+of a graph-structured task representation with hierarchical
+error correction. Each node in the graph corresponds to an
+actionorsubgoal,encapsulatingtheactioncontent,expected
+outcome, local threshold, and local correction rules. Edges
+representtaskflowsoroptionaltransitions,includingdefault
+paths, alternative branches, error-correction paths, and fall-
+backmechanisms.Thisstructureenableserror-drivengraph
+traversal,inwhichexecutiondynamicallyadaptstoobserved
+failures. When errors remain below predefined thresholds,
+the system continues along the main task path. If errors
+exceed these thresholds, corrective edges are activated to
+invoke appropriate local or strategy-level corrections. In
+cases of persistent or repeated failures, higher-level fallback
+edges are triggered, potentially leading to task re-planning
+or escalation to human intervention.
+By combining hierarchical correction with graph-based
+task representation, the proposed framework provides ro-
+bust, adaptive, and interpretable decision-making for au-
+tonomous agents. The main contributions of this work are
+summarized as follows:
+1.Multi-DimensionalTransferableStrategy(MDTS):
+We introduce a novel strategy selection mechanism
+that integrates task quality, execution cost, risk, and
+LLM-based semantic scores. This design enables
+precise strategy selection while effectively mitigating
+negative transfer across tasks.
+2.Error Matrix Classification (EMC):We propose a
+structured error attribution mechanism that classifies
+taskfailuresbasedonseverityandrecoverability.This
+framework provides actionable guidance for multi-
+levelerrorcorrectionandimprovessystemrobustness.
+3.Causal-Context Graph Retrieval (CCGR):We de-
+signagraph-basedretrievalmethodthatcapturesboth
+structuralandcausaldependenciesinhistoricaltrajec-
+tories. Compared to traditional flat similarity match-
+ing, CCGR significantly enhances retrieval quality
+and long-horizon adaptability.
+2. Related Work
+2.1. LLM-based Planning for Embodied Agents
+Recent advances in large language models (LLMs) have
+significantly influenced task planning and decision-making
+for embodied agents. By leveraging rich world knowledge
+and strong reasoning capabilities, LLMs have been used to
+generate high-level action sequences for robots in manip-
+ulation, navigation, and multi-step task execution scenar-
+ios. For example, representative systems integrate LLMs
+with feedback loops and modular recovery mechanisms to
+improve robustness in manipulation and navigation tasks,
+formalizing task planning as a goal-conditioned Markov
+decisionprocesswithexpliciterrormitigationstrategies[4].
+Other representative works such as SayCan [5], Joublin [6],
+InteLiPlan [7] and ProgPrompt [8] demonstrate how LLMs
+can translate natural language instructions into executable
+robot actions by integrating symbolic reasoning with low-
+level controllers. Other efforts focus on constraining the
+output of an LLM for safer and more reliable planning,
+incorporating formal logic or chain-of-thought reasoning
+to reduce unsafe or infeasible action proposals in service
+robotics domains [9]. More recent research further explores
+structuredalignmentbetweenhigh-levellanguagereasoning
+and executable control primitives, introducing intermediate
+representations or action abstraction layers to ensure se-
+mantic consistency between generated plans and embodied
+affordances [10]. Such approaches enhance controllability
+andexecutionfidelitybybridginglanguage-basedreasoning
+with grounded policy execution. Additionally, hierarchical
+C. Cao et al.:Preprint submitted to ElsevierPage 2 of 19
+
+--- PAGE 3 ---
+Hierarchical Error-Corrective Graph Framework
+LLM planners have been proposed to support multi-robot
+teamsandevent-drivenreplanning,demonstratingthatstruc-
+tureddecompositionandlocaleventmonitoringcanenhance
+adaptabilityunderexecutiondisturbances[11].Thesemeth-
+ods illustrate the ongoing push toward integrating symbolic
+reasoning and feedback awareness in LLM-based planners.
+Despite these advances, many LLM planners still treat
+executable actions as fixed sequences with limited error-
+aware execution control. They often rely on coarse suc-
+cess/failure signals or post-hoc replanning without a sys-
+tematic hierarchy of error thresholds and corrective actions
+duringexecution.Inaddition,theseapproachestypicallyas-
+sumereliableperceptionandactuationorrelyonsimplesuc-
+cess/failure signals. As a result, LLM-generated plans often
+degrade in real-world environments due to sensor noise, ex-
+ecutionuncertainty,orincompleteenvironmentunderstand-
+ing. Several studies and surveys have reported that, without
+structured feedback or correction mechanisms, LLM-based
+planners often produce brittle plans that lack robustness
+under real-world disturbances. Works like Robot planning
+with LLMs highlight that language models alone are insuf-
+ficient for responsive execution due to limited grounding
+in sensorimotor feedback, and must be integrated with per-
+ception and control modules to achieve reliable embodied
+behavior [12, 13, 14].
+2.2. Error-aware Execution and Recovery
+While LLM-based planners enhance high-level reason-
+ing and task decomposition, robust embodied execution
+fundamentally depends on structured feedback and error-
+aware control mechanisms. Unlike the reasoning-oriented
+approaches discussed in Section 2.1, this line of work fo-
+cuses on mitigating execution uncertainty arising from per-
+ception noise, actuation deviation, and environmental dy-
+namics.
+At the foundation of robotic robustness lies classical
+closed-loop control. Model-based controllers continuously
+incorporate sensor feedback to compensate for motion er-
+ror and environmental perturbation [15]. These methods
+provide strong guarantees at the motion level, but they
+typically operate below the semantic task abstraction and
+do not explicitly reason about symbolic task failure.At the
+tasklevel,structuredexecutionframeworkssuchasBehavior
+Trees (BTs) and Finite State Machines (FSMs) introduce
+modular fallback and recovery policies [16]. By explic-
+itly encoding failure conditions and recovery transitions,
+these representations improve predictability and reliability
+in industrial and service robotics. Their hierarchical control
+flow allows predefined corrective actions to be triggered
+underspecificerrorstates,enablinginterpretableandsafety-
+aware execution. However, their robustness largely depends
+on manually designed failure branches and domain-specific
+rules, limiting scalability to open-ended or novel tasks.
+More recent research attempts to introduce adaptivity
+into structured planners. The SDA-PLANNER framework
+incorporates state dependency modeling and error-adaptive
+repair strategies, dynamically regenerating action subtrees
+based on execution feedback [17]. Similarly, approaches
+combining LLM reasoning with semantic digital twins
+leverage environment-grounded simulation to iteratively
+refine plans and enable context-aware correction strategies,
+demonstrating improved robustness in embodied bench-
+marks such as ALFRED [18]. These efforts move beyond
+static fallback rules by incorporating environment-aware
+monitoring and partial replanning.
+Learning-basedmethodsfurthergeneralizerecoverybe-
+haviors. Hierarchical reinforcement learning (HRL) decom-
+posescomplextasksintosub-policiescapableoflocaladap-
+tation while maintaining global objectives [19]. Imitation
+learning has also been explored to capture human recovery
+strategies in manipulation and navigation tasks. These ap-
+proaches show empirical gains in adaptability compared to
+purely rule-based systems.
+Despitetheseadvances,severallimitationspersist.First,
+many structured frameworks rely on reactive recovery trig-
+gered by binary success/failure signals, lacking graded or
+multi-level error modeling. Second, learning-based recov-
+ery mechanisms often require extensive training data and
+remain difficult to interpret or verify. Third, although recent
+systems attempt to integrate LLM reasoning with execu-
+tion feedback, the coupling is frequently loose: high-level
+plans are corrected post hoc rather than being generated
+with explicit awareness of execution-level uncertainty. As a
+result,recoveryremainslocalandreactive,ratherthanbeing
+embedded within a principled hierarchy of error thresholds
+and corrective strategies.
+Overall,existingfeedback-drivenexecutionmethodssig-
+nificantly improve robustness at the control and subtask
+levels.However,asystematicintegrationofhigh-levelsym-
+bolic planning with structured, multi-level error manage-
+ment remains underexplored. This gap motivates the de-
+velopment of planning frameworks that incorporate error-
+awareness directly into the planning-execution loop.
+2.3. Retrieval for Decision Making
+Retrieval-Augmented Generation (RAG) has emerged
+as an effective paradigm for mitigating hallucinations and
+improvingcontextualgroundinginLargeLanguageModels.
+The original RAG framework proposed by Lewis et al. [20]
+integratesdenseretrievalwithsequencegeneration,enabling
+modelstoconditionoutputsonexternalknowledgesources.
+Subsequent work such as REALM by Guu et al. [21] fur-
+ther demonstrated the benefits of end-to-end differentiable
+retrieval for knowledge-intensive tasks. In embodied and
+decision-making settings, retrieval mechanisms have been
+increasingly adopted to provide contextual grounding for
+high-level planning and reasoning.
+However,mostexistingRAG-basedapproachesrelypri-
+marilyonvectorsimilaritysearch,typicallyimplementedus-
+ingdenseembeddingsandnearest-neighborretrieval.While
+effective for semantic matching, such methods often over-
+look structural, causal, and temporal dependencies embed-
+dedinembodiedtrajectories.Insequentialdecision-making
+C. Cao et al.:Preprint submitted to ElsevierPage 3 of 19
+
+--- PAGE 4 ---
+Hierarchical Error-Corrective Graph Framework
+tasks, particularly under partially observed or dynamic en-
+vironments, the relationships among states, actions, and
+events are inherently compositional and structured. Purely
+embedding-basedretrievalmayretrievesemanticallysimilar
+but structurally incompatible trajectories, leading to subop-
+timal policy adaptation or inconsistent planning.To address
+these limitations, recent research has explored structured
+memory representations. Memory-augmented agents such
+as DeepMind’s Gato [22] and generative agents proposed
+by Park et al. [23] demonstrate how structured memory
+and event abstraction can improve long-horizon coherence
+and decision consistency. In robotics and embodied AI, ap-
+proachesleveragingscenegraphs,taskgraphs,andrelational
+worldmodelsencodeinteractionsamongobjectsandactions
+asgraphstructures,enablingreasoningoveraffordancesand
+causal dependencies rather than isolated tokens or embed-
+dings [24].
+Causal-Context Graph Retrieval (CCGR) further extend
+this idea by organizing historical trajectories into nodes
+(states, actions, subgoals) and edges (temporal transitions,
+causaleffects,orsemanticrelations).Comparedtoflatvector
+databases,graph-structuredmemoriespreservehigher-order
+dependencies, enabling subgraph matching and structural
+similarity search [25, 26]. This allows agents to retrieve not
+only semantically related experiences but also structurally
+aligned execution patterns, which is particularly beneficial
+for multi-step task adaptation and transfer learning [27,
+28].Despite these advances, integration between retrieval
+and transfer evaluation remains limited. Existing methods
+often treat retrieval as a preprocessing step for genera-
+tion, without jointly considering policy transferability, error
+profiles, or execution uncertainty. Moreover, vector-based
+retrieval alone cannot capture multi-dimensional transfer
+signals such as reward trends, confidence metrics, or LLM-
+derived semantic consistency scores [29]. In light of these
+limitations, our framework introduces Graph-Based Re-
+trieval(GraphRetrieve)tostructurehistoricalstates,actions,
+and event sequences into a graph memory. By performing
+subgraph-level relevance matching conditioned on current
+task context, the system captures structural dependencies
+beyond embedding similarity. Combined with our multi-
+dimensional transfer evaluation (Q, C, R, LLM-Score) and
+structured error matrix classification, this approach enables
+more reliable experience reuse, reduces negative transfer,
+and enhances execution robustness in complex embodied
+environments.
+3. Method
+3.1. Overview
+Large Language Models (LLMs) have shown strong
+capabilitiesinhigh-levelplanningandsequentialreasoning,
+enabling embodied agents to translate natural language in-
+structions into action sequences. However, a key challenge
+remains:themismatchbetweengeneratedplansandenviron-
+ment dynamics often leads to execution failures, especially
+in long-horizon tasks.
+This challenge arises from theplan–environment align-
+ment gap, where the LLM’s implicit world model diverges
+from the grounded simulator state. Such misalignment can
+manifest as incorrect assumptions about object states, miss-
+ing environmental preconditions, or stochastic execution
+outcomes. In long-horizon settings, these deviations accu-
+mulate over time, causing cascading failures and reducing
+overall task reliability.
+To address this issue, we focus onrobust execution of
+LLM-generatedplansratherthanimprovingplangeneration
+itself. Given a natural language instruction𝑇and an LLM-
+generated action sequence
+𝜋= (𝑎 1, 𝑎2,…, 𝑎 𝑛),(1)
+our goal is to execute𝜋reliably in stochastic and partially
+observable environments, minimizing failure propagation
+and unnecessary global replanning.
+We propose theHierarchical Error-Corrective Control
+Graph (HECG)framework, which reformulates plan execu-
+tionasagraph-based,feedback-drivenprocess.Specifically,
+we represent the plan as a directed graph
+𝐺= (𝑉 , 𝐸),(2)
+where nodes correspond to executable actions or subgoals,
+and edges encode transitions conditioned on execution out-
+comes and error types. This formulation enables dynamic
+adaptation during execution, rather than rigidly following a
+predefined sequence.
+HECG integrates three key mechanisms. First, anError
+Matrix Classification (EMC)module categorizes execution
+failuresbasedonseverityandrecoverability,enablingstruc-
+tured error attribution. Second, aCausal-Context Graph
+Retrieval(CCGR)moduleretrievesrelevantsubgraphsfrom
+past trajectories, allowing the agent to reuse structured re-
+coverystrategies.Third,aMulti-DimensionalTransferStrat-
+egy (MDTS)selects candidate actions or policies by jointly
+considering task quality, execution cost, risk, and semantic
+alignment.These components are unified through ahierar-
+chical transition policythat organizes recovery into three
+levels: local action correction, alternative action selection,
+and task-level replanning. As a result, minor deviations are
+handled locally, while more severe inconsistencies trigger
+higher-level adaptations.
+By combining structured error classification, graph-
+based retrieval, and hierarchical control, HECG transforms
+brittle sequential execution into arobust, adaptive process,
+improving long-horizon stability and reducing reliance on
+costly global replanning.
+3.2. Graph-Based Retrieval
+We store experience as a graph𝐺= (𝑉 , 𝐸)where
+nodes represent states, observations, actions, and outcomes,
+and edges encode temporal and causal relations (“action
+causes transition”, “state enables action”, “failure leads to
+recovery”).Givenacurrentcontext,retrievalaimstoidentify
+a subgraph that matches both semantic intent (goal and
+C. Cao et al.:Preprint submitted to ElsevierPage 4 of 19
+
+--- PAGE 5 ---
+Hierarchical Error-Corrective Graph Framework
+constraints)andstructuralsimilarity(relevanttransitionpat-
+terns).Theretrievedsubgraphprovides(i)candidateactions,
+(ii) known failure modes, and (iii) recovery patterns to
+condition the LLM planner and the execution controller.
+Eachnode𝑣 𝑖 ∈𝑉intheHECGrepresentsanexecutable
+action or an intermediate subtask, serving as the fundamen-
+talunitformodelingbothnominalexecutionanderror-aware
+recovery. Formally, a node is defined as a tuple:
+𝑣𝑖 =⟨𝑡 𝑖, 𝑎𝑖, ̂ 𝑜𝑖, 𝜖𝑖, 𝐶𝑖, 𝑛𝑖⟩(3)
+where each component explicitly captures different aspects
+of action execution under uncertainty. Specifically,𝑡𝑖 en-
+codestask-levelsemanticinformation,includingthesubtask
+nameandthesetofrelevantenvironmentobjects,grounding
+high-level task intent into a concrete execution context. The
+action𝑎 𝑖 denotes the executable primitive or skill (e.g.,
+grasp,move,push), which can be directly issued to the low-
+level controller or motion planner. The expected outcomê 𝑜𝑖
+specifies the desired post-condition of the action, such as an
+object being grasped or a target location being reached, and
+serves as the reference for monitoring execution success.
+Thelocalerrorthreshold𝜖 𝑖 definesacceptabledeviation
+bounds between the observed execution outcome and the
+expected outcome, enabling the system to distinguish be-
+tween minor execution noise and significant failures. When
+deviations exceed this threshold, a set of predefined local
+correction rules𝐶 𝑖 can be triggered to perform lightweight
+recovery actions, such as reattempting a grasp or adjust-
+ing the approach trajectory, without immediately invoking
+global replanning. Finally,𝑛𝑖 specifies the subsequent con-
+nected node(s), allowing the graph to represent both linear
+progressions and branching execution paths.
+Transitionsbetweennodesareencodedasdirectededges
+𝑒𝑖𝑗 ∈𝐸, which are defined as:
+𝐸 ⊆ 𝑉×𝐾×𝑉 , 𝑒 𝑘
+𝑖𝑗 = (𝑣 𝑖, 𝑘, 𝑣𝑗), 𝑘∈𝐾(4)
+Each edge captures not only the source and destination
+nodes but also the semantic type of the transition, explicitly
+modeling different execution and recovery behaviors. The
+edge type set is defined as:
+𝐾= {main,opt,corr,fb}(5)
+which includes:
+•Main execution edges: define the nominal task flow
+generated by the LLM.
+•Optional edges: connect alternative actions or skills
+that achieve the same subgoal, providing redundancy
+under execution uncertainty.
+•Correctionedges:activatedwhenlocalerrorsexceed
+the predefined threshold, enabling targeted, node-
+level recovery.
+•Fallback edges: allow the system to escalate from
+local correction to higher-level recovery strategies,
+suchasswitchingsubtaskorderorinvokingtask-level
+replanning.
+Byexplicitlyseparatingnominalexecution,localcorrec-
+tion, and high-level fallback mechanisms within the graph
+structure, HECG enables structured reasoning over failure
+modes and recovery strategies. This representation allows
+the agent to adapt its behavior dynamically based on real-
+time execution feedback, improving robustness while main-
+taining interpretability and reducing unnecessary global re-
+planning.
+3.3. Multi-Dimensional Transfer Strategy
+3.3.1. Transition Policy
+Given the HECG representation, where nodes encode
+executable actions or subtasks and edges encode nominal,
+optional, corrective, and fallback transitions, the remaining
+challenge is to determine which outgoing edge should be
+activated at each execution step under partial observability
+and execution uncertainty. Rather than relying on a fixed
+priority ordering or deterministic rules, we associate each
+candidate transition𝑒 𝑘
+𝑖𝑗 with a probabilistic transition pol-
+icy that dynamically evaluates its suitability based on both
+structured signals and high-level semantic reasoning.
+Specifically,atruntime,theagentmaintainsabeliefstate
+𝑏𝑡 capturing task progress and abstract execution context,
+as well as a low-level observation𝑜 𝑡 reflecting the cur-
+rent environment and robot state. For each outgoing edge
+from the current node𝑣𝑖, the agent computes a transition
+probability that integrates task value, execution cost, risk
+awareness,andLLM-basedsemanticfeasibility.Thispolicy
+formulationenablestheHECGgraphtofunctionnotmerely
+asastaticcontrolstructure,butasanadaptivedecisiongraph
+thatrespondscontinuouslytoexecutionfeedback.Formally,
+theprobabilityofselectingatransitionfromnode𝑣 𝑖 tonode
+𝑣𝑗 with semantic type𝑘is defined as:
+𝜋𝑘
+𝑖𝑗(𝑏𝑡, 𝑜𝑡) =Softmax
+(
+𝛼𝑄𝑘
+𝑖𝑗(𝑏𝑡) −𝛽𝐶 𝑖𝑗(𝑜𝑡)
+−𝛾𝑅 𝑖𝑗(𝑜𝑡) +𝜆Φ LLM
+𝑖𝑗 (𝑏𝑡, 𝑜𝑡)
+) (6)
+This formulation decomposes transition selection into com-
+plementary components. The value term𝑄 𝑘
+𝑖𝑗(𝑏𝑡)captures
+long-horizon task utility and progress within the HECG
+graph, analogous to an MDP-style action-value function
+definedoverabstractbeliefstates.Theexecutioncost𝐶 𝑖𝑗(𝑜𝑡)
+penalizes transitions that are inefficient in terms of time,
+energy,ormotioncomplexity,whiletheriskterm𝑅 𝑖𝑗(𝑜𝑡)es-
+timates failure likelihood or safety hazards based on current
+observations. Crucially, the LLM-based scoreΦLLM
+𝑖𝑗 (𝑏𝑡, 𝑜𝑡)
+injects semantic and commonsense reasoning into the deci-
+sionprocess,allowingtheagenttoprefertransitionsthatare
+logically consistent with task intent, object affordances, and
+causalconstraintsthatmaynotbeexplicitlyencodedinlow-
+level models. The coefficients𝛼, 𝛽, 𝛾, 𝜆control the relative
+influence of these factors.
+Each selected transition is grounded in a low-level skill
+𝜅𝑖𝑗 ∈ skill, whose execution induces a stochastic observa-
+tion transition, thereby closing the loop between symbolic
+decision-making and continuous control:
+𝑝(𝑜𝑡+1 ∣𝑜 𝑡, 𝜅𝑖𝑗)(7)
+C. Cao et al.:Preprint submitted to ElsevierPage 5 of 19
+
+--- PAGE 6 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 2:Structure of HECG Transition Policy.The agent selects among alternative action strategies by integrating task value,
+cost, risk, and LLM-based scores, and determines the final action via a softmax policy under partial observability.
+Example:TransitionSelectionwithLLMParticipation.
+Consider a node𝑣𝑖 corresponding to the subtask “pick up a
+mug from the table”, with three outgoing transitions:
+•Main edge𝑒 main
+𝑖𝑗 : grasp mug directly.
+•Optional edge𝑒 opt
+𝑖𝑘 : reposition gripper and then grasp.
+•Fallbackedge𝑒 fb
+𝑖𝑙:clearsurroundingobjectsandretry.
+Suppose the robot observes that the mug is partially oc-
+cluded.Thedirectgrasptransitionhashightaskvalue𝑄but
+also elevated risk𝑅. The optional transition incurs slightly
+highercost𝐶butlowerrisk.Meanwhile,theLLMassignsa
+high semantic feasibility scoreΦLLM to the optional transi-
+tion, reasoning that “adjusting the gripper before grasping
+is appropriate when the object is occluded.” The fallback
+transitionreceivesalowerLLMscore,asclearingthetableis
+semantically unnecessary at this stage. After combining all
+termsthroughtheSoftmaxpolicy,theoptionaledgeachieves
+the highest probability and is selected. If this transition
+later fails repeatedly, the accumulated risk increases and
+probability mass naturally shifts toward the fallback edge,
+enabling escalation without explicit rule-based switching.
+This example illustrates how HECG integrates structured
+decisionsignalsandLLMreasoningtoachieveadaptiveand
+interpretable transition selection.
+3.3.2. Control-Theoretic View of Error-Triggered
+Transitions
+To explicitly model execution deviations and enable
+robusterrorhandling,wedefinethelocalexecutionerrorfor
+a node𝑣𝑖 as
+𝑒𝑖 =𝛿(𝑜 𝑡, ̂ 𝑜𝑖)(8)
+where𝑜 𝑡 is the current observation and̂ 𝑜𝑖 is the expected
+outcome of the action associated with𝑣𝑖. This error metric
+quantifies the discrepancy between actual and desired out-
+comes, providing a principled basis for activating different
+transitions in the HECG. Using this error signal, transi-
+tionsaretriggeredaccordingtoastate-dependent,threshold-
+based policy:
+𝜋𝑘
+𝑖𝑗 =
+⎧
+⎪
+⎪
+⎨
+⎪
+⎪⎩
+1, 𝑘=main, 𝑒 𝑖 ≤𝜖 𝑖
+2, 𝑘=corr, 𝜖 𝑖 < 𝑒 𝑖 ≤𝜖 max
+𝑖
+3, 𝑘=fb, 𝑒 𝑖 > 𝜖 max
+𝑖
+0,otherwise
+(9)
+where𝜖 𝑖 and𝜖 max
+𝑖 denote the local and maximum tolerable
+error thresholds, respectively. Intuitively, main edges are
+taken when execution is within acceptable bounds, correc-
+tion edges are activated when the deviation exceeds lo-
+cal tolerance but remains recoverable, and fallback edges
+are triggered when errors surpass the maximum threshold,
+prompting higher-level replanning or recovery. This formu-
+lation naturally yields a hybrid switching system, where the
+HECG transitions are governed by state-dependent guards
+based on real-time execution feedback.
+Fromaformalperspective,theHECGcanbeinterpreted
+as a guarded finite-state automaton
+𝐴= (𝑉 , 𝐸,Σ, 𝐺)(10)
+where𝑉and𝐸correspond to the nodes and edges of the
+graph,Σis the observation alphabet, and𝐺(𝑒 𝑖𝑗)denotes
+guard conditions defined over belief and error states. Each
+guardencodesthethresholdlogicdescribedabove,enabling
+theagenttoswitchbetweennominal,corrective,andfallback
+C. Cao et al.:Preprint submitted to ElsevierPage 6 of 19
+
+--- PAGE 7 ---
+Hierarchical Error-Corrective Graph Framework
+behaviors in a structured and interpretable manner. This
+automatonviewhighlightstheHECG’sdualnatureasbotha
+planninggraphandacontrolsystem,bridgingsymbolictask
+reasoning with control-theoretic robustness.
+3.4. Error Matrix Classification
+3.4.1. Three-Level Error Correction
+We define an error matrix that indexes failures bytype
+(e.g., perception, planning, control),source(sensor noise,
+occlusion, actuation slip, constraint violation), andseverity
+(recoverable locally vs. requiring replanning). During exe-
+cution, observed error signals are mapped into the matrix to
+decide the correction level:
+•L1 Local correction:small continuous adjustments
+(re-grasp offsets, trajectory refinement).
+•L2Optionswitching:chooseanalternativeactionor
+policy from a candidate set.
+•L3 Task replanning:regenerate the plan with con-
+straints derived from failure history.
+•L4 Human-in-the-loop:safety or repeated failure
+triggers escalation.
+The first level of correction focuses on local, low-cost
+recoverystrategiesthatdonotaltertheglobaltaskstructure.
+When the error slightly exceeds the predefined threshold,
+the system applies a set of local correction rules𝐶𝑖 asso-
+ciated with the current action node. These rules typically
+include continuous or parameter-level adjustments, such as
+fine-tuning the end-effector pose, reattempting a grasp with
+modifiedforceororientationparameters,orrefiningmotion
+trajectories to compensate for minor disturbances. Since
+these corrections are computationally inexpensive and fast
+to execute, they enable rapid recovery from small, recover-
+able deviations while maintaining execution efficiency and
+stability.
+If local corrections repeatedly fail or if the error magni-
+tude exceeds a higher escalation threshold, the system tran-
+sitions to optional action switching. At this level, the agent
+selects an alternative action node connected via optional
+edgesintheHierarchicalExecutionControlGraph(HECG).
+These optional actions represent discrete strategy variations
+that remain compatible with the overall task objective. For
+instance, if a direct grasp action fails persistently, the agent
+may switch to pushing the object into a more favorable
+configuration, repositioning the robot base, or approaching
+theobjectfromadifferentdirection.Optionalactionscanbe
+generated dynamically by a Large Language Model (LLM)
+during planning or predefined based on domain expertise.
+This level enables structured strategy adaptation without
+triggering a full task replanning process.
+When both local action correction and optional action
+switching fail to resolve the execution error, the system
+escalates to task-level replanning. At this stage, the com-
+plete execution context—including accumulated failure his-
+tory, rejected action nodes, and updated environmental con-
+straints—is fed back into the LLM to synthesize a revised
+task plan. Crucially, actions that have previously failed are
+explicitly annotated to prevent their repetition in the newly
+generated plan. The updated plan is then re-encoded into a
+revisedHECG,allowingexecutiontoresumewithimproved
+robustness and informed decision-making. In extreme cases
+involving persistent failure or safety-critical conditions, the
+system may further escalate to a human-in-the-loop inter-
+vention node, ensuring safe and controlled recovery.
+3.4.2. Error-Driven Graph Traversal Algorithm
+Execution follows an error-driven traversal over the Hi-
+erarchical Error Correction Graph (HECG). The process
+begins by initializing the traversal at the root node, after
+whichtheactionassociatedwiththecurrentnodeisexecuted
+intheenvironment.Thesystemthenevaluatestheexecution
+outcome by computing an error metric and comparing it
+against a predefined threshold. Based on the magnitude
+and type of the observed error, the hierarchical correction
+policy is invoked to select the most appropriate outgoing
+edge, determining whether to proceed, correct, or replan
+at a higher level of abstraction. The execution history is
+continuously updated to preserve contextual information
+for subsequent decisions, and this cycle repeats until the
+task is successfully completed or a termination condition is
+reached. By structuring execution as an adaptive traversal
+rather than a fixed sequence of actions, this mechanism
+enables the control flow to respond robustly to real-world
+uncertainties and execution failures.
+3.4.3. Error Classification
+To systematically handle execution failures, we catego-
+rize errors that may arise during task execution. Table 1
+summarizes typical error types, severity levels, associated
+actions, and recoverability. Additional error categories are
+included beyond the initial four examples to cover more
+realistic scenarios in embodied execution.
+This extended classification helps the HECG system
+distinguish between recoverable, partially recoverable, and
+unrecoverable failures, guiding the appropriate correction
+strategy—from local action adjustment to optional action
+switching, or task-level replanning.
+4. Experiments
+4.1. Tasks and Environments
+All experiments are conducted in a simulated environ-
+ment designed to evaluate hierarchical task planning and
+execution under realistic uncertainty. The widely-used em-
+bodied AI and task planning datasetVirtualHomeprovides
+programmatichouseholdscenarioswithannotatedactionse-
+quencesandincludesdiversetasktypes,rangingfromsimple
+single-object manipulations to complex multi-room inter-
+action sequences. This makes it a comprehensive testbed
+for evaluating our proposed Hierarchical Error-Correcting
+Graph (HECG) framework.
+In our experiments, we consider a set of representa-
+tive tasks, including READBOOK, PUTDISHWASHER, PRE-
+PAREFOOD, and PUTFRIDGE, across different scenes such
+C. Cao et al.:Preprint submitted to ElsevierPage 7 of 19
+
+--- PAGE 8 ---
+Hierarchical Error-Corrective Graph Framework
+Table 1
+Error Classification in HECG Execution
+Error Type Severity Typical Actions Description Recoverable Correction Strategy
+Whether
+Transition
+Needed
+Action-Name-
+Mismatch-Error High [walk_to], [look_at]
+Action name not
+found in supported
+actions.
+Yes <walk/walktowards>,
+<lookat> Yes
+Script-Parsing-Error High [putin] <obj>
+Action lacks necessary
+parameters, resulting
+in a parsing failure.
+No [putin] <obj1>
+<obj2> No
+Action-Execution-
+Error Medium [open] <microwave>
+Action failed because
+target object was not
+found, not reachable,
+or not visible.
+Partially Yes [switchon]
+<microwave> Yes
+Cascading-Execution-
+Failure Low [putin] <bananas>
+<fridge>
+A cascading failure
+caused by previous
+unrecoverable action
+failures.
+No
+[open] <fridge>
+[putin] <bananas>
+<fridge>
+Yes
+Sensor-Failure-Error Medium –
+Sensors failed to
+detect objects or
+environment state
+correctly.
+Partially Yes
+Reinitialize sensor
+pipeline; use
+redundant sensor data
+for fusion.
+Yes
+Collision-Detected-
+Error High [move], [push]
+Robot collided with
+obstacle or object
+during execution.
+Yes Drop Action Yes
+Timeout-Error Medium –
+Action did not
+complete within
+expected time limits.
+Partially Yes Retry Action Yes
+Hardware-Fault-Error Critical –
+Physical actuator or
+gripper malfunction
+prevents action
+execution.
+No
+Emergency stop;
+notify human
+operator.
+No
+Perception-Mismatch-
+Error Medium
+[open] <fridge>
+(fridge already
+opened)
+Perceived object pose
+differs from expected
+pose; causes partial
+failure.
+Yes [close] <fridge>
+[open] <fridge> Yes
+Agent-Positioning-
+Error Medium [lookat]
+<kitchentable>
+Agent is not correctly
+localized relative to
+target object or
+navigation point,
+leading to approach
+failure.
+Yes
+<walk> kitchen,
+<lookat>
+<kitchentable>
+Yes
+as BEDROOM, LIVINGROOM, KITCHEN, and BATHROOM.
+These tasks require multi-step reasoning, sequential depen-
+dencies, and interaction with dynamic objects. Each task is
+represented as a hierarchy of nodes, where each node corre-
+sponds to either aprimitive action or a higher-level subtask.
+During execution, observations are generated at each step
+andcomparedagainstexpectedoutcomestodetectpotential
+errors, following the formulation described in Section 3.
+WeimplementtheproposedHierarchicalError-Correcting
+Graph (HECG) agent using a modular architecture that
+integratesthreecorecomponents:planning,verification,and
+replanning.For the LLM-based baseline, we employ a large
+language model (LLM) to directly generate a sequence of
+actions given the task description, without incorporating
+explicit hierarchical error correction or transition policies.
+WecomparetheHECGframeworkagainstthefollowing
+baselines:
+•LLM Planner (Flat):A conventional LLM-based
+planner that generates the entire action sequence in a
+single pass, without hierarchical correction or replan-
+ning mechanisms.
+•HECG w/o Transition:A variant of our model that
+includeshierarchicalerrorcorrectionbutremovesthe
+learned transition policy, allowing us to measure the
+impact of explicit state transitions between subtasks.
+•HECG Full:The complete HECG agent with both
+hierarchicalcorrectionandtransitionpoliciesenabled.
+4.2. Baselines
+All experiments are conducted in a simulated environ-
+ment designed to evaluate hierarchical task planning and
+execution under realistic uncertainty. The widely-used em-
+bodied AI and task planning datasetVirtualHomeprovides
+programmatichouseholdscenarioswithannotatedactionse-
+quencesandincludesdiversetasktypes,rangingfromsimple
+single-object manipulations to complex multi-room inter-
+action sequences. This makes it a comprehensive testbed
+for evaluating our proposed Hierarchical Error-Correcting
+Graph (HECG) framework.
+C. Cao et al.:Preprint submitted to ElsevierPage 8 of 19
+
+--- PAGE 9 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 3:LLM Goal Compliance Evaluation Results.
+In our experiments, we consider a set of representa-
+tive tasks, including READBOOK, PUTDISHWASHER, PRE-
+PAREFOOD, and PUTFRIDGE, across different scenes such
+as BEDROOM, LIVINGROOM, KITCHEN, and BATHROOM.
+These tasks require multi-step reasoning, sequential depen-
+dencies, and interaction with dynamic objects. Each task is
+represented as a hierarchy of nodes, where each node corre-
+sponds to either aprimitive action or a higher-levelsubtask.
+During execution, observations are generated at each step
+andcomparedagainstexpectedoutcomestodetectpotential
+errors, following the formulation described in Section 3.
+WeimplementtheproposedHierarchicalError-Correcting
+Graph (HECG) agent using a modular architecture that
+integratesthreecorecomponents:planning,verification,and
+replanning.For the LLM-based baseline, we employ a large
+language model (LLM) to directly generate a sequence of
+actions given the task description, without incorporating
+explicit hierarchical error correction or transition policies.
+WecomparetheHECGframeworkagainstthefollowing
+baselines:
+•LLM Planner (Flat):A conventional LLM-based
+planner that generates the entire action sequence in a
+single pass, without hierarchical correction or replan-
+ning mechanisms.
+•HECG w/o Transition:A variant of our model that
+includeshierarchicalerrorcorrectionbutremovesthe
+learned transition policy, allowing us to measure the
+impact of explicit state transitions between subtasks.
+•HECG Full:The complete HECG agent with both
+hierarchicalcorrectionandtransitionpoliciesenabled.
+4.3. Overall Performance Comparison (Goal
+Compliance & Task Plan)
+Goal Compliance Evaluation.We first evaluategoal
+compliance, which measures the extent to which the final
+worldstatesatisfiestheintendedobjectivesofatask.Unlike
+task success rate, which requires all actions to be executed
+correctly, goal compliance focuses on whether the desired
+end state is achieved, even if intermediate steps are subopti-
+mal.Formally, for a task𝑇with a set of goal conditions
+𝐺= {𝑔 1, 𝑔2,…, 𝑔 𝑛},(11)
+goal compliance is defined as:
+Goal Compliance= |{𝑔∈𝐺∣𝑔satisfied in final state}|
+|𝐺|
+(12)
+where|𝐺|denotes the total number of goal conditions, and
+thenumeratorcountsthenumberofsatisfiedconditionsafter
+execution.
+We evaluated three models (GPT-5 Mini, DeepSeek-
+R1, and LLaMA3.3-70B) on multi-room household task
+execution scenarios. The tasks involve cross-room object
+interactions, including read book, put dishwasher, prepare
+food,putfridge,andsetuptable.Evaluationmetricsinclude
+weightedsoftrecall,softprecision,softF1,sizepenalty,and
+a final composite score reflecting overall execution quality
+adjusted for sequence length.
+Across all evaluated tasks, GPT-5 Mini demonstrates
+the strongest overall performance, achieving the highest
+average final score (0.315), compared with LLaMA3.3-70B
+(0.278) and DeepSeek-R1 (0.230). GPT-5 Mini maintains a
+C. Cao et al.:Preprint submitted to ElsevierPage 9 of 19
+
+--- PAGE 10 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 4:Heatmap of Goal Compliance.
+strongbalancebetweenrecallandprecision,withanaverage
+weighted soft recall of 0.842 and soft precision of 0.534,
+resulting in the highest average soft F1 (0.651) among the
+evaluated models. In particular, GPT-5 Mini performs best
+onputfridgeinkitchenandbathroom,achievinganF1score
+of 0.823 and a final score of 0.320, and also on setup table
+in livingroom and bedroom, where it reaches perfect recall
+(1.0) with an F1 score of 0.800 and a final score of 0.320.
+However, tasks such as put dishwasher in livingroom and
+bedroomyieldlowerscores(finalscore0.135),likelydueto
+increased spatial complexity and multi-step dependencies,
+which reduce precision and incur stronger sequence length
+penalties.
+DeepSeek-R1achievesthehighestaveragerecall(0.852)
+among the models and performs strongly on tasks such as
+put dishwasher in bedroom and kitchen (final score 0.422).
+However, it frequently generates longer action sequences,
+resulting in larger size penalties, which significantly reduce
+its overall composite score.
+LLaMA3.3-70B demonstrates relatively balanced be-
+haviorbuttendstoproducelongerplanswithlowerprecision
+(average0.400),whichlimitsitsfinalperformance.Whileit
+performs competitively on tasks such as put dishwasher in
+livingroom and bedroom (final score 0.427), it also exhibits
+unstable behavior on some tasks (e.g., setup table in livin-
+groom and bedroom, final score 0.133).
+Overall, GPT-5 Mini achieves the best balance between
+recall,precision,andsequenceefficiency,indicatingstronger
+grounding and structured sequence planning capability.
+DeepSeek-R1 tends to prioritize recall at the expense of
+efficiency, while LLaMA3.3-70B exhibits moderate recall
+but reduced precision and longer action sequences.
+Task Success and Action-Level Evaluation.We further
+conduct a comparative evaluation of basic household task
+executionacrosspairedscenes(e.g.,bedroom_and_kitchen,
+kitchen_and_bathroom). The evaluation metrics include
+Task Success Rate (%), Average Action Accuracy (%), and
+Total Steps.
+SuccessRate(SR).Successratemeasuresthepropor-
+tion of episodes that achieve the task goal. We distinguish
+between two types:
+•OriginalSuccessRate:Thesuccessrateofexecuting
+the initially generated plan without any replanning.
+•ReplanSuccessRate:Thesuccessrateachievedafter
+incorporating replanning and error recovery mecha-
+nisms.
+The final success rate for a task is defined as:
+SRfinal =
+𝑁successful episodes
+𝑁total episodes
+(13)
+Action Accuracy (AA)Action Accuracy measures
+thecorrectnessofindividualactionsexecutedbytheagentin
+ataskepisode.Itisdefinedastheratioofcorrectlyexecuted
+actions to the total number of actions taken:
+𝐴𝐴= 𝑁correct actions
+𝑁executed actions
+(14)
+where:
+•𝑁 correct actionsis the number of actions that match the
+reference or ground-truth action sequence.
+•𝑁 executed actionsisthetotalnumberofactionsexecuted
+by the agent in the episode.
+A value of 1 indicates that all actions in the episode
+wereexecutedcorrectly,whilelowervaluesreflectincorrect
+or mismatched actions. Action Accuracy provides a fine-
+grained, step-level measure of procedural correctness, com-
+plementing task-level success metrics.
+C. Cao et al.:Preprint submitted to ElsevierPage 10 of 19
+
+--- PAGE 11 ---
+Hierarchical Error-Corrective Graph Framework
+EfficiencyScore.Efficiencyquantifieshowoptimally
+the plan achieves the task goal, measured by the number of
+executed actions relative to the optimal plan length:
+Ef f iciency =
+𝑁optimal steps
+𝑁executed steps
+(15)
+A value of 1 indicates perfect efficiency matching the opti-
+malplan,whilelowervaluesindicateadditionalstepsdueto
+errors or inefficient recovery actions.
+Stability Analysis.We assess the consistency of
+model performance using the coefficient of variation (CV)
+of success rates across episodes:
+CV = 𝜎SR
+𝜇SR
+(16)
+where𝜎 SR is the standard deviation and𝜇SR is the mean
+of success rates across episodes. Lower CV values indicate
+more stable and reliable performance.
+Task Complexity Assessment.To analyze the rela-
+tionship between taskdifficulty and model performance, we
+computeanoverallcomplexityscoreforeachtaskbasedon:
+•Number of required actions
+•Environmental constraints and object interactions
+•Sequential dependencies between subgoals
+•Potential error-prone steps
+This complexity measure enables analysis of how different
+models scale with task difficulty.Task complexity signifi-
+cantly affects step count. For instance,Preparefoodtasks
+require15–19steps,reflectingincreaseddependencychains.
+LLaMA3.3-70B generally uses fewer steps than DeepSeek-
+R1forcomparabletasks,suggestingrelativelymoreefficient
+action sequencing.
+Improvement Metrics.We quantify the benefit of
+replanning through improvement in success rate:
+Improvement = SR replan − SRoriginal (17)
+Positive values indicate that replanning effectively recovers
+from execution errors.
+Model Performance AnalysisWe conducted a compar-
+ative evaluation of household task execution across paired
+scenes(Displayed in Table 2 and Figure 4). The evaluation
+metrics includeOriginal Success Rate (SR, %),Average
+Action Accuracy (AA, %), andTotal Steps.
+Model Performance.GPT-5 Mini demonstrates con-
+sistently highaction-level accuracy, particularly inPre-
+parefoodtasks, occasionally reaching 0.968. This indi-
+cates strong procedural correctness even when full task
+completion is not achieved. DeepSeek-R1 shows moderate
+but variable performance: it can achieve high action accu-
+racy in some tasks, such as 0.933 forReadbookinbed-
+room_and_bathroom, although high action accuracy does
+Table 2
+Original Task Performance Metrics Across Models
+Task (Scene) Model Original
+Success
+Rate
+(%)
+Average
+Action
+Accuracy
+(%)
+Total
+Steps
+Readbook
+(bedroom&kitchen)
+Llama3.3-70B 0.797 0.833 7
+Deepseek-R1 0.854 0.725 8
+GPT-5-mini 0.767 0.643 5
+Readbook
+(bedroom&bathroom)
+Llama3.3-70B 0.765 0.677 6
+Deepseek-R1 0.831 0.933 8
+GPT-5-mini 0.722 0.744 7
+Putdishwasher
+(bedroom&kitchen)
+Llama3.3-70B 0.711 0.866 9
+Deepseek-R1 0.792 0.867 13
+GPT-5-mini 0.645 0.755 10
+Putdishwasher
+(livingroom&bedroom)
+Llama3.3-70B 0.761 0.833 12
+Deepseek-R1 0.828 0.713 11
+GPT-5-mini 0.715 0.856 10
+Preparefood
+(kitchen&livingroom)
+Llama3.3-70B 0.734 0.833 19
+Deepseek-R1 0.808 0.865 15
+GPT-5-mini 0.677 0.955 17
+Preparefood
+(bedroom&bathroom)
+Llama3.3-70B 0.734 0.833 18
+Deepseek-R1 0.808 0.725 16
+GPT-5-mini 0.677 0.968 17
+Putfridge
+(bathroom&livingroom)
+Llama3.3-70B 0.749 0.885 19
+Deepseek-R1 0.819 0.756 15
+GPT-5-mini 0.699 0.643 15
+Putfridge
+(kitchen&bathroom)
+Llama3.3-70B 0.730 0.856 18
+Deepseek-R1 0.806 0.725 14
+GPT-5-mini 0.671 0.855 17
+Setuptable
+(kitchen&bedroom)
+Llama3.3-70B 0.748 0.844 17
+Deepseek-R1 0.819 0.885 15
+GPT-5-mini 0.698 0.889 16
+Setuptable
+(livingroom&bedroom)
+Llama3.3-70B 0.760 0.755 14
+Deepseek-R1 0.827 0.725 16
+GPT-5-mini 0.714 0.855 17
+not always correspond to higher task success. LLaMA3.3-
+70Bexhibitsrobustscene-levelgrounding,oftenachieving
+slightlyhighersuccessratesinspatiallycomplextaskswhile
+generallycompletingtaskswithfewerstepsthanDeepSeek-
+R1, suggesting more efficient action sequencing.
+Task Complexity and Efficiency.Task complexity
+significantly affects the number of steps required.Prepare-
+foodtasks, for example, require 15–19 steps due to longer
+dependency chains and multiple object interactions.Effi-
+ciency, defined as the ratio of optimal plan length to exe-
+cuted steps, reflects how closely models follow the optimal
+sequence; values closer to 1 indicate efficient execution,
+while lower values reflect additional steps caused by errors
+or recovery actions.
+StabilityandErrorAnalysis.Weassessperformance
+consistency using thecoefficient of variation (CV)of suc-
+cess rates across episodes. Lower CV indicates more stable
+and reliable performance. Execution errors are quantified
+viaAverage Error Count (EC), which measures the mean
+numberoferrorsperepisode,andFatalErrorRate(FER),
+representing the proportion of episodes with unrecoverable
+errors leading to task failure.
+C. Cao et al.:Preprint submitted to ElsevierPage 11 of 19
+
+--- PAGE 12 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 5:Evaluation Metrics of Task Plan
+ImprovementthroughReplanning.Replanningmech-
+anisms can improve task success by recovering from exe-
+cution errors.Improvementis measured as the difference
+betweensuccessratesafterreplanningandtheoriginalplan,
+with positive values indicating effective error recovery.
+In summary, all models show baseline competency
+in household task execution, but with different strengths.
+LLaMA3.3-70B excels inscene-level robustness, GPT-5
+Mini inaction-level precision, and DeepSeek-R1 inrecall,
+though with variable planning efficiency. Task complexity
+and sequential dependencies have a notable impact on both
+step count and overall task success, highlighting the trade-
+offs between efficiency, accuracy, and robustness across
+models.
+4.4. Ablation on Hierarchical Correction Levels
+Weevaluatedtheperformanceofthreemodels—Llama3.3-
+70B, Deepseek-R1, and GPT-5-mini—on multiple Virtual-
+Home tasks across different room settings. The evaluation
+metrics include:
+1.Task Success Rate (TSR): The overall measures the
+average goal completion ratio across multiple task
+executions. For each execution, TSR is computed as
+the ratio of successfully achieved goals to the total
+number of goals, and the final TSR is obtained by
+averaging this ratio across all executions. Formally
+defined as follows:
+TSR= 1
+𝑁
+𝑁∑
+𝑖=1
+𝑁success
+𝑁total
+(18)
+where𝑁 success is the number of goals completed suc-
+cessfully and𝑁 total is the total number of expected
+goals, and𝑁denotes the total trial numbers of each
+task.
+2.TSR_R (Replan Success Rate): TSR_R measures
+the effectiveness of the replanning mechanism in re-
+covering from execution failures. Specifically, it eval-
+uates the proportion of goals that are successfully
+completedafteratleastoneexecutionfailurefollowed
+by a replanning procedure. Only task executions that
+experience at least one execution failure are included
+in the computation of TSR_R; executions without
+C. Cao et al.:Preprint submitted to ElsevierPage 12 of 19
+
+--- PAGE 13 ---
+Hierarchical Error-Corrective Graph Framework
+failures contribute zero to the metric:
+TSR_R=
+𝑁∑
+𝑖=1
+𝑁 𝑖
+success with replan
+𝑁 𝑖
+total
+(19)
+where𝑁 𝑖
+success_after_replan denotes the number of goals
+that are eventually achieved through replanning fol-
+lowing an execution failure, and𝑁 𝑖
+total is the total
+number of goals in task𝑖.
+3.TSR_C (Corrective Success Rate): TSR_C evalu-
+ates the effectiveness of corrective actions applied
+during execution to recover from failed steps after
+replanning. It measures the proportion of replanning-
+enabledsuccessesthatareultimatelyachievedthrough
+explicit corrective actions. The overall TSR_C across
+𝑁task executions is computed as:
+TSR_C=
+𝑁∑
+𝑖=1
+𝑁 𝑖
+success with correction
+𝑁 𝑖
+success with replan
+(20)
+where𝑁 𝑖
+success_with_correction denotes the number of
+goals that are successfully completed through correc-
+tive actions, and𝑁 𝑖
+success_after_replan is the number of
+goals that remain achievable after replanning.
+4.Error Rate (ER): Proportion of tasks that encoun-
+teredunrecoverablefailures.Executionerrorsarecat-
+egorized into four types:
+•Grounding Errors: failure to identify or locate
+an object in the environment.
+•Precondition Errors: attempting actions when
+necessary preconditions are not met.
+•Affordance Errors: attempting impossible inter-
+actions with objects.
+•Execution Errors: failures due to environment
+dynamics or script infeasibility.
+For each type, we calculate the proportion relative to
+all errors:
+Error Ratiotype =
+𝑁errors of type
+𝑁total errors
+(21)
+From the results, several trends can be observed across
+tasks and models. To begin with, Deepseek-R1 generally
+achieves the highest original task success rate (TSR) across
+mosttask–scenecombinations.Forinstance,intaskssuchas
+Readbook and Preparefood, Deepseek-R1 consistently out-
+performstheothermodelsinTSR,suggestingstrongerinitial
+planning ability before any corrective mechanisms are ap-
+plied.However,oncecorrectivemechanismsareintroduced,
+a different pattern emerges. GPT-5-mini demonstrates the
+strongestperformanceaftercorrectiveactions,with𝑇 𝑆𝑅_𝐶
+values close to or equal to 1.0 in most tasks. This indicates
+that GPT-5-mini is particularly effective at utilizing correc-
+tivefeedbacktorecoverfromexecutionfailures.Evenwhen
+its initial TSR is slightly lower than that of Deepseek-R1,
+the model is often able to successfully complete the task
+Table 3
+Performance comparison across different models and tasks.
+Task (Scene) Model TSR TSRR TSRC ER
+Readbook
+(bedroom&kitchen)
+Llama3.3-70B 0.797 0.888 0.900 0.677
+Deepseek-R1 0.854 0.954 1.000 0.717
+GPT-5-mini 0.767 0.957 1.000 0.797
+Readbook
+(bedroom&bathroom)
+Llama3.3-70B 0.765 0.886 0.600 0.504
+Deepseek-R1 0.831 0.952 1.000 0.128
+GPT-5-mini 0.722 0.949 1.000 0.752
+Putdishwasher
+(bedroom&kitchen)
+Llama3.3-70B 0.711 0.882 0.800 0.317
+Deepseek-R1 0.792 0.950 1.000 0.794
+GPT-5-mini 0.645 0.945 0.900 0.595
+Putdishwasher
+(livingroom&bedroom)
+Llama3.3-70B 0.761 0.860 0.700 0.833
+Deepseek-R1 0.828 0.940 1.000 0.992
+GPT-5-mini 0.715 0.928 0.700 0.595
+Preparefood
+(kitchen&livingroom)
+Llama3.3-70B 0.734 0.905 0.800 0.474
+Deepseek-R1 0.808 0.962 1.000 0.839
+GPT-5-mini 0.677 0.966 1.000 0.730
+Preparefood
+(bedroom&bathroom)
+Llama3.3-70B 0.734 0.901 0.800 0.682
+Deepseek-R1 0.808 0.959 1.000 0.230
+GPT-5-mini 0.677 0.957 1.000 0.644
+Putfridge
+(bathroom&livingroom)
+Llama3.3-70B 0.749 0.859 0.700 0.962
+Deepseek-R1 0.819 0.939 1.000 0.808
+GPT-5-mini 0.699 0.928 0.900 0.423
+Putfridge
+(kitchen&bathroom)
+Llama3.3-70B 0.730 0.863 0.500 0.315
+Deepseek-R1 0.806 0.942 1.000 0.709
+GPT-5-mini 0.671 0.929 1.000 0.551
+Setuptable
+(kitchen&bedroom)
+Llama3.3-70B 0.748 0.855 0.500 0.545
+Deepseek-R1 0.819 0.938 1.000 0.623
+GPT-5-mini 0.698 0.925 1.000 0.120
+Setuptable
+(livingroom&bedroom)
+Llama3.3-70B 0.760 0.870 0.600 0.118
+Deepseek-R1 0.827 0.945 1.000 0.510
+GPT-5-mini 0.714 0.940 1.000 0.392
+after replanning or corrective actions. A similar trend can
+be observed when examining𝑇 𝑆𝑅_𝑅, which reflects the
+effect of replanning. Across many tasks,𝑇 𝑆𝑅_𝑅shows a
+substantial improvement compared with the original TSR.
+Both GPT-5-mini and Deepseek-R1 benefit significantly
+from replanning, indicating that these models are capable
+of adjusting their plans dynamically when execution errors
+occur. In contrast, Llama3.3-70B exhibits more moderate
+improvements, suggesting that while replanning helps, its
+ability to adapt plans may be comparatively weaker.
+Another notable observation relates to the Error Recov-
+eryrate(ER).Inseveralcomplexmulti-roomscenarios—for
+example,Putdishwasherinlivingroomandbedroom(Deepseek-
+R1) shows relatively higher ER values. This suggests that
+although the model ultimately achieves high task success, it
+may rely on more frequent replanning steps during execu-
+tion. By comparison, GPT-5-mini often achieves similarly
+high𝑇 𝑆𝑅_𝐶withlowerERinseveraltasks,implyingmore
+efficient correction and recovery behavior.
+C. Cao et al.:Preprint submitted to ElsevierPage 13 of 19
+
+--- PAGE 14 ---
+Hierarchical Error-Corrective Graph Framework
+Finally, tasks involving longer action sequences, such
+as Preparefood and Setuptable, further highlight the impor-
+tance of corrective mechanisms. In these multi-step tasks,
+models capable of performing corrective actions consis-
+tently achieve higher𝑇 𝑆𝑅_𝐶than their original TSR. This
+observation reinforces the conclusion that replanning and
+error correction play a critical role in improving reliability
+for complex household task execution.
+4.5. Ablation on Transition Policy Components
+Tounderstandthecontributionofeachcomponentinour
+probabilistic transition policy, we conduct an ablation study
+by systematically removing or modifying key terms. Recall
+that the full policy is defined as:
+𝜋𝑘
+𝑖𝑗(𝑏𝑡, 𝑜𝑡) =Softmax (𝛼𝑄𝑘
+𝑖𝑗(𝑏𝑡) −𝛽𝐶 𝑖𝑗(𝑜𝑡)
+−𝛾𝑅 𝑖𝑗(𝑜𝑡) +𝜆Φ LLM
+𝑖𝑗 (𝑏𝑡, 𝑜𝑡)) (22)
+where𝑄 𝑘
+𝑖𝑗 captures task value,𝐶𝑖𝑗 represents execution
+cost,𝑅 𝑖𝑗 estimates execution risk, andΦLLM
+𝑖𝑗 injects seman-
+ticfeasibilityfromalargelanguagemodel.Weevaluatefive
+policy variants:
+1.Full Policy: The complete formulation with all four
+components.
+2.w/oValue:Policywithoutthetaskvalueterm(𝛼= 0),
+relying only on cost, risk, and LLM scores.
+3.w/oCost:Policywithouttheexecutioncostterm(𝛽=
+0), ignoring efficiency considerations.
+4.w/oRisk:Policywithouttheriskestimationterm(𝛾=
+0), disregarding failure likelihood.
+5.w/o LLM: Policy without the semantic feasibility
+score (𝜆= 0), relying solely on structured signals.
+We investigate the contribution of individual components
+in our transition policy across five representative tasks
+in the VirtualHome environment:Readbook(multi-room
+navigation),Putdishwasher(objectmanipulation),Prepare-
+food(sequentialmulti-steptask),Putfridge(objecttransport
+acrossrooms),andSetuptable(arrangingobjects).Eachtask
+is evaluated under multiple room configurations using the
+DeepSeek-R1 model, which exhibited the strongest overall
+performance in our earlier model comparison.
+To assess the role of each policy component, we create
+four ablated variants by individually removing theValue
+Term(𝑄 𝑘
+𝑖𝑗),CostTerm(𝐶 𝑖𝑗),RiskTerm(𝑅 𝑖𝑗),ortheLLM
+SemanticScore(Φ LLM
+𝑖𝑗 ).Andthreecomplementarymetrics
+are used to evaluate these variants: task success rate (TSR),
+theaveragenumberofrecoverystepspertask,andsemantic
+consistency, which reflects whether the selected transitions
+align with commonsense expectations as judged by human
+evaluators.Theresults,summarizedinTables4and5,reveal
+the relative importance of each component across different
+task types and complexity levels.
+Table 4
+AblationresultsontransitionpolicycomponentsforReadbook,
+Putdishwasher, and Preparefood tasks.
+Policy
+Variant
+TSR Recovery Steps Semantic
+Consistency
+Readbook (bedroom_and_kitchen)
+Full Policy 0.806 1.62 0.86
+w/o Value 0.708 2.02 0.84
+w/o Cost 0.729 1.82 0.83
+w/o Risk 0.342 2.66 0.80
+w/o LLM 0.337 2.95 0.68
+Readbook (bedroom_and_bathroom)
+Full Policy 0.772 1.37 0.87
+w/o Value 0.650 2.07 0.84
+w/o Cost 0.579 1.71 0.86
+w/o Risk 0.616 2.28 0.80
+w/o LLM 0.435 2.97 0.69
+Putdishwasher (bedroom_and_kitchen)
+Full Policy 0.716 1.60 0.87
+w/o Value 0.583 1.79 0.86
+w/o Cost 0.491 1.77 0.85
+w/o Risk 0.573 2.48 0.79
+w/o LLM 0.592 3.17 0.66
+Putdishwasher (livingroom_and_bedroom)
+Full Policy 0.768 1.26 0.87
+w/o Value 0.569 2.19 0.83
+w/o Cost 0.600 1.80 0.87
+w/o Risk 0.438 2.62 0.80
+w/o LLM 0.624 3.01 0.67
+Preparefood (kitchen_and_livingroom)
+Full Policy 0.740 1.04 0.88
+w/o Value 0.615 2.15 0.82
+w/o Cost 0.643 1.69 0.84
+w/o Risk 0.576 2.51 0.78
+w/o LLM 0.443 2.86 0.68
+Preparefood (bedroom_and_bathroom)
+Full Policy 0.740 1.36 0.89
+w/o Value 0.570 2.20 0.83
+w/o Cost 0.538 1.87 0.85
+w/o Risk 0.483 2.01 0.80
+w/o LLM 0.353 2.82 0.67
+4.5.1. Analysis of Component Contributions
+1.RiskTerm(𝑅 𝑖𝑗)isCriticalforRobustness.Remov-
+ing the risk term consistently results in the largest perfor-
+mancedegradationacrossalltasks.TSRdropssubstantially,
+ranging from 0.342 (Readbook, bedroom and kitchen) to
+0.562(Setuptable,livingroomandbedroom),comparedwith
+the full policy. Correspondingly, the average number of
+recovery steps increases by 0.8–1.6 steps, indicating that
+without explicit risk estimation, the agent frequently selects
+transitionsthatleadtoexecutionfailuresrequiringcorrective
+actions. This effect is particularly pronounced in object
+manipulation tasks, such asPutdishwasherandPutfridge,
+where risk-agnostic policies often attempt grasps or trans-
+ports under unfavorable conditions.
+C. Cao et al.:Preprint submitted to ElsevierPage 14 of 19
+
+--- PAGE 15 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 6:Threshold Sensitivity Analysis & Comprehensive Performance Score By Policy Variant and Model
+2. LLM Semantic Score (ΦLLM
+𝑖𝑗 ) Ensures Common-
+sense Alignment.The variant without LLM guidance con-
+sistently achieves the lowest semantic consistency scores
+(0.66–0.71) and the highest number of recovery steps (2.9–
+3.2). Qualitative inspection reveals that, without the LLM
+score, agents occasionally select semantically implausible
+transitions,suchasattemptingtoclearatablebeforepicking
+up an object or applying fallback corrections unnecessarily.
+This highlights the role of the LLM in injecting common-
+sense knowledge that cannot be fully captured by structured
+cost, value, or risk signals.
+3. Value Term (𝑄𝑘
+𝑖𝑗) Guides Long-Horizon Planning.
+Omitting the value term produces mixed effects on TSR,
+sometimes even slightly increasing success in simple tasks
+(e.g., 0.708 forReadbook, bedroom and kitchen) but gener-
+ally increasing recovery steps. This indicates that the value
+termhelpstheagentplantransitionsthatoptimizelong-term
+task completion rather than locally minimizing risk or cost.
+Forexample,inPreparefoodtasks,thevalue-agnosticpolicy
+frequently selects actions that temporarily avoid immediate
+risk but cumulatively delay task completion.
+4. Cost Term (𝐶𝑖𝑗) Improves Efficiency.Ablating the
+cost term shows variable impacts on TSR (e.g., -24% to
++20% depending on the task) but consistently increases the
+number of recovery steps. This suggests that cost estima-
+tion encourages efficient transition sequences and reduces
+the need for subsequent corrections. Overall, the analysis
+demonstrates that each component contributes uniquely to
+robust and efficient policy execution. The risk term is most
+critical for preventing failures, the LLM score ensures se-
+mantic plausibility, the value term guides long-term plan-
+ning,andthecosttermimprovesexecutionefficiency.Multi-
+step and multi-room tasks, such asPreparefoodandSe-
+tuptable, particularly benefit from the combination of these
+components, achieving the highest TSR while minimizing
+recovery steps and maintaining high semantic consistency.
+Table 5
+Ablation results on transition policy components for Putfridge
+and Setuptable tasks.
+Policy
+Variant
+TSR Recovery Steps Semantic
+Consistency
+Putfridge (bathroom_and_livingroom)
+Full Policy 0.736 1.55 0.88
+w/o Value 0.494 1.75 0.84
+w/o Cost 0.690 2.07 0.86
+w/o Risk 0.467 2.39 0.80
+w/o LLM 0.418 2.99 0.66
+Putfridge (kitchen_and_bathroom)
+Full Policy 0.756 1.50 0.87
+w/o Value 0.746 1.50 0.82
+w/o Cost 0.483 1.70 0.85
+w/o Risk 0.561 2.42 0.82
+w/o LLM 0.335 2.90 0.68
+Setuptable (kitchen_and_bedroom)
+Full Policy 0.755 1.29 0.87
+w/o Value 0.757 1.95 0.83
+w/o Cost 0.707 1.88 0.86
+w/o Risk 0.440 2.47 0.80
+w/o LLM 0.593 2.94 0.69
+Setuptable (livingroom_and_bedroom)
+Full Policy 0.767 1.38 0.88
+w/o Value 0.419 2.06 0.84
+w/o Cost 0.526 1.78 0.87
+w/o Risk 0.562 2.51 0.80
+w/o LLM 0.565 2.66 0.71
+Threshold Sensitivity Analysis.As illustrated in Figure
+5, the Full Policy demonstrates robust performance across a
+broad spectrum of threshold values.
+For example, using the llama3-70B model, TSR varies
+from 0.589 at a scaling factor of 0.25 to 0.708 at 2.25, with
+most values remaining above 0.67 for scaling factors 0.75–
+2.5.Similarly,gpt-5-minianddeepseek-r1showTSRstabil-
+ity within roughly±0.08of the peak TSR across moderate
+C. Cao et al.:Preprint submitted to ElsevierPage 15 of 19
+
+--- PAGE 16 ---
+Hierarchical Error-Corrective Graph Framework
+Figure 7:Transition Type Distribution Under Different Error Regimes
+Figure 8:Task-Level Comprehensive Performance Score by Policy Variant and Model
+threshold ranges (0.5–2.0), indicating that the full policy is
+relativelyinsensitivetoprecisethresholdtuning,adesirable
+property for deployment in diverse environments.
+In contrast, the ablated variants exhibit greater sensitiv-
+ity to threshold scaling:
+•w/oLLMsufferswhenthresholdsaretoostrict(scal-
+ing factor<0.75). For llama3-70B, TSR drops from
+0.403 at 0.25 to 0.548 at 1.0, showing significant
+degradation under tight thresholds. Similar trends
+are observed for gpt-5-mini (0.449→0.608) and
+deepseek-r1 (0.426→0.558).
+•w/o Riskperforms poorly when thresholds are too
+permissive (scaling factor>2.5). For llama3-70B,
+TSR falls from 0.573 at 2.25 to 0.360 at 3.0. This
+indicates that removing the risk term increases the
+likelihood of unsafe or inefficient transitions under
+relaxed thresholds.
+•w/o Costandw/o Valueshow moderate degradation,
+but are less extreme than w/o Risk or w/o LLM.
+For example, TSR for w/o Cost (llama3-70B) varies
+between 0.513–0.644 for scaling factors 0.25–2.25,
+suggesting the cost term encourages efficient transi-
+tions but does not critically affect feasibility under
+reasonable thresholds.
+Overall,theseresultssuggestthatthecombinationofthe
+LLM semantics scoreand therisk termin the full policy
+jointlycontributestothresholdrobustness,reducingtheneed
+for precise tuning and enhancing reliability across diverse
+task settings.
+Qualitative Analysis: Transition Selection Examples.
+We examine specific scenarios to understand how compo-
+nent removal affects decision-making:
+Scenario1:OccludedObject(fromSectionX).When
+a mug is partially occluded, the full policy correctly selects
+the optional transition “reposition gripper and then grasp”
+(probability0.68).Thew/oRiskvariant,failingtorecognize
+C. Cao et al.:Preprint submitted to ElsevierPage 16 of 19
+
+--- PAGE 17 ---
+Hierarchical Error-Corrective Graph Framework
+elevatedfailureprobability,assignshigherprobability(0.72)
+to the direct grasp transition, leading to execution failure
+in 43% of trials. The w/o LLM variant, lacking semantic
+reasoning,splitsprobabilitynearlyequallybetweenoptional
+(0.41) and fallback (0.38) transitions, often unnecessarily
+clearing surrounding objects.
+Scenario 2: Unexpected Obstacle.While navigating
+to the kitchen, the robot encounters a chair blocking the
+path.Thefullpolicysmoothlyescalatesfrommain(continue
+path) to correction (path replanning) to fallback (request
+human assistance) as the robot repeatedly fails to find an
+alternativeroute.Thew/oValuevariantprematurelytriggers
+fallbacks(22%higherrate),whilew/oCostpersiststoolong
+with inefficient path replanning attempts, increasing task
+completion time by 34%.
+Scenario3:ToolMisidentification.InPreparefood,the
+robot misidentifies a spatula as a knife. The full policy
+detects high risk in the “cut” action and selects a correc-
+tion transition to re-identify the object (LLM score heavily
+weightsthisoption).Thew/oLLMvariant,lackingsemantic
+understandingoftool-appropriateactions,proceedswiththe
+cut action using the spatula, resulting in task failure 67% of
+the time.
+4.5.2. Error-Triggered Transition Analysis
+We further analyze how the different policy variants re-
+spond to error conditions using the threshold-based trigger-
+ing mechanism defined in Section X. Recall that transitions
+areactivatedbasedonthelocalexecutionerror𝑒 𝑖 =𝛿(𝑜 𝑡, ̂ 𝑜𝑖):
+𝜋𝑘
+𝑖𝑗 =
+⎧
+⎪
+⎪
+⎨
+⎪
+⎪⎩
+1, 𝑘=main, 𝑒 𝑖 ≤𝜖 𝑖
+1, 𝑘=corr, 𝜖 𝑖 < 𝑒 𝑖 ≤𝜖 max
+𝑖
+1, 𝑘=fb, 𝑒 𝑖 > 𝜖max
+𝑖
+0,otherwise
+(23)
+Table 6 summarizes the distribution of transition types
+selected under low, moderate, and high error magnitudes,
+averaged across models.
+TheFull Policyexhibits appropriate error escalation:
+nearly all transitions remainmainunder low error (91.8%),
+correctionsdominate under moderate error (79.8%), and
+fallbackstrigger under high error (84.7%). In contrast, the
+w/o Riskvariant shows a delayed response to errors, con-
+tinuing to attemptmaintransitions under moderate error
+(33.0% vs. 11.1% for Full Policy) and underutilizing fall-
+backs under high error (66.8% vs. 84.7%). Thew/o LLM
+variantexhibitsasimilarbutslightlylessseveredegradation,
+often selecting semantically inappropriate transition types,
+such as fallbacks when corrections would suffice (28.8%
+correction vs. 79.8% in Full Policy at moderate error).
+Other ablated variants (w/o Valueandw/o Cost) show
+intermediate behavior, with moderate shifts toward correc-
+tionsandfallbacksunderincreasingerror,butstillmaintain-
+ing a reasonable escalation pattern. Overall, these results
+highlight that both the LLM semantics and risk term con-
+tribute to correct error-sensitive transition selection.
+Table 6
+Transition type distribution under different error regimes (av-
+eraged across models).
+Policy Variant Main (%) Correction (%) Fallback (%)
+Low Error (𝑒 𝑖 ≤𝜖 𝑖)
+Full Policy 91.8 6.8 1.4
+w/o Value 85.0 13.2 1.8
+w/o Cost 87.6 11.3 1.1
+w/o Risk 76.7 21.7 1.6
+w/o LLM 82.1 16.3 1.6
+Moderate Error (𝜖 𝑖 < 𝑒 𝑖 ≤𝜖 max
+𝑖 )
+Full Policy 11.1 79.8 9.1
+w/o Value 19.9 63.0 17.1
+w/o Cost 19.9 62.9 17.2
+w/o Risk 33.0 44.6 22.4
+w/o LLM 30.4 40.4 29.2
+High Error (𝑒 𝑖 > 𝜖 max
+𝑖 )
+Full Policy 1.9 13.4 84.7
+w/o Value 0.4 22.1 77.5
+w/o Cost 0.9 22.1 77.0
+w/o Risk 0.3 32.9 66.8
+w/o LLM 0.5 28.8 70.7
+4.5.3. Summary of Findings
+As shown in Table 6 and Figure 6, the Full Policy
+exhibitsawell-calibratederrorescalationmechanism:nearly
+alltransitionsremainmainunderlowerror(91.8%),correc-
+tionsdominate under moderate error (79.8%), andfallbacks
+trigger under high error (84.7%). Removing theRisk Term
+substantially degrades performance, with delayed correc-
+tionsundermoderateerror(33.0%vs.11.1%forFullPolicy)
+and underutilized fallbacks under high error (66.8% vs.
+84.7%). TheLLM Semantic Scoreensures commonsense
+alignment,asitsremovalleadstosemanticallyinappropriate
+transitions (e.g., excessive fallbacks when corrections suf-
+fice, 28.8% correction vs. 79.8% in Full Policy at moderate
+error) and increased recovery steps. Ablating theValue
+Termaffectslong-horizonplanning,oftenincreasingrecov-
+ery steps while producing mixed effects on TSR, and the
+Cost Termimproves efficiency by reducing unnecessary
+recovery actions, though its absence causes moderate TSR
+degradation across tasks.
+Threshold sensitivity analysis further demonstrates that
+the Full Policy is robust across a wide range of scaling
+factors, maintaining high TSR for moderate thresholds
+(0.5–2.0) across llama3-70B, gpt-5-mini, and DeepSeek-R1
+models.Incontrast,w/oLLMsuffersunderstrictthresholds
+(<0.75), w/o Risk under permissive thresholds (>2.5), and
+w/o Cost or w/o Value show moderate variability. These
+results collectively validate that the combination of LLM
+semantics, risk estimation, value guidance, and cost aware-
+ness enables the policy to achieve high task success rates,
+efficient recovery, and semantic coherence, while reducing
+sensitivity to precise threshold tuning and enhancing de-
+ployabilityacrossdiversemulti-step,multi-roomtasksinthe
+VirtualHome environment.
+C. Cao et al.:Preprint submitted to ElsevierPage 17 of 19
+
+--- PAGE 18 ---
+Hierarchical Error-Corrective Graph Framework
+5. Conclusion
+Inthiswork,weproposedHierarchicalError-Correcting
+Graph (HECG), a framework for robust household task
+execution under uncertainty. Extensive experiments on the
+VirtualHomeenvironment across multiple representative
+tasks—includingREADBOOK,PUTDISHWASHER,PRE-
+PAREFOOD,PUTFRIDGE,andSETUPTABLE—demonstrate
+the effectiveness of our approach.
+Hierarchicalcorrectionandreplanningsubstantiallyim-
+prove reliability. Models incorporating corrective mech-
+anisms, such as GPT-5 Mini and DeepSeek-R1, achieve
+higherpost-replanningsuccessrates(TSR_R)andcorrective
+successrates(TSR_C)comparedtoflatplanners.Thiseffect
+is particularly pronounced for multi-step, multi-room tasks
+likePREPAREFOODandSETUPTABLE, where sequential
+dependencies and dynamic object interactions pose signifi-
+cant challenges.
+Component-level contributions of transition policies are
+critical. Ablation studies on task value, execution cost, risk
+estimation, and LLM-based semantic guidance reveal that
+the risk term is crucial for preventing execution failures, the
+LLM semantic score ensures transitions are commonsense-
+aligned, the task value guides long-horizon planning, and
+the cost term improves execution efficiency. Combining all
+components consistently produces the highest TSR while
+minimizing recovery steps and maintaining high semantic
+consistency.
+Model-specific strengths emerge as well. GPT-5 Mini
+excels in action-level precision and effective error recovery,
+DeepSeek-R1 prioritizes recall, achieving higher original
+task success but often at the expense of efficiency, and
+LLaMA3.3-70B demonstrates robust scene-level grounding
+but moderate replanning adaptability.
+Finally, the full transition policy maintains stable per-
+formance across a wide range of error detection thresholds,
+whereasablatedvariantsshowsignificantdegradationwhen
+thresholds are too strict or too permissive, highlighting the
+importance of each component for reliable deployment in
+diverseenvironments.Overall,ourexperimentsvalidatethat
+hierarchicalplanningwithintegratederrorcorrection,prob-
+abilistic transition policies, and LLM-informed semantic
+guidance significantly enhances the reliability, efficiency,
+and generalization of embodied AI agents performing com-
+plex household tasks. Future work will explore scaling to
+larger environments, richer object interactions, and real-
+world robotic deployment.
+References
+[1] Z. Zhao, S. Cheng, Y. Ding, Z. Zhou, S. Zhang, D. Xu, and Y. Zhao.
+A Survey of Optimization-Based Task and Motion Planning: From
+Classical to Learning Approaches.IEEE/ASME Transactions on
+Mechatronics, 30:2799–2825, 2024.
+[2] H. Zhao, Y. Guo, Y. Liu, and J. Jin. Multirobot unknown environ-
+ment exploration and obstacle avoidance based on a Voronoi dia-
+gram and reinforcement learning.Expert Systems with Applications,
+264:125900, 2025.
+[3] Şenbaşlar, B., & Sukhatme, G. S.: Dream: Decentralized real-
+time asynchronous probabilistic trajectory planning for collision-free
+multi-robot navigation in cluttered environments.IEEE Transactions
+on Robotics(2024)
+[4] Garrabé,É.,Teixeira,P.,Khoramshahi,M.,&Doncieux,S.:Enhanc-
+ing Robustness in Language-Driven Robotics: A Modular Approach
+to Failure Reduction.arXiv preprint arXiv:2411.05474(2024)
+[5] Ahn, M., Brohan,A., Brown, N., Chebotar, Y.,Cortes, O., David, B.,
+...&Zeng,A.:DoasIcan,notasIsay:Groundinglanguageinrobotic
+affordances.arXiv preprint arXiv:2204.01691(2022)
+[6] Joublin, F., Ceravola, A., Smirnov, P., Ocker, F., Deigmoeller, J.,
+Belardinelli, A., Wang, C., Hasler, S., Tanneberg, D., & Gienger,
+M.: Copal: Corrective planning of robot actions with large language
+models. In:Proceedings of the 2024 IEEE International Conference
+on Robotics and Automation (ICRA), pp. 8664–8670. IEEE (2024)
+[7] Ly, K. T., Lu, K., & Havoutis, I.: InteLiPlan: An Interactive
+Lightweight LLM-Based Planner for Domestic Robot Autonomy.
+IEEE Robotics and Automation Letters(2026)
+[8] I. Singh, V. Blukis, A. Mousavian, A. Goyal, D. Xu, J. Tremblay,
+et al. ProgPrompt: Generating situated robot task plans using large
+language models.arXiv preprint arXiv:2209.11302, 2022.
+[9] Obi, I., Venkatesh, V. L., Wang, W., Wang, R., Suh, D., Amosa, T.
+I., ... & Min, B. C.: SafePlan: Leveraging formal logic and chain-
+of-thought reasoning for enhanced safety in LLM-based robotic task
+planning.arXiv preprint arXiv:2503.06892(2025)
+[10] Ao, J., Wu, F., Wu, Y., Swiki, A., & Haddadin, S.: LLM-as-BT-
+Planner: Leveraging LLMs for behavior tree generation in robot task
+planning.In:Proceedingsofthe2025IEEEInternationalConference
+on Robotics and Automation (ICRA), pp. 1233–1239. IEEE (2025)
+[11] Borate, S., Pardeshi, V., & Vadali, M.: LLM-Based General-
+izable Hierarchical Task Planning and Execution for Heteroge-
+neous Robot Teams with Event-Driven Replanning.arXiv preprint
+arXiv:2511.22354(2025)
+[12] Robot planning with LLMs.Nature Machine Intelligence, vol. 7,
+p. 521, Apr. 2025, doi:10.1038/s42256-025-01036-4. :contentRefer-
+ence[oaicite:0]index=0
+[13] Z.Xue,A.Elksnis,andN.Wang,“Integratinglargelanguagemodels
+for intuitive robot navigation,”Frontiers in Robotics and AI, vol. 12,
+article 1627937, Sept. 2025, doi:10.3389/frobt.2025.1627937. :con-
+tentReference[oaicite:1]index=1
+[14] Y. Kim, D. Kim, J. Choi, J. Park, N. Oh, and D. Park, “A survey
+on integration of large language models with intelligent robots,”
+Intelligent Service Robotics, vol. 17, no. 5, pp. 1091–1107, 2024.
+[15] B. Siciliano, O. Khatib, and T. Kröger, Eds.,Springer Handbook of
+Robotics. Berlin, Germany: Springer, 2008.
+[16] M. Colledanchise and P. Ögren,Behavior Trees in Robotics and AI:
+An Introduction. Boca Raton, FL, USA: CRC Press, 2018.
+[17] Z. Shen, C. Gao, J. Yuan, T. Zhu, X. Fu, and Q. Sun, “SDA-
+PLANNER: State-dependency aware adaptive planner for embodied
+task planning,”arXiv preprint arXiv:2509.26375, 2025.
+[18] M. Naeem, A. Melnik, and M. Beetz, “Grounding language models
+with semantic digital twins for robotic planning,”arXiv preprint
+arXiv:2506.16493, 2025.
+[19] Kulkarni, T.D., Narasimhan, K., Saeedi, A., Tenenbaum, J.: Hierar-
+chical deep reinforcement learning: Integrating temporal abstraction
+and intrinsic motivation. In: Lee, D.D., Sugiyama, M., Luxburg,
+U.V., Guyon, I., Garnett, R. (eds.) Advances in Neural Information
+Processing Systems 29 (NeurIPS 2016), pp. 3675–3683 (2016)
+[20] Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N.,
+Küttler, H., Lewis, M., Yih, W. T., Rocktäschel, T., Riedel, S., Kiela,
+D.: Retrieval-Augmented Generation for Knowledge-Intensive NLP
+Tasks.In:NeurIPS2020,AdvancesinNeuralInformationProcessing
+Systems (2020)
+[21] Guu, K., Lee, K., Tung, Z., Pasupat, P., Chang, M. W.: Retrieval
+augmented language model pre-training. In: Proc. 37th International
+Conference on Machine Learning (ICML), pp. 3929–3938. PMLR
+(2020)
+[22] Reed,S.,Zolna,K.,Parisotto,E.,Colmenarejo,S.G.,Novikov,A.,et
+al.: A Generalist Agent. arXiv:2205.06175 (2022)
+C. Cao et al.:Preprint submitted to ElsevierPage 18 of 19
+
+--- PAGE 19 ---
+Hierarchical Error-Corrective Graph Framework
+[23] Park, J. S., O’Brien, J. C., Cai, C. J., Morris, M. R., Liang, P.,
+Bernstein, M. S.: Generative agents: Interactive simulacra of human
+behavior. In: Proc. 36th Annual ACM Symposium on User Interface
+Software and Technology (UIST), pp. 1–22. ACM (2023)
+[24] Johnson, J., Krishna, R., Stark, M., Li, L. J., Shamma, D., Bernstein,
+M., Fei-Fei, L.: Image retrieval using scene graphs. In: CVPR 2015,
+pp. 3668–3678. IEEE (2015)
+[25] Battaglia, P. W., Hamrick, J. B., Bapst, V., Sanchez-Gonzalez, A., et
+al.: Relational inductive biases, deep learning, and graph networks.
+arXiv:1806.01261 (2018)
+[26] Jiang,Y.,Wu,Y.,Li,H.,Zhao,D.:Graph-basedreinforcementlearn-
+ing: A survey. IEEE Transactions on Neural Networks and Learning
+Systems, 33(8), pp. 3519–3539 (2022)
+[27] Pritzel, A., Uria, B., Srinivasan, S., Puigdomènech, A., et al.: Neural
+episodic control. In: Proc. 34th International Conference on Machine
+Learning (ICML), pp. 2827–2836. PMLR (2017)
+[28] Blundell, C., Uria, B., Pritzel, A., Li, Y., et al.: Model-free episodic
+control. arXiv:1606.04460 (2016)
+[29] Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K. R.,
+Cao,Y.:ReAct:Synergizingreasoningandactinginlanguagemodels.
+In: Proc. 11th International Conference on Learning Representations
+(ICLR 2023) (2022)
+[30] Huang, W., Xia, F., Xiao, T., Chan, H., Liang, J., Florence, P., Ichter,
+B.: Inner Monologue: Embodied Reasoning through Planning with
+Language Models. arXiv preprint arXiv:2207.05608 (2022)
+[31] McDermott, D., Ghallab, M., Howe, A., Knoblock, C., Ram, A.,
+Veloso, M., Weld, D., Wilkins, D.: PDDL—The Planning Domain
+Definition Language. Technical Report CVC TR-98-003/DCS TR-
+1165, Yale Center for Computational Vision and Control (1998)
+[32] Yao, S., Yu, D., Zhao, J., Shafran, I., Griffiths, T., Cao, Y.,
+Narasimhan, K.: Tree of Thoughts: Deliberate Problem Solving with
+LargeLanguageModels.In:AdvancesinNeuralInformationProcess-
+ing Systems (NeurIPS), vol. 36, pp. 11809–11822 (2023)
+[33] Shinn, N., Cassano, F., Gopinath, A., Narasimhan, K., Yao, S.:
+Reflexion: Language Agents with Verbal Reinforcement Learning.
+In: Advances in Neural Information Processing Systems (NeurIPS),
+vol. 36, pp. 8634–8652 (2023)
+[34] Wang, G., Xie, Y., Jiang, Y., Mandlekar, A., Xiao, C., Zhu, Y.,
+Anandkumar, A.: Voyager: An Open-Ended Embodied Agent with
+Large Language Models. CoRR abs/2305.16291 (2023)
+C. Cao et al.:Preprint submitted to ElsevierPage 19 of 19

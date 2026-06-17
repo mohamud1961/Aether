@@ -1,0 +1,49 @@
+{
+  "call_id": "qemu-startup__SZBEip3_execute_29",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"success_contract\",\"objective\":\"Start /app/alpine.iso in QEMU in the background and expose the guest login prompt on 127.0.0.1:6665 so telnet can connect and show the login prompt.\",\"required_artifacts\":[\"A running QEMU process started from /app/alpine.iso\",\"A host-forwarded TCP listener on 127.0.0.1:6665 connected to the guest login service\"],\"required_behaviors\":[\"QEMU must remain running in the background after launch\",\"Connecting to 127.0.0.1:6665 must present the Alpine login prompt\",\"The VM must be reachable without requiring further intervention\"],\"known_invalid_patterns\":[\"Only proving the ISO file exists\",\"Only proving QEMU can start and exit\",\"Only proving the port is open without the login prompt\",\"Launching QEMU in the foreground so the task is not left running\"],\"verification_plan\":[\"Inspect visible files and any existing receipts for prior launch details\",\"Launch QEMU detached/backgrounded with host forwarding from 127.0.0.1:6665 to guest port 23 or equivalent console path that yields the login prompt\",\"Probe 127.0.0.1:6665 until the login prompt is observed\",\"Keep the VM running after verification\"],\"finalization_evidence_required\":[\"Receipt-backed evidence of the QEMU launch command and background process\",\"Receipt-backed evidence from a probe to 127.0.0.1:6665 showing the login prompt\"]},{\"type\":\"plan_update\",\"plan\":{\"current_focus\":\"Inspect workspace contents and determine the correct QEMU invocation\",\"next_steps\":[\"Inspect visible files and any existing receipts\",\"Determine available QEMU binary and launch options\",\"Start VM detached/backgrounded\",\"Probe localhost:6665 until login prompt is observed\"],\"validation_strategy\":[\"Use a telnet or netcat probe against 127.0.0.1:6665\",\"Confirm the prompt text matches Alpine login prompt behavior\",\"Keep the VM running after successful probe\"]}},{\"type\":\"raw_bash\",\"command\":\"cd /app && ls -la && printf '\\\\n--- receipts ---\\\\n' && find . -maxdepth 2 -type f \\\\( -name '*.receipt' -o -name '*.json' -o -name 'qemu-alpine.log' -o -name 'qemu-alpine.pid' \\\\) | sort\",\"timeout_seconds\":30,\"capture_receipt\":true}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && ls -la && printf '\\\\n--- receipts ---\\\\n' && find . -maxdepth 2 -type f \\\\( -name '*.receipt' -o -name '*.json' -o -name 'qemu-alpine.log' -o -name 'qemu-alpine.pid' \\\\) | sort\",\"timeout_seconds\":30,\"capture_receipt\":true}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "cd /app && ls -la && printf '\\n--- receipts ---\\n' && find . -maxdepth 2 -type f \\( -name '*.receipt' -o -name '*.json' -o -name 'qemu-alpine.log' -o -name 'qemu-alpine.pid' \\) | sort",
+        "timeout_seconds": 30,
+        "capture_receipt": true
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3070,
+    "cached_input_tokens": 0,
+    "output_tokens": 610,
+    "total_tokens": 3680,
+    "provider_usage_raw": {
+      "completion_tokens": 610,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 60,
+        "engine_ttlt_ms": 3173,
+        "pre_inference_ms": 112,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 614,
+        "service_ttlt_ms": 3730,
+        "total_duration_ms": 3625,
+        "user_visible_ttft_ms": 502
+      },
+      "prompt_tokens": 3070,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 3680
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

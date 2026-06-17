@@ -1,0 +1,1 @@
+sh -lc 'python3 server_ok.py'

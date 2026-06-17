@@ -1,0 +1,52 @@
+# Coverage Access Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: coverage_access
+- objective: Maintain the corpus access and route-map layer as a continuous support track so core waves can move honestly without pretending access work equals analysis.
+- exact_question: What access and routing work is still needed for Deep Synthesis to cover the corpus deeply, and which parts of that work are complete, partial, or still blocking artifact-level closure?
+- why_now: `coverage_access` is no longer a 5-wave serial blocker. It is now a continuous support track with explicit gates and explicit status in the coverage register.
+- inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - research/sources/papers/papers_text/review_summary.md
+  - research/sources/codebases/
+  - research/sources/trajectories/
+  - research/sources/informal/
+  - research/sources/issues/
+  - research/sources/postmortems/
+  - research/sources/benchmarks/
+  - evals/
+- preflight_requirements:
+  - keep access work separate from completed analysis
+  - keep route maps explicit
+  - keep unread or weakly covered families visible
+  - update the coverage register whenever support status changes materially
+- exclusions:
+  - do not make final mechanism or failure claims
+  - do not treat support completion as artifact completion
+  - do not edit canonical ledger files
+- output_contract:
+  - decision:
+    - tracking/collab/stage_02_synthesis/coverage_access/decision.md
+  - artifact synthesis:
+    - tracking/collab/stage_02_synthesis/coverage_access/synthesis/principal_synthesis.md
+  - coverage register updates:
+    - tracking/collab/stage_02_synthesis/coverage_register/current_status.md
+  - reusable support layers:
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/
+    - tracking/collab/stage_02_synthesis/trajectory_case_studies/
+    - tracking/collab/stage_02_synthesis/literature_dossiers/
+    - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/
+    - tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/
+- collaboration_mode: continuous support track with targeted work packages, not a core-wave sequence
+- external_agent_action: Run external agent now: yes. Continue targeted support work where the coverage register still shows partial or thin status.
+- assigned_roles:
+  - principal project steward
+  - targeted support workers as needed
+- evidence_expectations:
+  - keep paper extraction quality visible
+  - keep source-system routing visible
+  - keep trajectory, informal, and eval route-map state visible
+  - do not silently declare `Gate A baseline_access_ready` complete until the coverage register supports it
+- done_condition: support-track gates and route maps are explicit, the coverage register is current, and serious waves can cite support status honestly.

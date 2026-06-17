@@ -1,0 +1,278 @@
+DEEP_SYNTHESIS_CHECKLIST_ADJUDICATION
+- artifact: mechanism_map
+- wave: wave_04_context_state_memory_workspace
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - yes
+  - This adjudication is wave-scoped to `context_state_memory_workspace`; it does not treat Wave 04 acceptance as `mechanism_map` completion.
+  - The review checked the packet question directly: whether the wave really answered context, state, memory, and workspace as distinct mechanism surfaces, whether the lanes synthesized rather than dumped notes, whether BigAI and resumability limits stayed honest, whether direct path accounting outranked organizer theater, and whether support-track obligations were actually satisfied.
+- preflight_planned_read_order:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/MECHANISM_MAP_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - all four Wave 04 main-lane outputs
+  - the primary contradiction output
+  - the Wave 04 principal synthesis
+  - support artifacts and repair-pass support-track files materially cited by the principal synthesis
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+- preflight_coverage_risks:
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` remains empty, so direct path accounting is still the only trustworthy coverage-control surface.
+  - BigAI is still bounded by `behavioral reconstruction`; hidden memory or restart internals remain unread.
+  - Long-tail trajectory pressure from `headless-terminal`, `large-scale-text-editing`, and `BigAI/adaptive-rejection-sampler` is still outside accepted Wave 04 coverage.
+  - KIRA-Slack durable-memory paths and the DeepAgents memory-agent-bench test remain unread, so richer source-visible memory capacity is still only partially mapped.
+- preflight_likely_blind_spots:
+  - broader cross-task pressure on workspace hygiene outside `git-multibranch`
+  - stronger direct behavioral evidence for restart-safe resumability
+  - deeper reconciliation between KiraClaw durable-memory source and Terminus-KIRA trajectory usage
+  - whether long-tail trajectories materially weaken the current artifact-first baseline
+- preflight_blockers:
+  - none structural
+  - The required main lanes, primary contradiction file, principal synthesis, support artifacts, case studies, and repair-pass `claw-code` dossier exist on disk and are sufficient for checklist adjudication.
+- active_checklist_paths:
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/MECHANISM_MAP_AUDIT_CHECKLIST.md`
+- section_results:
+  - section: `scope_and_phase_discipline`
+    - verdict: `pass`
+    - short_justification: Wave 04 stays inside the declared `mechanism_map` question for `context_state_memory_workspace`. The principal synthesis preserves wave acceptance versus artifact completion and does not turn this packet into final architecture choice, failure-taxonomy closure, or variant selection.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - section: `source_of_truth_and_tracing`
+    - verdict: `pass`
+    - short_justification: The wave uses explicit repo-local coverage accounting across trajectories, mirrored source, literature/docs, and informal evidence. Observation and inference remain separated in the lane outputs, and BigAI is kept explicitly at `behavioral reconstruction` rather than source-laundered into a stronger family.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+  - section: `wave_question_resolution`
+    - verdict: `pass`
+    - short_justification: The wave materially answers the bounded question. It establishes that artifact continuity and workspace state are the strongest directly observed state carriers, that context compaction, session history, durable persistence, and workspace artifacts are distinct mechanism surfaces, and that the `custom-memory-heap-crash` family must not be flattened into agent-memory rhetoric.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - section: `lane_synthesis_quality`
+    - verdict: `pass`
+    - short_justification: The main lanes synthesize rather than merely inventory. The trajectory lane compares regimes, the codebase lane separates implementation substrates, the literature lane sharpens formal definitions without outranking stronger evidence, and the informal lane groups operational contradiction pressure into concrete failure clusters.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - section: `bigai_and_resumability_honesty`
+    - verdict: `pass`
+    - short_justification: The principal synthesis preserves the key carry-forward cautions instead of smoothing them away. BigAI remains bounded to visible behavior plus docs pressure, restart and resumability remain under-evidenced, and richer source-visible memory capacity in DeepAgents and KIRA is kept distinct from the thinner required trajectory usage.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - section: `coverage_honesty_and_support_tracks`
+    - verdict: `partial`
+    - short_justification: Coverage claims are honest and the repair-pass support obligations named by the packet are now satisfied: the three required case studies and the `claw-code` dossier exist. The remaining weakness is governance, not fabrication: organizer routing is still empty, and several high-priority long-tail path families remain explicitly unread.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+      - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+      - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+      - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+      - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - section: `compounding_update`
+    - verdict: `pass`
+    - short_justification: Wave 04 materially compounds the cumulative artifact state. It adds reusable mechanism separation across context, state, memory, and workspace, preserves contradictions, keeps saturation below `decision_ready`, and improves the cumulative mechanism map rather than only expanding historical notes.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - section: `artifact_level_completion_boundary`
+    - verdict: `partial`
+    - short_justification: This wave is strong enough to accept, but `mechanism_map` remains incomplete. Major unread path families and later mechanism buckets remain open, and no promoted Wave 04 family is close to `decision_ready`.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- highest_value_strengths:
+  - The wave really answers `context_state_memory_workspace` rather than drifting into generic “memory” prose. It keeps explicit artifact continuity, layered context/compaction/persistence/workspace substrates, and workspace-hygiene mechanisms distinct enough to reuse downstream.
+  - The lanes synthesize across evidence classes instead of only dumping paths. Trajectories, mirrored source, literature/docs, and informal issue pressure converge on the same anti-collapse result from different angles.
+  - BigAI limits were preserved honestly. The current wave uses BigAI for visible handoff and cleanup behavior only, while keeping stronger implementation claims bounded as `behavioral reconstruction`.
+  - The repair pass closed the packet-required support obligations that would otherwise have made acceptance misleading: the three Wave 04 case studies and the `claw-code` dossier are now present and aligned with the principal synthesis.
+- highest_value_gaps:
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is still empty, so organizer routing remains unusable as a governing coverage surface.
+  - Restart-safe resumability remains under-evidenced behaviorally; the wave keeps this honest, but it is still a material gap.
+  - Richer durable-memory capacity is visible in DeepAgents and KIRA source, but the required Wave 04 trajectories do not exercise it strongly enough to move beyond `exploratory`.
+  - Workspace-hygiene confidence is strongest in `git-multibranch` and path/session corruption pressure; it is not yet broadly pressure-tested across the wider trajectory corpus.
+- fake_pass_risks:
+  - Treating Wave 04 acceptance as proof that `mechanism_map` is near completion.
+  - Treating BigAI docs or reconstruction as if they were mirrored implementation evidence.
+  - Treating A-Evolve’s source-backed workspace doctrine as if Wave 04 had already trajectory-validated it.
+  - Treating the presence of support artifacts as equivalent to organizer-level coverage routing while `organizer.md` remains empty.
+  - Treating compaction/session/checkpoint substrate availability as proof of stable restart-safe resumability.
+- coverage_register_consistency:
+  - The current accepted-state control surfaces are materially consistent for adjudication: `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` already records Wave 04 as principal synthesis complete and checklist-ready, and `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` reflects the Wave 04 repair-pass support artifacts.
+  - After this adjudication, both files should be updated from `checklist-ready` / `principal-complete` language to `accepted with carry-forward warnings`.
+  - The only standing coverage-register inconsistency that remains structural is the still-empty organizer surface.
+- support_track_status_check:
+  - Required Wave 04 case studies are present:
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - Required Wave 04 support dossiers are present:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - Required wave support outputs cited by the principal synthesis are present:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - Deferred support artifacts remain non-blocking rather than missing obligations:
+    - `trajectory_support_memory_state_drift_cases.md`
+    - `trajectory_support_branch_worktree_state_table.md`
+    - `trajectory_support_run_to_source_link_map.md`
+    - `codebase_support_compaction_handoff_map.md`
+    - `codebase_support_claw_code_runtime_state_map.md`
+  - The live support-track weakness still carried forward is:
+    - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/MECHANISM_MAP_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/contradiction_analyst__claude.md`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/trajectories/*/headless-terminal/**`
+  - `research/sources/trajectories/*/large-scale-text-editing/**`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/**`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/**`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/memory_agent_bench/test_memory_agent_bench.py`
+  - `research/sources/papers/papers_text/2510.04618.txt`
+  - `research/sources/papers/papers_text/2603.09619.txt`
+  - `research/sources/papers/papers_text/src_pap_f2bc990ed39f.txt`
+  - `research/sources/papers/papers_text/src_pap_703731e7c236.txt`
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - support artifacts
+  - support-track dossiers and case studies
+  - cumulative control surfaces
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/agent.py`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/agent.py`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/memory_agent_bench/test_memory_agent_bench.py`
+  - `research/sources/trajectories/*/headless-terminal/**`
+  - `research/sources/trajectories/*/large-scale-text-editing/**`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+- support_artifacts_requested_or_deferred:
+  - landed:
+    - `trajectory_support_context_workspace_matrix.md`
+    - `codebase_support_context_state_map.md`
+    - `codebase_support_workspace_artifact_map.md`
+    - `git_multibranch.md`
+    - `break_filter_js_from_html.md`
+    - `custom_memory_heap_crash.md`
+    - `claw-code.md`
+  - deferred:
+    - `trajectory_support_memory_state_drift_cases.md`
+    - `trajectory_support_branch_worktree_state_table.md`
+    - `trajectory_support_run_to_source_link_map.md`
+    - `codebase_support_compaction_handoff_map.md`
+    - `codebase_support_claw_code_runtime_state_map.md`
+- coverage_register_updates_needed:
+  - Update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` after this adjudication to change Wave 04 from `principal synthesis complete, checklist-ready` to `accepted with carry-forward warnings`.
+  - Update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` to replace the remaining `checklist-ready` phrasing with accepted-wave language and keep the same carry-forward warnings visible.
+  - Keep the organizer-routing caveat explicit rather than implying that support-track repair closed it.
+- required_dossier_updates:
+  - No new Wave 04 dossier creation is required by this adjudication.
+  - The required Wave 04 dossier surfaces that must remain carried forward are:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+- warnings_to_carry_forward:
+  - BigAI remains `behavioral reconstruction`.
+  - Restart-safe resumability remains under-evidenced and should stay below stronger promotion than `exploratory`.
+  - Organizer routing remains subordinate to direct path accounting until `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is repaired.
+  - Do not treat A-Evolve source-backed workspace doctrine as Wave 04 trajectory-backed behavior.
+  - Do not treat rich source-visible durable-memory capacity in DeepAgents or KIRA as proof that the required Wave 04 trajectories exercised durable retrieval.
+  - Do not promote workspace and branch hygiene beyond regime-scoped confidence without broader trajectory pressure.
+  - Passing this checklist does not mean `mechanism_map` is complete.
+- recommended_next_action:
+  - Accept Wave 04 with carry-forward warnings.
+  - Update the cumulative and coverage-register control surfaces to record accepted status.
+  - Keep the Wave 03 carry-forward cautions visible wherever restart/resume or hidden persistence claims are reused.
+  - Open the next governed `mechanism_map` wave only after the accepted-state surfaces are updated, with organizer repair and deeper long-tail state-pressure reads still queued as support-track debt.

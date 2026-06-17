@@ -1,0 +1,121 @@
+SUPPORT_ARTIFACT
+- artifact_id: wave_06_informal_support_orchestration_failure_cluster
+- wave: wave_06_planning_orchestration_and_interactions
+- lane_owner: informal/issues/postmortems analyst
+- purpose: Cluster high-signal informal/issue/postmortem evidence for planning drift, delegation mismatch, role handoff ambiguity, and orchestration stall behavior.
+- source_scope:
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/informal/cursor_scaling_agents.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+  - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+
+- cluster_matrix:
+  - cluster: planning_drift_and_replan_trigger_ambiguity
+    - recurring_signals:
+      - Long-running runs need explicit plan checkpoints and resets to avoid drift.
+      - Replanning is frequently introduced as corrective behavior after coherence loss, not as first-pass doctrine.
+      - Compaction and resume faults can invalidate the planner's working state and force manual restart.
+    - primary_evidence:
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/informal/anthropic_long_running_harness.md`
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+    - confidence: medium
+    - caveat: informal claims include product-blog framing; issue evidence is stronger for operational failure mode prevalence than for architecture-level root cause.
+
+  - cluster: delegation_mismatch_and_hidden_coupling
+    - recurring_signals:
+      - Delegated agents inherit irrelevant parent context, causing identity/authority conflicts.
+      - Parent-only permission mediation breaks delegated autonomy and creates hidden coupling to terminal prompts.
+      - Tool invocation loops and repeated retries appear when delegated tools are long-running or partially failing.
+    - primary_evidence:
+      - `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`
+      - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+      - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+      - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+      - `research/sources/informal/cursor_self_driving_codebases.md`
+      - `research/sources/informal/cursor_scaling_agents.md`
+      - `research/sources/informal/humanlayer_ace_fca.md`
+    - confidence: high
+    - caveat: the teammate vs subagent distinction is implementation-specific to some systems.
+
+  - cluster: role_handoff_and_contract_ambiguity
+    - recurring_signals:
+      - Multi-role systems often rely on handoff artifacts/files, but handoff contract quality is uneven.
+      - Resume surfaces can fail silently when a child transcript ends in API/tool concurrency error.
+      - Post-compaction loss of injected rules causes contract drift after long sessions.
+    - primary_evidence:
+      - `research/sources/informal/anthropic_long_running_harness.md`
+      - `research/sources/informal/humanlayer_12_factor_agents.md`
+      - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+      - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+      - `research/sources/issues/src_iss_31cf9134cefa/artifact.txt`
+      - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+    - confidence: medium
+    - caveat: some inputs are roadmap proposals (feature tasks), not confirmed production behavior.
+
+  - cluster: orchestrator_stalls_and_coordination_collapse
+    - recurring_signals:
+      - Flat self-coordination with shared lock files produces deadlock/throughput collapse.
+      - Compaction failures and oversized tool payloads can push sessions into repeated hard-failure loops.
+      - Browser-substrate crashes in long runs lead to stuck waits without automatic recovery.
+    - primary_evidence:
+      - `research/sources/informal/cursor_self_driving_codebases.md`
+      - `research/sources/informal/cursor_scaling_agents.md`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+      - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+      - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+    - confidence: high
+    - caveat: some examples are concentrated in specific products and may not generalize across all harness families.
+
+  - cluster: prestige_language_and_false_confidence_pressure
+    - recurring_signals:
+      - Marketing and research narratives emphasize scale and autonomy, but issue trackers show fragile resume/compaction/recovery behavior.
+      - Throughput rhetoric can mask hidden operational debt shifted to follow-up loops and cleanup agents.
+      - Multi-agent success stories can overstate doctrine stability relative to direct failure reports.
+    - primary_evidence:
+      - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+      - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/informal/cursor_self_driving_codebases.md`
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+    - confidence: medium
+    - caveat: this cluster mixes operator narratives and issue evidence; claims should remain contradiction pressure, not source-backed architecture fact.
+
+- cross_cluster_notes:
+  - Planning quality and recovery quality are coupled: weak compaction/resume turns minor plan drift into full coordination reset.
+  - Delegation safety and permission routing are coupled: if delegated permission hooks bypass policy controls, teams either over-approve upfront or stall.
+  - Handoff artifacts are necessary but insufficient: without explicit re-injection of governing context, post-compaction runs degrade into contract drift.
+
+- deferred_followups:
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt` (tool-descriptions-in-context pressure) for potential overlap with Wave 06 planning drift via context overload.
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt` and `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt` for additional postmortem-grade operational evidence if required by contradiction review.

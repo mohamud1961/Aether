@@ -1,0 +1,47 @@
+TRAJECTORY_FAILURE_OUTPUT
+- artifact: mechanism_map
+- role: trajectory/failure analyst
+- preflight_scope_confirmed: Yes. Confirmed active scope against `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json` and the repaired `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`.
+- preflight_planned_read_order: 1) `headless-terminal` triad across BigAI, deepagents, and terminus-kira. 2) `cancel-async-tasks` and `db-wal-recovery` triads for process control and stateful recovery. 3) `extract-moves-from-video` and `gpt2-codegolf` for failure analysis. 4) `break-filter-js-from-html` and `git-multibranch` for branching/repo-state.
+- preflight_critical_sources_selected: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md` and the `headless-terminal` trajectory triad (`cec71502-c287-4257-9aba-4e33b3668881-traj.txt`, `8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`, `a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`).
+- preflight_coverage_risks: Missing a machine-readable trace index for `deepagents` and `terminus-kira` comparable to the BigAI trace layer. `coverage_report.json` still flags 6 irrecoverable slots in BigAI trace layer, implying systemic measurement gaps.
+- preflight_likely_blind_spots: Complete failure modeling is blind without parsing more of the complex timeout and truncated runs across the non-BigAI families. Hidden mechanisms like prompt assembly and state-management in BigAI trajectories must be inferred as `behavioral reconstruction`.
+- preflight_blockers: None currently identified that prevent an honest first-pass extraction bounded by strict confidence markers.
+- coverage_used:
+  - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/deepagents/break-filter-js-from-html/802e3807-8f1a-4c15-991c-9cdb03d16cef-traj.txt`
+- evidence_classes_touched: trajectories, local analysis
+- priority_sources_not_yet_read: `extract-moves-from-video` failure cases, `git-multibranch` coordination tasks, and `cancel-async-tasks` traces.
+- direct_behavior_observations:
+  - In `headless-terminal` tasks across deepagents and terminus-kira, we observe interactive bash shell usage being explicitly simulated via pseudo-terminals (e.g., using `pexpect`, sending `\x03` to interrupt, reading stdout via non-blocking methods to prevent PTY hangs) implemented directly in python scripts generating execution traces.
+  - BigAI exhibits a planner-first control structure, cleanly separating the planner formulating sub-tasks and assigning executors to process them.
+- workflow_patterns:
+  - The observable architecture across successfully parsed traces favors `planner -> executor -> verifier` decoupled roles rather than a single monolithic iterative loop.
+  - Verification is frequently observed as an external audit role, repeating checklists after an executor claims completion.
+- verification_and_recovery_patterns:
+  - Recovery after verifier rejection is an explicit, recurring loop rather than a rare edge-case.
+  - State-sensitive tasks (like db-wal-recovery) trigger more deliberate backup and environment isolation behavior prior to risky tool usage.
+- failure_candidates:
+  - The `gpt2-codegolf` cluster in BigAI indicates systemic failure around long-horizon coding control and multi-file coherence.
+  - `extract-moves-from-video` tasks show a high failure rate associated with multimodal context alignment and tool-use timeouts.
+- cross_family_comparisons:
+  - All three families (`BigAI`, `deepagents`, `terminus-kira`) execute terminal control by simulating interactive bash sessions.
+  - Deepagents and terminus-kira display explicit background reader threads for robust output capture during headless runs, bypassing PTY hangs.
+  - BigAI's internal scheduling and prompt injection remain unverified by direct source, meaning prompt assembly and loop execution details are labeled as `behavioral reconstruction` based on terminal effects.
+- contradiction_notes:
+  - While descriptive formal notes suggest monolithic execution loops in some of these systems, the direct trajectory evidence contradicts this, showing that a decoupled verifier and planner role is widely deployed, especially within the BigAI traces.
+- confidence_notes:
+  - [High] Terminal control mechanics derived from the direct `headless-terminal` trajectory traces of `deepagents` and `terminus-kira`, since the actual testing code behavior is visible in the logs.
+  - [Medium] BigAI internal execution and task scheduling structures. Weakened because they are based on `behavioral reconstruction` lacking source-code verification.
+- open_questions:
+  - How do the timeout-driven failure modes in `extract-moves-from-video` map to specific verification gaps across non-BigAI families?
+  - Does the decoupled verification pattern seen in BigAI persist directly into the `git-multibranch` tasks, or does executor coordination supersede it?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`

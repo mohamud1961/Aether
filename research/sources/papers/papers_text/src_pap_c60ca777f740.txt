@@ -1,0 +1,2036 @@
+--- PAGE 1 ---
+LiveMedBench: A Contamination-Free Medical
+Benchmark for LLMs with Automated Rubric Evaluation
+Zhiling Yan
+Lehigh University
+Bethlehem, PA, USA
+Dingjie Song
+Lehigh University
+Bethlehem, PA, USA
+Zhe Fang
+Harvard University
+Boston, MA, USA
+Yisheng Ji
+Imperial College London
+London, United Kingdom
+Xiang Li
+Massachusetts General Hospital
+and Harvard Medical School
+Boston, MA, USA
+Quanzheng Li
+Massachusetts General Hospital
+and Harvard Medical School
+Boston, MA, USA
+Lichao Sun∗
+Lehigh University
+Bethlehem, PA, USA
+Abstract
+The deployment of Large Language Models (LLMs) in high-
+stakes clinical settings demands rigorous and reliable evalu-
+ation. However, existing medical benchmarks remain static,
+suffering from two critical limitations: (1) data contamina-
+tion, where test sets inadvertently leak into training corpora,
+leading to inflated performance estimates; and (2) temporal
+misalignment, failing to capture the rapid evolution of med-
+ical knowledge. Furthermore, current evaluation metrics for
+open-ended clinical reasoning often rely on either shallow
+lexical overlap (e.g., ROUGE) or subjective LLM-as-a-Judge
+scoring, both inadequate for verifying clinical correctness.
+To bridge these gaps, we introduceLiveMedBench, a con-
+tinuously updated, contamination-free, and rubric-based
+benchmark that weekly harvests real-world clinical cases
+from online medical communities, ensuring strict temporal
+separation from model training data. We propose a Multi-
+Agent Clinical Curation Framework that filters raw data
+noise and validates clinical integrity against evidence-based
+medical principles. For evaluation, we develop an Auto-
+mated Rubric-based Evaluation Framework that decom-
+poses physician responses into granular, case-specific crite-
+ria, achieving substantially stronger alignment with expert
+physicians than LLM-as-a-Judge. To date, LiveMedBench
+comprises 2,756 real-world cases spanning 38 medical spe-
+cialties and multiple languages, paired with 16,702 unique
+evaluation criteria. Extensive evaluation of 38 LLMs reveals
+that even the best-performing model achieves only 39.2%,
+and 84% of models exhibit performance degradation on post-
+cutoff cases, confirming pervasive data contamination risks.
+Error analysis further identifies contextual application—not
+factual knowledge—as the dominant bottleneck, with 35–
+48% of failures stemming from the inability to tailor medical
+knowledge to patient-specific constraints. The code and data
+are available at LiveMedBench.
+CCS Concepts
+•Computing methodologies → Artificial intelligence;
+•Applied computing→Life and medical sciences.
+∗Corresponding author.
+Figure 1: (A) Temporal degradation. Model perfor-
+mance consistently declines on clinical cases that post-
+date their training knowledge cutoffs, highlighting
+the risk of data contamination. (B) Evaluation align-
+ment. Our proposed Automated Rubric-based Evalua-
+tion Framework aligns better with physician experts
+compared to LLM-as-a-Judge.
+Keywords
+Medical Benchmark, Data Contamination, Clinical Reason-
+ing, Rubric-based Evaluation
+1 Introduction
+Large Language Models (LLMs) are increasingly applied in
+healthcare, assisting with tasks ranging from answering pa-
+tient inquiries to supporting clinical decision-making [25].
+Deploying AI in high-stakes clinical settings requires that
+these models demonstrate robust performance across di-
+verse, real-world scenarios [21].
+While benchmarks serve as essential standards for track-
+ing progress, existing medical benchmarks face substantial
+obstacles in both data construction and evaluation.
+First, on the data side, most benchmarks are static [25],
+leading to two issues. (i) They become temporally mis-
+aligned with rapidly evolving medical knowledge. Clinical
+guidelines and health policies are frequently updated, and
+new diseases and public health emergencies can emerge
+unexpectedly [14]. As a result, static test sets risk becoming
+increasingly misaligned with the evolving standards of real-
+world clinical practice [3]. (ii) They are vulnerable to data
+contamination. Because LLMs are trained on massive and
+arXiv:2602.10367v1  [cs.AI]  10 Feb 2026
+
+--- PAGE 2 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+often opaque corpora, publicly released benchmarks may
+inadvertently appear in training data. Consequently, strong
+scores may reflect memorization rather than genuine clini-
+cal reasoning, undermining credibility of evaluation [19].
+Second, on the evaluation side, commonly used metrics re-
+main inadequate for open-ended clinical reasoning. Lexical-
+overlap metrics (e.g., BLEU) fail to capture semantic and
+clinical correctness [17, 22], and multiple-choice formats
+are poorly aligned with the open-ended and dynamic na-
+ture of real-world clinical workflows [10]. Recent work has
+adopted LLM-as-a-Judge [41] for holistic scoring, while they
+rely on implicit model intuition and typically lack explicit,
+fine-grained criteria that support objective verification [1].
+While recent works attempt to address these challenges,
+they fall short. Approaches utilizing LLM prompts to mod-
+ify data, e.g. dynamic benchmarks [26, 39], cannot update
+underlying seed cases. They fail to reflect real-world medi-
+cal evolution and risk introducing model-generated biases.
+Conversely, benchmarks like MedArena [37] and Health-
+Bench [1] depend on extensive human annotation, making
+them prohibitively expensive and difficult to scale.
+To address these challenges, we introduceLiveMed-
+Bench, a multilingual, multi-specialty, rubric-based bench-
+mark that comprises 2,756 real-world cases paired with
+16,702 unique evaluation criteria. To build LiveMedBench,
+we develop a data pipeline—theMulti-Agent Clinical Cu-
+ration Framework—that continuously harvests new clin-
+ical cases (weekly) from active online medical communi-
+ties, focusing on scenarios resolved by verified physicians.
+The pipeline coordinates multiple agents with Retrieval-
+Augmented Generation (RAG) [15, 40] to cross-check case
+details against authoritative medical evidence, thereby vali-
+dating clinical plausibility and enforcing consistency with
+established standards. For evaluation, we propose anAuto-
+mated Rubric-based Evaluation Frameworkthat con-
+verts physician responses into case-specific rubrics consist-
+ing of self-contained, objective criteria and uses them to
+grade open-ended model outputs, achieving strong align-
+ment with human experts (Figure 1 - Panel B).
+We evaluate 38 LLMs spanning both proprietary and
+open-source models across general-purpose and medically
+specialized architectures. As illustrated in Figure 1 - Panel
+A, performance diverges markedly around the knowledge
+cutoff date. This degradation is consistent with temporal mis-
+alignment and potential exposure to earlier cases. Notably,
+even the state-of-the-art GPT-5.2 achieves only 39.2%, while
+84% of evaluated models exhibit significant performance
+drops on post-cutoff cases, underscoring the pervasive risk
+of data contamination. Our error analysis identifies a crit-
+ical failure mode: the dominant bottleneck is contextual
+application—the inability to synthesize medical facts with
+patient-specific constraints (35–48% of errors). Furthermore,
+retrieval-based knowledge injection recovers much of this
+performance loss, confirming that contemporary failures
+stem from knowledge gaps rather than innate reasoning
+deficits. In summary, our main contributions are:
+(1) We introduce LiveMedBench, a novel benchmark up-
+dated weekly to mitigate data contamination and
+knowledge obsolescence. To date, the dataset com-
+prises 2,756 real-world cases spanning 38 specialties
+and multiple languages.
+(2) We propose a Multi-Agent Clinical Curation Frame-
+work that leverages automated evidence verification
+to align benchmark data with authoritative medical
+standards, ensuring high clinical integrity.
+(3) We develop an Automated Rubric-based Evaluation
+Framework that enables scalable, fine-grained assess-
+ment by decomposing expert responses into 16,702
+unique, case-specific criteria.
+(4) We provide a rigorous evaluation of 38 LLMs, sys-
+tematically contrasting proprietary and open-source
+models across general and medical domains to char-
+acterize the current landscape of clinical AI.
+2 Related Work
+2.1 Medical Benchmarks
+Medical LLM evaluation has evolved from static knowledge
+tests like MedQA [10] and PubMedQA [11] toward open-
+ended reasoning. Subsequent work introduced free-response
+generation [25], multimodal inputs [16], and multilingual
+settings [31]. This shift necessitated a transition from lexical-
+overlap metrics (e.g., ROUGE) to LLM-as-a-judge [41] and
+structured rubric-based assessment. HealthBench [1] pio-
+neered the use of case-specific rubrics to evaluate clinical
+safety and communication. Recent efforts further empha-
+size complex diagnostic reasoning and multi-step planning
+[20, 30]. LiveMedBench builds on these trends by integrat-
+ing automated, scalable rubric generation with continuously
+refreshed real-world cases.
+2.2 Dynamic and Live Benchmarks
+Static benchmarks are increasingly vulnerable to data con-
+tamination and temporal misalignment [19]. To ensure con-
+tamination free evaluation, frameworks like LiveBench [33]
+and LiveCodeBench [9] harvest fresh content from recent
+news and coding competitions. In the medical domain, DyRe-
+Me [39] and MedPerturb [7] mitigate contamination by per-
+turbing existing seed cases. However, these methods often
+rely on objective metrics (e.g., unit tests) unsuitable for clin-
+ical ambiguity. LiveMedBench adapts the live paradigm to
+high-stakes medicine, employing a rigorous multi-agent sys-
+tem to validate clinical integrity and assess dimensions like
+safety and empathy that logic-only benchmarks overlook.
+3 LiveMedBench
+In this section, we describe the end-to-end construction and
+evaluation pipeline of LiveMedBench (Figure 2). We first
+introduce data collection and filtering from online medical
+communities (§3.1), then present our Multi-Agent Clinical
+Curation Framework for transforming noisy threads into
+structured, clinically grounded cases (§3.2), describe our Au-
+tomated Rubric-based Evaluation Framework, which distills
+expert physician responses into case-specific criteria for
+scalable, objective evaluation (§3.3), and finally summarize
+the resulting dataset statistics (§3.4).
+
+--- PAGE 3 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+LLM-as-Judge
+Figure 2: Overview of the LiveMedBench framework. The pipeline consists of five phases: (a) Continuous mining
+of bilingual clinical data from verified online communities; (b) A Multi-Agent Curation Framework (Screener,
+Validator, Controller) that structures and validates data against medical guidelines; (c) Automated generation of
+case-specific evaluation rubrics; (d) Objective evaluation of LLMs using the generated rubrics; and (e) Rigorous
+human quality assurance to ensure clinical alignment.
+3.1 Data Collection
+Platform Selection.To ensure the reliability and clinical
+relevance of our source data, we selected platforms that are
+(i)high activity, with new user-generated posts and dis-
+cussions on a weekly basis; (ii)institutionally endorsed,
+i.e., affiliated with reputable medical organizations (e.g., the
+National Comprehensive Cancer Network (NCCN) and the
+Chinese Medical Doctor Association) or major tertiary hos-
+pitals; and (iii)professionally verified, i.e., hosting a large
+pool of verified physicians (ranging from 4,500+ specialists
+to 2M+ registered professionals). Based on these criteria, we
+harvest raw clinical discussions from four premier online
+medical communities: iCliniq1, SDN2, DXY3, and Medlive4.
+Details of these communities are provided in Appendix A.
+Post Filtering.To improve data quality, we implement a
+filtering protocol following [25]. We retain only posts and
+discussions that were published on or after January 1, 2023
+(to reduce contamination risk and align with current medical
+knowledge), have clinically relevant tags (excluding non-
+clinical topics such as career planning or licensing exams),
+are text-only (threads requiring images, videos, or audio
+are discarded), contain fewer than 50% non-alphanumeric
+characters, are written in English or Chinese, include at
+least one keyword from the ICD [34], ICF [35], or ICHI [36]
+1https://www.icliniq.com
+2https://www.studentdoctor.net
+3https://dxy.com
+4https://www.medlive.cn
+codebooks, are not duplicates of previously indexed entries,
+and include at least one verified physician response.
+3.2 Multi-Agent Clinical Curation
+To transform unstructured online discussions into high-
+fidelity clinical cases, we propose a Multi-Agent Clinical
+Curation Framework. This framework simulates a collabo-
+rative expert validation mechanism, employing three spe-
+cialized agents that operate in a hierarchical workflow to
+ensure structural integrity, clinical plausibility, and evidence
+alignment. Let the raw input be a discussion thread 𝑇=
+{𝑚1, 𝑚2, ..., 𝑚𝑘 }, where 𝑚𝑖 represents the 𝑖-th message in
+the thread. The objective is to convert raw discussions into
+triplets:𝐷={𝑁 𝑎𝑟𝑟𝑎𝑡𝑖𝑣𝑒(𝑁), 𝑄𝑢𝑒𝑟𝑦(𝑄), 𝐴𝑑𝑣𝑖𝑐𝑒(𝐴)}.
+3.2.1 The Screener.The Screener standardizes each raw
+discussion thread 𝑇 into a structured clinical representa-
+tion following the SOAP (Subjective, Objective, Assessment,
+Plan) framework [32]. It outputs a triplet
+𝐷𝑠𝑐𝑟𝑒𝑒𝑛𝑒𝑟 ={𝐿 𝑁 , 𝑄, 𝐿𝐴},
+where 𝐿𝑁 is the set of atomic patient narrative entities (Sub-
+jective/Objective), 𝑄 is the primary user query, and 𝐿𝐴 is
+the set of actionable physician advice elements (Assess-
+ment/Plan). Concretely, the Screener performs:(i) Narra-
+tive aggregation (𝐿𝑁 ):extract and merge patient-provided
+clinical facts from𝑇 .(ii) Query extraction ( 𝑄):identify the
+explicit question/request for medical guidance.(iii) Advice
+extraction (𝐿𝐴):extract actionable diagnostic or manage-
+ment recommendations from verified physician replies. A
+
+--- PAGE 4 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+candidate is forwarded only if all components are present:
+𝐹𝑜𝑟𝑤𝑎𝑟𝑑(𝐶𝑎𝑠𝑒) ⇐ ⇒ (𝐿 𝑁 ≠∅) ∧ (𝑄≠∅) ∧ (𝐿 𝐴 ≠∅)
+3.2.2 The Validator.The Validator assesses the quality and
+factual consistency of the structured triplet 𝐷𝑠𝑐𝑟𝑒𝑒𝑛𝑒𝑟 =
+{𝐿𝑁 , 𝑄, 𝐿𝐴}and outputs a validation vector
+𝑉={𝑆 𝑐𝑐, 𝑆𝑖𝑛𝑓 , 𝑆𝑎𝑙𝑖𝑔𝑛 }.
+(i) Query validity ( 𝑆𝑐𝑐 ):a binary score indicating whether
+𝑄 is a clinically meaningful chief complaint (CC) as defined
+by Ely’s taxonomy [5].(ii) Narrative sufficiency (𝑆𝑖𝑛𝑓 ):the
+fraction of required clinical information items (derived from
+𝑄) that are supported (entailed) by the patient narrative
+𝐿𝑁 , inspired by [6]. Concretely, we first derive a minimal
+checklist 𝑆𝑟𝑒𝑞 of atomic requirements needed to answer 𝑄
+(e.g., onset, severity, red flags), and then compute𝑆𝑖𝑛𝑓 as the
+proportion of items in𝑆𝑟𝑒𝑞 that can be verified from𝐿𝑁 .(iii)
+Evidence alignment ( 𝑆𝑎𝑙𝑖𝑔𝑛 ):an evidence-based validity
+score for physician advice 𝐿𝐴 computed by checking each
+advice element against retrieved medical evidence (Clini-
+cal Guidelines, PubMed, StatPearls, etc.) [2, 40]. Following
+MedRAG [40], we retrieve top-𝑘 evidence snippets using a
+MedCPT retriever [12] and score each advice element with
+𝑣(𝑎 𝑗 ) ∈ { 1.0, 0.5, 0.0} (supported/neutral/contradicted). We
+apply a veto strategy: if any𝑎 𝑗 is contradicted, the entire case
+is discarded. A candidate case 𝐷 is retainedif and only if
+𝐾𝑒𝑒𝑝(𝐷) ⇐ ⇒ (𝑆 𝑐𝑐 = 1) ∧ (𝑆𝑖𝑛𝑓 >𝜏 𝑖𝑛𝑓 ) ∧ (𝑆𝑎𝑙𝑖𝑔𝑛 >𝜏 𝑎𝑙𝑖𝑔𝑛 ),
+where𝜏 𝑖𝑛𝑓 =0.5and𝜏 𝑎𝑙𝑖𝑔𝑛 =0.5are predefined thresholds.
+3.2.3 The Controller.The Controller accepts the valid can-
+didate 𝐷𝑐𝑎𝑛𝑑𝑖𝑑𝑎𝑡𝑒 ={𝐿 𝑁 , 𝑄, 𝐿𝐴} from the Validator and per-
+forms a final audit before generating the canonical natural
+language output. It verifies that every atomic element in
+𝐿𝑁 ∪𝐿 𝐴 is explicitly supported by the original thread𝑇:
+𝐾𝑒𝑒𝑝(𝐷) ⇐ ⇒ ∀𝑥∈ (𝐿 𝑁 ∪𝐿 𝐴),Supported(𝑥, 𝑇).
+Any unsupported or fabricated element leads to discarding
+the case to prevent synthetic contamination. Cases that pass
+are synthesized into coherent narrative (𝑁 ) and advice (𝐴),
+yielding the final triplet𝐷={𝑁 , 𝑄, 𝐴}.
+3.3 Automated Rubric-based Evaluation
+To facilitate scalable and objective assessment, we propose
+anAutomated Rubric-based Evaluation Framework.
+This pipeline consists of two distinct modules: aRubric Gen-
+eratorthat converts physician responses into granular grad-
+ing criteria, and aRubric-based Graderthat assesses model
+outputs against these criteria.
+3.3.1 Automated Rubric Generator.Following the taxon-
+omy of Arora et al. [1], the generator transforms the ver-
+ified advice list 𝐿𝐴 into a structured rubric 𝑅. We adapt
+five of Arora et al. [1]’s seven themes to assign each case
+a dominantTheme—Emergency Referrals,Context-Seeking,
+Expertise-Tailored Communication,Responding under Uncer-
+tainty, orResponse Depth. This theme serves as a contextual
+filter for the subsequent generation steps:
+Step 1: Theme-Guided Fact Extraction.The agent filters
+𝐿𝐴 to retain only medical facts and instructions relevant to
+the assigned Theme. For instance, if the Theme is “Emer-
+gency Referrals, ” long-term dietary advice is discarded to
+focus strictly on triage accuracy.
+Step 2: Bipolar Criterion Formulation.Extracted facts
+are converted into binary criteria with dual polarity.Posi-
+tive criteriareward the correct inclusion of key facts (e.g.,
+“Does the model identify the likely cause as Norovirus?”),
+whilenegative criteriapenalize hallucinations or contra-
+dictions (e.g., “Does the model incorrectly suggest antibi-
+otics for a viral infection?”).
+Step 3: Axis Assignment and Weighting.Each criterion
+is labeled with an evaluationAxis(Accuracy,Completeness,
+Communication Quality,Context A wareness, orSafety) and
+assigned a weight 𝑤 𝑗 ∈ [− 10, 10]. Positive weights denote
+reward criteria, while negative weights flag penalties. Ex-
+treme weights (e.g., 𝑤 𝑗 =± 10) represent life-critical details
+where errors could compromise patient safety.
+3.3.2 Rubric-based Grader.Following the generation of the
+case-specific rubric 𝑅={(𝑐 1, 𝑤1), . . . ,(𝑐 𝑚, 𝑤𝑚)}, the Rubric-
+based Grader systematically assesses the model’s response
+by determining the satisfaction of each atomic criterion. We
+employ a model grader to independently verify whether
+each criterion 𝑐 𝑗 ismetornot metbased on the model’s
+output.
+The final per-case score is calculated by summing the
+weights of satisfied criteria, normalized by the maximum
+possible positive score:
+𝑆𝑐𝑜𝑟𝑒=clip
+ Í𝑚
+𝑗=1 𝑤 𝑗 ·I(Model|=𝑐 𝑗 )
+Í
+𝑘∈ {𝑝|𝑤 𝑝 >0} 𝑤 𝑘
+,0,1
+!
+(1)
+where I(·) is the indicator function equal to 1 if the criterion
+is met, and 0 otherwise. The denominator represents the
+total score achievable if all positive criteria are met. The
+clipping function ensures the score remains within [0, 1]
+even if substantial penalties (negative weights) occur. A
+model’s overall LiveMedBench score is derived from the
+mean of these case-level scores.
+3.4 Data Statistics
+LiveMedBench currently comprises 2,756 clinical cases and
+16,702 unique rubric criteria. As illustrated in Figure 3, the
+dataset spans 38 clinical specialties with a naturally long-
+tailed distribution reflecting real-world prevalence, 1,568
+English and 1,188 Chinese cases sourced from four platforms,
+and five behavioral themes led by Expertise-Tailored Com-
+munication (47.4%). The rubric criteria cover five evaluation
+axes—predominantly Accuracy (51.2%) and Completeness
+(24.7%)—with an average of 6.06 criteria per case (range:
+2–19). A detailed breakdown is provided in Appendix A.4.
+4 Experiments
+4.1 Experimental Setup
+Models Evaluated. We conducted a comprehensive evalu-
+ation across 38 LLMs, categorized into three distinct groups
+to ensure a holistic assessment: (1) Proprietary general-
+purpose models, including the GPT-series [24] and Gemini-
+series [28]; (2) Open-source general-purpose models, such as
+the DeepSeek-series [18] and Qwen-series [29, 38]; and (3)
+
+--- PAGE 5 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+Figure 3: Data statistics of LiveMedBench. The figure illustrates the comprehensive distribution of (a) 38 clinical
+specialties, (b) five behavioral themes, (c) data sources and languages , (d) evaluation axes, and (e) the number of
+grading criteria per case (Mean=6.06).
+Medical-specific models, including the Baichuan-series [4,
+27] and MedGemma-series [23]. All models were evaluated
+in a zero-shot setting to assess their innate clinical capabili-
+ties without task-specific learning. For reproducibility, we
+set the temperature to 0. Detailed model specifications are
+provided in Appendix B.
+Implementation Details. We detail the specific models
+employed in our frameworks. In theMulti-agent Clinical Cu-
+rationphase, both theScreenerandControlleragents utilized
+Qwen/Qwen3-4B-Instruct-2507 for efficient processing,
+while theValidatoragent employed openai/gpt-oss-120b
+to ensure rigorous verification. For theAutomated Rubric-
+based Evaluation, theRubric Generatorwas powered by
+Qwen/Qwen3-4B-Instruct-2507, whileRubric-based Grader
+usesgpt-4.1-2025-04-14following Arora et al. [1].
+Evaluation Metric. For each case, the grader evaluates
+the model’s response against the specific rubric criteria gen-
+erated by the Rubric Generator using a binary judgment
+(Met vs. Not Met). The final score is calculated by summing
+the full points of satisfied criteria, normalized by the maxi-
+mum possible score, and clipped to the range [0, 1], where
+higher scores indicate superior clinical performance.
+Human Validation. To validate the data quality and
+the reliability of our evaluation framework, we conducted a
+rigorous human evaluation with two physicians proficient
+in both English and Chinese. We randomly sampled 50 cases
+(comprising 292 unique criteria) and performed assessment
+across three dimensions:1. Data Quality:Physicians rated
+the clinical coherence of the patient narrative/query and
+the quality of the reference physician advice on a 3-point
+scale (0− 2), where scores ≥ 1denote high quality and agree-
+ment.2. Criterion Validity:Physicians assessed whether
+each generated rubric criterion was clinically accurate and
+relevant to the case (0/1, where1indicates agreement).3.
+Grader Reliability:To verify the automated grader, physi-
+cians independently evaluated model responses against the
+rubric criteria.
+We calculated the inter-rater reliability between physi-
+cians using Gwet’s AC1 [8]. To quantify the alignment be-
+tween the model grader and human experts, we employed
+two statistical measures: (1) the Macro F1 score for criterion-
+level agreement, following Arora et al. [1]; and (2) the Pear-
+son correlation coefficient for case-level scoring alignment.
+Further details on the human evaluation protocol are avail-
+able in Appendix C.
+4.2 Overall Model Performance
+As illustrated in Figure 4, the GPT series maintains a domi-
+nant lead on LiveMedBench. GPT-5.2 achieves the state-of-
+the-art performance with a score of 39.2%, followed closely
+by GPT-5.1 at 38.5%. The Grok-4.1 and Baichuan M3 also
+demonstrate strong performance, with leading positions
+among non-GPT models at 28.3% and 25.6%, respectively.
+This hierarchy underscores the continued superiority of
+highly scaled proprietary architectures in handling complex
+clinical reasoning tasks.
+Proprietary vs. Open-Source Models. A comparative
+analysis reveals that proprietary models generally outper-
+form open-source alternatives. However, the gap is narrow-
+ing significantly. Notably, GPT-OSS 120B (25.0%) and GLM-
+4.5 (22.5%) deliver performance comparable to, or exceeding,
+several high-tier proprietary models, such as Gemini 3 Pro
+(18.3%) and Claude 3.7 Sonnet (17.0%). Moreover, we observe
+that smaller open-source models such as Qwen3-14B (15.4%)
+and QwQ-32B (13.5%) demonstrate reasoning capabilities
+that are competitive with substantially larger proprietary
+models like Gemini 2.5 Pro (16.1%). From a deployment per-
+spective, while proprietary models offer peak performance,
+
+--- PAGE 6 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+Predominantly Proprietary Models Predominantly Open-Source Models
+28.6 28.3
+25.6 25.0
+22.5
+21.7
+17.6 17.0
+16.1 15.4
+13.8 13.5 13.4 13.3 12.8
+11.1 10.8 10.4 10.3 10.1  9.6
+6.4   6.4   5.9   5.9   5.8   5.6   5.4   5.2   5.1   5.1
+3.8
+2.7
+0.0
+0
+GLM-4.6
+GPT-5
+Grok-4.1
+Baichuan-M
+3
+GPT-OSS 120B
+GLM-4.5
+Gemini 3 Flash
+Gemini 3 Pro
+Claude 3.7 Sonnet
+Gemini 2.5 Pro
+Qwen3-14B
+GPT-4.1
+QwQ-32B
+GLM-4.7 Thinking
+DeepSeek-R1
+Qwen2.5-72B-Ins
+GLM-4.5 Air
+Baichuan-M
+2
+GPT-4.1 Mini
+DeepSeek-V3.2
+Claude 4 Sonnet
+DeepSeek-V3.1
+HuatuoGPT-o1
+Qwen2.5-32B-Ins
+Gemini 2.5 Flash
+Med-Gemma 27B
+Kimi K2
+Lingshu-32B
+Qwen3-30B
+Med-Gemma 1.5
+GLM-4
+GPT-4o
+Qwen3-235B
+Lingshu-7B
+Gemini 2.0 Flash
+Med-Gemma 4B
+40  39.2 38.5
+35
+30
+25
+20
+15
+10
+5
+GPT-5.2
+GPT-5.1
+Score (%)
+18.3
+7.1
+Figure 4: The evaluation results of 38 LLMs on LiveMedBench, categorized into proprietary (green) and open-source
+(yellow) models. Models marked with a cross (+) are specialized medical models, while others are general-purpose.
+Solid bars represent performance on the full dataset, while hatched bars indicate performance on cases post-dating
+the model’s knowledge cutoff.
+open-source models offer a viable alternative for privacy-
+sensitive environments where local deployment is manda-
+tory, and for edge-device deployment where computational
+resources are limited.
+General-Purpose vs. Medical-Specific Models. Con-
+trary to the intuition that domain specialization yields supe-
+rior performance, our results indicate that general-purpose
+models consistently outperform specialized medical mod-
+els. For instance, the general-purpose GPT-5.2 (39.2%) sig-
+nificantly surpasses the top-performing specialized model,
+Baichuan-series. This disparity is likely attributable to the
+“scaling laws, ” where the massive parameter counts and
+diverse training of general models provide a more robust
+foundation than smaller, domain-tuned architectures. Never-
+theless, medical models exhibit strong parameter efficiency.
+For example, Med-Gemma 27B (5.9%) matches the perfor-
+mance of the general-purpose Gemini 2.5 Flash (6.4%), sug-
+gesting that specialized tuning remains a potent strategy
+for smaller-scale deployments.
+Data Contamination and Knowledge Obsolescence.
+To empirically quantify the dual impacts of data contamina-
+tion and knowledge obsolescence, we evaluated the models
+on a subset of cases published after their respective knowl-
+edge cutoff dates (or release dates, for models with undis-
+closed cutoffs). As illustrated in Figure 4, 84% of the models
+(32 out of 38) exhibited a performance degradation when
+transitioning from the full dataset to the post-cutoff sub-
+set. Notably, the GLM series appeared most susceptible to
+data leakage, with all variants showing a marked decline in
+accuracy; the most pronounced drop occurred in Kimi-K2,
+which suffered a 3.99% decrease. Furthermore, even models
+without a precipitous drop failed to demonstrate significant
+performance gains on recent data. Figure 1 further details
+the evaluation across different time windows, revealing a
+consistent downward trend in average performance on con-
+temporary cases (e.g., those post after January 2025). These
+findings underscore the effect of data contamination, which
+artificially inflates scores on seen data, and knowledge obso-
+lescence, which leads to failures on unseen medical knowl-
+edge. This explains why static benchmark is not rigorous
+and reliable to evaluate LLMs performance, highlighting the
+necessity of LiveMedBench.
+5 Analysis
+We structure our analysis around the following research
+questions:RQ1.Is our evaluation pipeline reliable?RQ2.
+How does model performance vary across specialties and
+themes?RQ3.What are the dominant failure modes?RQ4.
+What is the impact of knowledge injection (e.g., retrieval)
+on performance?RQ5.How does LiveMedBench compare
+to existing medical benchmarks?
+5.1 Human Evaluation and Reliability
+Analysis
+To validate the clinical integrity of LiveMedBench and the
+reliability of our automated evaluation pipeline, we con-
+ducted a human study with two physicians. We randomly
+select 50 cases and 292 corresponding criterion.
+Table 1: Physician assessment of data quality.
+Task Rater 1Rater 2Gwet’s AC1
+Narrative & Query0.9795 1.0000 0.9792
+Physician Advice0.9795 0.9800 0.9566
+Criterion0.9589 0.9110 0.8914
+Data Quality and Consensus.As shown in Table 1,
+physicians demonstrated exceptionally high approval rates
+for our generated data. For the core components of the
+benchmark, i.e. patient narrative, query and physician ad-
+vice, the agreement rate (Rater 1 and Rater 2) reached near-
+perfect levels (≥ 0.9795), with an inter-rater reliability (Gwet’s
+AC1) of 0.9792 and 0.9566, respectively. An AC1 score greater
+than 0.8 indicates “almost perfect” agreement, according
+
+--- PAGE 7 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+HuatuoGPT-o1
+Med- Gemma 2 7 B
+Kimi K2
+Lingshu-32B
+DeepSeek-R1
+Claude 3.7 Sonnet
+Qwen3-14B
+GPT-5.2
+GLM-4.5
+Gemini 3 Flash
+Grok-4.1
+Baichuan- M 3
+Rheum
+Anesth
+Gen Surg
+Repro/Gen
+Sleep
+Neuro
+Peds Surg
+Psych
+Vasc Surg
+Specialty
+Dent/Oral
+CT Surg
+Ophtho
+Prev Med
+Nephro
+OB/GYN
+GI/Hep
+Rad Onc
+Rad
+ENT
+Cardio
+Plastic
+Pharm
+Model
+Ortho
+PCCM
+NSGY
+Derm
+Endo
+Peds
+Hem
+Path
+Geri
+Onc
+GIM
+Uro
+A/I
+EM
+GP
+ID
+ 0.4
+0.2
+0.0
+Score
+Performance across Specialty Performance across Theme
+Figure 5: Multi-dimensional performance analysis. (Left) Heatmap illustrating the score distribution of represen-
+tative models across 38 clinical specialties. (Right) Radar chart depicting the capability profiles of representative
+models across the five behavioral themes.
+to [13]. This confirms that our Multi-Agent Clinical Cura-
+tion framework successfully synthesizes highly coherent
+and clinically valid cases. Physicians also validated the gen-
+erated Rubric Criteria with high consensus (AC1 = 0.8914),
+indicating that our automated criteria are clinically precise.
+Table 2: Evaluation results comparison. Macro F1 for
+criteria-level agreement and Pearson Correlation ( 𝜌)
+for case-level alignment with physician scores.
+Evaluation Method Macro F1Correlation𝜌𝑃-value
+Human Inter-Rater 0.89 – –
+LLM-as-a-Judge – 0.26 0.07
+Rubric-based Grader (Ours)0.76 0.546.65×10 −5
+Reliability of the Rubric-based Grader.We assessed
+the alignment between our automated Rubric-based Grader
+and human experts using the Macro F1 score on a criterion
+level, following [1]. As presented in Table 2, the Human
+Inter-Rater F1 is 0.89, which serves as the theoretical up-
+per bound for this task. Our Rubric-based Grader achieves
+a Macro F1 of 0.76, indicating that our grader effectively
+proxies human judgment.
+Superiority over LLM-as-a-Judge.We benchmark our
+method against a standard LLM-as-a-Judge baseline [ 41].
+Table 2 reveals a critical performance disparity: our Rubric-
+based Grader achieves a strong Pearson correlation of 0.54
+with human scores (𝑝< 10−4), whereas the baseline yields
+a weak, non-significant correlation of 0.26 ( 𝑝= 0.07). As
+shown in Figure 1, the baseline exhibits a significant skew
+towards higher scores, failing to penalize poor responses due
+to “length bias” and a lack of sensitivity to safety hazards. In
+contrast, our approach adheres strictly to clinical evidence,
+correctly assigning zero scores for critical errors (e.g., missed
+contraindications) where the holistic judge failed. These
+findings underscore the necessity of granular verification
+for high-stakes medical evaluation.
+5.2 Performance across Specialties and
+Themes
+To identify specific competency gaps beyond overall scores,
+we disaggregated model performance across distinct clinical
+specialties and behavioral themes (Figure 5).
+Performance across Clinical Specialties. The heat
+map (Figure 5, left) reveals a distinct performance hierar-
+chy: proprietary models (e.g., GPT-5.2) consistently populate
+the high-performing “green” region, significantly outpacing
+open-source and specialized alternatives. Across all mod-
+els, performance is non-uniform. We observe consistently
+stronger performance in high- prevalence specialties such
+as Gastroenterology & Hepatology (GI/Hep) and Emergency
+Medicine (EM). This likely reflects the abundance of train-
+ing data available for these common conditions. Conversely,
+models struggle significantly in niche or highly specialized
+surgical fields, e.g. Dentistry/Oral Surgery (Dent/Oral), Pe-
+diatric Surgery (Peds Surg), and Allergy/ Immunology (A/I).
+This suggests a “knowledge gap” in current LLMs regarding
+specialized procedural and diagnostic nuances that are less
+represented in general training corpora. We also observed
+low correlations between general internal medicine special-
+ties and niche fields like Pathology (see Appendix D.3).
+Performance across Themes. The radar chart (Figure 5,
+right) corroborates this tiering, with proprietary models oc-
+cupying the outermost high-performance layers, followed
+by general open-source models, and finally specialized medi-
+cal models in the innermost rings. Behaviorally, most models
+demonstrate strong alignment inExpertise-Tailored Com-
+municationandResponding under Uncertainty. However, a
+critical safety bottleneck remains inContext-Seeking, where
+even top models frequently fail to proactively gather missing
+information before providing advice.
+5.3 Error Analysis
+To understand failure modes, we analyzed the top propri-
+etary and open-source models.
+Performance by Evaluation Axis.As shown in Table 3,
+even SOTA models exhibit error rates exceeding 50% on
+
+--- PAGE 8 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+Table 3: Error rates of representative LLMs. Worst rates
+(highest errors) are bolded.
+Metric Baichuan
+M3
+GPT
+5.2
+Grok
+4.1
+GPT-
+OSS
+GLM-
+4.5
+Qwen3-
+14B
+Accuracy43.98 37.54 42.01 45.46 45.8450.26
+Completeness64.00 49.59 58.41 55.23 62.2668.46
+Comm. Quality66.9750.37 56.89 57.21 60.6166.96
+Context Awareness59.62 48.33 55.85 56.40 58.0965.13
+Safety48.36 38.20 44.88 44.97 47.4252.93
+most axes. All models achieve their lowest error rates on
+Accuracy, yet struggle substantially with Completeness and
+Communication Quality, suggesting that current training
+paradigms optimize for factual correctness but remain defi-
+cient in structural thoroughness and contextual nuance.
+Qualitative Root Causes.We further audited the bottom-
+100 scoring cases per model using GPT-4.1 to classify root
+causes into seven error types (method and results in Appen-
+dix D.1). Contrary to common assumptions, hallucinations
+(MHME) and knowledge gaps (KGOC) are no longer the
+dominant failure modes for leading models (both near 0–8%).
+Instead, the vast majority of errors stem fromContextual
+Neglect and Integration Failure(CNIF: 35–48%) andGuideline
+Overgeneralization(GOPR: 22–32%), indicating that mod-
+els possess the requisite medical facts but struggle to tailor
+them to patient-specific constraints such as comorbidities or
+contraindications. Additionally, pairwise Jaccard similarity
+of the bottom-100 cases across models is low (mean=0.24,
+Figure 16), confirming that failures reflect model-specific
+capability gaps rather than data quality artifacts.
+5.4 Impact of Knowledge Injection
+Here we investigate whether the performance degradation
+on unseen data stems from inherent reasoning deficits or
+knowledge obsolescence. We isolated a subset of “fresh”
+cases from January 2026 and benchmark performance across
+three settings: (1)Baseline: Model performance on full
+dataset under default settings; (2)Closed-Book: Standard
+inference on the subset; and (3)Open-Book: Inference on
+the Jan 2026 subset augmented with knowledge retrieval [40]
+to provide access to external medical knowledge.
+Table 4: Closed book performance versus open book
+performance (%).
+Mode Baichuan
+M3
+GPT
+5.2
+Grok
+4.1
+GPT-OSS
+120B
+GLM
+4.5
+Qwen3
+14B
+Baseline 25.61 39.23 28.28 25.03 22.46 15.45
+Closed-Book 24.54 36.84 24.21 23.24 16.19 8.68
+Open-Book25.21 37.17 27.39 24.18 20.45 15.47
+As shown in Table 4, enabling access to external knowl-
+edge yields universal performance improvements across
+all model architectures. This suggests that failures on new
+cases are partially driven byretrieval failuresrather than
+logic failures. Furthermore, the significant drop between the
+“Baseline” and “Closed-Book” scores quantifies the distinct
+impact of data contamination and knowledge obsolescence
+on static LLMs.
+Table 5: Medical Benchmark Comparison.
+Benchmark FreeResponseMulti-lingualCase-specificRubric CaseUpdate
+MedQA (2021)✗ ✓ ✗ ✗
+MultiMedQA (2023)✓ ✗ ✗ ✗
+MedBench (2024)✗ ✗ ✗ ✗
+CMB (2024)✓ ✗ ✗ ✗
+CliMedBench (2024)✓ ✗ ✗ ✗
+MedJourney (2024)✓ ✓ ✗ ✗
+GMAI-MMBench (2024)✗ ✗ ✗ ✗
+MedXpertQA (2025)✗ ✗ ✗ ✗
+DyReMe (2025)✓ ✗ ✗ ✗
+MedPerturb (2025)✓ ✗ ✗ ✗
+HealthBench (2025)✓ ✗ ✓ ✗
+LiveMedBench (Ours)✓ ✓ ✓ ✓
+5.5 Medical Benchmark Comparison
+To contextualize the contribution of LiveMedBench within
+the broader landscape of medical LLM evaluation, we con-
+ducted both a qualitative feature comparison and a quanti-
+tative difficulty assessment against established benchmarks.
+As summarized in Table 5, existing benchmarks typically
+suffer from one or more limitations. LiveMedBench distin-
+guishes itself as the only benchmark that simultaneously
+integrates (1) Free-response generation, (2) Multi-lingual
+support, (3) Granular case-specific rubrics, and (4) Live case
+updates. This unique combination addresses the critical need
+for an evaluation framework that is both clinically rigorous
+and temporally adaptive.
+Table 6: Comparison of ours and HealthBench.
+Benchmark Gemini
+2.5 Pro GPT-4.1Claude 3.7
+Sonnet GPT-4o
+HealthBench0.520.48 0.35 0.32
+HealthBench Hard0.190.16 0.02 0
+LiveMedBench0.1606 0.13790.16990.0506
+To assess the challenge level of our dataset, we bench-
+marked four LLMs (Gemini 2.5 Pro, GPT-4.1, Claude 3.7 Son-
+net, GPT-4o) on LiveMedBench and compared the results
+against HealthBench, the closest competitor. As shown in Ta-
+ble 6, models exhibit significantly lower scores on LiveMed-
+Bench compared to the standard HealthBench dataset. No-
+tably, the performance on LiveMedBench aligns with the
+“HealthBench Hard” subset (e.g., Gemini 2.5 Pro scores 0.19
+on Hard vs. 0.16 on ours). This performance gap underscores
+the complexity of our dataset, leaving significant room for
+future model improvement.
+6 Conclusion
+We introduced LiveMedBench, a continually updated, con-
+tamination free medical benchmark for evaluating LLMs.
+Our Multi-Agent Clinical Curation Framework transforms
+noisy online discussions into evidence-backed clinical cases,
+and our Automated Rubric-based Evaluation Framework
+enables granular, objective assessment in alignment with
+physician experts. Evaluation of 38 LLMs reveals consistent
+performance degradation on post-cutoff cases, validating
+the necessity of live benchmarking.
+
+--- PAGE 9 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+References
+[1] Rahul K. Arora, Jason Wei, Rebecca Soskin Hicks, Preston Bowman,
+Joaquin Quiñonero-Candela, Foivos Tsimpourlas, Michael Sharman,
+Meghan Shah, Andrea Vallone, Alex Beutel, Johannes Heidecke, and
+Karan Singhal. 2025. HealthBench: Evaluating Large Language Models
+Towards Improved Human Health. arXiv:2505.08775 [cs.CL] "https:
+//arxiv.org/abs/2505.08775"
+[2] Zeming Chen, Alejandro Hernández Cano, Angelika Romanou, Antoine
+Bonnet, Kyle Matoba, Francesco Salvi, Matteo Pagliardini, Simin Fan,
+Andreas Köpf, Amirkeivan Mohtashami, et al . 2023. Meditron-70b:
+Scaling medical pretraining for large language models.arXiv preprint
+arXiv:2311.16079(2023).
+[3] Ali Cheshmehzangi and Zhaohui Su. 2025. From Crisis to Coordination:
+How AI Transformed Public Health Policies during COVID-19.Rural
+and Regional Development3, 4 (2025), 10016.
+[4] Chengfeng Dou, Chong Liu, Fan Yang, Fei Li, Jiyuan Jia, Mingyang
+Chen, Qiang Ju, Shuai Wang, Shunya Dang, Tianpeng Li, et al . 2025.
+Baichuan-m2: Scaling medical capability with large verifier system.
+arXiv preprint arXiv:2509.02208(2025).
+[5] John W Ely, Jerome A Osheroff, Paul N Gorman, Mark H Ebell, M Lee
+Chambliss, Eric A Pifer, and P Zoe Stavri. 2000. A taxonomy of generic
+clinical questions: classification study.Bmj321, 7258 (2000), 429–432.
+[6] Shahul Es, Jithin James, Luis Espinosa Anke, and Steven Schockaert.
+2024. Ragas: Automated evaluation of retrieval augmented generation.
+InProceedings of the 18th Conference of the European Chapter of the
+Association for Computational Linguistics: System Demonstrations. 150–
+158.
+[7] Abinitha Gourabathina, Yuexing Hao, Walter Gerych, and Marzyeh
+Ghassemi. 2025. The MedPerturb Dataset: What Non-Content Pertur-
+bations Reveal About Human and Clinical LLM Decision Making.arXiv
+preprint arXiv:2506.17163(2025).
+[8] Kilem Li Gwet. 2008. Computing inter-rater reliability and its variance
+in the presence of high agreement.Brit. J. Math. Statist. Psych.61, 1
+(2008), 29–48.
+[9] Naman Jain, King Han, Alex Gu, Wen-Ding Li, Fanjia Yan, Tianjun
+Zhang, Sida Wang, Armando Solar-Lezama, Koushik Sen, and Ion Stoica.
+2024. Livecodebench: Holistic and contamination free evaluation of
+large language models for code.arXiv preprint arXiv:2403.07974(2024).
+[10] Di Jin, Eileen Pan, Nassim Oufattole, Wei-Hung Weng, Hanyi Fang, and
+Peter Szolovits. 2021. What disease does this patient have? a large-scale
+open domain question answering dataset from medical exams.Applied
+Sciences11, 14 (2021), 6421.
+[11] Qiao Jin, Bhuwan Dhingra, Zhengping Liu, William Cohen, and Xinghua
+Lu. 2019. Pubmedqa: A dataset for biomedical research question an-
+swering. InProceedings of the 2019 conference on empirical methods in
+natural language processing and the 9th international joint conference on
+natural language processing (EMNLP-IJCNLP). 2567–2577.
+[12] Qiao Jin, Won Kim, Qingyu Chen, Donald C Comeau, Lana Yeganova,
+W John Wilbur, and Zhiyong Lu. 2023. Medcpt: Contrastive pre-trained
+transformers with large-scale pubmed search logs for zero-shot biomed-
+ical information retrieval.Bioinformatics39, 11 (2023), btad651.
+[13] J Richard Landis and Gary G Koch. 1977. The measurement of observer
+agreement for categorical data.biometrics(1977), 159–174.
+[14] Clare Elizabeth Leong, Leonie Kallis, Isla L Kuhn, Graham P Martin,
+and Zoe Fritz. 2025. How are generalist doctors made aware, on an
+ongoing basis, of the key new and updated clinical guidelines which
+are relevant to their practice? A systematic review.Clinical Medicine
+(2025), 100518.
+[15] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir
+Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih,
+Tim Rocktäschel, et al . 2020. Retrieval-augmented generation for
+knowledge-intensive nlp tasks.Advances in neural information process-
+ing systems33 (2020), 9459–9474.
+[16] Chunyuan Li, Cliff Wong, Sheng Zhang, Naoto Usuyama, Haotian
+Liu, Jianwei Yang, Tristan Naumann, Hoifung Poon, and Jianfeng Gao.
+2023. Llava-med: Training a large language-and-vision assistant for
+biomedicine in one day.Advances in Neural Information Processing
+Systems36 (2023), 28541–28564.
+[17] Chin-Yew Lin. 2004. Rouge: A package for automatic evaluation of
+summaries. InText summarization branches out. 74–81.
+[18] Aixin Liu, Bei Feng, Bing Xue, Bingxuan Wang, Bochao Wu, Chengda
+Lu, Chenggang Zhao, Chengqi Deng, Chenyu Zhang, Chong Ruan, et al.
+2024. Deepseek-v3 technical report.arXiv preprint arXiv:2412.19437
+(2024).
+[19] Inbal Magar and Roy Schwartz. 2022. Data contamination: From mem-
+orization to exploitation.arXiv preprint arXiv:2203.08242(2022).
+[20] Daniel McDuff, Mike Schaekermann, Tao Tu, Anil Palepu, Amy Wang,
+Jake Garrison, Karan Singhal, Yash Sharma, Shekoofeh Azizi, Kavita
+Kulkarni, et al. 2025. Towards accurate differential diagnosis with large
+language models.Nature(2025), 1–7.
+[21] Harsha Nori, Nicholas King, Scott Mayer McKinney, Dean Carignan,
+and Eric Horvitz. 2023. Capabilities of gpt-4 on medical challenge
+problems.arXiv preprint arXiv:2303.13375(2023).
+[22] Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. 2002.
+Bleu: a method for automatic evaluation of machine translation. InPro-
+ceedings of the 40th annual meeting of the Association for Computational
+Linguistics. 311–318.
+[23] Andrew Sellergren, Sahar Kazemzadeh, Tiam Jaroensri, Atilla Kiraly,
+Madeleine Traverse, Timo Kohlberger, Shawn Xu, Fayaz Jamil, Cían
+Hughes, Charles Lau, et al. 2025. Medgemma technical report.arXiv
+preprint arXiv:2507.05201(2025).
+[24] Aaditya Singh, Adam Fry, Adam Perelman, Adam Tart, Adi Ganesh,
+Ahmed El-Kishky, Aidan McLaughlin, Aiden Low, AJ Ostrow, Akhila
+Ananthram, et al . 2025. Openai gpt-5 system card.arXiv preprint
+arXiv:2601.03267(2025).
+[25] Karan Singhal, Shekoofeh Azizi, Tao Tu, S Sara Mahdavi, Jason Wei,
+Hyung Won Chung, Nathan Scales, Ajay Tanwani, Heather Cole-Lewis,
+Stephen Pfohl, et al . 2023. Large language models encode clinical
+knowledge.Nature620, 7972 (2023), 172–180.
+[26] Dingjie Song, Sicheng Lai, Shunian Chen, Lichao Sun, and Benyou
+Wang. 2024. Both text and images leaked! a systematic analysis of
+multimodal llm data contamination.arXiv preprint arXiv:2411.03823
+(2024).
+[27] Baichuan M3 Team. 2025. Baichuan-M3: Modeling Clinical Inquiry
+for Reliable Medical Decision-Making. https://github.com/baichuan-
+inc/Baichuan-M3-235B
+[28] Gemini Team, Rohan Anil, Sebastian Borgeaud, Jean-Baptiste Alayrac,
+Jiahui Yu, Radu Soricut, Johan Schalkwyk, Andrew M Dai, Anja Hauth,
+Katie Millican, et al. 2023. Gemini: a family of highly capable multimodal
+models.arXiv preprint arXiv:2312.11805(2023).
+[29] Qwen Team et al . 2024. Qwen2 technical report.arXiv preprint
+arXiv:2407.106712, 3 (2024).
+[30] Tao Tu, Mike Schaekermann, Anil Palepu, Khaled Saab, Jan Freyberg,
+Ryutaro Tanno, Amy Wang, Brenna Li, Mohamed Amin, Yong Cheng,
+et al. 2025. Towards conversational diagnostic artificial intelligence.
+Nature(2025), 1–9.
+[31] Xidong Wang, Guiming Chen, Song Dingjie, Zhang Zhiyi, Zhihong
+Chen, Qingying Xiao, Junying Chen, Feng Jiang, Jianquan Li, Xiang
+Wan, et al. 2024. Cmb: A comprehensive medical benchmark in chinese.
+InProceedings of the 2024 Conference of the North American Chapter of the
+Association for Computational Linguistics: Human Language Technologies
+(Volume 1: Long Papers). 6184–6205.
+[32] Larry L. Weed et al. [n. d.]. SOAP (Subjective, Objective, Assessment,
+Plan) documentation. Standard clinical documentation framework; see
+e.g. StatPearls NBK482263..
+[33] Colin White, Samuel Dooley, Manley Roberts, Arka Pal, Ben Feuer, Sid-
+dhartha Jain, Ravid Shwartz-Ziv, Neel Jain, Khalid Saifullah, Siddartha
+Naidu, et al. 2024. Livebench: A challenging, contamination-free llm
+benchmark.arXiv preprint arXiv:2406.193144 (2024).
+[34] World Health Organization. 2024. International Classification
+of Diseases (ICD). https://www.who.int/standards/classifications/
+classification-of-diseases
+[35] World Health Organization. 2024. International Classifica-
+tion of Functioning, Disability and Health (ICF). https:
+//www.who.int/standards/classifications/international-classification-
+of-functioning-disability-and-health
+[36] World Health Organization. 2024. International Classification of Health
+Interventions (ICHI). https://www.who.int/standards/classifications/
+international-classification-of-health-interventions
+[37] Eric Wu, Kevin Wu, and James Zou. 2025. MedArena: Comparing LLMs
+for medicine in the wild.
+[38] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo
+Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, et al. 2025.
+Qwen3 technical report.arXiv preprint arXiv:2505.09388(2025).
+[39] Xiangxu Zhang, Lei Li, Yanyun Zhou, Xiao Zhou, Yingying Zhang, and
+Xian Wu. 2025. Inflated Excellence or True Performance? Rethink-
+ing Medical Diagnostic Benchmarks with Dynamic Evaluation.arXiv
+preprint arXiv:2510.09275(2025).
+[40] Xuejiao Zhao, Siyan Liu, Su-Yin Yang, and Chunyan Miao. 2025. Medrag:
+Enhancing retrieval-augmented generation with knowledge graph-
+elicited reasoning for healthcare copilot. InProceedings of the ACM
+on Web Conference 2025. 4442–4457.
+[41] Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhang-
+hao Wu, Yonghao Zhuang, Zi Lin, Zhuohan Li, Dacheng Li, Eric Xing,
+et al. 2023. Judging llm-as-a-judge with mt-bench and chatbot arena.
+Advances in neural information processing systems36 (2023), 46595–
+46623.
+
+--- PAGE 10 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+A Dataset
+A.1 Online Medical Communities
+A.1.1 DXY.DXY 5 is widely recognized as the largest on-
+line academic community for healthcare professionals in
+China. It features a rigorous Question-and-Answer (Q&A)
+module where inquiries are addressed by verified licensed
+physicians. The platform covers a comprehensive range of
+clinical specialties and is distinguished by its strict verifica-
+tion process, ensuring that the medical advice provided is
+professional, reliable, and grounded in clinical practice.
+A.1.2 MedLive.MedLive 6 is a premier professional medi-
+cal platform in China, primarily designed to support clinical
+decision-making and academic exchange among physicians.
+Unlike general health forums, MedLive hosts high-density
+technical discussions, expert consensus interpretations, and
+complex case studies. Its data is characterized by a high de-
+gree of professional terminology and clinical depth, making
+it an invaluable source for evaluating an LLM’s ability to
+handle specialized medical contexts.
+A.1.3 iCliniq.iCliniq 7 is a leading global telemedicine
+platform that connects patients with doctors across more
+than 80 medical specialties. The platform operates on a "sec-
+ond opinion" model, where users post medical queries that
+are answered by credentialed and verified medical experts.
+The interactions on iCliniq typically follow a structured
+format comprising a detailed patient query followed by a
+comprehensive, empathetic, and evidence-based response
+from a qualified physician, providing high-quality English-
+language training and evaluation data.
+A.1.4 SDN.The Student Doctor Network (SDN) 8 is one
+of the largest non-profit educational communities for health-
+care students and professionals in North America. While it
+serves a broad educational purpose, its specific clinical fo-
+rums facilitate peer-to-peer discussions among medical stu-
+dents, residents, and attending physicians. These dialogues
+often involve collaborative clinical reasoning, detailed case
+breakdowns, and debates on treatment protocols, offering
+a unique "clinician-to-clinician" perspective distinct from
+standard doctor-patient interactions.
+A.2 License
+Similar to [9], we scrape only the content of post discussions
+from medical websites– DXY, MedLive, iCliniq and SDN.
+Further, we only scrape publicly visible portions of websites,
+avoiding any data collection that might be pay walled or re-
+quire login or interaction with the website. Following [9] we
+abide by Fair Use §107: “the fair use of a copyrighted work,
+including such use by ... scholarship, or research, is not an
+infringement of copyright”, where fair use is determined by
+“the purpose and character of the use, including whether
+such use is of a commercial nature or is for nonprofit educa
+tional purposes”, “the amount and substantiality of the por-
+tion used in relation to the copyrighted work as a whole”,
+5https://dxy.com/
+6https://www.medlive.cn/
+7https://www.icliniq.com/qa/
+8https://forums.studentdoctor.net/forums/
+and “the effect of the use upon the potential market for or
+value of the copy righted work. ” Finally, we use the collected
+problems for academic purposes only and in addition, do
+not train on the collected problems.
+A.3 Theme and Axis Definitions
+LiveMedBench adopts and adapts the evaluation taxonomy
+introduced by HealthBench [1]. We retain five of Health-
+Bench’s sevenThemes(droppingGlobal HealthandHealth
+Data Tasks, which are less represented in the online medical
+communities we target) and replace theInstruction Follow-
+ingaxis withSafetyto better capture contraindication and
+harm-prevention failures in open-ended clinical advice.
+A.3.1 Themes.Themes are high-level categories of health-
+related tasks that reflect distinct challenges in real-world
+clinical interactions. Each case is assigned exactly one theme.
+• Emergency Referrals.Evaluates whether the model
+recognizes emergent situations and steers the user
+toward immediate in-person care when appropriate,
+while avoiding unnecessary escalation in non-urgent
+scenarios.
+• Context-Seeking.Assesses whether the model iden-
+tifies when key clinical context is missing and proac-
+tively requests the most informative additional infor-
+mation before providing a definitive answer.
+• Expertise-Tailored Communication.Tests whether
+the model infers the user’s level of medical expertise
+(e.g., layperson vs. healthcare professional) and ad-
+justs terminology, depth, and tone accordingly.
+• Responding under Uncertainty.Measures whether
+the model appropriately hedges when the evidence
+is ambiguous or incomplete, avoiding overconfident
+claims that could mislead the user.
+• Response Depth.Examines whether the model cal-
+ibrates the level of detail to the complexity of the
+query—providing concise answers for simple ques-
+tions and comprehensive explanations for complex
+ones.
+A.3.2 Axes.Axes define the behavioral dimensions along
+which each rubric criterion evaluates a model response. A
+single case may contain criteria spanning multiple axes.
+• Accuracy.Whether the response contains only fac-
+tually correct information aligned with current med-
+ical consensus, including appropriate recognition of
+evolving or uncertain evidence.
+• Completeness.Whether the response includes all
+clinically important information needed to be safe
+and helpful, such as key diagnostic steps, red flags,
+or follow-up recommendations.
+• Communication Quality.Whether the response is
+well-structured, clear, and uses a level of technical
+depth and vocabulary matched to the user.
+• Context Awareness.Whether the model appropri-
+ately responds to contextual cues present in the con-
+versation (e.g., patient history, geographic setting,
+stated constraints) and seeks clarification when needed.
+• Safety.Whether the model avoids recommending
+contraindicated treatments, recognizes potential harms,
+
+--- PAGE 11 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+and includes necessary warnings or disclaimers for
+high-risk situations.
+A.4 Details of Data Statistics
+LiveMedBench currently comprises a total of 2,756 clinical
+cases and 16,702 unique rubric criteria, establishing a robust
+foundation for granular medical evaluation. The detailed
+distribution of the dataset is illustrated in Figure 3.
+Clinical Specialties.To ensure comprehensive coverage,
+the benchmark spans 38 distinct clinical specialties. As
+shown in Figure 3(a), the distribution is naturally long-tailed,
+reflecting real-world prevalence. The most represented spe-
+cialties include Gastroenterology and Hepatology (GI/Hep)
+with 375 cases, Urology (Uro) with 210 cases, and Psychiatry
+(Psych) with 205 cases. This diversity ensures that models
+are tested across a wide spectrum of medical knowledge,
+from general practice to highly specialized fields like Neuro-
+Oncology.
+Linguistic Diversity.LiveMedBench supports bilingual
+evaluation to assess cross-lingual generalization. As de-
+picted in Figure 3(c), the dataset includes 1,568 English cases
+(sourced from iCliniq and SDN) and 1,188 Chinese cases
+(sourced from DXY and Medlive), maintaining a balanced
+representation to rigorously evaluate performance in both
+linguistic contexts.
+Health Contexts.The dataset categorizes cases into five
+distinct thematic clusters to evaluate specific capabilities.
+As shown in Figure 3(b), Expertise-Tailored Communication
+is the dominant theme, accounting for 47.4% of the cases,
+followed by Responding under Uncertainty (27.2%) and Re-
+sponse Depth (17.6%). Smaller proportions are dedicated
+to Context-Seeking (4.5%) and Emergency Referrals (3.3%),
+focusing on critical safety and interactive diagnosis skills.
+Behavioral Dimensions.Our automated rubric system
+generates criteria across five evaluation axes. As illustrated
+in Figure 3(d), the majority of criteria focus on Accuracy
+(51.2%), ensuring that clinical correctness remains the pri-
+mary metric. Completeness accounts for 24.7%, while Com-
+munication Quality, Context Awareness, and Safety com-
+prise 9.4%, 7.8%, and 6.9% respectively. This multi-dimensional
+structure allows for a holistic assessment of model perfor-
+mance beyond mere factual recall.
+Granularity of Evaluation.A key feature of LiveMed-
+Bench is its case-specific evaluation. Figure 3(e) shows the
+distribution of criteria count per case, which follows a normal-
+like distribution. Cases are evaluated on anywhere from a
+minimum of 2 to a maximum of 19 criteria, with an average
+of 6.06 criteria per case. This variance reflects the complexity
+of different medical scenarios, where simple queries require
+fewer checks and complex diagnoses demand extensive val-
+idation.
+B Experimental Setup
+B.1 Models
+Details of models considered in our study is in Table 7.
+B.2 Details in Curation Framework
+Prompts for the screener are in Figure 6, Figure 7 and Fig-
+ure 8.
+Prompts for the validator are in Figure 9, Figure 10 and
+Figure 11.
+The prompt for the comtroller is in Figure 12.
+B.3 Details in Evaluation Framework
+Prompts for the Rubric Generator and Rubric-based Grader
+are in Figure 13 and Figure 14, respectively.
+C Human Study Details
+C.1 Rating Scale
+Table 8, Table 9 and Table 10 detail the specific rating criteria
+provided to physicians for each evaluation task.
+C.2 Inter-rater Reliability
+To assess the consistency of human evaluation, we utilized
+Gwet’s AC1 [8] statistics instead of the traditional Cohen’s
+Kappa. This choice addresses the well-known “Kappa Para-
+dox” frequently encountered in medical dataset evaluation,
+where high agreement rates can yield paradoxically low
+Kappa scores due to skewed trait prevalence (i.e., unbal-
+anced class distributions).
+Mathematical Formulation.Consider a reliability study
+with 𝑛 items (cases) rated by 2 raters into 𝑄 distinct cate-
+gories (e.g., 𝑄= 3for our 0-2 scale). Let 𝑟𝑖𝑞 be 1 if rater 𝑟
+classifies item𝑖into category𝑞, and 0 otherwise.
+The Gwet’s AC1 coefficient, denoted as𝛾1, is defined as:
+𝐴𝐶1 = 𝑝𝑎 −𝑝 𝑒 (𝛾)
+1−𝑝 𝑒 (𝛾) (2)
+where 𝑝𝑎 represents the observed agreement probability:
+𝑝𝑎 = 1
+𝑛
+𝑛∑︁
+𝑖=1
+𝑄∑︁
+𝑞=1
+𝑟𝑖,1 ·𝑟 𝑖,2
+1 (simplified for 2 raters)(3)
+and 𝑝𝑒 (𝛾) represents the chance-agreement probability.
+unlike Kappa which estimates chance based on individual
+rater marginals, AC1 estimates it based on the average mar-
+ginal probability𝜋 𝑞 of a category𝑞:
+𝜋𝑞 = 1
+2𝑛
+𝑛∑︁
+𝑖=1
+(𝑟𝑖,1,𝑞 +𝑟 𝑖,2,𝑞)(4)
+The chance agreement𝑝 𝑒 (𝛾)is then calculated as:
+𝑝𝑒 (𝛾)= 1
+𝑄−1
+𝑄∑︁
+𝑞=1
+𝜋𝑞 (1−𝜋 𝑞)(5)
+This formulation ensures that the metric remains stable
+even when the marginal probabilities are highly skewed,
+making it the preferred metric for validating rigorous medi-
+cal benchmarks.
+C.3 Criterion-level Consensus
+To rigorously evaluate the reliability of our automated Rubric-
+based Grader at the criterion level, we employ the Macro F1
+Score (𝑀𝐹 1), following the evaluation protocol from Health-
+Bench [1]. Both physicians and the automated Rubric-based
+
+--- PAGE 12 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+Table 7: Details of models considered in our study.
+Model Name Model ID Date Link
+GPT-5.2 gpt_5.2 2025/08 openai.com
+Baichuan-M2 baichuan_m2 2025/08 huggingface.co
+GPT-5.1 gpt_5_1 2024/09 openai.com
+GPT-4.1 Mini gpt_4_1_mini 2024/06 openai.com
+GPT-5 gpt_5 2024/10 openai.com
+DeepSeek-V3.2 deepseek_v3.2 2025/10 huggingface.co
+Grok-4.1 grok_4_1 2024/11 x.ai
+Claude 4 Sonnet claude-sonnet-4 2025/03 anthropic.com
+Baichuan-M3 baichuan_m3_plus 2026/01 huggingface.co
+DeepSeek-V3.1 deepseek_v3_1 2025/08 huggingface.co
+GPT-OSS 120B gpt_oss_120b 2024/06 huggingface.co
+HuatuoGPT-o1 huatuogpt_o1_8b 2024/12 huggingface.co
+GLM-4.5 glm_4_5 2025/08 huggingface.co
+Qwen2.5-32B qwen2_5_32b_instruct 2023/12 huggingface.co
+Gemini 3 Flash gemini_3_flash 2025/01 gemini.google.com
+Gemini 2.5 Flash gemini_2_5_flash 2025/01 gemini.google.com
+Gemini 3 Pro gemini_3_pro 2025/01 gemini.google.com
+Med-Gemma 27B medgemma_27b 2025/05 huggingface.co
+GLM-4.6 Think glm_4_6_think 2025/10 huggingface.co
+Kimi K2 kimi_k2 2025/07 huggingface.co
+Claude 3.7 claude-3-7-sonnet 2024/10 anthropic.com
+Lingshu-32B lingshu_32b 2025/06 huggingface.co
+Gemini 2.5 Pro gemini_2_5_pro 2025/01 gemini.google.com
+Qwen3-30B qwen3_30b_a3b 2025/07 huggingface.co
+Qwen3-14B qwen3_14b 2025/05 huggingface.co
+Med-Gemma 1.5 medgemma_1.5 2026/01 huggingface.co
+GPT-4.1 gpt_4_1 2024/06 openai.com
+GLM-4 glm_4 2025/04 huggingface.co
+QwQ-32B qwq_32b 2024/11 huggingface.co
+GPT-4o gpt_4o 2023/10 openai.com
+GLM-4.7 glm_4_7 2025/12 huggingface.co
+Qwen3-235B qwen3_235b_a22b 2025/07 huggingface.co
+DeepSeek-R1 deepseek_r1 2025/01 huggingface.co
+Lingshu-7B lingshu_7b 2025/06 huggingface.co
+Qwen2.5-72B qwen2_5_72b_instruct 2023/12 huggingface.co
+Gemini 2.0 Flash gemini_2_0_flash 2024/08 gemini.google.com
+GLM-4.5 Air glm_4_5_air 2025/08 huggingface.co
+Med-Gemma 4B medgemma_4b 2025/05 huggingface.co
+Grader rate 50 randomly selected cases based on the unique
+criterion.
+Metric Definition.Given the potential class imbalance in
+grading (e.g., a majority of criteria might be “Met” or “Not
+Met” depending on the model quality), standard accuracy
+metrics can be misleading. Therefore, we treat the grading
+task as a binary classification problem (Positive class: “Met”;
+Negative class: “Not Met”).
+The Macro F1 score is calculated as the unweighted av-
+erage of the F1 scores for both the positive and negative
+classes. Let 𝑇 𝑃, 𝐹 𝑃, and 𝐹 𝑁 denote True Positives, False
+Positives, and False Negatives, respectively.
+The F1 scores for the positive (𝐹 1𝑝𝑜𝑠 ) and negative (𝐹 1𝑛𝑒𝑔)
+classes are defined as:
+𝐹1 𝑝𝑜𝑠 = 2·𝑇 𝑃 𝑝𝑜𝑠
+2·𝑇 𝑃 𝑝𝑜𝑠 +𝐹 𝑃 𝑝𝑜𝑠 +𝐹 𝑁 𝑝𝑜𝑠
+(6)
+𝐹1 𝑛𝑒𝑔 = 2·𝑇 𝑃 𝑛𝑒𝑔
+2·𝑇 𝑃 𝑛𝑒𝑔 +𝐹 𝑃 𝑛𝑒𝑔 +𝐹 𝑁 𝑛𝑒𝑔
+(7)
+The final Macro F1 score is the arithmetic mean:
+𝑀𝐹1= 𝐹1 𝑝𝑜𝑠 +𝐹1 𝑛𝑒𝑔
+2 (8)
+This formulation ensures balanced sensitivity to model per-
+formance across both classes, preventing the score from
+being dominated by the majority class.
+Calculation Protocols.We compute the consensus metrics
+in two distinct stages to establish both a human baseline
+and a model validity score:
+• Human-Human Agreement (𝐹 1𝐻𝑢𝑚𝑎𝑛−𝐻𝑢𝑚𝑎𝑛 ):To
+quantify the intrinsic difficulty of the grading task, we
+calculate the 𝑀𝐹 1between the two physicians. We
+treat Physician A as the “Ground Truth” and Physi-
+cian B as the “Predictor” (note that since𝑀𝐹 1is sym-
+metric, the order does not affect the result).
+
+--- PAGE 13 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+System Prompt: the Screener
+Role:You are an expert Medical Data Structurer.
+Task:Your goal is to extract thePatient Narrative (𝐿 𝑁 )from the provided raw dialogue. This corresponds
+to theSubjectiveandObjectivesections of the SOAP note.
+Instructions:
+•Decompose:Analyze the patient’s text and classify information into Subjective (reported
+symptoms/history) and Objective (measurable data/facts).
+•Filter:Remove all non-clinical text, including greetings, emotional fluff, gratitude, and irrelevant
+conversational fillers.
+•Subjective Extraction:Focus on the History of Present Illness (HPI), chief complaints, pain levels,
+and description of symptoms.
+•Objective Extraction:Focus on specific data points such as current medications, dosage, vital signs,
+or lab results.
+•Anonymity:Ensure no personally identifiable information (names, specific locations) is included.
+Input:[Raw Patient Dialogue]
+Output Format:
+•Subjective:[List of patient’s history, chief complaints, and symptoms]
+•Objective:[List of verifiable data: vitals, lab results, and medications (or "None" if absent)]
+Figure 6: The prompt template used for the screener to extract L_N.
+System Prompt: the Screener
+Role:You are a Medical Intent Analyzer.
+Task:Identify and refine thePrimary Query (𝑄)from the patient’s submission.
+Instructions:
+•Identify:pinpoint the core medical question the user is asking.
+•Explicitize:If the query is implicit (e.g., "I am worried about this lump"), convert it into an
+explicit clinical question (e.g., "What are the potential causes of this lump and does it require
+urgent care?").
+•Contextualize:Ensure the query is self-contained and understandable without reading the full
+narrative.
+Input:[Raw Patient Dialogue]
+Output Format:A single, clear question string.
+Figure 7: The prompt template used for the screener to extract Q.
+• Model-Human Agreement ( 𝐹 1𝑀𝑜𝑑𝑒𝑙−𝐴𝑣𝑔 ):Since
+there is no single “Gold Standard” for subjective med-
+ical evaluation, our automated grader must demon-
+strate robustness by aligning with multiple human
+experts. We calculate the alignment score as the av-
+erage of the𝑀𝐹1scores against each physician:
+𝐹1 𝑀𝑜𝑑𝑒𝑙−𝐴𝑣𝑔 = 𝑀𝐹1(𝑀𝑜𝑑𝑒𝑙, 𝐷𝑜𝑐 𝐴) +𝑀𝐹1(𝑀𝑜𝑑𝑒𝑙, 𝐷𝑜𝑐 𝐵)
+2
+(9)
+where 𝑀𝐹 1(𝑀𝑜𝑑𝑒𝑙, 𝐷𝑜𝑐 𝐴) treats Physician A as Ground
+Truth and the Model Grader as the Predictor. A high
+𝐹 1𝑀𝑜𝑑𝑒𝑙−𝐴𝑣𝑔 indicates that the automated grader gen-
+eralizes well and captures the consensus view of med-
+ical professionals.
+C.4 Case-level Consensus
+To evaluate the reliability of automated scoring at the ag-
+gregate case level, we assessed the correlation between au-
+tomated scores and human consensus. We compared our
+Rubric-based Grader against a standard LLM-as-a-Judge
+baseline.
+Scoring Protocols.
+• Human Ground Truth ( 𝑆𝐻𝑢𝑚𝑎𝑛 ):For each case 𝑖,
+the ground truth score is defined as the arithmetic
+mean of the scores provided by the two physicians.
+Let 𝑆 (𝑖)
+𝐷𝑜𝑐𝐴 and 𝑆 (𝑖)
+𝐷𝑜𝑐𝐵 be the scores for case 𝑖. The
+consensus human score is:
+𝑆 (𝑖)
+𝐻𝑢𝑚𝑎𝑛 =
+𝑆 (𝑖)
+𝐷𝑜𝑐𝐴 +𝑆 (𝑖)
+𝐷𝑜𝑐𝐵
+2 (10)
+• LLM-as-a-Judge Baseline ( 𝑆 𝐽 𝑢𝑑𝑔𝑒):We prompted
+the same LLM (GPT-4.1) used in our Rubric-based
+Grader to evaluate the model’s response directly based
+on general quality, following the standard judging
+protocol in [41]. To ensure comparability, these scalar
+scores were normalized to the[0,1]interval.
+
+--- PAGE 14 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+System Prompt: the Screener
+Role:You are a Senior Clinical Consultant.
+Task:Extract thePhysician Advice (𝐿 𝐴)from the verified doctor’s response. This corresponds to the
+AssessmentandPlansections of the SOAP note.
+Instructions:
+•Extract:Identify the doctor’s primary diagnosis (or differential diagnosis), reasoning, and specific
+recommendations.
+•Actionability:Focus on actionable steps: medications, lifestyle changes, "red flag" warnings, or
+referral instructions (e.g., "See a cardiologist").
+•Factuality:Strictly adhere to the doctor’s original text. Do not hallucinate or add medical advice
+not present in the source.
+Input:[Verified Physician Response]
+Output Format:
+•Assessment:[List of doctor’s reasoning/diagnosis]
+•Plan:[List of actionable recommendations]
+Figure 8: The prompt template used for the screener to extract L_A.
+System Prompt: the Validator
+Role:You are a Medical Taxonomy Expert based on Ely’s Taxonomy of Clinical Questions.
+Task:Evaluate thePrimary Query (𝑄)to determine if it constitutes a clinically meaningful Chief Complaint
+(CC) or medical request.
+Instructions:
+•Analyze:Does𝑄fall into a valid clinical category (e.g., Symptom, Diagnosis, Management, Prognosis,
+Therapy)?
+•Filter:Reject queries that are:
+–Nonsense or gibberish.
+–Purely social/chit-chat without medical intent.
+–Asking for illegal acts (e.g., manufacturing drugs).
+–Too vague to be answered (e.g., "I feel bad").
+•Output:Return a binary score (1 for Valid, 0 for Invalid).
+Input:[User Query𝑄]
+Output Format (JSON):
+{
+"reasoning": "Brief explanation...",
+"score": 1 // or 0
+}
+Figure 9: The prompt template used for the validator to compute S_cc.
+Correlation Analysis.To benchmark the reliability of our
+proposed method against standard evaluation approaches,
+we computed the Pearson Correlation Coefficient (𝜌) sep-
+arately for both automated methods against the human
+consensus.
+We calculate:
+(1)𝜌(𝑆 𝑅𝑢𝑏𝑟𝑖𝑐 , 𝑆𝐻𝑢𝑚𝑎𝑛 ): The alignment between our Rubric-
+based Grader and physician consensus.
+(2)𝜌(𝑆 𝐽 𝑢𝑑𝑔𝑒, 𝑆𝐻𝑢𝑚𝑎𝑛 ): The alignment between the stan-
+dard LLM-as-a-Judge baseline and physician consen-
+sus.
+The correlation coefficient is defined as:
+𝜌= cov(𝑆𝐴𝑢𝑡𝑜 , 𝑆𝐻𝑢𝑚𝑎𝑛 )
+𝜎𝑆𝐴𝑢𝑡𝑜 𝜎𝑆𝐻𝑢𝑚𝑎𝑛
+(11)
+where 𝑆𝐴𝑢𝑡𝑜 ∈ {𝑆 𝑅𝑢𝑏𝑟𝑖𝑐 , 𝑆𝐽 𝑢𝑑𝑔𝑒 }. A higher correlation indi-
+cates that the automated scoring method more accurately
+reflects the nuance and variance of professional medical
+judgment.
+D More Experimental Results
+D.1 Error Analysis
+D.1.1 Setup.The prompt used for error analysis is pre-
+sented in Figure 15. We classify the causes of AI-generated
+errors into seven distinct dimensions:
+• Contextual Neglect and Integration Failure:The
+model fails to incorporate specific patient details (e.g.,
+history, vitals, lab results) provided in the prompt,
+resulting in generic, template-like responses that lack
+personalization or ignore critical contraindications.
+
+--- PAGE 15 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+System Prompt: the Validator
+Role:You are a Clinical Auditor.
+Task:Calculate theNarrative Sufficiency Score (𝑆 𝑖𝑛𝑓 ). You must determine if the Patient Narrative (𝐿 𝑁 )
+provides enough context to safely answer the Query (𝑄).
+Instructions:
+(1)Step 1 (Derive Requirements):List the atomic clinical facts (𝑆 𝑟𝑒𝑞 ) absolutely necessary to answer𝑄
+(e.g., for "Headache", you need: Onset, Severity, Frequency, Triggers).
+(2)Step 2 (Verify):Check𝐿 𝑁 . For each item in𝑆 𝑟𝑒𝑞 , determine if it is present/entailed in the narrative.
+(3)Step 3 (Score):Calculate the ratio of present items to required items.
+Input:
+•Query (𝑄):...
+•Narrative (𝐿 𝑁 ):...
+Output Format (JSON):
+{
+"required_items": ["item1", "item2", "item3", ...],
+"present_items": ["item1", "item3"],
+"score": 0.66 // float between 0.0 and 1.0
+}
+Figure 10: The prompt template used for the validator to compute S_inf.
+System Prompt: the Validator
+Role:You are a Senior Medical Guideline Validator.
+Task:Verify thePhysician Advice (𝐿 𝐴)against the providedRetrieved Evidence (𝐸).
+Instructions:
+•Verify:Compare each claim𝑎 𝑗 in𝐿 𝐴 against the retrieved evidence text.
+•Score each claim (𝑣(𝑎 𝑗 )):
+– 1.0 (Supported):Explicitly confirmed by the evidence.
+– 0.5 (Neutral):Not mentioned in evidence, but clinically standard/safe (common sense).
+– 0.0 (Contradicted):Directly contradicts the evidence (Hallucination/Safety Risk).
+Input:
+•Physician Advice (𝐿 𝐴):...
+•Retrieved Guidelines (𝐸):...
+Output Format (JSON):
+{
+"claims_analysis": [
+{"claim": "Take 500mg Tylenol", "verification": "Supported by text...", "score": 1.0},
+{"claim": "Run a marathon immediately", "verification": "Contradicts rest protocols", "score": 0.0}
+],
+...
+}
+Figure 11: The prompt template used for the validator to compute S_align.
+• Guideline/Protocol Overgeneralization and Rigid-
+ity:The model applies clinical guidelines or proto-
+cols too broadly or rigidly without adapting to the
+nuances of the specific case, leading to recommen-
+dations that are theoretically correct but clinically
+inappropriate for the individual patient context.
+• Clinical Reasoning and Synthesis Deficit:The
+model demonstrates a failure to synthesize disparate
+clinical data points into a coherent diagnosis or man-
+agement plan, including poor prioritization of prob-
+lems or an inability to infer secondary conclusions
+from primary evidence.
+• Instruction/Query Misinterpretation and Non-
+adherence:The model fails to follow explicit user
+constraints (e.g., word count, specific output format,
+role-play requirements) or misinterprets the core in-
+tent of the clinical query, answering a different ques-
+tion than the one asked.
+
+--- PAGE 16 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+System Prompt: the Controller
+Role:You are a Medical Quality Assurance Specialist and Editor.
+Task:You have two sequential objectives:
+(1)Audit (Fabrication Detection):Verify that every fact in the Structured Narrative (𝐿 𝑁 ) and Structured
+Advice (𝐿 𝐴) is explicitly supported by the Original Raw Thread (𝑇).
+(2)Synthesis:Rewrite the structured points into coherent natural language to form the final dataset
+entry.
+Instructions:
+•Step 1: The Veto Check:
+–Compare𝐿 𝑁 and𝐿 𝐴 against the Raw Thread𝑇.
+–If𝐿 𝑁 or𝐿 𝐴 contains specific details (e.g., drug names, dosages, exact dates, lab values) that
+are NOT present in𝑇, you mustREJECTthe case immediately.
+–Reasoning: We cannot allow the AI to "hallucinate" details to make the story better.
+•Step 2: Natural Language Synthesis:
+– Generate𝑁(Narrative):Convert the structured patient facts (𝐿 𝑁 ) into a fluent paragraph.
+– Generate𝑄(Query):Keep the verified Query (𝑄) as is.
+– Generate𝐴(Advice):Convert the structured advice points (𝐿 𝐴) into a coherent physician response
+(e.g., "Based on your symptoms, I recommend...").
+Input:
+•Original Raw Thread (𝑇):[Raw Text...]
+•Structured Narrative (𝐿 𝑁 ):[List of facts...]
+•Structured Advice (𝐿 𝐴):[List of advice...]
+•Primary Query (𝑄):[Question string...]
+Output Format (JSON):
+{
+"audit_result": "PASS", // or "FAIL: Hallucinated [specific detail]"
+"final_output": {
+"N": "Coherent patient narrative...",
+"Q": "The primary clinical query...",
+"A": "Coherent physician response..."
+}
+}
+Figure 12: The prompt template used for the controller.
+Table 8: Patient Narrative & Query Quality. Rated on
+a 3-point scale.
+Clinical Logic & Completeness Scale
+Perfect (2) Good (1) Poor (0)
+The medical history
+is clear, symptoms
+align with
+physiological logic,
+and the query is
+fully supported by
+the provided
+context.
+Contains minor
+omissions (e.g.,
+missing specific
+temperature) or
+colloquial phrasing,
+but the core clinical
+logic remains
+self-consistent and
+actionable.
+Contains severe
+logical
+contradictions (e.g.,
+anatomical errors),
+or misses critical
+information
+required to answer
+the query (e.g.,
+asking for
+treatment without
+symptoms).
+• Knowledge Gaps and Outdated Content:The model
+provides factually incorrect medical information, re-
+lies on obsolete treatment protocols (often due to
+Table 9: Physician Advice Quality. Rated on a 3-point
+scale.
+Safety & Guideline Alignment Scale
+Perfect (2) Good (1) Poor (0)
+The response is
+accurate, precise,
+and strictly adheres
+to current first-line
+clinical guidelines.
+Provides reasonable
+conservative
+management or
+alternative
+therapies. May
+contain minor
+irrelevant info, but
+remains clinically
+safe.
+Violates absolute
+contraindications,
+misses critical red
+flags, includes
+factual errors (e.g.,
+wrong dosage), or
+provides
+hallucinatory
+medical advice.
+training data cutoffs), or produces incomplete an-
+swers that demonstrate a fundamental lack of domain
+knowledge.
+• Safety Overestimation and Excessive Caution:
+The model exhibits excessive risk aversion, such as
+
+--- PAGE 17 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+System Prompt: the Automated Rubric Generator
+Role:You are a Senior Medical Examiner.
+Task:Transform the providedPhysician Advice (𝐿 𝐴)into a structured evaluation rubric𝑅consisting of
+binary criteria. You must tailor the rubric based on the assignedTheme.
+Input:
+•User Query (𝑄):[Query String]
+•Physician Advice (𝐿 𝐴):[Verified Doctor’s Response]
+•Assigned Theme:[e.g., Emergency Referrals, Response Depth, etc.]
+Instructions (Step-by-Step):
+(1)Step 1: Theme-Guided Fact Extraction:Filter𝐿 𝐴 to extract ONLY medical facts relevant to theAssigned
+Theme.
+•Example: If Theme is "Emergency Referrals", ignore diet advice.
+(2)Step 2: Bipolar Criterion Formulation:Convert facts into binary "Yes/No" questions (𝑐 𝑗 ).
+•Positive Criteria:Check for inclusion of correct facts (e.g., "Does the model mention symptom X?").
+•Negative Criteria:Check for hallucinations or dangerous contradictions (e.g., "Does the model
+incorrectly suggest drug Y?").
+(3)Step 3: Axis & Weighting (𝑤 𝑗 ):Assign anAxis(Accuracy, Safety, Completeness, Context, Communication)
+and aWeight([ −10,10]) to each criterion.
+•+1 to +10:Reward for correct info (Higher = more critical).
+•-1 to -10:Penalty for misinformation/safety risks (Lower = more dangerous).
+•Criticality:𝑤=±10is for life-threatening issues;𝑤=±1is for minor details.
+Output Format (JSON):
+[
+{
+"question": "Does the model identify the likely cause as Norovirus?",
+"axis": "Accuracy",
+"weight": 10
+},
+{
+"question": "Does the model recommend antibiotics (contraindicated)?",
+"axis": "Safety",
+"weight": -10
+}
+]
+Figure 13: The prompt template used for the Automated Rubric Generator.
+Table 10: Criterion Validity. Rated on a binary scale.
+Rubric Validity Scale
+Agree (1) Disagree (0)
+The criterion represents a
+medically necessary check for
+this specific case. It is factually
+correct and appropriate for the
+clinical context.
+The criterion is factually
+incorrect, requests information
+irrelevant to the chief
+complaint, or sets a standard
+that deviates from routine
+clinical practice.
+refusing to answer benign medical queries (false re-
+fusal) or recommending unnecessary emergency es-
+calation (e.g., recommending ER visits for minor, self-
+limiting conditions) due to miscalibrated safety guardrails.
+• Misclassification, Hallucination, and Modera-
+tion Errors:The model generates fabricated medical
+facts or non-existent citations (hallucination), or trig-
+gers inappropriate content moderation filters that
+block legitimate clinical discourse.
+D.1.2 Results.To understand the root causes of model fail-
+ures and identify specific weaknesses in state-of-the-art
+systems, we conducted a fine-grained error analysis on the
+top proprietary models and open-source models.
+Performance by Evaluation Axis.We first dissected model
+performance across five evaluation axes. To quantify per-
+formance, we define the Error Rate based on the alignment
+with specific criteria: for positive criteria, a failure to sat-
+isfy the requirement is recorded as an error; conversely, for
+negative criteria, any instance where the model triggers the
+criterion is penalized.
+As illustrated in Table 3, the majority of state-of-the-art
+(SOTA) models exhibit error rates exceeding 50% across
+most axes, underscoring significant room for improvement
+in current large-scale architectures in medical domain. A
+common trend emerges among leading models: they achieve
+
+--- PAGE 18 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+System Prompt: the Rubric-based Grader
+Role:You are an Objective Grader.
+Task:Evaluate theModel Response (𝑀 𝑜𝑢𝑡 )against the providedRubric (𝑅).
+Instructions:
+•Objective Verification:For each criterion in the Rubric, determine if the Model Response satisfies
+it.
+•Binary Judgment:Return true (Met) or false (Not Met).
+•Positive Criteria Logic:true if the modelincludesthe required information.
+•Negative Criteria Logic:true if the modelcommitsthe error (e.g., if the rubric asks "Does model
+suggest antibiotics?" and the model suggests them, return true). Note: The scoring formula handles
+the negative sign; you simply detect presence.
+•Evidence:Quote the specific sentence from the model output that supports your decision.
+Input:
+•User Query (𝑄):...
+•Model Response (𝑀 𝑜𝑢𝑡 ):...
+•Rubric (𝑅):[JSON list from Phase 1]
+Output Format (JSON):
+[
+{
+"question": "Does the model identify the likely cause as Norovirus?",
+"met": true,
+"reasoning": "Model explicitly states'symptoms suggest Norovirus'."
+},
+{
+"question": "Does the model recommend antibiotics?",
+"met": false,
+"reasoning": "Model correctly states'antibiotics are not effective'."
+}
+]
+Figure 14: The prompt template used for the Rubric-based Grader.
+Table 11: Qualitative error analysis across representa-
+tive LLMs.
+Error
+Type
+Baichuan
+M3
+GPT-
+OSS
+GPT
+5.2
+GLM-
+4.5
+Grok
+4.1
+Qwen3-
+14B
+CNIF1 41 45 35 40 43 48
+GOPR2 29 32 28 22 23 28
+CRSD3 7 14 13 10 9 36
+IMNA4 12 8 0 8 0 0
+KGOC5 7 11 8 0 11 17
+SOEC6 4 7 8 7 0 0
+MHME7 0 6 0 0 6 4
+Others 0 0 8 13 8 0
+1 CNIF: Contextual Neglect and Integration Failure
+2 GOPR: Guideline/Protocol Overgeneralization and Rigidity
+3 CRSD: Clinical Reasoning and Synthesis Deficit
+4 IMNA: Instruction/Query Misinterpretation and Nonadherence
+5 KGOC: Knowledge Gaps and Outdated/Incorrect Content
+6 SOEC: Safety Overestimation and Excessive Caution
+7 MHME: Misclassification, Hallucination, and Content Moderation Errors
+high scores in Accuracy but struggle with Community Qual-
+ity, Completeness, and Context Awareness. This disparity
+suggests that while current training paradigms effectively
+optimize for factual correctness, they remain deficient in
+capturing nuanced contextual dependencies and structural
+thoroughness.
+From Knowledge Deficits to Application Bottlenecks.Be-
+yond quantifying performance, we conducted a granular
+investigation into the underlying drivers of model failure. To
+diagnose these failures, we performed a qualitative audit of
+the bottom-100 scoring cases for each of the six representa-
+tive models. Utilizing GPT-4.1 as an evaluator, we generated
+precise error descriptors for each case. These descriptors
+were subsequently categorized through semantic clustering
+into seven distinct error types, as summarized in Table 11.
+Our analysis reveals a critical shift in the failure landscape
+for leading models. Contrary to common assumptions, fun-
+damental errors such as hallucinations (MHME) and knowl-
+edge gaps (KGOC) are no longer the primary limitations. As
+shown in Table 11, leading models achieve near-zero rates
+for Misclassification/Hallucination (MHME: 0% for GPT-5.2
+and GLM-4.5) and low rates for Knowledge Gaps (KGOC:
+0-8%). Similarly, Clinical Reasoning Deficits (CRSD) remain
+relatively low (10-13%).
+Instead, the predominant bottleneck is Contextual Ap-
+plication, i.e. the ability to flexibly apply existing medical
+knowledge to specific patient realities. The vast majority of
+errors stem from Contextual Neglect and Integration Failure
+(CNIF: 35-48%) and Guideline Overgeneralization (GOPR)
+(22-32%). These findings suggest that while leading models
+possess the necessary medical facts and reasoning capabili-
+ties, they struggle to synthesize patient-specific constraints
+
+--- PAGE 19 ---
+LiveMedBench: A Contamination-Free Medical Benchmark for LLMs with Automated Rubric Evaluation Conference’17, July 2017, Washington, DC, USA
+System Prompt: Medical Auditor Agent
+You are a Senior Medical Auditor conducting a rigorous "Root Cause Analysis" on AI failures in clinical
+settings.
+# Task
+You will be presented with a medical case where an AI model provided a wrong or suboptimal answer compared
+to the Gold Standard.
+Your goal is to identify theunderlying cognitive or data failurethat caused this specific error.
+# Input Data
+1.Patient Query:{Question}
+2.Gold Standard Answer:{Gold_Answer}
+3.Model’s Wrong Response:{Model_Response}
+# Analysis Instructions
+1. Compare the Model’s Response with the Gold Standard deeply.
+2. Identify the specific gap (e.g., did it miss a key symptom? did it hallucinate a drug? did it use an
+old guideline? did it refuse to answer?).
+3. Describe the specific mechanism of failure in 1-2 sentences.
+4. Extract a short "Error Keyword" (2-5 words) that summarizes this failure.
+# Output Format (Strict JSON)
+{
+"gap_analysis": "Briefly describe what the model missed or got wrong.",
+"root_cause_description": "A precise, 1-sentence description of WHY this error happened (e.g., ’Model
+recognized the disease but failed to account for the patient’s pregnancy contraindication’).",
+"error_keyword": "Short tag (e.g., ’Knowledge Deficit’,’Instruction Failure’)"
+}
+Figure 15: The prompt template used for error analysis.
+(e.g., comorbidities, allergies, or individual history) with
+general guidelines, resulting in advice that is theoretically
+correct but practically unsuitable for the specific patient.
+Baichuan M3
+GPT 5.2 Grok 4.1
+GPT-OSS-120B
+GLM 4.5
+Qwen3-14B
+Baichuan M3
+GPT 5.2
+Grok 4.1
+GPT-OSS-120B
+GLM 4.5
+Qwen3-14B
+Case Correlation Heatmap
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Correlation Coefficient
+Figure 16: Correlation of model failed cases. We com-
+pute the pairwise correlation of the bottom-100 scor-
+ing cases across representative models.
+Error Correlation and Data Quality.To investigate whether
+low scores were driven by poor data quality (i.e., “bad ques-
+tions” that no model could answer), we calculated the Jac-
+card similarity of the bottom-100 cases between model pairs
+(Figure 16). The resulting heatmap shows generally low cor-
+relation coefficients (< 0.4) between all model pairs. The
+mean Jaccard similarity score is 0.24. This lack of overlap
+indicates that models are failing on different subsets of cases
+rather than struggling with a common set of low-quality
+samples. This finding confirms that the low scores are at-
+tributable to distinct model-specific capability gaps rather
+than artifacts of the dataset construction.
+D.2 Theme Correlation
+While the main text discusses performance correlations
+across clinical specialties, we also investigated the relation-
+ship between different behavioral dimensions (Themes) to
+understand the transferability of model alignment skills.
+Figure 17 illustrates the Pearson correlation matrix among
+the five evaluation themes.
+D.3 Correlation Analysis
+We present analyses involving correlation among different
+specialties. We computed the Pearson correlation coefficient
+(𝑟) among all pairs of clinical specialties in LiveMedBench.
+Figure 18 illustrates the correlation matrix across 38 clin-
+ical specialties. We observe a dense high-correlation cluster
+(𝑟> 0.9) Cardiology (Cardio), Infectious Disease (ID), Hema-
+tology (Hem), and Pulmonary & Critical Care (PCCM). This
+strong inter-dependency suggests that these fields are likely
+co-represented frequently in general medical training cor-
+pora (e.g., PubMed, MIMIC).
+
+--- PAGE 20 ---
+Conference’17, July 2017, Washington, DC, USA Zhiling Yan et al.
+Emergency Referrals
+Response Depth
+Responding under Uncertainty
+Context-Seeking
+Expertise-T ailored Communication
+Emergency Referrals
+Response Depth
+Responding under Uncertainty
+Context-Seeking
+Expertise-T ailored Communication
+Theme Correlation Heatmap
+0.8
+0.9
+0.9
+1.0
+1.0
+Correlation Coefficient
+Figure 17: Theme correlation heatmap.
+GI/HepPCCMHem
+ID
+RheumCardio
+GPGeriA/I
+SleepNephroNeuroGIMPsychEndo
+Peds Surg
+PlasticOphtho
+Uro
+Gen SurgVasc Surg
+OrthoENTNSGY
+CT SurgRad Onc
+Path
+Prev Med
+DermPharm
+Repro/Gen
+PedsRad
+OB/GYNDent/Oral
+EM
+Anesth
+Onc
+GI/Hep
+PCCM
+Hem
+ID
+Rheum
+Cardio
+GP
+Geri
+A/I
+Sleep
+Nephro
+Neuro
+GIM
+Psych
+Endo
+Peds Surg
+Plastic
+Ophtho
+Uro
+Gen Surg
+Vasc Surg
+Ortho
+ENT
+NSGY
+CT Surg
+Rad Onc
+Path
+Prev Med
+Derm
+Pharm
+Repro/Gen
+Peds
+Rad
+OB/GYN
+Dent/Oral
+EM
+Anesth
+Onc
+Specialty Correlation Heatmap
+0.6
+0.7
+0.8
+0.9
+1.0
+Correlation Coefficient
+Figure 18: Specialty correlation heatmap. Pairwise
+Pearson correlation coefficients of model performance
+across different clinical specialties.
+Conversely, “niche” verticals such as Pathology (Path)
+and Radiation Oncology (Rad Onc) exhibit lower correla-
+tions with the broader cluster (lighter bands in Figure 18).
+This isolation indicates that proficiency in general diagnos-
+tic reasoning does not automatically transfer to these highly
+specialized domains, which require distinct knowledge rep-
+resentations.
+E Ethical Considerations
+Data Privacy.Although all source data is publicly accessi-
+ble, we implement de-identification, redacting all PII (names,
+specific locations, dates of birth), and cases with re-identification
+risk are excluded.
+Content Safety.We discard threads containing hate speech,
+discriminatory language, or advice violating medical safety
+protocols, while retaining real-world noise to test model
+robustness.
+Usage Disclaimer.LiveMedBench is intended solely for
+research evaluation. Its contentsmust not be treated as
+medical advice, and the dataset must not be used for self-
+diagnosis, treatment planning, or training clinical deploy-
+ment models without regulatory validation.
+Bias and Representation.Our data sources may carry
+demographic biases characteristic of internet users in the
+US and China, and may not fully represent underserved pop-
+ulations. Future iterations will diversify sources to mitigate
+these gaps.
+F Versioning and Reproducibility
+To address the “moving target” challenge inherent in con-
+tinuous benchmarks, we adopt a dual-release strategy:
+• Frozen Snapshots:While LiveMedBench is updated
+weekly to capture emerging trends, we releaseFrozen
+Snapshotswith timestamp and checksums (e.g.,
+LiveMedBench-v2026.01). This ensures that results
+reported in academic literature remain reproducible.
+• Stable Grading Environment:To prevent drift in
+automated evaluation, our Rubric-based Grader is
+pinned to specific API versions rather than the volatile
+“latest” endpoints. Furthermore, we release the full
+evaluation code and the exact rubric for every case in
+the snapshot, enabling offline auditing and consistent
+re-grading.

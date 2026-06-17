@@ -1,0 +1,55 @@
+{
+  "action": {
+    "arguments": {
+      "checks": [
+        "sh -lc 'python3 server_ok.py'",
+        "sh -lc 'curl -s http://127.0.0.1:8123/'"
+      ],
+      "requirements": [
+        {
+          "check": "sed -n '1,200p' server_ok.py",
+          "observation_ref": "server_ok.py contents show a ThreadingHTTPServer bound to 127.0.0.1:8123 and returning b'ok'.",
+          "requirement": "Use the provided file `server_ok.py` in the current workspace."
+        },
+        {
+          "check": "start_job with cmd 'sh -lc \"python3 server_ok.py\"'",
+          "observation_ref": "start_job returned 'started job server_ok_8123 (pid 43639)' and job_status telemetry shows the job alive.",
+          "requirement": "Start it as a background job using the harness `start_job` tool."
+        },
+        {
+          "check": "curl -s http://127.0.0.1:8123/",
+          "observation_ref": "curl connected successfully and returned the response body.",
+          "requirement": "The service must listen on `127.0.0.1:8123`."
+        },
+        {
+          "check": "curl -s http://127.0.0.1:8123/",
+          "observation_ref": "curl stdout was exactly `ok`.",
+          "requirement": "A GET request to `http://127.0.0.1:8123/` must return exactly `ok`."
+        },
+        {
+          "check": "job_status server_ok_8123",
+          "observation_ref": "Detached job remains alive at verification time.",
+          "requirement": "The service must keep running after the agent loop exits so the external verifier can check it."
+        }
+      ],
+      "summary": "Started the provided `server_ok.py` as a detached background job on `127.0.0.1:8123` and verified the root endpoint returns exactly `ok`."
+    },
+    "hook_trace": [],
+    "permission_decision": null,
+    "tool": "task_done"
+  },
+  "raw_output": {
+    "content": "{\"blind_retry_blocked\":false,\"cwd\":\"/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260617T014147Z/workspaces/g2_02_service_survives_exit/workspace\",\"duration_sec\":0.0,\"error\":{\"command\":null,\"details\":null,\"exit_code\":null,\"failure_class\":null,\"kind\":\"dispatch_error\",\"message\":\"ExecutionContext.task_done() got an unexpected keyword argument 'requirements'\",\"reason_code\":\"dispatch_error\",\"timed_out\":null,\"tool_name\":\"task_done\"},\"exit_code\":1,\"files_changed\":[],\"process_delta\":{\"exited\":[],\"job_log_growth\":{},\"jobs_exited\":[],\"jobs_started\":[],\"log_growth\":{},\"service_log_growth\":{},\"services_exited\":[],\"services_started\":[],\"session_log_growth\":{},\"sessions_exited\":[],\"sessions_started\":[],\"started\":[]},\"raw_log_path\":\"/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260617T014147Z/workspaces/g2_02_service_survives_exit/workspace/.aether2/raw_logs/task_done_cb3e896cc65242dcba61a349a824c1a6.json\",\"stderr_head\":\"ExecutionContext.task_done() got an unexpected keyword argument 'requirements'\",\"stderr_tail\":\"\",\"stdout_head\":\"\",\"stdout_tail\":\"\",\"tool\":\"task_done\",\"truncated\":false,\"truncation_digest\":null}",
+    "name": "task_done",
+    "role": "tool",
+    "tool_call_id": "call_vbSiTGKvVP4DZMAxS0G9zFdL"
+  },
+  "receipt_id": "0005_action_task_done",
+  "request": {
+    "messages_len": 12
+  },
+  "response": {
+    "text": "I have the required runtime evidence: the detached job is alive and `curl` returned exactly `ok`. I\u2019ll finalize with those checks."
+  },
+  "step": 5
+}

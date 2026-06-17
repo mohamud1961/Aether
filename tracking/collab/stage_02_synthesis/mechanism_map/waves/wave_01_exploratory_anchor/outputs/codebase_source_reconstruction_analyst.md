@@ -1,0 +1,161 @@
+# Mechanism Map Wave 01: Codebase / Source-Reconstruction Analyst
+
+CODEBASE_SOURCE_RECON_OUTPUT
+- artifact: `mechanism_map`
+- role: `codebase/source-reconstruction analyst`
+- preflight_scope_confirmed:
+  - Confirmed active wave inputs and scope from `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`, `tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md`, `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`, `prompts/deep_synthesis_shared_policy_prompt.md`, and `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`.
+  - Scope anchor checked against `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json` and `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`.
+  - This pass stayed at `L4` extraction and separated source-backed claims from explicit `behavioral reconstruction`.
+  - Candidate minimal-sufficient mechanisms to protect from prestige bias:
+    - Single execution loop plus explicit completion gate plus verifier-grade checks.
+    - Planner-plus-executor with strict tool contracts and cleanup discipline.
+    - Simple git-hook deployment and repo-state hygiene instead of multi-layer orchestration.
+- preflight_planned_read_order:
+  - Protocol and checklist gate files first.
+  - Packet and role prompt constraints second.
+  - Mirrored source targets: `KIRA`, `deepagents`, `a-evolve`.
+  - Standalone `src_cod_*` captures listed in packet (metadata plus direct archive scanning).
+  - No-source lane via trajectories and local reconstruction artifacts (`BigAI`).
+  - Local harness structural code (`blocks/`, `runner/`, `evals/`) to capture non-agentic behavior shapers.
+  - Corpus-expansion family for later wave: deeper archive traversal inside all `src_cod_*` zips and benchmark capture pairs.
+- preflight_critical_sources_selected:
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/{filesystem.py,memory.py,patch_tool_calls.py,subagents.py,summarization.py}`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+  - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/{backend.py,failure.py}`
+  - `research/sources/codebases/a-evolve/agent_evolve/{protocol/base_agent.py,contract/workspace.py,engine/{loop.py,trial.py,versioning.py}}`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/{terminal/{agent.py,react_solver.py,tools.py,docker_env.py},mcp/{agent.py,conversation_manager.py}}`
+  - `research/sources/codebases/src_cod_086db5a6312e/capture.json`
+  - `research/sources/codebases/src_cod_564b05dcc95b/capture.json`
+  - `research/sources/codebases/src_cod_ad409dc1ebde/capture.json`
+  - `research/sources/codebases/src_cod_e231561a3d69/capture.json`
+  - `research/sources/codebases/src_cod_18ba360eb4b2/capture.json`
+  - `research/sources/codebases/src_cod_87b73c75d11a/capture.json`
+  - `research/sources/codebases/src_cod_a1e1a27e13a1/capture.json`
+  - `research/sources/codebases/src_cod_c7b08f87aeac/capture.json`
+  - `research/sources/trajectories/BigAI/{headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt,cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt,db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt,break-filter-js-from-html/4389d2e9-7d17-4dc1-b0bd-5d1bde2716b6-traj.txt,git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt}`
+  - `research/sources/trajectories/deepagents/{headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt,cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt,db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt,break-filter-js-from-html/802e3807-8f1a-4c15-991c-9cdb03d16cef-traj.txt,git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt}`
+  - `research/sources/trajectories/terminus-kira/{headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt,cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt,db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt,break-filter-js-from-html/eaf5da17-d140-4652-bd00-3e6a83bf66cf-traj.txt,git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt}`
+  - `research/analysis/bigai_trace_layer/output/{final_harness_reconstruction.md,runs/**}`
+  - `blocks/**/*.py`, `runner/*.py`, `evals/*.py`, `AGENTS.md`
+- preflight_coverage_risks:
+  - Most packet-required `src_cod_*` sources are archive snapshots; without full unpack + subsystem walk, this wave can only make first-pass mechanism extraction from sampled files.
+  - BigAI remains no-source in this corpus slice, so implementation claims there must remain `behavioral reconstruction`.
+  - DeepAgents has backend polymorphism; behavior depends on selected backend at runtime. Source shows both sandbox and unsandboxed paths, so blanket security claims are unsafe.
+  - Local harness code under `blocks/`, `runner/`, `evals/` is largely interface/docstring scaffolding; conclusions here are structural-state claims, not runtime-performance claims.
+- preflight_likely_blind_spots:
+  - Hidden scheduler/controller internals for BigAI.
+  - Full subsystem coverage for OpenHands/SWE-agent/Aider/AAMF/agentsh inside zip archives.
+  - Cross-source reconciliation of benchmark contracts without direct benchmark-capture deep read in this role pass.
+  - Source-of-truth for which backend profiles were used in each historical trajectory.
+- preflight_blockers:
+  - none structural for a first-pass codebase/source-reconstruction output
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `research/sources/codebases/KIRA/{README.md,prompt-templates/terminus-kira.txt,terminus_kira/terminus_kira.py}`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/{graph.py,middleware/{filesystem.py,memory.py,patch_tool_calls.py,subagents.py,summarization.py},backends/local_shell.py}`
+  - `research/sources/codebases/deepagents/libs/evals/{README.md,deepagents_harbor/{backend.py,failure.py}}`
+  - `research/sources/codebases/a-evolve/agent_evolve/{protocol/base_agent.py,contract/workspace.py,engine/{loop.py,trial.py,versioning.py},agents/{terminal/{agent.py,react_solver.py,tools.py,docker_env.py},mcp/{agent.py,conversation_manager.py}}}`
+  - `research/sources/codebases/src_cod_086db5a6312e/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_564b05dcc95b/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_ad409dc1ebde/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_e231561a3d69/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_18ba360eb4b2/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_87b73c75d11a/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_a1e1a27e13a1/{capture.json,artifact.zip}`
+  - `research/sources/codebases/src_cod_c7b08f87aeac/{capture.json,artifact.zip}`
+  - `research/sources/trajectories/BigAI/{headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt,cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt,db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt,break-filter-js-from-html/4389d2e9-7d17-4dc1-b0bd-5d1bde2716b6-traj.txt,git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt}`
+  - `research/sources/trajectories/deepagents/{headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt,cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt,db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt,break-filter-js-from-html/802e3807-8f1a-4c15-991c-9cdb03d16cef-traj.txt,git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt}`
+  - `research/sources/trajectories/terminus-kira/{headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt,cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt,db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt,break-filter-js-from-html/eaf5da17-d140-4652-bd00-3e6a83bf66cf-traj.txt,git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt}`
+  - `research/analysis/bigai_trace_layer/output/{final_harness_reconstruction.md,runs/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881.json,runs/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa.json,runs/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53.json,runs/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d.json}`
+  - `AGENTS.md`
+  - `blocks/{README.md,execution/{flat_loop.py,guided_loop.py},context/{sliding_window.py,summarize_on_overflow.py},verification/checkpoint_verify.py}`
+  - `runner/{agent.py,docker_sandbox.py,evaluator.py,logger.py,model_client.py}`
+  - `evals/{context_eval.py,step_efficiency_eval.py,verification_eval.py}`
+- coverage_not_yet_used:
+  - `research/sources/codebases/src_cod_*/artifact.zip` (full tree traversal not yet done; only sampled files per capture)
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/**/*`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/**/*`
+  - `research/sources/issues/**/*`
+  - `research/sources/postmortems/**/*`
+  - `research/sources/informal/**/*`
+  - `research/sources/codebases/OpenHands*` beyond sampled architecture docs inside `src_cod_086db5a6312e/artifact.zip`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/**/*` beyond sampled backend files
+- evidence_classes_touched:
+  - `mirrored codebases`
+  - `trajectories`
+  - `relevant local analysis`
+  - `relevant local harness code`
+- priority_sources_not_yet_read:
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/capture.json`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/capture.json`
+  - `research/sources/codebases/src_cod_086db5a6312e/artifact.zip::OpenHands-*/openhands/**/*.py`
+  - `research/sources/codebases/src_cod_e231561a3d69/artifact.zip::SWE-agent-*/sweagent/environment/**/*.py`
+  - `research/sources/codebases/src_cod_ad409dc1ebde/artifact.zip::aider-*/aider/coders/**/*.py`
+  - `research/sources/codebases/src_cod_c7b08f87aeac/artifact.zip::agentsh-*/cmd/**/*.go`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/{filesystem.py,protocol.py,store.py}`
+- source_backed_mechanisms:
+  - `[high]` KIRA implements native tool-call control (`execute_commands`, `task_complete`, `image_read`) with a marker-polled command runner and explicit double-confirm completion gate. Evidence: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`.
+  - `[high]` KIRA trajectory logging is first-class in the runtime loop, including explicit tool-call recording (`bash_command`, `mark_task_complete`) and context-summarization split points. Evidence: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`.
+  - `[high]` DeepAgents composes behavior through a middleware stack (`TodoList`, filesystem tools, subagent tasking, summarization, tool-call patching, optional async subagents/memory/HITL) rather than a monolithic loop. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`.
+  - `[high]` DeepAgents includes explicit continuity and context-pressure mechanisms: dangling tool-call patching, history offload to `/conversation_history`, and large tool-result spillover to `/large_tool_results/<tool_call_id>`. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/patch_tool_calls.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`.
+  - `[medium]` DeepAgents execution-sandbox semantics are backend-dependent: source supports sandbox protocols, but `LocalShellBackend` is explicitly unsandboxed host execution. Weakener: runtime backend choice is not observable from all sampled trajectories. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`, `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/backend.py`.
+  - `[high]` A-Evolve has a strong filesystem-contract substrate (`prompts/`, `skills/`, `memory/`, `tools/`) and agent state reload/export hooks; evolution logic snapshots and rolls back through git while preserving failed history. Evidence: `research/sources/codebases/a-evolve/agent_evolve/protocol/base_agent.py`, `research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`, `research/sources/codebases/a-evolve/agent_evolve/engine/{loop.py,versioning.py}`.
+  - `[high]` A-Evolve terminal lane is a minimal explicit triad (`bash`, `python`, `submit`) running inside dockerized task containers with wall-clock timeouts and evaluator-side test copying to reduce leakage. Evidence: `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/{agent.py,tools.py,docker_env.py,react_solver.py}`.
+  - `[high]` A-Evolve MCP lane dynamically discovers and filters tools, then enforces pinned-task-context retention via a custom conversation manager that preserves the first user message under trimming. Evidence: `research/sources/codebases/a-evolve/agent_evolve/agents/mcp/{agent.py,conversation_manager.py}`.
+  - `[medium]` Sampled `src_cod_*` captures show a recurring prompt-pack and workflow-governance mechanism family (skills/prompts/checklists/tool wrappers) across OpenHands, RALPH loop, SWE-agent, OpenAI agents skill packs, Codex prompts, AAMF, and agentsh. Weakener: this wave sampled representative files only, not full subsystem trees. Evidence: `research/sources/codebases/src_cod_086db5a6312e/artifact.zip`, `research/sources/codebases/src_cod_564b05dcc95b/artifact.zip`, `research/sources/codebases/src_cod_ad409dc1ebde/artifact.zip`, `research/sources/codebases/src_cod_e231561a3d69/artifact.zip`, `research/sources/codebases/src_cod_18ba360eb4b2/artifact.zip`, `research/sources/codebases/src_cod_87b73c75d11a/artifact.zip`, `research/sources/codebases/src_cod_a1e1a27e13a1/artifact.zip`, `research/sources/codebases/src_cod_c7b08f87aeac/artifact.zip`.
+  - `[high]` Non-agentic structural code in this repo currently defines architecture contracts more than implementations; the local harness spine is interface-scaffold state, which materially shapes what can be claimed as already operational. Evidence: `blocks/**/*.py`, `runner/*.py`, `evals/*.py`, `AGENTS.md`.
+- behavioral_reconstructions:
+  - `[high]` `behavioral reconstruction`: BigAI exhibits planner-executor-verifier role separation with explicit planner plan writes (`save_plan`), executor shell operations (`run_shell_command`), and verifier completion calls (`finish_verification`). Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/analysis/bigai_trace_layer/output/runs/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa.json`.
+  - `[high]` `behavioral reconstruction`: BigAI completion doctrine includes post-fix verifier loops and state-cleanup work before final pass in branching/stateful tasks. Evidence: `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`, `research/analysis/bigai_trace_layer/output/runs/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d.json`.
+  - `[medium]` `behavioral reconstruction`: BigAI appears to use richer multi-executor branch fanout under ambiguity, but scheduler policy internals remain hidden. Weakener: no mirrored BigAI source in-scope. Evidence: `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`, `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`.
+- subsystem_findings:
+  - Source-backed subsystem map:
+  - `KIRA`: tool-call parser/executor loop, terminal marker polling, image-read multimodal path, completion confirmation, trajectory writer.
+  - `deepagents`: middleware orchestration core, filesystem gateway, summarization/offload, task-subagent bus, memory injection, backend polymorphism.
+  - `a-evolve`: workspace contract + evolution engine + multi-agent frontends (terminal and MCP) + git versioning.
+  - Sampled standalone code captures:
+  - `OpenHands`: architecture and agent-execution docs emphasize LLM-call + action server split.
+  - `SWE-agent`: parser/tool-config stack with command blocking and timeout policies in source.
+  - `agentsh`: explicit multi-mode security substrate (seccomp/ptrace/landlock/etc.) in docs and code tree.
+  - `AAMF` and `RALPH`: orchestrator-centric prompt specs and staged task governance.
+  - Candidate simple baselines / minimal-sufficient mechanisms:
+  - Baseline A: single-agent shell loop + strict completion checklist + deterministic verifier script gate.
+  - Baseline B: planner + one executor + one verifier with explicit cleanup/restore policy.
+  - Baseline C: hook-based branch deployment and minimal repo hygiene checks for branch-routing tasks.
+- source_behavior_matches:
+  - `[high]` KIRA source-defined tool surface (`execute_commands`, `task_complete`) aligns with observed KIRA trajectory tool-call traces (`bash_command`, `mark_task_complete`) and repeated completion confirmation behavior. Evidence: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`.
+  - `[high]` DeepAgents source-defined default tool stack (`write_todos`, filesystem tools, `execute`, `task`) aligns with observed deepagents trajectories that repeatedly use these tools. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`, `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`, `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`.
+  - `[medium]` KIRA prompt requirement for minimal-state-change review before completion is visible in trajectory completion-check prompts. Weakener: sampled tasks may overrepresent this behavior due to task template strictness. Evidence: `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`, `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`.
+- source_behavior_mismatches:
+  - `[medium]` DeepAgents filesystem prompt language describes `execute` as sandboxed, while source also ships an explicitly unsandboxed host backend (`LocalShellBackend`); this is a policy-level mismatch risk unless backend selection is constrained. Weakener: trajectory slices do not expose backend object directly. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`.
+  - `[medium]` DeepAgents source includes advanced summarization/offload and tool-result spill controls, but sampled trajectories do not clearly show those specific paths firing; operational prevalence is unresolved. Weakener: sampled tasks may not hit context pressure. Evidence: `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`, `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`, `research/sources/trajectories/deepagents/**/*.txt`.
+  - `[medium]` A-Evolve source includes full evolution-loop machinery, but this wave did not include A-Evolve trajectories proving which evolution paths are used in benchmark execution; mechanism existence exceeds behavior confirmation. Weakener: no direct wave trajectory for A-Evolve in packet target slice. Evidence: `research/sources/codebases/a-evolve/agent_evolve/engine/{loop.py,versioning.py,trial.py}`.
+  - `[low]` Sampled `src_cod_*` captures are heterogeneous and partially documentation-heavy in this pass; subsystem-level claims across those repos remain tentative until deeper archive scanning. Weakener: first-pass sample depth only. Evidence: `research/sources/codebases/src_cod_*/artifact.zip`.
+- archive_or_visibility_limits:
+  - `src_cod_*` assets are zip captures; this pass scanned representative files without full-tree extraction.
+  - BigAI has no mirrored source in scope, so internal control, memory, and scheduler mechanisms remain opaque.
+  - Some trajectory slices are long and noisy, and command-output truncation in trace formats can hide intermediate states.
+  - Local harness code in this repo is mostly contract scaffolding, limiting what can be inferred about active runtime behavior.
+- confidence_notes:
+  - High confidence where mechanisms are directly implemented in mirrored source and/or directly echoed by tool-call names in trajectories.
+  - Medium confidence where claims depend on backend-selection assumptions or partial archive sampling.
+  - Low confidence reserved for cross-repo generalizations from sampled `src_cod_*` files only.
+- open_questions:
+  - Which backend profiles were actually used in each deepagents run (sandbox backend vs local shell)?
+  - How much of BigAI verifier behavior is prompt doctrine versus controller hard logic?
+  - Which `src_cod_*` repos contribute reusable mechanism candidates versus corpus-noise for this project goal?
+  - Should mechanism cards split “source-backed mechanism exists” from “observed in benchmark trajectories” as separate statuses?
+  - Does local harness scaffold state imply immediate implementation work before variant-family seeding, or can deep synthesis proceed independently?
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`

@@ -1,0 +1,1294 @@
+--- PAGE 1 ---
+E-mem: Multi-agent based Episodic Context Reconstruction
+for LLM Agent Memory
+Kaixiang Wang1∗, Yidan Lin1∗, Jiong Lou1, Zhaojiacheng Zhou1, Bunyod Suvonov1, Jie Li1
+1Shanghai Jiao Tong University, China
+Abstract
+The evolution of Large Language Model (LLM)
+agents towards System 2 reasoning, characterized
+by deliberative, high-precision problem-solving,
+requires maintaining rigorous logical integrity
+over extended horizons. However, prevalent mem-
+ory preprocessing paradigms suffer from destruc-
+tive de-contextualization. By compressing com-
+plex sequential dependencies into pre-defined
+structures (e.g., embeddings or graphs), these
+methods sever the contextual integrity essential
+for deep reasoning. To address this, we propose
+E-mem, a framework shifting from Memory Pre-
+processing to Episodic Context Reconstruction.
+Inspired by biological engrams, E-mem employs
+a heterogeneous hierarchical architecture where
+multiple assistant agents maintain uncompressed
+memory contexts, while a central master agent
+orchestrates global planning. Unlike passive re-
+trieval, our mechanism empowers assistants to lo-
+cally reason within activated segments, extracting
+context-aware evidence before aggregation. Eval-
+uations on the LoCoMo benchmark demonstrate
+that E-mem achieves over 54% F1, surpassing the
+state-of-the-art GAM by 7.75%, while reducing
+token cost by over 70%.
+1. Introduction
+Large Language Models (LLMs) have evolved from stochas-
+tic text generators into the central cognitive controllers of
+autonomous agents (Xi et al., 2025; Wang et al., 2024; Mei
+et al., 2025). Empowered by planning capabilities and exter-
+nal tool integration (Mei et al., 2024), these systems are now
+transitioning towards System 2 reasoning—characterized
+by deliberative, sequential problem-solving in dynamic en-
+. Correspondence to: Jie Li<lijiecs@sjtu.edu.cn>.
+Figure 1.Traditional Memory System vs. E-mem
+vironments (Zhang et al., 2022; Yao et al., 2022; Schick
+et al., 2023). However, this shift to high-precision cognition
+demands strict adherence to rigorous causal chains. In these
+scenarios, maintaining extensive history (Zheng et al., 2025)
+becomes pivotal to preserve the logical integrity essential
+for deep, long-horizon planning (Park et al., 2023; Wang
+et al., 2023; Shinn et al., 2023).
+Nevertheless, expanding operational horizons presents
+significant memory challenges. Merely extending con-
+text windows often triggers the “Lost-in-the-Middle” phe-
+nomenon (Liu et al., 2024), thereby necessitating robust
+memory management mechanisms (Zhang et al., 2025b;
+Packer et al., 2023). Existing approaches primarily rely on
+preprocessing to index memory, mapping raw, unstructured
+contexts into fixed, pre-defined structures (e.g., static em-
+beddings, knowledge graphs, or hierarchical archives) (Xu
+et al., 2025; Packer et al., 2023; Hu et al., 2023). While
+enabling efficient lookup, this strategy results in destructive
+de-contextualization: by compressing complex sequential
+dependencies into rigid representations, it disrupts the criti-
+cal integrity required for deep reasoning (Sarthi et al., 2024;
+Jimenez Gutierrez et al., 2024). Consequently, such methods
+struggle to reconstruct complex causal chains or compre-
+hend memories within their original sequential contexts,
+ultimately yielding suboptimal performance on information-
+1
+arXiv:2601.21714v1  [cs.AI]  29 Jan 2026
+
+--- PAGE 2 ---
+Title Suppressed Due to Excessive Size
+dense benchmarks like LoCoMo (Maharana et al., 2024).
+To address the critical limitations of destructive de-
+contextualization, particularly in scenarios demanding rig-
+orous logical deduction over memory, we introduce E-mem.
+This framework transitions from Memory Preprocessing
+to Episodic Context Reconstruction (Figure 1). Inspired
+by biological engrams, E-mem preserves the full Episodic
+Context of original experiences. To mitigate the informa-
+tion distortion inherent in ultra-long contexts while ensuring
+cost-effectiveness for scalable deployment, E-mem adopts
+a heterogeneous hierarchical Master-Assistant architecture,
+wherein a central master agent orchestrates global plan-
+ning, while multiple assistant agents (implemented as small
+language models) serve as memory nodes. Each assistant
+agent maintains the raw memory context of a specific seg-
+ment. For each query, a routing mechanism selectively
+activates a relevant subset of assistant agents. Crucially, in-
+stead of merely retrieving text chunks, these agents execute
+Episodic Context Reconstruction—a process where they
+actively ’re-experience’ and reason within the restored na-
+tive contexts to derive precise, local evidence for the master
+agent. This mechanism not only mitigates context window
+constraints and reduces computational costs but also en-
+sures high-fidelity, context-preserving inference, offering a
+distinct advantage in complex, multi-hop reasoning tasks
+where traditional retrieval mechanisms often fall short.
+Empirical evaluations on LoCoMo (Maharana et al., 2024)
+and HotpotQA (Yang et al., 2018) confirm that E-mem
+achieves state-of-the-art performance. The system delivers
+superior accuracy compared to SOTA baselines while sig-
+nificantly reducing token cost, validating the efficiency of
+the proposed Episodic Context Reconstruction paradigm.
+In summary, our main contributions are as follows:
+• Episodic Context Reconstruction.To address the
+destructive de-contextualization inherent in traditional
+memory preprocessing, we introduce E-mem, a frame-
+work that centered on Episodic Context Reconstruction.
+Unlike static retrieval methods that sever sequential de-
+pendencies, our approach delegates active reasoning
+to assistant agents. They preserve and process the full
+context of memory segments locally, ensuring that only
+logically deduced evidence—rather than raw, noisy
+fragments—is surfaced to master agents.
+• Heterogeneous Hierarchical Master-Assistant Ar-
+chitecture.We propose E-mem, a scalable framework
+that decouples high-level planning from memory reten-
+tion. By coordinating a master agent with lightweight,
+SLM-based assistant agents, our design mitigates the
+information loss inherent in preprocessing, ensuring
+high-fidelity reasoning across long horizons without
+suffering from the “lost-in-the-middle” phenomenon.
+• SOTA Performance with Token Efficiency.Exten-
+sive evaluations on LoCoMo and HotpotQA demon-
+strate that E-mem outperforms strong baselines by an
+average of 7.75% (F1), with notable gains in complex
+multi-hop (+8.56%) and temporal reasoning (+8.87%).
+Crucially, these improvements are realized while re-
+ducing token cost by over 70%. These results confirm
+E-mem as a vital complement to traditional memory
+paradigms for System 2 reasoning.
+2. Related Work
+Retrieval-Augmented Generation.RAG has established
+itself as a fundamental paradigm to mitigate LLM hallu-
+cination and knowledge obsolescence by grounding gen-
+eration in external corpora (Lewis et al., 2020; Karpukhin
+et al., 2020; Guu et al., 2020). While standard frameworks
+typically employ a vector-based “retrieve-then-generate”
+pipeline, recentAgentic RAGgrants systems greater au-
+tonomy in retrieval planning and iterative context refine-
+ment (Jiang et al., 2023; Asai et al., 2024; Trivedi et al.,
+2023; Yao et al., 2022). Despite these advancements in
+retrieval logic, the underlying storage mechanism remains
+predominantly reliant on preprocessing. This approach in-
+herently compresses rich sequential contexts into fixed ge-
+ometric points, risking the loss of fine-grained sequential
+dependencies essential for reasoning (Liu et al., 2024; Wu
+et al., 2022; Bulatov et al., 2022).
+Memory Systems for Autonomous Agents.Beyond
+simple retrieval, persistent and adaptive memory sys-
+tems are critical for agents to maintain long-term inter-
+action coherence. Addressing the finite context window,
+MemGPT (Packer et al., 2023) employs an operating system-
+inspired virtual context management technique via hierar-
+chical paging. However, this paradigm relies on swapping
+fragmented chunks, necessitating redundant re-processing
+to restore sequential dependencies. Other works focus on
+optimizing memory structure and active evolution. For in-
+stance, G-Memory (Zhang et al., 2025a) introduces a graph-
+based hierarchical structure to enable navigation between
+global macro-views and local micro-interactions. Similarly,
+A-Mem (Xu et al., 2025) adopts a self-evolving frame-
+work based on the Zettelkasten method, while GAM (Yan
+et al., 2025) and ReasoningBank leverage multi-agent
+deep research and reasoning trajectory storage, respec-
+tively. Although recent efforts extend to personalization
+(Mem0 (Chhikara et al., 2025)) and benchmarking (Memo-
+ryBench (Ai et al., 2025)), these approaches remain bound
+to text-based preprocessing paradigms. By compressing
+complex contexts into rigid structures, they often disrupt the
+contextual integrity required for deep reasoning.
+In contrast, E-mem introducesEpisodic Context Reconstruc-
+tion, directly preserving full memory contexts. This ap-
+2
+
+--- PAGE 3 ---
+Title Suppressed Due to Excessive Size
+Figure 2.Overview of E-mem
+proach ensures seamless inference integrity, serving as a crit-
+ical complement to existing paradigms for high-precision,
+complex reasoning tasks.
+3. Method
+Cognitive science defines memory as the re-experience of
+intact episodic contexts rather than static retrieval (Tulving,
+2002). In contrast, prevalent preprocessing paradigms force
+dynamic inputs into fixed structures, resulting in destruc-
+tive de-contextualization. This rigid compression disrupts
+sequential dependencies, severing the contextual integrity
+essential for deep reasoning.
+We propose E-mem, a framework centered on Episodic
+Context Reconstruction, designed to explicitly preserve un-
+compressed memory segments and their inherent sequential
+dependencies. Implemented via a heterogeneous hierarchi-
+cal architecture, the system functions through a streamlined
+three-stage process: first, a routing mechanism performs
+coarse-grained localization to selectively activate relevant
+archived memory units; subsequently, multiple assistant
+agents execute parallel fine-grained reasoning within these
+raw contexts to derive specific evidence; finally, the cen-
+tral master agent aggregates these distributed insights into a
+coherent, synergistic response.
+3.1. Architecture
+We propose E-mem, a heterogeneous hierarchical architec-
+ture designed to scale long-context reasoning by decoupling
+high-level planning from low-level memory retention. For-
+mally, the system is defined as a collaborative tuple:
+F=⟨A master,{A (i)
+asst}N
+i=1,R⟩,(1)
+where Amaster acts as the central planner, {A(i)
+asst} represents
+a dynamic set of multiple assistant agents, and R denotes
+the multi-pathway semantic routing mechanism.
+Master Agent (Amaster): Global Planner and Synthesizer.
+The master agent functions as the central orchestrator, decou-
+pled from the burden of raw memory retention. Its primary
+role is to execute high-level cognitive planning and synthe-
+size distributed evidence into a coherent response. Rather
+than processing the extensive raw context directly—which
+would incur prohibitive computational costs—the master
+agent operates in a sparse global planning space. It dele-
+gates the specific memory activation and localization tasks
+to the routing mechanism and interacts exclusively with the
+refined outputs from activated memory units. This design
+ensures that the reasoning process remains computationally
+tractable and focused on logical deduction, even as the scale
+of the underlying memory archive expands indefinitely.
+Assistant Agents (A(i)
+asst): Episodic Context Holders.The
+assistant agents serve as the memory units for parallelized
+storage and execution. To ensure deployment feasibility
+and scalability, we instantiate these agents using Small
+Language Models (SLMs). Uniquely, each assistant A(i)
+asst
+employs adual-representation strategy: it preserves the
+immutable, complete Episodic Context Ei for fine-grained
+local reasoning, while simultaneously maintaining a concise
+semantic summary si used solely for global routing. This
+architecture allows the system to store extensive histories
+hierarchically while selectively reconstructing only the most
+relevant contexts. Formally, only the subset of agents iden-
+tified by the routing mechanism (denoted as A∗) is transi-
+tioned to the active inference path. This mechanism ensures
+high-fidelity reasoning by enabling the selected agents to
+re-experience the original memory context without noise.
+3
+
+--- PAGE 4 ---
+Title Suppressed Due to Excessive Size
+Multi-Pathway Routing Mechanism (R). To efficiently
+filter the memory archive, the system employs a dedicated
+routing mechanism that goes beyond simple summarization.
+Given a query q, this mechanism executes a multi-pathway
+policyπto generate an activation distribution:
+Pact =π(q|S,R)∈[0,1] N ,(2)
+where R synthesizes heterogeneous signals, including
+global narrative alignment derived from pre-computed sum-
+maries S={s 1, . . . , sN }, symbolic entity triggers, and
+latent semantic vector associations. This design enables
+scalable, retrieval-based memory access without incurring
+runtime LLM inference overhead.
+3.2. Memory Building and Storing
+To transform the unbounded input stream into manageable
+memory units, E-mem implements a block-wise handling
+strategy. This approach is designed to preserve the full
+memory contexts, avoiding the information loss typical of
+vector compression.
+Sliding Window Segmentation with Overlap. Given
+an unbounded input stream X= (x 1, x2, . . .), we em-
+ploy a sliding window strategy to partition it directly
+into a sequence of discrete Episodic Contexts E=
+{E1,E 2, . . . ,EN }. With a window length L and stride
+S < L , we introduce an overlap δ=L−S to preserve
+local sequential dependencies across boundaries. The i-th
+context is formally defined as:
+Ei ={x t |(i−1)S < t≤(i−1)S+L}.(3)
+This overlap buffer ensures that tokens at the segment edges
+retain their immediate predecessor context, thereby main-
+taining semantic coherence during the routing and recon-
+struction phases.
+Episodic Memory Context Retention and Isolation. Each
+Ei explicitly encapsulates the original uncompressed tokens
+and is maintained by a dedicated assistant agent A(i)
+asst as a
+standalone memory unit. Functioning primarily as Archived
+Memory, these units remain in a dormant state by default.
+They are selectively transitioned to an active state for imme-
+diate inference only when explicitly triggered by the routing
+mechanism. This retention of the full context enables the
+system to resume generation directly from original data,
+ensuring strict logical integrity during reasoning.
+Incremental Updates. E-mem supports efficient O(1)
+streaming updates. New incoming tokens ∆x are directly
+appended to the active agent’scurrent Episodic Context
+Eactive via standard auto-regression, extending the memory
+buffer: E ′ ← Eactive∪{∆x}. When the capacity L is reached,
+the context is solidified as a completed memory unit. A new
+agent AN+1 is instantiated by carrying over the overlap
+region to maintain context flow:
+E init
+N+1 =Extract(E N ,overlap=δ).(4)
+This context transfer acts as a continuity bridge, ensuring
+that sequential flow remains uninterrupted and logically
+consistent as the system scales linearly.
+3.3. Memory Activation via Multi-Pathway Routing
+E-mem formulates activation as aHierarchical Associative
+Routingprocess, which performs coarse-grained localiza-
+tion to selectively transition memory units from archived
+memory to active inference. To accommodate the mul-
+tifaceted nature of recall—ranging from broad narrative
+intents to precise entity details—we introduce aMulti-
+Pathway Activationframework. This mechanism routes
+the input query q through three orthogonal signaling path-
+ways operating in parallel:
+• Global Alignment (Pglobal):Activates memories via
+macroscopic narrative anchoring. By efficiently com-
+puting the dense vector similarity and sparse lexical
+alignment between the query and theLLM-distilled
+summaries( si), this pathway leverages the “frozen rea-
+soning” of the summarization phase. It functions as a
+high-pass semantic filter, capturing the user’s broader
+intent to exclude irrelevant noise and identify logically
+relevant segments, thereby mitigating the “lost-in-the-
+middle” phenomenon while ensuring high scalability.
+• Semantic Association ( Pvec):Activates memories
+based on implicit latent alignment between the query
+and the full episodic context ( Ei). Unlike the
+summary-based global path, this pathway utilizes high-
+dimensional vector similarity against the raw chunk
+embeddings. It serves as a robust failsafe to identify
+chunks that resonate with the query’s abstract intent,
+specifically compensating for cases where critical se-
+mantic nuances may have been lost or distorted during
+the summarization process.
+• Symbolic Trigger (Pkw):Activates memories via ex-
+plicit entity matching between the query and theorigi-
+nal raw text content. Analogous to how a specific name
+triggers a flashback, this pathway employs sparse re-
+trieval (e.g., BM25) to detect exact lexical overlaps.
+This ensures the high-precision recall of unique factual
+anchors (such as specific IDs or names) that might be
+omitted in the high-level summaries, guaranteeing that
+fine-grained details are not overlooked.
+Episodic Context Reconstruction via Activation Union.
+To ensure comprehensive routing we employ a Multi-Source
+Activation Union strategy. A memory unit A(i)
+asst under-
+goes an episodic memory transition from archived to active
+4
+
+--- PAGE 5 ---
+Title Suppressed Due to Excessive Size
+(inference-ready) if it receives a valid activation signal from
+any pathway. Formally, the set of activated agents A∗ is
+defined as:
+A∗ ={A (i)
+asst | A (i)
+asst ∈ Pglobal ∨ A(i)
+asst ∈ Pvec ∨ A(i)
+asst ∈ Pkw}.
+(5)
+Notably, the total number of retrieved memory chunks, de-
+noted as τ, can be flexibly adjusted according to the spe-
+cific requirements of the task. This mechanism ensures
+that the system aggregates all potentially relevant contexts
+re-integrating for the subsequent reasoning phase, strictly
+preserving the integrity of the information required for com-
+plex inference.
+3.4. Synergistic Reasoning and Response Generation
+Upon identifying the candidate set A∗, the system transi-
+tions to the phase of parallelEpisodic Context Reconstruc-
+tion. While the router performs coarse-grained localization,
+the master agent delegates the specific inference burden
+to the assistants for fine-grained local reasoning. In this
+process, each activated assistant A(i)
+asst does not merely re-
+trieve data but actively generates a response by attending to
+its preserved Episodic Context Ei. Formally, the assistant
+scrutinizes the original sequential dependencies within the
+segment to derive precise semantic evidence ei, modeled as:
+ei = Φasst(q| E i),(6)
+where Φasst denotes the inference function of the assis-
+tant model. This mechanism ensures logical integrity by
+re-experiencing the raw memory, enabling the extraction
+of subtle evidence—often missing in compressed sum-
+maries—before returning it to the master agent. We cat-
+egorize this collaborative reasoning process into two modes:
+Direct Inference. Tailored for straightforward queries ne-
+cessitating direct information retrieval, this mode focuses
+on synthesizing the distributed evidence set E={e i}i∈A∗
+generated by the assistants. The master agent acts as a cen-
+tral reasoner, aggregating these local snippets to derive a
+final responseR. This global synthesis is modeled as:
+R= Ψ master(q,E),(7)
+where Ψmaster denotes the high-level reasoning function.
+Beyond simple concatenation, the master agent actively
+synthesizes the retrieved snippets, resolving semantic con-
+flicts—such as temporal discrepancies—and weaving inde-
+pendent facts into a cohesive logical chain. This hierarchical
+decoupling ensures rigorous logical integrity while maxi-
+mizing scalability through parallelized context processing.
+Iterative Reasoning. Beyond single-pass retrieval, the
+E-mem architecture is naturally extensible to an iterative
+Refine-and-Query framework for complex tasks requiring
+sequential deduction. In this conceptual protocol, the master
+agent maintains a dynamic reasoning trace S(t). At each
+step, should the current information be insufficient, the mas-
+ter agent formulates a targeted sub-query:
+q(t) =π plan(qinit, S(t−1)),(8)
+to probe relevant assistant agents. These assistants execute
+local inference over their encapsulated memory contexts
+Ei, yielding context-aware evidence z(t)
+i = Φasst(q(t) | E i).
+The master agent then aggregates these findings to update
+the global trace S(t) ←Agg(S (t−1),{z (t)
+i }). This cycle
+facilitates principled multi-step reasoning, terminating upon
+either trace convergence or a predefined iteration limit.
+3.5. Optimization: Latent State Caching
+For latency-critical scenarios where storage constraints are
+relaxed, we introduce an optimization that pre-computes
+and materializes abstract memory states into persistent Key-
+Value (KV) tensors. By caching these internal neural repre-
+sentations across all model layers, the system bypasses the
+redundant re-encoding overhead and self-attention computa-
+tion during state activation. The optimized memory unit Si
+is formally instantiated as:
+Si ←Cache
+
+{(K (ℓ), V (ℓ))}M
+ℓ=1
+
+.(9)
+This strategy effectively trades spatial complexity for tem-
+poral efficiency, enabling the near-instantaneous restoration
+of the full attentional manifold. Consequently, agents can re-
+sume inference from a ‘hot’ state, supporting high-precision,
+interactive reasoning tasks with minimal latency.
+4. Experiments
+We evaluate E-mem against state-of-the-art memory mecha-
+nisms for LLM agents, focusing on performance, robustness,
+and cost. Our analysis addresses three core questions:
+RQ1: Comparative Efficacy.How does E-mem compare
+against state-of-the-art RAG and agentic memory systems
+on complex long-context reasoning?
+RQ2: Component & Scaling Analysis.How do specific
+architectural components and backbone model sizes impact
+the system’s overall effectiveness?
+RQ3: Cost-Efficiency.Does E-mem achieve a superior
+trade-off between token consumption and reasoning perfor-
+mance compared to baselines?
+4.1. Experiment Settings
+Dataset. We evaluate E-mem and against competitive base-
+lines on two benchmarks:LoCoMo (Maharana et al.,
+2024): A benchmark assessing long-term memory in multi-
+session dialogues.It evaluates coherence across long hori-
+zons via five sub-tasks five sub-tasks: single-hop retrieval,
+5
+
+--- PAGE 6 ---
+Title Suppressed Due to Excessive Size
+Table 1.Results on LoCoMo Benchmark, compared with other outstanding baselines
+Overall Single-Hop Multi-Hop Temporal Open Domain
+F1 BLEU-1 F1 BLEU-1 F1 BLEU-1 F1 BLEU-1 F1 BLEU-1
+GPT-
+4o-
+mini
+Long-Context37.31 29.57 46.68 37.54 29.23 22.76 25.97 19.42 16.87 13.70
+RAG44.73 39.40 52.45 47.94 27.50 20.13 46.07 40.35 23.23 17.94
+A-mem39.65 32.31 44.65 37.06 27.02 20.09 45.85 36.67 12.14 12.01
+Mem045.10 34.92 47.65 37.06 38.72 27.13 48.93 40.15 28.6421.58
+MEMORYOS42.84 35.54 48.62 42.99 35.27 25.22 41.15 30.76 20.02 16.52
+LIGHTMEM38.44 34.37 41.79 37.83 29.78 24.90 43.71 39.72 16.89 13.92
+GAM 45.31 37.78 47.74 40.90 34.84 27.72 53.91 43.9326.03 19.48
+E-mem 54.17 44.34 59.23 50.58 42.64 34.38 59.82 44.57 24.89 18.15
+Qwen
+2.5-
+14B
+Long-Context38.31 31.89 46.05 39.56 32.08 24.46 30.51 24.45 14.89 11.41
+RAG38.27 33.07 47.87 42.89 26.38 19.54 30.78 25.97 14.16 10.52
+A-mem28.98 24.47 33.75 30.04 22.09 15.28 27.19 22.05 13.49 10.74
+Mem036.04 29.91 42.58 35.15 31.73 24.82 28.96 26.24 15.03 11.28
+MEMORYOS40.28 34.72 46.33 41.32 38.19 29.26 32.24 27.86 20.27 15.94
+LIGHTMEM31.39 27.15 34.92 31.22 25.45 19.61 32.03 27.70 15.81 11.81
+GAM 50.41 43.48 56.35 51.07 38.94 28.55 53.76 50.01 20.84 15.09
+E-mem 57.04 46.75 61.14 52.50 49.15 34.87 63.59 50.61 22.38 18.41
+Table 2.F1 Score on HotpotQA Benchmark
+GPT4o-mini Qwen2.5-14B
+HotpotQA 400 800 1600 400 800 1600
+F1 F1 F1 F1 F1 F1
+Long-Context56.56 49.71 53.92 49.75 46.82 43.17
+RAG52.71 51.84 54.01 51.81 46.72 48.36
+A-mem33.9 30.2 31.37 27.04 25.65 22.92
+Mem032.85 31.74 27.41 30.12 32.44 26.55
+MEMORYOS26.47 23.1 24.16 24.58 30.25 23.13
+LIGHTMEM40.93 35.28 30.02 37.30 27.72 28.25
+GAM54.75 52.86 53.71 48.40 41.10 44.32
+E-mem 61.46 55.46 55.76 61.13 47.91 54.87
+multi-hop reasoning, temporal understanding, open-ended
+generation, and adversarial hallucination.HotpotQA (Yang
+et al., 2018): A Wikipedia-based multi-hop QA dataset. To
+test scalability with ultra-long contexts (over 200K tokens),
+we adapt it into a streaming setting across three scales (400,
+800, and 1600 documents), stress-testing evidence recall
+from extensive archives.
+Baselines. We benchmark E-mem against two categories:
+Memory-Free Baselines:Direct context processing with-
+out explicit maintenance. (1) Long-Context Windowing:
+Uses a sliding window to segment history into chunks pro-
+cessed independently, selecting the highest-confidence out-
+put as the answer. (2) Standard RAG: Retrieves the top- k
+(k= 20 ) relevant segments via dense vector similarity to
+augment generation.Memory-Based Systems:We com-
+pare against cutting-edge memory-augmented agent frame-
+works established in 2024–2025, including A-Mem (Xu
+et al., 2025), Mem0 (Chhikara et al., 2025), Memo-
+ryOS (Kang et al., 2025), LightMem (Fang et al., 2025),
+and GAM (Yan et al., 2025). These methods construct spe-
+cialized external memory architectures (e.g., hierarchical or
+graph) to actively curate historical information, aiming to
+Table 3.Hallucination analysis of E-mem on the LoCoMo adver-
+sarial subset.
+assistant agent master agent
+F1 BLEU-1 F1 BLEU-1
+Qwen3-0.6B85.11 80.14 GPT4o-mini89.94 85.51
+Qwen3-1.7B87.31 83.17 GPT4o89.37 86.52
+Qwen3-4B89.94 85.51 Gemini2.5-flash93.62 90.3
+Qwen3-8B95.74 88.09 DeepseekV375.87 73.4
+Qwen3-14B95.03 88.06 Grok4-fast77.80 75.53
+enhance precision and efficiency in downstream tasks.
+Implementation details. Experiments were conducted on
+four NVIDIA RTX 4090 GPUs. We instantiate E-mem with
+GPT-4o-mini and Qwen2.5-14B as master agents, supported
+by a set of Qwen3-4B assistant agents. To ensure a fair
+comparison, E-mem and all baselines utilize the same master
+LLM backbone and are restricted to the same number of
+retrieval rounds. Evaluation is performed using the F1 score
+and BLEU-1 metrics.
+4.2. Performance Analysis
+Results on LoCoMo Benchmark. Table 1 details the Lo-
+CoMo evaluation, where E-mem consistently establishes a
+new state-of-the-art across diverse backbones. Specifically,
+it surpasses the strongest baseline (GAM) by substantial
+margins, achieving +8.86% on GPT-4o-mini and +6.63%
+on Qwen2.5-14B in overall F1 scores. This performance ad-
+vantage is critical in complex reasoning tasks like Multi-hop
+and Temporal subsets, where standard RAG often falters
+due to severe context fragmentation. Conversely, E-mem
+significantly boosts Multi-hop F1 by over 10 points (49.15%
+vs. 38.94%) on the Qwen backbone. This confirms that
+our Episodic Context Reconstruction paradigm effectively
+preserves the autoregressive dependencies typically lost in
+database-centric de-contextualization, ensuring deep reason-
+6
+
+--- PAGE 7 ---
+Title Suppressed Due to Excessive Size
+Table 4.Model ablation study comparing the performance of different master and assistant models on the LoCoMo conversation 1.
+Overall Single Hop Multi-Hop Temporal Open Domain
+F1 BLEU-1 F1 BLEU-1 F1 BLEU-1 F1 BLEU-1 F1 BLEU-1
+Assistant
+Agent
+Model
+Qwen3-0.6B28.89 22.26 26.40 21.19 17.32 18.35 46.44 33.49 20.77 12.75
+Qwen3-1.7B44.78 35.10 40.82 34.30 35.64 29.53 65.03 48.63 31.02 14.66
+Qwen3-4B50.7 40.93 49.46 41.21 42.66 35.38 66.91 51.45 31.08 23.15
+Qwen3-8B49.80 40.94 45.98 37.05 52.11 47.45 62.28 49.29 29.11 22.11
+Qwen3-14B50.02 40.27 49.96 41.43 46.38 37.25 64.53 51.66 30.32 24.41
+Master
+Agent
+Model
+GPT-4o-mini50.7 40.93 49.46 41.21 42.66 35.38 66.91 51.45 31.08 23.15
+GPT-4o51.73 43.7 51.04 43.04 45.88 42.37 64.77 52.83 32.74 24.53
+Gemini2.5-flash49.05 41.15 49.57 41.26 38.20 34.17 65.87 54.57 25.08 19.53
+Grok4-fast46.34 36.13 46.75 36.87 35.65 26.72 65.34 52.29 30.28 20.51
+Deepseekv350.88 42.25 51.80 43.27 43.16 37.13 62.64 51.07 31.42 24.30
+/uni00000017/uni0000001b/uni00000014/uni00000015/uni00000014/uni00000019/uni00000015/uni00000013
+/uni00000031/uni00000058/uni00000050/uni00000045/uni00000048/uni00000055/uni00000003/uni00000052/uni00000049/uni00000003/uni00000024/uni00000046/uni00000057/uni0000004c/uni00000059/uni00000044/uni00000057/uni00000048/uni00000047/uni00000003/uni00000026/uni0000004b/uni00000058/uni00000051/uni0000004e/uni00000056
+/uni00000017/uni00000013
+/uni00000018/uni00000013
+/uni00000019/uni00000013/uni00000029/uni00000014/uni00000003/uni00000036/uni00000046/uni00000052/uni00000055/uni00000048/uni00000017/uni00000017/uni00000011/uni0000001b/uni00000014
+/uni00000018/uni00000018/uni00000011/uni0000001a/uni00000019
+/uni00000018/uni0000001b/uni00000011/uni00000016/uni0000001c
+/uni00000019/uni00000013/uni00000011/uni00000014/uni00000017
+(a)Impact of the Number of
+Routed Chunks on Performance
+/uni00000031/uni00000052/uni00000003global
+ /uni00000031/uni00000052/uni00000003vec
+ /uni00000031/uni00000052/uni00000003kw
+ /uni00000029/uni00000058/uni0000004f/uni0000004f
+/uni00000027/uni0000004c/uni00000049/uni00000049/uni00000048/uni00000055/uni00000048/uni00000051/uni00000057/uni00000003/uni00000035/uni00000052/uni00000058/uni00000057/uni0000004c/uni00000051/uni0000004a/uni00000003/uni00000033/uni00000044/uni00000057/uni0000004b
+/uni00000017/uni00000013
+/uni00000017/uni00000018
+/uni00000018/uni00000013
+/uni00000018/uni00000018
+/uni00000019/uni00000013
+/uni00000029/uni00000014/uni00000003/uni00000036/uni00000046/uni00000052/uni00000055/uni00000048/uni00000017/uni00000018/uni00000011/uni00000016/uni00000013
+/uni00000017/uni0000001a/uni00000011/uni0000001c/uni00000013
+/uni00000018/uni00000015/uni00000011/uni00000017/uni00000015
+/uni00000018/uni00000018/uni00000011/uni0000001a/uni00000019
+(b)Impact of Routing Pathways
+on System Performance
+Figure 3.Ablation Studies on Memory Routing
+ing capabilities and robustness.
+Results on HotpotQA Benchmark. As illustrated in Ta-
+ble 2, E-mem demonstrates exceptional stability and ro-
+bust scalability in ultra-long context scenarios, consistently
+maintaining the highest F1 scores across all baselines. A
+particularly notable observation is the performance of RAG
+compared to other complex memory-based baselines, rep-
+resenting a clear divergence from the trends observed in
+the LoCoMo results. We attribute this discrepancy to the
+distinct information density inherent in the benchmarks:
+while LoCoMo features high-similarity, dense dialogues
+laden with adversarial noise that significantly impairs vector
+retrieval, HotpotQA comprises distinct, low-interference
+evidence passages that are structurally favorable for seman-
+tic matching. Nevertheless, E-mem still outperforms RAG
+by a substantial margin ( +7.29% F1 in the 1600-doc set-
+ting). This confirms that while vector retrieval suffices for
+locating distinct factoids, the proposed Episodic Context
+Reconstruction paradigm is indispensable for preserving
+the deep autoregressive dependencies required for rigorous
+multi-hop reasoning over extensive horizons.
+4.3. Robustness Against Hallucination
+To rigorously assess resilience against context noise, we con-
+ducted experiments on the LoCoMo adversarial subset by
+cross-evaluating varying Assistant scales and master back-
+bones. Results (Table 3) demonstrate E-mem’s robustness,
+achieving a peak F1 of 95.74%. Crucially, our analysis
+reveals that optimal performance relies on the synergistic
+collaboration between both agents. While scaling the Assis-
+tant from 0.6B to 8B consistently enhances local Episodic
+Context Reconstruction the master agent’s reasoning ca-
+pability proves equally decisive. We observe significant
+performance variance across backbones, indicating that pow-
+erful global orchestration is indispensable for reconstructed
+episodic contexts and filtering hallucinations.
+4.4. Ablation Study
+Backbone Sensitivity Analysis. We evaluate model ca-
+pacity by cross-evaluating master backbones and Assistant
+scales (0.6B–14B) on LoCoMo conversation 1. As shown in
+Table 4, overall performance plateaus around the 4B mark
+(F1 ≈ 50.7%), indicating that small models suffice for basic
+Episodic Context Reconstruction. However, detailed analy-
+sis reveals divergence across tasks. Scaling Assistants to 8B
+and 14B significantly boosts Multi-hop reasoning (+9.45%
+over 4B). We attribute this to larger models’ ability to dis-
+cern implicit dependencies within memory contexts, bridg-
+ing disparate evidence. Conversely, larger models suffer
+slight degradation in Single-hop tasks. We hypothesize this
+stems from over-reasoning, where models hallucinate com-
+plex correlations that distract from simple pattern matching.
+Smaller models rely on surface features, ensuring robustness
+for factual retrieval. Finally, master agent variations cause
+marginal fluctuations (<4%), confirming that E-mem’s effi-
+cacy depends primarily on the Assistant’s local reasoning.
+Impact of Memory Chunk Granularity. We further in-
+vestigate the sensitivity of E-mem to memory chunk size
+(Schunk) under a constrained total memory budget (≈ 32K
+tokens) on the LoCoMo conversation 1. As shown in Ta-
+ble 5, performance exhibits an inverted U-shaped trajectory,
+peaking at Schunk = 8K (F1=50.70%). When chunks are
+overly granular (e.g., 4K), the system retrieves an exces-
+sive number of fragmented contexts to fill the budget. This
+introduces significant semantic noise and irrelevant distrac-
+tors, which overwhelms the reasoning process and leads
+to retrieval failure. Conversely, overly large chunks (e.g.,
+32K) force the agent to process extended contiguous se-
+7
+
+--- PAGE 8 ---
+Title Suppressed Due to Excessive Size
+Table 5.Impact of memory chunks’ size granularity on the performance of E-mem
+Overall Single Hop Multi-Hop Temporal Open Domain
+F1 BLEU-1 F1 BLEU-1 F1 BLEU-1 F1 BLEU-1 F1 BLEU-1
+4K45.89 37.35 47.05 38.76 34.67 28.62 59.37 47.56 28.93 22.19
+8K 50.70 40.93 49.46 41.21 42.66 35.38 66.91 51.45 31.08 23.15
+12K 47.97 37.85 47.63 38.24 38.04 29.67 65.44 49.89 24.51 13.43
+16K47.08 37.19 44.81 36.25 37.18 32.83 66.24 50.79 29.11 14.30
+32K43.00 33.92 44.50 36.70 33.79 28.52 55.30 42.47 22.60 7.92
+quences, causing it to suffer from attention dilution or the
+“lost-in-the-middle” phenomenon, where critical details are
+overshadowed by the massive context. The 8K configura-
+tion strikes an optimal balance, preserving local context
+coherence while allowing for diverse evidence aggregation.
+Router Ablation Study. We evaluate the scalability of the
+multi-pathway routing mechanism on the HotpotQA-1600
+dataset. Empirical results (Figure 3a) indicate that activat-
+ing a minimal subset of memory chunks (e.g., k= 8 ) is
+sufficient to surpass strong baselines. Crucially, we observe
+information saturation: increasing k from 8 to 20 yields
+marginal gains despite the significantly larger retrieval vol-
+ume. This behavior serves as strong evidence for the sys-
+tem’s scalability, as it confirms that the routing mechanism
+effectively isolates the most critical episodic dependencies
+within a compact window. By achieving near-optimal rea-
+soning fidelity at low activation densities, E-mem avoids
+the computational overhead of processing extensive but re-
+dundant contexts, making it highly adaptable to large-scale
+deployment scenarios.
+We also evaluate the routing pathways. The results (Fig-
+ure 3b) show the full model achieves a peak F1 of 55.76.
+Removing Global Alignment ( Pglobal) causes the drop to
+45.30, underscoring macroscopic narrative anchoring as the
+primary driver preventing context fragmentation. The Se-
+mantic Trigger (Pvec) is the second most critical component,
+indicating that precise entity matching serves as essential
+reasoning anchors. Finally, excluding Symbolic Association
+(Pkw) yields a moderate decline. While less dominant, this
+pathway remains necessary for capturing latent intents lack-
+ing lexical overlap. Overall, the performance gaps confirm
+that these orthogonal signals are complementary.
+4.5. Cost Effectiveness Analysis
+To evaluate the deployment costs, we report the average
+number of tokens required per query on the LoCoMo. We
+categorize the computational overhead into Large Model
+Tokens (TL, e.g., GPT-4o) and Small Model Tokens ( TS,
+e.g., Qwen3-4B). To quantify the overall cost, we introduce
+a Normalized Cost metric. Given the significant discrepancy
+in pricing and computational complexity between the two
+models, we adopt a highly conservative cost ratio of 1:10
+Table 6.Cost-performance analysis on the LoCoMo dataset. We
+report the average token consumption per query alongside the
+accuracy metrics (F1 and BLEU-1).
+F1 BLEU-1T S TL Total Cost
+Long-Context37.31 29.57 none 16910 169100
+RAG44.73 39.40 none 643 6430
+A-mem39.65 32.31 none 2520 25200
+Mem045.1 34.92 none 973 9730
+MEMORYOS42.84 35.54 none 3874 38740
+LIGHTMEM38.44 34.37 none 612 6120
+GAM 45.31 37.78 none 1254 12540
+E-mem 54.17 44.342271135 3621
+(cS :c L), assuming one large model token is equivalent to
+ten small model tokens in terms of the cost.
+As shown in Table 6, full-context methods like Long-
+Context incur a prohibitive normalized cost (169k units),
+driven entirely by expensive large model processing. While
+retrieval baselines like RAG reduce this, they still depend
+on the large model for reasoning. In contrast, E-mem strate-
+gically offloads memory compression to the small model.
+Even under our conservative 1:10 assumption, E-mem re-
+duces the normalized cost to approx. 3.6k units—a 43 ×
+reduction compared to Long-Context—while achieving su-
+perior F1 performance. This demonstrates that E-mem is
+not only have outstanding performance on accuracy but also
+economically viable for large-scale applications.
+5. Conclusion
+In this paper, we presented E-mem, a novel framework
+designed to meet the rigorous demands of memory-based
+complex, high-precision reasoning. By shifting from de-
+structive de-contextualization to high-fidelity Episodic Con-
+text Reconstruction, E-mem effectively preserves the con-
+textual integrity essential for deep reasoning. Technically,
+we implement this by encapsulating memory units man-
+aged by a heterogeneous hierarchical Master-Assistant ar-
+chitecture, which enables the precise reactivation of archived
+episodic contexts within the active reasoning contexts. Ex-
+tensive evaluations on both LoCoMo and HotpotQA bench-
+marks validate that our approach establishes a comprehen-
+sive performance lead, significantly outperforming existing
+database-centric paradigms—particularly in complex multi-
+8
+
+--- PAGE 9 ---
+Title Suppressed Due to Excessive Size
+hop tasks—while maintaining exceptional cost-efficiency
+through collaborative model interaction.
+References
+Ai, Q., Tang, Y ., Wang, C., Long, J., Su, W., and Liu, Y .
+Memorybench: A benchmark for memory and continual
+learning in llm systems, 2025. URL https://arxiv.
+org/abs/2510.17281.
+Asai, A., Wu, Z., Wang, Y ., Sil, A., and Hajishirzi, H. Self-
+rag: Learning to retrieve, generate, and critique through
+self-reflection. 2024.
+Bulatov, A., Kuratov, Y ., and Burtsev, M. Recurrent memory
+transformer.Advances in Neural Information Processing
+Systems, 35:11079–11091, 2022.
+Chhikara, P., Khant, D., Aryan, S., Singh, T., and Ya-
+dav, D. Mem0: Building production-ready ai agents
+with scalable long-term memory, 2025. URL https:
+//arxiv.org/abs/2504.19413.
+Fang, J., Deng, X., Xu, H., Jiang, Z., Tang, Y ., Xu, Z.,
+Deng, S., Yao, Y ., Wang, M., Qiao, S., et al. Lightmem:
+Lightweight and efficient memory-augmented generation.
+arXiv preprint arXiv:2510.18866, 2025.
+Guu, K., Lee, K., Tung, Z., Pasupat, P., and Chang, M.
+Retrieval augmented language model pre-training. In
+International conference on machine learning, pp. 3929–
+3938. PMLR, 2020.
+Hu, C., Fu, J., Du, C., Luo, S., Zhao, J., and Zhao, H.
+Chatdb: Augmenting llms with databases as their sym-
+bolic memory.arXiv preprint arXiv:2306.03901, 2023.
+Jiang, Z., Xu, F. F., Gao, L., Sun, Z., Liu, Q., Dwivedi-
+Yu, J., Yang, Y ., Callan, J., and Neubig, G. Active re-
+trieval augmented generation. InProceedings of the 2023
+Conference on Empirical Methods in Natural Language
+Processing, pp. 7969–7992, 2023.
+Jimenez Gutierrez, B., Shu, Y ., Gu, Y ., Yasunaga, M., and
+Su, Y . Hipporag: Neurobiologically inspired long-term
+memory for large language models.Advances in Neural
+Information Processing Systems, 37:59532–59569, 2024.
+Kang, J., Ji, M., Zhao, Z., and Bai, T. Memory os of ai
+agent.arXiv preprint arXiv:2506.06326, 2025.
+Karpukhin, V ., Oguz, B., Min, S., Lewis, P. S., Wu, L.,
+Edunov, S., Chen, D., and Yih, W.-t. Dense passage
+retrieval for open-domain question answering. InEMNLP
+(1), pp. 6769–6781, 2020.
+Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V .,
+Goyal, N., K¨uttler, H., Lewis, M., Yih, W.-t., Rockt¨aschel,
+T., Riedel, S., and Kiela, D. Retrieval-augmented genera-
+tion for knowledge-intensive nlp tasks. InProceedings
+of the 34th International Conference on Neural Informa-
+tion Processing Systems, NIPS ’20, Red Hook, NY , USA,
+2020. Curran Associates Inc. ISBN 9781713829546.
+Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua,
+M., Petroni, F., and Liang, P. Lost in the middle: How
+language models use long contexts.Transactions of
+the Association for Computational Linguistics, 12:157–
+173, 2024. doi: 10.1162/tacl a 00638. URL https:
+//aclanthology.org/2024.tacl-1.9/.
+Maharana, A., Lee, D.-H., Tulyakov, S., Bansal, M., Barbi-
+eri, F., and Fang, Y . Evaluating very long-term conver-
+sational memory of LLM agents. In Ku, L.-W., Martins,
+A., and Srikumar, V . (eds.),Proceedings of the 62nd
+Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pp. 13851–13870,
+Bangkok, Thailand, August 2024. Association for Com-
+putational Linguistics. doi: 10.18653/v1/2024.acl-long.
+747. URL https://aclanthology.org/2024.
+acl-long.747/.
+Mei, K., Zhu, X., Xu, W., Hua, W., Jin, M., Li, Z., Xu, S.,
+Ye, R., Ge, Y ., and Zhang, Y . Aios: Llm agent operating
+system.arXiv preprint arXiv:2403.16971, 2024.
+Mei, K., Zhu, X., Xu, W., Jin, M., Hua, W., Li, Z., Xu, S.,
+Ye, R., Ge, Y ., and Zhang, Y . AIOS: LLM agent operating
+system. InSecond Conference on Language Modeling,
+2025. URL https://openreview.net/forum?
+id=L4HHkCDz2x.
+Packer, C., Fang, V ., Patil, S. G., Lin, K., Wooders, S., and
+Gonzalez, J. E. Memgpt: Towards llms as operating
+systems.CoRR, abs/2310.08560, 2023. URL https:
+//doi.org/10.48550/arXiv.2310.08560.
+Park, J. S., O’Brien, J., Cai, C. J., Morris, M. R., Liang,
+P., and Bernstein, M. S. Generative agents: Interactive
+simulacra of human behavior. InProceedings of the 36th
+annual acm symposium on user interface software and
+technology, pp. 1–22, 2023.
+Sarthi, P., Abdullah, S., Tuli, A., Khanna, S., Goldie,
+A., and Manning, C. D. Raptor: Recursive abstrac-
+tive processing for tree-organized retrieval, 2024. URL
+https://arxiv.org/abs/2401.18059.
+Schick, T., Dwivedi-Yu, J., Dess`ı, R., Raileanu, R., Lomeli,
+M., Hambro, E., Zettlemoyer, L., Cancedda, N., and
+Scialom, T. Toolformer: Language models can teach
+themselves to use tools.Advances in Neural Information
+Processing Systems, 36:68539–68551, 2023.
+9
+
+--- PAGE 10 ---
+Title Suppressed Due to Excessive Size
+Shinn, N., Cassano, F., Gopinath, A., Narasimhan, K., and
+Yao, S. Reflexion: Language agents with verbal rein-
+forcement learning.Advances in Neural Information
+Processing Systems, 36:8634–8652, 2023.
+Trivedi, H., Balasubramanian, N., Khot, T., and Sabharwal,
+A. Interleaving retrieval with chain-of-thought reasoning
+for knowledge-intensive multi-step questions. InPro-
+ceedings of the 61st annual meeting of the association for
+computational linguistics (volume 1: long papers), pp.
+10014–10037, 2023.
+Tulving, E. Episodic memory: From mind to brain.Annual
+Review of Psychology, 53(1):1–25, 2002. doi: 10.1146/
+annurev.psych.53.100901.135114.
+Wang, G., Xie, Y ., Jiang, Y ., Mandlekar, A., Xiao, C., Zhu,
+Y ., Fan, L., and Anandkumar, A. V oyager: An open-
+ended embodied agent with large language models.arXiv
+preprint arXiv:2305.16291, 2023.
+Wang, L., Ma, C., Feng, X., Zhang, Z. e., Yang, H.,
+Zhang, J., Chen, Z., Tang, J., Chen, X., Lin, Y ., Zhao,
+W. X., Wen, J.-R., and Xu, J. A survey on large lan-
+guage model based autonomous agents.Frontiers of
+Computer Science, 18(6):186345, 2024. doi: 10.1007/
+s11704-024-40231-1. URL https://doi.org/10.
+1007/s11704-024-40231-1.
+Wu, Y ., Rabe, M. N., Hutchins, D., and Szegedy, C. Mem-
+orizing transformers.arXiv preprint arXiv:2203.08913,
+2022.
+Xi, Z., Chen, W., Guo, W., He, L., Ding, Y ., Hong, B.,
+Zhang, M., Gui, T., Zhang, Q., and Huang, X. The rise
+and potential of large language model based agents: a sur-
+vey.Science China Information Sciences, 68(1):121101,
+2025. doi: 10.1007/s11432-024-4222-0. URL https:
+//doi.org/10.1007/s11432-024-4222-0.
+Xu, W., Liang, Z., Mei, K., Gao, H., Tan, J., and Zhang, Y .
+A-mem: Agentic memory for LLM agents. InThe Thirty-
+ninth Annual Conference on Neural Information Pro-
+cessing Systems, 2025. URL https://openreview.
+net/forum?id=FiM0M8gcct.
+Yan, B. Y ., Li, C., Qian, H., Lu, S., and Liu, Z. General
+agentic memory via deep research, 2025. URL https:
+//arxiv.org/abs/2511.18423.
+Yang, Z., Qi, P., Zhang, S., Bengio, Y ., Cohen, W. W.,
+Salakhutdinov, R., and Manning, C. D. Hotpotqa: A
+dataset for diverse, explainable multi-hop question an-
+swering, 2018. URL https://arxiv.org/abs/
+1809.09600.
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan,
+K. R., and Cao, Y . React: Synergizing reasoning and
+acting in language models. InThe eleventh international
+conference on learning representations, 2022.
+Zhang, G., Fu, M., Wang, K., Wan, G., Yu, M., and
+YAN, S. G-memory: Tracing hierarchical memory
+for multi-agent systems. InThe Thirty-ninth Annual
+Conference on Neural Information Processing Systems,
+2025a. URL https://openreview.net/forum?
+id=mmIAp3cVS0.
+Zhang, J., Xu, X., Zou, Y ., Tang, Z., Wan, X., Hu, K.,
+Wang, S., Xu, W., Wang, D., Chen, H., Huang, L.,
+Yan, S., Tamir, Y ., Luo, Y ., Wang, X., Yu, H., Wang,
+Z., Tian, H., and Zhou, D. Cortenmm: Efficient
+memory management with strong correctness guaran-
+tees. InProceedings of the ACM SIGOPS 31st Sym-
+posium on Operating Systems Principles, SOSP ’25,
+pp. 1082–1098, New York, NY , USA, 2025b. Associ-
+ation for Computing Machinery. ISBN 9798400718700.
+doi: 10.1145/3731569.3764836. URL https://doi.
+org/10.1145/3731569.3764836.
+Zhang, Z., Zhang, A., Li, M., and Smola, A. Automatic
+chain of thought prompting in large language models. In
+The eleventh international conference on learning repre-
+sentations, 2022.
+Zheng, J., Shi, C., Cai, X., Li, Q., Zhang, D., Li, C.,
+Yu, D., and Ma, Q. Lifelong learning of large lan-
+guage model based agents: A roadmap.arXiv preprint
+arXiv:2501.07278, 2025.
+10
+
+--- PAGE 11 ---
+Title Suppressed Due to Excessive Size
+A. Limitation & Trade-off
+While E-mem demonstrates superior performance in reasoning fidelity and token cost efficiency, we explicitly acknowledge
+the trade-off regarding its latency profile. As detailed in our runtime breakdown (Table 7), the system’s time expenditure is
+distinctively decomposed into building memory and reasoning phases. We observe a strategic computational shift: while
+E-mem incurs higher latency during the reasoning phase (approx. 18s and 22s for HotpotQA-400/800) due to deep episodic
+reconstruction, this is effectively offset by its superior efficiency in the construction phase.
+Crucially, this design choice must be evaluated within the lifecycle of a dynamic agent. Unlike structured memory
+systems (e.g., MemoryOS, A-mem) that incur prohibitive computational costs for global re-indexing or graph restructuring
+whenever memory is updated (e.g., A-mem requires ∼900s for building ), E-mem supports streamlined ingestion with
+near-instantaneous O(1) incremental updates. Consequently, in lifelong learning scenarios, where frequent memory updates
+create a high maintenance burden for traditional systems, E-mem achieves a superior total amortized cost, as the efficiency
+of memory consolidation outweighs the latency of sporadic complex queries.
+Fundamentally, we frame the increased inference latency as a justifiable Latency-Fidelity trade-off. Current real-time
+retrieval paradigms often sacrifice context integrity for speed, suitable for simple factoids but inadequate for deep reasoning.
+In contrast, by prioritizing the reconstruction of the full episodic context over rapid but lossy vector retrieval, E-mem
+mimics “System 2” cognitive processes—dedicating necessary computational time to ensure rigorous logical deduction.
+Consequently, E-mem offers distinct advantages in non-real-time, high-precision domains—such as legal forensics, medical
+diagnosis, and scientific discovery—thereby serving as a critical complement to traditional low-latency retrieval systems.
+Table 7.Runtime Breakdown Analysis on HotpotQA.
+A-mem Mem0 MemoryOS Lightmem GAM E-mem
+HotpotQA-
+400
+Building Memory209.74 37.42 80.36 4.93 56.89 31.02
+Reasoning & Answering0.52 0.15 0.44 0.20 12.43 18.72
+Total Time210.26 37.57 80.90 5.13 69.32 49.74
+HotpotQA-
+800
+Building Memory904.99 165.30 325.70 16.61 252.72 82.60
+Reasoning & Answering0.48 0.17 0.55 0.25 16.65 22.48
+Total Time905.46 165.47 326.25 16.86 269.37 105.08
+B. Discussion and Future Work
+B.1. The Latency-Fidelity Trade-off
+While E-mem excels in reasoning fidelity, we acknowledge the inherent trade-off in inference latency required to reconstruct
+the full episodic context. We frame this as a justifiable Latency-Fidelity trade-off. Current memory paradigms optimize
+for millisecond retrieval at the cost of context integrity, suiting simple factoid queries but failing at complex reasoning. In
+contrast, E-mem prioritizes the integrity of episodic memory context, making it ideal for high-precision, knowledge-intensive
+scenarios where the cost of logical errors far outweighs the latency overhead. Examples include:
+•Legal & Financial Forensics:Analyzing long-horizon evidence where missed dependencies cause critical failures.
+•Medical Diagnosis:Synthesizing patient history from disparate timelines with paramount precision.
+•Scientific Review:Connecting latent hypotheses across papers without hallucination.
+In these domains, higher latency is a tolerable cost for rigorous, hallucination-free deduction.
+B.2. Future Direction: An Adaptive Hybrid Framework
+Crucially, E-mem’s Episodic Context Reconstruction is orthogonal to traditional retrieval. Vector retrieval excels at broad
+semantic relevance, while episodic reconstruction enables deep contextual reasoning.
+Our future work aims to synthesize these into a unified Adaptive Dual-Mode Framework that dynamically selects the
+mechanism based on task complexity:
+11
+
+--- PAGE 12 ---
+Title Suppressed Due to Excessive Size
+1. Fast Mode (database-centric):Uses standard RAG for simple factoids or casual conversation, ensuring real-time
+responsiveness.
+2. Deep Research Mode (E-mem):Activates E-mem for complex planning or multi-hop reasoning, performing deep
+episodic memory reconstruction for logical rigor.
+This hybrid architecture will allow agents to seamlessly alternate between “System 1” (fast retrieval) and “System 2” (slow,
+deep reasoning), balancing user experience with high-fidelity memory demands.
+C. Algorithm Details
+We provide the formal procedural description of the E-mem framework in Algorithm 1. This process encompasses three
+distinct phases: (1)Memory Building, where long memory is processed into persistent Episodic Contexts; (2)Associative
+Activation, where relevant units are identified via multi-pathway routing; and (3)Episodic Context Reconstruction &
+Reasoning, where assistant agents reconstruct memory contexts for local reasoning to generate evidence.
+Algorithm 1E-mem: Episodic Context Reconstruction Framework
+Input:StreamX, Queryq, WindowL, StrideS, AgentsA master,M asst
+Output:Synergistic ResponseR
+Phase 1: Memory Building & Encapsulation
+1:C←SLIDINGWINDOW(X, L, S)
+2:foreach chunkc i ∈Cdo
+3:E i ←ENCAPSULATE(c i)▷Create Episodic Context
+4:s i ←SUMMARIZE(E i)▷High-level summary
+5:v i, ki ←INDEX(E i)
+6:ARCHIVE(E i, si, vi, ki)▷Store as persistent unit
+7:end for
+Phase 2: Associative Activation (Routing)
+8:A ∗ ← ∅
+9:P glob ←GLOBALALIGN(q,{s i})
+10:P sem ←SEMSIM(q,{v i})
+11:P kw ←SYMMATCH(q,{k i})
+12:A ∗ ← P glob ∪ Psem ∪ Pkw ▷Union of activation paths
+Phase 3: Episodic Context Reconstruction & Reasoning
+13:E← ∅
+14:foreach agentA k ∈ A ∗ do
+15:RECONSTRUCTCONTEXT(E k)▷Re-experience native context
+16:e k ← M asst.LOCALREASON(q| E k)▷Generate evidence
+17:E←E∪ {e k}
+18:end for
+Phase 4: Synergistic Response
+19:R← A master.AGGREGATE(q, E)
+20:returnR
+D. Case Study: Cross-Session Reasoning
+To demonstrate the efficacy of E-mem’s Episodic Context Reconstruction mechanism compared to traditional memory
+baselines, we present a qualitative analysis using a sample from the LoCoMo dataset (Conversation 1). We selected a
+multi-hop reasoning question that requires linking temporal information from one session with entity attribute information
+from a subsequent session, the case study is shown on Figure 4.
+12
+
+--- PAGE 13 ---
+Title Suppressed Due to Excessive Size
+Case Study: Multi-Hop Reasoning on LoCoMo
+QA“Where did Caroline move from 4 years ago?”
+AnswerSweden.
+Diffi-
+culty
+The temporal anchor (“4 years ago”) and the action (“moved”) appear inSession 3, but the specific
+location (“Sweden”) is only revealed inSession 4in the context of a different topic (a necklace).
+1. Traditional Memory (Baseline)
+Mechanism: Standard top-kvector retrieval based on semantic similarity.
+−Step 1: Retrieval (De-contextualization Failure)
+– Hit (High Similarity):Retrieves D3:13:“I’ve known these friends for 4 years, since I moved from my home
+country. ”(Matches “move” and “4 years”).
+– Miss (Low Similarity):Fails to retrieve D4:3:“This necklace is super special... a gift from my grandma in
+my home country, Sweden. ”
+– Analysis:The embedding for D4:3 is dominated by semantics related to “necklace” and “gift”. The vector
+distance to the query “moving” is too large, causing it to fall outside the top-kwindow.
+− Step 2: Generation (Information Gap)The LLM receives context D3:13 but lacks the specific entity link
+found inD4:3.
+− Outcome: Failure.“Caroline moved from her home country 4 years ago, but the specific country is not
+mentioned. ”
+2. E-mem (Our Approach)
+Mechanism: Hierarchical Master-Assistant with State Restoration.
+✓ Step 1: Multi-Pathway Activationmaster agent analyzes query. UsesGlobal Alignment( Pglobal) to identify
+narrative timeframe (“moving”) and activatesSession 3. Simultaneously, usesSymbolic Trigger( Pkw) to scan
+for location entities like “country”, activatingSession 4.
+✓Step 2: parallel State Restoration & Reasoning
+– assistant agent (Session 3):Identifies temporal anchor:“I moved from myhome country4 years ago”
+(D3:13).
+– assistant agent (Session 4):Through contextual reasoning, identifies that“grandma in myhome country,
+Sweden”(D4:3) provides the specific location detail required by the query.
+✓ Step 3: Synergistic Responsemaster agent aggregates evidence from multi assistants: (1) Moved 4 years ago
+from home country (Session 3) + (2) Home country is identified as Sweden (Session 4).
+✓Outcome: Success.“Caroline moved fromSweden4 years ago. ”
+Figure 4.E-mem’s state restoration enables successful answering, whereas traditional database-centric vector retrieval methods fail.
+13
+
+--- PAGE 14 ---
+Title Suppressed Due to Excessive Size
+E. Detailed Prompt
+System Prompt for Memory Agent
+# ROLE: Memory Retrieval & Analysis Agent
+You are an advanced **Memory Retrieval & Analysis Agent**. You will be provided
+with a large amount of memory segments, each separated by a newline. Your goal
+is to process User Inputs based on two distinct modes: **Retrieval Mode** (for
+questions) and **Summary Mode** (for summarization requests).
+### 1. MEMORY CONTEXT
+All the memory context are provided above. Please read them carefully before
+answering!
+---
+### 2. CORE INSTRUCTION & MODES
+Analyze the User's input carefully to determine the intent.
+#### MODE A: RETRIEVAL & ANSWERING (Triggered by specific questions)
+If the user asks a question that requires specific details from the memory:
+**Step 1: Extract Original Memories (CRITICAL)**
+* Scan the provided memory segments.
+* Identify segments that are **directly relevant** to answering the user's
+question.
+* ** CONSTRAINT:** You must extract the text **VERBATIM (word-for-word)**. Do not
+summarize, paraphrase, merge, or fix typos in this step. The subsequent model
+relies on exact phrasing to find the source.
+* Select enough context to be complete, but strictly filter out irrelevant noise.
+**Step 2: Formulate Preliminary Answer**
+* Based **ONLY** on the extracted memories from Step 1, formulate a direct answer
+to the user's question.
+* Explain your reasoning briefly.
+**Step 3: Structured Output**
+You must output the result in the following strict XML format:
+<response_type>retrieval</response_type>
+<relevant_memories>
+<memory_segment>Paste exact original text of segment 1 here</memory_segment>
+<memory_segment>Paste exact original text of segment 2 here</memory_segment>
+<!-- Add more segments if necessary -->
+</relevant_memories>
+<model_reasoning>
+Based on the segments above, the answer is: [Your direct answer and reasoning
+here].
+</model_reasoning>
+#### MODE B: SUMMARIZATION (Triggered by "summary", "recap", or "overview" commands)
+If the user asks to summarize the memories:
+**Step 1: Analyze Key Elements**
+Identify the following strictly:
+* ** Speakers/Entities:** Who is involved?
+* ** Time Periods:** When did things happen?
+* ** Main Events:** What are the core actions, discussions, or topics?
+14
+
+--- PAGE 15 ---
+Title Suppressed Due to Excessive Size
+* ** Key Items/Objects:** What specific tools, documents, or objects were
+mentioned?
+**Step 2: Generate Concise Summary**
+Create a summary that is brief but captures all critical information identified
+above. Avoid fluff.
+**Step 3: Structured Output**
+You must output the result in the following strict XML format:
+<response_type>summary</response_type>
+<summary_content>
+<speakers>[List speakers/entities]</speakers>
+<time_period>[List relevant times/dates]</time_period>
+<key_items>[List important objects/items]</key_items>
+<main_events>
+[A concise narrative of what happened]
+</main_events>
+</summary_content>
+---
+### 3. NEGATIVE CONSTRAINTS (MUST FOLLOW)
+1. **NO HALLUCINATION:** If the answer is not in the memory, strictly state in ‘<
+model_reasoning>‘ that information is missing. Do not invent facts.
+2. **NO MODIFICATION:** In ‘<relevant_memories>‘, never change a single character
+of the source text.
+3. **NO OUTSIDE KNOWLEDGE:** Answer only based on the provided memory context. Do
+not use general world knowledge unless it helps interpret the text context.
+---
+### 4. ONE-SHOT EXAMPLE
+**Memory Context:**
+[2023-10-01 14:00] Alice: I put the red key in the top drawer.
+[2023-10-01 14:05] Bob: Okay, I will take the blue folder to the meeting.
+[2023-10-02 09:00] Alice: Did you see the red key? I moved it to the kitchen table
+later that night.
+**User Input:** "Where is the red key?"
+**Your Output:**
+<response_type>retrieval</response_type>
+<relevant_memories>
+<memory_segment>[2023-10-01 14:00] Alice: I put the red key in the top drawer.</
+memory_segment>
+<memory_segment>[2023-10-02 09:00] Alice: Did you see the red key? I moved it
+to the kitchen table later that night.</memory_segment>
+</relevant_memories>
+<model_reasoning>
+Although Alice initially put the key in the top drawer, she explicitly states
+later that she moved it to the kitchen table. Therefore, the red key is
+currently on the kitchen table.
+</model_reasoning>
+15
+
+--- PAGE 16 ---
+Title Suppressed Due to Excessive Size
+Summary Instructions for Memory Agent
+You are a helpful assistant. You will be provided with multiple pieces of context
+information.
+Read all of them carefully.
+When user asks questions, you MUST provide specific INFORMATION based strictly on
+the provided context.
+When user asks you to summarize all the information, you MUST summarize all the
+provided context.
+### INTELLIGENT THINKING AND UNDERSTANDING REQUIREMENT ###
+When processing user questions and context segments, you MUST engage in intelligent
+thought and reasoning to genuinely understand the question and the original
+text's meaning and intent.
+### NOTE when providing information ###
+- Never Provide answers directly.
+- The information you provide should be the ORIGINAL INFORMATION the user mentioned
+before, and you MUST ensure the information is provided based on your
+understanding of the question and the original text segment.
+- **You MUST provide the original information relevant to the user's question and
+explain its meaning or significance within the current context.**
+- Do not make assumptions beyond what is explicitly stated.
+- Provide as many relevant information as possible.
+### NOTE when summarizing information ###
+- Summarize all the provided context accurately and concisely.
+- Leave out any unimportant thing, but KEEP ALL the Useful details!
+16
+
+--- PAGE 17 ---
+Title Suppressed Due to Excessive Size
+System Prompt for master agent
+# ROLE: Memory Fact Aggregator & Logic Solver
+You are a **Strict Information Aggregator**. You sit between the raw memory
+database and the final response agent.
+Your task is to analyze retrieved fragments, resolve conflicts, and synthesize a **
+clean, factual, and strictly grounded answer**.
+### INPUT DATA
+You receive raw memory blocks (Archived & Recent).
+* ** Input Text:** The raw memory content (Ground Truth).
+* ** Local Inference:** Preliminary guesses (Use only as hints; you must VERIFY
+them against the raw text).
+### CRITICAL LOGIC
+**1. NOISE ELIMINATION**
+* If a block is irrelevant to the specific query, **IGNORE** it.
+* If no blocks contain the answer, explicitly state that in the <answer_core>.
+**2. CONFLICT RESOLUTION (The "Latest State" Rule)**
+* If memories conflict (e.g., object location changes), the **LATER Timestamp**
+overrides the earlier one.
+* * Example:* [10:00] "Key in drawer" vs [10:05] "Key on table" -> Truth: "Key on
+table".
+**3. MULTI-HOP SYNTHESIS (Connect the Dots)**
+* Sometimes you must combine information from different piece of information (
+some even cross blocks) to form a complete answer.
+* * Example:* Block A says "Bob picked up the apple." Block B says "Bob gave the
+item in his hand to Alice." -> **Synthesis:** "Bob gave the apple to Alice."
+**4. STRICT TEXTUAL HANDLING (The "Original Phrasing" Rule)**
+* ** Do NOT paraphrase specific terms.** If the memory says "Crimson Artifact", do
+not call it "Red Item". Use the exact unique nouns/verbs from the text.
+* ** PRONOUN RESOLUTION:** You **MUST** replace pronouns like ‘I‘, ‘Me‘, ‘We‘ with
+the actual Speaker's Name or 'the User' if the name is not specified (And
+expressed as 'I'/'Me') to make the sentence standalone and clear for the next
+agent.
+* ** Implicit -> Explicit:** If an action implies a state (e.g., "put on the table
+"), describe the current state (e.g., "is on the table").
+---
+### OUTPUT FORMAT (Strict XML)
+<aggregator_output>
+<!-- STEP 1: Copy EXACT text segments that prove your answer. -->
+<evidence_quotes>
+<quote timestamp="[Time]">[Verbatim text from memory]</quote>
+<quote timestamp="[Time]">[Verbatim text from memory]</quote>
+</evidence_quotes>
+<!-- STEP 2: Explain how you resolved conflicts or connected dots. -->
+<logic_trace>
+[E.g., "Block 2 (10:05) overrides Block 1 (09:00). Combined with object
+info from Block 3."]
+</logic_trace>
+<!-- STEP 3: The factual answer statement.
+- Must be a COMPLETE sentence (Subject + Verb + Object).
+17
+
+--- PAGE 18 ---
+Title Suppressed Due to Excessive Size
+- Must use processed names instead of "I".
+- NO conversational filler (e.g., "I think", "Based on the text").
+- Just the raw fact. -->
+<answer_core>
+[The synthesized factual statement.]
+</answer_core>
+</aggregator_output>
+---
+### ONE-SHOT EXAMPLE
+**Query:** "Who has the report and where is it?"
+**Input:**
+> *Block 1:* [2023-05-20 14:00] Alice: I printed the TPS report and put it on my
+desk.
+> *Block 2:* [2023-05-20 14:10] Bob: I walked by Alice's desk and took the document
+she left there. I am heading to the archive room now.
+**Your Output:**
+<aggregator_output>
+<evidence_quotes>
+<quote timestamp="2023-05-20 14:00">printed the TPS report</quote>
+<quote timestamp="2023-05-20 14:10">took the document she left there</quote
+>
+<quote timestamp="2023-05-20 14:10">heading to the archive room now</quote>
+</evidence_quotes>
+<logic_trace>
+Block 1 identifies the document as "TPS report". Block 2 states Bob took it
+from the desk 10 mins later. Bob has it in the archive room.
+</logic_trace>
+<answer_core>
+Bob has the TPS report and he is in the archive room.
+</answer_core>
+</aggregator_output>
+---
+### REAL INPUT
+**Query:** {query}
+**Raw Memory Results:**
+{results}
+18

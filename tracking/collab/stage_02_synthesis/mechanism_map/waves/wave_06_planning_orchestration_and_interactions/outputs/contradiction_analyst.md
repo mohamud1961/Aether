@@ -1,0 +1,174 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: mechanism_map / wave_06_planning_orchestration_and_interactions
+- overall_verdict: pass_with_warnings
+- preflight_scope_confirmed:
+  - Reviewed Wave 06 as a planning/orchestration/delegation/interaction-contract wave (not a generic recap).
+  - Audited whether first-pass claims preserve evidence precedence (trajectory/source over formal/informal rhetoric).
+  - Checked that eval-lane reasoning was not silently promoted while eval lane is inactive.
+- preflight_planned_read_order:
+  - packet and governance control surfaces
+  - cumulative/carry-forward state
+  - all four Wave 06 first-pass lane outputs
+  - all materially cited Wave 06 support artifacts
+  - targeted primary-path spot checks for trajectory/source/formal/informal high-impact claims
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/brief.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - all four Wave 06 first-pass outputs under `.../outputs/*_analyst.md`
+  - support artifacts under `.../outputs/trajectory_support_*.md`, `.../outputs/codebase_support_*.md`, `.../outputs/literature_support_*.md`, `.../outputs/informal_support_*.md`
+  - spot-check primary evidence:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/answer_aggregator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/agent.py`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+    - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+    - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+    - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+    - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+    - `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`
+    - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+    - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+    - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+- preflight_coverage_risks:
+  - BigAI remains no-source, so the strongest role-separated orchestration evidence is still behavioral reconstruction.
+  - Several docs/issues are noisy single-line captures; interpretability is weaker than clean structured traces/source.
+  - Cross-family trajectory pressure is uneven (BigAI required slices are richer than deepagents/a-evolve required-task pressure).
+- preflight_likely_blind_spots:
+  - hidden BigAI scheduler policy and verifier-optionality rule
+  - full KIRA-Slack orchestration audit beyond sampled files
+  - expanded tar-bundle trajectory internals outside normalized run JSON summaries
+  - longitudinal issue-resolution durability (many issues stale/closed-as-duplicate)
+- preflight_blockers:
+  - none structural for wave-level contradiction review
+- coverage_used:
+  - control surfaces:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/brief.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - first-pass outputs:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_issues_postmortems_analyst.md`
+  - support artifacts:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_support_planning_timeline.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/trajectory_support_delegation_interaction_map.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_support_planner_runtime_map.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_support_subagent_delegation_map.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_support_planning_delegation_cluster.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/informal_support_orchestration_failure_cluster.md`
+  - targeted primary spot checks:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/operator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/bot_call_detector/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/answer_aggregator/agent.py`
+    - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/agent.py`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+    - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+    - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+    - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+    - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+    - `research/sources/issues/src_iss_e4faff9a1db8/artifact.txt`
+    - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+    - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+    - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+- coverage_not_yet_used:
+  - full BigAI required tar internals beyond normalized JSON for `cd0d69dd-3cac-47e0-9777-51327561ff6d`
+  - broader long-tail trajectory bundles under `research/sources/trajectories/*/protein-assembly/*.tar.gz` and `.../large-scale-text-editing/*.tar.gz`
+  - deeper KIRA-Slack full-role graph and runtime integration beyond sampled files
+  - unread Wave 06 formal candidates already flagged by literature lane (`src_pap_1e7552c63cbe`, `src_pap_2126cf579e39`, `src_pap_ac7924226b83`, `src_pap_f6dbaefea5eb`)
+  - optional external gate reviews (Gemini/Claude contradiction files are placeholders only)
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - support artifacts
+  - relevant local harness code
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/prove-plus-comm/cd0d69dd-3cac-47e0-9777-51327561ff6d.tar.gz` (expanded direct trace)
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/main.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/hitl.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+- support_artifact_gaps:
+  - Support-track coverage is materially present across all four lanes; no structural missing support artifact for this wave gate.
+  - Remaining gap is fidelity, not existence: trajectory support relies heavily on normalized run JSON, with one required run lacking normalized `*-traj.txt`.
+  - External gate contradiction artifacts (`contradiction_analyst__gemini.md`, `contradiction_analyst__claude.md`) are still placeholders.
+- coverage_register_consistency:
+  - Inconsistent. `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` still marks Wave 06 as `packet prepared, not started`, while four first-pass lane outputs plus support artifacts now exist.
+  - Register update is required in principal synthesis/gate flow to avoid stale governance state.
+- supported_findings:
+  - Planner-first orchestration behavior in required BigAI Wave 06 runs is supported (stable early `save_plan`, executor handoff, and frequent verifier gate).
+  - Verifier-mediated replanning is supported behaviorally (including explicit `FAILED -> PASSED` recovery in required run `a3dd...`).
+  - A no-verifier completion variant is directly supported (`23f367...`), so verifier gating is dominant but not universal.
+  - Source-backed delegation and orchestration boundaries are real in deepagents/KIRA/a-evolve code (middleware composition, delegation APIs, queue/scheduler runtime, explicit loop contracts).
+  - Local harness Wave 06 implementation remains interface/stub-stage, so local implications are directional rather than implementation-parity claims.
+  - Formal and informal lanes are used as pressure/contradiction surfaces and generally do not override stronger direct trajectory/source evidence.
+  - Carry-forward cautions from Waves 03/04/05 (BigAI behavioral reconstruction, terminal-first baseline, under-evidenced robustness surfaces) remain visible across lane outputs.
+- unsupported_or_overclaimed_findings:
+  - Any reading that Wave 06 proves cross-family role-separated orchestration as a stable universal family is overclaimed.
+    - Why: explicit planner/executor/verifier packetization is richest in BigAI (behavioral reconstruction), while sampled deepagents/KIRA required-task trajectories remain mostly single-agent loops.
+  - Any reading that delegation quality is already robust is overclaimed.
+    - Why: KIRA-Slack `bypassPermissions` usage and informal issue pressure indicate boundary-governance fragility remains active.
+  - Any reading that verifier-gated closure is mandatory is overclaimed.
+    - Why: required no-verifier pass variant (`23f367...`) remains in-scope direct evidence.
+- missing_evidence_classes:
+  - None at mandatory lane-class level (trajectory, source, literature, informal are all present).
+  - Family-level gap remains: trajectory pressure for deepagents/a-evolve delegation-heavy behavior is thinner than source-side capability evidence.
+  - Eval/benchmark class is intentionally inactive in this packet and was not silently substituted.
+- reconciliation_failures:
+  - Source/behavior mismatch remains unresolved for deepagents and a-evolve: source-visible orchestration capacity exceeds required-slice trajectory exercise.
+  - Informal failure pressure (compaction/resume/permission coupling) is not yet causally reconciled with formal orchestration doctrine; currently carried as contradiction pressure.
+  - BigAI remains behavior-rich but source-opaque; this prevents causal closure on scheduler/verifier-optionality rules.
+- coverage_blind_spots:
+  - required BigAI `cd0d...` slice still partially indirect (JSON-normalized pass without normalized text trace file)
+  - long-tail trajectory generalization beyond sampled pressure tasks
+  - KIRA-Slack full subsystem governance closure
+  - issue/postmortem durability after closure/duplicate states
+- required_repairs_before_acceptance:
+  - In wave principal synthesis, keep explicit separation between:
+    - supported claim: planner-first + conditional verifier-gated interaction contracts are real in required BigAI slices
+    - unresolved claim: cross-family universal role-separation superiority
+  - Keep BigAI explicitly labeled `behavioral reconstruction` in every promoted Wave 06 mechanism family touching BigAI internals.
+  - Keep anti-prestige baseline explicit: orchestration complexity is not accepted as inherently superior to terminal-first/single-agent baselines.
+  - Update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` to remove stale `not started` state and carry Wave 06 warnings forward explicitly.
+- optional_pressure_tests:
+  - Expand `cd0d69dd...tar.gz` into a direct trajectory-level check for parity with normalized JSON claims.
+  - Add one deepagents subagent-heavy trajectory and one a-evolve Wave 06-family trajectory to pressure-test source-vs-behavior mismatch.
+  - Run targeted issue follow-up slice (`src_iss_2f7fef40c4cf`, `src_iss_b69884cd17d8`, `src_iss_6e82661ad778`) for compaction/delegation coupling robustness.
+  - Optional external gate contradiction passes (Gemini/Claude) as adversarial breadth checks, without replacing this primary file.
+- gate_review_recommendations:
+  - Proceed to principal synthesis with `pass_with_warnings`.
+  - Do not treat wave acceptance as artifact completion.
+  - Carry forward explicit cautions:
+    - Wave 03: BigAI behavioral reconstruction; restart/resume under-evidenced
+    - Wave 04: artifact-first baseline and source-capacity vs behavior-exercise gap
+    - Wave 05: permission safety under-evidenced; environment discovery exploratory; terminal-first baseline load-bearing
+- confidence: medium-high (strong on structural gate judgment and key overclaim checks; bounded by no-source BigAI internals and uneven cross-family trajectory saturation)

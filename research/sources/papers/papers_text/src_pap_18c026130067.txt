@@ -1,0 +1,1441 @@
+--- PAGE 1 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Minhua Lin 1 Hanqing Lu 2 Zhan Shi 2 Bing He 2 Rui Mao 2 Zhiwei Zhang 1 Zongyu Wu 1 Xianfeng Tang2
+Hui Liu 2 Zhenwei Dai 2 Xiang Zhang 1 Suhang Wang 1 Benoit Dumoulin 2 Jian Pei 3
+Abstract
+As Large Language Models (LLMs) move from
+curated training sets into open-ended real-world
+environments, a fundamental limitation emerges:
+static training cannot keep pace with continual de-
+ployment environment change. Scaling training-
+time and inference-time compute improves static
+capability but does not close this train–deploy
+gap. We argue that addressing this limitation re-
+quires a new scaling axis—evolution. Existing
+deployment-time adaptation methods, whether
+parametric fine-tuning or heuristic memory ac-
+cumulation, lack the strategic agency needed to
+diagnose failures and produce durable improve-
+ments. Our position is thatagentic evolution
+represents the inevitable future of LLM adap-
+tation, elevating evolution itself from a fixed
+pipeline to an autonomous evolver agent. We
+instantiate this vision in ageneral framework, A-
+EVOLVE, which treats deployment-time improve-
+ment as a deliberate, goal-directed optimization
+process over persistent system state. We further
+propose theevolution-scaling hypothesis: the
+capacity for adaptation scales with the compute
+allocated to evolution, positioning agentic evo-
+lution as a scalable path toward sustained, open-
+ended adaptation in the real world. Our code is
+publicly available at https://github.com/
+A-EVO-Lab/a-evolve.
+1. Introduction
+Large Language Models (LLMs) (Radford et al., 2018;
+Brown et al., 2020; Touvron et al., 2023) have achieved
+remarkable progress by scaling along two primary axes: in-
+creasing training-time compute (spanning pre-training and
+post-training) (Kaplan et al., 2020; Lai et al., 2025) and scal-
+ing inference-time compute via reasoning chains (Wei et al.,
+2022; Snell et al., 2025). However, real-world applications
+1The Pennsylvania State Univerity 2Amazon 3Duke University.
+Correspondence to: Hanqing Lu<luhanqin@amazon.com>.
+Preprint. March 17, 2026.
+of LLMs in open-ended environments still face a fundamen-
+tal challenge: thetrain-deploy environment gap(Gama
+et al., 2014; Hu et al., 2025b). Once deployed, models
+trained with finite training data cannot exhaustively antici-
+pate the infinite variety of real-world cases, shifting APIs,
+and evolving constraints. Therefore, purely static models
+inevitably degrade or fail under prolonged deployment.
+This motivates the need for a new scaling axis:evolution—
+the deployment-time ability of a model to autonomously
+improve its capabilities during interaction, without manual
+intervention. We defineevolutionascontinual learning for
+LLM systems during deployment. An LLM system’s behav-
+ior is governed by a composite policy π= (π θ, πS), where
+πθ denotes the parametric backbone (e.g., LLM weights)
+and πS is a non-parametricpersistent artifact state, such
+as tools (Xia et al., 2025), code (Jiang et al., 2023), memo-
+ries (Chhikara et al., 2025), and structured knowledge (Han
+et al., 2024). Evolution corresponds to cross-episode policy
+improvement driven by accumulated experience:
+(πt+1
+θ , πt+1
+S )←F Evolve(πt
+θ, πt
+S,Obs[1 :t]),(1)
+where Obs[1 :t] is deployment observations (e.g., interac-
+tion traces, environment feedback, rewards), and FEvolve is
+the update mechanism. In this view, evolution is not a one-
+shot training procedure, but anongoing processthat converts
+interaction evidence into lasting behavioral improvement.
+Evolution is essential for LLM systems for at least three
+important reasons. First, the train-deploy gap implies that
+static optimization over fixed distributions is fundamen-
+tally insufficient; adaptation must occurin situ. Second,
+many deployment settings impose privacy and governance
+constraints: user feedback, proprietary data, or sensitive
+interactions cannot be centrally logged for global retraining.
+Evolution enableslocal, governed improvement through per-
+sistent artifacts without leaking private data. Third, test-time
+compute alone does not scale. While additional reasoning
+can solve novel instances, it is wasteful for recurrent failures.
+When a deployed LLM system repeatedly lacks a capability,
+such as parsing a new file format or handling a brittle API,
+thinking longer each time is inferior to learning once and
+reusing the solution. Instead, evolution amortizes expensive
+reasoning into cheap, persistent capability.
+1
+arXiv:2602.00359v2  [cs.AI]  13 Mar 2026
+
+--- PAGE 2 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Figure 1.From train-deploy gap to agentic evolution: An overview.
+While several pioneering approaches to LLM evolution have
+emerged, they remain fundamentally limited in achieving
+this goal.Parametric evolutionmethods (Huang et al.,
+2025; Hu et al., 2025a), such as test-time training or online
+fine-tuning, update πθ using recent observations. While ex-
+pressive in principle, these updates are opaque and difficult
+to govern, and they risk catastrophic forgetting under distri-
+bution shift (Luo et al., 2025).Non-parametric heuristic
+evolutionmethods (Gao et al., 2025) instead modify πS by
+appending textual memories (Wang et al., 2024) or optimiz-
+ing promptsusing fixed rules(Zhou et al., 2022). Although
+lightweight, these approaches treat evolution as a storage or
+search problem: as experience accumulates, memory satu-
+rates with noisy, unverified text, and improvements exhibit
+diminishing returns. In both cases, the update ruleFEvolve is
+static and heuristic, rather than adaptive and goal-directed.
+These limitations are not incidental, but stem from a com-
+mon root cause: theabsence of agentic capability in the evo-
+lution process itself. In existing approaches,FEvolve is either
+a static optimization rule (e.g., gradient updates (Xia et al.,
+2025)) or a fixed heuristic (e.g., append-and-retrieve (Shinn
+et al., 2023)). Such mechanisms lack the ability toreason
+aboutfailures,decidewhich aspects of the system should
+change, andadapttheir own update strategy as deploy-
+ment conditions evolve. As a result, parametric methods
+blindly modify weights without semantic accountability,
+while heuristic non-parametric methods indiscriminately
+accumulate experience without understanding relevance,
+causality, or long-term utility. Both fail precisely because
+evolution is treated as a mechanical procedure rather than
+an agentic decision-making problem.
+We therefore proposeour positionin this paper:LLM
+evolution has to be agentic. The novel paradigm ofagen-
+tic evolutionis shown in Fig. 1. The central idea is to
+elevate FEvolve from a fixed, heuristic-driven workflow to
+anexplicit evolver agent—a goal-directed optimizer that
+diagnoses what to change, autonomously governs when to
+change, and collaboratively synthesizes composable updates
+to maintain and improve both the parametric backbone πθ
+and the persistent artifact stateπ S.
+Consider a cloud platform agent deployed to compute rou-
+tine metrics, such as p95 latency per endpoint, from raw
+production logs. At first, everything works smoothly—until
+the environment changes. A logging update renames a field,
+introduces a nested JSON structure, or slightly alters an
+interface that the agent quietly depended on. The next day,
+the agent starts failing. Existing evolution strategies respond
+in blunt ways.Parametric approachesattempt retraining, in-
+curring high costs and riskingcatastrophic forgetting(Luo
+et al., 2025).Non-parametric heuristic methodsinstead
+record the failure as text, hoping the agent will re-discover
+the correct logic, but often facecontext saturationand in-
+consistent retrieval. In contrast,agentic evolutiontakes
+a different view. The evolver treats failures as diagnostic
+signals, identifieswhatneeds to change, and uses avalida-
+tion gateto verify the fix (e.g., a regression-tested parser),
+ensuring the update is persistent and safe. This shift from
+reactive patching to deliberate, goal-directed evolution cap-
+tures the essence of agentic evolution and motivates the
+three principles we introduce next.
+Agentic evolution is characterized by three core princi-
+ples. First, thegoal-oriented principlespecifieswhatto
+change: the evolver actively diagnoses deployment failures,
+attributes them to underlying causes, and targets persistent
+artifacts whose modification is expected to yield durable
+performance gains. Second, theautonomy principlespec-
+ifieswhento change: rather than following a fixed update
+schedule, the evolver governs the adaptation process by se-
+lecting relevant evidence, triggering evolution only when
+warranted, and explicitly deciding whether to commit or re-
+ject candidate updates. Finally, thecompositional principle
+specifieshowto change: improvements are realized through
+structured, modular artifacts—such as tools, workflows, and
+validation tests—produced by decomposed decision pro-
+cesses and integrated only after verification, while allowing
+periodic updates to non-parametric components when ap-
+propriate. These principles elevate evolution from a static
+heuristic pipeline to a deliberate, governed, and scalable
+decision-making process.
+More broadly, agentic evolution reframes deployment-time
+adaptation as the joint optimization of persistent state and
+model parameters, rather than relying solely on the direct
+tuning of weights or the passive accumulation of memory.
+Under this view, the update rule itself becomes abudgeted
+optimizer: an explicit evolver agent that decideswhatto
+change,whento change, andhowto change under a finite
+evolution-time compute budget. This leads to our central
+vision:Agentic evolution represents a scalable path for
+the sustained, open-ended evolution of LLM systems
+over indefinite deployment horizons. Unlike static heuris-
+tics that inevitably plateau, a sufficiently capable evolver
+can continue to extract increasingly complex improvements
+from accumulated experience. Continuous, open-ended evo-
+2
+
+--- PAGE 3 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+lution demands both sustainability and scalability. This
+motivates theevolution-scaling hypothesis:the capacity
+for adaptation—the achievable performance frontier of evo-
+lution—scales with the compute allocated to the evolution
+process. We identify this as a third scaling axis, comple-
+mentary to training-time and inference-time computation.
+Ultimately, adaptive intelligence in LLM systems depends
+not on chance, but on systematically scaling the ability to
+learn how to improve.
+2. Agentic Evolution and Principles
+We consider a deployedLLM systemthat repeatedly inter-
+acts with an environment over a sequence of episodes. At
+episode t, the system observes an input or state xt, produces
+actions at, and receives feedback ot from the environment.
+We model the system as acomposite policy
+πt = (πθ,t, πS,t),(2)
+where πθ,t denotes the parametric backbone (e.g., an LLM
+model with parameters θ), and πS,t denotes a persistent, ed-
+itable artifact state that conditions behavior across episodes,
+such as tools, skills, workflows, structured knowledge, and
+validation assets. Crucially, πt persists beyond a single
+interaction and constitutes the system’s deployment-time
+interface to capability.
+Evolutionrefers to cross-episode improvement that occurs
+during deployment. Rather than treating deployment as
+a static inference phase, evolution formalizes the process
+by which a system converts accumulated interaction evi-
+dence into lasting behavioral change. Let Obs1:t denote the
+deployment evidence collected up to episode t, including
+trajectories, tool traces, errors, and feedback. Evolution is
+defined as a cross-episode update process:
+(πθ,t+1, πS,t+1)←F Evolve(πθ,t, πS,t,Obs 1:t),(3)
+where FEvolve is an update mechanism that may modify the
+parametric model πθ, the persistent state πS, or both. This
+definition abstracts over a broad spectrum of approaches,
+ranging from offline training and online fine-tuning to heuris-
+tic memory updates. Detailed taxonomy is in Appendix A.
+Agentic evolutioninstantiates FEvolve as an explicitevolver
+agent: a goal-directed, autonomous optimizer that reasons
+over accumulated deployment evidence and producespersis-
+tent, governedupdates. Rather than executing a fixed script,
+the evolver treats evolution itself as a decision-making prob-
+lem. At each episode t, it proposes a structured candidate
+update ∆t, such as add, patch, refactor, or prune operations
+overπ S and/orπ θ, and makes an explicit commit decision:
+∆t ←F Evolve(πθ,t, πS,t,Obs 1:t), c t ← C(π t,∆ t,Obs 1:t),
+(4)
+followed by
+πt+1 ←
+(
+Apply(πt,∆ t)ifc t = 1,
+πt ifc t = 0, (5)
+where ct ∈ {0,1} is the commit decision from the gover-
+nance gate C. This gate is typically instantiated via auto-
+mated verification (e.g., unit tests, regression checks) or
+human-in-the-loop review. The defining characteristic of
+agentic evolution is that updates are treated asconditional
+decisions—explicitly proposed, evaluated, and either com-
+mitted or rejected—rather than as unconditional steps in a
+fixed workflow.
+Agentic evolution is governed by three core principles that
+specifywhatto evolve,whento evolve, andhowevolution
+is carried out.
+Thegoal-oriented principlespecifieswhatto change. The
+evolver does not blindly accumulate experience or optimize
+generic proxies; instead, it explicitly diagnoses deployment
+failures, attributes them to actionable causes, and targets
+specific components of the persistent state whose modifi-
+cation is expected to improvefutureperformance. This
+shifts adaptation from correlation-based updates to causal,
+capability-level repair. In practice, goal orientation is re-
+alized by localizing failures to missing tools, brittle logic,
+interface mismatches, or incomplete workflows, and then
+applying targeted edits to the corresponding artifacts in πS
+(and, when appropriate, to πθ). By making the adaptation
+objective explicit and forward-looking, the system converts
+raw experience into durable improvements rather than tran-
+sient fixes.
+Theautonomy principlespecifieswhento change. Instead
+of following a pre-defined update schedule (e.g., evolve after
+every failure), the evolver controls the update decision pro-
+cess itself. It selects which evidence is relevant, determines
+whether a failure is actionable or merely transient noise, and
+explicitly decides whether to commit an update or perform
+a no-op. This decision-theoretic control allows evolution
+compute to be allocated only when improvement is feasible
+and worthwhile. Autonomy distinguishes agentic evolution
+from non-agentic pipelines in which updates are implic-
+itly triggered or hard-coded, and it is essential for stable
+long-horizon deployment in open-ended environments.
+Thecompositional principlespecifieshowto evolve. In-
+ternally, the evolver is naturally decomposed into cooper-
+ating decision functions—such as diagnosis, planning, up-
+dating, and verification—that operate over shared evidence
+and state. This decomposition improves reliability and ex-
+pressivity, whether realized within a single system or as a
+multi-agent workflow. Externally, evolution producesmod-
+ular, structured artifacts—for example, executable tools,
+reusable workflows, and validation tests—rather than un-
+structured text. This compositionality enablesamortization:
+3
+
+--- PAGE 4 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Figure 2.Framework of A-Evolve.
+recurring reasoning and fragile deliberation are compiled
+into reusable capabilities, allowing the system to bypass
+context saturation and avoid the diminishing returns typical
+of heuristic memory accumulation.
+These principles elevate evolution from a static, heuristic-
+driven procedure to a governed and scalable decision-
+making process. By treating deployment-time improvement
+as an agentic optimization problem over persistent state,
+agentic evolution provides a foundation for LLM systems
+that can reliably adapt to open-ended environments while
+maintaining stability, interpretability, and scalability.
+To illustrate, let us revisit the cloud-log agent scenario from
+Sec. 1. Let πt = (π θ,t, πS,t) denote the composite pol-
+icy. Under the schema drift scenario (e.g., nested JSON
+changes), parametric evolution attempts to update the back-
+bone πθ via fine-tuning, entangling a localized interface mis-
+match with global model behavior and risking catastrophic
+forgetting. Heuristic methods instead append raw traces to
+πS, forcing the solver to repeatedly regenerate brittle logic
+at inference time with limited reuse or guarantees.
+Agentic evolution reframes such failures as a cross-episode
+optimization problem. Deployment trajectories are ag-
+gregated into structured evidence, from which an explicit
+evolver diagnoses the underlying cause, such as an outdated
+schema assumption, and formulates a targeted update ob-
+jective. Rather than modifying weights or appending raw
+memories, the evolver proposes precise, structured edits to
+πS, such as synthesizing a versioned adapter function to
+permanently handle the new nested format and rectifying
+the API schema definition. Candidate updates are evaluated
+and committed conditionally through explicit verification,
+ensuring that only validated improvements persist. In this
+way, agentic evolution amortizes repeated inference-time
+reasoning into durable, governed capability, transforming
+recurrent failures into stable system assets.
+3. A-Evolve: A General Framework for
+Agentic Evolution of LLM Systems
+A-Evolve is a general, implementation-agnostic framework
+that instantiates the principles of agentic evolution intro-
+duced in Sec. 2. As illustrated in Fig. 2, A-Evolve makes
+deployment-time evolution explicit, governed, and amor-
+tizable, enabling scalable capability improvement beyond
+static inference.
+A-Evolve is built around three commitments. First, evolu-
+tion isgoal-oriented: from deployment evidence, the sys-
+tem derives an explicit update objective g and proposes
+targeted edits ∆ over a structured space. Second, evolution
+isautonomous: updates are conditional, driven by explicit
+evidence selection and a commit/no-op decision c, rather
+than a fixed schedule. Third, evolution iscompositional:
+the update rule FEvolve is realized as a modular evolver that
+produces typed artifacts and commits them only through
+explicit acceptance mechanisms such as validation or review.
+We instantiate these commitments through three structural
+components: a persistent artifact state, a solve–evolve con-
+trol loop, and an explicit evolver.
+Persistent Artifact State πS.A-Evolve elevates the non-
+parametric component πS to a first-class, editable interface
+to system capability. Instead of accumulating transient con-
+text, deployment experience is compiled into persistent ar-
+tifacts that can be created, revised, validated, and reused
+across episodes. This exposes a concrete edit space for evo-
+lution, allowing targeted updates to specific components
+rather than diffuse prompt modification. At episode t, the
+artifact state is
+πS,t ={K t,T t,V t}.(6)
+Theknowledge registry Kt stores structured or textual
+artifacts such as schemas, workflows, interface contracts,
+and exemplars. Artifacts are addressable and versioned,
+enabling retrieval, patching, and replacement. This supports
+goal-oriented evolution by allowing failures to be localized
+to specific knowledge components.
+Thetool registry Tt contains executable functions, includ-
+ing scripts and API wrappers, with explicit input–output
+signatures and associated tests. During solve-time, tools
+provide deterministic action primitives that reduce inference
+variance. During evolve-time, they serve as diagnostic in-
+struments for replaying failures, probing edge cases, and
+extracting structured error signals.
+Thevalidation registry Vt contains governance assets such
+as unit tests, regression suites, and optional human review
+hooks. Validation artifacts are themselves editable. Cru-
+cially, Vt grounds the commit decision ct: updates are com-
+mitted only if they pass verification, preventing regressions
+and uncontrolled drift over long deployment horizons.
+The Solve–Evolve Loop.A-Evolve explicitly separates
+instance-level task execution from cross-episode capability
+improvement, ensuring that evolution is a governed process
+4
+
+--- PAGE 5 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+with its own control flow and compute budget. For episode
+twith inputx t, the solve phase produces a trajectory
+τt =Solve(π t, xt),(7)
+which is appended to the cumulative evidence buffer
+Obs1:t = Obs1:t−1 ∪ {τt}. The evolve phase then produces
+a conditional update
+πt+1 =π t ⊕(c t ·∆ t),(8)
+where∆ t andc t are defined below.
+In thesolve phase, the system executes under the composite
+policy πt = (π θ,t, πS,t), retrieving artifacts from Kt and
+invoking tools from Tt as needed. The artifact state πS,t is
+treated as read-only to ensure reproducibility.
+In theevolve phase, triggered asynchronously or when suf-
+ficient evidence accumulates, the evolver analyzes Obs1:t
+and proposes a structured update ∆t together with a com-
+mit decision ct. The evolver may invoke tools from Tt to
+reproduce failures or analyze traces. Candidate updates are
+evaluated against Vt; only validated updates are committed.
+This separation ensures that solve-time compute targets task
+completion, while evolve-time compute targets amortized
+improvement across episodes.
+The Evolver FEvolve.A-Evolve implements FEvolve as
+an explicit evolver composed of four cooperating functions:
+gt ←Diagnose(Obs 1:t, πS,t), p t ←Plan(g t, πS,t),
+∆t ←Update(p t, πS,t), c t ←Verify(∆ t,V t). (9)
+Diagnoseidentifies actionable failure modes and their
+causes (e.g., missing schemas or brittle tools), optionally
+invoking Tt to extract structured error signatures, and pro-
+duces an update objective gt.Plantranslates gt into an ex-
+plicit edit plan specifying target artifacts, edit operators (add,
+patch, refactor, prune), and ordering constraints.Update
+executes the plan by synthesizing concrete artifact changes,
+assembling a candidate update∆t with provenance and tests.
+Verifyevaluates ∆t against Vt and returns a commit deci-
+sion ct ∈ {0,1} , allowing the evolver to reject harmful or
+brittle updates.
+Edit Operators and Auditing.A-Evolve supports a small
+set of canonical edit operators over πS, including adding
+or patching tools, schemas, and tests, and pruning obsolete
+artifacts. For example, under schema drift, the evolver may
+add a new schema, patch a parser tool, and introduce regres-
+sion tests, committing the update only if all checks pass. All
+proposed updates are logged with full provenance, enabling
+auditing, rollback, and risk-based human oversight.
+Summary.A-Evolve provides a concrete framework for
+agentic evolution. By exposing a typed persistent artifact
+state, separating solve-time execution from evolve-time op-
+timization, and enforcing modular, verifiable updates, A-
+Evolve enables LLM systems to convert deployment ex-
+perience into durable, governed capability improvements
+without sacrificing stability or interpretability.
+4. The Evolution-Scaling Hypothesis
+A central motivation for agentic evolution is to enableau-
+tonomy: the ability of an LLM system to adapt reliably in
+open-ended, non-stationary environments where increased
+training-time compute (Kaplan et al., 2020; Lai et al., 2025)
+and increased test-time compute (Schaeffer et al., 2025)
+inevitably fall short. While existing evolution-style meth-
+ods (Cai et al., 2025; Ouyang et al., 2025) demonstrate that
+deployment-time adaptation is possible, they are typically
+driven by ad-hoc heuristics and fixed update rules. As a
+result, their effectiveness is often fragile, difficult to predict,
+and prone to early saturation.
+This leads to a fundamental question for long-horizon de-
+ployment and, more broadly, for the path toward AGI:Can
+evolution itself be made scalable and sustainable?Specif-
+ically, if we allocate more resources to the evolution pro-
+cess—such as stronger evolvers, more analysis steps, or
+larger evolution-time compute budgets—does the effec-
+tiveness and speed of adaptation increase in a predictable
+and systematic way, or is improvement largely bounded by
+chance and problem-specific heuristics?
+The Evolution-Scaling Hypothesis.We propose the
+Evolution-Scaling Hypothesis, which frames deployment-
+time adaptation not as a stochastic or opportunistic phe-
+nomenon, but as a scalable optimization process governed
+by resources. Analogous to established scaling laws for pre-
+training and inference, the hypothesis posits that allocating
+additional compute to theevolution loop—rather than only
+to solving individual tasks—systematically improves the
+attainable level of adaptation.
+Concretely, we argue that evolution-time compute enables
+an LLM system to (i) diagnose failures more accurately,
+(ii) consider more candidate updates, (iii) synthesize more
+robust artifacts, and (iv) apply stronger verification before
+committing changes. These capabilities compound over
+episodes because validated updates persist. As a result, evo-
+lution is not merely a collection of local fixes, but a conver-
+gent process whose effectiveness scales with the resources
+devoted to it. This perspective shifts the paradigm from
+hoping that heuristics generalize toengineering adaptation
+through compute.
+5
+
+--- PAGE 6 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Evolution-Scaling Formalism.To make this notion pre-
+cise, we define a compute-optimal view of evolution. Let
+P(π) denote the performance of a deployed policy π under
+a fixed environment and a fixed solve-time compute budget.
+Given an initial policy π0, we define thecompute-optimal
+evolution frontieras
+P ∗(Cevolve, π0)≜max
+Fevolve
+Eπ∼Fevolve(π0)
+
+P(π)
+
+,(10)
+where Fevolve ranges over all evolution strategies whose
+total evolution-time compute cost does not exceed Cevolve.
+Here, Cevolve captures the resources allocated to the evo-
+lution process, including analysis steps, tool invocations,
+candidate synthesis, and verification, while implicitly re-
+flecting the capability of the evolver itself.
+The Evolution-Scaling Hypothesis states that, holding the
+environment and solve-time compute fixed, the frontier P ∗
+is strictly increasing with respect to evolution-time compute.
+Formally, for anyC (1)
+evolve < C (2)
+evolve, we hypothesize:
+P ∗(C (1)
+evolve, π0)< P ∗(C (2)
+evolve, π0).(11)
+Intuitively, allocating more evolution-time compute enlarges
+the space of feasible update strategies, enabling deeper di-
+agnosis, more reliable edits, and stronger governance, and
+thereby raising the achievable performance ceiling.
+Interpretation.This hypothesis reframes deployment-
+time learning as apredictable scaling regime. Rather than
+viewing adaptation as a series of isolated, heuristic-driven re-
+pairs, evolution is treated as an optimization process whose
+convergence rate and asymptotic performance depend on
+the strength and compute budget of the evolver. In this view,
+insufficient evolution resources lead to noisy, brittle im-
+provements, while sufficient resources guarantee systematic
+progress toward the compute-optimal frontier.
+Strategic Implications.The evolution-scaling perspec-
+tive yields two complementary research directions:
+Approaching the frontier.For a fixed evolution-time bud-
+get, the goal is to design evolution algorithms Fevolve that
+efficiently approach P ∗. Agentic evolution advances this di-
+rection by replacing fixed heuristics with autonomous, struc-
+tured decision-making, as empirically validated in Sec. 5.2.
+Raising the frontier.Beyond algorithmic efficiency, the hy-
+pothesis predicts that aggressively scaling evolution-time
+resources, such as evolver capability and analysis depth,
+systematically raises the performance ceiling itself. In long-
+horizon deployment, reallocating compute from repeatedly
+“thinking harder” at solve time to “evolving better” across
+episodes converts raw compute into durable capability, en-
+abling mastery of increasingly complex and shifting envi-
+ronments. We will empirically observe the evolution scaling
+effect in Sec. 5.4.
+5. Empirical Studies
+In this section, we empirically evaluate the feasibility and
+advantages of agentic evolution by addressing three ques-
+tions: (i)Effectiveness:does agentic evolution improve
+task performance undercompute-matchedconditions? (ii)
+Feasibility:how do the core components of agentic evolu-
+tion contribute to performance gains and loop reliability?
+(iii)Evolution-scaling:does evolution capacity increase
+with evolution-time compute and evolver capability?
+5.1. Experimental Setup
+Datasets.We evaluate on AppWorld (Trivedi et al., 2024),
+a widely used benchmark for tool-using agents with exe-
+cutable environments and unit tests for goal verification. We
+sample 50 tasks from the training split for evolution and
+50 tasks from the test-normal split for evaluation. Dataset
+details and the sampling protocol are in Appendix B.1.
+Implementation Details.We implement A-Evolve as a
+two-level system consisting of asolver, which executes
+tasks, and anevolver, which accumulates persistent im-
+provements across episodes. The evolver decomposes the
+evolve step into four roles: diagnoser, planner, updater,
+and verifier, which cooperate through a shared evolution
+state. Unless otherwise specified, we use Claude Sonnet
+4.5 (Anthropic, 2025b) as the evolver backbone, and eval-
+uate solvers ranging from Claude Haiku 4.5 (Anthropic,
+2025a) and Claude Sonnet 4/4.5 to GPT-5 (Singh et al.,
+2025) and Gemini 3 Flash (Google, 2025). Additional de-
+tails are in Appendix B.2.
+Evaluation Protocol.Following prior work (Trivedi et al.,
+2024; Cao et al., 2025), we report two metrics:Task Goal
+Completion(TGC), the fraction of tasks successfully com-
+pleted, andAverage Passed Tests(APT), the average frac-
+tion of unit tests passed per task. To ensure fair comparison,
+we fix a solve-time compute budget Csolve (maximum tool
+calls, steps, or tokens per task) and an evolve-time com-
+pute budget Cevolve (maximum tokens and tool invocations
+per episode) across all methods. Full evaluation details are
+given in Appendix B.3.
+5.2. Effectiveness: Agentic vs. Non-agentic Evolution
+Setting.We compare A-Evolve against anon-evolvingrefer-
+ence and two representativenon-agentic evolutionbaselines
+and: (i)APE(Zhou et al., 2022), a search-based prompt
+evolution method that proposes candidate instructions and
+selects among them via task-level scoring; (ii)AWM(Wang
+et al., 2024), an experience-based workflow memory base-
+line that induces reusable workflows from past trajectories;
+and (iii)Vanilla, which directly queries the solver without
+persistent updates. All evolution methods learn updates on
+the training set and are evaluated on the test set.
+6
+
+--- PAGE 7 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Table 1.Comparison of agentic evolution against baselines on AppWorld. We report TGC and APT (%) across solver backbones.
+Claude Haiku 4.5 Claude Sonnet 4.5 Claude Sonnet 4 GPT 5 Gemini 3 Flash
+MethodTGC APT TGC APT TGC APT TGC APT TGC APT
+Vanilla 32 51.16 86 94.94 42 79.42 80 94.15 56 80.45
+APE 30 56.00 80 85.00 44 82.00 82 95.00 52 84.00
+AWM 46 65.76 8897.32 50 86.29 84 94.08 52 87.75
+A-Evolve64 84.31 9096.47 56 88.21 88 97.02 82 92.05
+Results.Tab. 1 reports TGC and APT across methods. We
+observe two consistent trends.(i) Agentic evolution acts as
+a capability multiplier. A-Evolve yields substantial gains
+across all solver backbones. For example, it achieves 64%
+and 82% TGC on Claude Haiku 4.5 and Gemini 3 Flash, re-
+spectively, compared to46%/52% for AWM and32%/56%
+for Vanilla. This demonstrates that agentic evolution reliably
+converts deployment evidence into reusable improvements
+that static prompt or workflow updates fail to capture.(ii)
+Narrowing the capacity gap.Smaller solvers augmented
+with A-Evolve can match or exceed larger vanilla models
+(e.g., Haiku 4.5 with A-Evolve reaches 64% TGC versus
+42% for vanilla Sonnet 4), indicating that persistent procedu-
+ral refinement across episodes can rival gains from stronger
+backbones alone.
+Case Studies.Qualitative analysis of evolution traces re-
+veals why these gains arise. Non-agentic baselines such as
+AWM tend to capture onlysurface-level patterns, retriev-
+ing raw trajectories that often include irrelevant context or
+hallucinated reasoning. In contrast, A-Evolve performsac-
+tive diagnosis: the evolver invokes analysis tools to identify
+underlying failure causes (e.g., hidden API dependencies).
+These insights are synthesized intopersistent artifactsin
+πS, such as verified tools (T ) or refined knowledge schemas
+(K), rather than stored as raw text. All updates are gated by
+the validation registry (V), ensuring that only improvements
+passing regression checks are committed. At solve-time,
+this replaces fragile, probabilistic regeneration with robust,
+governed capability invocation. Detailed examples are pro-
+vided in Appendix C.1.
+5.3. Feasibility: Reliability of Agentic Evolution Loop
+Setting.To isolate the contribution of each component
+in agentic evolution, we compare A-Evolve against four
+ablated variants: (i)A-Evolve/D, which removesdiagnosis
+and proposes updates directly from raw trajectories; (ii)A-
+Evolve/A, which retains diagnosis but disablesanalysis tools
+for aggregating evidence across episodes; (iii)A-Evolve/P,
+which removesplanningand generates updates in a single
+step without explicit edit structure; and (iv)A-Evolve/V,
+which removesverificationand commits updates without
+validation gating. Claude Sonnet 4.5 is fixed as the evolver,
+with Claude Haiku 4.5 and Gemini 3 Flash as solvers. Other
+settings follow Sec. 5.2.
+TGC APT
+30
+45
+60
+75
+90Score (%)
+Vanilla
+A-E./D
+A-E./A
+A-E./P
+A-E./V
+A-E.
+(a)Claude Haiku 4.5
+TGC APT
+50
+60
+70
+80
+90Score (%)
+Vanilla
+A-E./D
+A-E./A
+A-E./P
+A-E./V
+A-E. (b)Gemini 3 Flash
+Figure 3.Ablation studies of A-Evolve using Claude Haiku 4.5
+and Gemini 3 Flash as solvers.
+Results Analysis.Fig. 3 shows two consistent trends.(i)
+The full loop is strongest.The complete A-Evolve achieves
+the best performance across solvers. Removing any sin-
+gle component degrades results, although all ablations still
+outperform the vanilla solver, highlighting the complemen-
+tary roles of the modules and the importance of end-to-end
+coupling.(ii) Verification is a critical stabilizer.Among
+all variants,A-Evolve/Vdegrades the most. Committing
+updates without validation allows brittle or overfit patches
+to accumulate, leading to regressions and unstable long-
+horizon behavior.
+Case Studies.Qualitative analysis reveals distinct failure
+modes for each ablation. Withoutdiagnosis(A-Evolve/D),
+the evolver acts blindly, producing superficial patches that
+mask errors rather than fixing root causes. Withoutanalysis
+tools(A-Evolve/A), updates rely on single-trajectory infer-
+ence and capture only local symptoms, missing systematic
+patterns across episodes. Withoutplanning(A-Evolve/P),
+the evolver fails to coordinate interdependent edits, lead-
+ing to incoherent updates such as modifying tools without
+updating corresponding schemas. Finally, removingverifi-
+cation(A-Evolve/V) results in defective artifacts (e.g., tools
+with syntax errors) being committed, polluting context and
+degrading established capabilities. Detailed examples are
+provided in Appendix C.2.
+5.4. Analysis of Evolution Scaling
+Scaling Evolution Compute.We first evaluate whether
+increasing evolution-time compute reliably improves capa-
+bility. We vary theevolution stepfrom 1 to 12 steps as
+a proxy for Cevolve, where each step corresponds to the
+evolver processing a batch of 10 episodes. We use Claude
+Haiku 4.5 as the solver and Claude Sonnet 4.5 as the evolver.
+7
+
+--- PAGE 8 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+0 1 2 4 6 8 10 12
+Evolution Step
+25
+40
+55
+70
+85TGC (%)
+Ours
+AWM
+Vanilla
+TGC
+APT
+50
+60
+70
+80
+90
+APT (%)
+(a)Evolution step
+TGC APT
+50
+60
+70
+80
+90Score (%)
+Haiku 4.5
+Sonnet 4.5
+Opus 4.5 (b)Evolver size
+Figure 4.Analysis of evolution-scaling hypotheses: we vary evolu-
+tion step and evolver model size.
+Other settings follow Sec. 5.2. Fig. 4(a) comparesA-Evolve
+with vanilla and AWM baselines. Two trends emerge.(i)
+Sustained scaling. A-Evolve improves monotonically as
+compute increases, achieving the best performance across
+all budgets, while AWM quickly plateaus. This supports
+the evolution-scaling hypothesis that additional evolution
+compute translates into higher attainable performance, keep-
+ing P ∗ increasing with Cevolve.(ii) High efficiency.Even
+minimal evolution step (e.g., 0→1 step) yield substantial
+gains, indicating that structured evolution converts compute
+into capability more efficiently than heuristic baselines.
+Impact of Evolver Size.We next examine scaling compute
+per updateby increasingevolver model size. Fixing the
+solver as Claude Haiku 4.5, we vary the evolver backbone
+across Claude Haiku 4.5, Sonnet 4.5, and Opus 4.5; other
+settings follow Sec. 5.2. Results are shown in Fig. 4(b).
+(i) Larger evolvers perform better.Both TGC and APT in-
+crease monotonically with evolver size, mirroring the trends
+observed under sample scaling and confirming that evolver
+capacity is a key contributor to Cevolve.(ii) Reduced op-
+timization noise.Qualitative analysis shows that smaller
+evolvers more often hallucinate root causes and propose
+brittle updates that fail verification. Larger evolvers more re-
+liably diagnose failures and synthesize robust, generalizable
+artifacts, converting compute into capability more effec-
+tively. Additional analysis is provided in Appendix C.3.
+6. Alternative Views
+We now address three common alternative perspectives on
+deployment-time adaptation.
+“Inference-time reasoning is sufficient.”A common
+counter-argument suggests that explicit evolution is unnec-
+essary if inference-time compute is scaled, allowing models
+to bridge environmental gaps by “thinking longer” (Ope-
+nAI et al., 2024). While extended reasoning is effective
+for novel instances, it is inefficient for recurrent failures.
+Without evolution, the system repeatedly rediscovers the
+same solutions. Agentic evolution amortizes this cost by
+converting transient reasoning into persistent artifacts, such
+as verified tools, yielding stable and reusable capability.
+“Why not rely on parametric plasticity?”Some advocate
+direct adaptation through online parameter updates, arguing
+that continual fine-tuning should replace artifact manage-
+ment (Luo et al., 2025). We contend that unconstrained
+weight updates are opaque to auditing and prone to catas-
+trophic forgetting. In contrast, agentic evolution operates
+over explicit, verifiable artifacts (e.g., code and tests), en-
+abling modular updates, structured governance, and stronger
+safety guarantees than just gradient descent.
+“Explicit evolution is too costly.”Critics argue that main-
+taining an evolver agent is computationally wasteful com-
+pared to heuristics or passive memory. We view this as a
+trade-off between short-term efficiency and long-term scala-
+bility. While heuristics plateau, our results in Sec. 5.4 show
+that agentic evolution continues to improve with evolution-
+time compute, approaching the compute-optimal frontier.
+Allocating compute to evolution converts raw compute into
+durable capability for unbounded environments.
+7. Conclusion and Future Directions
+This paper argues that the primary bottleneck to deploying
+intelligent systems in the real world is not static model ca-
+pacity, but the ability toevolve. As agents move beyond
+curated training distributions into open-ended environments,
+static optimization and non-agentic update rules inevitably
+saturate. We contend that agentic evolution provides a scal-
+able alternative by elevating evolution from a fixed pipeline
+to an autonomous, governed decision process that converts
+deployment experience into persistent capability. We fur-
+ther propose the evolution-scaling hypothesis, which posits
+that adaptation capacity scales with evolution-time compute,
+introducing a new axis of scaling beyond training-time and
+inference-time computation.
+Realizing the full potential of agentic evolution requires
+progress along three complementary directions.
+Benchmarks.Future benchmarks should explicitly capture
+the train–deploy gap by placing agents in high-entropy, non-
+stationary environments where failures cannot be resolved
+through inference alone. Beyond task success, benchmarks
+should measure the durability and reuse of evolved artifacts
+to assess whether evolution-time compute produces lasting
+capability gains.
+Frameworks.Our analysis suggests that the structure of
+the evolution framework determines how efficiently a sys-
+tem approaches the compute-optimal frontier P ∗. While
+A-Evolve provides a concrete starting point, future frame-
+works should further improve diagnosis, planning, and veri-
+fication to better convert evolution-time compute into stable
+improvements.
+Theory.A foundational theory of agentic evolution remains
+open. Promising directions include formalizing evolution
+as optimization over a combinatorial program space and
+8
+
+--- PAGE 9 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+establishing separation results showing that agentic evolu-
+tion admits a higher attainable frontier than non-agentic
+heuristics. Bounding regret relative to idealized oracle fine-
+tuning would provide a principled basis for understanding
+long-horizon adaptation.
+Impact Statement
+We posit thatAgentic Evolutionrepresents the inevitable
+future of LLM deployment. By shifting the paradigm from
+static inference to continuous, goal-directed adaptation, this
+approach enables systems to autonomously bridge the crit-
+ical “train-deploy gap.” This shift holds the potential to
+significantly increase the reliability and longevity of AI
+applications in dynamic, open-ended environments.
+Societal and Practical Benefits.A key advantage of our
+approach is the enablement oflocal adaptation. Because
+the system evolves through persistent artifactsin situ, it
+reduces the need to transmit sensitive user data to central
+servers for global retraining, thereby enhancing user privacy
+and data sovereignty. Furthermore, by converting expen-
+sive inference-time reasoning into reusable tools and code,
+agentic evolution amortizes the computational cost of in-
+telligence, offering a more sustainable path for long-term
+deployment compared to purely scaling inference compute.
+Risks and Mitigations.We acknowledge that empowering
+systems to modify their own behavior introduces risks of
+capability drift or the optimization of unaligned objectives.
+To mitigate these risks, our framework explicitly incorpo-
+rates avalidation gateas a core governance mechanism.
+By treating updates as conditional decisions that must pass
+automated verification (e.g., regression tests) before com-
+mitment, we reduce the likelihood of introducing harmful
+or brittle behaviors. Additionally, unlike opaque parameter
+updates, agentic evolution modifies explicit, interpretable
+artifacts (e.g., code, tool, skill), preserving the ability for
+humans to audit and rollback system changes. Future work
+must continue to refine these verification standards to ensure
+autonomous evolution remains safe and aligned.
+References
+Anthropic. Claude haiku 4.5 system card,
+Oct 2025a. URL https://assets.
+anthropic.com/m/99128ddd009bdcb/
+Claude-Haiku-4-5-System-Card.pdf.
+Anthropic. Claude sonnet 4.5 system card, Sept
+2025b. URL https://assets.anthropic.
+com/m/12f214efcc2f457a/original/
+Claude-Sonnet-4-5-System-Card.pdf.
+Behrouz, A., Zhong, P., and Mirrokni, V . Titans: Learning to
+memorize at test time.arXiv preprint arXiv:2501.00663,
+2024.
+Behrouz, A., Razaviyayn, M., Zhong, P., and Mirrokni, V .
+It’s all connected: A journey through test-time memoriza-
+tion, attentional bias, retention, and online optimization.
+arXiv preprint arXiv:2504.13173, 2025.
+Brohi, S., Mastoi, Q.-u.-a., Jhanjhi, N. Z., and Pillai, T. R.
+A research landscape of agentic ai and large language
+models: Applications, challenges and future directions.
+Algorithms, 18, 2025. doi: 10.3390/a18080499.
+Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D.,
+Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G.,
+Askell, A., et al. Language models are few-shot learners.
+Advances in neural information processing systems, 33:
+1877–1901, 2020.
+Cai, Y ., Cai, S., Shi, Y ., Xu, Z., Chen, L., Qin, Y ., Tan, X.,
+Li, G., Li, Z., Lin, H., et al. Training-free group relative
+policy optimization.arXiv preprint arXiv:2510.08191,
+2025.
+Cao, Z., Deng, J., Yu, L., Zhou, W., Liu, Z., Ding, B., and
+Zhao, H. Remember me, refine me: A dynamic pro-
+cedural memory framework for experience-driven agent
+evolution.arXiv preprint arXiv:2512.10696, 2025.
+Chen, Z., Deng, Y ., Yuan, H., Ji, K., and Gu, Q. Self-play
+fine-tuning converts weak language models to strong lan-
+guage models.arXiv preprint arXiv:2401.01335, 2024.
+Chhikara, P., Khant, D., Aryan, S., Singh, T., and Yadav, D.
+Mem0: Building production-ready ai agents with scalable
+long-term memory.arXiv preprint arXiv:2504.19413,
+2025.
+Fernando, C., Banarse, D. S., Michalewski, H., Osindero, S.,
+and Rockt¨aschel, T. Promptbreeder: Self-referential self-
+improvement via prompt evolution. InProceedings of the
+41st International Conference on Machine Learning, pp.
+13481–13544, 2024.
+Gama, J. a., ˇZliobaitundefined, I., Bifet, A., Pechenizkiy,
+M., and Bouchachia, A. A survey on concept drift
+adaptation.ACM Comput. Surv., 46(4), 2014. ISSN
+0360-0300. doi: 10.1145/2523813. URL https:
+//doi.org/10.1145/2523813.
+Gao, H.-a., Geng, J., Hua, W., Hu, M., Juan, X., Liu, H., Liu,
+S., Qiu, J., Qi, X., Wu, Y ., et al. A survey of self-evolving
+agents: On path to artificial super intelligence.arXiv
+preprint arXiv:2507.21046, 2025.
+Google. Gemini 3 flash model card, Dec 2025.
+URL https://storage.googleapis.
+com/deepmind-media/Model-Cards/
+Gemini-3-Flash-Model-Card.pdf.
+9
+
+--- PAGE 10 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Han, H., Wang, Y ., Shomer, H., Guo, K., Ding, J., Lei, Y .,
+Halappanavar, M., Rossi, R. A., Mukherjee, S., Tang,
+X., et al. Retrieval-augmented generation with graphs
+(graphrag).arXiv preprint arXiv:2501.00309, 2024.
+Hu, J., Zhang, Z., Chen, G., Wen, X., Shuai, C., Luo, W.,
+Xiao, B., Li, Y ., and Tan, M. Test-time learning for
+large language models.arXiv preprint arXiv:2505.20633,
+2025a.
+Hu, J., Zhang, Z., Chen, G., Wen, X., Shuai, C., Luo, W.,
+Xiao, B., Li, Y ., and Tan, M. Test-time learning for
+large language models. InForty-second International
+Conference on Machine Learning, 2025b. URL https:
+//openreview.net/forum?id=iCYbIaGKSR.
+Huang, C., Yu, W., Wang, X., Zhang, H., Li, Z., Li,
+R., Huang, J., Mi, H., and Yu, D. R-zero: Self-
+evolving reasoning llm from zero data.arXiv preprint
+arXiv:2508.05004, 2025.
+H¨ubotter, J., Bongni, S., Hakimi, I., and Krause, A. Effi-
+ciently learning at test-time: Active fine-tuning of LLMs.
+InThe Thirteenth International Conference on Learning
+Representations, 2025. URL https://openreview.
+net/forum?id=NS1G1Uhny3.
+Jiang, S., Wang, Y ., and Wang, Y . Selfevolve: A code
+evolution framework via large language models.arXiv
+preprint arXiv:2306.02907, 2023.
+Kaplan, J., McCandlish, S., Henighan, T., Brown, T. B.,
+Chess, B., Child, R., Gray, S., Radford, A., Wu, J., and
+Amodei, D. Scaling laws for neural language models.
+arXiv preprint arXiv:2001.08361, 2020.
+Lai, H., Liu, X., Gao, J., Cheng, J., Qi, Z., Xu, Y ., Yao, S.,
+Zhang, D., Du, J., Hou, Z., Lv, X., Huang, M., Dong, Y .,
+and Tang, J. A survey of post-training scaling in large
+language models. InProceedings of the 63rd Annual
+Meeting of the Association for Computational Linguistics
+(Volume 1: Long Papers), 2025.
+Lin, M., Chen, Z., Liu, Y ., Zhao, X., Wu, Z., Wang, J.,
+Zhang, X., Wang, S., and Chen, H. Decoding time series
+with llms: A multi-agent framework for cross-domain
+annotation.arXiv preprint arXiv:2410.17462, 2024.
+Lin, M., Wu, Z., Xu, Z., Liu, H., Tang, X., He, Q., Aggarwal,
+C., Zhang, X., and Wang, S. A comprehensive survey
+on reinforcement learning-based agentic search: Founda-
+tions, roles, optimizations, evaluations, and applications.
+arXiv preprint arXiv:2510.16724, 2025.
+Liu, B., Guertler, L., Yu, S., Liu, Z., Qi, P., Balcells, D.,
+Liu, M., Tan, C., Shi, W., Lin, M., et al. Spiral: Self-
+play on zero-sum games incentivizes reasoning via multi-
+agent multi-turn reinforcement learning.arXiv preprint
+arXiv:2506.24119, 2025.
+Luo, Y ., Yang, Z., Meng, F., Li, Y ., Zhou, J., and Zhang, Y .
+An empirical study of catastrophic forgetting in large
+language models during continual fine-tuning.IEEE
+Transactions on Audio, Speech and Language Processing,
+2025.
+OpenAI, A. J., Kalai, A., Lerer, A., Richardson, A., El-
+Kishky, A., Low, A., Helyar, A., Madry, A., Beutel, A.,
+Carney, A., et al. Openai o1 system card.arXiv preprint
+arXiv:2412.16720, 2024.
+Ouyang, S., Yan, J., Hsu, I., Chen, Y ., Jiang, K., Wang,
+Z., Han, R., Le, L. T., Daruki, S., Tang, X., et al. Rea-
+soningbank: Scaling agent self-evolving with reasoning
+memory.arXiv preprint arXiv:2509.25140, 2025.
+Pei, Z., Zhen, H.-L., Kai, S., Pan, S. J., Wang, Y ., Yuan, M.,
+and Yu, B. Scope: Prompt evolution for enhancing agent
+effectiveness.arXiv preprint arXiv:2512.15374, 2025.
+Prasad, A., Hase, P., Zhou, X., and Bansal, M. Grips:
+Gradient-free, edit-based instruction search for prompt-
+ing large language models. InProceedings of the 17th
+Conference of the European Chapter of the Association
+for Computational Linguistics, pp. 3845–3864, 2023.
+Radford, A., Narasimhan, K., Salimans, T., Sutskever, I.,
+et al. Improving language understanding by generative
+pre-training. 2018.
+Schaeffer, R., Kazdan, J., Hughes, J., Juravsky, J., Price,
+S., Lynch, A., Jones, E., Kirk, R., Mirhoseini, A., and
+Koyejo, S. How do large language monkeys get their
+power (laws)? InForty-second International Con-
+ference on Machine Learning, 2025. URL https:
+//openreview.net/forum?id=QqVZ28qems.
+Shi, Y ., Cai, Y ., Cai, S., Xu, Z., Chen, L., Qin, Y ., Zhou,
+Z., Fei, X., Qiu, C., Tan, X., et al. Youtu-agent: Scaling
+agent productivity with automated generation and hybrid
+policy optimization.arXiv preprint arXiv:2512.24615,
+2025.
+Shinn, N., Cassano, F., Gopinath, A., Narasimhan, K., and
+Yao, S. Reflexion: Language agents with verbal rein-
+forcement learning.Advances in Neural Information
+Processing Systems, 36:8634–8652, 2023.
+Singh, A., Fry, A., Perelman, A., Tart, A., Ganesh, A.,
+El-Kishky, A., McLaughlin, A., Low, A., Ostrow, A.,
+Ananthram, A., et al. Openai gpt-5 system card.arXiv
+preprint arXiv:2601.03267, 2025.
+Snell, C. V ., Lee, J., Xu, K., and Kumar, A. Scaling
+LLM test-time compute optimally can be more effective
+than scaling parameters for reasoning. InThe Thirteenth
+International Conference on Learning Representations,
+2025. URL https://openreview.net/forum?
+id=4FWAwZtd2n.
+10
+
+--- PAGE 11 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Su, L., Zhang, Z., Li, G., Chen, Z., Wang, C., Song,
+M., Wang, X., Li, K., Wu, J., Chen, X., et al. Scal-
+ing agents via continual pre-training.arXiv preprint
+arXiv:2509.13310, 2025.
+Touvron, H., Lavril, T., Izacard, G., Martinet, X., Lachaux,
+M.-A., Lacroix, T., Rozi`ere, B., Goyal, N., Hambro, E.,
+Azhar, F., et al. Llama: Open and efficient foundation lan-
+guage models.arXiv preprint arXiv:2302.13971, 2023.
+Trivedi, H., Khot, T., Hartmann, M., Manku, R., Dong, V .,
+Li, E., Gupta, S., Sabharwal, A., and Balasubramanian, N.
+Appworld: A controllable world of apps and people for
+benchmarking interactive coding agents.arXiv preprint
+arXiv:2407.18901, 2024.
+Wang, F., Lin, M., Ma, Y ., Liu, H., He, Q., Tang, X., Tang,
+J., Pei, J., and Wang, S. A survey on small language
+models in the era of large language models: Architecture,
+capabilities, and trustworthiness. InProceedings of the
+31st ACM SIGKDD Conference on Knowledge Discovery
+and Data Mining V . 2, pp. 6173–6183, 2025a.
+Wang, Y ., Chen, Q.-G., Xu, Z., Luo, W., Zhang, K., and
+Zhang, L. Space: Noise contrastive estimation stabilizes
+self-play fine-tuning for large language models.arXiv
+preprint arXiv:2512.07175, 2025b.
+Wang, Y ., Liu, S., Fang, J., and Meng, Z. Evoagentx: An
+automated framework for evolving agentic workflows. In
+Proceedings of the 2025 Conference on Empirical Meth-
+ods in Natural Language Processing: System Demonstra-
+tions, pp. 643–655, 2025c.
+Wang, Z. Z., Mao, J., Fried, D., and Neubig, G. Agent
+workflow memory.arXiv preprint arXiv:2409.07429,
+2024.
+Wei, J., Wang, X., Schuurmans, D., Bosma, M., Xia, F., Chi,
+E., Le, Q. V ., Zhou, D., et al. Chain-of-thought prompting
+elicits reasoning in large language models.Advances in
+neural information processing systems, 35:24824–24837,
+2022.
+Wei, T., Sachdeva, N., Coleman, B., He, Z., Bei, Y ., Ning,
+X., Ai, M., Li, Y ., He, J., Chi, E. H., et al. Evo-memory:
+Benchmarking llm agent test-time learning with self-
+evolving memory.arXiv preprint arXiv:2511.20857,
+2025a.
+Wei, T., Li, T.-W., Liu, Z., Ning, X., Yang, Z., Zou, J., Zeng,
+Z., Qiu, R., Lin, X., Fu, D., et al. Agentic reasoning for
+large language models.arXiv preprint arXiv:2601.12538,
+2026.
+Wei, Y ., Sun, Z., McMilin, E., Gehring, J., Zhang, D., Syn-
+naeve, G., Fried, D., Zhang, L., and Wang, S. Toward
+training superintelligent software agents through self-play
+swe-rl.arXiv preprint arXiv:2512.18552, 2025b.
+Xia, P., Zeng, K., Liu, J., Qin, C., Wu, F., Zhou, Y .,
+Xiong, C., and Yao, H. Agent0: Unleashing self-evolving
+agents from zero data via tool-integrated reasoning.arXiv
+preprint arXiv:2511.16043, 2025.
+Xu, W., Liang, Z., Mei, K., Gao, H., Tan, J., and Zhang, Y .
+A-mem: Agentic memory for llm agents.arXiv preprint
+arXiv:2502.12110, 2025.
+Yin, F., Ye, X., and Durrett, G. Lofit: Localized fine-tuning
+on llm representations.Advances in Neural Information
+Processing Systems, 37:9474–9506, 2024.
+Yuksekgonul, M., Bianchi, F., Boen, J., Liu, S., Huang,
+Z., Guestrin, C., and Zou, J. Textgrad: Automatic” dif-
+ferentiation” via text.arXiv preprint arXiv:2406.07496,
+2024.
+Zhai, Y ., Tao, S., Chen, C., Zou, A., Chen, Z., Fu, Q., Mai,
+S., Yu, L., Deng, J., Cao, Z., et al. Agentevolver: To-
+wards efficient self-evolving agent system.arXiv preprint
+arXiv:2511.10395, 2025.
+Zhang, Q., Hu, C., Upasani, S., Ma, B., Hong, F., Kamanuru,
+V ., Rainton, J., Wu, C., Ji, M., Li, H., et al. Agentic con-
+text engineering: Evolving contexts for self-improving
+language models.arXiv preprint arXiv:2510.04618,
+2025a.
+Zhang, Z., Li, X., Lin, Y ., Liu, H., Chandradevan, R., Wu,
+L., Lin, M., Wang, F., Tang, X., He, Q., et al. Unlocking
+the power of multi-agent llm for reasoning: From lazy
+agents to deliberation.arXiv preprint arXiv:2511.02303,
+2025b.
+Zhou, Y ., Muresanu, A. I., Han, Z., Paster, K., Pitis, S.,
+Chan, H., and Ba, J. Large language models are human-
+level prompt engineers. InThe eleventh international
+conference on learning representations, 2022.
+11
+
+--- PAGE 12 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+A. Related Work: Evolution Paradigms of LLMs
+In this section, we review prior work through the lens of our evolution definition in Eq. 3 and the three orthogonal axes:what
+is updated (parametric weights πθ vs. persistent artifact state πS),whenupdates occur (offline training vs. deployment-time),
+andhowthe update rule FEvolve is realized (fixed heuristics vs. an explicit agentic optimizer). The evolution paradigm is
+outlined in Tab. 2.
+Table 2.Evolution paradigms organized bywhatis updated,whenupdates occur, andhowthe update ruleF Evolve is instantiated.
+Paradigm What is Up-
+dated
+When is Updated HowF Evolve is Realized
+Offline Parametric Evolution πθ Offline (pre-
+deployment)
+Training loop (e.g., self-play / dis-
+tillation)
+Online Parametric Evolution πθ Online (deployment-
+time)
+Online optimization (e.g., gradi-
+ent descent)
+Non-parametric Heuristic
+Evolution
+πS (K) Online (deployment-
+time)
+Fixed heuristic rules
+Agentic Evolution (Ours) πS (K,T,V) Online (deployment-
+time)
+Explicit evolver agent
+A.1. Offline Parametric Evolution
+Self-play fine-tuning from synthetic interactions.A predominant paradigm for enhancing agent capability is to improve
+the parametric backbone πθ offline(Lin et al., 2025; Zhang et al., 2025b) by bootstrapping training signals from the model
+itself. Traditional approaches, such as SPIN (Chen et al., 2024), iteratively refine the policy by contrasting self-generated
+outputs against a target distribution. Recent advances extend this to multi-turn and multi-agent settings: SPIRAL (Liu et al.,
+2025) induces reasoning skills via self-play in structured interaction games, while SPACE (Wang et al., 2025b) stabilizes the
+self-play objective to mitigate training instability. While these methods enlarge pre-deployment capability, they commit
+improvements solely to πθ during training, leaving the agent static and unable to adapt to distribution shifts once deployed.
+Zero-data curriculum generation.To circumvent the reliance on human-curated datasets, recent frameworks construct
+self-generated curricula within the offline loop. R-Zero (Huang et al., 2025) and Agent0 (Xia et al., 2025) instantiate
+co-evolving roles (e.g., a challenger and a solver) to synthesize frontier tasks and tool-use trajectories without external
+data. Similarly, in software engineering domains, SSR (Wei et al., 2025b) trains agents by injecting and repairing bugs in
+sandboxed repositories. Although these methods effectively address the data bottleneck, they remain instances ofoffline
+parametric evolution: adaptation ceases the moment the model is deployed.
+Agentic Continual Pre-training.Beyond fine-tuning, recent works propose injecting agentic capabilities (Brohi et al., 2025;
+Wei et al., 2026) even earlier in the pipeline. AgentFounder (Su et al., 2025) introducesAgentic Continual Pre-training (CPT)
+as an intermediate stage, scaling agentic capabilities via massive offline data synthesis (e.g., First-order and Higher-order
+Action Synthesis) derived from knowledge bases and trajectories. While this approach significantly raises the baseline
+performance of the foundation model, it remains fundamentally an instance ofoffline parametric evolution: the model’s
+adaptability is frozen once the pre-training concludes, leaving it vulnerable to novel environmental shifts during deployment.
+A.2. Online Parametric Evolution
+Test-time fine-tuning.Online parametric evolution attempts to update πθ (or a subspace thereof) during deployment.
+Approaches like SIFT (H ¨ubotter et al., 2025) explore active fine-tuning by selecting informative test-time examples for
+weight updates. To reduce computational overhead, methods such as LoFiT (Yin et al., 2024) localize updates to specific
+internal representations or heads. While enabling continuous adaptation, direct parametric modification introduces significant
+governance challenges, such as catastrophic forgetting (Luo et al., 2025), irreversibility, and instability, making it risky for
+long-horizon deployment.
+Architectures for test-time memorization.A complementary direction blurs the boundary between weights and state by
+updating neural memory modules during streaming inference. Titans (Behrouz et al., 2024) introduces a neural long-term
+memory module for context memorization, while MIRAS (Behrouz et al., 2025) provides a framework for optimizing
+associative memory online. In our taxonomy, these methods still rely onparametricupdates to a learnable module rather
+12
+
+--- PAGE 13 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+than explicit updates to interpretable artifacts, retaining the opacity of weight-based evolution.
+A.3. Heuristic Non-Parametric Evolution
+Experience memory with fixed retrieval.To avoid the risks of weight updates, many systems (Ouyang et al., 2025; Wei
+et al., 2025a; Xu et al., 2025) modify a persistent artifact state πS, typically a memory bank of traces or summaries, using
+fixed heuristics. ReasoningBank (Ouyang et al., 2025) distills strategies into a reusable memory bank via self-judgment.
+However, because the update rule FEvolve is heuristic (e.g., “append and retrieve”), these systems often suffer from context
+saturation and retrieval noise as experience accumulates.
+Prompt and context optimization.Another class of non-parametric methods (Prasad et al., 2023; Fernando et al.,
+2024; Zhou et al., 2022; Lin et al., 2024) treats πS as a set of optimizable prompts. GrIPS (Prasad et al., 2023) and
+Promptbreeder (Fernando et al., 2024) apply discrete search operators (e.g., mutation, crossover) to evolve prompts. More
+recently, Training-Free GRPO (Cai et al., 2025) performs policy optimization in the context space via token priors, and
+TextGrad (Yuksekgonul et al., 2024) applies textual differentiation to optimize components. While effective, these methods
+typically employ a static, pre-specified search algorithm as FEvolve, limiting the system’s ability to strategically diagnose
+failures or plan complex structural updates.
+A.4. Toward Agentic Evolution
+Agent-driven context and prompt engineering.Several works operationalize prompt engineering as an agentic reasoning
+task. ACE (Zhang et al., 2025a) and SCOPE (Pei et al., 2025) treat context management as an online optimization problem,
+employing a modular loop (generate–reflect–curate) to evolve playbooks or guidelines. While these methods move beyond
+heuristic search by using an LLM to reason about updates, they are primarily restricted to thetextual contextmodality,
+optimizing instructions rather than executable code or structural system logic.
+Automated synthesis of tools and memory.Other approaches (Shi et al., 2025; Zhai et al., 2025; Wang et al., 2025c;a)
+focus on synthesizing specific functional components. Youtu-Agent (Shi et al., 2025) and AgentEvolver (Zhai et al.,
+2025) introduce meta-agents capable of generating new tools or training curricula to expand agent capabilities. Similarly,
+A-Mem (Xu et al., 2025) targets the memory modality, employing an agentic controller to dynamically restructure and
+cross-reference memory artifacts rather than passively appending logs. These systems demonstrate the feasibility of
+agent-driven updates for specific artifacts. However, they typically operate as specialized pipelines for a single type of state
+(e.g., only tools or only memory) and often lack a unified mechanism forgoverned diagnosisandverificationacross diverse
+failure modes.
+Positioning of our work.Existing works can be viewed as specific instances of using LLMs to optimize state. Our work
+generalizes these developments into the formal framework ofAgentic Evolution. Unlike prior approaches that focus on
+optimizing a single modality (e.g., promptsortools), we propose a holistic, budget-aware evolver capable of diagnosing
+diverse execution failures and proposing structural edits to a heterogeneous state πS. Crucially, we introduce the principles
+ofgoal orientation,autonomy, andcompositionalityto strictly govern this process, ensuring that agent-driven updates are
+not just flexible, but reliable and scalable enough for deployment.
+B. Additional Details of Experimental Setup
+B.1. Dataset Details
+In this paper, we focus on AppWorld, a controllable environment and benchmark designed for interactive coding agents.
+It simulates a world of 9 day-to-day applications (e.g., Amazon, Spotify, Venmo, Gmail) and 2 helper apps (ApiDocs,
+Supervisor) through 457 APIs. The environment is populated with the digital activities of approximately 100 fictitious users,
+simulating realistic lives and relationships (e.g., family, roommates) to support complex interaction scenarios.
+The AppWorld framework consists of two primary components:
+• AppWorld engine:This is a high-quality execution environment. It provides a fully controllable and reproducible
+simulator where agents can operate apps via APIs without real-world consequences, such as spending actual money or
+spamming emails. The engine allows agents to execute rich Python code, including loops and conditionals, to interact
+with the environment iteratively.
+13
+
+--- PAGE 14 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+• AppWorld benchmark:A suite of 750 diverse and challenging tasks derived from 250 task scenarios. These tasks
+require agents to navigate multiple apps (average1.8 apps per task) and utilize up to 26 APIs (avg. 9.5) with dependencies
+between calls (i.e., outputs of calls used as inputs to subsequent calls). The dataset is split into “normal” (test-normal)
+and “challenge” (test-challenge) sets, where the challenge set requires agents to utilize APIs from apps seen only
+during test time.
+B.2. Implementation Details of Agentic Evolution
+In this subsection, we provide granular details on the architecture, artifact representation, and inference configuration of
+A-Evolve.
+Architecture of the evolver agent.The Evolver is implemented as a sequential pipeline with four specialized components:
+Observer, Proposer, Updater, and Verifier. Unlike role-based prompting, each component is instantiated as a distinct module
+with dedicated logic and persistence.
+• Diagnoser:Receives the full interaction trace Obs1:t from the Solver, including the user instruction, tool calls,
+stdout/stderr, and the final error. Its objective isfailure attribution: distinguishing between stochastic environment noise
+and epistemic gaps in the agent’s policy. We employ a cross-episode aggregation strategy over batched observations
+(window size W= 10 ) to perform root cause analysis, filtering out transient errors to focus on persistent capability
+deficits.
+• Planner:Conditioned on the diagnosis, the planner is responsible for synthesizing a struc-
+tural update δ. We constrain the planner’s action space to a strict schema of operations A=
+{CREATETOOL,EVOLVETOOL,ADDKNOWLEDGE,EVOLVEKNOWLEDGE, . . .} . This structured output forces the
+model to map abstract failure modes into concrete, semantically meaningful artifact definitions rather than unstructured
+text, significantly reducing the search space for improvements.
+• Updater:The updater acts as the deterministic execution engine. It holds write access to theArtifact Registry(a
+version-controlled file system) and translates the Planner’s high-level intent into atomic file operations. It enforces
+strict separation of concerns, ensuring that tools (Python modules), skills (procedural knowledge), and facts (JSON
+knowledge base) are stored in their respective canonical formats.
+• Verifier:Responsible for governance. In our case, it validates syntactic correctness of generated code (Python
+AST parsing for tools), schema compliance (Y AML frontmatter for skills), and runtime safety (isolated execution in
+ToolWorkspace). Only proposals passing validation are committed to the workspace and reflected in the agent’s
+system prompt via on-policy state injection.
+Hyperparameters and Model Configuration.Unless otherwise specified, we use Claude Sonnet 4.5 (Anthropic, 2025b) as
+the evolver backbone, and evaluate solvers ranging from Claude Haiku 4.5 (Anthropic, 2025a) and Claude Sonnet 4/4.5 to
+GPT-5 (Singh et al., 2025) and Gemini 3 Flash (Google, 2025). For generation hyperparameters, we use a temperature of0.7
+for both the evolver and solver. The maximum output token limits are set to 8,192 for the evolver and 4,096 for the solver.
+B.3. Evaluation Metrics
+To ensure the robustness of our evaluation, following prior work (Trivedi et al., 2024; Cao et al., 2025), we report two
+complementary metrics based on the concept of atask score.
+For each taski, we define its scores i ∈[0,1]as the fraction of passed unit tests:
+si = passed testsi
+total testsi
+.(12)
+Based on this score, we define:
+• Average Passed Tests (APT):This metric captures the granular, incremental progress of the agent. It is simply the
+average score across all evaluation tasks:
+APT= 1
+N
+NX
+i=1
+si.(13)
+14
+
+--- PAGE 15 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+APT is particularly valuable for measuring evolution, as it reflects improvements in capability (e.g., si increasing from 0.2
+to 0.8) even when the full task is not yet perfectly solved.
+• Task Goal Completion (TGC):This metric represents the strict success rate. A task is considered successfully completed
+if and only if it achieves a perfect score (i.e., all verification conditions are met). TGC is defined as:
+TGC= 1
+N
+NX
+i=1
+I(si = 1),(14)
+whereNis the total number of tasks andI(·)is the indicator function.
+C. More details of Experimental Results
+C.1. Case Studies of Effectiveness of Agentic Evolution in Sec. 5.2
+To provide qualitative evidence for the effectiveness trends in Tab. 1, we analyze representative failure and success patterns
+from A-Evolve and AWM. Both methods use the same training and test sets (50 tasks each) with Claude Haiku 4.5 as the
+solver.
+Observation 1: failure recovery mechanisms.A key distinction is how each method handles errors mid-trajectory:
+• A WM (Passive):When the solver encounters an API error (e.g., 401 Unauthorized ), it has no mechanism to update
+its workflow in-place. The error propagates, and the solver must re-explore from scratch—often repeating the same
+mistake. In task“What is the title of the most-liked song in my Spotify playlists”, the agent cycles through 30 identical
+failed attempts without adaptation.
+• A-Evolve (Active):After observing repeated 401 errors across a batch, the evolver creates amanage auth token tool
+that automatically caches and injects access tokens. The diagnosis explicitly identifies: “The trajectory shows repeated
+401 errors because the agent forgets to pass ‘accesstoken’ after login.” This structural insight is encoded as a verified
+tool, enabling one-shot authentication in subsequent tasks.
+Observation 2: context saturation.We compare the learned artifacts after 50 training tasks:
+• AWM produces a single monolithic workflow file that grows linearly with training. This file contains concatenated
+trajectory fragments with task-specific details (e.g., hardcoded credentials, specific note IDs) that do not generalize. When
+retrieved, these fragments often mislead the solver with irrelevant context.
+• A-Evolve produces 16 modular skills (e.g., systematic api exploration, detect execution stall), 4
+verified tools (e.g., authenticate app), and 4 knowledge entries (e.g., appworld authentication). Each
+artifact issemantically indexedby trigger conditions andverifiedbefore commitment.
+Observation 3: trajectory comparison.For task“Reply to Christopher with movie recommendations from SimpleNote”,
+we compare solve-time behavior:
+AWM Agent (Score: 0.88, 29 steps):
+• Steps 1-6: Explores API documentation (redundant with workflow)
+• Steps 7-11: Fails 401 on SimpleNote, re-explores
+• Steps 12-23: Successful login and note retrieval after trial-and-error
+• Steps 24-28: Finds contact, sends message
+• Step 29: Completes task
+A-Evolved Agent (Score: 1.0, 8 steps):
+15
+
+--- PAGE 16 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+• Step 1: Invokesanalyze task requirements()to parse goal
+• Step 2: Retrievesauthentication tool usage patternskill
+• Steps 3-4: Authenticates SimpleNote and Phone with cached token procedure
+• Steps 5-6: Retrieves note, extracts movies
+• Step 7: Sends message to Christopher
+• Step 8: Completes task
+The A-Evolved agent is 3.6× more efficient (8 vs. 29 steps) because itamortizesauthentication and goal-parsing into
+reusable procedures that execute deterministically, rather than re-exploring on each task.
+Takeaway.The case studies reveal a fundamental asymmetry: AWM captureswhatthe agent did (raw trajectories), while
+A-Evolve captureswhyfailures occurred andhowto prevent them (verified tools, diagnostic knowledge). This explains
+the consistent TGC and APT gaps in Tab. 1: agentic evolution converts deployment feedback into persistent, governed
+capabilities that static workflow retrieval cannot match.
+C.2. Analysis of Feasibility of Agentic Evolution in Sec. 5.3
+Qualitative analysis.We analyze evolution traces and observe distinct failure modes for each ablation.
+• Diagnosisis critical for depth: without it (A-Evolve/D), the agent actsblindly, forced to infer updates directly fromraw
+trajectorieswithout root-cause reasoning. Consequently, it resorts tosuperficial patching(e.g., masking a crash with
+‘try-except‘ rather than fixing the incorrect parser logic).
+• Analysis Toolsenablepattern discovery: without them (A-Evolve/A), the agent relies on pure LLM inference over single
+trajectories, capturing onlysuperficial symptoms(e.g., fixing a one-off error message). In contrast, analysis tools allow
+the evolver to aggregateunderlying statistical patternsacross episodes (e.g., clustering recurring failure modes), thereby
+distinguishing systematic deficits from transient noise.
+• Planningensures coherence: without it (A-Evolve/P), the agent lacks the mechanism to manage inter-dependencies
+between artifacts, leading to disjointed updates (e.g., modifying a tool’s signature inT without updating its usage schema
+inK, causing subsequent execution failures).
+• Finally,Verificationacts as the stabilizer: without it (A-Evolve/V), the system blindly commitsdefective artifacts(e.g.,
+tools withsyntax errors). Thispollutes the context, causing the solver to waste inference budget on broken calls, and
+introduces regressions that degrade established capabilities.
+Case Studies.We provide several representative case studies to better support our analysis:
+Case 1: verification prevents defective artifacts (A-Evolve/V).When considering task“What is the title of the most-played
+song in my Spotify album library”, the evolver created a discover apis tool without verification. On the solver’s first
+invocation:
+discover apis: ’success’: False, ’error’: ”module ’appworld’ has no attribute ’listapis’”
+The solver wasted a step before falling back to manual exploration. This pattern repeated:2 broken tools committedacross
+evolution, causing runtime errors that degraded solver efficiency by∼15% compared to full A-Evolve.
+Case 2: planning enables implementable fixes (A-Evolve/P).The planning stage translates high-level diagnostic insights
+intocoordinated action sequences. Consider a task in full A-Evolve: the diagnosis identifies “agent wastes steps on 401
+authentication errors.” ThePlangenerates 4 interdependent actions:
+•CREATE TOOL:discover api spec(API discovery)
+•CREATE TOOL:manage auth token(token storage)
+16
+
+--- PAGE 17 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+•ADD SKILL:systematic api exploration(usage pattern)
+•ADD SKILL:authentication workflow(login procedure)
+Crucially, item (3) relies on item (1): the skill systematic api exploration explicitly instructs the solver to invoke
+the newly created discover api spec tool.Without planning, this dependency graph is lost.In the A-Evolve/P
+ablation, although the diagnosis produced similar insights, the immediate generation step failed to sequence the creation
+process. It attempted to define the skill before the tool existed or hallucinated a tool signature, resulting in validation failures.
+Consequently, while A-Evolve/P accumulated some loose textual knowledge, it successfully synthesized 0 executable tools
+and 0 structured skills, failing to implement coherent, multi-artifact solutions.
+Case 3: diagnosis enables root-cause analysis (A-Evolve/D).Without diagnosis, the evolver observed the same errors but
+lacked structured analysis. With full A-Evolve, the diagnosis identified:
+“Agent uses wrong parameter names (e.g., ‘email’ instead of ‘username’) causing 422 errors. The agent doesn’t consistently
+check API documentation before calling APIs. ”
+This insight led to thesystematic api explorationskill, reducing 422 errors from 8 per trajectory to<1.
+Case 4: analysis tools enable pattern discovery (A-Evolve/A).Without analysis tools, the evolver relied on LLM inference
+over single trajectories. With analysis tools, grep observations revealed that 401 errors occurred in18/20 training
+tasks, enabling the evolver to prioritizeauthentication workflowover superficial one-off fixes.
+Takeaway.Reliable agentic evolution is anirreducible loop: diagnosis and analysis enable targeted updates, planning
+enables implementable multi-step fixes, and verification contributes most for stable accumulation over long horizons.
+C.3. Case Studies of Impact of Evolver Size
+To provide qualitative evidence for the scaling trends in Fig. 4(b), we analyze how evolvers of different capacities respond
+to identical failure patterns. We run A-Evolve on the same 50-task training set with identical configurations, varying only
+the evolver backbone: Claude Sonnet 4.5 vs. Claude Haiku 4.5. The solver remains fixed as Claude Haiku 4.5 in both
+conditions.
+Observation 1: diagnosis depth and artifact quality.We observe stark qualitative differences in how evolvers diagnose
+failures and synthesize artifacts. Consider a recurring failure pattern: the solver successfully authenticates and retrieves
+playlists but fails to find the “most-liked song” due to incorrect interpretation of thelike count field versuspopularity
+score.
+• Sonnet 4.5 Evolver:The diagnosis identifies thestructuralroot cause: “The agent’s technical execution is flawless ( 40%
+score suggests partial credit for correct workflow), but it’s missing the actual task requirements. The trajectory shows it
+reads ‘What is the title of... ’ but does not extract the semantic meaning.” The evolver proposes a multi-artifact update:
+–EVOLVE TOOL: Updates analyze task requirements to parse task descriptions and extract expected output
+formats
+–ADD SKILL: Creates pre submission verification to validate answers against task requirements before
+callingtask complete()
+–ADD SKILL: Creates detect execution stall to recognize when the agent is not progressing toward the
+goal
+• Haiku 4.5 Evolver:The diagnosis is shallower: “The agent failed because it did not call the correct API. Fix by adding a
+tactical patch.” The evolver proposes:
+1.EVOLVE TOOL: Attempts to createapi interaction engineto wrap all API calls
+In addition, the tool fails verification after 3 repair attempts due to missing parameter validation. The structural tool is
+rejected, leaving only shallow behavioral textual patches.
+17
+
+--- PAGE 18 ---
+Position: Agentic Evolution is the Path to Evolving LLMs
+Table 3.Verification outcomes across 50-task training runs. Larger evolvers produce artifacts that pass verification at significantly higher
+rates.
+Evolver Proposals Tools Committed Verification Failures
+Sonnet 4.5 21 4 2 (repaired successfully)
+Haiku 4.5 25 1 8 (3+ repair attempts each)
+Observation 2: verification failure rates.We quantify the difference in artifact quality by examining verification outcomes:
+The Haiku evolver emits 4× more verification failures despite generating fewer total proposals. Qualitative inspection
+reveals that Haiku-generated tools often have subtle bugs: missing required parameters, incorrect function signatures, or
+hallucinated API endpoints.
+Observation 3: cascading effects on solver behavior.The quality gap compounds over training. With Sonnet-evolved
+artifacts, the solver learns to:
+• Callanalyze task requirements()before execution to parse the goal
+• Invoke evolved authentication tools that correctly manage access tokens
+• Applypre submission verificationto catch answer-format mismatches
+However, with Haiku-evolved artifacts, the solver exhibitsregression: it attempts to use the partially-broken
+api interaction engine tool, which fails silently or returns errors. The solver then falls back, losing any effi-
+ciency gains from tool use.
+Observation 4: trajectory comparison.For task “venmo payment request based on SimpleNote records”, we compare
+solver behavior:
+• Sonnet-evolved solver:Invokes analyze task requirements() on first turn, retrieves relevant skills, and com-
+pletes the task in 8 steps with no errors.
+• Haiku-evolved solver:Fail to call tools, it then attempts 14 exploratory API calls before arriving at the correct workflow.
+Despite executing the business logic correctly (e.g., creating 4 payment requests), it fails to call task complete(), a
+failure mode that triggered repeated but unsuccessful evolution attempts.
+Takeaway.Larger evolvers produce higher-quality diagnoses that identifystructuralcapability gaps rather than surface-level
+symptoms. This translates into more robust artifact synthesis: tools that pass verification, skills that encode generalizable
+procedures, and knowledge that captures system invariants. The verification stage acts as a quality filter, but cannot rescue
+fundamentally flawed proposals—hence the importance of evolver capacity in convertingC evolve into durable capability.
+18

@@ -1,0 +1,26 @@
+{
+  "tool": "run_command",
+  "exit_code": 0,
+  "duration_sec": 0.06289412500336766,
+  "cwd": "/home/azureuser/aether2_full_tournament/l1_targeted_20260615T142411Z/20260615T150017Z/video-processing/workspace",
+  "stdout": "import sys\nimport cv2\nimport numpy as np\n\n\ndef analyze(video_path):\n    cap = cv2.VideoCapture(video_path)\n    if not cap.isOpened():\n        raise RuntimeError(f'Cannot open video: {video_path}')\n\n    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))\n    ok, first = cap.read()\n    if not ok:\n        raise RuntimeError('Cannot read first frame')\n\n    h, w = first.shape[:2]\n    prev_gray = cv2.cvtColor(first, cv2.COLOR_BGR2GRAY)\n\n    x1, x2 = int(w * 0.15), int(w * 0.90)\n    y1, y2 = int(h * 0.20), int(h * 0.95)\n\n    motion = [0.0]\n    centroid_y = [np.nan]\n\n    for _ in range(1, frame_count):\n        ok, frame = cap.read()\n        if not ok:\n            break\n        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)\n        diff = cv2.absdiff(gray, prev_gray)\n        roi = diff[y1:y2, x1:x2]\n        motion.append(float(np.mean(roi)))\n\n        fg = roi > 18\n        if np.any(fg):\n            ys = np.where(fg)[0]\n            centroid_y.append(float(np.mean(ys) + y1))\n        else:\n            centroid_y.append(np.nan)\n\n        prev_gray = gray\n\n    cap.release()\n\n    m = np.array(motion, dtype=float)\n    y = np.array(centroid_y, dtype=float)\n\n    kernel = np.array([1, 2, 3, 2, 1], dtype=float)\n    kernel /= kernel.sum()\n    ms = np.convolve(m, kernel, mode='same')\n\n    baseline = float(np.median(ms[:max(5, len(ms)//5)]))\n    spread = float(np.std(ms[:max(5, len(ms)//5)]) + 1e-6)\n    takeoff_candidates = np.where(ms > baseline + 2.5 * spread)[0]\n    if len(takeoff_candidates) == 0:\n        takeoff = int(np.argmax(ms))\n    else:\n        takeoff = int(takeoff_candidates[0])\n\n    search_start = min(len(ms) - 1, takeoff + 5)\n    post = ms[search_start:]\n    if len(post) == 0:\n        land = takeoff\n    else:\n        post_base = float(np.median(post[:max(5, len(post)//4)]))\n        post_spread = float(np.std(post[:max(5, len(post)//4)]) + 1e-6)\n        motion_thresh = post_base + 0.8 * post_spread\n        land = None\n        for i in range(search_start, len(ms) - 2):\n            if ms[i] <= motion_thresh and ms[i + 1] <= motion_thresh:\n                window = y[max(0, i - 3):min(len(y), i + 4)]\n                if np.isfinite(window).any():\n                    if np.nanmedian(window) > np.nanmedian(y[max(0, takeoff - 3):takeoff + 1]) + 5:\n                        land = i\n                        break\n        if land is None:\n            peak = takeoff + int(np.argmax(ms[takeoff:]))\n            for i in range(peak + 1, len(ms) - 1):\n                if ms[i] < motion_thresh and ms[i + 1] < motion_thresh:\n                    land = i\n                    break\n            if land is None:\n                land = int(np.argmax(ms[takeoff:]) + takeoff)\n\n    return takeoff, land\n\n\ndef write_toml(path, takeoff, land):\n    with open(path, 'w', encoding='utf-8') as f:\n        f.write(f'jump_takeoff_frame_number = [{int(takeoff)}]\\n')\n        f.write(f'jump_land_frame_number = [{int(land)}]\\n')\n\n\ndef main():\n    if len(sys.argv) != 2:\n        raise SystemExit('Usage: python3 jump_analyzer.py <input_video.mp4>')\n    takeoff, land = analyze(sys.argv[1])\n    write_toml('/app/output.toml', takeoff, land)\n\n\nif __name__ == '__main__':\n    main()\n\n--- output.toml ---\njump_takeoff_frame_number = [5]\njump_land_frame_number = [11]\n",
+  "stderr": "",
+  "files_changed": [],
+  "process_delta": {
+    "started": [],
+    "exited": [],
+    "log_growth": {},
+    "jobs_started": [],
+    "jobs_exited": [],
+    "sessions_started": [],
+    "sessions_exited": [],
+    "services_started": [],
+    "services_exited": [],
+    "job_log_growth": {},
+    "session_log_growth": {},
+    "service_log_growth": {}
+  },
+  "blind_retry_blocked": false,
+  "error": null,
+  "truncation_digest": null
+}

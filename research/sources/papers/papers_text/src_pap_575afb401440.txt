@@ -1,0 +1,286 @@
+--- PAGE 1 ---
+A Small-Scale System for Autoregressive
+Program Synthesis Enabling Controlled
+Experimentation
+Russ Webb∗,Jason Ramapuram
+Apple
+What research can be pursued with small models trained to complete true programs?Typically, researchers study pro-
+gram synthesis via large language models (LLMs) which introduce issues such as knowing what is in or out of distribution,
+understanding fine-tuning effects, understanding the effects of tokenization, and higher demand on compute and storage
+to carry out experiments. We present a system called Cadmus which includes an integer virtual machine (VM), a dataset
+composed of true programs of diverse tasks, and an autoregressive transformer model that is trained for under $200
+of compute cost. The system can be used to study program completion, out-of-distribution representations, inductive
+reasoning, and instruction following in a setting where researchers have effective and affordable fine-grained control of
+the training distribution and the ability to inspect and instrument models. Smaller models working on complex reasoning
+tasks enable instrumentation and investigations that may be prohibitively expensive on larger models. To demonstrate
+that these tasks are complex enough to be of interest, we show that these Cadmus models outperform GPT-5 (by achiev-
+ing 100% accuracy while GPT-5 has 95% accuracy) even on a simple task of completing correct, integer arithmetic pro-
+grams in our domain-specific language (DSL) while providing transparency into the dataset’s relationship to the problem.
+We also show that GPT-5 brings unknown priors into its reasoning process when solving the same tasks, demonstrating
+a confounding factor that prevents the use of large-scale LLMs for some investigations where the training set relationship
+to the task needs to be fully understood.
+Correspondence:Russ Webb: rwebb@apple.com; Jason Ramapuram (Work done while at Apple.): jason@ramapuram.net
+Date:February 11, 2026
+1 Introduction and Related Work
+The system presented here is called Cadmus1. Although Cadmus is capable of sequence labeling, subroutine
+use, vector operations, processing decorated integers, and algorithm induction tasks, the results presented
+here focus on a subset of Cadmus VM instructions: literal values, basic integer math operations, integer
+comparisons, and program termination.
+Many investigations, models, and simple math benchmarks [11] in the literature overlap this work, from work
+on inductive program synthesis [2, 3] to reasoning from examples to solve more examples in [4]. Some of the
+key goals in this work are 1) avoiding natural language training, 2) utilizing verifiable true programs (those
+that evaluate to true), 3) constructing a VM such that ANY sequence of instructions produces a fixed number
+of output values and no errors halt the execution of programs, 4) avoiding infinite loops by limiting recursion
+depth, 5) implementing sequence labeling and inductive program synthesis as a by-product of training on true
+programs, 6) ensuring program structure is suitable for multi-task causal language modeling, and 7) avoiding
+tokenization complexities by having a one-to-one, fixed tokenization for all VM instructions. Notably, Nova
+1The name is inspired by the inductive logic card game Eleusis [1], invented by Robert Abbott. The mythohistorical
+connections between Eleusis and Cadmus are complex, though some claim Cadmus supplanted the family of Eleusis, others
+claim there was a familial relation. Cadmus is typically credited with the founding of Thebes and the introduction of the
+Phoenician alphabet to the Greeks.
+1
+arXiv:2602.09112v1  [cs.AI]  9 Feb 2026
+
+--- PAGE 2 ---
+[6] and ALMOND [5] present models trained on auto-regressive low-level instructions. Similar to [15], we
+train and test on sampled programs from a domain specific language (DSL), however unlike the TIIPS which
+trains on a string manipulation DSL, Cadmus is trained via sampling from a post-fix, concatenative, integer
+computation and sequence labeling domain. The major differences in approaches are highlighted in Table 1.
+A key question for any model training is what data to train on. Most auto-regressive models for program
+synthesis are trained on a selection of syntactically correct programs, or those that are deemed to be typical.
+In this work, the model is trained on true-programs, which are those that produce one or more true values.
+All Cadmus VM instructions are non-variadic and there are two false values: zero and not-a-number (NAN).
+Instructions that receive NAN as an input produce NAN for all outputs. In this way, any sequence of
+instructions is an executable program that is either a true-program or a false-program (one that produces
+no values or some false values). Under this approach, the model is trained via next token prediction to
+approximate the distribution of true-programs. Cadmus programs are shown as a sequence of single character
+mnemonic instructions insquare bracketsand are terminated by ‘.’. Given the postfix VM instructions
+in Table 2, the program[34+7=.](i.e.3 + 4 = 7) is true while[34+8=.](i.e.3 + 4 = 8) is false. Note
+that false-programs can be negated into true-programs if they produce false rather than NAN, for example
+[34+8=!.](i.e.3 + 4̸= 8) is a true-program.
+The model presented here is trained on randomly sampled true-programs from multiple templates, which
+are designed to enable the model to progressively learn the characteristics of true-programs. The dataset
+composition with respect to these templated sub-sets of programs are listed in Table 3 with pseudo-code since
+only a subset of the Cadmus instructions are detailed here due to space constraints. The current Cadmus
+model, Cadmus-280M-80M-v1 (indicating the number of parameters, 280M, and the number of samples in the
+training set, 80M), is an 18 layer decoder-only transformer with the following configuration: 65 vocabulary
+size (the number of VM instructions), 1280 embedding dimension, 20 heads, 3600 MLP hidden size, GELU
+activation. Training used Adam (lr=1e-4 cosine schedule and betas: [0.9, 0.95]) for 300k steps with batch
+size 1024 on eight H100s.
+Table 1Comparison of works on transformers and related models trained on assembly code or short equation/algo-
+rithmic tasks. The table lists the following:(T rans.)the type of transformer used: E=encoder and D=decoder ,
+(Exec)if the model can execute programs,(V als)types of values operated on L=list, I=integer, F=float, S=string,
+T=tokens, ASM=assembly string,(DSL)if the model learns a fixed, low level DSL,(NL)if the model is also trained
+on natural language,(ProgSyn)if the model does program synthesis,(Induction)if the model can inductively
+determine programs from examples,(Label Seq)if sequence labeling is a focus of the model,(T|F)if the model is
+designed to label program as true or false.
+W ork Trans. Exec Vals DSL NL ProgSyn Induction Label Seq T|F
+Cadmus (this work) →D ✓ IS ✓ ✓ ✓ ✓ ✓
+TIIPS (2025) [15] E→D ✓ LIS ✓ ✓ ✓
+ALMOND (2025) [5] →D ASM ✓
+Nova (2025) [6] →D ASM ✓ ✓
+Tracr (2023) [12] →D ✓ T RASP ✓ ✓
+Exedec (2023) [16] E→D ✓ LIS ✓ ✓ ✓
+Looped Transformer (2023) [14] →D ✓ IT ✓ ✓ ✓
+Math Reasoning (2019) [10] E→D,→D IF ✓ ✓
+NALU (2018) [9] ✓ IF
+Neural GPUs (2016) [8] ✓ I ✓
+Learning to Execute (2014) [7] ✓ I ✓ ✓
+2 Experimental Results
+These sections are intended to provide a sampling of the types of experiments that are possible using the
+Cadmus system to configure training, testing, and instrumentation in a knowable, verified setting. Many more
+experiments remain to be done including those aimed at program understanding and inductive reasoning
+from examples. The model used here is the 280M parameter model detailed in the introduction; the model
+is trained on the data mixture in Table 3.
+2
+
+--- PAGE 3 ---
+Table 2The subset of VM instructions used for the number comparison tasks are shown with their stack effect and
+the alternate (Alt) form used to test for robust LLM responses.
+Instruction Stack Effect Alt. Form Instruction Stack Effect Alt. Form
+0 (→0) - + (a b→a+b) *
+1 (→1) [ - (a b→a-b) /
+2 (→2) _ * (a b→a*b) %
+3 (→3) + / (a b→a//b) )
+4 (→4) ! % (a b→a%b) }
+5 (→5) # x (a b→max(a, b)) L
+6 (→6) 9 n (a b→min(a, b)) b
+7 (→7) 1 < (a b→1 if a<b else 0) ?
+8 (→8) 7 > (a b→1 if a>b else 0) $
+9 (→9) ˆ = (a b→1 if a==b else 0) ˜
+. (→) . ! (a→0 if a else 1) &
+Table 3Sub-problems sampled from random templates make up the Cadmus training set. Only the first four sub-
+problem types are presented in this work, though the model is trained with the all true-programs indicated in the
+table. Programs shown insquare bracketsare the actual programs that Cadmus processes; in simple cases the
+pseudo-code is given as well. The validation accuracy of the model on 2k samples from each sub-problem is also
+provided. Accuracies below 1.0 on more complex, compositional tasks highlight remaining challenges in program
+generalization.
+Name V al.
+Acc. Description Samples Examples
+basic
+math 1.0 simple
+math calculations 10M 1 + 2>0
+[12+0>]
+equality 1.0 numerical
+equality 10M 9∗(4−1) = 5∗5 + 2
+[941-*55*2+=]
+< > 1.0 greater than
+and less than 10M 9∗(4−1)>5∗5 + 1
+sub-
+routines 1.0 calling
+subroutines 10M f(x) =x∗(4−1);f(9)<5∗5 + 1
+f(9) = 5∗5 + 2;f(x) =x∗(4−1);
+random 0.92 random true-programs 200k [8Bt-Z?Ex+’] [u2;&c$;b]
+basic
+sequences 1.0 simple
+sequence operations 10M x=(1,2,3); x[0]==1;
+advanced
+sequences 1.0 complex
+sequence operations 5M x=(1,2,3); len(select(x>1))==2;
+apply
+labels 1.0 label a sequence 10M f(x)=len(x)>1; x=(1,2,3); f(x);
+complete
+algorithm 0.96
+give examples
+inductively synthesize
+a program
+15M
+f((1,2,3))=1; f((2,3))=0;
+f((7,))=0; f((1,2,3,4))=1;
+f(x)=len(x)>2;
+2.1 Comparing Different Program Producing the Same Values
+Experimental results are presented to illustrate Cadmus and the value of small-scale, controlled, and verifiable
+experiments. In Figure 2, programs which compute two numbers and compare them are tested using the
+Cadmus model and GPT-5 [17]. For the Cadmus model, theargmaxof the next token is used to predict the
+correct number comparison. The dashed square is the in-distribution range in the Cadmus training set, for
+which the Cadmus model is shown to out-perform GPT-5 instructed to complete the same programs (the full
+3
+
+--- PAGE 4 ---
+LLM instructions are found in the appendix; also note that GPT-5 is run in batch mode where the output
+tokens gate reasoning, see Figure 3). Interestingly, redefining the symbols for the Cadmus instructions to
+be unrelated and in some cases intentionally confusing (for instance ‘9’ pushing 6 onto the stack), effectively
+breaks all the GPT-5 models even though the updated instructions specify what each symbol means. This
+change shows that GPT-5 is utilizing some learned bias about what symbols mean to accurately model the
+VM. These types of uncontrollable factors influence experimental outcomes and prevent a full understanding
+of an LLM’s reasoning capabilities. Further work on open models is needed to understand LLM performance
+on such queries. The diagonal line averaging 46% accuracy Cadmus 280M AR results are for out-of-training-
+distribution values and indicate that the generalized representations are not precise enough for equality
+comparisons when the model has never seen the values in training; again, this is an interesting area for
+further investigation.
+100%50%0%
+Accuracy
+Cadmus 280M AR
+Alternate Form
+Standard Formgpt-5, Accuracy 0.95
+gpt-5, Accuracy 0.49
+gpt-5-mini, Accuracy 0.82gpt-5-nano, Accuracy 0.43
+gpt-5-nano, Accuracy 0.49gpt-5-nano, Accuracy 0.49
+X
+Y
+X
+Y
+YY
+X
+X
+X
+X
+YY
+Figure 1The accuracy of predicting the correct comparison X and Y values is shown for in and out of distribution for
+the Cadmus-280M-80M-v1 model. The domain in-distribution for Cadmus-280M-80M-v1 is shown for GPT-5 models
+when given the instructions shown the Appendix A and 2k output tokens. When provided with correct instruction
+describing the instructions in the alternate form, the GPT models are not able to provide useful responses using
+2k output tokens (details in Appendix Figure 3). In all cases, the accuracies reported are obtained by testing 10
+validation programs per pixel (i.e. for each X,Y value pair).
+2.2 Building Representations of Computed Values
+A result of investigating how the Cadmus model builds numerical representations is shown in Figure 1. Lo-
+gistic regression on the final transformer layer’s representation closely approximates the accuracy of guessing
+the most common result from the dataset. The numerical comparison dataset is drawn from the set of all
+possible five instruction programs to compute a single value, and because the model is trained on a larger
+set of programs its accuracy is not strictly governed by the optimal guess. Interestingly there is a decrease
+in the accuracy while the second number is calculated and a recovery of accuracy when both numbers have
+been computed at step 10. Possibly the representation is less separable as the second value is calculated. Fi-
+nally, after the comparison operation at step 11 the two numbers are still represented (with a slight accuracy
+decrease) even though both numbers have been erased from the VM. This retention of information deserves
+further investigation and may be due to either there being no need to instantly forget the numbers, or the
+past computation (and hence values) still having some predictive power within the training distribution of
+programs.
+4
+
+--- PAGE 5 ---
+Figure 2The accuracies of logistic regression prediction of the two numbers computed during the number comparison
+task from the final transformer block representations at each token is shown. Tokens 1–5 are computing the first
+number (blue), while the 6–10 tokens compute the second number; finally, token 11 is the comparison instruction.
+The dashed lines show the accuracy obtained by guessing the majority answer in the dataset given the number of
+instructions seen.
+2.3 Accuracy vs. Maximum Output Tokens
+Here we look at how the accuracy changes versus maximum output tokens. Figure 3 shows that GPT-5 uses
+fewer tokens in solving the standard Cadmus programs than the ones presented in the alternate form that
+is not aligned with typical expectations (see Alt. Form in Table 2). These additional tokens needed for the
+LLM to solve the task2 are evidence that the priors absorbed in training by LLM are a confounding factor
+in understanding how models approximate or implement reasoning. Several observations are worth noting:
+1) the alternate form of programs is not solved by increasing token count, 2) a minimum token count is
+needed to solve the normal program encoding, and 3) gpt-5-mini does not improve with higher token counts
+indicating that is may be more reliant on learned instruction biases for effective reasoning. For each data
+point, 1681 programs are tested (one for each X,Y value in the inclusive range [-20, 20].
+Figure 3The accuracy of predicting the correct comparison X and Y values is shown while varying the maximum
+output tokens (the Cadmus model produces an answer for each sample via predicting the next token).
+2The final accuracy is less than that of the standard Cadmus program form.
+5
+
+--- PAGE 6 ---
+3 Conclusion
+The framework for Cadmus will be released and includes the VM verifier, templates for random program
+sampling, full 65 instruction set specification, examples of sequence labeling and program induction, current
+model, and full training and dataset code. It is hoped that these facilities will encourage investigations, even
+with limited resources, into topics such as curriculums, discrete diffusion, numerical representations, inductive
+reasoning, and out-of-distribution generalization.
+4 Acknowledgements
+Thanks to many great, insightful collaborators for discussions and review, including Dan Busbridge, Eeshan
+Gunesh Dhekane, Amitis Shidani, Barry Theobald, Samy Bengio, Omid Saremi, Vimal Thilak, and Jerremy
+Holland, all of whom make research more engaging and productive.
+References
+[1] Robert Abbott (1956), published in Martin Gardner’s column in the Scientific American in June 1959.
+[2] Maxwell Nye, Luke Hewitt, Joshua Tenenbaum, and Armando Solar-Lezama. Learning to infer program sketches.
+In International Conference on Machine Learning, pages 4861-4870. PMLR, 2019.
+[3] KevinEllis, CatherineWong, MaxwellNye, MathiasSablé-Meyer, LucasMorales, LukeHewitt, Luc Cary, Armando
+Solar-Lezama, and Joshua B Tenenbaum. Dreamcoder: Bootstrapping inductive program synthesis with wake-
+sleep library learning. In Proceedings of the 42nd ACM SIGPLAN International Conference on Programming
+Language Design and Implementation, pages 835-850, 2021.
+[4] Francois Chollet, Mike Knoop, Gregory Kamradt, and Bryan Landers, Arc prize 2024: Technical report, arXiv
+preprint arXiv:2412.04604, 2024.
+[5] Xuezixiang Li, Sheng Yu, and Heng Yin. ALMOND: Learning an Assembly Language Model for 0-Shot Code
+Obfuscation Detection. PACMSE (Proc. ACM on Software Engineering), Vol. 2, No. ISSTA017, Article ISSTA-
+017, July 2025.
+[6] Nan Jiang, Chengxiao Wang, Kevin Liu, Xiangzhe Xu, Lin Tan, Xiangyu Zhang, and Petr Babkin. Nova: Gen-
+erative Language Models for Assembly Code with Hierarchical Attention and Contrastive Learning, ICLR 2025,
+Published January 22, 2025.
+[7] Wojciech Zaremba and Ilya Sutskever. Learning to Execute.arXiv preprint arXiv:1410.4615, 2014.https://arxiv.org/
+pdf/1410.4615.pdf
+[8] Lukasz Kaiser and Ilya Sutskever. Neural GPUs Learn Algorithms. InProceedings of the International Conference
+on Learning Representations (ICLR), 2016.https://arxiv.org/pdf/1511.08228.pdf
+[9] Andrew Trask, Felix Hill, Scott Reed, Jack Rae, Chris Dyer, and Phil Blunsom. Neural Arithmetic Logic Units.
+arXiv preprint arXiv:1808.00508, 2018.https://arxiv.org/pdf/1808.00508.pdf
+[10] David Saxton, Daniel Grefenstette, Felix Hill, and Pushmeet Kohli. Analysing Mathematical Reasoning Abilities
+of Neural Models.arXiv preprint arXiv:1904.01557, 2019.https://arxiv.org/pdf/1904.01557.pdf
+[11] Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora, Steven Basart, Eric Tang, Dawn Song, and Jacob
+Steinhardt. Measuring Mathematical Problem Solving with the MATH Dataset. InProceedings of the 35th
+Conference on Neural Information Processing Systems (NeurIPS), 2021.https://arxiv.org/pdf/2103.03874.pdf
+[12] David Lindner, János Kramár, Sebastian Farquhar, Matthew Rahtz, Thomas McGrath, and Vladimir Mikulik.
+Tracr: Compiled Transformers as a Laboratory for Interpretability.arXiv preprint arXiv:2301.05062, 2023.https:
+//arxiv.org/pdf/2301.05062.pdf
+[13] Ziqian Zhong and Jacob Andreas. Algorithmic Capabilities of Random Transformers. InProceedings of the 38th
+Conference on Neural Information Processing Systems (NeurIPS), 2024.https://arxiv.org/pdf/2410.04368v1.pdf
+[14] Angeliki Giannou, Shashank Rajput, Jy-yong Sohn, Kangwook Lee, Jason D. Lee, and Dimitris Papailiopou-
+los. Looped Transformers as Programmable Computers. InProceedings of the 40th International Conference on
+Machine Learning (ICML), 2023.https://proceedings.mlr.press/v202/giannou23a/giannou23a.pdf
+6
+
+--- PAGE 7 ---
+[15] Janis Zenkner, Tobias Sesterhenn, and Christian Bartelt. Transductively Informed Inductive Program Synthesis.
+arXiv preprint arXiv:2505.14744, 2025.https://arxiv.org/abs/2505.14744
+[16] Kensen Shi, Joey Hong, Yinlin Deng, Pengcheng Yin, Manzil Zaheer, and Charles Sutton. Exedec: Execution
+decomposition for compositional generalization in neural program synthesis. arXiv preprint arXiv:2307.13883,
+2023.
+[17] GPT-5, OpenAI, 2025,https://openai.com/gpt-5.
+7

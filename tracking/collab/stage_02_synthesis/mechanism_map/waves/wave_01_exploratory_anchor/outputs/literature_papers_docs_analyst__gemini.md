@@ -1,0 +1,39 @@
+```text
+LITERATURE_PAPERS_DOCS_OUTPUT
+- artifact: mechanism_map
+- role: literature/papers/docs analyst
+- preflight_scope_confirmed: yes
+- preflight_planned_read_order: 1. Terminal Bench 2.0 and OpenDev papers for formal definitions. 2. BigAI SDK official docs for framework definitions. 3. KIRA official concepts docs for execution patterns.
+- preflight_critical_sources_selected: research/sources/papers/src_pap_dd4ca3841fb4/artifact.pdf (Terminal Bench 2.0), research/sources/papers/2603.05344.pdf (OpenDev), research/sources/docs/bigai/translated/, research/sources/codebases/KIRA/KiraClaw/docs/
+- preflight_coverage_risks: Formal literature tends to describe ideal architecture or benchmark task definitions (like `headless-terminal` as a task) which may mask the messy reality of how the harness mechanisms actually operate in code and trajectories.
+- preflight_likely_blind_spots: Aspirational descriptions in documentation might differ significantly from actual implementation details.
+- preflight_blockers: none
+- coverage_used:
+  - research/sources/papers/src_pap_dd4ca3841fb4/artifact.pdf
+  - research/sources/papers/2603.05344.pdf
+  - research/sources/docs/bigai/translated/*.md
+  - research/sources/codebases/KIRA/KiraClaw/docs/kiraclaw/concepts.md
+  - research/sources/codebases/KIRA/KiraClaw/docs/openclaw/concepts.md
+- coverage_not_yet_used: other papers and formal documentation not explicitly queried.
+- evidence_classes_touched: papers, docs, codebase architecture documentation
+- priority_sources_not_yet_read: remaining unindexed arXiv papers in the corpus.
+- formal_claims:
+  - **Benchmark task definitions**: Terminal-Bench 2.0 explicitly defines `headless-terminal`, `cancel-async-tasks`, `db-wal-recovery`, `break-filter-js-from-html`, and `git-multibranch` as evaluation tasks for agents, spanning software engineering, system administration, and security.
+  - **Harness execution**: OpenDev (2603.05344.pdf) formally claims that long-running terminal agents require "Adaptive Context Compaction", "event-driven system reminders", and background process management via pseudo-terminals (PTY) to handle server-like commands and avoid blocking.
+  - **Architecture decoupling**: BigAI's official documentation defines a "Plan-Examine-Execute" cycle, formally claiming that separating a Planner node from an Executor node prevents the agent from hallucinating actions while reasoning.
+  - **Daemon-centered execution**: KiraClaw documentation claims a gateway-centered architecture where `agentd` (or Gateway) manages long-running background processes (`exec`/`process`) that outlive the single agent run that started them, separating internal completion (`submit`) from external communication (`speak`).
+- terminology_and_definition_notes:
+  - **Terminal-Bench 2.0**: Distinguishes between "human-predicted difficulty" and "empirical difficulty" for its tasks.
+  - **OpenDev**: Defines "Dual-Memory Architecture" (Episodic vs Working memory) to bound context for thinking models.
+  - **KiraClaw/OpenClaw**: Defines a "run" as a single execution unit serialized within a "session", owned by the Gateway daemon rather than the LLM.
+- benchmark_definition_notes:
+  - The mechanisms requested in the packet (`headless-terminal`, `cancel-async-tasks`, `db-wal-recovery`, `git-multibranch`, `break-filter-js-from-html`) are formally defined in Terminal-Bench 2.0 as tasks. However, the capacity to solve them requires corresponding *harness mechanisms* (e.g., PTY wrappers for terminal control, robust process killing for async tasks, multi-branch workspace management).
+- mechanism_or_failure_support:
+  - Formal sources explicitly support the need for robust process management. OpenDev notes that agents fail if long-running processes (like dev servers) block the agent loop; thus, auto-promoting commands to background processes with output polling is a necessary mechanism.
+  - BigAI and OpenDev both highlight that reasoning and acting must be decoupled (e.g., via a separate thinking phase or a dedicated Planner) to prevent premature, incorrect tool invocation.
+- conflicts_with_direct_evidence:
+  - While BigAI docs claim strict decoupling of Planner and Executor, OpenDev's architecture suggests a more fluid "Extended ReAct Execution Loop" where the main agent handles both, relying on system reminders and phase separation rather than distinct nodes for every action.
+- confidence_notes: High confidence in the extraction of formal benchmark definitions and documented architectural intent. Medium confidence in whether these documented architectures accurately reflect the on-disk implementation across all systems.
+- open_questions: How completely do the actual harness implementations in BigAI, deepagents, and terminus-kira match the idealized architectural descriptions in their documentation? Are the benchmark tasks solved using general harness capabilities, or were the harnesses overfit to these specific tasks?
+- next_hand_off_target: tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md
+```

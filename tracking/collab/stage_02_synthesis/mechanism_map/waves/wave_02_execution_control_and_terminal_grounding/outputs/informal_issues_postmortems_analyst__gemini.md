@@ -1,0 +1,62 @@
+INFORMAL_ISSUES_POSTMORTEMS_OUTPUT
+- artifact: mechanism_map
+- role: Informal/Issues/Postmortems Analyst
+- preflight_scope_confirmed: true, vertical mechanism-domain wave for execution control, terminal grounding, interrupts, replanning, and stop rules.
+- preflight_planned_read_order:
+  1. `research/sources/issues/` (to observe concrete execution control failures, PTY integration bugs, and process hangs)
+  2. `research/sources/informal/` (to map operational constraints and control flow strategies discussed by operators)
+  3. `research/sources/postmortems/` (to anchor on production agent reliability behaviors and execution contracts)
+- preflight_critical_sources_selected:
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt` (Codex PTY sandbox bypass)
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt` (Claude Code terminal hang on context compaction)
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt` (OpenHands stuck browser crash)
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+- preflight_coverage_risks: High reliance on open-source issue reports which index heavily on edge-case platform bugs (e.g., Windows sandboxing) rather than core architectural intent, requiring tight cross-referencing with codebase analysis.
+- preflight_likely_blind_spots: Lack of visibility into closed-source or un-reported internal operational dashboards where replanning decisions, interrupt signals, and internal task rollbacks are actually tracked for proprietary harnesses.
+- preflight_blockers: None. Sufficient operational friction and contradiction pressure is visible in issues and informal discourse to support meaningful cross-lane synthesis.
+- coverage_used:
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+- coverage_not_yet_used:
+  - Remainder of issues in `research/sources/issues/`
+  - Remainder of postmortems in `research/sources/postmortems/`
+  - Remainder of informal captures and discussions in `research/sources/informal/`
+- evidence_classes_touched:
+  - issues
+  - informal sources
+  - postmortems
+- priority_sources_not_yet_read: None that block this wave's synthesis focus.
+- high_signal_operating_claims:
+  - **Terminal Output Grounding via Filesystem:** Agents actively struggle with raw terminal strings inside the prompt context due to bloat and truncation. Operational reality (Cursor dynamic context discovery) shows a migration toward writing all integrated terminal PTY sessions to disk files, allowing the agent to explicitly use `grep` tools to diagnose why an execution failed, decoupling terminal state from the LLM prompt.
+  - **Control Flow Decoupling:** `humanlayer_12_factor_agents.md` highlights an operational pattern of keeping the LLM out of continuous wait states. Systems pause the task in memory ("think while...sleep") and wait for the LLM to emit a distinct "Terminal" tool call, isolating the harness execution loop from the model generation loop. This allows restarting execution cleanly if an interrupt is signaled.
+  - **Sandboxing as a Replanning Aid:** `cursor_agent_sandboxing.md` notes that sandboxed agents "stop 40% less often." Without a sandbox, agents get stuck in looping execution traps—repeatedly trying the same terminal command, failing permission checks, and wasting their replanning loop. The sandbox bounds their capability, forcing the system to explicitly fail rather than letting the agent hallucinate fixes.
+  - **Production Agent Constraints:** Postmortem `src_pmt_afc13590bd50` observes that real-world agent execution requires up-front contracts before any replanning begins (max tool calls, wall-clock caps, strict tool allowances). Execution control is not emergent behavior; it's heavily constrained by the supervisor.
+- issue_and_postmortem_findings:
+  - **PTY Sandbox Escape (Codex #14367):** The PTY spawn path completely bypasses Windows sandboxing (`sandbox_mode="workspace-write"`), executing directly via `CreateProcessW` while the normal, non-PTY execution path is properly wrapped. This reveals that authentic terminal grounding (PTY) inherently breaks standard security boundaries because of how it allocates system resources.
+  - **Un-interruptible Context Operations (Claude Code #19567):** Agents suffer catastrophic hanging during internal harness operations like context compaction. The process orphans (PPID=1), freezing the terminal and blocking `Ctrl+C` interrupt handling entirely. Agents get stuck holding file locks (`stats-cache.json`, `history.jsonl`), failing to surrender control to the human operator.
+  - **Sub-process Execution Hangs (OpenHands #2412):** When a spawned long-running process (like a headless browser) crashes, the agent fails to detect it, getting stuck in a `Waiting for response... timeout after 60s` loop. The execution loop assumes clean terminal/process exit codes and lacks an out-of-band crash detection or recovery mechanism, meaning it completely stalls the trajectory.
+- contradiction_or_support_notes:
+  - **Contradiction:** The operational reality of PTY integration directly contradicts the theoretical cleanliness of "safe tool isolation." Implementations are forced to choose between authentic terminal interactions (which bypass sandboxes like Windows `CreateProcessW` due to PTY requirements) and secure process wrapping (which breaks interactive prompts).
+  - **Support:** The failure modes in issues (Claude Code hanging, OpenHands browser crash) strongly support the informal observation from `cursor_self_driving_codebases.md`: "Agents have immense engineering skill but will follow instructions to the end, good or bad... getting stuck on complex implementation details." The harnesses lack robust supervisor-level interrupts for when the sub-processes implicitly fail.
+- unvalidated_leads:
+  - Does the PTY integration failure mode and sandbox escape extend to Linux/macOS `bwrap` or Docker containers in other harnesses, or is the Windows `CreateProcessW` behavior unique?
+  - Are "orphaned processes" natively handled by any harness supervisor, or is the user the only watchdog capable of breaking an unyielding loop?
+- confidence_notes:
+  - **High confidence** in the severe friction between PTY grounding, sandboxing, and execution hanging. This is directly evidenced by recent, detailed bug reports with reproducible steps.
+  - **Medium confidence** in the operational claim that dumping terminal to the filesystem is the dominant or optimal trend. It is clearly implemented in Cursor but its adoption rate in autonomous systems like KIRA or BigAI requires validation against their codebase sources.
+- open_questions:
+  - How do multi-agent systems (like BigAI) handle the specific interrupt propagation failure mode? Do they trap `SIGINT` at a supervisor level, or rely on individual agents to yield?
+  - When the execution gets stuck in an un-interruptible state, how does the system reconcile PTY state and workspace artifacts upon a forceful human restart?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/contradiction_analyst.md`

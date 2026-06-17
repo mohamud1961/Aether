@@ -1,0 +1,177 @@
+DEEP_SYNTHESIS_CHECKLIST_ADJUDICATION
+- artifact: mechanism_map
+- wave: wave_03_verification_completion_and_recovery
+- overall_verdict: pass_with_warnings
+- active_checklist_paths:
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/MECHANISM_MAP_AUDIT_CHECKLIST.md`
+- section_results:
+  - section: `scope_and_phase_discipline`
+    - verdict: `pass`
+    - short_justification: Wave 03 stays inside the declared `mechanism_map` domain for verification, completion, and recovery. The principal synthesis does not jump ahead into final harness selection, failure-taxonomy closure, or variant commitments.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - section: `source_of_truth_and_tracing`
+    - verdict: `pass`
+    - short_justification: The five main lanes, contradiction pass, and principal synthesis all enumerate concrete repo-local `coverage_used` paths and keep direct behavior, visible source, eval code, and informal pressure distinct. BigAI remains explicitly labeled `behavioral reconstruction`.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - section: `verification_completion_recovery_mechanism_quality`
+    - verdict: `pass`
+    - short_justification: The wave produces real mechanism separation rather than loose summaries. The strongest supported families are artifact-backed postcondition proof, layered verifier/grader/replay separation, and cleanup-confirmed completion, with checkpoint/resume held at exploratory status.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - section: `wave_packet_discipline`
+    - verdict: `pass`
+    - short_justification: The wave answered its bounded question, kept the activated eval fifth lane for verifier/grader/replay logic, and produced the required lane, contradiction, and principal-synthesis artifacts for this packet.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - section: `coverage_honesty_and_support_tracks`
+    - verdict: `partial`
+    - short_justification: The wave is honest about unread pressure paths and now has the required dossiers and case studies, but one mandatory control surface remains weak: `organizer.md` is still empty, so path-level accounting continues to outrank organizer routing.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+      - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+      - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+      - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+      - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - section: `compounding_update`
+    - verdict: `pass`
+    - short_justification: Wave 03 materially improves cumulative `mechanism_map` state. It strengthens mechanism-family separation, preserves contradictions, and leaves no false claim that the artifact is already complete or decision-ready.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - section: `artifact_level_mechanism_map_completion`
+    - verdict: `partial`
+    - short_justification: This wave is strong enough to accept, but `mechanism_map` as a whole is still incomplete. Major unread path families remain, several harness buckets are reserved for later waves, and no family is ready for `decision_ready`.
+    - supporting_paths:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- highest_value_strengths:
+  - Wave 03 keeps `verification`, `completion`, and `recovery` separate where the evidence is separate, instead of collapsing them into one prestige verifier story.
+  - The wave preserves simple baselines. DeepAgents-style artifact-backed postcondition proof remains visible alongside heavier verifier/grader/replay stacks.
+  - Required Wave 03 support-track artifacts now exist and are reusable, especially the source-system dossiers, trajectory case studies, eval benchmark dossier, and informal cluster dossier.
+  - Contradictions are explicit and useful downstream: BigAI remains behavioral reconstruction, KIRA `extract-moves-from-video` stays false-completion pressure, and restart/resume remains weaker behaviorally than it is in source or docs.
+- highest_value_gaps:
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is still empty, so the mandatory organizer control surface is not yet trustworthy.
+  - Direct BigAI verifier-heavy evidence remains thinner than the wave brief ideally wanted because `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**` is still unread in the accepted wave record.
+  - Restart and restart-safe resumability still lack enough direct behavioral saturation to move beyond `exploratory`.
+- fake_pass_risks:
+  - Treating BigAI verifier loops as source-backed implementation rather than `behavioral reconstruction`.
+  - Treating restart substrate in DeepAgents, A-Evolve, or KIRA as proof that cross-family restart-safe resumability is already stable in behavior.
+  - Letting an empty organizer file masquerade as a functioning coverage-routing scaffold.
+  - Treating `mechanism_map` as artifact-complete because Wave 02 and Wave 03 are strong.
+- coverage_register_consistency:
+  - The accepted-state control surface is consistent after this adjudication only if `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` is updated from `checklist pending` to `accepted with carry-forward warnings`.
+  - The remaining inconsistency is structural rather than narrative: `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is empty, so coverage still depends on direct path accounting instead of organizer routing.
+- support_track_status_check:
+  - Required Wave 03 dossiers are present:
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - Required Wave 03 case studies are present:
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - Required wave-specific support dossiers are present:
+    - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+  - Deferred support artifacts remain optional rather than gate-blocking:
+    - `trajectory_support_false_completion_cases.md`
+    - `trajectory_support_recovery_restart_table.md`
+  - The only still-weak support control explicitly carried forward is:
+    - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_benchmark_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/contradiction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_support_verification_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/eval_support_verifier_grader_replay_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/informal_support_recovery_issue_cluster.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_and_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/db_wal_recovery.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/**`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - broader unread benchmark implementation code behind ImpossibleBench and SlopCodeBench captures
+  - broader unread restart/resume behavioral slices outside the selected Wave 03 anchors
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - eval repos
+  - benchmark captures
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+  - support artifacts and control surfaces
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/benchmarks/src_bnm_e1cfa2bf78c9/artifact.txt`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+- warnings_to_carry_forward:
+  - Do not treat Wave 03 as proving that restart or restart-safe resumability is stable cross-family behavior.
+  - Do not treat DeepAgents `db-wal-recovery` inline proof as mirrored framework verifier code until the exact source path is traced.
+  - Do not treat BigAI beyond `behavioral reconstruction`.
+  - Keep verifier state, external grading or replay, and final run acceptance separate in downstream mechanism and eval work.
+  - Keep direct path accounting above organizer routing until `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md` is repaired.
+  - Do not treat `mechanism_map` as artifact-complete or `decision_ready`.
+- recommended_next_action:
+  - Accept Wave 03 with carry-forward warnings.
+  - Update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` and `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` to reflect accepted status.
+  - Keep organizer repair as an active support-track debt.
+  - Open the next planned `mechanism_map` wave on `context_state_memory_workspace` while queueing targeted follow-up pressure on BigAI verifier-heavy slices and restart/resume behavior.

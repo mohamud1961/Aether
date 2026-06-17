@@ -1,0 +1,89 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/agent/execute/chat/?q=
+================================================================================
+
+进行对话
+
+Agent对话接口¶
+请求URL¶
+POST /api/v1/conversation/chat
+
+请求参数¶
+Header¶
+参数	取值	说明
+Content-Type	application/json	解释请求正文的方式
+X-TraceId	string	traceId
+Body¶
+字段	类型	是否必填	描述	备注
+agent_id	string	是	app_id，来源于个人空间-应用-应用ID	
+user_id	string	是	终端用户ID	
+conversation_id	string	是	会话id，可通过新建会话接口创建	
+data_type	string	是	chat请求类型 "text":文本 "voice"音频 "image"图片 "video" 视频 "action" 操作指令 "file" 其他文件	
+content	string	是	chat请求数据 type为文本和指令时使用，直接读取	
+timestamp	int64	是	时间戳（毫秒）	
+file_list	string[]	是	type为其他时使用，代表传输文件id列表（文件必须为upload上传的文件id）	
+update_config	int32	否	是否需要重新更新Agent配置 1为是 0或者空为否	
+stream	int	是	是否为流式对话 1为是 0或者空为否	
+请求示例¶
+{
+
+    "agent_id": "agent_1234567890",
+
+    "user_id": "user_123",
+
+    "conversation_id": "conv_0987654321",
+
+    "data_type": "text",
+
+    "content": "Hello, how are you?",
+
+    "file_list": [],
+
+    "timestamp": 1633072800000,
+
+    "chat_id": "chat_0987654321",
+
+    "message_id": "",
+
+    "stream": 0
+
+}
+
+响应参数¶
+字段	类型	描述	备注
+code	int	错误码	0代表正常
+msg	string	错误消息	
+chat_id	string	对话id	
+feedback	[]FeedBack	反馈列表	
+FeedBack.data_type	string	反馈类型	text":文本 "voice"音频 "image"图片 "video" 视频 "action" 操作指令（如avator动作） "file" 其他文件类型
+FeedBack.content	string	反馈数据	type为文本和指令时使用，直接读取
+FeedBack.file_list	string[]	代表传输文件id列表（文件必须为upload上传的文件id）	type为其他时使用
+FeedBack.message_id	string	消息id，用于顺序展示	
+FeedBack.timestamp	int64	时间戳（毫秒）	
+响应示例¶
+{
+
+    "code": 0,
+
+    "msg": "success",
+
+    "chat_id": "chat_0987654321",
+
+    "feedback": [
+
+        {
+
+            "data_type": "text",
+
+            "content": "I'm doing well, thank you! How can I assist you today?",
+
+            "file_list": [],
+
+            "message_id": "msg_12345",
+
+            "timestamp": 1633072801000
+
+        }
+
+    ]
+
+}

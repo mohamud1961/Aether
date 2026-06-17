@@ -1,0 +1,67 @@
+SUPPORT_ARTIFACT
+- artifact_id: wave_06_trajectory_support_delegation_interaction_map
+- wave: wave_06_planning_orchestration_and_interactions
+- lane_owner: trajectory/failure analyst
+- purpose: Map observed handoff contracts, role boundaries, and recovery interactions for Wave 06 required runs.
+- sources:
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/protein-assembly/*.json`
+  - `research/analysis/bigai_trace_layer/output/runs/large-scale-text-editing/*.json`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+  - `research/sources/trajectories/BigAI/prove-plus-comm/*.txt`
+  - `research/sources/trajectories/BigAI/cobol-modernization/*.txt`
+  - `research/sources/trajectories/BigAI/openssl-selfsigned-cert/*.txt`
+
+- interaction_contract_matrix:
+  - contract: planner_to_executor_packet
+    - observed_fields: `task`, `plan`, `basic_env_info`
+    - optional_field: `task_history`
+    - required-run coverage: `10/10` include `task+plan+basic_env_info`; `2/10` include `task_history`
+    - evidence_runs:
+      - `a3dd0499-b4fd-47bc-8fde-189e4d7093a9` (`executor_packet_contains_plan_and_history`)
+      - `23f367d2-84b1-4834-9cb9-43823ca4a2e0` (`executor_packet_contains_plan_and_history`)
+  - contract: planner_to_verifier_packet
+    - observed_fields: `task`, `basic_env_info`, role-scoped verifier prompt packets
+    - required-run coverage: `9/10` (all runs with visible verifier role)
+  - contract: verifier_to_planner_gate
+    - mechanism: `finish_verification` status (`PASSED` | `FAILED` | `STEPS_EXHAUSTED`)
+    - required-run coverage: `9/10`
+    - explicit fail_then_recover example: `a3dd0499-b4fd-47bc-8fde-189e4d7093a9`
+  - contract: planner_redelegation_after_failed_gate
+    - observed_behavior: planner emits `plan_update`, dispatches next executor, re-enters verifier
+    - required-run evidence: `a3dd0499-b4fd-47bc-8fde-189e4d7093a9`
+    - long-tail reinforcement: `c7bde5b6-5fd6-4743-8b52-1d4c776e76a0`, `f4f7e04a-4247-46b0-a3d8-6ec8c4b87c31`
+  - contract: no_verifier_variant
+    - observed_behavior: planner and executors complete without verifier loop
+    - required-run evidence: `23f367d2-84b1-4834-9cb9-43823ca4a2e0`
+    - long-tail reinforcement: `large-scale-text-editing` runs `9d272744...` (fail), `c4ea83dd...` (pass)
+
+- delegation_shape_by_task:
+  - `prove-plus-comm`:
+    - mostly single-executor with verifier gate
+    - one run escalates to second executor after verifier failure (`a3dd...`)
+  - `cobol-modernization`:
+    - safety-first plan style in all 5 runs
+    - mostly single-executor + verifier, but includes one 2-executor/no-verifier pass (`23f3...`)
+  - `openssl-selfsigned-cert`:
+    - single-executor + verifier gate
+    - direct-action plan style with minimal replan depth
+
+- long_tail_pressure_summary:
+  - `protein-assembly`:
+    - all runs use multi-executor orchestration with verifier gate
+    - repeated replans and two visible verifier-failure recovery loops
+  - `large-scale-text-editing`:
+    - delegation fanout does not guarantee success
+    - verifier presence improves confidence but is not strictly required for pass
+
+- role_boundary_notes:
+  - The observed role contract remains stable: planner plans, executor executes, verifier adjudicates.
+  - The strongest boundary variation is not role collapse but verifier optionality in some runs.
+  - Task-history payload appears conditional on richer multi-executor branching.
+
+- caveats:
+  - BigAI remains behavioral reconstruction; this map is observational and does not prove hidden scheduler mechanisms.
+  - Packet coverage is run-slice bounded; this map should not be read as full-corpus saturation.

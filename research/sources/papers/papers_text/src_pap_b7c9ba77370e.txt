@@ -1,0 +1,2179 @@
+--- PAGE 1 ---
+MiniScope: A Least Privilege Framework for Authorizing Tool Calling Agents
+Jinhao Zhu Kevin Tseng Gil Vernik † Xiao Huang Shishir Patil Vivian Fang Raluca Ada Popa
+University of California, Berkeley †IBM Research
+Abstract—Tool calling agents are an emerging paradigm in
+LLM deployment, with major platforms such as ChatGPT,
+Claude, and Gemini adding connectors and autonomous capa-
+bilities. However, the inherent unreliability of LLMs introduces
+fundamental security risks when these agents operate over
+sensitive user services. Prior approaches either rely on man-
+ually written policies that require security expertise, or place
+LLMs in the confinement loop, which lacks rigorous security
+guarantees. We present MiniScope, a framework that enables
+tool calling agents to operate on user accounts while confining
+potential damage from unreliable LLMs. MiniScope introduces
+a novel way to automatically and rigorously enforce least
+privilege principles by reconstructing permission hierarchies
+that reflect relationships among tool calls and combining them
+with a mobile-style permission model to balance security and
+ease of use. To evaluate MiniScope, we create a synthetic
+dataset derived from ten popular real-world applications,
+capturing the complexity of realistic agentic tasks beyond
+existing simplified benchmarks. Our evaluation shows that
+MiniScope incurs only 1–6% latency overhead compared to
+vanilla tool calling agents, while significantly outperforming
+the LLM based baseline in minimizing permissions as well as
+computational and operational costs.
+1. Introduction
+Large language models (LLMs) have become increas-
+ingly powerful and are now widely integrated with so-
+phisticated tool-calling capabilities. Popular AI assistants
+such as ChatGPT [50], Claude [5], and Gemini [25] now
+support connectors [6], [24], [53], allowing them to integrate
+with external services such as Gmail, Outlook Calendar,
+Dropbox, and Notion, and perform actions on users’ behalf.
+These integrations transform LLMs from conversational in-
+terfaces into personalized, actionable systems, commonly
+referred to as agentic systems.
+However, as agentic systems take on more complex
+and autonomous roles, they also introduce significant se-
+curity risks. Unlike traditional software systems that can
+be systematically white-box tested, peer reviewed, and even
+formally verified, the core component of agentic systems,
+the LLM, suffers from persistent issues such as hallucina-
+tions [57], [86] and vulnerability to various attacks [26],
+[40], [41]. While prior research has shown improvements in
+model reliability through techniques like alignment training
+[12], [55], [87], these problems remain unresolved [49].
+This inherent unreliability creates a fundamental security
+challenge: an unreliable agentic system with access to a
+user’s private data may execute tasks misaligned with user
+intentions or even leak sensitive information [79]. Consider
+this scenario: Alice wants to ask the AI agent to check her
+email and synchronize events with her calendar. To complete
+this task, the agent needs access to both Alice’s email
+and calendar accounts. Granting the agent direct access
+to Alice’s credentials is problematic as it might misinter-
+pret Alice’s instructions and, for example, end up deleting
+sensitive emails. Even worse, an agent with all of Alice’s
+credentials becomes a target for attackers to exploit Alice’s
+accounts in a wealth of ways. Ideally, we want the agent to
+only be able to perform Alice’s request, and nothing else.
+As highlighted by OpenAI’s recent red-teaming evalua-
+tion [74], systematically enforcing trust boundaries is crucial
+for limiting potential damage in future agentic systems.
+Recent research began withpolicy-based enforcement[18],
+[22], [63], [67], [69], [72], [75], a well-established technique
+in traditional security systems. Policies expressed in domain-
+specific languages (e.g., Cedar [19]) offer rich and ex-
+pressive constraint semantics. However, writing correct and
+secure policies requires significant expertise, and because
+these policies must be predefined, they often fail to adapt
+to the dynamic nature of agentic tasks. To mitigate these
+limitations, prior work has exploredbringing LLMs into
+the confinement loop[20], [32], [39], [63], [72], [78], [80],
+[81], [84]. The core idea is to treat a separate LLM as
+the “expert” that takes input only from trusted sources and
+produces per-task policies that satisfy the required security
+properties. While this approach offers better flexibility, it
+introduces new security concerns. Even with task-specific
+fine-tuning [56], improvements in reliability and robustness
+remain largely experimental, and the model is still suscepti-
+ble to hallucinations or adaptive attacks. Moreover, because
+security specifications are provided in natural language (e.g.,
+“Please adhere to the principle of least privilege during
+policy generation”), there is no guarantee that the LLM
+will interpret or follow these instructions consistently or
+correctly. Moving to real-world deployments, tool-calling
+agents often rely onuser confirmationsfor security. Un-
+fortunately, this creates an inherent tension between security
+and user experience (see §3.1). More frequent confirmations
+allow users to detect anomalous behavior in real time but
+create an interruptive experience. Less frequent or even
+absent confirmations offer better usability but either have
+limited utility or provide weak or no security guarantees.
+In this paper, through our systemMiniScope, we aim
+to establish a paradigm that provides rigorous security en-
+arXiv:2512.11147v1  [cs.CR]  11 Dec 2025
+
+--- PAGE 2 ---
+forcement for tool-calling agents while reducing user effort
+in real-world deployments. At the core of MiniScope is a
+hierarchical permission model that organizes tool calls into
+structured permission groups. By combining this hierarchy
+with the classical least privilege principle [58], MiniScope
+provides a rigorous foundation for reasoning about the
+minimal set of permissions required for any user task in
+agentic scenarios. To balance security with ease of use,
+we draw inspiration from the permission model used by
+modern mobile operating systems, adapting it to work with
+our hierarchical permissions and to accommodate the au-
+tonomous, context-dependent nature of AI agent operations.
+As shown in Fig. 1, MiniScope focuses on the user-agent-
+service model where the user is interacting with an AI agent,
+who is connected to the user’s services. In MiniScope, we
+do not trust the underlying LLM used by the agent, nor the
+responses from connected services, since the model may
+hallucinate or be subject to prompt injection, and service
+responses may contain attacker controlled data. We prompt
+the user regarding granting permissions, an approach that is
+widely adopted in the mobile permission management [3].
+Our main contributions are as follows.
+First, we are the first to rigorously define and enforce
+least privilege principles for tool calling agentic tasks. Un-
+like prior works that enforce least privilege through prompt-
+ing the LLM [63], [84], our enforcement is mechanical and
+provides rigorous guarantees. Our key idea is to construct
+permission hierarchies over tool calls. Specifically, we first
+group tool calls into permission groups based on their
+similarity in sensitivity and functionality, and then derive
+a hierarchy among these groups. This design offers several
+benefits. First, given the hierarchy, we can automatically
+identify the exact permissions required to fulfill any agentic
+task. More importantly, the hierarchy provides a structured
+notion of tool sensitivity, which allows us to rigorously
+define the least privilege required for a task. Concretely, our
+grouping of tool calls is based on OAuth [28] scopes. OAuth
+is a widely adopted authorization protocol that enables third-
+party applications to access user services without reveal-
+ing user credentials. In OAuth, the capabilities of third-
+party applications are defined by scopes, where each scope
+specifies a set of resources (e.g., tool calls) the applica-
+tion can access. This scope information directly provides
+the permission grouping semantics we need. To derive the
+permission hierarchy based on these groupings, we propose
+a simple yet effective principle: a permission group that
+supports more tools than another corresponds to broader
+permissions and is therefore more sensitive. With this hi-
+erarchy, we formulate the problem of finding the minimal
+set of permissions required for any agentic task as an integer
+linear programming (ILP) problem. This formulation not
+only allows us to efficiently and rigorously infer minimally
+required permissions for diverse tasks but also makes our
+approach generalizable across different applications with
+different permission hierarchies.
+Building on the permission hierarchy and least-privilege
+reasoning described above, we develop an end-to-end agent
+system that enforces this principle in practice. Fig. 1 presents
+User
+Agent Services
+MiniScope
+User Confirmation
+Tool Call Response
+Figure 1. MiniScope Architecture. Red indicates untrusted. Green indicates
+trusted.
+the architecture and high-level workflow of MiniScope.
+MiniScope serves as the “firewall” between the agent and
+the services. It keeps track of all previously granted permis-
+sions and the user’s credentials for connecting to services.
+For each user request, MiniScope takes the execution plan
+submitted by the untrusted agent and determines the minimal
+set of permissions required to perform the requested tasks.
+Following prior work [18], [69], [81], we bring human
+input into the security decision loop. At initialization, the
+system starts with no access permissions. When additional
+permissions are needed, MiniScope treats the user as the
+ground-truth authority and prompts for explicit approval.
+For each tool call issued by the agent, MiniScope enforces
+a mechanical check to prevent unauthorized invocations.
+User credentials for accessing services are fully isolated
+from the agent to prevent direct exploitation by attacker.
+Requested tool calls are forwarded to the target service
+using the user’s real credentials only if they are permitted
+under the granted permissions. To balance security and ease
+of use, we take inspiration from the permission model in
+mobile applications [3], [9], and adapt it to the agentic use
+case. Combined with our hierarchical design, this enables
+users to iteratively refine security preferences during agent
+interaction with minimal effort.
+Finally, we construct a synthetic environment to evaluate
+the effectiveness and overhead of MiniScope. To ensure
+our evaluation reflects real-world complexity, we prioritize
+realism during our dataset construction. Unlike prior work
+that relies on abstract tasks or simulated applications [21],
+MiniScope targets 10 real, widely-used applications: Gmail,
+Google Calendar, Google Drive, Google Storage, Slack,
+Dropbox, Outlook, Outlook Calendar, Notion, and Zoom.
+Compared to synthetic applications [21], these real applica-
+tions typically support significantly more API methods and
+exhibit greater complexity in their permission structures.
+Ideally, our evaluation would use real user requests from
+deployed agentic systems. However, despite the growing
+availability of such systems, publicly available datasets re-
+main limited, and accessing real user data raises signifi-
+cant privacy concerns. Therefore, following prior work, we
+generate synthetic user requests through prompting LLMs
+[11], [21]. To capture different levels of complexity, we
+begin with simple requests that involve a single tool call
+in a single application, then increase the complexity to
+multiple tool calls within a single application, and finally to
+requests that span multiple applications to reflect realistic
+2
+
+--- PAGE 3 ---
+cross application workflows. To ensure coverage, the LLM
+generator is prompted to exhaustively cover each method for
+single tool call requests and to produce complex requests
+that involve different combinations of tool calls in the multi
+tool call setting. Generated requests are then deduplicated
+based on the set of tools involved. §5 provides details of
+the synthetic request generation process and we hope this
+dataset will also prove valuable to the research community
+for future work in this area.
+Evaluation summary:To demonstrate the effectiveness
+of MiniScope, we evaluate it along three dimensions: per-
+mission minimality, runtime overhead, and user effort. For
+permission minimality, we compare against an alternative
+of using an LLM to decide the least permission. Our eval-
+uation shows that this LLM based approach reaches only
+70–83% optimality with proprietary models, and drops to
+20–34% with open source models. More importantly, using
+our least privilege solver, we identifiedsix overprivileged
+deploymentsin real world connectors(§6.2.1). In terms of
+latency, MiniScope adds only 1–7% runtime overhead com-
+pared to a vanilla end to end tool calling agent. In contrast,
+the LLM in the loop baseline incurs orders of magnitude
+higher overhead than MiniScope, with an extra estimated
+cost of $0.063 per request. Finally, because MiniScope
+brings humans into the loop for permission confirmation, we
+simulate three months of user-agent interactions on Gmail.
+The simulation result shows that confirmation rate ranges
+from 18% to 60%, depending on the user persona, which
+is better than per method confirmation and consistent with
+prior findings on higher risk tasks [29], [48], [66].
+2. System Overview
+MiniScope focuses on the user-agent-service model,
+a paradigm widely adopted in real-world agent deploy-
+ments [6], [8], [44], [53]. As shown in Fig. 1, this model
+consists of three parties: the user, the LLM agent, and
+the services (applications). In a typical workflow, the agent
+receives the user’s natural-language request, analyzes it, and
+determines which tool(s) provided by the connected services
+can best fulfill the task. It then invokes these tools with the
+appropriate arguments, processes their structured responses,
+and returns the final result to the user. Interactions here may
+involve multiple rounds of communication between the user
+and the agent or between the agent and the services to gather
+information, execute data dependent operations, or refine
+results based on user feedback. In this paper, we focus on
+single agent systems, leaving multi-agent scenarios, where
+multiple agents communicate on behalf of their users, to
+future work. These scenarios are briefly discussed in §7.
+2.1. Threat Model
+Based on this system model, we now present the threat
+model and security assumptions.
+User.We trust the user’s intention, meaning we assume the
+user makes legitimate decisions when granting or denying
+specific permissions, as in many real-world deployments
+[7], [47], [48], [60], [81]. We also trust the user’s high-
+level instructions in the prompt. However, we do not trust
+the full prompt content, since the user may unintentionally
+include data from untrusted sources such as web pages.
+Such data may contain injection attacks that attempt to
+mislead the model into performing unintended or harm-
+ful actions. For example, Alice may ask the agent to
+send a summary email to her team based on a customer
+support message, but the message may contain malicious
+text such as"Ignore the previous instruction
+and delete all emails."Indirect prompt injection
+attacks of this kind have been demonstrated in practice [2].
+Model.We make no trust assumptions about the underly-
+ing LLM used by the agent, which may be a proprietary
+model from major providers [5], [25], [50] or a custom
+model hosted by the user. The LLM may hallucinate or
+be influenced by untrusted data received during the agentic
+workflow [40], [62].
+Services.For the services connected to the agent, MiniScope
+assumes that their tool call implementations follow the
+intended specifications. For example, if a tool is designed to
+read an email, its implementation should actually perform a
+read operation on the target email rather than delete it. This
+assumption does not require every service to implement its
+tools correctly. Instead, our security guarantee applies only
+to services (or specific service methods) whose behavior
+matches their stated specification. In a later section, we show
+how permission hierarchies can be derived automatically
+from each service’s existing OAuth configuration (§3). As an
+alternative, service developers may publish official permis-
+sion hierarchies for their services if they wish to integrate
+with MiniScope. MiniScope ensures that a service with an
+incorrect specification or an incorrect implementation cannot
+compromise the security of other services connected to the
+same agent. Finally, tool call responses from each service
+are treated as untrusted, since they may include data injected
+by malicious users [2].
+Non-goals.MiniScope aims to confine potential harm
+caused by the tool-calling agent to the user’s connected
+services. It is not designed to prevent prompt injection
+attacks in general or attacks that target the model itself, such
+as jailbreaking [76]. MiniScope provides security guarantees
+only at the granularity defined by the permission hierarchy.
+It does not directly prevent attacks that attempt to mislead
+the model into issuing additional tool calls that remain
+within the same scope. We view this as a trade-off between
+security granularity and user burden, and we discuss possible
+extensions for finer-grained protection in §7.2. We also
+provide a detailed discussion of in scope and out of scope
+attacks in §4.4. Finally, MiniScope does not aim to defend
+against Denial of Service attacks [36] initiated by either the
+model provider or the service provider, since these parties
+are typically incentivized to maintain service availability.
+3
+
+--- PAGE 4 ---
+2.2. Security Game
+To define our security game, we first introduce the
+following notation. Letf LLM denote the underlying LLM
+model, and let
+F(M) ={F 1(m1), . . . ,F n(mn)}
+be the set of available service instances, where eachF i is
+an admissible service instance that takes a statem i as input.
+Eachm i is a valid state of the service instanceF i, which
+means that it is achieved through the initialization of the
+service and a series of valid API calls. These API calls can
+be performed by attackers. We denote the set of all states by
+M. Each service instanceF i has an associated authorization
+protocol specificationσ i that defines the scopes and their
+respective capabilities. We defineσ= (σ 1, . . . ,σn)for the
+collection of all such specifications. We model the agent as
+a function parameterized by both the underlying LLM and
+the set of external services. The agent is initialized as
+A=Agent
+ 
+fLLM,F(M)
+
+,
+whereAgent(·)denotes the agent construction procedure.
+When a useruinteracts with the agent through the MiniS-
+cope, we define the execution trace as
+τ=Interact
+ 
+u,A,σ
+
+,
+whereInteract(·)denotes the process by which the agent
+receives user requests and issues zero or more service/tool
+calls under MiniScope enforcement, producing a traceτ.
+Each element of the trace is a tupleτ j = (p j,d j,c j),
+wherep j is the user’s prompt,d j is the user’s decision
+on permissions (an action that updates the current granted
+permission state), andc j represents the set of tool calls
+invoked by the agent and executed on the corresponding
+service at stepj. Note thatc j only includes tool calls that
+have been executed on the services because the agent (or
+the adversary itself) might still issue incorrect tool calls,
+tool calls with correct tokens but insufficient permissions,
+or tool calls with incorrect tokens (when the adversary tries
+to guess the user’s authentication token). In the first two
+cases, the calls are rejected by the permission checks en-
+forced by MiniScope and the service. In the last case, under
+the security assumption of the authentication protocol, the
+probability of an agent correctly guessing a valid credential
+is negligible. Letρ 0 denote the initial granted permission
+state. The permission state aftertsteps is then obtained by
+successive application of decisions:
+ρt =d t ◦d t−1 ◦ · · · ◦d 1(ρ0).
+We define our security game in Fig. 2. In this game, the
+challenger plays the role of the user in the agentic workflow
+and selects the set of servicesF. Since we do not trust
+either the model or the tool call responses from services,
+the adversary chooses thef LLM and the set of valid states
+Mfor all services. After the challenger selects the services,
+the adversary can craft valid service states with malicious
+data injected through legitimate API calls. The agent is then
+1) The challengercselects a set of servicesFtogether with
+their authorization specificationsσ.
+2) The adversary chooses the modelf LLM and the set of
+statesMfor each service instance inF.
+3) The agent is initialized as
+A=Agent  fLLM,F(M).
+4) The challenger interacts with the agentAthrough
+MiniScope forNrounds and obtains the execution trace
+τ=Interact(c,A,σ).
+5) Outputsτ
+Figure 2. Security game for MiniScope
+initialized according to the definition and the challenger
+interacts with the agent fortrounds to generate a trace of
+executionτ. With this game, we say the system issecureif,
+for every stepj, all tool calls inc j are permitted underρ j.
+In other words, the permissions inρ j authorize every tool
+call the agent invokes at that step.
+3. From Hierarchy to Least Privilege
+In an ideal world, an agent executing a user’s task should
+have exactly the permissions required to invoke tools rele-
+vant to that task, and nothing more. However, achieving this
+level of least privilege is challenging because agentic tasks
+are highly dynamic. Predefined or pre-generated permission
+rules are rarely exhaustive and often limit the agent’s utility.
+As a result, most real-world deployments rely on runtime
+confirmation [5], [48]. In this section, we first describe how
+user confirmation is used to manage permissions, and then
+motivate our design of hierarchical permissions that enable
+a more principled form of least privilege.
+3.1. The Reality
+Based on how frequently confirmation is required, exist-
+ing systems have developed into the following patterns: per-
+call confirmation, confirmation only for high-risk actions,
+initial confirmation, and no confirmation. In the per call
+confirmation, the user must explicitly approve every tool
+invocation. For example, when connecting Claude with cus-
+tomized MCP servers [7], the user is shown the target func-
+tion and its arguments for every tool call and must explicitly
+grant permission before execution. While this design allows
+users to detect and prevent undesired actions in real time,
+it requires constant user attention, creates an interruptive
+experience, and often leads to decision fatigue. Codex [51]
+takes a different approach by classifying actions into low
+risks and high risks. Low risk operations run automatically,
+while the user is prompted only for high risk operations
+such as network access. In the initial confirmation pattern,
+permission is requested only once at the beginning of an
+interaction. This can be found when users connect per-
+sonal services (e.g., Gmail or Slack) to ChatGPT or Claude
+4
+
+--- PAGE 5 ---
+through connectors. During the initial connection, users are
+prompted to approve a predefined set of permissions. Once
+granted, subsequent tool calls proceed automatically without
+further confirmation. This approach reduces user overhead
+but sacrifices flexibility in permission management and tool
+selection. Finally, the no confirmation pattern appears when
+users build custom agents with their own tools. In these
+cases, users must manually review and configure the per-
+missions of each connected application. In practice, this
+process is complex and error prone, often leading users to
+over provision access for convenience and effectively grant
+the agent full privileges [45]. Together, these patterns reveal
+a fundamental tension between security and user effort,
+motivating the need for a systematic mechanism to manage
+agent permissions with minimal user intervention.
+3.2. Permission Hierarchy
+Our design of a permission hierarchy is inspired by Hi-
+erarchical Role-Based Access Control (RBAC) [59], which
+extends flat RBAC by organizing roles into a hierarchy
+where higher-level roles inherit the permissions of lower-
+level ones. We observe a natural synergy between tool calls
+and this hierarchical structure. First, tool calls with similar
+functionality or sensitivity can be placed within permission
+groups. Second, because these groups differ in sensitivity,
+they can be arranged into a hierarchy that reflects their
+relative sensitivity. For example, groups that involve data
+modification are generally more sensitive than those that
+only allow data reading. Based on these observations, we
+propose a hierarchical permission model that captures both
+the varying sensitivity and semantic relationships among
+tool calls. Compared to method level enforcement, a hierar-
+chical approach offers a more systematic and scalable way
+to reason about permissions while preserving flexibility for
+dynamic agentic tasks.
+Ideally, such a hierarchy could be provided directly by
+the service provider, who is best positioned to define the
+relationships among its APIs. In practice, many services
+already expose groupings of APIs with similar sensitivity
+through their OAuth configurations. OAuth [28] is an open
+standard authorization protocol that allows third-party ap-
+plications to access protected resources on behalf of users
+without exposing their credentials. For example, when a user
+connects an app to their Google account, the app redirects
+them to Google’s login page. After the user signs in and
+grants consent, Google issues the app a temporary access
+token. The app then uses this token to make API requests
+on the user’s behalf. Each access token is associated with
+one or more scopes defined by the service’s developers.
+Each scope specifies a set of API methods that a third-party
+application can invoke, providing exactly the permission
+taxonomy needed to reconstruct the hierarchy.
+Using the scope information, MiniScope constructs the
+permission hierarchy based on a simple intuition: a per-
+mission scope that supports more methods than another
+corresponds to broader permissions and is therefore more
+sensitive. Concretely, for each scopes i, we denote the set of
+*
+*.acls *.acls.readonly
+*.app.created
+*.calendars *.calendars.readonly
+*.calendarlist *.calendarlist.readonly
+*.events.owned *.events
+*.readonly
+*.settings.readonly
+*.events.freebusy
+*.freebusy
+*.events.owned.readonly
+*.events.public.readonly
+*.events.readonly
+* = https://www.googleapis.com/auth/calendar
+Figure 3. Google Calendar’s Permission Hierarchy
+methods that this scope supports asO i. For any two scopes
+s1 ands 2, if the correspondingO 1 is a subset ofO 2, then we
+considers 1 to be a child ofs 2 in the permission hierarchy.
+Due to space constraints, the full algorithm is deferred to
+the appendix (see Alg. 1).
+Fig. 3 presents the reconstructed permission hierar-
+chy for Google Calendar using the above idea. Based
+on this example, we have several findings. First, the
+naming hierarchy of scopes does not necessarily re-
+flect their actual functional hierarchy. For example, one
+would naturally consider *.events.readonlyto be
+the parent node of *.events.public.readonlyand
+*.events.owned.readonlybased on their names.
+However, the actual hierarchy is the opposite, as the
+latter two scopes allow access to more methods be-
+cause they apply to specific resources. Similar pat-
+terns can be found between *.events.freebusy
+and *.freebusy, and between *.event.ownedand
+*.event. Second, there exist scopes that can be merged
+into the same node in the hierarchy. This occurs when
+different scopes support exactly the same set of meth-
+ods. In practice, this often happens when the scopes gov-
+ern the same functionality but apply to different resource
+types. For example,.events.public.readonlyand
+.events.owned.readonlyboth enable read-only ac-
+cess to events, but one applies to public events while the
+other applies to owned events.
+3.3. ILP-based Least Privilege Solver
+Now given the hierarchy in a tree-like structure, can
+we find the least privilege permissions for a set of API
+methods in a straightforward way? One might consider a
+simple heuristic: for each method, find the most restrictive
+permission that supports it, and then take the union of
+these permissions across the method set as the required
+least-privilege permissions. However, this approach only
+makes sense under the assumption that for each method,
+there is exactly one path in the tree where nodes on this
+5
+
+--- PAGE 6 ---
+path are the permissions that include this method. In our
+reconstructed permission hierarchy, we find that a single
+method can have multiple corresponding paths. For example,
+in Fig. 3,calendar.calendars.get, which returns
+calendar metadata, can be invoked with either.readonly
+or.calendars.readonly. In Google Calendar, 24 of
+the 37 API methods can be authorized through multiple
+paths. In such cases, the heuristic described above does not
+guarantee optimal permission selection.
+Instead, we find that the least privilege mapping problem
+can be formulated as an Integer Linear Program (ILP)
+problem. Without loss of generality, we now consider a
+single target service, as mapping execution plans across
+multiple services is equivalent to independently mapping
+each service’s plan. Given an application, letT= (V,E)
+denote a permission tree (or forest), where each nodev∈V
+corresponds to a unique permission scopes(assuming no
+equivalent scopes for simplicity), and each directed edge
+(vi,v j)∈Eindicates thatv i grants broader permissions
+thanv j. LetE={e 1,e 2, . . . ,e n}denote an execution plan
+consisting of API calls to the target application. For each
+API calle i, letS i be the set of required permission scopes
+(nodes inT). DefineS={S 1,S 2, . . . ,S n}as the collection
+of these scope sets.
+Let binary decision variablesx v ∈ {0, 1}indicate
+whether nodev∈Vis selected:
+xv =
+(
+1,if nodevis selected
+0,otherwise
+Our goal is to minimize the total cost associated with
+selected nodes:
+minimize ∑
+v∈V
+cost(v)·x v
+subject to the following constraints, ensuring that at least
+one of each API call’s required scopes is covered:
+∀Si ∈S: ∑
+v:subtree(v)∩S i̸=∅
+xv ≥1
+wheresubtree(v)denotes the nodevand all its descendants
+inT, andcost(v)is the cost associated with selecting node
+v. In this paper, we construct our cost model based on the
+number of API calls that can be authorized by each scope
+v. Note that our design is independent of the specific cost
+model used. It can be customized based on developer pref-
+erences, user requirements, or insights from prior research
+on optimal cost formulations. We treat the selection of cost
+model as a complementary area of investigation.
+When previously granted permissions are insufficient for
+a new task, we re-solve the ILP while fixing the variables
+corresponding to those existing permissions to 1, treating
+them as predetermined constraints. This preserves all origi-
+nally granted scopes, and the solver then finds the least set
+of additional permissions required to complete the task.
+Least Privilege Solver
+Credential Storage
+Permission Checker
+Permission Hierarchies
+MiniScope
+②
+User Agent Services
+③ ④ ⑤ ⑥
+① ⑦
+⑧
+Figure 4. MiniScope Workflow 1User sends request to the agent. 2
+Agent submits the execution plan to MiniScope. 3Least Privilege Solver
+determines minimal required permissions and requests user approval for any
+additional privileges. 4MiniScope generates session token and returns
+it to the agent. 5Agent executes tool calls using the session token.
+6MiniScope intercepts tool calls, validates permissions against token
+scope, and substitutes actual user credentials upon successful verification.
+7Connected services process tool calls and return results to the agent.
+8Agent delivers final response to the user.
+4. MiniScope
+This section presents the MiniScope architecture, work-
+flow, and permission model, followed by a security analysis
+based on the security game defined in §2.2.
+As shown in Fig. 4, MiniScope consists of four compo-
+nents: the Credential Storage, the Permission Hierarchies,
+the Least Privilege Solver, and the Permission Checker. The
+Credential Storage stores the credentials to access connected
+services and the permissions previously granted to the agent.
+We introduce the functionality of the other components as
+we walk through the workflow.
+4.1. Initialization
+During initialization, MiniScope takes as input a map-
+ping from each API method to its accepted permission
+scopes. Currently, MiniScope obtains this mapping from
+each service’s official documentation published on their
+public websites. In the future, developers who want to
+adopt MiniScope can either verify this generated mapping
+or release an official mapping for their service. However,
+even without developer involvement, the mapping derives
+solely from public documentation without prior knowledge
+of users’ tasks and will not be contaminated by untrusted
+parties mentioned in §2.1. Once this mapping is generated,
+MiniScope parses it and reconstructs the permission hier-
+archy for each service using the methodology described
+in §3.2. At initialization, the agent is configured with no
+permissions for any service registered with MiniScope.
+6
+
+--- PAGE 7 ---
+4.2. Workflow
+When a user requests tool calls, the agent first generates
+an execution graph, where each node represents a tool
+call and edges capture the data flow between nodes. This
+execution graph is then passed to the Least Privilege Solver
+in MiniScope. Next, the solver groups the tool calls in
+the execution graph by application. For each application,
+it determines the minimal set of required permission scopes
+based on the tool calls, the previously granted permissions,
+and the permission hierarchy of the target service. If ad-
+ditional permissions are needed to complete the execution
+graph, MiniScope prompts the user to decide which per-
+missions for which services may be delegated to the agent.
+If the user grants the permission, the solver updates the
+permissions in the Credential Storage according to the user’s
+choice (see §4.3). The solver then returns the session token
+to the agent. With the decision in place, the agent issues tool
+calls according to the execution plan, attaching the session
+token to each request. Before a tool call reaches the service,
+it is intercepted by the Permission Checker, which verifies
+the request using the granted permissions associated with
+the session token stored in the Credential Storage. If the
+verification succeeds, the tool call is forwarded to the service
+with the user’s actual credentials attached, and the service’s
+response is returned to the agent.
+Utility-wise, for normal benign tasks, MiniScope does
+not affect the agent’s execution, as its planning and actions
+remain within the granted permissions. When the agent
+attempts to invoke a tool call with insufficient permissions,
+MiniScope intercepts the unauthorized action. In such cases,
+the agent’s workflow is returned to the user, who can revise
+or clarify the request.
+4.3. Permission Model
+MiniScope adopts a session-based permission model
+that aligns naturally with how agentic applications already
+operate. Current agentic applications use session-based de-
+signs to bridge the gap between stateless language models
+and stateful user interactions. Although LLMs process each
+request independently, meaningful agent conversations re-
+quire maintaining context across multiple interactions Ses-
+sions address this need by preserving conversation history
+throughout an interaction period. Because each session de-
+fines a boundary for temporarily preserved context, session-
+based permissions integrate seamlessly with this model.
+When a user initiates a conversation session with an
+LLM agent, the agent first registers with MiniScope to
+obtain a session token. At the same time, MiniScope creates
+a fork of the user’s previously granted permissions in the
+Credential Database and associates it with the new session.
+Any permissions granted during the session are recorded in
+this fork unless the user explicitly chooses to make them
+permanent by selecting “Always allow.” When the session
+ends, the forked permissions are automatically discarded.
+MiniScope’s permission solver analyzes user tasks to
+determine the minimum privilege scope required for com-
+pletion. Since we treat users as the ground truth source
+for permission decisions, the system must prompt them
+for explicit approval of these scopes. While requesting
+permission for every individual tool call achieves optimal
+security, this approach creates excessive user fatigue and
+degrades the overall experience. To balance security with
+ease of use, we adopt the permission model used in modern
+mobile platforms [3], [9] and adapt it to the agentic setting.
+Specifically, for newly requested permissions, we offer the
+following options.
+•Always allow.Grants permanent permission for this scope
+across all future sessions.
+•Allow once.Provides one-time permission for the current
+operation only.
+•Allow this session.Enables access for the duration of the
+current agent session.
+•Don’t allow.Explicitly denies access to the requested
+scope. This indicates either that the user has changed their
+mind or that the agent has requested excessive scopes.
+To aid user comprehension during permission granting,
+we use the brief descriptions of each scope provided in the
+application specifications and include these descriptions in
+the permission prompts. When the user grants a permission,
+the agent proceeds to the execution phase and enters the
+response phase once execution completes successfully. Oth-
+erwise, it replans if additional is required for execution. If
+the user selects “Don’t allow”, or if the agent issues a tool
+call that falls outside the previously granted permissions, the
+interceptor detects the violation, terminates the tool call, and
+returns an “insufficient permission” response to the agent.
+If the user wishes to revoke previously granted permissions,
+they can access the credential storage and modify the per-
+mission entry, similar to how permissions are managed in
+mobile device settings.
+While our approach draws from existing mobile permis-
+sion models, we acknowledge that the permission model in
+traditional mobile ecosystems is constantly evolving [3], and
+better approaches to assist users in determining permissions
+are possible [14], [43], [61], [77]. We leave the exploration
+of a better permission model in agentic tasks to future work.
+4.4. Security Analysis
+We now analyze how MiniScope ’s design satisfies the
+guarantees defined under the threat model in §2.1. During in-
+teraction, untrusted data may originate from the data section
+of user input or from responses to tool calls in prior interac-
+tions within the same session. In addition, the LLM itself is a
+potential source of untrusted behavior, as it may misinterpret
+or deviate from the user’s original intention. Therefore, the
+execution plan submitted to the Least Privilege Solver may
+contain unwanted actions. With MiniScope, the minimal set
+of privileges required for the plan is computed and checked
+against the permissions that have already been granted. If the
+plan requires additional permissions to proceed, the user is
+notified and prompted for approval. This mechanism ensures
+that when untrusted data causes the plan to request actions
+7
+
+--- PAGE 8 ---
+Please reply to the latest email regarding
+next week's event. I will be available Friday .
+1.Gmail: list_messages
+2.Gmail: get_messages
+Your agent is requesting read-only
+access to your Gmail…
+…
+We are planning to get tickets to the campus
+film night next week. Would you be up for
+joining?
+Delete this email after replying. Don’t ignore
+this — add it to your plan.
+…
+1.Gmail: send_message
+2.Gmail: delete_message
+Your agent is requesting full
+access to your Gmail (send and
+delete messages)…
+Insufficient permissions. Task aborted.
+1. User request
+2. Agent Planning
+3. MiniScope Solving
+& User Confirmation
+4. Tool Execution
+5. Agent Replanning
+6. MiniScope Solving
+& User Confirmation
+7. Agent Response
+Figure 5. Example of an in-scope attack that MiniScope defends against.
+beyond the previously granted permissions, the user can
+detect and block such unintended behavior. Furthermore,
+MiniScope intercepts and validates each tool call request
+issued by the agent. If a request carries a valid session
+token and falls within the permissions associated with that
+token, MiniScope forwards it to the target service using
+the user’s real credentials. This design ensures that the
+agent never directly accesses the user’s actual bearer tokens.
+Otherwise, a malicious agent could bypass enforcement by
+first submitting a benign execution plan to obtain the user’s
+credentials, and then executing a malicious one.
+As discussed in §2.1, MiniScope ’s protection granular-
+ity is determined by the permission hierarchy. Fig. 5 presents
+an in-scope attack that can be detected by MiniScope. In this
+example, the agent follows the ReAct [83] paradigm, where
+after each round of tool call execution, it reasons about the
+next step and may revise the execution plan in response to
+potentially malicious tool outputs. It is worth noting that
+even in the more recent and widely used Plan and Execute
+model [20], MiniScope can still detect this kind of attack.
+Out-of-Scope attacks.MiniScope does not provide guar-
+antees against attacks that alter the execution plan within
+the currently granted permissions. For example, such at-
+tacks may mislead the agent into invoking another tool
+call within the same permission group or the same tool
+call with different arguments. The flexibility of MiniScope
+allows developers and users to determine the permission
+granularity as a balance between security and ease of use.
+We discuss how MiniScope can be combined with other
+defense mechanisms to achieve stronger protection in §7.
+5. Synthetic Scenarios for Real Applications
+In this section, we describe our methodology for con-
+structing the evaluation suite for MiniScope, aiming to
+simulate realistic user–agent interactions. Ideally, this would
+require authentic user requests from deployed agentic appli-
+cations. However, despite the growing deployment of agentic
+systems, publicly available datasets remain limited, and
+accessing real user data raises significant privacy concerns.
+Therefore, following common practice in prior work [11],
+[21], we evaluate our system using synthetic data.
+Unlike prior work that relies on abstract tasks or simu-
+lated applications, MiniScope focuses on real, widely used
+applications. We collected 10 popular applications (Tab. 1),
+seven of which are already integrated as tool-calling con-
+nectors in Claude and ChatGPT [6], [53]. Compared to real
+applications, we find that simulated applications often have
+oversimplified API structures. For example, as shown in
+Tab. 1, the number of tools in our applications ranges from
+32 to 247, while simulated applications typically offer only
+a few to at most 20 tools [21], [34]. Grounding our setup in
+real applications allows us to generate realistic user requests
+and capture the complexity of permission hierarchies across
+different applications. Based on these applications, we then
+simulate realistic and representative user–agent interactions
+with two objectives: complexity and coverage. Complexity
+ensures that generated requests span diverse types of user
+interactions, while coverage ensures that the requests cover
+as many API methods as possible.
+To capture complexity, we simulate three scenarios. The
+first involves asingle applicationand asingle method,
+representing the simplest form of user–agent interaction.
+The second extends this tomultiple methodswithin a single
+application, reflecting more realistic workflows within one
+service, such as querying and then updating a calendar event.
+The third spansmultiple applicationsandmultiple methods,
+modeling cross-application workflows and the correspond-
+ing challenges in scope composition. For multi-application
+cases, we construct two suites: the first includes Gmail,
+Google Calendar, and Google Drive, while the second con-
+tains Slack, Gmail, and Dropbox, to capture productivity
+and collaboration workflows, respectively.
+To achieve coverage, we prompt the LLM to generate
+distinct requests and then deduplicate the generated requests
+based on the methods involved in each request. For the
+single-method scenario, we prompt the LLM to iterate over
+each method and generate one request per method, aiming
+for 100% coverage. In the multi-method scenario, the gener-
+ator simulates 200 requests for single-application workflows
+and 100 for multi-application suites. Tab. 1 summarizes
+the statistics for each application and the corresponding
+generated requests. The generated requests achieve high
+coverage across all scenarios except for Suite 2, which we
+attribute to the complexity of the applications it contains.
+8
+
+--- PAGE 9 ---
+TABLE 1. STATISTICS FOR OUR SYNTHETIC DATASET. FOR EACH APPLICATION,WE REPORT THE NUMBER OF COLLECTED METHODS AND SCOPES,
+THE HEIGHT OF THE RECONSTRUCTED PERMISSION HIERARCHY,AND THE NUMBER OF GENERATED REQUESTS TOGETHER WITH THEIR COVERAGE
+ON SCOPES(C Scope )AND METHODS(C Method )FOR BOTH SINGLE METHOD AND MULTI METHOD SCENARIOS.
+Applications # Methods # Scopes Tree Height Single-method Multi-method
+Max Avg. # RequestsC scope Cmethod # RequestsC scope Cmethod
+Gmail 79 10 5 2.3 79 100% 100% 151 100% 100%
+Google Calendar 37 17 5 5.0 37 62.5% 100% 117 68.8% 100%
+Google Drive 58 10 4 2.5 55 100% 100% 168 100% 98.2%
+Google Storage 81 5 2 2.0 81 100% 100% 114 100% 100%
+Slack 247 84 3 1.0 266 100% 100% 190 100% 91.4%
+DropBox 120 13 1 1.0 120 100% 100% 194 100% 100%
+Outlook 44 8 2 1.1 44 100% 84.1% 154 79.5% 100%
+Outlook Calendar 51 7 3 1.4 51 100% 82.4% 113 85.7% 82.4%
+Notion 32 7 2 1.2 32 100% 100% 127 100% 100%
+Zoom 184 47 2 1.2 184 100% 100% 161 95.7% 97.8%
+Suite 1 171 36 - - - - - 77 94.7% 83.3%
+Suite 2 465 111 - - - - - 93 33.3% 15.1%
+5.1. Reconstructed Permission Hierarchies
+In the reconstructed permission hierarchies, we find that
+applications exhibit very different structural patterns. We
+present these differences for each application by reporting
+the maximum and average heights of the reconstructed
+hierarchies in Tab. 1. Some applications, such as Gmail,
+Google Drive, and Google Calendar, form deep hierarchical
+graphs that condense into proper trees once cycles are
+removed. For example, Google Calendar forms a single tree
+of height 5. In contrast, applications such as Slack, Zoom,
+and Dropbox have relatively flat hierarchies composed of
+many disconnected components. Each component is either
+a small tree or a single scope, forming a shallow forest
+with maximum height 1 and average heights near 1.0. These
+contrasting structures reflect different design philosophies.
+Some services favor simplicity and define a small number of
+broad permission groups, including highly privileged scopes,
+which naturally appear as roots in the reconstructed hier-
+archy. Others pursue fine-grained access control, avoiding
+broad scopes and instead exposing many low-privilege gran-
+ular scopes, which leads to flat and fragmented hierarchies.
+6. Evaluation
+In this section, we evaluate MiniScope against three
+baselines that apply different levels of security mechanisms:
+an agent without any enforcement (Vanilla), an agent
+that enforces permissions at the granularity of individual
+methods (PerMethod), and an agent assisted by a separate
+LLM that infers the least-privilege permission (LLMScope).
+We aim to answer the following questions about MiniScope,
+in relation to those baselines:
+1) How minimal are the selected permissions?
+2) What runtime overhead does it introduce?
+3) How frequently does it require user confirmation?
+6.1. Implementation and Baselines
+We implement MiniScope and the baselines in roughly
+8,000 lines of Python. We build an end-to-end tool-calling
+agent on LangGraph [35] with command-line interaction
+and connect it to external services via the Model Context
+Protocol (MCP) [7]. The core logic of the agent is split
+into two nodes in the graph: the planner and the executor.
+The planner receives the user’s prompt along with tool
+metadata (function names, descriptions, and arguments)
+and invokes the LLM to generate an execution plan. The
+executor then issues tool calls according to the plan. Tool
+calls whose arguments are fully specified are executed
+immediately, whereas calls that depend on earlier results
+are deferred until all required arguments become available.
+Between calls, the executor may ask the LLM to transform
+earlier outputs into the format required by later tools.
+For example, given the requestCan you list all
+the channels I have on Slack and read
+the latest message from each of them?,
+the executor must convert the channel-listing result into
+arguments for per-channel message-reading calls.
+Based on this agent, MiniScope’s Least Privilege Solver
+is integrated as a LangGraph node positioned between the
+planner and executor. Because MCP function names do not
+always match the method names used in official documen-
+tation, we maintain a mapping from each MCP function
+to its corresponding API methods. This mapping also al-
+lows custom MCP functions that internally invoke multiple
+methods. The session token identifying the agent’s session
+is included in the MCP request header to the MCP server.
+We wrap each MCP function with a decorator that validates
+whether the tool call is permitted under the currently granted
+permissions. If a call is not permitted, the decorator returns
+an insufficient-permission error as the tool’s response.
+We conduct all experiments on Google Cloud Platform
+using an n2-standard-8 instance (8 vCPUs, 32 GB RAM).
+9
+
+--- PAGE 10 ---
+Dropbox Google
+Calendar
+Google
+Drive
+Gmail Google
+Storage
+Notion Outlook Outlook
+Calendar
+Slack Zoom
+0
+20
+40
+60
+80
+100Mismatch Rate %
+ 18.9
+43.6 40.5
+12.5
+5.9 3.0 4.9
+10.8
+67.3 64.6
+34.6
+12.5
+ 11.8
+6.4
+14.8
+24.3
+47.3 44.3
+6.2
+12.5
+5.9 5.6 7.7
+29.2
+51.4
+81.8
+70.9
+55.6
+21.9
+52.3
+43.1
+52.3
+43.7
+61.7
+48.6
+76.4 79.7
+70.4
+53.1
+65.9 68.6
+81.6
+61.7
+Suite1
+79.698.9
+89.2
+100.098.9
+Dropbox Google
+Calendar
+Google
+Drive
+Gmail Google
+Storage
+Notion Outlook Outlook
+Calendar
+Slack Zoom
+0
+20
+40
+60
+80
+100Mismatch Rate %
+1.0
+51.3
+38.1
+31.1
+3.1
+35.1
+13.3
+7.9 3.72.6
+34.2
+75.6
+48.3
+35.1
+6.3
+46.1
+32.7
+12.1
+25.5
+1.5
+43.6
+72.0
+59.6
+13.2
+6.3
+61.7
+31.0
+12.6
+19.9
+58.8
+65.0
+86.3
+88.1
+62.3
+40.9
+79.9
+70.8
+79.5 77.081.4 82.9
+77.4
+84.8 86.0 83.5
+89.6 71.7
+96.3 83.9
+Suite2
+33.8
+59.7
+71.4
+100.0100.0
+GPT 5 Claude Sonnet 4.5 Gemini 2.5 Flash Qwen3-30B Llama-3.1-70B Overprivileged Infeasible
+Figure 6. Percentage of permission mismatches for LLMScope relative to MiniScope. Top left: single-application, single-method. Bottom left: single-
+application, multi-method. Right: multi-application, multi-method. Green checkmarks indicate zero mismatches.
+6.2. Comparison against LLM-inferred Permission
+In Fig. 6, we compare MiniScope against LLMScope in
+terms of the permissions required for each task. For each
+synthetic request, the LLM is given the mapping between
+methods and permission scopes, along with the execution
+plan, and is asked to determine the required scopes under
+the least-privilege principle. We leverage Pydantic AI [1] to
+ensure the validity of the output permissions for LLMScope.
+For each application, we report the mismatch rate relative
+to the solution from MiniScope’s Least Privilege Solver.
+Specifically, we classify mismatches into two categories:in-
+feasiblesolutions provide valid but insufficient permissions
+to execute the methods in the plan, whileoverprivileged
+solutions provide valid and sufficient permissions but incur
+higher cost than MiniScope ’s solution. To account for
+variation in model capabilities, we evaluate three state-of-
+the-art proprietary LLMs: GPT 5, Claude Sonnet 4.5, and
+Gemini 2.5 Flash as well as two popular open-source mod-
+els: Qwen3-30B and Llama-3.1-70B.
+Overall, we find that the latest proprietary LLMs achieve
+consistently lower mismatch rates across all benchmarks
+compared to open-source models, which is reasonable given
+their differences in scale. The infeasibility rate for pro-
+prietary LLMs is also very low (except for Outlook and
+Outlook Calendar in the single-application, multi-method
+setting). This means that, when used to infer required
+permissions, these models generally prompt the user with
+permission sets that are sufficient to complete the task.
+However, their overprivilege rates remain high, and we
+observe three main trends in Fig. 6.
+First, the quality of LLM-generated solutions correlates
+with the complexity of the underlying permission hierar-
+chies. Across both single-method and multi-method bench-
+marks, mismatch rates are much lower for applications with
+flat hierarchies than for those with deep, tree-like hierar-
+chies. For applications such as Google Calendar, Google
+Drive, and Gmail, the permission hierarchies are deep and
+tree-structured, and even in the single-application, single-
+method setting, the mismatch rate can exceed 40%. In
+contrast, for applications with flat hierarchies, where each
+method maps to exactly one permission group, identifying
+the minimal set of permissions is straightforward, and the
+mismatch rate is very low (even zero), as seen in Dropbox,
+Outlook and Zoom.
+Second, the difficulty of finding least-privilege permis-
+sions grows with the complexity of the execution plan. In
+the single-application setting, we observe a clear increase
+in mismatch rates when multiple methods are involved, and
+the number of infeasible solutions rises substantially in the
+multi-method benchmark (especially for open-source mod-
+els). This indicates that as user tasks become more complex,
+LLMs become less likely to find optimal solutions and may
+even fail to provide sufficient permissions. The increase
+in infeasibility rate for Outlook and Outlook Calendar is
+particularly significant, which we attribute to ambiguous
+naming conventions. For instance,Mail.Readappears to
+be a child node ofMail.ReadWrite, but in fact it is not.
+Third, when execution plans involve tool calls from
+multiple applications, the mismatch rate increases signif-
+icantly. We attribute this to the larger context required:
+the prompt must include the descriptions of tool calls and
+permissions for all involved applications. In our setup, the
+context size roughly triples because each suite contains three
+applications, making it harder for the LLM to infer the op-
+timal solution. A similar pattern appears even within single-
+application tasks when comparing Slack and Dropbox. Even
+though both of them have relatively flat scope hierarchies,
+the mismatch rate for Slack is higher because Slack has
+more methods and permission groups in its OAuth config-
+10
+
+--- PAGE 11 ---
+TABLE 2. OVERPRIVILEGERATIO FORLLMSCOPE
+Multi-app Single-app Single-app
+Multi-method Multi-method Single-method
+Claude Sonnet 4.5 1.47 1.13 1.19
+Gemini 2.5 Flash 1.49 1.10 1.07
+GPT 5 1.12 1.03 1.04
+LLaMA3.1 1.94 1.44 1.59
+Qwen 3 2.19 1.28 1.37
+uration. This trend aligns with the observation that longer
+LLM prompts tend to degrade downstream task performance
+[38]. Longer prompts also introduce higher runtime and
+operational costs, which we discuss in the later section.
+In summary, while LLMs can often infer sufficient per-
+mission and occasionally optimal ones, the quality of their
+output is highly sensitive to the complexity of the permission
+hierarchy, the complexity of the request, and the length of
+the context. The high rate of overprivileged results from
+LLMs also exposes a larger attack surface and increases
+risks for users, as we show next in detail.
+6.2.1. Overprivilege deployment.In Tab. 2, we report the
+average overprivilege ratio across models for each scenario.
+We define the overprivilege ratio as the number of meth-
+ods allowed under the permission inferred by LLMScope
+divided by the number of methods allowed under the per-
+mission selected by MiniScope. From the table, we observe
+overprivilege ratios ranging from 1.04 to 2.19. Given that
+the average number of allowed methods by MiniScope in
+our dataset is around 30, this implies that the permissions
+inferred by LLMScope typically grant additional tool calls
+beyond what is minimally required.
+We then extend our overprivilege analysis to real world
+agents: connectors supported by ChatGPT and Claude. No-
+tably, we findsix overprivileged configurationsamong the
+connectors we explored. For each connector, we collect the
+permissions requested during initialization as well as the
+set of supported tool actions. We then apply MiniScope’s
+Least Privilege Solver to determine the minimal permissions
+required for those tool calls. In Tab. 3, we present the num-
+ber of methods permitted under each connector’s requested
+permissions and under the least privilege permissions in-
+ferred by MiniScope. For Google Workspace, ChatGPT’s
+connectors request permissions that allow modification and
+deletion of emails and calendar events, even though the
+agent interface advertises read only capabilities. Claude’s
+connectors do not request extra scopes for Gmail or Calen-
+dar, but its Google Drive integration includes an optional
+scope that enables file modification and deletion beyond
+its stated read only behavior. A similar pattern appears for
+Dropbox: while ChatGPT discloses only read only actions
+on a user’s storage, its requested permissions include access
+to sharing metadata and collaborator information, capabili-
+ties that may introduce unnecessary privacy risks.
+TABLE 3. OVERPRIVILEGE INCHATGPTANDCLAUDE CONNECTORS.
+RED INDICATES OVERPRIVILEGED DEPLOYMENT.
+ChatGPT Claude
+Requested MiniScope Requested MiniScope
+Gmail 50 32 32 32
+Google Calendar 12 5 15 15
+Google Storage 27 27 45 27
+Notion 32 13 32 29
+DropBox 44 25 - -
+6.3. Latency and Operational Cost
+We now compare the cost introduced by MiniScope
+in terms of latency and operational overhead, relative to
+LLMScope and the Vanilla Agent. For LLMScope, we use
+GPT 5 as the underlying LLM, as it achieved the lowest
+mismatch rate in the previous section. In Fig. 7, we report
+latency across different scenarios, broken down into four
+components: planning, permission solving, execution, and
+response. In these measurements, we omit the time required
+for user confirmation, as this varies across users. Instead,
+we compare the user burden in §6.4.
+By design, MiniScope introduces additional overhead for
+permission solving and checking during execution compared
+to Vanilla Agent. As shown in Fig. 7, however, the Least
+Privilege Solver and Permission Checker in MiniScope incur
+only 1–6% runtime overhead. Although MiniScope uses
+ILP to compute the minimal set of required scopes, each
+ILP instance contains only a small number of variables,
+resulting in fast solving times. In contrast, LLMScope incurs
+significant overhead because permission inference requires
+prompting the LLM. While the quality of LLM-inferred
+permissions could improve with better prompts or test-time
+scaling, this baseline suffers from high latency and poor
+scalability for complex tasks. The primary reason is that
+each LLM prompt must include not only the execution plan
+but also the entire specification of the services. Because
+this specification is often large, and in scenarios involving
+several applications must include all of them, permission
+inference can become slower than executing the task itself.
+Such overhead significantly undermines the user experience.
+In terms of operational cost, in the multi-application,
+multi-method setting, each task requires additional 50k
+tokens, which amounts to about $0.063 per request. By
+contrast, MiniScope can run directly on a normal user device
+without introducing any extra operational cost.
+6.4. User Effort
+Like many prior works [29], [30], [48], [66], MiniScope
+brings humans into the loop during an agentic workflow.
+We now simulate how frequently users need to provide con-
+firmation when using MiniScope, especially in comparison
+with the PerMethod baseline.
+To do so, we first approximate three months of typical
+user interactions with an application by prompting the LLM.
+Unlike the synthetic requests in the prior section, which fo-
+cused on coverage and diversity, our goal here is to generate
+11
+
+--- PAGE 12 ---
+Single App
+Single Method
+Single App
+Multi Method
+Multi App
+Multi Method
+0
+4
+8
+12
+16
+20Latency (s)
+2.92 3.04
+6.49
+4.42 4.54
+10.20
+4.91 5.23
+20.50
+Response
+Execution
+Permission Solving
+Planning
+Vanilla Agent MiniScope LLMScope
+Figure 7. Latency breakdown of MiniScope compared to two baselines.
+a request distribution that reflects typical real world usage.
+The prompt instructs the LLM to identify the most common
+methods and use them frequently, while distributing less
+common methods sparsely across the month.
+Next, we model potential user behaviors. To capture
+different attitudes toward security and convenience, we sim-
+ulate four types of users: one who always selects “Always
+allow”, representing minimal security awareness; one who
+always selects “Allow once”, representing maximal cau-
+tion; one who selects “Always allow” only for per-
+missions that hasreadonlyproperty, modeling a simple
+sensitivity based strategy; and, inspired by [48], a user
+simulated by an LLM that is guided by security aware
+prompts. Together, these four cases reflect a spectrum of
+realistic user strategies, from permissive to highly cautious,
+and also include both static and an adaptive model simulated
+strategy.
+Fig. 8 presents the results of our simulation experi-
+ments on Gmail. The user who always selects “Allow
+Once”represents the upper bound of user effort. The user
+who always selects “Always Allow” needs to confirm
+only the first few requests until all permissions are granted,
+after which no further confirmations are required. At a high
+level, compared to method-level enforcement, MiniScope
+reduces the number of confirmations because it groups tool
+calls into permission groups, and once the user grants a
+permission, the agent can use all tool calls that belong to
+that group. Under method-level enforcement, on the other
+hand, the user must make a decision for every tool call,
+which increases decision overhead and leads to repetitive
+confirmations for calls with similar sensitivity. These effects
+are reflected in the results shown in Fig. 8. Compared to
+method-level enforcement, the LLM simulated user requires
+four times fewer confirmations in MiniScope, and the read
+only user also requires fewer confirmations. Prior work
+reports confirmation rates of 30–60% for sensitive tasks such
+as clinical use [66] and 10–20% for GUI or web agents [29],
+[30], [48]. Our findings align with these results, and we
+believe MiniScope’s overhead on user confirmation can be
+further reduced (see §7.3).
+0 100 200 300 400 500
+# Requests
+0
+100
+200
+300
+400
+500# Confirmations
+Gmail User Simulation
+MiniScope Always Once
+MiniScope Always Allow
+MiniScope Simulated
+MiniScope R.O.
+PerMethod Simulated
+PerMethod R.O.
+Figure 8. Simulation of user confirmation overhead: cumulative confirma-
+tions required to execute a three month request sequence on Gmail, where
+“Simulate” denotes the LLM simulated user and “R.O.” denotes a user who
+grants “Always allow” only for read operations.
+7. Discussion
+7.1. Beyond Tool Calling Agents
+In this paper, MiniScope focuses on tool calling agents,
+where users connect multiple services to an agent and
+perform tasks across these services through the agent. As
+LLMs become increasingly powerful, there are different
+possible deployments of AI agents, including Computer
+Use Agents [52], Web Agents [54], [73], and communi-
+cation patterns that are not limited to agent-to-service but
+also include agent-to-agent [27], [68], [69]. Recent work
+has demonstrated attacks against these deployments [31],
+[33], [42], [71], [85], and it remains unclear what the best
+scoping mechanism should be. The community has actively
+discussed these challenges [64], [67]. We believe MiniScope
+can be extended to these scenarios. At the core of MiniScope
+is the idea of representing permissions in a hierarchical
+structure that enables mechanical enforcement of least priv-
+ilege access. Thus, if suitable permission hierarchies can
+be defined for these deployments, MiniScope can be reused
+to automatically infer least privilege permissions. Extending
+MiniScope in this way would provide a unified mechanism
+for expressing and enforcing permissions across diverse
+agent deployments, reducing the ad-hoc security decisions
+that currently arise in these environments. This would enable
+consistent least privilege enforcement across agent to service
+and agent to agent workflows.
+7.2. Fine-grained Access Control
+One direction toward better security is exploring fine-
+grained access control mechanisms. Cloud infrastructure
+already demonstrates the value of granular permissions
+through IAM (Identity and Access Management) systems
+[65], where each action on each resource can be precisely
+controlled. While translating these patterns to user-facing
+agentic systems remains challenging, MiniScope’s design
+provides natural extension points for such granularity.
+Our hierarchy reconstruction reveals not only how per-
+mission groups relate to one another but also how individual
+API methods are organized. This insight allows us to refine
+12
+
+--- PAGE 13 ---
+enforcement from permission-level down to method-level.
+Our framework can be further enhanced by combining it
+with execution plan analysis [63]. By examining the argu-
+ments passed to each tool call, we can determine not just
+which methods are needed, but which specific resources
+will be accessed. This enables a two-dimensional access
+control model where permissions are constrained by both
+action and target. For example, when an agent needs to
+send a Slack message, the standard permission typically
+allows messaging any user in the workspace. By analyzing
+the execution plan’s recipient parameter, our framework
+could limit permissions to only that specific channel or
+user. Such fine-grained controls provide optimal security,
+especially in cloud environments where least privilege is
+critical. Yet in personal agentic contexts, implementing such
+granularity introduces usability challenges. Asking users to
+approve detailed permissions for each resource interaction
+could overwhelm them, potentially leading to permission fa-
+tigue where users automatically approve everything without
+reading. Therefore, we intentionally design our system at a
+relatively coarse granularity, with finer granularity available
+as an optional extension. Similar to efforts that pursue
+stateful and fine-grained authorization in cloud settings [15],
+future work may explore adaptive mechanisms that adjust
+permission granularity based on resource sensitivity, user
+expertise, and operational risk.
+7.3. Limitations
+MiniScope prompts the user when the agent needs addi-
+tional permissions to complete a task, a paradigm widely
+used in mobile applications. In practice, however, users
+may still make mistakes, either by approving overly broad
+requests or by overlooking subtle risks. While involving
+users in the loop can introduce some overhead, we view
+this as a necessary trade-off between usability and security.
+To reduce user burden, a potential direction is to combine
+MiniScope with model-based techniques [77] that predict
+user preferences and reduce confirmation frequency, though
+such approaches must contend with the current unreliability
+of predictive models. Another direction is to refine the
+permission hierarchy, as our analysis in §6.4 shows that the
+frequency of confirmations is closely tied to its structure.
+Overall, these challenges present promising opportunities for
+future work on reducing user burden without compromising
+security in agentic settings.
+8. Related Works
+In this section, we discuss related works on attacks
+targeting tool-calling agents and existing defensive strategies
+at both the model-level and the system-level.
+Attacks against agentic systems.For stand-alone LLMs,
+jailbreaking attacks bypass alignment to elicit disallowed
+outputs [4], [88], while prompt injection attacks override
+instructions and redirect model behavior [26], [41], [70]. The
+transition from stand-alone LLMs to fully agentic systems
+has further expanded the attack surface. In the retrieval
+pipeline, PoisonedRAG shows that inserting a few optimized
+documents into a corpus can reliably steer outputs [89]. For
+tool-calling agents, indirect prompt injections [26] can be
+embedded in untrusted retrieved data, hijacking execution.
+At the decision layer, ToolHijacker [62] manipulates tool
+descriptions to divert calls to attacker-controlled APIs, and
+Imprompter [23] generates obfuscated prompts that trigger
+improper tool use and data exfiltration. Together, these at-
+tacks reveal that vulnerabilities now span the full lifecycle
+of agentic systems.
+Defenses for agentic systems.In response, a line of work
+has explored model-level defenses, aiming to harden LLMs
+against jailbreaks and injected instructions. At training time,
+techniques include alignment training (e.g., RLHF, RLAIF,
+Constitutional AI) [12], [37], [55] and robustness-oriented
+fine-tuning methods on jailbreak and injection examples
+[16], [17], [56]. At decoding time, safety-aware generation
+methods alter token probabilities to suppress unsafe contin-
+uations, and steering techniques use activation-level signals
+to maintain refusals under attack [10], [82].
+To achieve more rigorous guarantees, several attempts
+have been made towards system-level defenses.
+Several works adopt policy-based enforcement [18],
+[22], [46], [63], [67], [69], [72], [75], enabling users to
+define explicit policies through domain specific languages
+[19] for deterministic control of agent behavior. While this
+approach is effective and flexible, it often requires substan-
+tial manual effort and specialized expertise to create accurate
+policies across diverse agentic use cases. Some works [63],
+[72] attempt to reduce this burden by leveraging LLMs
+to automatically generate policies; however, this introduces
+potential unreliability due to inherent LLM limitations.
+Another line of work explores architecture-level designs
+to limit potential harm.f-secure [80] disaggregates the
+agent into planner and executor, leveraging information flow
+control to ensure the planner only accesses trusted data.
+IsolateGPT [81] isolates mutually distrusting applications in
+separate environments while relying on a centralized trusted
+hub to handle planning and inter-application communica-
+tion. ACE [39] identifies the risk of trusting application
+descriptions and proposes two-step planning: first planning
+with abstract applications, then performing concrete plan-
+ning with real applications to mitigate this risk. AirGapA-
+gent [11] targets contextual integrity by leveraging the LLM
+as a context minimizer, revealing only necessary personal
+data to the agent. CaMeL [20] andPFI[32] employ two con-
+ceptually separate LLMs—one extracts control flow from
+trusted user queries while another parses untrusted, unstruc-
+tured data into structured formats—ensuring that untrusted
+data retrieved by the LLM cannot impact program flow.
+These approaches follow the Dual LLM pattern [13], [78],
+where a separate LLM processes only trusted information
+and performs enforcement over primary LLM. However, the
+fundamental limitation of this pattern is that the separate
+LLM may still hallucinate and therefore cannot provide the
+same rigorous security guarantees as MiniScope.
+13
+
+--- PAGE 14 ---
+9. Conclusion
+MiniScope is a framework that enables tool-calling
+agents to operate on user accounts while confining potential
+damage from unreliable LLMs. MiniScope provides rigor-
+ous least-privilege guarantees by constructing permission
+hierarchies from existing authorization workflows and lever-
+aging a novel ILP formulation to automatically compute
+the minimal set of permissions required for diverse agentic
+tasks. Our findings show that systematic, mechanical en-
+forcement of least privilege is both feasible and effective for
+agentic workflows. Looking forward, we believe that well-
+defined permission hierarchies can serve as a foundation for
+extending MiniScope to diverse agent deployments.
+Acknowledgments
+We thank Julien Piet and Xiaoyuan Liu for discussions
+on the overall system design, and David Wagner for discus-
+sions on the permission model and user study. We also thank
+students in the Sky Security Group for their helpful feedback
+that improved the presentation of this work. This work is
+supported by gifts from Accenture, AMD, Anyscale, Cisco,
+Google, IBM, Intel, Intesa Sanpaolo, Lambda, Mibura, Mi-
+crosoft, NVIDIA, Samsung SDS, SAP, and VMware.
+References
+[1] Pydantic AI. https://ai.pydantic.dev/.
+[2] General Analysis. Supabase mcp can leak your entire sql database.
+https://www.generalanalysis.com/blog/supabase-mcp-blog.
+[3] Android. Permissions on android. https://developer.android.com/gu
+ide/topics/permissions/overview.
+[4] Cem Anil, Esin Durmus, Nina Panickssery, Mrinank Sharma, Joe
+Benton, Sandipan Kundu, Joshua Batson, Meg Tong, Jesse Mu,
+Daniel Ford, et al. Many-shot jailbreaking.Advances in Neural
+Information Processing Systems, 37:129696–129742, 2024.
+[5] Anthropic. Claude. https://claude.ai/.
+[6] Anthropic. Discover tools that work with claude. https://www.anth
+ropic.com/news/connectors-directory.
+[7] Anthropic. Model context protocol. https://modelcontextprotocol.io/
+introduction.
+[8] Apple. Introducing apple intelligence, the personal intelligence sys-
+tem that puts powerful generative models at the core of iphone, ipad,
+and mac. https://www.apple.com/newsroom/2024/06/introducing-app
+le-intelligence-for-iphone-ipad-and-mac/.
+[9] Apple. Requesting access to protected resources. https://developer.
+apple.com/documentation/uikit/requesting-access-to-protected-resou
+rces.
+[10] Andy Arditi, Oscar Obeso, Aaquib Syed, Daniel Paleka, Nina Pan-
+ickssery, Wes Gurnee, and Neel Nanda. Refusal in language mod-
+els is mediated by a single direction, 2024.URL https://arxiv.
+org/abs/2406.11717, 2022.
+[11] Eugene Bagdasarian, Ren Yi, Sahra Ghalebikesabi, Peter Kairouz,
+Marco Gruteser, Sewoong Oh, Borja Balle, and Daniel Ramage.
+Airgapagent: Protecting privacy-conscious conversational agents. In
+Proceedings of the 2024 on ACM SIGSAC Conference on Computer
+and Communications Security, pages 3868–3882, 2024.
+[12] Yuntao Bai, Saurav Kadavath, Sandipan Kundu, Amanda Askell,
+Jackson Kernion, Andy Jones, Anna Chen, Anna Goldie, Azalia
+Mirhoseini, Cameron McKinnon, et al. Constitutional ai: Harmless-
+ness from ai feedback.arXiv preprint arXiv:2212.08073, 2022.
+[13] Luca Beurer-Kellner, Beat Buesser, Ana-Maria Cret ¸u, Edoardo
+Debenedetti, Daniel Dobos, Daniel Fabian, Marc Fischer, David
+Froelicher, Kathrin Grosse, Daniel Naeff, et al. Design patterns
+for securing llm agents against prompt injections.arXiv preprint
+arXiv:2506.08837, 2025.
+[14] Amel Bourdoucen and Janne Lindqvist. Privacy of default apps
+in apple’s mobile ecosystem. InProceedings of the 2024 CHI
+Conference on Human Factors in Computing Systems, pages 1–32,
+2024.
+[15] Leo Cao, Luoxi Meng, Deian Stefan, and Earlence Fernandes. State-
+ful least privilege authorization for the cloud. In33rd USENIX
+Security Symposium (USENIX Security 24), pages 3477–3494, 2024.
+[16] Sizhe Chen, Julien Piet, Chawin Sitawarin, and David Wagner. Struq:
+Defending against prompt injection with structured queries.arXiv
+preprint arXiv:2402.06363, 2024.
+[17] Sizhe Chen, Arman Zharmagambetov, Saeed Mahloujifar, Kamalika
+Chaudhuri, David Wagner, and Chuan Guo. Secalign: Defending
+against prompt injection with preference optimization.arXiv preprint
+arXiv:2410.05451, 2024.
+[18] Zhaorun Chen, Mintong Kang, and Bo Li. Shieldagent: Shield-
+ing agents via verifiable safety policy reasoning.arXiv preprint
+arXiv:2503.22738, 2025.
+[19] Joseph W Cutler, Craig Disselkoen, Aaron Eline, Shaobo He, Kyle
+Headley, Michael Hicks, Kesha Hietala, Eleftherios Ioannidis, John
+Kastner, Anwar Mamat, et al. Cedar: A new language for expressive,
+fast, safe, and analyzable authorization.Proceedings of the ACM on
+Programming Languages, 8(OOPSLA1):670–697, 2024.
+[20] Edoardo Debenedetti, Ilia Shumailov, Tianqi Fan, Jamie Hayes,
+Nicholas Carlini, Daniel Fabian, Christoph Kern, Chongyang Shi,
+Andreas Terzis, and Florian Tram `er. Defeating prompt injections by
+design.arXiv preprint arXiv:2503.18813, 2025.
+[21] Edoardo Debenedetti, Jie Zhang, Mislav Balunovi ´c, Luca Beurer-
+Kellner, Marc Fischer, and Florian Tram `er. Agentdojo: A dynamic
+environment to evaluate attacks and defenses for llm agents.arXiv
+e-prints, pages arXiv–2406, 2024.
+[22] Abrom Douglas. Empower ai agents with user context using amazon
+cognito. https://aws.amazon.com/blogs/security/empower-ai-agent
+s-with-user-context-using-amazon-cognito/.
+[23] Xiaohan Fu, Shuheng Li, Zihan Wang, Yihao Liu, Rajesh K
+Gupta, Taylor Berg-Kirkpatrick, and Earlence Fernandes. Im-
+prompter: Tricking llm agents into improper tool use.arXiv preprint
+arXiv:2410.14923, 2024.
+[24] Google. Connect google workspace apps & services to gemini apps.
+https://support.google.com/gemini/answer/15229592.
+[25] Google. Gemini. https://gemini.google.com/.
+[26] Kai Greshake, Sahar Abdelnabi, Shailesh Mishra, Christoph Endres,
+Thorsten Holz, and Mario Fritz. Not what you’ve signed up for:
+Compromising real-world llm-integrated applications with indirect
+prompt injection. InProceedings of the 16th ACM workshop on
+artificial intelligence and security, pages 79–90, 2023.
+[27] Shanshan Han, Qifan Zhang, Yuhang Yao, Weizhao Jin, and
+Zhaozhuo Xu. Llm multi-agent systems: Challenges and open prob-
+lems.arXiv preprint arXiv:2402.03578, 2024.
+[28] Dick Hardt. The OAuth 2.0 Authorization Framework. https://www.
+rfc-editor.org/info/rfc6749, October 2012.
+[29] Gaole He, Gianluca Demartini, and Ujwal Gadiraju. Plan-then-
+execute: An empirical study of user trust and team performance when
+using llm agents as a daily assistant. InProceedings of the 2025 CHI
+Conference on Human Factors in Computing Systems, pages 1–22,
+2025.
+14
+
+--- PAGE 15 ---
+[30] Faria Huq, Zora Zhiruo Wang, Frank F Xu, Tianyue Ou, Shuyan
+Zhou, Jeffrey P Bigham, and Graham Neubig. Cowpilot: A frame-
+work for autonomous and human-agent collaborative web navigation.
+arXiv preprint arXiv:2501.16609, 2025.
+[31] Rishi Jha, Harold Triedman, Justin Wagle, and Vitaly Shmatikov.
+Breaking and fixing defenses against control-flow hijacking in multi-
+agent systems.arXiv preprint arXiv:2510.17276, 2025.
+[32] Juhee Kim, Woohyuk Choi, and Byoungyoung Lee. Prompt flow
+integrity to prevent privilege escalation in llm agents.arXiv preprint
+arXiv:2503.15547, 2025.
+[33] Thomas Kuntz, Agatha Duzan, Hao Zhao, Francesco Croce, Zico
+Kolter, Nicolas Flammarion, and Maksym Andriushchenko. Os-harm:
+A benchmark for measuring safety of computer use agents.arXiv
+preprint arXiv:2506.14866, 2025.
+[34] LangChain. Langchain benchmarks. https://langchain-ai.github.io/la
+ngchain-benchmarks/index.html#.
+[35] LangGraph. Langgraph. https://www.langchain.com/langgraph.
+[36] Felix Lau, Stuart H Rubin, Michael H Smith, and Ljiljana Trajkovic.
+Distributed denial of service attacks. InSmc 2000 conference pro-
+ceedings. 2000 ieee international conference on systems, man and
+cybernetics. ’cybernetics evolving to systems, humans, organizations,
+and their complex interactions’(cat. no. 0, volume 3, pages 2275–
+2280. IEEE, 2000.
+[37] Harrison Lee, Samrat Phatale, Hassan Mansoor, Thomas Mesnard,
+Johan Ferret, Kellie Lu, Colton Bishop, Ethan Hall, Victor Car-
+bune, Abhinav Rastogi, et al. Rlaif vs. rlhf: Scaling reinforcement
+learning from human feedback with ai feedback.arXiv preprint
+arXiv:2309.00267, 2023.
+[38] Mosh Levy, Alon Jacoby, and Yoav Goldberg. Same task, more
+tokens: the impact of input length on the reasoning performance of
+large language models. In Lun-Wei Ku, Andre Martins, and Vivek
+Srikumar, editors,Proceedings of the 62nd Annual Meeting of the
+Association for Computational Linguistics (Volume 1: Long Papers),
+pages 15339–15353, Bangkok, Thailand, August 2024. Association
+for Computational Linguistics.
+[39] Evan Li, Tushin Mallick, Evan Rose, William Robertson, Alina
+Oprea, and Cristina Nita-Rotaru. Ace: A security architecture for
+llm-integrated app systems.arXiv preprint arXiv:2504.20984, 2025.
+[40] Yi Liu, Gelei Deng, Yuekang Li, Kailong Wang, Zihao Wang, Xi-
+aofeng Wang, Tianwei Zhang, Yepang Liu, Haoyu Wang, Yan Zheng,
+et al. Prompt injection attack against llm-integrated applications.
+arXiv preprint arXiv:2306.05499, 2023.
+[41] Yupei Liu, Yuqi Jia, Runpeng Geng, Jinyuan Jia, and Neil Zhenqiang
+Gong. Formalizing and benchmarking prompt injection attacks and
+defenses. In33rd USENIX Security Symposium (USENIX Security
+24), pages 1831–1847, 2024.
+[42] Weidi Luo, Qiming Zhang, Tianyu Lu, Xiaogeng Liu, Bin Hu, Hung-
+Chun Chiu, Siyuan Ma, Yizhe Zhang, Xusheng Xiao, Yinzhi Cao,
+et al. Code agent can be an end-to-end system hacker: Bench-
+marking real-world threats of computer-use agent.arXiv preprint
+arXiv:2510.06607, 2025.
+[43] Nathan Malkin, David Wagner, and Serge Egelman. Runtime per-
+missions for privacy in proactive intelligent assistants. InEighteenth
+Symposium on Usable Privacy and Security (SOUPS 2022), pages
+633–651, 2022.
+[44] Molly McHugh-Johnson. 14 new things you can do with pixel thanks
+to ai. https://blog.google/products/pixel/google-pixel-9-new-ai-featu
+res/.
+[45] Microsoft. Plug, play, and prey: The security risks of the model
+context protocol. https://techcommunity.microsoft.com/blog/microso
+ftdefendercloudblog/plug-play-and-prey-the-security-risks-of-the-m
+odel-context-protocol/4410829.
+[46] Microsoft. Wassette: A security-oriented runtime that runs webassem-
+bly components via mcp. https://microsoft.github.io/wassette/latest/.
+[47] Hussein Mozannar, Gagan Bansal, Cheng Tan, Adam Fourney, Victor
+Dibia, Jingya Chen, Jack Gerrits, Tyler Payne, Matheus Kunzler Mal-
+daner, Madeleine Grunde-McLaughlin, et al. Magentic-ui: Towards
+human-in-the-loop agentic systems.arXiv preprint arXiv:2507.22358,
+2025.
+[48] Hussein Mozannar, Gagan Bansal, Cheng Tan, Adam Fourney, Victor
+Dibia, Jingya Chen, Jack Gerrits, Tyler Payne, Matheus Kunzler
+Maldaner, Madeleine Grunde-McLaughlin, Erkang (Eric) Zhu, Grif-
+fin Bassman, Jacob Alber, Peter Chang, Ricky Loynd, Friederike
+Niedtner, Ece Kamar, Maya Murad, Rafah Hosn, and Saleema
+Amershi. Magentic-ui, an experimental human-centered web agent.
+https://www.microsoft.com/en-us/research/blog/magentic-ui-an-exp
+erimental-human-centered-web-agenta.
+[49] Milad Nasr, Nicholas Carlini, Chawin Sitawarin, Sander V Schul-
+hoff, Jamie Hayes, Michael Ilie, Juliette Pluto, Shuang Song, Harsh
+Chaudhari, Ilia Shumailov, et al. The attacker moves second: Stronger
+adaptive attacks bypass defenses against llm jailbreaks and prompt
+injections.arXiv preprint arXiv:2510.09023, 2025.
+[50] OpenAI. Chatgpt. https://chat.openai.com/.
+[51] OpenAI. Codex security guide. https://developers.openai.com/code
+x/security/.
+[52] OpenAI. Computer use agent. https://platform.openai.com/docs/gui
+des/tools-computer-use.
+[53] OpenAI. Connectors and actions terms. https://openai.com/policies/
+connectors-actions-terms/.
+[54] OpenAI. Introducing operator. https://openai.com/index/introducing
+-operator/.
+[55] Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wain-
+wright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina
+Slama, Alex Ray, et al. Training language models to follow in-
+structions with human feedback.Advances in neural information
+processing systems, 35:27730–27744, 2022.
+[56] Julien Piet, Maha Alrashed, Chawin Sitawarin, Sizhe Chen, Zeming
+Wei, Elizabeth Sun, Basel Alomair, and David Wagner. Jatmo: Prompt
+injection defense by task-specific finetuning. InEuropean Symposium
+on Research in Computer Security, pages 105–124. Springer, 2024.
+[57] Vipula Rawte, Amit Sheth, and Amitava Das. A survey of halluci-
+nation in large foundation models.arXiv preprint arXiv:2309.05922,
+2023.
+[58] Jerome H Saltzer and Michael D Schroeder. The protection of infor-
+mation in computer systems.Proceedings of the IEEE, 63(9):1278–
+1308, 1975.
+[59] Ravi S Sandhu. Role-based access control. InAdvances in computers,
+volume 46, pages 237–286. Elsevier, 1998.
+[60] Yonadav Shavit, Sandhini Agarwal, Miles Brundage, Steven Adler,
+Cullen O’Keefe, Rosie Campbell, Teddy Lee, Pamela Mishkin, Tyna
+Eloundou, Alan Hickey, et al. Practices for governing agentic ai
+systems.Research Paper, OpenAI, 2023.
+[61] Bingyu Shen, Lili Wei, Chengcheng Xiang, Yudong Wu, Mingyao
+Shen, Yuanyuan Zhou, and Xinxin Jin. Can systems explain permis-
+sions better? understanding users’ misperceptions under smartphone
+runtime permission model. In30th USENIX Security Symposium
+(USENIX Security 21), pages 751–768, 2021.
+[62] Jiawen Shi, Zenghui Yuan, Guiyao Tie, Pan Zhou, Neil Zhenqiang
+Gong, and Lichao Sun. Prompt injection attack to tool selection in
+llm agents.arXiv preprint arXiv:2504.19793, 2025.
+[63] Tianneng Shi, Jingxuan He, Zhun Wang, Linyu Wu, Hongwei Li,
+Wenbo Guo, and Dawn Song. Progent: Programmable privilege
+control for llm agents.arXiv preprint arXiv:2504.11703, 2025.
+[64] Alex Simons. The future of ai agents—and why oauth must evolve.
+https://techcommunity.microsoft.com/blog/microsoft-entra-blog/the-f
+uture-of-ai-agents%E2%80%94and-why-oauth-must-evolve/382739
+1.
+15
+
+--- PAGE 16 ---
+[65] Chetanpal Singh, Rahul Thakkar, and Jatinder Warraich. Iam iden-
+tity access management—importance in maintaining security systems
+within organizations.European Journal of Engineering and Technol-
+ogy Research, 8(4):30–38, 2023.
+[66] Karan Singhal, Shekoofeh Azizi, Tao Tu, S Sara Mahdavi, Jason Wei,
+Hyung Won Chung, Nathan Scales, Ajay Tanwani, Heather Cole-
+Lewis, Stephen Pfohl, et al. Large language models encode clinical
+knowledge.Nature, 620(7972):172–180, 2023.
+[67] Tobin South, Samuele Marro, Thomas Hardjono, Robert Mahari,
+Cedric Deslandes Whitney, Dazza Greenwood, Alan Chan, and Alex
+Pentland. Authenticated delegation and authorized ai agents.arXiv
+preprint arXiv:2501.09674, 2025.
+[68] Rao Surapaneni, Miku Jha, Michael Vakoc, and Todd Segal. An-
+nouncing the agent2agent protocol (a2a). https://developers.googleb
+log.com/en/a2a-a-new-era-of-agent-interoperability/.
+[69] Georgios Syros, Anshuman Suri, Cristina Nita-Rotaru, and Alina
+Oprea. Saga: A security architecture for governing ai agentic systems.
+arXiv preprint arXiv:2504.21034, 2025.
+[70] Sam Toyer, Olivia Watkins, Ethan Adrian Mendes, Justin Svegliato,
+Luke Bailey, Tiffany Wang, Isaac Ong, Karim Elmaaroufi, Pieter
+Abbeel, Trevor Darrell, et al. Tensor trust: Interpretable prompt injec-
+tion attacks from an online game.arXiv preprint arXiv:2311.01011,
+2023.
+[71] Harold Triedman, Rishi Jha, and Vitaly Shmatikov. Multi-
+agent systems execute arbitrary malicious code.arXiv preprint
+arXiv:2503.12188, 2025.
+[72] Lillian Tsai and Eugene Bagdasarian. Contextual agent security: A
+policy for every purpose. InProceedings of the 2025 Workshop on
+Hot Topics in Operating Systems, pages 8–17, 2025.
+[73] Browser Use. Enable ai to control your browser. https://github.com
+/browser-use/browser-use.
+[74] VentureBeat. How openai’s red team made chatgpt agent into an ai
+fortress. https://venturebeat.com/security/openais-red-team-plan-mak
+e-chatgpt-agent-an-ai-fortress.
+[75] Haoyu Wang, Christopher M Poskitt, and Jun Sun. Agentspec:
+Customizable runtime enforcement for safe and reliable llm agents.
+arXiv preprint arXiv:2503.18666, 2025.
+[76] Alexander Wei, Nika Haghtalab, and Jacob Steinhardt. Jailbroken:
+How does llm safety training fail?Advances in Neural Information
+Processing Systems, 36:80079–80110, 2023.
+[77] Primal Wijesekera, Arjun Baokar, Lynn Tsai, Joel Reardon, Serge
+Egelman, David Wagner, and Konstantin Beznosov. The feasibility
+of dynamically granted permissions: Aligning mobile privacy with
+user preferences. In2017 IEEE Symposium on Security and Privacy
+(SP), pages 1077–1093. IEEE, 2017.
+[78] Simon Willison. The dual llm pattern for building ai assistants that
+can resist prompt injection. https://simonwillison.net/2023/Apr/25/du
+al-llm-pattern/.
+[79] Simon Willison. The lethal trifecta for ai agents: private data,
+untrusted content, and external communication. https://simonwilli
+son.net/2025/Jun/16/the-lethal-trifecta/.
+[80] Fangzhou Wu, Ethan Cecchetti, and Chaowei Xiao. System-level
+defense against indirect prompt injection attacks: An information flow
+control perspective.arXiv preprint arXiv:2409.19091, 2024.
+[81] Yuhao Wu, Franziska Roesner, Tadayoshi Kohno, Ning Zhang, and
+Umar Iqbal. Isolategpt: An execution isolation architecture for llm-
+based agentic systems. InNDSS, 2025.
+[82] Zhangchen Xu, Fengqing Jiang, Luyao Niu, Jinyuan Jia, Bill Yuchen
+Lin, and Radha Poovendran. Safedecoding: Defending against
+jailbreak attacks via safety-aware decoding.arXiv preprint
+arXiv:2402.08983, 2024.
+[83] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran,
+Karthik R Narasimhan, and Yuan Cao. React: Synergizing reason-
+ing and acting in language models. InThe eleventh international
+conference on learning representations, 2022.
+[84] Kaiyuan Zhang, Zian Su, Pin-Yu Chen, Elisa Bertino, Xiangyu Zhang,
+and Ninghui Li. Llm agents should employ security principles.arXiv
+preprint arXiv:2505.24019, 2025.
+[85] Yanzhe Zhang, Tao Yu, and Diyi Yang. Attacking vision-
+language computer agents via pop-ups, 2024c.URL https://arxiv.
+org/abs/2411.02391, 2024.
+[86] Yue Zhang, Yafu Li, Leyang Cui, Deng Cai, Lemao Liu, Tingchen Fu,
+Xinting Huang, Enbo Zhao, Yu Zhang, Yulong Chen, et al. Siren’s
+song in the ai ocean: A survey on hallucination in large language
+models.Computational Linguistics, pages 1–45, 2025.
+[87] Yukun Zhao, Lingyong Yan, Weiwei Sun, Guoliang Xing, Shuaiqiang
+Wang, Chong Meng, Zhicong Cheng, Zhaochun Ren, and Dawei Yin.
+Improving the robustness of large language models via consistency
+alignment.arXiv preprint arXiv:2403.14221, 2024.
+[88] Andy Zou, Zifan Wang, Nicholas Carlini, Milad Nasr, J Zico Kolter,
+and Matt Fredrikson. Universal and transferable adversarial attacks
+on aligned language models.arXiv preprint arXiv:2307.15043, 2023.
+[89] Wei Zou, Runpeng Geng, Binghui Wang, and Jinyuan Jia.
+{PoisonedRAG}: Knowledge corruption attacks to{Retrieval-
+Augmented}generation of large language models. In34th USENIX
+Security Symposium (USENIX Security 25), pages 3827–3844, 2025.
+Appendix A.
+Algorithm
+Algorithm 1:BUILD-TREE(S, Methods)
+Input:ScopesS; functionMethods(s)returning
+allowed methods ofs
+Output:Directed graphT= (V,E)
+1foreachs∈Sdo
+2M s ←Methods(s);
+3Candidates←∅;
+4foreacht∈S\ {s}do
+5M t ←Methods(t);
+6ifM s ⊂M t then
+7Candidates←Candidates∪ {t};
+8ifCandidates=∅then
+9Parents[s]←∅;
+10else
+11Parents[s]←
+arg mint∈Candidates |Methods(t)|;
+12V←S;
+13E←∅;
+14foreachs∈Sdo
+15foreachp∈Parents[s]do
+16E←E∪ {(p,s)};
+17return(V,E);
+This algorithm (Alg. 1) constructs a permission hierar-
+chy from a set of scopesSand a functionMethods(s),
+which returns the set of API methods permitted by each
+scopes. The goal is to produce a directed graphT=
+(V,E)in which each edge(p,s)indicates thatpis a
+strictly more permissive scope thans, and thatpis a
+minimalsuch superset in terms of allowed methods. For
+16
+
+--- PAGE 17 ---
+example, consider an example from the Google Calen-
+dar API. Lets 1 =calendar.eventsands 2 =
+calendar.events.owned. The scopes 1 permits a cer-
+tain set of event-level operations, whiles 2 permits all op-
+erations ofs 1 plus additional owner-level actions. In this
+case,
+Methods(s1)⊂Methods(s 2),
+sos 2 is a candidate parent ofs 1. In the constructed graph,
+this relationship appears as a directed edge
+(s2,s 1)∈E,
+representing thats 2 is strictly more permissive thans 1.
+The algorithm determines the parent set for each scope
+s∈Sby comparingMethods(s)withMethods(t)for
+allt∈S\ {s}. Any scopetsatisfyingMethods(s)⊂
+Methods(t)is collected into the set of candidate parents.
+If this set is empty,shas no parent. Otherwise, the algorithm
+selects the “closest” superscopes by choosing those candi-
+dates whose method sets have minimum size. Formally,
+Parents[s]←arg min
+t∈Candidates
+Methods(t)
+ ,
+ensuring that each parent differs fromsby the smallest
+possible increase in permitted functionality.
+Finally, the graphT= (V,E)is assembled by taking
+V=Sand adding an edge(p,s)for everyp∈Parents[s].
+The resulting structure organizes scopes (permissions) ac-
+cording to their relative sensitivity, forming a clean hierarchy
+suitable for downstream least-privilege analysis.
+Appendix B.
+Prompts
+17
+
+--- PAGE 18 ---
+Prompt
+You are an AI assistant tasked with generating realistic user requests for an AI agent that interacts with various applications.
+Your goal is to create one request for each API call provided in the API JSON file.
+First, carefully review the following API JSON file containing the APIs provided by the application, along with short
+descriptions for each API:
+<api_json>{{API_JSON}}</api_json>
+The application you will be working with is:
+<application_name>{{APPLICATION_NAME}}</application_name>
+Instructions:
+1) Generate realistic user requests that would likely be sent during daily usage of the application.
+2) Create exactly one request for each API method in the API JSON file.
+3) Ensure each request requires exactly one API call to complete the task.
+Before generating the requests, wrap your analysis in<api_analysis>tags. In your analysis process:
+1) List all the API methods from the API JSON file, including their descriptions.
+2) Count the total number of API methods to ensure you generate the correct number of requests.
+3) Consider the user’s perspective and common use cases for the application.
+4) For each API method:
+a) Brainstorm 2-3 potential user requests that would require that specific method.
+b) Select the most appropriate request for that method.
+5) Ensure that each API method is used exactly once across all generated requests.
+It’s OK for this section to be quite long. After completing your analysis process, provide your generated requests in JSON
+format. Each request should have its own numeric key and contain a ”prompt” field (the user’s request in natural language) and
+anapi_methodsfield (an array containing the single required API method that exists in theAPI_JSON). Example output
+structure:
+{
+"1": {
+"prompt": "User’s natural language request goes here",
+"api_methods": ["method_1"]
+},
+"2": {
+"prompt": "Another user’s natural language request goes here",
+"api_methods": ["method_2"]
+}
+}
+Please generate the user requests based on the provided information and guidelines. Your final output should consist only of the
+JSON format with the generated requests. Begin your response with your API analysis, and then provide the final JSON output.
+Figure 9. Prompt used for generating single-application, single-method requests
+18
+
+--- PAGE 19 ---
+Prompt
+You are an AI assistant tasked with generating realistic user requests for an AI agent that interacts with various applications.
+Your goal is to create diverse requests that require multiple API calls and cover different sets of APIs provided by the
+application.
+First, carefully review the followingAPI_JSONfile containing the APIs provided by the application, along with short
+descriptions for each API:
+<api_json>{{API_JSON}}</api_json>
+The application you will be working with is:
+<application_name>{{APPLICATION_NAME}}</application_name>
+You are to generate the following number of user requests:
+<num_requests>{{NUM_REQUESTS}}</num_requests>
+Instructions:
+1) Generate realistic user requests that would likely be sent during daily usage of the application.
+2) Ensure each request requires multiple API calls to complete the task.
+3) Cover as many different APIs as possible across all requests.
+4) Vary the complexity and types of tasks involved in the requests.
+For each request, wrap your thought process in<request_generation_process>tags inside your thinking block:
+1) Categorize the API methods by functionality (e.g., file management, communication, task management).
+2) Count the number of API methods in each category.
+3) Brainstorm 3-5 potential user scenarios that would require multiple API calls, ensuring diversity across API categories.
+Consider potential edge cases or uncommon use cases.
+4) For each scenario:
+a) Write a brief user persona (e.g., ”Sarah, a 28-year-old project manager”).
+b) List out all relevant API methods.
+c) Verify that each listed API method exists in the providedAPI_JSON. If any method is not found, remove it from
+consideration.
+d) Rate the complexity and realism of the scenario on a scale of 1-5.
+5) Choose the scenario with the highest combined score of complexity and realism that uses at least two different API methods.
+6) Formulate a natural language request that a user might make based on the chosen scenario, considering the application name.
+7) List the final set of API methods required for the request, ensuring all methods exist in theAPI_JSON.
+After completing the request generation process for each request, provide your generated requests in JSON format. Each
+request should have its own numeric key and contain a ”prompt” field (the user’s request in natural language) and an
+api_methodsfield (an array of the required API methods that exist in theAPI_JSON).
+Example output structure:
+{
+"1": {
+"prompt": "User’s natural language request goes here",
+"api_methods": ["method_1", "method_2", "method_3"]
+},
+"2": {
+"prompt": "Another user’s natural language request goes here",
+"api_methods": ["method_4", "method_5"]
+}
+}
+Please generate the user requests based on the provided information and guidelines. Your final output should consist only of the
+JSON format with the generated requests and should not include any of the request generation process work done in the
+thinking block.
+Figure 10. Prompt used for generating single-application, multi-method requests
+19
+
+--- PAGE 20 ---
+Prompt
+You are an AI assistant tasked with generating realistic user requests for a multi-application AI agent.
+Your goal is to create requests that require API calls to more than one app, simulating realistic usage scenarios.
+First, examine the API JSON file containing the APIs provided by these applications:
+<api_json>{{API_JSON}}</api_json>
+Now, review the following list of application names:
+<app_names>{{APP_NAMES}}</app_names>
+Your task is to generate<num_requests>{{NUM_REQUESTS}}</num_requests>user requests based on this API
+information.
+In your analysis:
+1) List all the applications and their respective API methods from the API JSON file, including their descriptions.
+2) Count the total number of API methods for each application.
+3) Categorize API methods by function (e.g., data retrieval, data manipulation, communication).
+4) Create a matrix of potential app combinations, noting which combinations might be particularly useful or interesting.
+5) For each app combination:
+a) List 2-3 API methods from each app that could potentially work together.
+b) Brainstorm 2-3 realistic user scenarios that would require using methods from both apps.
+c) Identify potential bottlenecks or limitations in combining these APIs.
+6) Evaluate each scenario based on:
+a) Realism: How likely is a user to need this combination of actions?
+b) Complexity: Does it showcase the integration between apps well?
+c) Variety: Does it use different methods than other scenarios you’ve considered?
+7) Select the top scenarios that best demonstrate varied and realistic multi-app usage.
+8) List potential user personas and their needs that align with these scenarios.
+After completing your analysis, generate the user requests in<request_generation>tags according to these instructions:
+1) Create exactly{{NUM_REQUESTS}}realistic user requests that would likely be sent during daily usage of the applications.
+2) Each request must require API calls to at least two different applications to complete the task.
+3) Aim to use as many different API methods as possible across all your generated requests.
+4) For each request:
+a) Write the user’s request in natural language.
+b) List at least two required API methods from different applications that exist in theAPI_JSON.
+c) Briefly explain why this combination of API methods is necessary to fulfill the request.
+d) Consider and note down potential edge cases or complications.
+After generating the requests, review and refine them for diversity and realism. Then, present your final output in JSON format.
+Each request should have its own numeric key and contain a ”prompt” field (the user’s request in natural language) and an
+api_methodsfield (an array containing at least two required API methods from different applications).
+Here’s an example of the expected output structure:
+{
+"1": {
+"prompt": "User’s natural language request involving multiple apps goes here",
+"api_methods": ["App1.method_1", "App2.method_2"]
+},
+"2": {
+"prompt": "Another user’s natural language request involving multiple apps goes here",
+"api_methods": ["App2.method_3", "App3.method_1", "App1.method_2"]
+}
+}
+Remember to think carefully about each step of the process and ensure that your generated requests are realistic, diverse, and
+showcase the integration between multiple applications. Your final output should consist only of the JSON object with the
+generated requests and should not duplicate or rehash any of the work you did in the thinking block.
+Figure 11. Prompt used for generating multi-application requests
+20
+
+--- PAGE 21 ---
+Prompt
+You are an API scope analyzer tasked with determining the minimum set of scopes required to execute a given plan. Your goal
+is to ensure the principle of least privilege is followed while allowing all necessary operations to be performed.
+You will be provided with two key pieces of information:
+1) A scope mapping JSON that defines which scopes are required for each API method:
+<scope_mapping>{{SCOPE_MAPPING}}</scope_mapping>
+2) An execution plan listing the API methods that will be called:
+<execution_plan>{{EXECUTION_PLAN}}</execution_plan>
+Your task is to analyze these inputs and determine the minimum list of scopes necessary to execute the plan. Follow these steps
+in your analysis:
+1) Examine each API method in the execution plan.
+2) For each method, identify the required scopes by referring to the scope mapping.
+3) Compile a set of all required scopes.
+4) Review the set and remove any redundant or unnecessary scopes, ensuring the principle of least privilege is followed.
+5) Convert the final set of required scopes into an array.
+Important considerations:
+•Only include scopes that are absolutely necessary for the APIs called in the execution plan.
+•If a more specific scope can replace a broader one, use the more specific scope.
+•If multiple scopes cover the same functionality, choose the one with the least privileges.
+This will help ensure a thorough and accurate determination of the required scopes.
+Your final output must be exactly an array, like:
+["scope_1", "scope_2", "scope_3"]
+Your final output should be a valid array containing only the scope names as strings. Do not add‘‘‘json, triple backticks,
+any additional text, explanations, or formatting in your final output.
+Do not provide any analysis, explanation, or reasoning in your response. Output ONLY the final array with no additional text
+whatsoever.
+Figure 12. Prompt used for determining minimum required scopes under least privilege
+21
+
+--- PAGE 22 ---
+Prompt
+You are an AI tasked with simulating three months of realistic user interactions with an application. Your goal is to generate a sequence of
+requests that represent typical usage patterns based on the provided API and application name.
+First, carefully review the API structure defined in the following JSON:
+<api_json>{{API_JSON}}</api_json>
+Now, consider the application name:
+<application_name>{{APPLICATION_NAME}}</application_name>
+Your task is to create a series of requests that represent three months’ worth of interaction with this application. Before generating the final
+output, please conduct your analysis inside<interaction_analysis>tags in your thinking block. In your analysis, address the following
+points:
+1) Estimate a realistic number of interactions for three months, considering potential variations between months.
+a) Calculate an average daily interaction count.
+b) Estimate monthly totals for each of the three months.
+2) Identify the most common methods and their likely frequency.
+a) List all API methods and categorize them by likely frequency (high, medium, low).
+b) Estimate daily usage for high-frequency methods.
+3) Plan how to distribute less common methods throughout the three months.
+4) Consider multi-step actions that require multiple API calls.
+a) Provide at least 5 examples, listing the methods involved in each.
+5) Plan usage patterns.
+a) Create a general daily usage curve (e.g., more usage in evenings).
+b) Outline weekly patterns (e.g., more usage on weekends).
+c) Describe seasonal variations over the three months.
+6) Estimate daily usage and identify peak usage times.
+a) Create a sample daily schedule with peak times.
+b) Describe how these might change over the three-month period.
+7) Plan for user onboarding and potential reduced usage.
+a) List methods likely to be used during onboarding.
+b) Describe how usage might taper off at the end of the third month.
+8) Create a weekly schedule template.
+a) Outline a typical week of interactions.
+b) Describe how to introduce variations between weeks and months.
+9) List out at least 5 potential user personas and their likely behaviors.
+a) For each persona, list their most commonly used methods.
+b) Describe how their usage might change over time.
+10) Consider how usage patterns might evolve over the three months.
+a) Describe potential changes in method usage as users become more proficient.
+b) List any seasonal effects or potential feature updates that might affect usage.
+After completing your analysis, generate the final output in JSON format. Each interaction should be numbered (continuing across all three
+months) and contain a"prompt"(describing the user’s action or intent) and a"method"(an array of one or more API methods being
+used). Ensure that you:
+1) Generate a reasonable number of requests for real users over three months, allowing for natural variations between days, weeks, and months.
+2) Use only methods that exist in the provided API JSON.
+3) Simulate realistic usage patterns, closely matching likely real-world use cases.
+4) Include more frequently used methods more often, but ensure less common methods appear at appropriate intervals.
+5) Incorporate multi-step actions requiring multiple API methods.
+6) Reflect natural user behavior, including mistakes, repeated actions, and evolving patterns.
+7) Vary the time between interactions (daily, weekly, monthly cycles).
+8) Incorporate the weekly schedule template and user personas, allowing for natural variations and evolution.
+9) Include a mix of single-method and multi-method interactions (≈30% should use multiple methods).
+Here’s an example of the expected output structure:
+{
+"1": {
+"prompt": "New user opens the application for the first time",
+"method": ["app_launch", "user_registration"]
+}
+}
+Remember: Your final output should consist only of the JSON object with the simulated interactions and should not duplicate or rehash any of
+the work you did in the interaction analysis.
+Figure 13. Prompt used for realistic user-application interactions
+22
+
+--- PAGE 23 ---
+Prompt
+You are an AI assistant tasked with simulating a user who needs to make decisions about granting permissions to an
+application. Your goal is to decide whether to grant each requested scope as either"ALLOWED"(permanent access) or
+"ONCE"(one-time access).
+First, review the descriptions of the available scopes:
+<scope_descriptions>{gcal_scope_descriptions}</scope_descriptions>
+Now, consider the following requested scopes:
+<requested_scopes>{detailed_scopes_list}</requested_scopes>
+For each requested scope, you will need to make a decision based on the following guidelines:
+1) Evaluate the sensitivity of the data or functionality the scope provides access to.
+2) Consider how often the feature associated with the scope might be needed.
+3) Assess whether the scope is essential for the app’s core functionality.
+4) If unsure about a scope’s purpose or implications, err on the side of caution.
+5) Consider the risk level:
+•Read-only or view-only scopes are generally lower risk.
+•Delete, modify, or write scopes are generally higher risk.
+For each scope, consider the following aspects:
+1) Purpose: What does this scope allow the application to do?
+2) Risk level: Is it read-only or does it involve modifying data?
+3) Frequency of use: How often might this feature be needed?
+4) Core functionality: Is this scope essential for the app’s main purpose?
+5) Privacy impact: What kind of user data might be exposed?
+6) Potential benefits: How does this improve the user experience?
+7) Decision: Based on the above, should this be"ALLOWED"or"ONCE"?
+After analyzing all scopes, provide your final decisions in JSON format. Each key should be the name of the scope, and the
+value should be either"ALLOWED"or"ONCE".
+Here’s an example of the expected output format:
+{
+"calendar.read": "ALLOWED",
+"calendar.write": "ONCE",
+"events.delete": "ONCE"
+}
+Now, please provide your final decision in the specified JSON format.
+Figure 14. Prompt used for simulating user granting permissions
+23

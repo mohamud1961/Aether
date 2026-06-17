@@ -1,0 +1,342 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/tongagents/quickstart/?q=
+================================================================================
+
+快速开始
+如何构建一个智能体¶
+
+以下是 TongAgents 的最小示例（sdk：'tongagents[knowledge]'）：
+
+2.0 架构分层
+
+TongAgents 2.0 以开源 chuang_agent 作为工具/MCP/环境的底层实现，workflow 引擎与 WorkFlowEnv 等企业能力仍由 tongagents 提供。本页示例 API 保持一致，无需额外调整。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL")),
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+)
+
+
+
+result = agent.step("请输出Hello World")
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+Hello World
+
+"""
+
+
+首先请设置环境变量：
+
+export MODEL_NAME="deepseek-chat"
+
+export API_KEY="sk-1234567890"
+
+export MODEL_URL="http://localhost:8000/v1"
+
+即可运行示例代码。
+
+这个例子还不是很有趣，但我们可以轻松添加工具、知识库，以构建更强大的智能体。
+
+如何使用工具¶
+
+以下是使用 TongAgents 构建天气查询智能体的简洁示例：
+
+首先，我们我们可以在项目中的任意位置定义一个天气查询工具：
+
+from tongagents.tools.tool_manager import tool
+
+
+
+@tool()
+
+def weather_tool(location: str, time: str):
+
+    """查询天气
+
+
+
+    Args:
+
+        location: 地理位置
+
+        time: 日期时间
+
+    """
+
+    return f"{location}在{time}天气晴朗"
+
+
+随后，通过 ToolService 可以获取工具实例，并将其添加到智能体中：
+
+tool_service = ToolService()
+
+mock_tool = tool_service.get_tool("weather_tool")
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[mock_tool]
+
+)
+
+
+可以运行下代码，看看效果：
+
+result = agent.step("今天北京天气怎么样")
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+今天北京的天气是晴朗的。
+
+"""
+
+请注意，agent最终的返回值并非工具调用的直接结果，而是工具调用后，LLM 根据工具调用的结果，以及当前的上下文和任务，生成的响应。
+
+如何使用知识库¶
+
+随后，我们添加一个知识库，并使用智能体查询知识库中的内容。
+
+请注意，构建本地知识库需要安装额外的依赖：
+
+pip
+uv
+pip install 'tongagents[knowledge]'
+
+
+首先，我们需要构造一个知识库，并将一些文档添加到知识库中。
+
+# load documents
+
+files = [
+
+    "./knowledge_store.txt",
+
+]
+
+documents = DirectoryLoader(input_files=files).load()
+
+splitted_documents = default_text_splitter.split_document(documents)
+
+
+
+# init
+
+chroma_store = ChromaVectorStore()
+
+
+
+# add documents
+
+chroma_store.add_documents(splitted_documents)
+
+
+随后，我们可以将知识库添加到智能体中，并运行智能体：
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"), url=os.environ.get("MODEL_URL")
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[mock_tool, chroma_store]
+
+)
+
+
+
+result = agent.step("请从知识库中查询皮卡丘的身高")
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+通常，皮卡丘的身高约为0.4米
+
+"""
+
+
+至此，我们已经构建了一个智能体，并使用工具和知识库查询了信息。完整的代码请参考完整示例。
+
+后续步骤¶
+
+要尝试 TongAgents，请按照示例中的说明进行操作。
+
+阅读文档了解更多关于使用 TongAgents 构建应用程序的信息。
+
+附录¶
+完整示例¶
+sample_agent.py
+import os
+
+
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+from tongagents.knowledge.vectorstore.chroma import ChromaVectorStore
+
+from tongagents.tools.loader.directory_loader import DirectoryLoader
+
+from tongagents.tools.splitter.impl import default_text_splitter
+
+from tongagents.tools.tool_manager import tool
+
+from tongagents.tools.tool_service import ToolService
+
+
+
+
+
+@tool()
+
+def weather_tool(location: str, time: str):
+
+    """查询天气
+
+
+
+    Args:
+
+        location: 地理位置
+
+        time: 日期时间
+
+    """
+
+    return f"{location}在{time}天气晴朗"
+
+
+
+
+
+tool_service = ToolService()
+
+mock_tool = tool_service.get_tool("weather_tool")
+
+
+
+# 请替换为你的知识库文件，内容为：通常，皮卡丘的身高约为0.4米
+
+files = [
+
+    os.path.join(os.path.dirname(__file__), "knowledge_store.txt"),
+
+]
+
+documents = DirectoryLoader(input_files=files).load()
+
+splitted_documents = default_text_splitter.split_document(documents)
+
+
+
+# init
+
+chroma_store = ChromaVectorStore()
+
+
+
+# add documents
+
+chroma_store.add_documents(splitted_documents)
+
+
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY", "fake_api"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[mock_tool, chroma_store],
+
+)
+
+
+
+result = agent.step("请从知识库中查询皮卡丘的身高")
+
+print("".join(msg.content for msg in result))

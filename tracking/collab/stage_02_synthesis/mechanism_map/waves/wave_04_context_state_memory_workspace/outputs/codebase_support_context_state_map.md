@@ -1,0 +1,92 @@
+DEEP_SYNTHESIS_SUPPORT_OUTPUT
+- artifact: `mechanism_map`
+- wave: `wave_04_context_state_memory_workspace`
+- calling_lane: `codebase/source-reconstruction analyst`
+- support_task_type: `context_state_memory_subsystem_map`
+- bounded_scope_confirmed: `yes` (only requested path families were used; no promoted mechanism claims were made)
+- files_or_paths_read:
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/skills.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/patch_tool_calls.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/async_subagents.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/_utils.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/__init__.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/composite.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/filesystem.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/sandbox.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/langsmith.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/protocol.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/utils.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/__init__.py`
+  - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_models.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_store.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_retriever.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_saver.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_runtime.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_tools.py`
+  - `blocks/context/full_history.py`
+  - `blocks/context/sliding_window.py`
+  - `blocks/context/structured_sections.py`
+  - `blocks/context/summarize_on_overflow.py`
+  - `runner/agent.py`
+  - `evals/context_eval.py`
+- structured_findings:
+  - DeepAgents context assembly and compaction surfaces:
+    - `MemoryMiddleware` loads configured AGENTS.md sources once into private state (`memory_contents`) in `before_agent/abefore_agent`, then appends memory text into each model request system message in `modify_request` and `wrap_model_call`. Paths: `.../middleware/memory.py`.
+    - `SkillsMiddleware` follows the same pattern for skills (`skills_metadata`): one-time source load per checkpointed session, then per-call system-prompt injection. Paths: `.../middleware/skills.py`.
+    - `SummarizationMiddleware` reconstructs effective message context from `_summarization_event`, truncates oversized legacy tool-call args in older messages, and conditionally compacts history by creating a summary plus preserved recent slice. It records the compaction boundary back into `_summarization_event`. Paths: `.../middleware/summarization.py`.
+    - Compacted history is offloaded to backend path `/conversation_history/{thread_id}.md` before summary insertion; failures are non-fatal but logged/warned. Paths: `.../middleware/summarization.py`.
+    - On context overflow, summarization path is used as immediate fallback for the same turn instead of hard fail. Paths: `.../middleware/summarization.py`.
+    - `SummarizationToolMiddleware` adds explicit `compact_conversation` tool-based compaction, with an eligibility gate (~50% of trigger threshold) and shared `_summarization_event` state key for interoperability with auto-compaction. Paths: `.../middleware/summarization.py`.
+  - DeepAgents state persistence and resume/reset tracking:
+    - `StateBackend` stores files in runtime state (`state["files"]`), explicitly documented as ephemeral across threads but checkpointed per step. Paths: `.../backends/state.py`.
+    - `StoreBackend` stores files in LangGraph `BaseStore` namespaces and is documented as persistent cross-thread storage, including namespace isolation hooks and legacy assistant-id namespace fallback. Paths: `.../backends/store.py`.
+    - `CompositeBackend` routes by path prefix and, when receiving state-backed `files_update`, merges updates into default runtime state so listings stay coherent across routed and default substrates. Paths: `.../backends/composite.py`.
+    - CLI session management (`deepagents_cli/sessions.py`) treats checkpoint rows as the thread memory substrate: list/filter by metadata, deserialize latest checkpoint blobs for message counts and initial prompt, support deletion and checkpointer access (`AsyncSqliteSaver`). Paths: `.../deepagents_cli/sessions.py`.
+  - DeepAgents context-loss mitigation beyond summarization:
+    - `FilesystemMiddleware` intercepts oversized tool results and offloads full text to `/large_tool_results/{tool_call_id}`, replacing in-thread text with pointer+preview while preserving non-text blocks. Paths: `.../middleware/filesystem.py`.
+    - `PatchToolCallsMiddleware` repairs dangling tool calls in message history by injecting synthetic `ToolMessage` cancellation records, reducing broken state chains after interrupted turns. Paths: `.../middleware/patch_tool_calls.py`.
+    - `AsyncSubAgentMiddleware` persists background task metadata (`async_tasks`) in state with explicit note that task IDs survive compaction/offloading. Paths: `.../middleware/async_subagents.py`.
+  - KIRA Terminus context assembly, overflow handling, and handoff:
+    - `_handle_llm_interaction` builds current request context from prior `chat.messages` plus current prompt and updates chain state after tool-call responses. Paths: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`.
+    - On `ContextLengthExceededError` with summarization enabled, flow is: unwind messages -> attempt `_summarize(...)` -> set `_pending_handoff_prompt` and optional `_pending_subagent_refs` -> retry with summary prompt; fallback to current pane snapshot if summary generation fails. Paths: `.../terminus_kira.py`.
+    - `_run_agent_loop` includes proactive summarization checks each episode when enabled and writes handoff/summarization events into trajectory surfaces (split-history or appended user/system step), then clears pending handoff state. Paths: `.../terminus_kira.py`.
+    - Context/session reset surfaces include repeated `chat.reset_response_chain()` calls after tool-call insertions and explicit zeroing of context token/cost counters before loop execution. Paths: `.../terminus_kira.py`.
+  - KiraClaw session and memory runtime surfaces:
+    - `SessionManager` organizes per-session lanes with queue-backed workers, explicit run state transitions (`queued/running/completed/failed`), idle lane release, and bounded in-memory run history retention (`record_limit`). Paths: `.../session_manager.py`.
+    - Conversation context construction is explicit and bounded: optional `context_prefix` + recent completed turns (max `_CONVERSATION_HISTORY_TURNS`) with clipping. Paths: `.../session_manager.py`.
+    - Memory context injection is delegated through `memory_context_provider` with failure isolation (warning + `None`). Paths: `.../session_manager.py`.
+    - Completed run records can trigger auto-memory classification (`semantic` vs `episodic`) and enqueue `MemoryWriteRequest` through `on_record_complete`. Paths: `.../session_manager.py`.
+    - `MemoryRuntime` is stateful (`disabled/stopped/running`) and manages async queue-based persistence worker; retrieval and save paths are split via `MemoryRetriever` and `MemorySaver`. Paths: `.../memory_runtime.py`, `.../memory_retriever.py`, `.../memory_saver.py`.
+    - `MemoryStore` provides file-backed long-term memory substrate (`memory_dir` + index JSON), context retrieval (`retrieve_context`), scoring (`_score_entries`), target routing (`users/channels/misc` and session fallback), and markdown note append with metadata frontmatter/index upsert. Paths: `.../memory_store.py`, `.../memory_models.py`.
+    - Tool-level retrieval/save/index-update APIs expose session/user/channel-scoped memory operations and metadata normalization. Paths: `.../memory_tools.py`.
+  - Local harness path-scope surfaces (`blocks/context`, `runner/agent.py`, `evals/context_eval.py`):
+    - These files are currently interface/spec docstrings only; context/state/memory behavior is declared but not implemented in scoped local harness code.
+- unresolved_gaps:
+  - `terminus_kira.py` invokes `_summarize`, `_check_proactive_summarization`, and `_unwind_messages_to_free_tokens`, but their implementations are not visible in this scoped file (likely inherited or external); exact summarization content policy is therefore not source-resolved here.
+  - DeepAgents summarization delegates key internal summarization heuristics to LangChain middleware helper (`LCSummarizationMiddleware`), which was not part of this path scope.
+  - DeepAgents checkpoint durability and restore behavior depend on external LangGraph runtime/checkpointer configuration not fully inspectable from the scoped files alone.
+  - Local harness context files in-scope are stubs; no concrete local implementation is available yet for compaction/resume drift prevention.
+- handoff_notes_for_calling_lane:
+  - Use this map as implementation-grounded support for a three-surface distinction in Wave 04 source synthesis:
+    - conversation-context assembly/compaction (`SummarizationMiddleware`, `TerminusKira`, `SessionManager._build_conversation_context`)
+    - explicit state substrate (`StateBackend`, `StoreBackend`, `sessions.db checkpoints`, session lane record states)
+    - file-backed long-term memory substrate (`MemoryStore` + KiraClaw runtime/tools)
+  - Keep offload artifacts explicit in cross-lane reconciliation:
+    - DeepAgents: `/conversation_history/{thread_id}.md`, `/large_tool_results/{tool_call_id}`
+    - KiraClaw: memory markdown files + index JSON under configured memory directory
+  - Treat `blocks/context/**`, `runner/agent.py`, and `evals/context_eval.py` as declared local targets rather than evidenced implementation in this wave slice.
+  - If stronger resumability claims are needed, add a focused follow-up on concrete restore/replay entrypoints outside this bounded support slice.
+- not_promoted_claims:
+  - This artifact is a bounded subsystem map only.
+  - No mechanism family promotion, no cross-system verdict, and no contradiction adjudication are asserted here.
+- output_path: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`

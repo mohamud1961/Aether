@@ -1,0 +1,51 @@
+LITERATURE_SUPPORT_PLANNING_DELEGATION_CLUSTER
+- artifact: `wave_06_planning_orchestration_and_interactions`
+- purpose:
+  - Bounded support clustering for formal sources touching planning, replanning, delegation, role separation, interaction protocol quality, and orchestration drift.
+  - Routing scaffold only. This file is not promoted synthesis on its own.
+- cluster_1_planning_and_replanning:
+  - sources:
+    - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+    - `research/sources/papers/papers_text/Arxiv_2512.16970.txt`
+    - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+    - `research/sources/docs/src_doc_80ed3749e2fb/artifact.txt`
+    - `research/sources/docs/src_doc_5268d48ca5c2/artifact.txt`
+    - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+  - extraction_notes:
+    - Recurrent formal shape is explicit loop control rather than single-pass prompting.
+    - Strong recurring surfaces: planner/executor separation, verification-triggered replanning, explicit stop/continue policy, and resumable execution semantics.
+- cluster_2_delegation_and_role_separation:
+  - sources:
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+    - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+    - `research/sources/papers/papers_text/src_pap_31598764f98d.txt`
+    - `research/sources/papers/papers_text/src_pap_09faf60ce915.txt`
+    - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+    - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+    - `research/sources/docs/bigai/translated/framework_multi_agent.md`
+    - `research/sources/docs/bigai/translated/sdk_workflow.md`
+    - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+  - extraction_notes:
+    - Formal guidance converges on role separation and delegation contracts as control surfaces.
+    - Formal disagreement remains active on topology: fixed hierarchy vs self-organizing teams vs single-agent-with-skills.
+- cluster_3_interaction_protocol_quality_and_drift:
+  - sources:
+    - `research/sources/papers/papers_text/src_pap_9f39aad8d403.txt`
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+    - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+    - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+  - extraction_notes:
+    - High-signal formal failure classes: role drift, non-termination, communication compression loss, and governance boundary failures.
+    - Strong repeated recommendation: trace-level contracts and checkpoint/replay boundaries for long-horizon orchestration.
+- deferred_or_unread_priority_candidates:
+  - `research/sources/papers/papers_text/src_pap_1e7552c63cbe.txt`
+  - `research/sources/papers/papers_text/src_pap_1af43872aeda.txt`
+  - `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`
+  - `research/sources/papers/papers_text/src_pap_ac7924226b83.txt`
+  - `research/sources/papers/papers_text/src_pap_f6dbaefea5eb.txt`
+- support_limitations:
+  - Some doc captures are single-line extractions and require careful manual interpretation.
+  - Several paper sources are recent arXiv-style artifacts with narrower empirical scope than broad claims imply.

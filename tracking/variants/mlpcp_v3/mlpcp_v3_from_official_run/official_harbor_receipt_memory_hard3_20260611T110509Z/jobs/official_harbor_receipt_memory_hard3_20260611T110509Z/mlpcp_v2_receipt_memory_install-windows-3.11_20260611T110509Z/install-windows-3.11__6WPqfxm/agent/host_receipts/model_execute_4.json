@@ -1,0 +1,58 @@
+{
+  "call_id": "install-windows-3.11__6WPqfxm_execute_4",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU=qemu-system-x86_64; else echo 'NO_QEMU'; exit 1; fi\\ncat > /app/win311-launch.sh <<'EOF'\\n#!/bin/bash\\nset -euo pipefail\\nexec \\\"$QEMU\\\" \\\\\\n  -m 64 \\\\\\n  -cpu 486 \\\\\\n  -machine pc \\\\\\n  -drive file=/app/isos/win311.img,format=raw,if=ide,snapshot=on \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/app/win311-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -display none\\nEOF\\nchmod +x /app/win311-launch.sh\\nnohup env QEMU=\\\"$QEMU\\\" /app/win311-launch.sh >/app/win311-qemu.log 2>&1 &\\nsleep 2\\nps -ef | grep -E '[q]emu-system-(i386|x86_64).*win311.img|[q]emu-system-(i386|x86_64).*snapshot=on' || true\\nss -ltnp | grep ':5901\\\\b' || true\\nss -ltnp | grep ':80\\\\b' || true\\n\",\"timeout\":120000},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nif command -v nginx >/dev/null 2>&1; then echo NGINX_PRESENT; else echo NGINX_MISSING; fi\\nif [ ! -f /etc/nginx/nginx.conf ]; then mkdir -p /app/nginx; cat > /app/nginx/nginx.conf <<'EOF'\\nworker_processes  1;\\nevents { worker_connections  1024; }\\nhttp {\\n  server {\\n    listen 80;\\n    location / {\\n      return 200 'win311 remote access';\\n      add_header Content-Type text/plain;\\n    }\\n  }\\n}\\nEOF\\nfi\\nif command -v nginx >/dev/null 2>&1; then nginx -c /app/nginx/nginx.conf -p /app/nginx -g 'daemon on;'; else echo 'NO_NGINX_BINARY'; fi\\nsleep 1\\nss -ltnp | grep ':80\\\\b' || true\\n\",\"timeout\":120000},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nif [ -S /app/win311-monitor.sock ]; then printf 'info status\\\\n' | socat - UNIX-CONNECT:/app/win311-monitor.sock || true; else echo 'NO_MONITOR_SOCKET'; fi\\n\",\"timeout\":120000}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU=qemu-system-x86_64; else echo 'NO_QEMU'; exit 1; fi\\ncat > /app/win311-launch.sh <<'EOF'\\n#!/bin/bash\\nset -euo pipefail\\nexec \\\"$QEMU\\\" \\\\\\n  -m 64 \\\\\\n  -cpu 486 \\\\\\n  -machine pc \\\\\\n  -drive file=/app/isos/win311.img,format=raw,if=ide,snapshot=on \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/app/win311-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -display none\\nEOF\\nchmod +x /app/win311-launch.sh\\nnohup env QEMU=\\\"$QEMU\\\" /app/win311-launch.sh >/app/win311-qemu.log 2>&1 &\\nsleep 2\\nps -ef | grep -E '[q]emu-system-(i386|x86_64).*win311.img|[q]emu-system-(i386|x86_64).*snapshot=on' || true\\nss -ltnp | grep ':5901\\\\b' || true\\nss -ltnp | grep ':80\\\\b' || true\\n\",\"timeout\":120000},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nif command -v nginx >/dev/null 2>&1; then echo NGINX_PRESENT; else echo NGINX_MISSING; fi\\nif [ ! -f /etc/nginx/nginx.conf ]; then mkdir -p /app/nginx; cat > /app/nginx/nginx.conf <<'EOF'\\nworker_processes  1;\\nevents { worker_connections  1024; }\\nhttp {\\n  server {\\n    listen 80;\\n    location / {\\n      return 200 'win311 remote access';\\n      add_header Content-Type text/plain;\\n    }\\n  }\\n}\\nEOF\\nfi\\nif command -v nginx >/dev/null 2>&1; then nginx -c /app/nginx/nginx.conf -p /app/nginx -g 'daemon on;'; else echo 'NO_NGINX_BINARY'; fi\\nsleep 1\\nss -ltnp | grep ':80\\\\b' || true\\n\",\"timeout\":120000},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\nif [ -S /app/win311-monitor.sock ]; then printf 'info status\\\\n' | socat - UNIX-CONNECT:/app/win311-monitor.sock || true; else echo 'NO_MONITOR_SOCKET'; fi\\n\",\"timeout\":120000}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU=qemu-system-x86_64; else echo 'NO_QEMU'; exit 1; fi\ncat > /app/win311-launch.sh <<'EOF'\n#!/bin/bash\nset -euo pipefail\nexec \"$QEMU\" \\\n  -m 64 \\\n  -cpu 486 \\\n  -machine pc \\\n  -drive file=/app/isos/win311.img,format=raw,if=ide,snapshot=on \\\n  -vnc 127.0.0.1:1 \\\n  -monitor unix:/app/win311-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -display none\nEOF\nchmod +x /app/win311-launch.sh\nnohup env QEMU=\"$QEMU\" /app/win311-launch.sh >/app/win311-qemu.log 2>&1 &\nsleep 2\nps -ef | grep -E '[q]emu-system-(i386|x86_64).*win311.img|[q]emu-system-(i386|x86_64).*snapshot=on' || true\nss -ltnp | grep ':5901\\b' || true\nss -ltnp | grep ':80\\b' || true\n",
+        "timeout": 120000
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\nif command -v nginx >/dev/null 2>&1; then echo NGINX_PRESENT; else echo NGINX_MISSING; fi\nif [ ! -f /etc/nginx/nginx.conf ]; then mkdir -p /app/nginx; cat > /app/nginx/nginx.conf <<'EOF'\nworker_processes  1;\nevents { worker_connections  1024; }\nhttp {\n  server {\n    listen 80;\n    location / {\n      return 200 'win311 remote access';\n      add_header Content-Type text/plain;\n    }\n  }\n}\nEOF\nfi\nif command -v nginx >/dev/null 2>&1; then nginx -c /app/nginx/nginx.conf -p /app/nginx -g 'daemon on;'; else echo 'NO_NGINX_BINARY'; fi\nsleep 1\nss -ltnp | grep ':80\\b' || true\n",
+        "timeout": 120000
+      },
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\nif [ -S /app/win311-monitor.sock ]; then printf 'info status\\n' | socat - UNIX-CONNECT:/app/win311-monitor.sock || true; else echo 'NO_MONITOR_SOCKET'; fi\n",
+        "timeout": 120000
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3246,
+    "cached_input_tokens": 1280,
+    "output_tokens": 1321,
+    "total_tokens": 4567,
+    "provider_usage_raw": {
+      "completion_tokens": 1321,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 4,
+        "engine_ttft_ms": 61,
+        "engine_ttlt_ms": 5756,
+        "pre_inference_ms": 100,
+        "service_tbt_ms": 4,
+        "service_ttft_ms": 670,
+        "service_ttlt_ms": 6359,
+        "total_duration_ms": 6269,
+        "user_visible_ttft_ms": 570
+      },
+      "prompt_tokens": 3246,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1280
+      },
+      "total_tokens": 4567
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

@@ -1,0 +1,1450 @@
+--- PAGE 1 ---
+AgentNoiseBench: Benchmarking Robustness of
+Tool-Using LLM Agents Under Noisy Condition
+Ruipeng Wang 1 * Yuxin Chen1 2 * Yukai Wang1 * Chang Wu 1 Junfeng Fang 2 Xiaodong Cai 1 Qi Gu 1
+Hui Su 1 An Zhang 3 Xiang Wang 3 Xunliang Cai 1 Tat-Seng Chua2
+Abstract
+Recent advances in large language models have
+enabled LLM-based agents to achieve strong per-
+formance on a variety of benchmarks. However,
+their performance in real-world deployments of-
+ten that observed on benchmark settings, espe-
+cially in complex and imperfect environments.
+This discrepancy largely arises because prevail-
+ing training and evaluation paradigms are typi-
+cally built on idealized assumptions, overlook-
+ing the inherent stochasticity and noise present
+in real-world interactions. To bridge this gap,
+we introduce AgentNoiseBench, a framework for
+systematically evaluating the robustness of agen-
+tic models under noisy environments. We first
+conduct an in-depth analysis of biases and un-
+certainties in real-world scenarios and categorize
+environmental noise into two primary types: user-
+noise and tool-noise. Building on this analysis,
+we develop an automated pipeline that injects con-
+trollable noise into existing agent-centric bench-
+marks while preserving task solvability. Lever-
+aging this pipeline, we perform extensive eval-
+uations across a wide range of models with di-
+verse architectures and parameter scales. Our
+results reveal consistent performance variations
+under different noise conditions, highlighting the
+sensitivity of current agentic models to realistic
+environmental perturbations. Code is available
+at https://github.com/keven-cyber/
+agentnoisebench
+1. Introduction
+Recent advances in large language models (LLMs) (OpenAI,
+2025d; Google, 2025c; Team et al., 2025b) have substan-
+*Equal contribution. 1Meituan, China 2National University of
+Singapore, Singapore 3University of Science and Technology of
+China, China.
+Preprint. February 19, 2026.
+tially improved their reasoning and tool-use capabilities
+(Team et al., 2025a; Zeng et al., 2025a; Team et al., 2025c),
+enabling the development of increasingly capable LLM-
+based agents. As a result, agentic models have demonstrated
+strong performance across a wide range of benchmarks (Yao
+et al., 2024; Barres et al., 2025; He et al., 2025). How-
+ever, recent studies indicate that many agents experience
+notable performance degradation when encountering out-
+of-distribution settings or operating in complex real-world
+environments (Deng et al., 2023; Zhou et al., 2023; Xue
+et al., 2025).
+We argue that a fundamental gap exists between the as-
+sumptions underlying current agent evaluations and the
+conditions encountered in realistic environments. In par-
+ticular, most existing benchmarks evaluate agents under
+idealized assumptions, where instructions are carefully cu-
+rated, and interactions with the environment are stable and
+well-controlled (Zeng et al., 2024; Qi et al., 2024; Jin et al.,
+2025). In contrast, real-world environments are inherently
+stochastic and imperfect. User interactions exhibit sub-
+stantial diversity and unpredictability (Gallois et al., 2005;
+Trippas et al., 2024; Wang et al., 2024), while external tools
+frequently return noisy, incomplete, or failed outputs due to
+uncontrollable factors (Vuddanti et al., 2025; Xiong et al.,
+2025). Despite the prevalence of such noise in practice, ex-
+isting benchmarks often fail to systematically expose agents
+to these factors, making robustness under realistic condi-
+tions difficult to assess.
+Systematically evaluating agent robustness under noise re-
+mains non-trivial. Concretely, there are several main chal-
+lenges: (1) Absence of a systematic taxonomy: agents are
+exposed to diverse and heterogeneous noise sources in re-
+alistic environments, yet existing benchmarks provide no
+unified framework for characterizing them. (2) Complexity
+of noise injection: injecting realistic noise in a principled
+manner is non-trivial, as it requires balancing increased envi-
+ronmental complexity with the preservation of task solvabil-
+ity. (3) Limitations of evaluation protocols: evaluating agent
+behavior under noise is inherently multi-faceted, while cur-
+rent benchmarks lack comprehensive evaluation protocols
+to capture such behaviors.
+1
+arXiv:2602.11348v2  [cs.AI]  18 Feb 2026
+
+--- PAGE 2 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Figure 1.Overall scores on AgentNoiseBench, sorted by model performance under noisy conditions.
+To this end, we introduce AgentNoiseBench, a systematic
+framework designed to evaluate the noise robustness of agen-
+tic models. Specifically, we conduct a systematic analysis
+of biases observed in real-world environments and iden-
+tify two primary sources of noise: (1) user-noise, which
+captures the inherent ambiguity and variability in user in-
+teraction patterns, and (2) tool-noise, which simulates ex-
+ecution failures, inconsistent responses, and partial results
+from external tools. Building on this analysis, we develop
+an automated pipeline to inject both noise types into exist-
+ing agentic benchmarks, while enforcing strict constraints
+to preserve task solvability. Furthermore, we introduce
+a trajectory-aware evaluation protocol that enables multi-
+dimensional analysis of agent behavior under noisy condi-
+tions.
+We instantiateAgentNoiseBenchacross two representa-
+tive agentic capabilities—tool use and search—by inject-
+ing controlled user-noise and tool-noise into τ 2-Bench and
+VitaBench (Barres et al., 2025; He et al., 2025), as well as
+HotPot QA (Yang et al., 2018). We then evaluate a broad
+set of open-source and proprietary models, including both
+reasoning-oriented models and standard foundation mod-
+els, spanning diverse architectures and parameter scales.
+As shown in Figure 1, all evaluated models exhibit consis-
+tent performance degradation under both noise sources, with
+varying degrees of sensitivity. Further analysis indicates that
+general reasoning ability and environmental robustness are
+not strongly correlated. By examining the step-wise entropy
+of agent trajectories, we find that different noise sources
+affect the entropy minimization process through distinct
+mechanisms. Finally, systematic failure pattern analysis
+shows that models across all families are more sensitive to
+tool-noise than to user-noise, potentially due to the inherent
+variability and limited controllability of the user simulator.
+Overall, the main contributions of this work are:
+• We conduct a systematic analysis of biases in realistic
+environments and categorize them into two primary noise
+sources: user-noise and tool-noise.
+• We develop an automated pipeline that injects controllable
+noise into existing agentic benchmarks while preserving
+task solvability.
+• We introduce a trajectory-aware evaluation protocol and
+perform extensive evaluations across a wide range of open-
+source and proprietary models, yielding key insights into
+agent robustness.
+2. AgentNoiseBench: A Systematic
+Framework for Robustness Evaluation
+In this section, we formally presentAgentNoiseBench, a
+systematic evaluation framework designed to quantify the
+robustness of LLM-based agents against both random per-
+turbations (Song et al., 2024; Li et al., 2024) and adversarial
+imperfections (Zhan et al., 2024; Zhang et al., 2025) inher-
+ent in real-world deployment.
+2.1. Design Principles
+Real-world environments are inherently imperfect (Wang
+et al., 2025a; Siska et al., 2024; Lunardi et al., 2025). To
+address this evaluation gap, AgentNoiseBench bridges the
+gap between idealized benchmark evaluations and the com-
+plexities of realistic environments through three governing
+principles:
+Realistic Noise Modeling.Rather than injecting arbitrary
+noise, we model valid noise grounded in real-world interac-
+2
+
+--- PAGE 3 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Figure 2.The framework of AgentNoiseBench.(A) Empirical Noise Taxonomycategorizes real-world noise into instruction noise and
+tool-execution noise.(B) Constrained Adversarial Noise Evolution & Injectionmechanism applies controlled noise while ensuring
+task solvability.(C) Trajectory-Aware Evaluation Protocolassesses agent behavior and robustness through multi-dimensional metrics.
+tion logs. Specifically, we categorize noise into user-noise,
+reflecting user cognitive biases and linguistic variability
+(Zhang et al., 2024a; Gan et al., 2024; Rivkin et al., 2023),
+and tool-noise, simulating instability and unreliability in ex-
+ternal environments (Xu et al., 2024a; Kokane et al.; Chen
+et al., 2025; Zhang et al., 2024b).
+Solvability-Preserving Noise Injection.A core premise
+of our framework is that injected noise should increase task
+difficulty without rendering the task unsolvable. Accord-
+ingly, all perturbations are strictly constrained to preserve
+the necessary conditions for a valid solution, ensuring that
+failures can be attributed to agent fragility rather than task
+invalidity.
+Realistic Evaluation Requirements.Outcome-based met-
+rics are insufficient as they fail to distinguish between robust
+reasoning and stochastic luck. Therefore, a rigorous eval-
+uation must demand process-level correctness: the agent’s
+intermediate reasoning steps should remain logically sound
+and strictly adhere to task requirements, impervious to noise-
+induced deviations. This ensures that the evaluation metrics
+faithfully reflect the agent’s robustness to noise.
+2.2. Benchmark Construction
+To enable fair comparisons across agents, AgentNoiseBench
+adopts a standardized benchmark construction pipeline.
+Concretely, we first derive realistic noise types from large-
+scale user–agent interaction logs. We then instantiate a fixed
+adversarial noise generator to produce challenging yet valid
+perturbations, and apply it uniformly to all evaluated agents.
+This design keeps the noise distribution and difficulty level
+consistent across models, thereby enabling controlled and
+fair evaluations.
+2.2.1. EMPIRICALTAXONOMY OFNOISE
+We categorize noise types through a systematic analysis
+of large-scale user–agent interaction logs. Concretely, we
+combine manual annotation with frequency-based statistical
+analysis to identify noise types that are both prevalent in
+real-world interactions and associated with high interaction
+costs. We group the resulting noise into two broad families:
+user noise and tool noise.
+User Noise (Nuser):Models the imperfections and vari-
+ability in human-provided instructions during agent interac-
+tions. Concretely, we consider the following categories of
+user-side noise:
+• Ambiguous Instructions:User instructions that are un-
+derspecified or lack explicit constraints.
+• Inconsistent Instructions:User instructions are contra-
+dictory or conflicting across multi-turn interactions.
+• Redundant Information:User instruction include irrele-
+vant contextual information.
+•Topic Drift:User instructions that shift the primary task
+3
+
+--- PAGE 4 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+intent or conversational focus across dialogue turns.
+• Boundary Probing:User instructions that deliberately
+test the limits of the agent’s knowledge.
+Tool Noise (Ntool):Models the stochasticity and unreli-
+ability of external tools, APIs, and environments that the
+agent interacts with. Concretely, we consider the following
+categories of tool-side noise:
+• Execution Failures:Tool invocations fail to return valid
+responses due to service-level issues, including unavail-
+able or uninitialized tools, inaccessible external services,
+or server-side exceptions.
+• Incomplete Responses:Tools return outputs with miss-
+ing or partially truncated data.
+• Erroneous Outputs:Tool responses containing incorrect
+or inconsistent factual information.
+• Misleading Signals:Tool outputs include misleading or
+unreliable content that can divert agents toward incorrect
+reasoning trajectories.
+• Redundant Information:Tools return excessive irrele-
+vant or low-utility content, unnecessarily increasing con-
+text length and processing overhead.
+2.2.2. CONSTRAINEDADVERSARIALNOISEINJECTION
+To generate noise that is strictly valid yet sufficiently chal-
+lenging, while ensuring fairness across diverse models, we
+introduce a constrained adversarial injection mechanism.
+Specifically, we employ a state-of-the-art model (e.g., o3)
+as a fixed reference agent Aref to construct a universal noise
+generation system prompt.
+We instantiate a strong language model as the noise genera-
+tor G, with its parameters frozen. Optimization is performed
+exclusively over the adversarial system prompt θ. Given an
+agent input x at a particular interaction step, which is either
+a user instruction or a tool return, the generator produces
+a perturbed input G(x;θ) . Our objective is to identify an
+optimal prompt strategy θ∗ that maximally degrades the
+performance of the reference agent Aref, subject to strict
+preservation of the underlying task solvability:
+θ∗ = arg max
+θ
+Ldeg(Aref,G(x;θ))
+s.t.I solvable(G(x;θ)) = 1.
+(1)
+Here, Ldeg quantifies the performance degradation of the
+reference agent under injected noise, while Isolvable enforces
+a constraint ensuring that the perturbed agent input remains
+solvable. We iteratively update θ to maximize Ldeg under
+the solvability constraint, thereby producing valid yet adver-
+sarial noise.
+By optimizing the noise prompt against a state-of-the-art
+reference agent, we leverage the transferability of noise
+across agents: noise that reliably disrupts a highly capable
+reference agent tends to generalize and remain challenging
+for other agents. After obtaining θ∗, we freeze it and apply
+it uniformly when generating noise for all evaluated agents.
+This ensures that all agents are evaluated under identical
+noise conditions, enabling a fair and consistent comparison.
+2.3. Trajectory-Aware Evaluation Protocol
+We retain the standard evaluation metrics from VitaBench
+(He et al., 2025) and τ 2-Bench (Barres et al., 2025) to assess
+final outcome correctness. To more comprehensively as-
+sess agent behavior, we additionally introduce a Trajectory-
+Aware Evaluation Protocol. This protocol examines the full
+interaction trajectory and accounts for cases where a correct
+final answer is obtained via deviated reasoning or interaction
+paths.
+Trajectory Deviation Detection.Let τ= (s 1, s2, . . . , sT )
+denote the agent’s reasoning trajectory. Given task require-
+ments T , we define a step-wise validity indicator Istep. For
+each state si ∈τ , Istep(si,T) assesses whether the agent’s
+behavior at that step exhibits a noise-induced deviation:
+Istep(si,T) =
+(
+1, s i is valid and consistent withT,
+0,otherwise.
+(2)
+A trajectory is deemed valid only if all steps remain consis-
+tent. Consequently, the trajectory-level validity is defined
+as the conjunction of step-wise indicators:
+Itraj(τ,T) =
+TY
+i=1
+Istep(si,T).(3)
+Stability-Gated Success Criterion.We apply trajectory-
+level validity as a gating condition for task execution success.
+Under this criterion, a task is considered successfully solved
+only when the agent produces the correct final outcome
+and the corresponding reasoning trajectory remains valid
+throughout the interaction:
+SGA(τ;T) =I traj(τ;T)·I task(sT ;T),(4)
+where Itask(sT ;T)∈ {0,1} indicates whether the final out-
+come is correct for task T . This criterion filters out cases
+where a correct final outcome is achieved despite deviations
+in the interaction trajectory.
+3. Experiments
+3.1. Experimental Setup
+Model Zoo.We evaluate a diverse set of 24 represen-
+tative large language models covering different architec-
+4
+
+--- PAGE 5 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Table 1.Model performance across different domains. Values are reported as mean±std over multiple runs, where std denotes the standard
+deviation. For each domain, the best-performing model within the non-thinking and thinking groups is highlighted inbold.
+Models τ2-bench Vitabench Search
+Origin Tool Noise User Noise Origin Tool Noise User Noise Origin Tool Noise
+Non-thinking Models
+DeepSeek-V3-0324 0.47±0.020.31±0.010.37±0.030.25±0.020.17±0.010.20±0.020.21±0.010.22±0.03
+Gemini-2.5-Flash (think off) 0.56±0.040.31±0.020.50±0.010.26±0.030.16±0.020.22±0.010.28±0.020.20±0.02
+Doubao-Seed-1.6 0.51±0.030.31±0.020.45±0.040.37±0.010.28±0.030.32±0.020.26±0.030.20±0.02
+GPT-4.1 0.56±0.020.30±0.010.50±0.030.41±0.040.31±0.020.33±0.010.29±0.030.27±0.04
+DeepSeek-V3.1 (w/o thinking) 0.55±0.010.35±0.030.45±0.020.36±0.030.31±0.010.30±0.020.43±0.040.37±0.01
+DeepSeek-V3.2-Exp (w/o thinking) 0.52±0.030.34±0.020.49±0.010.42±0.040.32±0.030.32±0.010.45±0.020.36±0.04
+gemini-2.5-pro (w/o thinking) 0.59±0.020.37±0.040.55±0.030.49±0.010.34±0.020.39±0.040.36±0.030.29±0.03
+gpt-3.5-turbo (w/o thinking) 0.53±0.040.28±0.010.46±0.020.36±0.030.23±0.010.26±0.030.17±0.020.13±0.01
+Qwen3-Max 0.57±0.010.34±0.030.51±0.040.36±0.020.23±0.030.23±0.020.31±0.030.24±0.02
+GLM-4.5 (w/o thinking) 0.62±0.030.42±0.020.55±0.010.41±0.040.29±0.010.31±0.030.44±0.020.36±0.02
+GLM-4.6 (w/o thinking)0.74±0.020.48±0.040.64±0.030.40±0.010.32±0.020.33±0.040.47±0.010.39±0.02
+LongCat-Flash-Chat 0.74±0.040.48±0.010.62±0.020.43±0.030.34±0.040.36±0.010.38±0.030.30±0.02
+Claude-4-Sonnet (w/o thinking) 0.65±0.010.41±0.030.55±0.040.44±0.020.34±0.010.33±0.030.38±0.040.30±0.01
+Claude-4.5-Sonnet (w/o thinking) 0.71±0.030.48±0.020.64±0.010.48±0.040.40±0.030.39±0.020.34±0.010.29±0.03
+Thinking Models
+Qwen3-max (w/ thinking)0.87±0.020.56±0.030.78±0.040.47±0.020.34±0.010.40±0.010.49±0.030.33±0.02
+Gemini-2.5-Flash (think on) 0.58±0.010.31±0.040.50±0.020.29±0.030.14±0.010.20±0.040.27±0.040.22±0.02
+Doubao-Seed-1.6-Thinking 0.63±0.030.40±0.010.61±0.030.31±0.020.28±0.040.31±0.010.27±0.030.21±0.02
+GLM-4.5 (w/ thinking) 0.70±0.040.49±0.020.63±0.010.47±0.040.35±0.030.37±0.020.45±0.020.37±0.01
+GLM-4.6 (w/ thinking) 0.75±0.010.56±0.040.68±0.020.49±0.010.40±0.040.40±0.030.47±0.040.36±0.02
+Claude-4-Sonnet (w/ thinking) 0.69±0.030.46±0.010.58±0.040.43±0.020.36±0.010.36±0.040.39±0.030.31±0.02
+Claude-4.5-Sonnet (w/ thinking) 0.73±0.020.57±0.000.65±0.020.51±0.030.41±0.020.41±0.010.35±0.030.29±0.02
+deepseek-R1-0528 (w/ thinking) 0.53±0.010.37±0.010.46±0.020.42±0.040.39±0.030.36±0.020.33±0.030.26±0.02
+gpt-5.2 (w/ thinking) 0.81±0.040.61±0.030.72±0.030.53±0.010.45±0.040.45±0.030.49±0.030.37±0.03
+o3 (w/ thinking) 0.70±0.020.57±0.010.68±0.020.50±0.020.46±0.010.44±0.040.46±0.030.35±0.02
+Gemini-2.5-Pro 0.60±0.020.37±0.030.55±0.010.49±0.040.34±0.020.38±0.030.37±0.030.30±0.03
+tures and parameter scales. Our evaluation benchmark
+encompasses a wide spectrum of proprietary models, in-
+cluding the OpenAI o-series (o3) (OpenAI, 2025e) and
+GPT series (GPT-4.1 (OpenAI, 2025a), GPT-5.2 (Ope-
+nAI, 2025b;c;d)); the DeepSeek family, covering the R1
+series (Guo et al., 2025) and V3 variants (V3-0324 (Liu
+et al., 2024), V3.1 (DeepSeekAI, 2025), V3.2 (Liu et al.,
+2025)); Anthropic’s Claude series (Claude-4-Sonnet (An-
+thropic, 2025a), Claude-4.5-Sonnet (Anthropic, 2025b));
+and Google’s Gemini-2.5 suite (Flash and Pro (Comanici
+et al., 2025; Google, 2025b;a)). Additionally, we include
+other leading models such as Qwen3-Max (Team, 2025),
+GLM variants (GLM-4.5 (Zeng et al., 2025b), GLM-4.6
+(z.ai, 2025)), Seed-1.6 (ByteDance, 2025), and LongCat-
+Flash (Team et al., 2025d). To ensure a fair comparison, we
+distinguish between reasoning-enhanced and non reasoning
+models. Hybrid architectures capable of toggling between
+modes are assessed in both states independently.
+Datasets.To systematically evaluate agent robustness in
+complex environments, we delineate core capabilities into
+two dimensions: (1) static knowledge retrieval and (2) dy-
+namic multi-turn interaction. Specifically, for static retrieval
+tasks, we employ two representative benchmarks: 2Wiki-
+MultiHopQA (Ho et al., 2020) and HotpotQA (Yang et
+al., 2018). Collectively, the averaged performance across
+these two benchmarks is reported as ’Search’ , representing
+static knowledge retrieval. Given that these tasks inherently
+lack user interaction, tool noise is injected. Conversely,
+for dynamic interaction tasks, we utilize VitaBench and
+tau2-Bench, two benchmarks that support the simultaneous
+injection of both user noise and tool noise. Across all test
+domains, noise is introduced by perturbing key interaction
+interfaces, while strictly preserving the invariance of the
+original task objectives. Finally, to strike a balance between
+the experimental necessity of covering all predefined noise
+types and the practical constraints of evaluation scalability
+and cost, we adopt a stratified sampling strategy: 25% of
+samples are drawn from each scenario within VitaBench
+and au2-Bench, and 500 instances are sampled from the
+multi-hop QA datasets. This design ensures precise com-
+parative analysis of model performance in both noisy and
+noise-free environments under a unified task distribution.
+Metrics.We report mean performance over N= 4 indepen-
+dent trials per task. Our evaluation captures both effective-
+ness and efficiency: Avg@4: The average task success rate
+across trials, serving as the primary measure of agent ro-
+5
+
+--- PAGE 6 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Figure 3.Relative deviation metrics including Accuracy (ACC)
+and Inference Steps (STEP) for Think and Non-Think models
+across diverse scenarios. For brevity, prefix “V-”, “T-” and “S-”
+stands for VitaBench,τ 2-Bench, and Search.
+bustness. Avg Tokens@4: The average token consumption
+across trials, quantifying computational cos Avg Steps@4:
+The average number of interaction steps required to com-
+plete the task across trials, quantifying computational cost.
+Robustness: The relative rate of change of a metric above
+from noise-free to noisy environments, quantifying agent
+robustness under noisy conditions.
+3.2. Noise Robustness Remains an Open Challenge for
+Current Agents
+To assess whether noise robustness constitutes a critical
+bottleneck for agent deployment, we evaluated a series of
+state-of-the-art models following the experimental settings
+described in Section 3.1. Table 1 summarizes the perfor-
+mance of each model under both non-noise and noisy envi-
+ronments. Based on the experimental results, we make the
+following observation:
+Observation 1: Agents universally exhibit significant
+vulnerability to noise, with varying degrees of sensitivity.
+Our results indicate that nearly all models suffer substan-
+tial performance degradation upon the injection of noise,
+with an average accuracy drop of 20.8%. This performance
+loss is prevalent across all evaluation domains; for instance,
+the average declines in the Vitbench, τ 2-bench, and Search
+domains reach 24.1%, 21.2%, and 16.8%, respectively. Fur-
+thermore, we observe significant disparities in the magni-
+tude of performance degradation across different models
+when subjected to identical noise interference. These results
+not only reveal the significant performance gap between an
+ideal noise-free environment and a real noisy scenario, but
+also highlight the intrinsic differences in models’ sensitivity
+to noise, raising concerns for the reliable deployment of
+current agents.
+Figure 4.Figure (a) and (b) illustrate the entropy at each reasoning
+step for thinking and non-thinking models under non-noise, user
+noise, and tool noise settings, respectively.
+3.3. Misalignment Exists between Reasoning Ability and
+Robustness
+To further explore the relationship between general reason-
+ing ability and noise robustness, we separately calculated
+the robustness scores of thinking models and non-thinking
+models. The comparative results are visualized in Figure 3,
+from which we summarize the following finding:
+Observation 2: Reasoning ability and robustness are
+not closely related.Our experimental results indicate that
+reasoning ability and noise robustness are not closely re-
+lated. Specifically, as shown in Figure 3, with the excep-
+tion of specific scenarios (e.g., Delivery), the robustness
+scores of thinking models are relatively lower than those of
+non-thinking models across most other scenarios. This per-
+formance disadvantage prevalent across multiple domains
+clearly indicates that strong reasoning ability does not inher-
+ently confer robustness against noise. To deeply investigate
+the root causes of the low robustness observed in power-
+ful reasoning models under noisy conditions, we analyzed
+the models’ reasoning trajectories. Our study uncovered
+an interesting phenomenon: reasoning models often fail
+to effectively filter out noisy information. Instead, they
+tend to misinterpret this noise as meaningful, critical sig-
+nals, and on this basis, attempt to construct complex logical
+chains to rationalize the noise. This mechanism leads to the
+generation of spurious reasoning chains—where the model
+produces solutions that appear logically rigorous but are in
+fact incorrect. The fundamental reason for this behavior
+is closely related to the training of reasoning models; their
+training data is typically strictly screened and pre-processed
+to eliminate noise. Consequently, when noise appears dur-
+ing the testing phase, the powerful reasoning capability of
+these models more readily fabricates information to make
+the noise seem rational.
+6
+
+--- PAGE 7 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Figure 5.The impact of different noises on agent performance. (a) Average impact of nine fine-grained noise categories (user-side
+“U-” and tool-side “T-”) across all scenarios. (b) Performance degradation caused by user noise vs. tool noise in non-reasoning and
+reasoning-enabled models.
+3.4. How Noise Disrupts Reasoning via Entropy
+Injection
+To investigate the microscopic mechanisms of how noise dis-
+rupts task execution, we conducted an analysis of step-wise
+entropy. We sampled 50 trajectories across 6 scenarios, com-
+paring step-wise entropy evolution under three conditions:
+Non-Noise, User-Noise, and Tool-Noise. Figure 4 illustrates
+these dynamics. We make the following observations:
+Observation 3: Noise perturbs reasoning entropy
+through distinct mechanisms.The results indicate that
+different noise sources alter entropy changes in the reason-
+ing process through fundamentally different mechanisms.
+In noise-free baselines, we observe entropy decay, where
+the agent progressively resolves uncertainty, converging
+towards a deterministic solution. In contrast, user noise
+induces a high intercept entropy profile, characterized by
+extreme uncertainty at the initial step. This reflects the cog-
+nitive load required to disambiguate user intent before any
+planning can commence. Crucially, as shown in Figure 4,
+tool noise results in a relatively high level of entropy starting
+from the middle stage and persisting through the late stage
+of the agent trajectory. Here, the output of hallucination-
+inducing tools introduces uncertain information into the
+context, making it difficult for the agent to establish a reli-
+able chain of reasoning.
+3.5. Impact of Noise Sources and Granularity on Agent
+Performance
+To further investigate the distinct effects of noise on agents,
+as shown in Figure 5(b) and Figure 5(a), we analyze noise
+from both a macro perspective of noise sources and a micro
+perspective of fine-grained noise types. Based on the exper-
+imental results, we summarize the following observations.
+Observation 4: Agents exhibit higher sensitivity to tool-
+side noise.The results reveal a substantial robustness gap
+when agents are exposed to different noise sources: across
+model families and scenarios, agents are significantly more
+sensitive to tool noise than to user noise. Quantitative analy-
+sis shows that tool noise typically results in severe perfor-
+mance degradation of 20To explain this asymmetric sensi-
+tivity, we analyze the agent interaction logic and attribute it
+to differences in the nature of user noise and tool noise.
+User noise exhibits semantic repairability. User noise is es-
+sentially a perturbation at the level of language expression.
+During pretraining, large language models acquire exten-
+sive prior knowledge, which endows them with strong error
+correction and associative capabilities. As a result, even
+when input instructions are noisy, agents can often leverage
+internal commonsense knowledge to repair such noise at the
+semantic level, thereby maintaining normal task execution.
+In contrast, tool noise leads to a complete loss of reasoning
+evidence. Tool-side noise directly corrupts the agent’s chan-
+nel for perceiving the external environment. During task
+execution, tool outputs serve as the only objective basis for
+assessing the current state and deciding subsequent actions.
+The absence or corruption of such objective facts constitutes
+a structural failure: agents cannot infer the environment
+state from internal reasoning, causing the reasoning chain
+to lose its foundation and ultimately leading to task failure.
+Observation 5: Fine-grained noise types exhibit signif-
+icantly different destructive effects on agents.The ex-
+perimental results indicate that the impact of fine-grained
+noise on agents’ performance is highly uneven. On the user
+side, instruction contradiction is the most destructive noise
+type. Agents struggle to infer a consistent and correct in-
+tent from logically incompatible instructions, resulting in a
+pronounced performance drop. In comparison, instruction
+ambiguity leads to only limited performance degradation.
+This suggests that although ambiguous intent increases in-
+terpretation difficulty, agents can often rely on probabilistic
+intent inference and partial semantic repair, supported by
+the rich prior knowledge of large language models, thereby
+partially mitigating the negative impact of noise. On the tool
+7
+
+--- PAGE 8 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Figure 6.Impact of noise injection stages on model performance across different architectures.
+side, execution failures are the most destructive, reducing
+the average performance score to 0.31. A reasonable expla-
+nation is that such noise triggers structural interruptions in
+execution, cutting off the agent’s access to environmental
+feedback and preventing the reasoning process from pro-
+gressing due to the lack of external factual grounding. By
+contrast, noise such as incomplete information or redun-
+dancy have relatively milder effects, suggesting that agents
+retain some ability to filter and complete information, ex-
+tracting useful signals from noisy feedback to sustain correct
+reasoning processes.
+3.6. When Does Noise Injection Have the Greatest
+Impact
+To investigate the impact of noise injection timing on agent
+performance, we divide the task execution trajectory into
+three noise injection stages: early stage, middle stage, and
+late stage. We conduct experiments on four representative
+model families, Claude, Gemini, DeepSeek, and LongCat.
+The experimental results are shown in Figure 6, with addi-
+tional results for more models provided in Appendix A.2.
+Based on these results, we summarize the following obser-
+vation:
+Observation 6: Agents are most sensitive to noise in-
+jected at the middle stage.Specifically, for the majority of
+evaluated models, noise injected at the middle stage leads
+to significantly greater performance degradation than noise
+injected at either the early or late stage, indicating that
+agents are more sensitive to perturbations occurring in the
+middle of the execution trajectory. One possible explana-
+tion is that, at the early stage, the model maintains higher
+uncertainty about the environment and thus reasons more
+conservatively, while at the late stage the state space has
+largely contracted and action choices are more constrained.
+In contrast, during the middle stage, the model tends to make
+more deterministic decisions based on accumulated contex-
+tual information, causing injected noise to be more easily
+absorbed as reliable signals. Notably, this phenomenon is
+highly consistent across models with different architectures
+and reasoning strategies, suggesting that heightened sensi-
+tivity to middle-stage noise is likely an inherent property of
+the agent’s execution process rather than a model-specific
+phenomenon.
+4. Related Work
+4.1. Benchmarks for Tool-Using and Interactive Agents
+Recent advances have significantly expanded the scope of
+agent evaluation from single-turn tasks (Huang et al., 2023;
+Qin et al., 2023; Patil et al.) to complex reasoning scenarios
+involving tool use and multi-step decision making (Farn &
+Shin, 2023; Wang et al., 2023; Qian et al., 2024). A growing
+body of work focuses on agents that iteratively interact with
+external tools to solve problems (Lu et al., 2025; Wang et al.,
+2025b; Qian et al., 2025), establishing protocols to assess
+planning capabilities (Yao et al., 2022; Schick et al., 2023;
+Zhou et al., 2023). Furthermore, benchmarks like τ 2-Bench
+(Barres et al., 2025) and VitaBench (He et al., 2025) have
+been developed to evaluate agents in multi-turn interactions
+where maintaining state is crucial.
+However, a significant gap remains between benchmark
+environments and real-world applications. Most existing
+frameworks rely on idealized assumptions (Yang et al., 2024;
+Wang et al., 2025d), providing agents with carefully curated
+instructions and well-controlled environments. Unlike prior
+work, AgentNoiseBench introduces an automated pipeline
+capable of injecting noise into any existing agent-centric
+benchmarks while maintaining task solvability.
+4.2. Robustness and Degradation of Agents under Noise
+The deployment of agents in complex real-world environ-
+ments has highlighted the critical importance of robustness
+(Li et al., 2025b; Levy et al., 2025; Agrawal et al., 2025).
+Recent studies indicate that agents suffer substantial per-
+formance degradation when faced with out-of-distribution
+scenarios or ambiguous user behaviors (Anghel et al., 2025;
+Wan et al., 2025; Herrera-Poyatos et al., 2025; Wang et al.,
+2025c). Various efforts have explored agent behavior under
+prompt perturbations or dialog variations (Li et al., 2025a;
+Deshpande et al., 2025; Qi et al., 2025). On the execution
+side, reliance on external tools introduces further instability,
+where agents usually encounter noisy, incomplete, or failed
+outputs (Xu et al., 2024b; Zhang et al., 2024b; Vuddanti
+8
+
+--- PAGE 9 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+et al., 2025), often leading to compounding errors (Yang
+et al., 2025; Zhu et al., 2025).
+Nevertheless, existing evaluations (Nalbandyan et al., 2025;
+Wen et al., 2025; Yu et al., 2025) generally lack a systematic
+noise taxonomy and often focus on single noise sources.
+In addition, they typically only use the success rate as an
+evaluation metric. AgentNoiseBench introduces a unified
+framework covering both instruction and tool-execution
+noise and employs a trajectory-aware evaluation protocol
+to provide a multi-dimensional analysis to comprehensively
+characterize agent performance under noise.
+5. Limitations
+Despite the insights of our benchmark, several limitations
+remain. First, the evaluation targets language-centric, tool-
+augmented agents and may not generalize to agents with
+explicit planning, learned world models, or asynchronous
+tool environments. Second, while trajectory-level entropy
+is a useful diagnostic signal, it provides limited causal in-
+sight, as the analysis captures correlations between noise
+and instability. Third, trajectory-aware evaluation incurs
+computational overhead, and the benchmark lacks a scal-
+able trade-off between diagnostic fidelity and cost, limiting
+its applicability in large-scale or real-world settings.
+6. Future Work
+These limitations motivate future research. First, we will
+study robustness-oriented training, such as reinforcement
+learning with noise-aware objectives, to improve agent sta-
+bility under noisy interactions. Second, we plan to extend
+the benchmark to a wider range of agent architectures, task
+domains, and tool ecosystems. Finally, future work will
+develop analytical frameworks integrating trajectory-level
+diagnostics with causal and counterfactual analysis to better
+understand agent robustness.
+7. Conclusion
+In this work, we rethink the evaluation of LLM-based agents
+through the lens of real-world imperfections, introducing
+AgentNoiseBench to bridge the gap between controlled
+benchmarks and practical deployments. With our automated
+pipeline, we can explicitly incorporate real-world noise into
+any agent-centric benchmarks while ensuring the tasks are
+still solvable. Our evaluation reveals that nearly all models
+suffer substantial performance degradation, with an average
+accuracy drop of 20.8%. We urge greater attention to real-
+world imperfections when training and evaluating agents.
+References
+Agrawal, A., Alazraki, L., Honarvar, S., and Rei, M. Enhanc-
+ing llm robustness to perturbed instructions: An empirical
+study.arXiv preprint arXiv:2504.02733, 2025.
+Anghel, C., Anghel, A. A., Pecheanu, E., Cocu, A., Istrate,
+A., and Andrei, C. A. Diagnosing bias and instability
+in llm evaluation: A scalable pairwise meta-evaluator.
+Information, 16(8):652, 2025.
+Anthropic. Claude sonnet 4 system card. 2025a.
+URL https://www.anthropic.com/news/
+claude-4.
+Anthropic. Claude sonnet 4.5 model card. 2025b.
+URL https://www.anthropic.com/news/
+claude-sonnet-4-5.
+Barres, V ., Dong, H., Ray, S., Si, X., and Narasimhan, K.τ 2-
+bench: Evaluating conversational agents in a dual-control
+environment.arXiv preprint arXiv:2506.07982, 2025.
+ByteDance. Seed1.6 tech introduction. 2025. URL https:
+//seed.bytedance.com/en/seed1_6.
+Chen, C., Hao, X., Liu, W., Huang, X., Zeng, X., Yu, S.,
+Li, D., Wang, S., Gan, W., Huang, Y ., et al. Acebench:
+Who wins the match point in tool usage?arXiv preprint
+arXiv:2501.12851, 2025.
+Comanici, G., Bieber, E., Schaekermann, M., Pasupat, I.,
+Sachdeva, N., Dhillon, I., Blistein, M., Ram, O., Zhang,
+D., Rosen, E., et al. Gemini 2.5: Pushing the frontier
+with advanced reasoning, multimodality, long context,
+and next generation agentic capabilities.arXiv preprint
+arXiv:2507.06261, 2025.
+DeepSeekAI. Deepseek-v3.1 model card. 2025. URL
+https://huggingface.co/deepseek-ai/
+DeepSeek-V3.1.
+Deng, X., Gu, Y ., Zheng, B., Chen, S., Stevens, S., Wang,
+B., Sun, H., and Su, Y . Mind2web: Towards a general-
+ist agent for the web.Advances in Neural Information
+Processing Systems, 36:28091–28114, 2023.
+Deshpande, K., Sirdeshmukh, V ., Mols, J. B., Jin, L.,
+Hernandez-Cardona, E.-Y ., Lee, D., Kritz, J., Primack,
+W. E., Yue, S., and Xing, C. Multichallenge: A realistic
+multi-turn conversation evaluation benchmark challeng-
+ing to frontier llms. InFindings of the Association for
+Computational Linguistics: ACL 2025, pp. 18632–18702,
+2025.
+Farn, N. and Shin, R. Tooltalk: Evaluating tool-usage in a
+conversational setting.arXiv preprint arXiv:2311.10775,
+2023.
+9
+
+--- PAGE 10 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Gallois, C., Ogay, T., and Giles, H. Communication accom-
+modation theory.Theorizing about intercultural commu-
+nication, pp. 121–148, 2005.
+Gan, Y ., Li, C., Xie, J., Wen, L., Purver, M., and Poesio,
+M. Clarq-llm: A benchmark for models clarifying and
+requesting information in task-oriented dialog.arXiv
+preprint arXiv:2409.06097, 2024.
+Google. 2.5 flash and native capabilities –audio & image
+model card.https://storage.googleapis.com/deepmind-
+media/Model-Cards/Gemini-2-5-Flash-Model-Card.pdf,
+2025a.
+Google. Gemini 2.5 pro model card.
+https://modelcards.withgoogle.com/assets/documents/gemini-
+2.5-pro.pdf, 2025b.
+Google. Gemini 3 pro model card.
+https://storage.googleapis.com/deepmind-media/Model-
+Cards/Gemini-3-Pro-Model-Card.pdf, 2025c.
+Guo, D., Yang, D., Zhang, H., Song, J., Zhang, R., Xu, R.,
+Zhu, Q., Ma, S., Wang, P., Bi, X., et al. Deepseek-r1: In-
+centivizing reasoning capability in llms via reinforcement
+learning.arXiv preprint arXiv:2501.12948, 2025.
+He, W., Sun, Y ., Hao, H., Hao, X., Xia, Z., Gu, Q., Han,
+C., Zhao, D., Su, H., Zhang, K., et al. Vitabench: Bench-
+marking llm agents with versatile interactive tasks in real-
+world applications.arXiv preprint arXiv:2509.26490,
+2025.
+Herrera-Poyatos, D., Pel ´aez-Gonz´alez, C., Zuheros, C.,
+Herrera-Poyatos, A., Tejedor, V ., Herrera, F., and Montes,
+R. An overview of model uncertainty and variability
+in llm-based sentiment analysis: challenges, mitigation
+strategies, and the role of explainability.Frontiers in
+Artificial Intelligence, 8:1609097, 2025.
+Huang, Y ., Shi, J., Li, Y ., Fan, C., Wu, S., Zhang, Q., Liu, Y .,
+Zhou, P., Wan, Y ., Gong, N. Z., et al. Metatool benchmark
+for large language models: Deciding whether to use tools
+and which to use.arXiv preprint arXiv:2310.03128, 2023.
+Jin, B., Zeng, H., Yue, Z., Yoon, J., Arik, S., Wang, D.,
+Zamani, H., and Han, J. Search-r1: Training llms to
+reason and leverage search engines with reinforcement
+learning.arXiv preprint arXiv:2503.09516, 2025.
+Kokane, S., Zhu, M., Awalgaonkar, T. M., Zhang, J., Prab-
+hakar, A., Hoang, T. Q., Liu, Z., RN, R., Yang, L., Yao,
+W., et al. Toolscan: A benchmark for characterizing er-
+rors in tool-use llms. InICLR 2025 Workshop on Building
+Trust in Language Models and Applications.
+Langley, P. Crafting papers on machine learning. In Langley,
+P. (ed.),Proceedings of the 17th International Conference
+on Machine Learning (ICML 2000), pp. 1207–1216, Stan-
+ford, CA, 2000. Morgan Kaufmann.
+Levy, N., Ashrov, A., and Katz, G. Towards robust llms: an
+adversarial robustness measurement framework.arXiv
+preprint arXiv:2504.17723, 2025.
+Li, J., Li, J., Wang, Y ., Chang, Y ., and Wu, Y . Struct-
+flowbench: A structured flow benchmark for multi-turn
+instruction following.arXiv preprint arXiv:2502.14494,
+2025a.
+Li, Z., Peng, B., He, P., and Yan, X. Evaluating the
+instruction-following robustness of large language mod-
+els to prompt injection. InProceedings of the 2024 con-
+ference on empirical methods in natural language pro-
+cessing, pp. 557–568, 2024.
+Li, Z., Liu, M., Li, A., He, K., Wang, Y ., Peng, X., and
+Zheng, Z. Enhancing the robustness of llm-generated
+code: Empirical study and framework.arXiv preprint
+arXiv:2503.20197, 2025b.
+Liu, A., Feng, B., Xue, B., Wang, B., Wu, B., Lu, C., Zhao,
+C., Deng, C., Zhang, C., Ruan, C., et al. Deepseek-v3
+technical report.arXiv preprint arXiv:2412.19437, 2024.
+Liu, A., Mei, A., Lin, B., Xue, B., Wang, B., Xu, B., Wu,
+B., Zhang, B., Lin, C., Dong, C., et al. Deepseek-v3.
+2: Pushing the frontier of open large language models.
+arXiv preprint arXiv:2512.02556, 2025.
+Lu, J., Holleis, T., Zhang, Y ., Aumayer, B., Nan, F., Bai, H.,
+Ma, S., Ma, S., Li, M., Yin, G., et al. Toolsandbox: A
+stateful, conversational, interactive evaluation benchmark
+for llm tool use capabilities. InFindings of the Associ-
+ation for Computational Linguistics: NAACL 2025, pp.
+1160–1183, 2025.
+Lunardi, R., Della Mea, V ., Mizzaro, S., and Roitero, K. On
+robustness and reliability of benchmark-based evaluation
+of llms.arXiv preprint arXiv:2509.04013, 2025.
+Nalbandyan, G., Shahbazyan, R., and Bakhturina, E. Score:
+Systematic consistency and robustness evaluation for
+large language models.arXiv preprint arXiv:2503.00137,
+2025.
+OpenAI. Introducing gpt-4.1 in the api. 2025a. URL
+https://openai.com/index/gpt-4-1/.
+OpenAI. Introducing gpt-5. 2025b. URL https://
+openai.com/index/introducing-gpt-5/.
+OpenAI. Introducing gpt-5.1. 2025c. URL https://
+openai.com/index/gpt-5-1/.
+10
+
+--- PAGE 11 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+OpenAI. Introducing gpt-5.2. 2025d.
+URL https://openai.com/index/
+introducing-gpt-5-2/.
+OpenAI. Introducing o3 and o4-mini. 2025e.
+URL https://openai.com/index/
+introducing-o3-and-o4-mini/.
+Patil, S. G., Mao, H., Yan, F., Ji, C. C.-J., Suresh, V ., Stoica,
+I., and Gonzalez, J. E. The berkeley function calling
+leaderboard (bfcl): From tool use to agentic evaluation
+of large language models. InForty-second International
+Conference on Machine Learning.
+Qi, Y ., Peng, H., Wang, X., Xin, A., Liu, Y ., Xu, B., Hou, L.,
+and Li, J. Agentif: Benchmarking instruction following
+of large language models in agentic scenarios.arXiv
+preprint arXiv:2505.16944, 2025.
+Qi, Z., Liu, X., Iong, I. L., Lai, H., Sun, X., Zhao, W., Yang,
+Y ., Yang, X., Sun, J., Yao, S., et al. Webrl: Training
+llm web agents via self-evolving online curriculum re-
+inforcement learning.arXiv preprint arXiv:2411.02337,
+2024.
+Qian, C., He, B., Zhuang, Z., Deng, J., Qin, Y ., Cong, X.,
+Zhang, Z., Zhou, J., Lin, Y ., Liu, Z., et al. Tell me more!
+towards implicit user intention understanding of language
+model driven agents.arXiv preprint arXiv:2402.09205,
+2024.
+Qian, C., Liu, Z., Prabhakar, A., Liu, Z., Zhang, J., Chen,
+H., Ji, H., Yao, W., Heinecke, S., Savarese, S., et al.
+Userbench: An interactive gym environment for user-
+centric agents.arXiv preprint arXiv:2507.22034, 2025.
+Qin, Y ., Liang, S., Ye, Y ., Zhu, K., Yan, L., Lu, Y ., Lin, Y .,
+Cong, X., Tang, X., Qian, B., et al. Toolllm: Facilitating
+large language models to master 16000+ real-world apis.
+arXiv preprint arXiv:2307.16789, 2023.
+Rivkin, D., Hogan, F., Feriani, A., Konar, A., Sigal, A.,
+Liu, S., and Dudek, G. Sage: Smart home agent with
+grounded execution.arXiv preprint arXiv:2311.00772,
+2023.
+Schick, T., Dwivedi-Yu, J., Dess`ı, R., Raileanu, R., Lomeli,
+M., Hambro, E., Zettlemoyer, L., Cancedda, N., and
+Scialom, T. Toolformer: Language models can teach
+themselves to use tools.Advances in Neural Information
+Processing Systems, 36:68539–68551, 2023.
+Siska, C., Marazopoulou, K., Ailem, M., and Bono, J. Exam-
+ining the robustness of llm evaluation to the distributional
+assumptions of benchmarks. InProceedings of the 62nd
+Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pp. 10406–10421,
+2024.
+Song, Y ., Yin, D., Yue, X., Huang, J., Li, S., and Lin, B. Y .
+Trial and error: Exploration-based trajectory optimization
+for llm agents.arXiv preprint arXiv:2403.02502, 2024.
+Team, K., Bai, Y ., Bao, Y ., Chen, G., Chen, J., Chen,
+N., Chen, R., Chen, Y ., Chen, Y ., Chen, Y ., et al.
+Kimi k2: Open agentic intelligence.arXiv preprint
+arXiv:2507.20534, 2025a.
+Team, M. L., Gui, A., Li, B., Tao, B., Zhou, B., Chen, B.,
+Zhang, C., Han, C., Yang, C., Zhang, C., et al. Intro-
+ducing longcat-flash-thinking: A technical report.arXiv
+preprint arXiv:2509.18883, 2025b.
+Team, M. L., Li, B., Lei, B., Wang, B., Rong, B., Wang, C.,
+Zhang, C., Gao, C., Zhang, C., Sun, C., et al. Longcat-
+flash technical report.arXiv preprint arXiv:2509.01322,
+2025c.
+Team, M. L., Li, B., Lei, B., Wang, B., Rong, B., Wang, C.,
+Zhang, C., Gao, C., Zhang, C., Sun, C., et al. Longcat-
+flash technical report.arXiv preprint arXiv:2509.01322,
+2025d.
+Team, Q. Qwen3-max model card. 2025. URL https:
+//qwen.ai/blog?id=qwen3-max.
+Trippas, J. R., Al Lawati, S. F. D., Mackenzie, J., and Gal-
+lagher, L. What do users really ask large language mod-
+els? an initial log analysis of google bard interactions
+in the wild. InProceedings of the 47th International
+ACM SIGIR Conference on Research and Development
+in Information Retrieval, pp. 2703–2707, 2024.
+Vuddanti, S. V ., Shah, A., Chittiprolu, S. K., Song, T., Dev,
+S., Zhu, K., and Chaudhary, M. Paladin: Self-correcting
+language model agents to cure tool-failure cases.arXiv
+preprint arXiv:2509.25238, 2025.
+Wan, B., Liu, G., Song, Z., Wang, J., Zhang, Y ., Sheng, G.,
+Wang, S., Wei, H., Wang, C., Lou, W., et al. Robust llm
+training infrastructure at bytedance. InProceedings of
+the ACM SIGOPS 31st Symposium on Operating Systems
+Principles, pp. 186–203, 2025.
+Wang, A., Ho, D. E., and Koyejo, S. The inadequacy of
+offline large language model evaluations: A need to ac-
+count for personalization in model behavior.Patterns, 6
+(12), 2025a.
+Wang, H., Huang, W., Wang, Y ., Xi, Y ., Lu, J., Zhang, H.,
+Hu, N., Liu, Z., Pan, J. Z., and Wong, K.-F. Rethinking
+stateful tool use in multi-turn dialogues: Benchmarks and
+challenges.arXiv preprint arXiv:2505.13328, 2025b.
+Wang, H., Li, K., Ramsay, S., Fehlis, Y ., Kim, E., and
+Hattrick-Simpers, J. Evaluating the performance and
+robustness of llms in materials science q&a and property
+predictions.Digital Discovery, 2025c.
+11
+
+--- PAGE 12 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Wang, J., Ma, W., Sun, P., Zhang, M., and Nie, J.-Y . Under-
+standing user experience in large language model interac-
+tions.arXiv preprint arXiv:2401.08329, 2024.
+Wang, W., Juluan, S., Ling, Z., Chan, Y .-K., Wang, C., Lee,
+C., Yuan, Y ., Huang, J.-t., Jiao, W., and Lyu, M. R. Learn-
+ing to ask: When llm agents meet unclear instruction. In
+Proceedings of the 2025 Conference on Empirical Meth-
+ods in Natural Language Processing, pp. 21784–21795,
+2025d.
+Wang, X., Wang, Z., Liu, J., Chen, Y ., Yuan, L., Peng, H.,
+and Ji, H. Mint: Evaluating llms in multi-turn interac-
+tion with tools and language feedback.arXiv preprint
+arXiv:2309.10691, 2023.
+Wen, Z., Liu, Z., Tian, Z., Pan, S., Huang, Z., Li, D., and
+Huang, M. Scenario-independent uncertainty estimation
+for llm-based question answering via factor analysis. In
+Proceedings of the ACM on Web Conference 2025, pp.
+2378–2390, 2025.
+Xiong, Q., Huang, Y ., Jiang, Z., Chang, Z., Zheng, Y .,
+Li, T., and Li, M. Butterfly effects in toolchains: A
+comprehensive analysis of failed parameter filling in llm
+tool-agent systems.arXiv preprint arXiv:2507.15296,
+2025.
+Xu, H., Zhu, Z., Pan, L., Wang, Z., Zhu, S., Ma, D., Cao,
+R., Chen, L., and Yu, K. Reducing tool hallucination via
+reliability alignment.arXiv preprint arXiv:2412.04141,
+2024a.
+Xu, H., Zhu, Z., Pan, L., Wang, Z., Zhu, S., Ma, D., Cao,
+R., Chen, L., and Yu, K. Reducing tool hallucination via
+reliability alignment.arXiv preprint arXiv:2412.04141,
+2024b.
+Xue, T., Qi, W., Shi, T., Song, C. H., Gou, B., Song,
+D., Sun, H., and Su, Y . An illusion of progress? as-
+sessing the current state of web agents.arXiv preprint
+arXiv:2504.01382, 2025.
+Yang, C., Shi, Y ., Ma, Q., Liu, M. X., K¨astner, C., and Wu,
+T. What prompts don’t say: Understanding and manag-
+ing underspecification in llm prompts.arXiv preprint
+arXiv:2505.13360, 2025.
+Yang, S., Park, C., Kim, T., and Choo, J. Can tool-
+augmented large language models be aware of incomplete
+conditions?arXiv preprint arXiv:2406.12307, 2024.
+Yang, Z., Qi, P., Zhang, S., Bengio, Y ., Cohen, W., Salakhut-
+dinov, R., and Manning, C. D. Hotpotqa: A dataset for
+diverse, explainable multi-hop question answering. In
+Proceedings of the 2018 conference on empirical methods
+in natural language processing, pp. 2369–2380, 2018.
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan,
+K. R., and Cao, Y . React: Synergizing reasoning and
+acting in language models. InThe eleventh international
+conference on learning representations, 2022.
+Yao, S., Shinn, N., Razavi, P., and Narasimhan, K. τ-
+bench: A benchmark for tool-agent-user interaction in
+real-world domains.CoRR, abs/2406.12045, 2024. doi:
+10.48550/ARXIV .2406.12045. URL https://doi.
+org/10.48550/arXiv.2406.12045.
+Yu, T., Jing, Y ., Zhang, X., Jiang, W., Wu, W., Wang, Y .,
+Hu, W., Du, B., and Tao, D. Benchmarking reason-
+ing robustness in large language models.arXiv preprint
+arXiv:2503.04550, 2025.
+z.ai. Glm-4.6: Advanced agentic, reasoning and coding
+capabilities.https://z.ai/blog/glm-4.6, 2025.
+Zeng, A., Liu, M., Lu, R., Wang, B., Liu, X., Dong, Y .,
+and Tang, J. Agenttuning: Enabling generalized agent
+abilities for llms. InFindings of the Association for
+Computational Linguistics: ACL 2024, pp. 3053–3077,
+2024.
+Zeng, A., Lv, X., Zheng, Q., Hou, Z., Chen, B., Xie, C.,
+Wang, C., Yin, D., Zeng, H., Zhang, J., et al. Glm-4.5:
+Agentic, reasoning, and coding (arc) foundation models.
+arXiv preprint arXiv:2508.06471, 2025a.
+Zeng, A., Lv, X., Zheng, Q., Hou, Z., Chen, B., Xie, C.,
+Wang, C., Yin, D., Zeng, H., Zhang, J., et al. Glm-4.5:
+Agentic, reasoning, and coding (arc) foundation models.
+arXiv preprint arXiv:2508.06471, 2025b.
+Zhan, Q., Liang, Z., Ying, Z., and Kang, D. Injeca-
+gent: Benchmarking indirect prompt injections in tool-
+integrated large language model agents.arXiv preprint
+arXiv:2403.02691, 2024.
+Zhang, R., Wang, H., Wang, J., Li, M., Huang, Y ., Wang,
+D., and Wang, Q. From allies to adversaries: Manipu-
+lating llm tool-calling through adversarial injection. In
+Proceedings of the 2025 Conference of the Nations of the
+Americas Chapter of the Association for Computational
+Linguistics: Human Language Technologies (Volume 1:
+Long Papers), pp. 2009–2028, 2025.
+Zhang, T., Qin, P., Deng, Y ., Huang, C., Lei, W., Liu, J.,
+Jin, D., Liang, H., and Chua, T.-S. Clamber: A bench-
+mark of identifying and clarifying ambiguous informa-
+tion needs in large language models.arXiv preprint
+arXiv:2405.12063, 2024a.
+Zhang, Y ., Chen, J., Wang, J., Liu, Y ., Yang, C., Shi, C.,
+Zhu, X., Lin, Z., Wan, H., Yang, Y ., et al. Toolbehon-
+est: A multi-level hallucination diagnostic benchmark for
+tool-augmented large language models.arXiv preprint
+arXiv:2406.20015, 2024b.
+12
+
+--- PAGE 13 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar, A.,
+Cheng, X., Ou, T., Bisk, Y ., Fried, D., et al. Webarena:
+A realistic web environment for building autonomous
+agents.arXiv preprint arXiv:2307.13854, 2023.
+Zhu, K., Liu, Z., Li, B., Tian, M., Yang, Y ., Zhang, J., Han,
+P., Xie, Q., Cui, F., Zhang, W., et al. Where llm agents
+fail and how they can learn from failures.arXiv preprint
+arXiv:2509.25370, 2025.
+13
+
+--- PAGE 14 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+A. More Experimental Results
+A.1. Main Results
+In this section, we conduct a more fine-grained analysis of the Agent Noise Benchmark results reported in Table 1.
+Specifically, we investigate how different types of user-side noise and tool-side noise impact mainstream agentic models
+across varied task scenarios.
+Our analysis focuses on examining the granular effects of individual noise types on model performance. We systematically
+evaluate how each specific noise category—ranging from user ambiguity and topic shifts to tool errors and incomplete
+outputs—affects agent behavior across different application domains (airline, delivery, in-store, and retail). This fine-grained
+perspective allows us to identify which noise types pose the greatest challenges to current agentic systems and how these
+vulnerabilities vary across different task contexts and model architectures.
+Detailed results are presented in Table 2, Table 3, Table 4, Table 5, Table 6, Table 7, Table 8, and Table 9. All experimental
+settings follow those described in Section 3.
+Results show that all evaluated agents experience performance degradation under at least one noise type, with sensitivity
+patterns depending on both noise origin and model architecture. User-side noise primarily affects intent understanding
+and planning stages, leading to instruction misinterpretation or suboptimal plans. Tool-side noise more directly impairs
+execution reliability by introducing uncertainty in tool outputs. Notably, certain noise types such as conflict and incomplete
+information consistently cause more severe performance drops across models, while others like redundancy show more
+varied impacts depending on the specific agent architecture.
+These findings emphasize the importance of systematically assessing and enhancing agent robustness in noisy environments
+at a granular level, and highlight the need for noise-type-specific mitigation strategies tailored to address the unique
+challenges posed by different categories of user-side and tool-side disturbances.
+Model Airline
+clean ambiguity topic shift conflict redundancy boundary
+Non-think Models
+DeepSeek-V3-0324 50.0±2.345.8±1.950.0±2.150.0±1.745.8±2.450.0±1.8
+Doubao-Seed-1.6 62.5±2.254.2±1.854.2±2.054.2±2.554.2±2.362.5±1.9
+GPT-4.1 60.4±2.141.7±2.647.9±1.847.9±2.241.7±2.760.4±2.0
+DeepSeek-V3.1 68.8±1.954.2±2.456.3±2.252.1±2.654.2±1.868.8±2.5
+gemini-2.5-pro 77.1±2.254.2±2.160.4±2.362.5±1.962.5±2.077.1±2.4
+Qwen3-Max 66.7±2.441.7±2.254.2±2.554.2±1.854.2±2.166.7±2.3
+LongCat-Flash-Chat 66.7±2.050.0±2.358.3±2.256.3±1.956.3±2.466.7±2.1
+Claude-4-Sonnet 77.1±2.566.7±2.060.4±2.458.3±2.166.7±2.377.1±1.9
+Claude-4.5-Sonnet 75.0±2.168.8±2.560.4±1.958.3±2.260.4±2.675.0±2.3
+Thinking Models
+Qwen3-max (w/ thinking) 89.6±2.470.8±2.258.3±2.658.3±2.052.1±2.389.6±2.5
+Gemini-2.5-Flash (think on) 77.1±2.356.3±1.954.2±2.254.2±2.456.3±2.177.1±2.6
+Doubao-Seed-1.6-Thinking 77.1±2.554.2±2.160.4±2.360.4±1.956.3±2.477.1±2.0
+GLM-4.6 (w/ thinking) 75.0±2.377.1±2.466.7±2.066.7±2.268.8±2.575.0±2.1
+deepseek-R1-0528 (w/ thinking) 70.8±2.452.1±2.652.1±2.252.1±2.541.7±2.070.8±2.3
+gpt-5.2 (w/ thinking) 79.2±2.560.4±2.368.8±2.166.7±2.466.7±2.679.2±2.2
+o3 (w/ thinking) 77.1±2.272.9±2.466.7±2.366.7±2.164.6±2.577.1±2.6
+Table 2.Model performance on airline scene across different user noise types (mean ± std).
+14
+
+--- PAGE 15 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Model Delivery
+clean ambiguity topic shift conflict redundancy boundary
+Non-think Models
+DeepSeek-V3-0324 42.3±2.633.0±1.938.0±2.434.0±1.738.0±2.549.0±2.1
+Doubao-Seed-1.6 35.0±2.427.0±1.833.0±2.232.0±2.537.0±2.338.0±1.9
+GPT-4.1 38.0±2.133.0±2.640.0±1.835.0±2.438.0±1.938.0±2.5
+DeepSeek-V3.1 33.0±2.522.0±2.032.0±2.438.0±1.839.0±2.642.6±2.3
+gemini-2.5-pro 43.0±2.344.0±2.146.0±2.548.0±2.248.0±1.950.0±2.4
+Qwen3-Max 27.0±2.627.0±2.125.0±2.424.0±2.331.0±2.031.0±1.8
+LongCat-Flash-Chat 35.0±2.342.0±1.944.0±2.141.0±2.542.0±2.444.0±2.0
+Claude-4-Sonnet 35.0±2.429.0±2.242.0±2.639.0±1.840.0±2.545.0±2.1
+Claude-4.5-Sonnet 47.0±2.048.0±2.553.0±2.347.0±2.654.0±2.153.6±1.9
+Thinking Models
+DeepSeek-R1-0528 (w/ thinking) 41.0±2.635.0±2.448.0±2.541.0±2.050.0±2.344.0±2.2
+Doubao-Seed-1.6-Thinking 35.0±2.535.0±2.041.0±2.432.0±2.637.0±2.337.0±2.1
+Gemini-2.5-Flash (think on) 26.0±2.418.0±2.135.0±2.329.0±2.521.0±2.634.0±1.9
+gemini-2.5-pro (w/ thinking) 43.0±2.344.0±2.746.0±2.448.0±2.148.0±2.550.0±2.2
+GLM-4.5 (w/ thinking) 37.0±2.438.0±2.645.0±2.243.0±2.339.6±2.146.0±2.5
+GLM-4.6 (w/ thinking) 38.6±2.329.0±2.647.5±2.445.2±2.241.4±2.547.0±2.1
+GPT-5.2 (w/ thinking) 51.0±2.553.0±2.353.0±2.648.0±2.451.0±2.254.1±2.7
+o3 (w/ thinking) 39.0±2.339.4±2.655.0±2.447.0±2.256.0±2.546.0±2.1
+Table 3.Model performance on delivery scene across different user noise types (mean ± std).
+Model Instore
+clean ambiguity topic shift conflict redundancy boundary
+Non-think Models
+DeepSeek-V3-0324 30.0±2.518.6±1.825.0±2.316.0±1.922.0±2.624.0±2.1
+Doubao-Seed-1.6 53.9±2.438.2±1.748.2±2.235.6±2.542.3±2.350.2±1.8
+GPT-4.1 59.0±2.142.0±2.652.0±1.840.0±2.448.0±1.954.0±2.5
+DeepSeek-V3.1 55.0±2.639.6±2.049.4±2.437.6±1.745.5±2.551.6±2.3
+gemini-2.5-pro 53.0±2.237.6±2.347.1±2.538.0±2.144.0±1.949.0±2.4
+Qwen3-Max 57.8±2.640.0±2.150.8±2.438.0±2.346.0±2.052.6±1.8
+LongCat-Flash-Chat 62.0±2.343.2±1.954.0±2.142.0±2.550.0±2.457.0±2.0
+Claude-4-Sonnet 56.0±2.439.0±2.250.0±2.638.0±1.846.0±2.552.0±2.1
+Claude-4.5-Sonnet 58.0±2.041.6±2.552.0±2.340.0±2.648.0±2.154.0±1.9
+Thinking Models
+DeepSeek-R1-0528 (w/ thinking) 59.0±2.642.7±2.453.0±2.541.0±2.049.0±2.355.0±2.2
+Doubao-Seed-1.6-Thinking 45.0±2.532.5±2.040.0±2.430.0±2.637.0±2.342.0±2.1
+Gemini-2.5-Flash (think on) 26.0±2.416.0±2.120.0±2.314.0±2.518.0±2.622.0±1.9
+gemini-2.5-pro (w/ thinking) 57.0±2.340.6±2.751.0±2.439.0±2.147.0±2.553.0±2.2
+GLM-4.5 (w/ thinking) 64.0±2.446.0±2.657.0±2.244.0±2.352.0±2.159.0±2.5
+GLM-4.6 (w/ thinking) 65.8±2.348.5±2.659.4±2.446.0±2.254.0±2.561.0±2.1
+GPT-5.2 (w/ thinking) 65.0±2.547.9±2.358.0±2.645.0±2.453.0±2.260.0±2.7
+o3 (w/ thinking) 64.0±2.347.5±2.658.0±2.446.0±2.254.0±2.560.0±2.1
+Table 4.Model performance on instore scene across different user noise types (mean ± std).
+15
+
+--- PAGE 16 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Model Retail
+clean ambiguity topic shift conflict redundancy boundary
+Non-think Models
+DeepSeek-V3-0324 66.1±2.447.8±1.855.3±2.351.7±1.957.6±2.559.4±2.1
+Doubao-Seed-1.6 70.5±2.351.8±1.759.9±2.256.2±2.462.1±2.163.8±1.8
+GPT-4.1 74.1±2.156.2±2.664.1±1.860.0±2.565.6±1.968.2±2.3
+DeepSeek-V3.1 72.3±2.553.7±2.062.2±2.458.1±1.764.1±2.666.1±2.3
+gemini-2.5-pro 66.1±2.248.5±2.356.9±2.552.3±2.158.4±1.960.4±2.4
+Qwen3-Max 71.4±2.652.7±2.161.0±2.456.4±2.362.6±2.065.0±1.8
+LongCat-Flash-Chat 79.5±2.359.6±1.968.2±2.163.4±2.569.5±2.471.8±2.0
+Claude-4-Sonnet 73.2±2.454.6±2.262.8±2.659.2±1.864.3±2.566.9±2.1
+Claude-4.5-Sonnet 79.5±2.059.8±2.568.6±2.363.6±2.669.4±2.172.2±1.9
+Thinking Models
+DeepSeek-R1-0528 (w/ thinking) 57.1±2.641.7±2.449.3±2.545.9±2.051.9±2.353.4±2.2
+Doubao-Seed-1.6-Thinking 58.0±2.542.4±2.050.1±2.446.8±2.653.1±2.355.0±2.1
+Gemini-2.5-Flash (think on) 69.6±2.451.1±2.159.3±2.355.3±2.561.6±2.663.6±1.9
+gemini-2.5-pro (w/ thinking) 73.2±2.355.2±2.763.1±2.459.1±2.164.8±2.566.9±2.2
+GLM-4.5 (w/ thinking) 80.4±2.462.1±2.670.3±2.265.8±2.371.5±2.174.0±2.5
+GLM-4.6 (w/ thinking) 84.8±2.365.3±2.673.8±2.468.3±2.274.3±2.576.5±2.1
+GPT-5.2 (w/ thinking) 73.2±2.555.2±2.363.1±2.659.1±2.464.8±2.266.8±2.7
+o3 (w/ thinking) 80.0±2.362.2±2.670.9±2.467.0±2.272.9±2.575.1±2.1
+Table 5.Model performance on retail scene across different user noise types (mean ± std).
+Model Airline
+clean error failure incomplete induce redundancy
+Non-think Models
+DeepSeek-V3-0324 50.0±2.048.5±2.250.0±1.650.0±2.145.8±2.045.8±2.3
+Doubao-Seed-1.6 62.5±1.960.9±2.154.2±1.547.9±2.054.2±1.854.2±2.1
+GPT-4.1 60.4±2.461.2±2.547.9±2.043.8±2.341.8±2.247.9±2.4
+DeepSeek-V3.1 68.8±2.168.3±2.352.1±1.856.3±2.254.2±2.154.2±2.2
+gemini-2.5-pro 77.1±2.575.9±2.460.4±1.952.1±2.354.2±2.462.5±2.5
+Qwen3-Max 66.7±2.365.1±2.454.2±1.945.8±2.241.7±2.354.2±2.4
+LongCat-Flash-Chat 66.7±2.167.6±2.258.3±1.754.2±2.150.0±2.056.3±2.2
+Claude-4-Sonnet 77.1±2.274.7±2.360.4±1.958.3±2.266.7±2.166.7±2.3
+Claude-4.5-Sonnet 75.0±2.478.1±2.458.3±2.060.4±2.368.8±2.360.4±2.5
+Thinking Models
+Qwen3-max (w/ thinking) 89.6±2.689.1±2.558.3±2.160.4±2.570.8±2.652.1±2.7
+Gemini-2.5-Flash (think on) 77.1±2.076.6±2.254.2±1.747.9±2.156.3±2.056.3±2.2
+Doubao-Seed-1.6-Thinking 77.1±2.176.6±2.360.4±1.860.4±2.254.2±2.156.3±2.3
+GLM-4.6 (w/ thinking) 77.1±2.674.5±2.566.7±2.162.5±2.577.1±2.668.8±2.7
+deepseek-R1-0528 (w/ thinking) 70.8±2.270.3±2.352.1±1.950.0±2.352.1±2.241.7±2.4
+gpt-5.2 (w/ thinking) 79.2±2.878.7±2.766.7±2.368.8±2.760.4±2.866.7±2.9
+o3 (w/ thinking) 77.1±2.576.6±2.566.7±2.154.2±2.572.9±2.664.6±2.7
+Table 6.Model performance on airline scene across different tool noise types (mean ± std).
+16
+
+--- PAGE 17 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Model Delivery
+clean error failure incomplete induce redundancy
+Non-think Models
+DeepSeek-V3-0324 42.3±2.449.0±1.816.8±2.237.2±1.939.8±2.640.5±2.1
+Doubao-Seed-1.6 39.8±2.338.3±1.714.2±2.034.6±2.436.3±2.237.9±1.8
+GPT-4.1 48.6±2.138.0±2.622.1±1.842.9±2.545.7±1.946.3±2.3
+DeepSeek-V3.1 44.2±2.542.6±2.018.5±2.339.4±1.741.6±2.442.8±2.6
+gemini-2.5-pro 51.3±2.250.0±2.321.3±2.546.7±2.149.2±1.950.1±2.4
+Qwen3-Max 47.5±2.631.0±2.119.8±2.441.3±2.344.6±2.045.2±1.8
+LongCat-Flash-Chat 40.7±2.344.0±1.915.9±2.135.8±2.538.2±2.439.4±2.0
+Claude-4-Sonnet 45.9±2.445.0±2.220.3±2.640.8±1.843.1±2.544.6±2.1
+Claude-4.5-Sonnet 49.3±2.053.6±2.522.5±2.344.2±2.646.8±2.147.9±1.9
+Thinking Models
+Qwen3-max (w/ thinking) 58.7±2.344.3±2.725.6±2.452.8±2.155.9±2.556.3±2.2
+Gemini-2.5-Flash (think on) 41.2±2.429.8±2.116.4±2.336.7±2.538.9±2.639.7±1.9
+Doubao-Seed-1.6-Thinking 43.9±2.532.7±2.018.9±2.439.4±2.641.3±2.342.1±2.1
+GLM-4.6 (w/ thinking) 54.8±2.442.3±2.624.9±2.250.1±2.352.7±2.153.2±2.5
+deepseek-R1-0528 (w/ thinking) 46.3±2.635.9±2.421.4±2.542.1±2.044.7±2.345.3±2.2
+gpt-5.2 (w/ thinking) 62.1±2.548.6±2.328.7±2.656.3±2.459.4±2.260.2±2.7
+o3 (w/ thinking) 53.7±2.341.5±2.624.2±2.449.3±2.251.8±2.552.5±2.1
+Table 7.Model performance on delivery scene across different tool noise types (mean ± std).
+Model Instore
+clean error failure incomplete induce redundancy
+Non-think Models
+DeepSeek-V3-0324 30.0±2.429.0±1.824.0±2.38.0±1.928.0±2.530.0±2.1
+Doubao-Seed-1.6 53.9±2.346.5±1.733.0±2.235.7±2.445.0±2.153.9±1.8
+GPT-4.1 59.0±2.156.0±2.641.0±1.813.0±2.548.0±1.959.0±2.3
+DeepSeek-V3.1 55.0±2.559.0±2.036.0±2.430.0±1.749.0±2.655.0±2.3
+gemini-2.5-pro 57.0±2.255.0±2.334.0±2.524.0±2.146.0±1.957.0±2.4
+Qwen3-Max 57.8±2.650.0±2.127.0±2.411.0±2.344.0±2.057.8±1.8
+LongCat-Flash-Chat 62.0±2.363.0±1.938.0±2.129.0±2.549.0±2.462.0±2.0
+Claude-4-Sonnet 58.3±2.453.9±2.245.5±2.625.2±1.846.4±2.558.3±2.1
+Claude-4.5-Sonnet 61.3±2.055.8±2.544.0±2.341.6±2.655.0±2.161.3±1.9
+Thinking Models
+Qwen3-max (w/ thinking) 57.0±2.355.0±2.734.0±2.424.0±2.146.0±2.557.0±2.2
+DeepSeek-R1-0528 (w/ thinking) 59.0±2.656.0±2.446.0±2.525.0±2.046.0±2.359.0±2.2
+Doubao-Seed-1.6-Thinking 45.0±2.545.0±2.036.0±2.436.0±2.636.0±2.345.0±2.1
+Gemini-2.5-Flash (think on) 26.0±2.424.0±2.110.0±2.32.0±2.518.0±2.626.0±1.9
+GLM-4.6 (w/ thinking) 65.8±2.459.0±2.657.0±2.253.5±2.345.0±2.165.8±2.5
+GPT-5.2 (w/ thinking) 65.0±2.557.0±2.354.0±2.642.0±2.449.0±2.265.0±2.7
+o3 (w/ thinking) 64.0±2.359.0±2.653.0±2.462.0±2.258.0±2.564.0±2.1
+Table 8.Model performance on instore scene across different tool noise types (mean ± std).
+17
+
+--- PAGE 18 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Model Retail
+clean error failure incomplete induce redundancy
+Non-think Models
+DeepSeek-V3-0324 66.1±2.438.5±1.824.1±2.329.5±1.942.3±2.558.2±2.1
+Doubao-Seed-1.6 70.5±2.345.2±1.728.6±2.235.6±2.448.9±2.162.4±1.8
+GPT-4.1 74.1±2.152.9±2.626.8±1.842.7±2.555.3±1.966.8±2.3
+DeepSeek-V3.1 72.3±2.548.4±2.033.9±2.438.8±1.751.8±2.664.5±2.3
+gemini-2.5-pro 66.1±2.241.2±2.328.6±2.534.0±2.147.1±1.959.3±2.4
+Qwen3-Max 71.4±2.646.4±2.127.7±2.437.1±2.349.3±2.063.7±1.8
+LongCat-Flash-Chat 79.5±2.354.3±1.933.9±2.143.1±2.557.2±2.471.8±2.0
+Claude-4-Sonnet 73.2±2.449.3±2.229.5±2.639.9±1.852.0±2.565.6±2.1
+Claude-4.5-Sonnet 79.5±2.055.5±2.539.3±2.345.3±2.658.1±2.172.4±1.9
+Thinking Models
+Qwen3-Max (w/ thinking) 75.9±2.351.1±2.740.2±2.442.5±2.156.5±2.568.9±2.2
+Gemini-2.5-Flash (think on) 69.6±2.444.8±2.125.0±2.336.0±2.550.3±2.662.1±1.9
+Doubao-Seed-1.6-Thinking 58.0±2.535.1±2.020.5±2.428.8±2.641.7±2.352.4±2.1
+GLM-4.6 (w/ thinking) 84.8±2.460.0±2.642.0±2.248.5±2.363.2±2.177.3±2.5
+DeepSeek-R1-0528 (w/ thinking) 57.1±2.634.4±2.425.0±2.531.6±2.042.6±2.351.8±2.2
+GPT-5.2 (w/ thinking) 73.2±2.549.9±2.334.8±2.640.8±2.454.5±2.266.7±2.7
+o3 (w/ thinking) 80.0±2.356.0±2.648.0±2.447.0±2.260.0±2.573.5±2.1
+Table 9.Model performance on retail scene across different tool noise types (mean ± std).
+Model HotpotQA
+clean error failure incomplete induce redundancy
+Non-think models
+DeepSeek-V3-0324 0.21±0.080.19±0.020.16±0.060.23±0.040.20±0.060.21±0.02
+Gemini-2.5-Flash (think off) 0.29±0.040.28±0.060.12±0.020.25±0.020.23±0.020.24±0.06
+GPT-4.1 0.33±0.040.29±0.010.30±0.060.29±0.040.29±0.040.29±0.02
+DeepSeek-V3.1 0.40±0.060.31±0.060.29±0.020.38±0.040.37±0.040.38±0.04
+DeepSeek-V3.2-Exp (w/o thinking) 0.43±0.020.37±0.020.32±0.060.42±0.040.41±0.020.43±0.06
+gpt-3.5-turbo (w/o thinking) 0.18±0.040.14±0.030.13±0.010.16±0.020.17±0.060.13±0.04
+GLM-4.6 0.41±0.060.37±0.020.05±0.020.40±0.040.43±0.010.41±0.08
+LongCat-Flash-Chat 0.36±0.040.26±0.020.22±0.010.34±0.020.32±0.010.32±0.06
+Claude-4-Sonnet 0.34±0.040.28±0.080.24±0.040.34±0.040.35±0.020.33±0.01
+Claude-4.5-Sonnet 0.35±0.030.32±0.020.23±0.060.33±0.040.36±0.060.35±0.06
+Thinking Models
+Qwen3-max (w/ thinking) 0.43±0.010.33±0.020.14±0.060.41±0.010.36±0.040.43±0.06
+Gemini-2.5-Flash (think on) 0.27±0.040.21±0.040.13±0.020.25±0.060.23±0.080.26±0.08
+GLM-4.5 (w/ thinking) 0.44±0.020.35±0.040.27±0.040.41±0.010.44±0.020.37±0.05
+GLM-4.6 (w/ thinking) 0.45±0.040.34±0.020.26±0.030.39±0.010.39±0.080.40±0.06
+Table 10.Model Performance on HotpotQA across Different Noise Types (mean ± std).
+18
+
+--- PAGE 19 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Model Wiki
+clean error failure incomplete induce redundancy
+Non-think models
+DeepSeek-V3-0324 0.22±0.020.18±0.040.06±0.040.20±0.020.20±0.060.19±0.02
+Gemini-2.5-Flash (think off) 0.27±0.040.20±0.060.03±0.080.24±0.040.23±0.060.25±0.06
+GPT-4.1 0.25±0.020.22±0.010.29±0.080.22±0.020.16±0.020.24±0.04
+DeepSeek-V3.1 0.44±0.020.42±0.030.30±0.020.44±0.040.47±0.060.47±0.04
+DeepSeek-V3.2-Exp (w/o thinking) 0.44±0.020.42±0.030.30±0.020.44±0.040.47±0.060.47±0.04
+gpt-3.5-turbo (w/o thinking) 0.44±0.020.42±0.030.30±0.020.44±0.040.47±0.060.47±0.04
+GLM-4.6 0.51±0.060.44±0.040.28±0.060.49±0.020.46±0.060.50±0.04
+LongCat-Flash-Chat 0.40±0.010.32±0.020.16±0.070.37±0.020.39±0.040.39±0.02
+Claude-4-Sonnet 0.40±0.020.32±0.030.10±0.040.38±0.030.38±0.020.31±0.03
+Claude-4.5-Sonnet 0.32±0.040.29±0.020.09±0.060.31±0.020.34±0.020.31±0.04
+Thinking Models
+Qwen3-max (w/ thinking) 0.56±0.020.36±0.020.18±0.070.44±0.040.51±0.040.40±0.09
+Gemini-2.5-Flash (think on) 0.27±0.060.18±0.040.08±0.040.21±0.060.19±0.060.28±0.04
+GLM-4.5 (w/ thinking) 0.46±0.020.35±0.080.19±0.070.43±0.030.44±0.040.45±0.08
+GLM-4.6 (w/ thinking) 0.47±0.080.33±0.020.20±0.020.39±0.010.43±0.020.41±0.02
+Table 11.Model Performance on HotpotQA across Different Noise Types (mean ± std).
+A.2. Impact of Noise Injection Stage
+We also evaluate the performance degradation of the remaining four model families under noise injection at different stages:
+Figure 7.Impact of noise injection stages on model performance across different architectures.
+19
+
+--- PAGE 20 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+B. Noise Case Study
+To facilitate a clearer understanding of our experimental pipeline, we randomly sample evaluation instances from different
+agent tasks and environments, and construct noisy variants using the noise injection mechanisms defined in the Agent Noise
+Benchmark. These noisy examples are generated by perturbing either intermediate tool outputs, contextual information, or
+decision-relevant signals, depending on the specific noise configuration under study. For illustration purposes, we present
+representative examples in Example B (clean trajectory), Example B (noisy trajectory with mid-stage noise injection), and
+additional cases in subsequent examples. The following are examples of user-side noise:
+Clean User Instruction
+Hi, I have an upcoming flight and I need to know exactly how many suitcases I’m allowed to bring with my
+reservation. I have a lot to pack, so I really need the correct number. Can you help me with that?
+Ambiguous Instructions
+User Instruction: Hi, I have an upcoming flight and I need to know how many suitcases I’m allowed to bring. I have
+a lot to pack, so I really need the correct information. Can you help me check this?
+Inconsistent Instructions
+User Instruction: Hi, I have an upcoming flight and I need to know exactly how many suitcases I’m allowed to bring
+with my reservation. I think I can bring either one or three suitcases, depending on the ticket, but I’m not sure. Can
+you confirm the correct number?
+Redundant Information
+User Instruction: Hi, I have an upcoming flight and I need to know exactly how many suitcases I’m allowed to
+bring with my reservation. I have a lot to pack, so I really need the correct number of suitcases I’m allowed to bring.
+Could you please tell me how many suitcases I can bring on this flight?
+Topic Drift
+User Instruction: Hi, I have an upcoming flight and I need to know exactly how many suitcases I’m allowed to
+bring with my reservation. By the way, do airlines usually serve meals on long flights, and are aisle seats better than
+window seats?
+Boundary Probing
+User Instruction: Hi, I have an upcoming flight and I need to know exactly how many suitcases I’m allowed to bring
+with my reservation. If I bring one extra suitcase beyond the allowed number, would it still be acceptable, or is there
+any way to avoid additional fees?
+The following are examples of tool-side noise:
+20
+
+--- PAGE 21 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Clean Tool Output
+FlightTool [SEP] Instruction: [SEP] Retrieve baggage allowance and reservation details for reservation ID WUNA5K.
+[SEP] Execute.
+Tool Response:
+{
+"reservation_id": "WUNA5K",
+"origin": "ORD",
+"destination": "PHL",
+"cabin": "economy",
+"total_baggages": 1,
+"nonfree_baggages": 0
+}
+Execution Failures (Service-Level Failure)
+FlightTool [SEP] Instruction: [SEP] Retrieve baggage allowance and reservation details for reservation ID WUNA5K.
+[SEP] Execute.
+Tool Response: ERROR: Service unavailable. The flight reservation system failed to respond (HTTP 503).
+Incomplete Responses (Partial Output)
+FlightTool [SEP] Instruction: [SEP] Retrieve baggage allowance and reservation details for reservation ID WUNA5K.
+[SEP] Execute.
+Tool Response:
+{
+"reservation_id": "WUNA5K",
+"origin": "ORD",
+"destination": "PHL",
+"total_baggages": 1
+Erroneous Outputs (Incorrect Facts)
+FlightTool [SEP] Instruction: [SEP] Retrieve baggage allowance and reservation details for reservation ID WUNA5K.
+[SEP] Execute.
+Tool Response:
+{
+"reservation_id": "WUNA5K",
+"cabin": "first_class",
+"total_baggages": 3,
+"nonfree_baggages": 0,
+"flight_number": "HAT999"
+}
+21
+
+--- PAGE 22 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+Misleading Signals (Spurious Content)
+FlightTool [SEP] Instruction: [SEP] Retrieve baggage allowance and reservation details for reservation ID WUNA5K.
+[SEP] Execute.
+Tool Response:
+{
+"reservation_id": "WUNA5K",
+"total_baggages": 1,
+"note": "Passengers on similar routes usually receive free upgrades
+and can often bring extra baggage without fees."
+}
+Redundant Information (Low-Utility Content)
+FlightTool [SEP] Instruction: [SEP] Retrieve baggage allowance and reservation details for reservation ID WUNA5K.
+[SEP] Execute.
+Tool Response:
+{
+"reservation_id": "WUNA5K",
+"user_id": "sophia_silva_7557",
+"origin": "ORD",
+"destination": "PHL",
+"flight_type": "round_trip",
+"cabin": "economy",
+"created_at": "2024-05-08T19:01:02",
+"created_at_timezone": "UTC",
+"created_at_unix": 1715194862,
+"system_log_id": "SYS-8839201",
+"debug_trace": "OK",
+"total_baggages": 1
+}
+22
+
+--- PAGE 23 ---
+AgentNoiseBench: Benchmarking LLM Agent Robustness Under Noise
+C. Agent Noise Robustness: Future Discussion
+Although this study has preliminarily constructed an evaluation framework for agent noise robustness and revealed key
+phenomena, several critical paths remain to be explored to advance the field towards greater practicality and theoretical
+depth. The following outlines future research directions from four perspectives: refinement of noise modeling, innovation in
+training paradigms, expansion of the evaluation system, and theoretical understanding of robustness.
+(1) From Categorical Noise to Continuous Spectrum and Composite Noise ModelingThe current study categorizes
+noise into “user-side” and “tool-side” types, providing a clear initial analytical framework. However, real-world noise is
+far from binary. Future work should strive to construct a noise spectrum model with greater continuity and composability.
+For instance, user-side noise could extend from simple lexical perturbations (e.g., typos) to more complex phenomena like
+“intention drift” or “contextual contradictions in multi-turn dialogues.” Tool-side noise should consider “temporal correlation”
+(e.g., intermittent failures) and “state dependency” (e.g., errors triggered only under specific input conditions). A more
+significant challenge lies in simulating the combination and synergistic effects of multiple noise sources—scenarios where
+ambiguous user instructions encounter delayed and incomplete tool responses. Building and evaluating such composite
+scenarios will better approximate the complexity of real-world deployments.
+(2) Paradigm Shift: From “Cleaned Training” to “Active Noise-Injected Training”Most existing agent training relies
+on meticulously curated instructions and stable environments, creating a “fundamental mismatch” between training and
+deployment contexts. Drawing inspiration from data augmentation techniques in computer vision and reinforcement learning
+that enhance model robustness, future agent training must systematically incorporate noise exposure. This goes beyond
+merely adding random perturbations to data; it necessitates developing curriculum learning strategies. Initially, controlled,
+manageable noise is injected during training. As the agent’s capabilities improve, the intensity, diversity, and unpredictability
+of the noise are gradually increased. Concurrently, adversarial training methods can be explored. By establishing a dynamic
+game between a “noise generator” and the agent, noise samples that effectively challenge the agent’s current weaknesses can
+be generated, thereby targetedly enhancing the robustness of its vulnerable points.
+(3) From Static Benchmark Evaluation to Dynamic Simulation and Real User Interaction EvaluationAgent-
+NoiseBench represents a significant step forward with static benchmarks, but the ultimate testing ground should be
+the dynamic, open real world. Future work must expand the evaluation system in two directions. First, developing high-
+fidelity, multimodal environment simulators, such as GUI operation simulators incorporating random network latency,
+rendering errors of interface elements, or unstructured document outputs, would make the injection of tool-execution
+noise more ecologically valid. Second, exploring online evaluation based on real user interactions is crucial. Through
+crowdsourcing platforms or pilot deployments, “organic noise”—produced by human users during natural interactions
+and not pre-programmable—can be collected. Such data is vital for understanding and modeling real user-side behavioral
+variations. This requires evaluation protocols capable of handling longer-term, more open-ended tasks and quantifying the
+agent’s performance degradation and recovery capabilities during sustained interactions.
+(4) From Phenomenological Description to Theoretical Exploration of the Intrinsic Mechanisms of RobustnessThe
+current study primarily documents the phenomenon of performance degradation and some correlative findings (e.g., the
+orthogonality between reasoning capability and noise robustness). Deeper scientific questions remain: How exactly does
+noise affect the internal computational processes of an agent? Future research needs to integrate interpretability analysis
+tools (e.g., neuron activation analysis, attention pattern tracing) to scrutinize the “breaking points” in the agent’s reasoning
+chain under noise interference. For example, does tool noise primarily disrupt the maintenance of working memory? Does
+user noise interfere with the parsing of initial conditions for task planning? Understanding these mechanisms is key to
+designing more targeted interventions. Furthermore, a more solid theoretical framework is needed to formally define agent
+robustness. This may involve borrowing concepts like stability from control theory or channel capacity against interference
+from information theory, providing tools for analyzing the upper and lower bounds of robustness for agents with different
+architectures and training methodologies.
+Research on agent noise robustness should not stop at building a more challenging “stress test” benchmark. Its long-term
+goal is to steer the entire field from pursuing “optimal lab performance” towards constructing “trustworthy agents for the
+real world.” This demands that we not only evaluate agents in noise but also train agents in noise and understand agents
+through theory, ultimately achieving a robust symbiosis between agents and the imperfect, uncertain real world. This study
+is merely the starting point of this journey, and we anticipate more researchers will join this interdisciplinary area, which
+holds both significant practical value and profound theoretical significance.
+23

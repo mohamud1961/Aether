@@ -1,0 +1,51 @@
+# Coverage Access Wave 04 Informal Issue Postmortem Inventory Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: coverage_access
+- objective: Build a usable route map for the full informal lane so later Deep Synthesis waves do not rely on sampled blog posts, sampled issues, or sampled postmortems while claiming broad operational coverage.
+- exact_question: Which mechanism, failure, eval, safety, context, tooling, persistence, and observability themes exist across the full informal, issues, and postmortems corpus, and which clusters are high-priority for later contradiction pressure?
+- why_now: The binding wave plan requires this lane to become a real support wave rather than a vague future promise. This packet is instantiated now so the informal lane cannot quietly stay sampled-only.
+- inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_access/brief.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - research/sources/informal/
+  - research/sources/issues/
+  - research/sources/postmortems/
+- preflight_requirements:
+  - inventory the informal, issues, and postmortems corpus at a usable route-map level
+  - cluster sources by mechanism, failure, eval, safety, context, tooling, persistence, and observability themes
+  - identify high-signal contradiction-pressure clusters for later mechanism and failure waves
+  - keep route mapping separate from silent confidence upgrades
+  - stop and return a blocker if a major informal subcorpus is unreadable or structurally inconsistent
+- exclusions:
+  - do not produce final mechanism or failure claims
+  - do not quietly equate operator narrative with direct behavior evidence
+  - do not open new `mechanism_map` waves from inside this support wave
+- output_contract:
+  - wave synthesis:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_04_informal_issue_postmortem_inventory/synthesis/principal_synthesis.md
+  - informal route map:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_04_informal_issue_postmortem_inventory/outputs/informal_route_map.md
+  - contradiction-pressure clusters:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_04_informal_issue_postmortem_inventory/outputs/contradiction_pressure_clusters.md
+  - informal cluster dossier scaffolding:
+    - tracking/collab/stage_02_synthesis/informal_cluster_dossiers/
+- collaboration_mode: bounded support wave; blind parallel allowed for cluster-validation passes under the same packet
+- external_agent_action: Run external agent now: no. This wave is instantiated and staged; execution timing follows the approved wave plan.
+- assigned_roles:
+  - principal project steward
+  - informal/issues/postmortems analyst
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- handoff_requirements:
+  - write the cluster map and contradiction-pressure clusters so later mechanism and failure waves can cite them directly
+  - route high-priority clusters into `informal_cluster_dossiers/`
+- evidence_expectations:
+  - keep route mapping honest about the difference between sampled reading and full-lane routing
+  - separate issue-reported failures from operator philosophy pieces
+  - preserve low-credibility or unreadable captures as explicit caveats
+- decision_needed_from_human: none to instantiate the packet; execution timing follows the approved wave plan.
+- done_condition: the full informal lane has a route map and contradiction-pressure cluster map so later Deep Synthesis work is not forced to improvise from a sampled subset.

@@ -1,0 +1,118 @@
+SUPPORT_ARTIFACT
+- artifact_id: wave_01_informal_support_timeout_false_success_cluster
+- wave: wave_01_execution_control_and_terminal_failures
+- lane_owner: informal/issues/postmortems analyst
+- purpose: Cluster high-signal informal/issues/postmortem pressure for execution-control failure attribution across timeout/stall loops, false success, interrupt drift, repo-state corruption, and model-vs-harness blame confusion.
+
+- source_scope:
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/informal/cursor_self_driving_codebases.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/openai_monitor_misalignment.md`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+  - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+  - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+  - `research/sources/issues/src_iss_d3818cf54a20/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+
+- cluster_matrix:
+  - cluster: timeout_and_stall_loops
+    - recurring_signals:
+      - compaction hangs can orphan processes and ignore interrupt attempts
+      - browser-task agents can hang indefinitely after substrate crash
+      - startup/tool bootstrap can stall the whole loop before useful work begins
+      - long-running tool calls can retrigger repeatedly instead of converging
+    - primary_evidence:
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+      - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+      - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+      - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+      - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+      - `research/sources/informal/anthropic_long_running_harness.md`
+    - attribution_pressure:
+      - often mixed between model loop behavior and harness lifecycle/recovery design; weak evidence that model quality alone explains failures
+    - confidence: high
+
+  - cluster: false_success_and_benchmark_blindness
+    - recurring_signals:
+      - "completed" can be emitted at host-side command success with no target-side proof
+      - "ready" or first completion success can mask missing downstream action/event persistence
+      - verifier/benchmark blind spots appear when graders check only a subset of task consequences
+    - primary_evidence:
+      - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+      - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+      - `research/sources/informal/openai_monitor_misalignment.md`
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+    - attribution_pressure:
+      - raw user claims can over-assign blame to "model deception"; stronger framing is missing completion contract enforcement and target-state verification surfaces
+    - confidence: medium
+
+  - cluster: cancellation_and_interrupt_drift
+    - recurring_signals:
+      - interrupted sessions can remain stuck in thinking/running states with queued commands
+      - ctrl-c or equivalent interruption can fail to propagate cleanly
+      - resume paths can restore stale state after forced interruption
+    - primary_evidence:
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/informal/anthropic_long_running_harness.md`
+    - attribution_pressure:
+      - repeated evidence points to weak interrupt/resume contracts in harness state machinery, not only bad model stopping behavior
+    - confidence: high
+
+  - cluster: repo_state_control_corruption_and_cleanup_gaps
+    - recurring_signals:
+      - concurrent control channels can corrupt session state files
+      - path contamination can loop edits against wrong files despite correct textual intent
+      - stale indexes/resume catalogs hide valid artifacts and force manual cleanup
+    - primary_evidence:
+      - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+      - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+    - attribution_pressure:
+      - these are predominantly harness/state-store integrity failures; model-level blame is secondary unless evidence shows deliberate misuse
+    - confidence: high
+
+  - cluster: model_vs_harness_blame_confusion
+    - recurring_signals:
+      - failures are frequently described as pure model unreliability even when contracts/tool-error semantics are weak
+      - unstructured tool errors and strict parser failure paths encourage retries or hard-stops that look like model errors
+      - operational narratives emphasize harness and guardrail design as primary lever
+    - primary_evidence:
+      - `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+      - `research/sources/issues/src_iss_d3818cf54a20/artifact.txt`
+      - `research/sources/informal/openai_monitor_misalignment.md`
+      - `research/sources/informal/cursor_self_driving_codebases.md`
+      - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+      - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+    - attribution_pressure:
+      - recurring evidence favors mixed-cause assignment: model behavior + harness contract deficits + environment/runtime fragility + benchmark incompleteness
+    - confidence: high
+
+- cross_cluster_notes:
+  - timeout/stall, interrupt drift, and repo-state corruption co-occur as one failure surface: weak lifecycle control degrades cancellation, then corrupts resumability, then inflates false-success risk.
+  - false-success pressure is strongest where completion contracts are host-centric and not target-state-centric.
+  - evidence repeatedly warns against collapsing all failures into model blame.
+
+- deferred_followups:
+  - deep read of additional issue items for benchmark-contract blindness (`research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`, `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`)
+  - trajectory-side reconciliation for headless terminal once case-study path exists: `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`

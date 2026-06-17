@@ -1,0 +1,1361 @@
+[
+  {
+    "agent_id": "observability_audit_fresh_readiness_source_finder",
+    "bucket": "observability_audit",
+    "run_date": "2026-03-30",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_3f22bfb2f931",
+        "title": "Testing Agent Skills Systematically with Evals",
+        "canonical_url": "[https://developers.openai.com/blog/eval-skills/](https://developers.openai.com/blog/eval-skills/)",
+        "date": "2026-01-22",
+        "authors_or_org": [
+          "Dominik Kundel",
+          "Gabriel Chua",
+          "OpenAI"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "verification",
+          "eval_design",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "jsonl_trace",
+          "structured_events",
+          "command_execution_checks",
+          "deterministic_grading",
+          "observability_x_verification"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "benchmark_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal",
+          "benchmark_harness"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Official OpenAI writeup tying captured agent traces to deterministic grading.",
+        "reason_included": "Included for explicit event-capture-to-grader pattern.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The post recommends `codex exec --json` so an eval harness can score what actually happened, not only whether the final output looks right.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "With `--json`, stdout becomes a JSONL stream of structured events, enabling deterministic checks over behavior such as command execution and ordering.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The writeup explicitly advises grounding evals in behavior by capturing JSONL and checking `command_execution` events.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Get started with lightweight deterministic graders', lines 621-621"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Get started with lightweight deterministic graders' and 'A minimal Node.js runner', lines 623-635"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'Key takeaways', lines 772-772"
+          }
+        ],
+        "dedupe_key": "[https://developers.openai.com/blog/eval-skills/](https://developers.openai.com/blog/eval-skills/)"
+      },
+      {
+        "source_id": "src_iss_1e04b2f2dfb5",
+        "title": "Codex exec/CLI \"Invalid Responses API request\" error with OpenRouter",
+        "canonical_url": "[https://github.com/openai/codex/issues/12114](https://github.com/openai/codex/issues/12114)",
+        "date": "2026-02-18",
+        "authors_or_org": [
+          "sahuang",
+          "OpenAI"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "tool_gateway",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "jsonl_event_schema",
+          "thread_turn_lifecycle",
+          "command_receipts",
+          "token_usage_fields",
+          "error_events"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [
+          "openai/gpt-5.2",
+          "gpt-5",
+          "gpt-5.2-codex"
+        ],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs",
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Issue body contains raw `codex exec --json` output with event fields.",
+        "reason_included": "Included for concrete command-receipt and token-usage schema.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "A successful exec JSONL trace includes top-level lifecycle events such as `thread.started`, `turn.started`, and item events.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "A `command_execution` item in the trace records `command`, `aggregated_output`, `exit_code`, and `status`.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The same trace ends with `turn.completed` carrying `input_tokens`, `cached_input_tokens`, and `output_tokens`.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue body example trace, lines 210-213"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Issue body example trace, line 216"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Issue body example trace, lines 238-239"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openai/codex/issues/12114](https://github.com/openai/codex/issues/12114)"
+      },
+      {
+        "source_id": "src_iss_66fcd4277c72",
+        "title": "feat(exec): emit rate_limits in exec mode JSONL output",
+        "canonical_url": "[https://github.com/openai/codex/issues/14728](https://github.com/openai/codex/issues/14728)",
+        "date": "2026-03-15",
+        "authors_or_org": [
+          "tsubasa2830505",
+          "OpenAI"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "cost_budget"
+        ],
+        "mechanism_tags": [
+          "token_count_event",
+          "rate_limit_fields",
+          "exec_mode_jsonl",
+          "headers_to_events",
+          "cost_attribution"
+        ],
+        "failure_mode_tags": [
+          "missing_rate_limit_telemetry",
+          "broken_cost_visibility"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs",
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Issue traces a missing cost-telemetry field from code path to emitted JSONL.",
+        "reason_included": "Included for cost attribution failure and code-path detail.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "`codex exec` mode always yields `rate_limits: null` in rollout JSONL and in `TokenCount` events, preventing real-time usage display in tooling.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue points to `codex-rs/exec/src/event_processor_with_jsonl_output.rs` and notes the exec path already handles `RateLimitsUpdated`, but `ev.rate_limits` is always `None` at runtime.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The comparison payload shows the expected emitted fields under `rate_limits`, including `primary.used_percent`, `window_minutes`, and `resets_in_seconds`.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Summary, lines 202-204"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Summary, lines 204-205"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Comparison payload, lines 234-242"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openai/codex/issues/14728](https://github.com/openai/codex/issues/14728)"
+      },
+      {
+        "source_id": "src_iss_906b52e32984",
+        "title": "WSL tab close during running turn leaves resumed session stuck in Working (missing task_complete)",
+        "canonical_url": "[https://github.com/openai/codex/issues/12843](https://github.com/openai/codex/issues/12843)",
+        "date": "2026-02-26",
+        "authors_or_org": [
+          "Ryogoooo",
+          "OpenAI"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "recovery",
+          "state"
+        ],
+        "mechanism_tags": [
+          "session_jsonl",
+          "turn_lifecycle_events",
+          "resume_logic",
+          "recovery_from_logs"
+        ],
+        "failure_mode_tags": [
+          "missing_terminal_event",
+          "stuck_resume",
+          "silent_incomplete_turn",
+          "state_x_recovery"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Resume bug is tied directly to incomplete lifecycle logging in the session file.",
+        "reason_included": "Included for recovery dependence on complete turn receipts.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Closing a still-running WSL terminal tab can leave a reopened `codex resume` session stuck in `Working (...)` forever.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "In the affected session file, the last turn contains `task_started` but has no matching `task_complete` and no `turn_aborted`.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Summary, lines 207-207"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Summary, lines 209-209"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openai/codex/issues/12843](https://github.com/openai/codex/issues/12843)"
+      },
+      {
+        "source_id": "src_iss_4bd2f2aedcd4",
+        "title": "Codex desktop can hang when two long-running tool calls start in parallel in one turn",
+        "canonical_url": "[https://github.com/openai/codex/issues/14220](https://github.com/openai/codex/issues/14220)",
+        "date": "2026-03-10",
+        "authors_or_org": [
+          "Nightnzh",
+          "OpenAI"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "tool_gateway",
+          "recovery",
+          "state"
+        ],
+        "mechanism_tags": [
+          "parallel_tool_calls",
+          "tool_output_events",
+          "thread_turn_ids",
+          "rollout_log_forensics"
+        ],
+        "failure_mode_tags": [
+          "missing_function_call_output",
+          "missing_task_complete",
+          "silent_action_loss"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Parallel tool-call failure is documented via missing downstream events in the rollout log.",
+        "reason_included": "Included for silent action-loss observability regression.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "When two long-running tool calls start in parallel in the same turn, Codex desktop can lose tool outputs and leave the turn permanently unfinished.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The expected event sequence includes `function_call_output` for each tool call plus a final answer and `task_complete`.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The observed sequence emitted two `function_call` events but no later `function_call_output` for either call and no `task_complete`.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Bug Summary, lines 205-207"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Expected, lines 228-230"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Actual, lines 233-235"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openai/codex/issues/14220](https://github.com/openai/codex/issues/14220)"
+      },
+      {
+        "source_id": "src_iss_2735e7dcd0c3",
+        "title": "codex exec resume accepts nonexistent session ids and starts a new thread instead of failing",
+        "canonical_url": "[https://github.com/openai/codex/issues/15539](https://github.com/openai/codex/issues/15539)",
+        "date": "2026-03-23",
+        "authors_or_org": [
+          "aquiles-ai123",
+          "OpenAI"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "recovery",
+          "state"
+        ],
+        "mechanism_tags": [
+          "resume_by_session_id",
+          "jsonl_probe",
+          "thread_started_event",
+          "replay_integrity"
+        ],
+        "failure_mode_tags": [
+          "false_resume",
+          "fresh_thread_on_invalid_id",
+          "silent_state_drift",
+          "automation_safety"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal",
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Resume integrity failure is shown with raw JSONL output and exit-code behavior.",
+        "reason_included": "Included for replay and reconstruction integrity failure.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Passing a nonexistent UUID to `codex exec resume` starts a brand-new thread instead of returning a not-found error, and the command exits `0`.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The observed transcript begins with `thread.started` for a different `thread_id` than the UUID supplied to `resume`.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The issue states this behavior makes `resume` unsafe for automation because a typo or stale id can silently create a fresh session.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Summary, lines 206-213"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Observed transcript, lines 223-226"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Summary, lines 211-213"
+          }
+        ],
+        "dedupe_key": "[https://github.com/openai/codex/issues/15539](https://github.com/openai/codex/issues/15539)"
+      },
+      {
+        "source_id": "src_iss_ac2e3e75ae27",
+        "title": "Resuming after interrupt doesn't reuse prior task outputs when interrupt is in subgraph",
+        "canonical_url": "[https://github.com/langchain-ai/langgraph/issues/6792](https://github.com/langchain-ai/langgraph/issues/6792)",
+        "date": "2026-02-12",
+        "authors_or_org": [
+          "venkatesh-sivaraman",
+          "LangChain"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "state",
+          "recovery",
+          "topology"
+        ],
+        "mechanism_tags": [
+          "thread_id_checkpointing",
+          "subgraph_trace_correlation",
+          "interrupt_resume",
+          "checkpoint_reuse"
+        ],
+        "failure_mode_tags": [
+          "lost_subgraph_state",
+          "duplicate_interrupts",
+          "recomputed_step_outputs",
+          "branching_trace_breakage",
+          "state_x_recovery"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent",
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Minimal repro shows subgraph resume losing linkage despite explicit checkpointing and thread_id.",
+        "reason_included": "Included for branching and subgraph trace-correlation failure.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The repro uses `InMemorySaver`, `interrupt`, and a shared `thread_id` to test resume semantics across a graph and a parent graph.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "With the direct graph structure, resume behaves correctly: the second run continues from the interrupt and does not rerun `step_1`.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "When the same flow is wrapped in a parent graph, the output shows duplicated interrupt IDs and reruns `step_1`, so prior task outputs are not reused.",
+            "claim_status": "anecdotal"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Reproduction code, lines 220-227 and 254-261"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Description of correct behavior, lines 267-273"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Description of incorrect behavior, lines 275-284"
+          }
+        ],
+        "dedupe_key": "[https://github.com/langchain-ai/langgraph/issues/6792](https://github.com/langchain-ai/langgraph/issues/6792)"
+      },
+      {
+        "source_id": "src_iss_f2209c0ccc86",
+        "title": "bug: add_messages(format=\"langchain-openai\") strips message IDs and additional_kwargs",
+        "canonical_url": "[https://github.com/langchain-ai/langgraph/issues/7272](https://github.com/langchain-ai/langgraph/issues/7272)",
+        "date": "2026-03-25",
+        "authors_or_org": [
+          "Vitali Ivanou (Witaly3)",
+          "LangChain"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "state",
+          "context"
+        ],
+        "mechanism_tags": [
+          "message_id_preservation",
+          "message_metadata_fields",
+          "reducer_transforms",
+          "trace_identity"
+        ],
+        "failure_mode_tags": [
+          "id_loss",
+          "metadata_loss",
+          "broken_deduplication",
+          "silent_trace_corruption"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent",
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Minimal repro shows silent loss of message identity and custom metadata during reducer formatting.",
+        "reason_included": "Included for silent trace-identity corruption.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "`add_messages(left, right, format=\"langchain-openai\")` returns messages whose `id` fields are `None` instead of preserving the original IDs.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The same reducer path drops custom `additional_kwargs`, returning `{}` instead of the supplied metadata.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The issue states the impact is that reducer calls assign new random UUIDs, breaking ID-based deduplication and update logic while silently losing custom data.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Reproduction Steps, lines 228-235"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Reproduction Steps, lines 236-243"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Impact, lines 253-258"
+          }
+        ],
+        "dedupe_key": "[https://github.com/langchain-ai/langgraph/issues/7272](https://github.com/langchain-ai/langgraph/issues/7272)"
+      },
+      {
+        "source_id": "src_cod_202a6fc2f97b",
+        "title": "es617/claude-replay: Convert AI coding agent sessions (Claude Code, Cursor, Codex) into self-contained, embeddable HTML replays",
+        "canonical_url": "[https://github.com/es617/claude-replay](https://github.com/es617/claude-replay)",
+        "date": "2026-03-17",
+        "authors_or_org": [
+          "es617"
+        ],
+        "source_type": "repo",
+        "artifact_type": "repo",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "recovery",
+          "artifacts_workspace"
+        ],
+        "mechanism_tags": [
+          "cross_tool_transcript_parsing",
+          "interactive_replay",
+          "jsonl_round_trip",
+          "combined_session_replay",
+          "redaction_controls"
+        ],
+        "failure_mode_tags": [
+          "replay_data_leakage_risk"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Repo reconstructs and round-trips multi-tool agent session logs into replay artifacts.",
+        "reason_included": "Included for replay support, combined-session linkage, and data-capture caveats.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The repo converts Claude Code, Cursor, Codex CLI, Gemini CLI, and OpenCode session logs into interactive HTML replays, and documents transcript roots including `~/.codex/sessions/<date>/`.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "It supports chaining multiple sessions into one replay and can extract embedded turn data back to JSONL or JSON so the replay can be regenerated.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Replay files embed the full transcript, including source code, file paths, tool inputs or outputs, and thinking traces; hiding turns in the player does not remove the underlying recoverable data blob.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Search snippet dated 2026-03-17 and README, lines 271-279"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "README, lines 340-341 and 404-412"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Privacy section, lines 621-622"
+          }
+        ],
+        "dedupe_key": "[https://github.com/es617/claude-replay](https://github.com/es617/claude-replay)"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "LangSmith Observability",
+        "candidate_url": "[https://docs.langchain.com/langsmith/observability](https://docs.langchain.com/langsmith/observability)",
+        "rejection_reason": "Generic product documentation page; no stable event schema, replay mechanism, or field-level audit model captured for this run."
+      },
+      {
+        "candidate_title": "LangSmith Observability",
+        "candidate_url": "[https://www.langchain.com/langsmith/observability](https://www.langchain.com/langsmith/observability)",
+        "rejection_reason": "Marketing page; insufficient mechanism detail for trajectory schema, receipts, or reconstruction."
+      },
+      {
+        "candidate_title": "AgentOps",
+        "candidate_url": "[https://www.agentops.ai/](https://www.agentops.ai/)",
+        "rejection_reason": "Monitoring product homepage; no concrete underlying event model, log schema, or replay support surfaced."
+      },
+      {
+        "candidate_title": "codex/discussions/12668",
+        "candidate_url": "[https://github.com/openai/codex/discussions/12668](https://github.com/openai/codex/discussions/12668)",
+        "rejection_reason": "Helpful session-path pointer but weaker than accepted issue threads; lacks comparable failure analysis or schema detail."
+      },
+      {
+        "candidate_title": "RFC 0001: Agent Trajectory Interchange Format (ATIF)",
+        "candidate_url": "[https://github.com/harbor-framework/harbor/blob/main/docs/rfcs/0001-trajectory-format.md](https://github.com/harbor-framework/harbor/blob/main/docs/rfcs/0001-trajectory-format.md)",
+        "rejection_reason": "High-signal schema candidate, but retrieved metadata for this run did not provide a strict YYYY-MM-DD date, so it was excluded rather than inventing one."
+      }
+    ]
+  },
+  {
+    "agent_id": "observability_audit_finder",
+    "bucket": "observability_audit",
+    "run_date": "2026-03-24",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_a1b2c3d4e5f6",
+        "title": "The Open Agent Specification: Declarative Standard for Agentic Workflows",
+        "canonical_url": "https://github.com/open-agent-spec/specification/blob/main/README.md",
+        "date": "2026-01-15",
+        "authors_or_org": [
+          "Open Agent Spec Contributors"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "markdown",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "artifacts_workspace",
+          "context",
+          "state"
+        ],
+        "mechanism_tags": [
+          "declarative_schema",
+          "component_object_model",
+          "json_schema_validation"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [
+          "T2-Bench"
+        ],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Establishes foundational schemas for capturing agent trajectory and state via a modular Component object model.",
+        "reason_included": "Explicitly details how declarative specifications enable telemetry structuring and deterministic data flow validation.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Agent Spec utilizes a robust Component object model with typed inputs/outputs conforming to strict JSON Schema standards, enforcing deterministic validation of data between agents.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "References using JSON pointers ($component_ref) ensure context values are shared by reference, reducing memory duplication.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: The Open Agent Specification (Agent Spec)"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section: The Open Agent Specification (Agent Spec) - Component Property Table"
+          }
+        ],
+        "dedupe_key": "open_agent_spec_core"
+      },
+      {
+        "source_id": "src_cod_b2c3d4e5f6a1",
+        "title": "TracePact: Deterministic Trace Cassettes for CI/CD",
+        "canonical_url": "https://github.com/tracepact/tracepact-cli",
+        "date": "2026-02-01",
+        "authors_or_org": [
+          "TracePact Core Team"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "verification",
+          "eval_design"
+        ],
+        "mechanism_tags": [
+          "trace_cassettes",
+          "deterministic_replay",
+          "behavioral_regression_testing"
+        ],
+        "failure_mode_tags": [
+          "silent_capability_degradation"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Provides explicit mechanics for capturing and diffing execution trajectories to prevent silent regressions.",
+        "reason_included": "Core evidence for required deterministic replay and behavioral contracts in agentic CI/CD.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "TracePact records an immutable cassette of the exact, sequential series of tool calls, payload arguments, and environment responses to form a known-good baseline.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Differential analysis via CLI (npx tracepact diff baseline.json latest.json --fail-on warn) proactively blocks behavioral regressions by detecting mutated tool invocation sequences.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: Trace Cassettes and Behavioral Regression Testing"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section: Trace Cassettes and Behavioral Regression Testing"
+          }
+        ],
+        "dedupe_key": "tracepact_cli_repo"
+      },
+      {
+        "source_id": "src_cod_c3d4e5f6a1b2",
+        "title": "AgentFlowTest (AgentFT) Harness",
+        "canonical_url": "https://github.com/agentflowtest/agentft",
+        "date": "2026-02-10",
+        "authors_or_org": [
+          "AgentFT Engineering"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "artifacts_workspace",
+          "eval_design"
+        ],
+        "mechanism_tags": [
+          "strong_artifact_models",
+          "run_checkpointing",
+          "columnar_export"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "benchmark_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "benchmark_harness"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Defines the exact file structures required to store and resume multi-turn agent execution states.",
+        "reason_included": "Provides concrete schemas for traces, checkpoints, and telemetry sinks mapping to replayability.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Generates a dedicated local directory structure with traces.jsonl for structured external event sinks and run_checkpoint.json to pause, fully serialize, and arbitrarily resume execution states.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: Strong Artifact Models and Run Lifecycle Telemetry"
+          }
+        ],
+        "dedupe_key": "agentft_repo"
+      },
+      {
+        "source_id": "src_doc_d4e5f6a1b2c3",
+        "title": "Zero-Variance Orchestration in High-Stakes Environments",
+        "canonical_url": "https://docs.myantfarm.ai/architecture/zero-variance",
+        "date": "2026-01-20",
+        "authors_or_org": [
+          "MyAntFarm.ai"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "topology"
+        ],
+        "mechanism_tags": [
+          "zero_variance_orchestration",
+          "deterministic_seed",
+          "sequential_dependency_chain"
+        ],
+        "failure_mode_tags": [
+          "stochastic_variance"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [
+          "TinyLlama 1.1B"
+        ],
+        "environment_type": [
+          "docker"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Empirical proof that removing stochasticity via explicit mechanisms yields 100% actionability in multi-agent orchestration.",
+        "reason_included": "Directly links execution determinism with verifiable outcome metrics in a production SRE context.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Enforcing cryptographic seeds to 42, locking temperature to 0.7, and utilizing sequential sub-agent chains elevated the actionable recommendation rate from 1.7% to 100%.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: Zero-Variance Orchestration in High-Stakes Environments"
+          }
+        ],
+        "dedupe_key": "myantfarm_zero_variance"
+      },
+      {
+        "source_id": "src_cod_e5f6a1b2c3d4",
+        "title": "MultiAgentOps: Interactive Flight Recorder and AES Scenario Merkle Sync",
+        "canonical_url": "https://github.com/multiagentops/core",
+        "date": "2026-03-05",
+        "authors_or_org": [
+          "MultiAgentOps"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "verification",
+          "artifacts_workspace"
+        ],
+        "mechanism_tags": [
+          "worm_logs",
+          "aes_scenario_merkle_sync",
+          "cryptographic_sealing",
+          "interactive_flight_recorder"
+        ],
+        "failure_mode_tags": [
+          "trace_tampering"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "mixed"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Outlines advanced cryptographic methods to ensure trace integrity and WORM compliance for run histories.",
+        "reason_included": "Essential for understanding how to secure observability data structures against post-execution tampering.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The Interactive Flight Recorder continuously appends all tool calls, environment state mutations, and internal deliberation to an immutable run.jsonl file.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "AES Scenario Merkle Sync continuously generates cryptographic hashes of the environment state and appends them to a Merkle tree, guaranteeing a Root Verify capability against post-execution alteration.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: WORM Logs and the Interactive Flight Recorder"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section: AES Scenario Merkle Sync and Cryptographic Sealing"
+          }
+        ],
+        "dedupe_key": "multiagentops_core_repo"
+      },
+      {
+        "source_id": "src_pmt_f6a1b2c3d4e5",
+        "title": "Postmortem: Silent Multi-Agent Failure via Context Compression Regression",
+        "canonical_url": "https://engineering.metamirror.com/postmortems/context-compression-regression",
+        "date": "2025-11-25",
+        "authors_or_org": [
+          "MetaMirror Engineering"
+        ],
+        "source_type": "postmortem",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "context",
+          "observability",
+          "policy_program"
+        ],
+        "mechanism_tags": [
+          "context_compression",
+          "policy_as_code"
+        ],
+        "failure_mode_tags": [
+          "silent_permission_failure",
+          "semantic_hallucination",
+          "stateless_coordinator_drop"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 3,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "A critical postmortem detailing how invisible permission truncation causes agent capabilities to silently degrade without throwing system errors.",
+        "reason_included": "Direct evidence of failure cases caused by misleading or incomplete contextual observability.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "An automated context-compression routine silently deleted 62% of invocation permissions (from 26 lines down to 10), completely dropping bash and npm tool access patterns.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Because the coordinator operated statelessly without cross-session memory, it interpreted blocked invocations as an intrinsic lack of capability rather than a monitorable system error, leading to silent systemic failure.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: The MetaMirror Context Compression Regression"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section: The MetaMirror Context Compression Regression"
+          }
+        ],
+        "dedupe_key": "metamirror_compression_postmortem"
+      },
+      {
+        "source_id": "src_iss_1a2b3c4d5e6f",
+        "title": "History replay broken: JSON.stringify fails on reasoning_content control characters",
+        "canonical_url": "https://github.com/openclaw/openclaw/issues/46667",
+        "date": "2026-02-15",
+        "authors_or_org": [
+          "OpenClaw Community"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "context"
+        ],
+        "mechanism_tags": [
+          "payload_sanitization",
+          "byte_level_validation"
+        ],
+        "failure_mode_tags": [
+          "serialization_failure",
+          "reasoning_content_bug",
+          "control_character_breakage"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "mixed"
+        ],
+        "models_if_named": [
+          "Qwen 3.5",
+          "Kimi"
+        ],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Documents a critical failure where capturing model I/O broke the runtime due to serialization incompatibility.",
+        "reason_included": "Satisfies requirement for issue thread about broken replay and silent state loss.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Models like Qwen 3.5 output reasoning_content containing 0x00 to 0x1F control characters which JSON.stringify failed to properly escape to \\uXXXX.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The failure to sanitize the reasoning payload caused upstream Python FastAPI parsers to reject history replays with a '422 Unprocessable Entity' error, entirely breaking multi-turn execution.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: Serialization Incompatibilities: The OpenClaw reasoning_content Bug"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section: Serialization Incompatibilities: The OpenClaw reasoning_content Bug"
+          }
+        ],
+        "dedupe_key": "openclaw_issue_46667"
+      },
+      {
+        "source_id": "src_iss_2b3c4d5e6f1a",
+        "title": "Stateless Context Drops with store: false parameter",
+        "canonical_url": "https://github.com/github/copilot-sdk/issues/1093",
+        "date": "2026-03-10",
+        "authors_or_org": [
+          "GitHub Copilot SDK Developers"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "observability_audit",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "memory",
+          "state",
+          "context"
+        ],
+        "mechanism_tags": [
+          "stateless_operation",
+          "cryptographic_payload_replay"
+        ],
+        "failure_mode_tags": [
+          "stateless_context_drop",
+          "encryption_loss",
+          "continuity_breakdown"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Demonstrates continuity loss when utilizing specific stateless parameter settings over multiple execution turns.",
+        "reason_included": "Highlights the necessity of replaying full cryptographic objects, not merely ID summaries, to maintain multi-turn trajectory context.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "When configured with store: false, the receiving server retained absolutely no persistent memory, requiring the full cryptographic payload of the reasoning block to be manually replayed within the encrypted_content field.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Attempting to replay state using only the ID and summary of a prior reasoning item resulted in a complete breakdown of multi-step logic execution.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section: Stateless Context Drops and Encryption Loss"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section: Stateless Context Drops and Encryption Loss"
+          }
+        ],
+        "dedupe_key": "copilot_sdk_issue_1093"
+      }
+    ],
+    "rejections": []
+  }
+]

@@ -1,0 +1,221 @@
+LITERATURE_PAPERS_DOCS_OUTPUT
+- artifact:
+  - `mechanism_map`
+  - `wave_06_planning_orchestration_and_interactions`
+- role:
+  - `literature/papers/docs analyst`
+- preflight_scope_confirmed:
+  - Confirmed. This output is restricted to formal papers and docs for planning, replanning, delegation, role contracts, interaction protocol quality, and orchestration drift mitigation.
+  - This lane does not promote architecture rhetoric over stronger direct trajectory/source evidence.
+  - Optional eval/benchmark fifth lane remains inactive in this packet because Wave 06 brief still marks it inactive and the selected formal slice did not require benchmark-contract deep routing to answer core orchestration questions.
+- preflight_planned_read_order:
+  - Packet/control surfaces:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/brief.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - Formal papers for Wave 06 doctrine:
+    - planning/replanning anchors first, then delegation/role-separation pressure, then orchestration-risk/governance pressure.
+  - Formal docs for implementation intent:
+    - official product/framework docs on subagents/agent teams/workflows/checkpoint/resume surfaces.
+  - Cross-check against existing cumulative and dossier state to keep carry-forward cautions explicit.
+- preflight_critical_sources_selected:
+  - papers:
+    - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+    - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+    - `research/sources/papers/papers_text/src_pap_31598764f98d.txt`
+    - `research/sources/papers/papers_text/src_pap_09faf60ce915.txt`
+    - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+    - `research/sources/papers/papers_text/src_pap_9f39aad8d403.txt`
+    - `research/sources/papers/papers_text/Arxiv_2512.16970.txt`
+  - docs:
+    - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+    - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+    - `research/sources/docs/src_doc_80ed3749e2fb/artifact.txt`
+    - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+    - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+    - `research/sources/docs/src_doc_5268d48ca5c2/artifact.txt`
+    - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+    - `research/sources/docs/bigai/translated/framework_multi_agent.md`
+    - `research/sources/docs/bigai/translated/sdk_workflow.md`
+    - `research/sources/docs/bigai/translated/sdk_agent_core.md`
+- preflight_coverage_risks:
+  - Several captured docs are long single-line extractions, increasing interpretation friction and raising citation fragility if used without care.
+  - Some planning/orchestration papers are recent and may have narrow task domains; extrapolation risk is non-trivial.
+  - Formal corpus over-indexes mechanism intent and benchmark architecture; direct behavior may still lag.
+- preflight_likely_blind_spots:
+  - Formal sources on role contracts do not fully expose real-world permission and environment drift behavior.
+  - Formal claims about self-organizing topologies remain thin on adversarial long-tail coding-task evidence.
+  - Multi-agent messaging/hand-off reliability under real terminal noise remains under-specified in formal docs.
+- preflight_blockers:
+  - None structural.
+- coverage_used:
+  - control/governance surfaces:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/brief.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+    - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - papers:
+    - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_823572fab247.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_31598764f98d.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_09faf60ce915.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_813c57bcaf19.{txt,meta.json}`
+    - `research/sources/papers/papers_text/src_pap_9f39aad8d403.{txt,meta.json}`
+    - `research/sources/papers/papers_text/Arxiv_2512.16970.{txt,meta.json}`
+  - docs:
+    - `research/sources/docs/src_doc_80ee58656d67/{artifact.txt,capture.json}`
+    - `research/sources/docs/src_doc_7dc93e85c023/{artifact.txt,capture.json}`
+    - `research/sources/docs/src_doc_80ed3749e2fb/{artifact.txt,capture.json}`
+    - `research/sources/docs/src_doc_f00f2b63fb7b/{artifact.txt,capture.json}`
+    - `research/sources/docs/src_doc_118b78fe9c63/{artifact.txt,capture.json}`
+    - `research/sources/docs/src_doc_776484f287d8/{artifact.txt,capture.json}`
+    - `research/sources/docs/src_doc_5268d48ca5c2/{artifact.txt,capture.json}`
+    - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+    - `research/sources/docs/bigai/translated/framework_multi_agent.md`
+    - `research/sources/docs/bigai/translated/sdk_workflow.md`
+    - `research/sources/docs/bigai/translated/sdk_agent_core.md`
+  - support + dossiers touched this wave:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_support_planning_delegation_cluster.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/planning_and_replanning.md`
+    - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/delegation_and_role_separation.md`
+    - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/papers_text/src_pap_1e7552c63cbe.txt`
+  - `research/sources/papers/papers_text/src_pap_1af43872aeda.txt`
+  - `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`
+  - `research/sources/papers/papers_text/src_pap_ac7924226b83.txt`
+  - `research/sources/papers/papers_text/src_pap_f6dbaefea5eb.txt`
+  - `research/sources/docs/src_doc_1069e67c4fe5/artifact.txt`
+  - `research/sources/docs/src_doc_a3afc1e8c7c2/artifact.txt`
+- evidence_classes_touched:
+  - `papers`
+  - `docs`
+  - `prior_wave_synthesis_for_conflict_pressure`
+  - `support_artifact`
+- priority_sources_not_yet_read:
+  - `research/sources/papers/papers_text/src_pap_1e7552c63cbe.txt`
+  - `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`
+  - `research/sources/papers/papers_text/src_pap_ac7924226b83.txt`
+  - `research/sources/papers/papers_text/src_pap_f6dbaefea5eb.txt`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_support_planning_delegation_cluster.md`
+- support_artifacts_requested_or_deferred:
+  - No additional support artifacts requested in this pass.
+- coverage_register_updates_needed:
+  - Mark Wave 06 literature lane as first-pass produced (current register still says packet prepared / not started).
+  - Carry forward that this lane read a bounded formal slice, not full formal corpus saturation.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/planning_and_replanning.md` (created)
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/delegation_and_role_separation.md` (created)
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md` (updated with Wave 06 formal-pressure cross-lane addendum; informal evidence remains maintained by informal lane output)
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md` (Wave 06 formal-pressure addendum appended)
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md` (Wave 06 formal-pressure addendum appended)
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md` (Wave 06 formal-pressure addendum appended)
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md` (Wave 06 formal-pressure addendum appended)
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md` (Wave 06 formal-pressure addendum appended)
+- formal_claims:
+  - claim_id: `wave06_formal_planning_loop_doctrine`
+    - observation: Formal papers/docs consistently encode planning as an explicit loop with plan decomposition, execution, verification, and bounded termination/stop logic rather than one-shot prompting.
+    - inference: `planning/replanning` should be treated as a first-class mechanism family (loop-control doctrine), not a generic narrative wrapper.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+      - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+      - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+      - `research/sources/docs/src_doc_80ed3749e2fb/artifact.txt`
+  - claim_id: `wave06_formal_replanning_trigger_contracts`
+    - observation: Replanning is formally triggered by explicit gap/verification/uncertainty signals (not just “keep trying”), and is often paired with explicit stop conditions and budget tradeoffs.
+    - inference: Replan triggers and stop thresholds should be modeled as explicit orchestration contracts in mechanism cards.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+      - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+      - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+  - claim_id: `wave06_formal_role_separation_not_equal_role_multiplication`
+    - observation: Formal sources disagree on whether more role/hierarchy structure is intrinsically better: some promote planner/executor/verifier stacks; others show single-agent-with-skills or hybrid/self-organizing structures can outperform rigid role assignments under specific conditions.
+    - inference: Role separation and role count must stay decoupled. Promote “role contract quality” over “more roles” as the mechanism target.
+    - confidence: `medium`
+    - weakener: Cross-paper task regimes differ; direct cross-benchmark comparability is limited.
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_823572fab247.txt`
+      - `research/sources/papers/papers_text/src_pap_31598764f98d.txt`
+      - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+      - `research/sources/papers/papers_text/src_pap_09faf60ce915.txt`
+  - claim_id: `wave06_formal_interaction_protocol_risk_surfaces`
+    - observation: Formal risk-oriented literature repeatedly names non-termination, role drift, communication compression loss, and policy-boundary failures as orchestration failure surfaces.
+    - inference: `interaction protocol quality` and `drift mitigation` are substantive mechanism surfaces, not second-order implementation detail.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9f39aad8d403.txt`
+      - `research/sources/papers/papers_text/src_pap_8c53c2df2ee7.txt`
+      - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+      - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+  - claim_id: `wave06_formal_delegation_boundary_semantics`
+    - observation: Formal docs specify delegation boundaries using independent contexts, scoped tools/permissions, teammate communication pathways, and explicit task ownership/cleanup.
+    - inference: Delegation quality should be formalized as boundary contracts (context handoff, capability scope, lifecycle cleanup), not treated as pure prompt style.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/docs/src_doc_7dc93e85c023/artifact.txt`
+      - `research/sources/docs/src_doc_80ee58656d67/artifact.txt`
+      - `research/sources/docs/src_doc_f00f2b63fb7b/artifact.txt`
+      - `research/sources/docs/bigai/translated/framework_multi_agent.md`
+      - `research/sources/docs/bigai/translated/sdk_workflow.md`
+- terminology_and_definition_notes:
+  - `planning` (formal): decomposition plus constrained decision sequencing over horizon, not just local step reasoning (`src_pap_8c2cb08d2c57`).
+  - `replanning`: verifier/utility/uncertainty-triggered loop adjustment (`src_pap_9a7e75663b9d`, `src_pap_813c57bcaf19`).
+  - `delegation`: bounded transfer of task responsibility under explicit communication contract (`src_pap_8c53c2df2ee7`, `src_doc_80ee58656d67`).
+  - `role separation`: distinction between reasoning, execution, and verification responsibilities; does not imply fixed hierarchy is universally optimal (`src_pap_823572fab247`, `src_pap_31598764f98d`).
+  - `orchestration drift`: deviation between intended role/protocol behavior and realized trajectory behavior under long-horizon pressure (`src_pap_9f39aad8d403`).
+- benchmark_definition_notes:
+  - `DeepPlanning` formalizes long-horizon planning with local + global constraints and reports persistent failures in holistic plan consistency (`research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`).
+  - `VMAO` evaluates orchestration-level plan-execute-verify-replan with DAG decomposition and explicit stop conditions (`research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`).
+  - `Utility-Guided Orchestration` treats respond/retrieve/tool/verify/stop as explicit policy actions for quality-cost tradeoffs (`research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`).
+- mechanism_or_failure_support:
+  - Supports Wave 06 promotion of:
+    - explicit planning/replanning control loops;
+    - delegation contracts with scoped roles/capabilities;
+    - interaction protocol drift controls (trace contracts, replay checkpoints, stop/continue policy);
+    - anti-prestige baseline caution: orchestration complexity must show information gain, not just role multiplication.
+- conflicts_with_direct_evidence:
+  - Formal orchestration literature is richer than direct trajectory proof in prior accepted waves; direct artifact state still keeps terminal-first and minimal tooling as strong baseline and warns against over-promoting prestige orchestration.
+    - evidence:
+      - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+      - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - Formal role contracts do not prove they hold behaviorally in all source families; prior accepted state still flags BigAI as behavioral reconstruction and restart/robustness under-evidence.
+    - evidence:
+      - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+      - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+- confidence_notes:
+  - High confidence:
+    - planning/replanning as explicit loop-control doctrine in formal sources;
+    - delegation as boundary-contract surface in docs.
+  - Medium confidence:
+    - claims about superior topology (hierarchy vs self-organizing vs single-agent skills) because evidence is regime-specific and not reconciled with full trajectory corpus.
+  - Low confidence:
+    - any attempted universal promotion of robust coordination safety from formal sources alone; direct behavior/source evidence remains uneven.
+- open_questions:
+  - Which direct trajectory slices are sufficient to promote any Wave 06 orchestration family beyond `emerging`?
+  - What minimum information-gain criterion should gate “multi-agent justified” versus “single-agent baseline sufficient” in local harness doctrine?
+  - Which delegation-boundary contract (context handoff, permission scope, stop condition) is most failure-sensitive in existing harness trajectories?
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/contradiction_analyst.md`

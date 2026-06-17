@@ -1,0 +1,1127 @@
+--- PAGE 1 ---
+A Dual-Loop Agent Framework for Automated Vulnerability
+Reproduction
+BIN LIU,Harbin Institute of Technology, Shenzhen, China
+YANJIE ZHAO∗,Huazhong University of Science and Technology, China
+ZHENPENG CHEN,Tsinghua University, China
+GUOAI XU∗,Harbin Institute of Technology, Shenzhen, China
+HAOYU WANG,Huazhong University of Science and Technology, China
+Automated vulnerability reproduction from CVE descriptions requires generating executable Proof-of-Concept
+(PoC) exploits and validating them in target environments. This process is critical in software security research
+and practice, yet remains time-consuming and demands specialized expertise when performed manually.
+While LLM agents show promise for automating this task, existing approaches often conflate exploring
+attack directions with fixing implementation details, which leads to unproductive debugging loops when
+reproduction fails. To address this, we proposeCve2PoC, an LLM-based dual-loop agent framework following
+a plan-execute-evaluate paradigm. The Strategic Planner analyzes vulnerability semantics and target code to
+produce structured attack plans. The Tactical Executor generates PoC code and validates it through progressive
+verification. The Adaptive Refiner evaluates execution results and routes failures to different loops: theTactical
+Loopfor code-level refinement, while theStrategic Loopfor attack strategy replanning. This dual-loop design
+enables the framework to escape ineffective debugging by matching remediation to failure type. Evaluation
+on two benchmarks covering 617 real-world vulnerabilities demonstrates thatCve2PoCachieves 82.9% and
+54.3% reproduction success rates on SecBench.js and PatchEval, respectively, outperforming the best baseline
+by 11.3% and 20.4%. Human evaluation confirms that generated PoCs achieve comparable code quality to
+human-written exploits in readability and reusability.
+CCS Concepts:•Software and its engineering→Software testing and debugging.
+Additional Key Words and Phrases: PoC Generation, LLM Agents, Vulnerability Reproduction
+ACM Reference Format:
+Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang. 2026. A Dual-Loop Agent Framework
+for Automated Vulnerability Reproduction. 1, 1 (February 2026), 22 pages. https://doi.org/10.1145/nnnnnnn.
+nnnnnnn
+1 Introduction
+Software vulnerabilities pose an escalating threat to digital security. The National Vulnerability
+Database has documented explosive growth in vulnerability disclosures in recent years [26]. How-
+ever, available CVE reports mainly provide natural language descriptions or structured metadata,
+∗Yanjie Zhao (yanjie_zhao@hust.edu.cn) and Guoai Xu (xga@hit.edu.cn) are the corresponding authors.
+Authors’ Contact Information: Bin Liu, liubin1999@stu.hit.edu.cn, Harbin Institute of Technology, Shenzhen, China; Yanjie
+Zhao, yanjie_zhao@hust.edu.cn, Huazhong University of Science and Technology, China; Zhenpeng Chen, zpchen@
+tsinghua.edu.cn, Tsinghua University, China; Guoai Xu, xga@hit.edu.cn, Harbin Institute of Technology, Shenzhen, China;
+Haoyu Wang, haoyuwang@hust.edu.cn, Huazhong University of Science and Technology, China.
+Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee
+provided that copies are not made or distributed for profit or commercial advantage and that copies bear this notice and the
+full citation on the first page. Copyrights for components of this work owned by others than the author(s) must be honored.
+Abstracting with credit is permitted. To copy otherwise, or republish, to post on servers or to redistribute to lists, requires
+prior specific permission and/or a fee. Request permissions from permissions@acm.org.
+©2026 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+ACM XXXX-XXXX/2026/2-ART
+https://doi.org/10.1145/nnnnnnn.nnnnnnn
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+arXiv:2602.05721v2  [cs.SE]  8 Feb 2026
+
+--- PAGE 2 ---
+2 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+without the executable and reproducible Proof-of-Concept (PoC) exploits that are essential for
+verifying authenticity and assessing impact. Empirical studies show that successfully reproducing
+disclosed vulnerabilities remains challenging even for professional security teams due to inadequate
+information in reports [25], creating substantial uncertainty in vulnerability verification, patch
+validation, and defense deployment.
+The scarcity of executable PoCs stems from the complexity of manual reproduction.
+Transforming vulnerability descriptions into working PoCs requires understanding exploitation
+mechanisms from text information, configuring appropriate runtime environments for specific
+software versions, and implementing attack code that successfully triggers the vulnerability. These
+steps demand specialized security expertise and substantial time investment, making manual
+reproduction inherently difficult to scale as vulnerability disclosures continue to grow. Automated
+approaches are therefore essential to bridge this reproduction gap.
+Traditional automated techniques, including static analysis [10, 33], dynamic fuzzing [13, 48],
+and symbolic execution [4, 24], cannot address this challenge, as they lack mechanisms to interpret
+natural language vulnerability specifications and generate corresponding exploitation code. Large
+Language Models (LLMs) present a qualitatively different approach. Their ability to understand and
+synthesize code enables direct transformation from textual vulnerability descriptions to executable
+programs [35]. This potential has motivated recent investigations into LLM-based agents augmented
+with execution environments and tool interfaces for autonomous PoC generation. Representative
+systems include OpenHands [ 42], a general software engineering agent that can interact with
+code repositories and be adapted for vulnerability reproduction tasks; CAI [23], an open-source
+framework enabling security professionals to construct AI-driven offensive automation; and PoC-
+Gen [37], a specialized system targeting npm package vulnerabilities through multi-stage pipelines
+that combine static analysis with reasoning.
+Although these systems represent important progress,existing LLM-based agents face a
+fundamental architectural limitation: their single-cycle workflows repeatedly revise generated
+code without distinguishing the underlying causes of failure. When a PoC fails to execute properly,
+the agent cannot identify whether the problem lies in choosing the wrong attack method or simply
+making mistakes while implementing a correct method. This inability to distinguish leads to either
+wasting resources on perfecting exploitation ideas that cannot succeed or discarding promising
+approaches due to easily fixable errors. These issues are amplified by insufficient examination of
+vulnerability semantics before generating code and unreliable validation techniques that cannot
+confidently assess whether the generated PoC actually triggers the target vulnerability.
+To fill this gap, we introduceCve2PoC, an agent framework that employs two distinct feedback
+mechanisms to separate strategic exploitation planning from tactical code implementation for
+automated vulnerability reproduction. The framework operates through dual loops. TheTactical
+Loopiterates between Tactical Executor and Adaptive Refiner, correcting code-level issues while
+preserving the attack strategy. When tactical fixes prove insufficient, theStrategic Loopreturns
+control to Strategic Planner, enabling recovery from incorrect vulnerability interpretations. By
+decoupling strategy selection from code debugging, this design avoids both the problem of end-
+lessly refining unworkable attack plans and the problem of abandoning valid plans due to fixable
+implementation mistakes.
+Specifically,Cve2PoCincludes three core modules. First,Strategic Plannerprocesses CVE de-
+scriptions to identify exploitation-critical details and inspects vulnerable codebases to construct
+structured attack plans, establishing a thorough understanding of the vulnerability before any
+code is written. Second,Tactical Executorgenerates PoC code from attack plans and validates it
+through progressively stringent multi-layer checks, from syntactic validity to semantic correctness
+to execution behavior to differential testing, pinpointing exactly where exploitation attempts fail.
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 3 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 3
+Third,Adaptive Refineranalyzes verification results to determine failure causes, either trigger-
+ing replanning when the attack methodology is flawed or performing targeted refinement for
+implementation errors, while maintaining a sparse experience index for efficient knowledge reuse.
+In summary, our contributions are as follows:
+• We proposeCve2PoC, the first dual-loop agent framework separating strategic planning from
+tactical execution for automated vulnerability reproduction from CVE descriptions.
+•We design three core modules with novel components:Strategic Plannerwith structured attack
+planning,Tactical Executorwith progressive multi-layer verification, andAdaptive Refinerwith
+dual-dimension feedback and sparse experience retrieval.
+• We evaluateCve2PoCon two benchmarks: 387 npm vulnerabilities from SecBench.js [ 3] and 230
+vulnerabilities across Go, JavaScript, and Python from PatchEval [44].Cve2PoCachieves 82.9%
+and 54.3% reproduction success rates, outperforming state-of-the-art baselines by 11.3% and
+20.4% respectively. Human evaluation confirms that generated PoCs achieve comparable quality
+to human-written exploits, scoring 4.15 versus 3.62 on a 5-point scale with 14.6% improvement
+in readability.
+2 Background
+2.1 Problem Formalization
+We formalize the vulnerability reproduction problem as follows. Given a vulnerability report 𝑉
+containing a natural language description 𝐷, an affected software package𝑃, a vulnerable version 𝑣,
+and optional metadata 𝑀 (e.g., CVE identifiers, CVSS scores), the goal is to automatically generate
+an executable PoC exploit𝐸that satisfies three requirements:
+Triggering Requirement.The PoC must successfully trigger the vulnerability when executed
+against the vulnerable version 𝑃𝑣, demonstrating the security impact described in 𝐷. This requires
+the exploit to satisfy all environmental preconditions and execute the precise attack sequence that
+activates the vulnerable code path.
+Validation Requirement.The exploitation must be objectively verifiable through observable
+evidence, such as unauthorized access, data leakage, privilege escalation, denial of service, or code
+execution. Since many vulnerabilities do not produce crashes, verification cannot rely solely on
+abnormal program termination.
+Specificity Requirement.The PoC should demonstrate vulnerability-specific behavior rather
+than generic system failures. It must fail when executed against a patched version𝑃𝑣+1 or alternative
+implementations lacking the vulnerability, confirming that observed effects stem from the specific
+weakness rather than unrelated issues.
+This problem is particularly challenging because it requires bridging multiple semantic gaps:
+from unstructured natural language to structured exploitation logic, from abstract vulnerability
+descriptions to concrete attack implementations, and from static code analysis to dynamic execution
+validation. Unlike vulnerability detection, which identifies potential weaknesses, or patch gener-
+ation, which repairs code, reproduction demands demonstrating exploitability through working
+attacks.
+2.2 Traditional Vulnerability Analysis Approaches
+Tools like CodeQL [ 16], Semgrep [33], and Infer [ 5] systematically analyze program structure
+without execution, identifying potential vulnerabilities through pattern matching and dataflow
+analysis. While highly effective for detecting known vulnerability patterns, they cannot execute
+attacks or verify exploitability, thus limiting their applicability to vulnerability reproduction.
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 4 ---
+4 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+Fuzzing tools such as AFL [48], AFL++ [13], and LibFuzzer [34] generate test inputs to trigger
+crashes and errors. Symbolic execution tools like KLEE [4] and KLEEF [24] systematically explore
+program paths. However, these techniques require executable binaries or source code with known
+vulnerable states and cannot interpret natural language vulnerability descriptions.
+Systems like AEG [2] and Mayhem [6] generate exploits from program crashes or vulnerabilities
+identified through other means. While pioneering in automation, they assume pre-identified
+vulnerable locations and focus on memory corruption vulnerabilities, struggling with logic flaws
+common in web applications.
+All traditional approaches share a critical constraint: they operate on program artifacts with
+known vulnerable states but cannot comprehend the natural language CVE descriptions that
+characterize real-world vulnerability disclosures. This semantic gap prevents direct application to
+vulnerability reproduction, where the only available information is often unstructured text.
+2.3 Security-Focused LLM-Based Agent Systems
+Recent research has adapted agent architectures to penetration testing and exploitation. Pentest-
+GPT [9] provides interactive attack guidance by combining LLM reasoning with security tool
+invocation. AutoPentest [19] automates reconnaissance workflows through structured agent col-
+laboration. Fanget al.[ 11] demonstrated that GPT-4 can exploit 87 of one-day vulnerabilities when
+provided with CVE descriptions. Zhuet al.[ 52] showed that coordinated agent teams outperform
+individual agents on complex multi-step exploits.
+Automated PoC Generation Systems.Several systems specifically target automated PoC gen-
+eration from vulnerability descriptions. CVE-GENIE [40] coordinates specialized agents through
+understanding, planning, and execution phases. PoCGen [ 37] combines LLMs with static and
+dynamic program analysis through a multi-phase pipeline, reaching 77% success on npm pack-
+ages. VulnBot [21] employs multi-agent collaboration for comprehensive vulnerability assessment.
+PoCo [1] generates smart contract exploits compatible with testing frameworks.
+2.4 Limitations of Existing Approaches
+Despite progress in LLM-based security agents, existing systems exhibit three critical limitations
+that motivate our work:
+(C1) Lack of Structured Pre-Analysis.Current PoC generation methods jump directly from
+vulnerability descriptions to code synthesis without building comprehensive models of exploitation
+requirements. For example, PoCGen [37] focuses its analysis phase on locating vulnerable code
+rather than systematically modeling how the vulnerability can be triggered. CVE-GENIE [40] noted
+that this absence of structured pre-analysis causes agents to resort to blind trial-and-error when
+initial attempts fail, wasting computational resources on fundamentally flawed attack strategies.
+The problem intensifies for logic vulnerabilities requiring precise sequences of operations, where
+understanding triggering conditions before implementation is critical.
+(C2) Unreliable Verification Mechanisms.Determining whether a PoC successfully triggers
+a vulnerability is inherently challenging. Many exploits produce no crashes: cross-site scripting
+may silently inject scripts, SQL injection may return normal responses while leaking data, and
+authentication bypasses may appear as ordinary logins. Current approaches employ one of three
+inadequate strategies: (1) predefined security checks that cover only limited vulnerability patterns,
+failing on novel or complex exploits; (2) generic execution feedback analyzing return codes or
+output text without vulnerability-specific oracles, leading to false positives from coincidental output
+matches; or (3) differential testing comparing behavior between vulnerable and patched versions,
+which requires access to both versions and struggles when patches are unavailable or introduce
+unrelated changes. Research on LLM-based code generation has demonstrated that superficial
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 5 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 5
+execution success often masks deeper functional failures [22], a problem exacerbated in security
+contexts where correct execution may still fail to exploit the vulnerability.
+(C3) Flat Decision-Making Without Failure Diagnosis.Existing agent systems employ
+single-loop generate-execute-refine cycles that treat all failures uniformly [36]. When a PoC fails,
+they cannot distinguish whether the failure stems from a fundamentally incorrect attack strategy or
+merely implementation bugs in an otherwise sound approach. This conflation of strategic and tacti-
+cal errors leads to two failure modes: (1) wasted effort on iterative refinements of flawed approaches
+that cannot possibly succeed, such as attempting SQL injection on endpoints lacking database
+queries; (2) premature abandonment of promising strategies due to minor implementation issues,
+such as syntax errors or incorrect parameter formats. Experience utilization further complicates
+matters, with systems either ignoring past attempts entirely, losing valuable insights, or injecting
+full execution histories into context, causing token inflation that degrades model performance [29].
+Our Approach.Cve2PoCaddresses these limitations through three architectural mechanisms
+that directly correspond to the identified challenges. To addressC1, we introduce a dual-loop archi-
+tecture that separates strategic planning from tactical execution, ensuring structured vulnerability
+analysis produces comprehensive attack models before code generation. To addressC2, we design
+progressive multi-layer verification that combines symbolic analysis with execution feedback and
+differential testing, providing reliable assessment of exploitation success across diverse vulnerability
+types. To addressC3, we implement adaptive failure diagnosis with sparse experience indexing,
+enabling intelligent routing between strategic replanning and tactical refinement while maintaining
+efficient context utilization. The following section details our framework design.
+3 Methodology
+3.1 Overview
+As illustrated in Figure 1,Cve2PoCis a dual-loop agent comprising three core modules: Strategic
+Planner, Tactical Executor, and Adaptive Refiner.Strategic Plannertackles the lack of structured
+understanding by analyzing CVE descriptions and target codebases to synthesize attack plans before
+code generation.Tactical Executoraddresses unreliable verification through progressive multi-
+layer checks that pinpoint specific failure points rather than producing binary outcomes.Adaptive
+Refinerresolves flat decision-making by diagnosing failure causes and routing to appropriate
+correction mechanisms: tactical refinement for implementation errors or strategic replanning for
+fundamental approach failures.
+In particular,Cve2PoCoperates through two feedback loops. TheTactical Loopiterates between
+Tactical ExecutorandAdaptive Refiner, correcting code-level issues while preserving the attack
+strategy. When tactical fixes prove insufficient, theStrategic Loopreturns control toStrategic
+Planner, enabling recovery from incorrect vulnerability interpretations. This separation prevents
+wasted effort on refining fundamentally flawed approaches while avoiding premature abandonment
+of sound strategies marred by minor bugs.
+3.2 Strategic Planner
+Existing methods lack structured vulnerability understanding (C1in § 2.4), causing blind trial-
+and-error when initial attempts fail.The core insight is that effective exploitation requires
+bridging three semantic gaps before code generation:translating high-level descriptions into
+precise attack vectors (semantic gap), locating specific vulnerable code paths amid large codebases
+(contextual gap), and selecting appropriate execution strategies for diverse targets (operational
+gap). We design three specialized agents that bridge these gaps through structured analysis.
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 6 ---
+6 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+§3.2	StrategicPlanner
+CVEDescription
+SourceCode
+Input
+ToolRegistry
+InsightAgent
+CodeAnalyzer
+PlannerAgent
+§3.3TacticalExecutor
+PoCSynthesizerAgent
+ExecutorAgent
+SandboxEnvironment
+OracleEngineL3LLMJudgeL2PatternMatchingL1	Execution	Status
+§3.4	AdaptiveRefiner
+RewardShaperTacticalScoreStrategicScore
+RefinerAgent
+IndexedRewardStoreExploitPlan
+PoCexploits
+ExecuteOutput
+LogsVerificationResultStore/RetrieveContext
+RoutingSuggestion
+Refine/ResynthesizeSignal
+ReplanSignal
+StructuredVulnerabilityInsights
+CodeEvidence
+AutonomousTool-SelectionShell,Docker,Tree-sitter……
+ReproduciblePoCs
+OutputSuccess
+StrategicLoop
+TacticalLoop
+Fig. 1. Overview of theCve2PoCframework.
+3.2.1 InsightAgent: Semantic Gap Bridging.CVE descriptions contain rich exploitation information
+encoded in unstructured natural language. The InsightAgent employs schema-guided prompting
+to extract this information into a structured specification that constrains subsequent analysis.
+Given a CVE description, the agent identifies vulnerability type (e.g., code injection, path traversal),
+attack vector (HTTP, command-line interface), vulnerable parameters, and key APIs involved in
+exploitation. This structured insight serves two purposes: it provides a high-level constraint on
+what to look for in the codebase, and it generates targeted search queries combining vulnerability
+patterns with identified APIs.
+Listing 1 shows an example extraction where the agent identifies that user input flows to an
+eval call via the template parameter on the /api/render endpoint. This specification eliminates
+ambiguity and guides targeted code analysis.
+3.2.2 CodeAnalyzer: Contextual Gap Bridging.Triggering vulnerabilities requires locating vulner-
+able code paths and understanding their invocation requirements. The CodeAnalyzer combines
+static analysis with heuristic matching to collect this evidence efficiently. It first runs Semgrep
+security rules to identify candidate locations with severity scores. It then filters findings by match-
+ing against vulnerability-specific keywords from the InsightAgent output, focusing on high-
+confidence matches. For matched locations, the analyzer applies pattern recognition to extract
+concrete exploitation parameters: endpoint URLs from route annotations, parameter names from
+input retrieval patterns, and payload hints from the vulnerable operations.
+Listing 2 illustrates the extracted evidence, showing the exact file, line number, endpoint, param-
+eter name, and a suggested payload structure. This provides the concrete code context needed to
+construct valid PoCs.
+3.2.3 PlannerAgent: Operational Gap Bridging.Different targets require distinct execution strate-
+gies: npm vulnerabilities need direct function invocation within Node.js runtimes, while container-
+ized applications require Docker-based execution. Hard-coded rules are brittle and fail to generalize
+across vulnerability types.We employ LLM-based autonomous planning where the model
+selects appropriate tools based on target characteristics.
+The system maintains a ToolRegistry (Table 1) where each tool is registered with capability
+descriptions. Given vulnerability context (target type, vulnerability type, code characteristics) and
+available tool descriptions, the LLM generates a structured exploitation plan containing execution
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 7 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 7
+{
+" vu l n er a b il i t y_ t y pe " : " Code Injection " ,
+" attack_vector " : " HTTP " ,
+" v ul ne ra bl e_p ar am s " : [ " template " , " userInput " ] ,
+" key_apis " : [ " eval " , " Function " ] ,
+" entry_points " : [ " / api / render " , " / api / compile " ] ,
+" summary " : " User - controlled input flows into eval without sanitization "
+}
+Listing 1. InsightAgent Output
+{
+" file " : " src / template . js " ,
+" line " : 42 ,
+" endpoint " : " / api / render " ,
+" parameter " : " template " ,
+" payload_hint " : " $ { require ('child_process') . exec ('whoami') } " ,
+" confidence " : 0.85
+}
+Listing 2. CodeAnalyzer Output
+Fig. 2. Structured outputs from Strategic Planner agents.
+steps, malicious payloads derived from the vulnerability type, and oracle configuration specifying
+success criteria. This approach handles edge cases that predefined rules miss while ensuring
+principled tool selection through capability-aware reasoning.
+Table 1. Tool Registry with capability descriptions.
+Tool Capability Primary Use Cases
+node_executorExecute JavaScript locally npm vulnerabilities
+docker_executorIsolated container execution Multi-language targets
+semgrepSecurity-focused static analysis Vulnerability pattern detection
+httpNetwork request generation API endpoint testing
+tree-sitterSyntax tree analysis Function signature extraction
+3.3 Tactical Executor
+Determining whether a PoC successfully exploits a vulnerability remains challenging, as many
+exploits produce no crashes or obvious anomalies (C2in § 2.4).Our key insight is that verification
+confidence can be progressively built through multiple complementary evidence layers.
+Rather than relying on single-point checks that conflate execution success with exploitation success,
+we design three components that transform plans into executable PoCs and validate them through
+increasingly stringent verification: from syntactic correctness to semantic alignment to behavioral
+evidence to differential confirmation.
+3.3.1 PoCSynthesizerAgent: Plan-Guided Code Generation.The PoCSynthesizerAgent generates
+exploit code from attack plans and vulnerable source code analysis. Unlike template-based ap-
+proaches that match predefined patterns, LLM-based synthesis adapts to arbitrary function signa-
+tures, module structures, and vulnerability trigger conditions by understanding code semantics.
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 8 ---
+8 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+The synthesis process begins with automatic language detection based on syntactic features
+(e.g., require() for JavaScript, def for Python). The agent then analyzes vulnerable function
+behavior to understand whether it executes commands, validates strings, or writes files.This
+analysis prevents common mistakes like attempting command injection against functions
+performing only string validation.The agent constructs payloads tailored to vulnerability types:
+shell metacharacters with observable side effects for command injection, __proto__ manipulation
+for prototype pollution, ../ sequences for path traversal. Generated PoCs embed predefined success
+markers (e.g.,VULNERABILITY_TRIGGERED) that enable reliable verification.
+3.3.2 ExecutorAgent: Unified Multi-Environment Execution.The ExecutorAgent provides
+environment-agnostic execution through automatic backend selection. For npm vulnerabili-
+ties, it uses node_executor with proper dependency resolution. For PatchEval targets, it uses
+docker_executor with automatic interpreter detection and compilation support for statically-
+typed languages. The executor captures artifacts including stdout, stderr, exit codes, and execution
+duration. These structured results enable both verification and detailed failure diagnosis.
+3.3.3 OracleEngine: Progressive Multi-Layer Verification.§ 2.4 noted that simple pattern matching
+produces false positives, while LLM-based judgment is prohibitively expensive.Our key insight
+is that most failures can be quickly rejected through fast checks, reserving expensive
+semantic reasoning for ambiguous cases.The OracleEngine implements three progressively
+stringent verification layers with confidence-driven escalation.
+L1 Execution Statusperforms fast rule-based verification examining exit codes, timeout condi-
+tions, and fatal error patterns (e.g., SyntaxError, ModuleNotFoundError). Scripts exhibiting these
+failures are immediately rejected. Scripts completing with exit code 0 proceed to pattern matching.
+L2 Pattern Matchingdetects predefined success markers (e.g.,POC_SUCCESS, EXPLOIT_SUCCESS)
+and vulnerability-specific evidence patterns (e.g., file creation confirmations, unauthorized data
+access). This layer provides high-confidence positive signals without LLM invocation.
+L3 LLM Judgehandles ambiguous cases where pattern matching is inconclusive. The LLM
+receives execution output with vulnerability context and determines whether evidence convincingly
+demonstrates successful reproduction. This layered design achieves both accuracy and efficiency:
+most executions are resolved by fast checks, while expensive reasoning applies only when necessary.
+3.4 Adaptive Refiner
+When a PoC fails, existing systems cannot distinguish whether the failure stems from fundamentally
+incorrect attack strategies or merely implementation bugs (C3in § 2.4).We observe that execution
+failures decompose into orthogonal dimensions requiring different remediation strategies.
+The Adaptive Refiner addresses this through three mechanisms: structured feedback interpretation
+diagnoses failure root causes, dual-dimension routing directs failures to appropriate correction
+loops, and sparse experience indexing enables knowledge reuse without context inflation.
+3.4.1 RewardShaper: Dual-Dimension Failure Diagnosis.The RewardShaper transforms execution
+results into structured feedback signals that enable principled routing decisions. Rather than treating
+all failures uniformly, the system decomposes execution quality along two orthogonal axes.
+TheTactical Score 𝑠𝑡𝑎𝑐𝑡𝑖𝑐𝑎𝑙 ∈ [− 1, 1] quantifies code-level correctness: syntax validity, runtime
+stability, and parameter accuracy. High tactical scores indicate the code executes correctly but may
+target the wrong attack vector; low scores indicate implementation bugs requiring code fixes.
+TheStrategic Score 𝑠𝑠𝑡𝑟𝑎𝑡𝑒𝑔𝑖𝑐 ∈ [ 0, 10] measures overall attack strategy soundness: progress
+toward vulnerability reproduction and alignment with target characteristics. High strategic scores
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 9 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 9
+indicate the approach is fundamentally correct but needs execution refinement. Low strategic
+scores indicate the attack vector is fundamentally wrong and requires replanning.
+This dual-dimension decomposition enables targeted correction:tactical issues trigger
+code refinement within the current strategy, while strategic issues trigger replanning. The scoring
+mechanism employs LLM-as-Judge with explicit evaluation rubrics (Table 2). This approach captures
+nuanced failure modes that deterministic heuristics miss, enabling more precise diagnostic feedback.
+Table 2. Dual-dimension reward criteria and routing logic.
+Dimension Score Failure or Reward Mode Routing
+Tactical
+−1.0Fatal errors: SyntaxError, ImportError, ModuleNotFoundError Resynthesize
+−0.5Runtime crashes: TypeError, ReferenceError, unhandled exceptions Refine
+1.0Clean execution: exit code 0, no stderr output (Strategic)
+Strategic
+0–2No meaningful interaction: immediate crash, wrong target Replan
+3–5Weak exploitation signals: target reached, wrong parameters Refine
+6–8Strong exploitation signals: partial success, stack trace exposed Refine
+10 Successful reproduction: success marker detected, vulnerability con-
+firmed
+Success
+Based on dual-dimension scores, the RewardShaper produces preliminary routing suggestions
+with four distinct outcomes:successwhen both dimensions indicate successful exploitation,resyn-
+thesizewhen critical code errors require complete regeneration,refinewhen localized modifications
+suffice, andreplanwhen the fundamental strategy requires revision. These correspond to the dual-
+loop architecture whererefineandresynthesizetrigger theTactical Loop, whilereplantriggers the
+Strategic Loop.
+3.4.2 RefinerAgent: Adaptive Routing and Targeted Modification.The RefinerAgent serves as the
+decision hub, validating and potentially overriding routing suggestions based on deeper failure
+context analysis.For instance, repeatedrefineattempts without progress trigger escalation
+toreplaneven when scores suggest otherwise, preventing infinite tactical loops.
+When the routing decision isrefine, the agent performs targeted tactical modifications while
+preserving the attack strategy. It classifies failure root causes into diagnostic categories (wrong_tool,
+syntax_error, env_missing) and modifies payloads, parameters, or configurations accordingly.
+Forresynthesizedecisions, it routes to the PoCSynthesizerAgent for complete code regeneration.
+Forreplandecisions, it triggers theStrategic Loopby returning control to thePlannerAgent.
+3.4.3 IndexedRewardStore: Sparse Experience Retrieval.§ 2.4 noted that naive experience injection
+causes context inflation while stateless approaches repeat mistakes.Our key insight is that
+most historical attempts are irrelevant to current failures, and efficient retrieval requires
+indexing by failure characteristics.
+The IndexedRewardStore maintains compact reward records containing iteration numbers,
+dual-dimension scores, state tags, improvement hints, and metadata (error types, tools used). Each
+record receives a unique identifier enabling prompts to reference past attempts through IDs rather
+than embedding full content. During context construction, a two-phase retrieval strategy operates:
+retrieving the 𝐾 most recent rewards for temporal continuity, and querying rewards filtered by
+error type ranked by strategic score for relevant patterns. Actual content loads on demand with
+in-memory caching for frequently accessed records.
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 10 ---
+10 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+This design achieves efficient experience utilization: relevant past attempts inform current
+decisions without overwhelming context, enabling the system to learn from failures while main-
+taining bounded prompt sizes. The sparse indexing mechanism proves critical for handling complex
+vulnerabilities requiring numerous iterative refinements.
+4 Experimental Setup
+4.1 Research Questions
+We evaluate the effectiveness ofCve2PoCby comparing it with state-of-the-art approaches for
+automated vulnerability reproduction and PoC generation. We focus on the following research
+questions (RQs):
+RQ1:How effective isCve2PoCcompared with existing approaches in generating executable
+and verifiable vulnerability PoCs?
+RQ2:What are the contributions of the three core modules,Strategic Planner,Tactical
+Executor, andAdaptive Refiner, to the reproduction success rate?
+RQ3:What factors affectCve2PoC’s reproduction performance across different conditions?
+RQ4:How does the code quality ofCve2PoC-generated PoCs compare to human-written ground
+truth PoCs?
+To answer RQ1, we compare three representative baselines, including PoCGen [ 37], Open-
+Hands [42], and CAI [23], all using the same backbone LLM to ensure fair comparison of system
+designs. To answer RQ2, we conduct ablation studies aligned with our three-module architecture,
+performing module-level ablations forStrategic PlannerandAdaptive Refiner, and mechanism-
+level ablation for the Progressive Multi-Layer Oracle withinTactical Executor. To answer RQ3,
+we analyze how various factors affect reproduction performance, including backbone LLM choice,
+vulnerability type, CVE publication year, description length, and code complexity. To answer RQ4,
+we compare the code quality ofCve2PoC-generated PoCs against human-written ground truth
+PoCs from both datasets through human expert evaluation, assessing three dimensions: Readability,
+Reusability, and Professionalism.
+4.2 Datasets
+We evaluateCve2PoCon two real-world vulnerability reproduction benchmarks that collectively
+cover a wide range of vulnerability types and programming ecosystems.
+SecBench.js.SecBench.js [ 3] is an executable security benchmark suite for server-side JavaScript
+vulnerabilities. The original dataset contains 600 vulnerabilities covering five common vulnerability
+classes in the npm ecosystem. From this dataset, we select 387 vulnerabilities that have official
+CVE identifiers, ensuring well-documented vulnerability descriptions and expected exploitation
+behaviors. Each entry contains a CVE identifier and detailed vulnerability description, vulnerable
+npm package name and version, source code repository with commit information, executable
+exploit payload, and oracle for validating successful exploitation. The selected samples span diverse
+vulnerability types including Remote Code Execution, Prototype Pollution, Command Injection,
+Path Traversal, and Regular Expression Denial of Service.
+PatchEval.PatchEval [ 44] is a multi-language vulnerability benchmark, originally designed for
+patch evaluation but equally suitable for reproduction due to its Dockerized sandbox environments
+with PoC tests. The benchmark comprises 1,000 vulnerabilities sourced from CVEs reported between
+2015 and 2025, covering 65 distinct CWE categories across Go, JavaScript, and Python. We use
+the reproducible subset of 230 CVEs that are equipped with Dockerized sandbox environments
+enabling runtime validation through both PoC tests and unit tests. Each entry contains the CVE
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 11 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 11
+identifier and description, CWE information, vulnerable and fixed code snippets, patch diffs, and
+test commands for reproduction.
+4.3 Baselines
+We compareCve2PoCagainst three representative approaches for automated vulnerability repro-
+duction and PoC generation.
+PoCGen[ 37] is a state-of-the-art approach for generating PoC exploits for npm package vul-
+nerabilities. It combines large language models with static and dynamic analyses to extract code
+evidence, generate candidate exploits, and validate whether the exploit reproduces the vulnerability.
+OpenHands[ 42] is an open platform for building AI software developers as generalist agents.
+We adapt OpenHands to our vulnerability reproduction task by providing CVE descriptions and
+source code context, configuring it to iteratively generate and execute candidate PoCs.
+CAI[ 23] is a cybersecurity-oriented agent framework designed for offensive security workflows
+including reconnaissance, exploitation, and PoC generation. We configure CAI with the same
+execution environment and verification interface asCve2PoCto ensure fair comparison.
+4.4 Evaluation Metrics
+Following previous work on automated software testing [7, 22], we employ multiple metrics to
+evaluate effectiveness and efficiency.
+Effectiveness Metrics.Reproduction Success Rate measures the percentage of vulnerabilities for
+which the system successfully generates an executable PoC that triggers the expected vulnerability
+behavior. A PoC is considered successful if it executes without errors, triggers the vulnerability
+verified by our oracle, and completes within the time budget.
+Efficiency Metrics.Average Execution Time measures the end-to-end time from CVE input to
+final PoC generation. Token Consumption measures the total tokens processed by the backbone
+LLM during the reproduction process.
+4.5 Implementation Details
+We implementCve2PoCin Python 3.11 and manage dependencies using Conda. All experiments
+are conducted on a workstation equipped with an Intel Core i9-12900K CPU, an NVIDIA RTX
+3090 GPU with 24GB memory, 32GB DDR4 RAM, and 2TB NVMe storage. To ensure safety and
+reproducibility, all PoC executions are sandboxed in lightweight Docker containers with strict
+resource limits and network isolation. We set a hard timeout of 600 seconds per CVE and limit the
+refinement iterations to 3 strategic and 5 tactical cycles.
+For RQ1 and RQ2, we use DeepSeek-V3.2 [8] as the backbone LLM for bothCve2PoCand all
+baselines, ensuring fair comparison of system designs. All models are configured with temperature
+0.1 and maximum token limit of 128K.
+For RQ3, we conduct impact analysis using a stratified sample of 100 CVEs. We evaluate three
+LLM backbones including GPT-5.2 [27] and two open-source models (Qwen3-Coder-30B [31] and
+GPT-OSS-20B [28]) deployed locally using Ollama. We also analyze the impact of vulnerability
+type, CVE publication year, description length, and code complexity on reproduction performance.
+5 Experimental Results
+This section presents our experimental results and answers the four RQs outlined in § 4.1.
+5.1 RQ1: Comparison with Baselines
+To answer RQ1, we compare the performance ofCve2PoCwith three state-of-the-art baselines:
+PoCGen [37], OpenHands [42], and CAI [ 23]. Table 3 presents the comprehensive comparison
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 12 ---
+12 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+Table 3. Comprehensive comparison ofCve2PoCwith baselines on SecBench.js and PatchEval benchmarks.
+RSR denotes Reproduction Success Rate. The breakdown shows performance across vulnerability types and
+programming languages.
+Method
+SecBench.js (387 CVEs) PatchEval (230 CVEs)
+Overall By Vulnerability Type (%) Overall By Language (%)
+RSR (%) Tokens (M) PP CI CodeI ReDoS PT RSR (%) Tokens (M) Python Go JS
+PoCGen [37] 7.8 13.2 0.0 0.0 0.0 0.0 37.5 - - - - -
+OpenHands [42] 55.8 17.3 72.8 70.9 45.0 14.0 41.2 22.2 101.3 14.3 24.1 27.3
+CAI [23] 71.6 96.0 74.8 84.8 55.0 50.971.233.9 98.6 25.7 16.9 59.7
+Cve2PoC82.9 6.1 96.0 88.6 90.0 89.546.254.3 10.0 52.9 47.0 63.6
+Note: PP = Prototype Pollution (151), CI = Command Injection (79), CodeI = Code Injection (20), ReDoS (57), PT = Path Traversal
+(80), JS = JavaScript. Best results are inbold.
+including overall Reproduction Success Rate, Token Consumption, and detailed breakdown by
+vulnerability types and programming languages. We make four key observations from these results:
+(1)Cve2PoCachieves the highest reproduction success rate across both datasets.As
+shown in Table 3,Cve2PoCachieves an RSR of82.9%on SecBench.js, outperforming the best
+baseline CAI by11.3%absolute improvement. On PatchEval,Cve2PoCdemonstrates strong multi-
+language generalization with an RSR of54.3%, surpassing CAI by 20.4% and OpenHands by 32.1%.
+PoCGen, which is specialized for npm vulnerabilities, achieves only 7.8% on SecBench.js and cannot
+generalize to PatchEval at all.
+(2)Cve2PoCdemonstrates superior performance across diverse vulnerability types.
+Cve2PoCachieves the highest success rate in 4 out of 5 vulnerability categories on SecBench.js. For
+Prototype Pollution,Cve2PoCachieves 96.0% compared to 74.8% of CAI and 72.8% of OpenHands.
+For Code Injection,Cve2PoCachieves 90.0% compared to 55.0% of CAI and 45.0% of OpenHands.
+For ReDoS vulnerabilities,Cve2PoCachieves 89.5% while OpenHands drops to only 14.0%. The
+only category where CAI outperformsCve2PoCis Path Traversal (71.2% vs 46.2%), likely due to its
+specialized security tooling.
+(3)Cve2PoCexhibits robust cross-language generalization capability.On PatchEval,
+Cve2PoCmaintains consistently high performance across Python, Go, and JavaScript ecosystems.
+Cve2PoCachieves 52.9% on Python vulnerabilities, doubling the 25.7% of CAI and nearly quadru-
+pling the 14.3% of OpenHands. For Go vulnerabilities,Cve2PoCachieves 47.0% compared to 24.1%
+of OpenHands and 16.9% of CAI. This demonstrates the effectiveness of our autonomous planning
+and multi-environment execution in adapting to different language ecosystems.
+(4)Cve2PoCachieves higher efficiency with lower token consumption.Cve2PoCcon-
+sumes only6.1M tokenson SecBench.js, which is16 × fewerthan the 96.0M tokens of CAI while
+achieving higher success rate. On PatchEval,Cve2PoCuses only10.0M tokenscompared to 98.6M
+of CAI and 101.3M of OpenHands, representing a10 × reduction. This efficiency stems from our
+progressive multi-layer oracle that avoids expensive LLM verification when simpler checks suffice,
+and our sparse experience indexing that prevents redundant context injection.
+Answer to RQ1:Cve2PoCachieves 82.9% RSR on SecBench.js and 54.3% on PatchEval, outper-
+forming the best baseline CAI by 11.3% and 20.4% respectively.
+5.2 RQ2: Module Contribution Analysis
+To answer RQ2, we conduct ablation studies aligned with our three-module architecture to investi-
+gate the contribution of each module to the reproduction success rate. Following our methodology
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 13 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 13
+Table 4. Ablation study results on SecBench.js (387 CVEs).
+Variant RSR (%)ΔRSR Time (s) Tokens (M)
+Cve2PoC(Full)82.9- 132.7 6.1
+w/oStrategic Planner53.7 -29.2%46.2 2.9
+w/oAdaptive Refiner59.7 -23.2% 79.2 6.1
+w/o LLM Oracle 75.2 -7.7% 123.9 10.5
+design, we perform module-level ablations forStrategic PlannerandAdaptive Refiner, and
+mechanism-level ablation for the LLM Oracle withinTactical Executor. Table 4 presents the
+ablation study results on SecBench.js.
+5.2.1Strategic Planner.To investigate the impact of strategic planning, we deploy a variant
+that removes theStrategic Plannermodule entirely (w/oStrategic Planner). In this variant,
+the system directly generates PoC code from CVE descriptions without producing structured
+vulnerability insights, code evidence, or exploitation plans. As shown in Table 4, removing the
+Strategic Plannerresults in a substantial drop in RSR from 82.9% to 53.7%, representing a 29.2%
+absolute decrease. Analysis of failure cases reveals a fundamental shift in failure patterns: while
+the full system primarily fails due to code-level bugs that can be iteratively fixed, the ablated
+variant predominantly fails due to strategy-level errors such as targeting wrong attack vectors,
+misunderstanding vulnerability mechanisms, or selecting inappropriate exploitation techniques.
+This demonstrates thatStrategic Planneris the most critical module because it provides high-
+level vulnerability semantics understanding, structured attack strategies, and concrete exploitation
+blueprints that guide downstream code generation. Without these strategic foundations, the system
+cannot effectively navigate the complex search space of vulnerability reproduction.
+5.2.2Adaptive Refiner.To explore the impact of adaptive refinement and memory mechanisms,
+we deploy a variant that removes theAdaptive Refinermodule (w/oAdaptive Refiner). In this
+variant, the system uses fixed-iteration naive retry without reward-driven routing, dual-dimension
+scoring, or sparse experience indexing. As shown in Table 4, the variant withoutAdaptive Refiner
+experiences a 23.2% decrease in RSR, dropping from 82.9% to 59.7%. Failure analysis reveals that this
+variant frequently becomes trapped in ineffective debugging loops, repeatedly attempting similar
+fixes for fundamentally flawed strategies. TheAdaptive Refineris essential because it maintains
+historical execution trajectories with bothTactical Score(code-level feedback) andStrategic Score
+(exploitation-level feedback), enabling the system to distinguish between fixable code errors and
+fundamental strategy failures. This dual-dimension feedback mechanism guides intelligent routing
+decisions between local refinement and global replanning.
+5.2.3 LLM Oracle.To evaluate the contribution of LLM-based verification within theTactical
+Executor, we deploy a variant that uses only static keyword matching for success verification (w/o
+LLM Oracle). As shown in Table 4, removing the LLM Oracle results in a 7.7% decrease in RSR, from
+82.9% to 75.2%, and notably consumes 1.7× more tokens. This demonstrates that static verification
+performs worse while costing more. The underlying reason is that static keyword matching cannot
+accurately interpret diverse execution outputs across different vulnerability types. Without the LLM
+Oracle’s contextual understanding, the system frequently misclassifies successful reproductions as
+failures or vice versa, leading to unnecessary retry iterations and wasted computational resources. In
+contrast, the LLM Oracle dynamically adapts its judgment criteria based on the specific vulnerability
+context, providing accurate feedback signals that enable efficient convergence.
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 14 ---
+14 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+Answer to RQ2:All three modules are essential, withStrategic Plannercontributing most
+(29.2%) andAdaptive Refinerenabling feedback routing (23.2%).
+5.3 RQ3: Impact Analysis
+To answer RQ3, we conduct an impact analysis examining how various factors affectCve2PoC’s
+reproduction performance. We investigate five key dimensions: backbone LLM choice, vulner-
+ability type, CVE publication year, description length, and code complexity. We compare three
+backbone configurations: GPT-5.2 [27] as a cloud-based commercial model, Qwen3-Coder-30B [31]
+(code-specialized), and GPT-OSS-20B [28] (general-purpose) deployed locally. All experiments are
+conducted on a stratified sample of 100 CVEs from SecBench.js (20 per vulnerability type) with
+identical system configurations.
+5.3.1 Overall Performance.GPT-5.2 achieves the highest RSR of 77.0%, followed by Qwen3-Coder-
+30B at 68.0% and GPT-OSS-20B at 66.0%. This demonstrates thatCve2PoC’s dual-loop architecture
+exhibits robust cross-backbone generalization, with open-source models reaching 88.3% of the
+cloud model’s performance, enabling practical local deployment for security-sensitive scenarios.
+Notably, Qwen3-Coder-30B outperforms GPT-OSS-20B by 2%, confirming that code-specialized
+training benefits PoC generation tasks. However, efficiency differs substantially: GPT-5.2 completes
+in 104.5s on average, while Qwen3-Coder-30B requires 587.6s (5.6 × slower) and GPT-OSS-20B
+requires 1038.5s (10×slower).
+5.3.2 Performance by Vulnerability Type.As shown in Figure 3(a), distinct performance patterns
+emerge across vulnerability types. For Prototype Pollution and Command Injection, all models
+achieve high success rates (80-95%), with GPT-5.2 leading. Interestingly, for Code Injection, both
+open-source models (90%) outperform GPT-5.2 (85%), suggesting that code-specialized training
+provides advantages for certain vulnerability patterns. ReDoS exhibits the largest performance
+gap: GPT-5.2 achieves 75% while GPT-OSS-20B drops to only 35%, indicating that complex regex
+analysis requires stronger reasoning capabilities. Path Traversal remains challenging for all models
+(35-40%), representing a common limitation that requires future improvement.
+5.3.3 Impact of Task Complexity.We further analyze how CVE characteristics affect model per-
+formance across three dimensions. As shown in Figure 3(b), older vulnerabilities (2017) prove
+more challenging with success rates of 27-44%, while recent CVEs (2019-2021) achieve 75-100%.
+This temporal effect likely reflects both evolving vulnerability patterns and training data coverage.
+As shown in Figure 3(c), GPT-5.2 excels on short descriptions (<100 chars) with 100% success,
+while open-source models show greater degradation as description length increases. As shown in
+Figure 3(d), medium-sized codebases (500-1000 lines) yield the highest success rates, while both
+very small (<200 lines) and very large (>1000 lines) codebases present challenges.
+Answer to RQ3:Reproduction performance varies by LLM backbone, vulnerability type, CVE
+year, and task complexity. Notably, open-source models achieve 88% of cloud performance,
+demonstrating architectural robustness and enabling practical local deployment.
+5.4 RQ4: Code Quality Evaluation
+To answer RQ4, we compare the code quality ofCve2PoC-generated PoCs against human-written
+ground truth PoCs through human expert evaluation.
+Evaluation Setup.From the successful reproductions in RQ1, we randomly select 100 vulnerabili-
+ties (50 from SecBench.js and 50 from PatchEval). For each vulnerability, we collect both the PoC
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 15 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 15
+Code
+Injection
+Command
+Injection
+Path
+Traversal
+Prototype
+Pollution
+ReDoS
+20%
+40%
+60%
+80%
+100%
+Success Rate by Vulnerability Type
+GPT-5.2 (Cloud)
+GPT-OSS 20B
+Qwen3-Coder 30B
+(a) By Vulnerability Type
+2017 2018 2019 2020 2021
+CVE Publication Year
+20
+40
+60
+80
+100Success Rate (%)
+Success Rate by CVE Year
+GPT-5.2 (Cloud)
+GPT-OSS 20B
+Qwen3-Coder 30B (b) By CVE Year
+<100 100-150 150-200 200-300 >300
+Description Length (chars)
+30
+40
+50
+60
+70
+80
+90
+100Success Rate (%)
+Success Rate by Description Length
+GPT-5.2 (Cloud)
+GPT-OSS 20B
+Qwen3-Coder 30B
+(c) By Description Length
+<200 200-500 500-1000 >1000
+Code Length (lines)
+40
+50
+60
+70
+80
+90
+100Success Rate (%)
+Success Rate by Code Complexity
+GPT-5.2 (Cloud)
+GPT-OSS 20B
+Qwen3-Coder 30B (d) By Code Complexity
+Fig. 3. Impact analysis across different dimensions. (a) Performance varies by vulnerability type, with open-
+source models surpassing cloud on Code Injection. (b) Older CVEs are harder to reproduce. (c) Shorter
+descriptions favor cloud models. (d) Medium-sized codebases yield optimal results.
+generated byCve2PoCand the ground truth PoC provided in the dataset, yielding 200 PoCs in
+total. To eliminate potential bias from recognizing generation patterns, we mix all 200 PoCs and
+randomize their presentation order.
+We evaluate three dimensions of code quality using a 1-to-5 Likert scale (5 for excellent, 4 for good,
+3 for acceptable, 2 for marginal, 1 for poor): (1)Readability, whether the code is well-structured
+with clear variable naming and logical flow; (2)Reusability, whether the code is parameterized,
+configurable, and easily adaptable for similar vulnerabilities; (3)Professionalism, whether the
+code follows security research best practices with appropriate comments, error handling, and clear
+exploitation logic.
+We recruit three cybersecurity professionals for human evaluation: two penetration testing
+engineers with five years of industry experience and one PhD student in cybersecurity with four
+years of research experience. First, the three evaluators complete a pilot training session in which
+they jointly discuss 10 example PoCs (which are not included in the 100 vulnerabilities used
+for evaluation) to establish a shared understanding of the scoring criteria. Then, each evaluator
+independently scores individual PoCs without knowing their source, ensuring absolute rather than
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 16 ---
+16 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+comparative ratings. For each sample, evaluators receive: (1) the CVE description, (2) the relevant
+source code of the vulnerable software, and (3) the PoC code to be evaluated.
+Results.Each evaluator completes the evaluation in around 4 hours, resulting in a total of 1,800
+individual ratings (3 evaluators × 200 PoCs × 3 dimensions). For each PoC, we compute the score of
+each dimension by averaging across all three evaluators. Since each dataset contains 50 CVEs with
+two PoCs per CVE (one ground truth and one generated), the final score for each dataset-source
+combination is computed by averaging across the corresponding 50 PoCs. Table 5 presents the
+human evaluation results.
+On SecBench.js,Cve2PoC-generated PoCs achieve higher average scores than ground truth
+(3.91 vs 3.60). The improvement is most pronounced in Reusability, whereCve2PoCscores 3.87
+compared to 3.21 for ground truth, representing a 20.6% improvement. This is because generated
+PoCs tend to be more parameterized and configurable. On PatchEval,Cve2PoCalso achieves higher
+average scores than ground truth (3.86 vs 3.75). The advantage is primarily in Readability (3.96 vs
+3.74) and Reusability (3.76 vs 3.38), while ground truth maintains a slight edge in Professionalism
+(4.12 vs 3.85) due to more sophisticated error handling and domain-specific edge case coverage.
+Notably,Cve2PoCoutperforms ground truth in Readability across both datasets, with 14.6%
+improvement on SecBench.js (4.15 vs 3.62) and 5.9% on PatchEval (3.96 vs 3.74), indicating that
+LLM-generated code tends to have cleaner structure and more consistent naming conventions.
+Table 5. Code quality comparison betweenCve2PoC-generated and ground truth PoCs. All scores are on a
+1-5 Likert scale based on human expert evaluation.
+Dataset Source Read. Reus. Prof. Avg.
+SecBench.js Ground Truth 3.62 3.213.983.60
+Cve2PoC4.15 3.873.723.91
+PatchEval Ground Truth 3.74 3.384.123.75
+Cve2PoC3.96 3.763.853.86
+Answer to RQ4:Cve2PoC-generated PoCs achieve comparable code quality to human-written
+ground truth, with consistent advantages in Readability and Reusability.
+6 Discussion
+6.1 Why DoesCve2PoCWork?
+We attribute the effectiveness ofCve2PoCto two key mechanisms, illustrated through a represen-
+tative case study.
+Observation 1: Reward-driven routing enables adaptive recovery through three distinct
+pathways.TheAdaptive Refineruses dual-dimension rewards (Tactical ScoreandStrategic Score)
+to determine the recovery route:refinefor near-success cases,resynthesizefor code-level issues,
+andreplanfor strategy-level failures.
+We take CVE-2020-28273 as an example to illustrate this mechanism. This vulnerability is
+a prototype pollution in the set-in npm package, where user-controlled paths can pollute
+Object.prototype. As shown in Table 6, the system went through 5 iterations with all three
+routing decisions before successfully reproducing the vulnerability.
+In Iteration 0, the code reached the vulnerability point but the payload failed to pollute the
+prototype. The highStrategic Score(8.0) indicated near-success, so the system choserefineto
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 17 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 17
+Table 6. Execution trajectory for CVE-2020-28273 (Prototype Pollution inset-inpackage).
+Iter State Tac. Str. Feedback Improvement Hints Route
+0 partial_exec 0.0 8.0 Payload failed but reached vuln point.
+Output:"pollution not achieved"
+Adjust payload format.
+Tryconstructor.prototypepath.
+refine
+1 module_error−1.00.0Cannot find module ’set-in’.
+PoC cannot start.
+Ensure module installed.
+Check script paths.
+resynth
+2 no_progress 0.0 0.0 Steps skipped (KnownFailure).
+Exit code: None.
+Resolve env config.
+Verify package path.
+replan
+3 no_progress 0.0 0.0 Consecutive failures detected.
+System triggers fallback.
+Switch to Node executor.
+Use pre-configured env.
+replan
+4 exploited 0.8 8.0 Node execution succeeded!
+Object.prototype.polluted="yes"
+– success
+adjust the payload format. Iteration 1 encountered a module loading error (Tactical Score=−1.0),
+triggeringresynthesizeto regenerate the PoC. Iterations 2-3 showed no progress due to environment
+issues, leading to consecutivereplandecisions that ultimately triggered the fallback mechanism. In
+Iteration 4, the system switched to a pre-configured Node environment and successfully confirmed
+the prototype pollution.
+Observation 2: Sparse experience indexing reduces token consumption while maintain-
+ing effectiveness.The IndexedRewardStore in § 3.4 retrieves relevant past experiences based
+on vulnerability type and error patterns, injecting historical insights into the planning process to
+avoid redundant exploration. Table 7 evaluates the impact of experience indexing.
+Table 7. Effect of sparse experience indexing.
+Configuration RSR (%) Tokens (M) Avg Iters Avg Time (s)
+Cve2PoC(full) 82.9 6.1 1.8 132
+w/o Experience Indexing 72.1 (−10.8) 9.9 (+62%) 2.9 (+61%) 198 (+50%)
+When experience indexing is disabled, the reproduction success rate drops by 10.8% points, while
+token consumption increases by 62% and average execution time increases from 132 to 198 seconds.
+The average number of iterations also increases from 1.8 to 2.9, indicating that the system requires
+more attempts to converge. These results demonstrate that sparse experience indexing significantly
+accelerates convergence by providing relevant historical context.
+6.2 Key Differences from Existing Methods
+Table 8 comparesCve2PoCwith the baseline methods introduced in § 4.3.Cve2PoCis the only
+method that provides strategic planning through dual-loop architecture, enabling replanning when
+tactical approaches fail. It is also unique in offering dual-dimension reward signals for fine-grained
+routing decisions (refine/resynthesize/replan) and sparse experience indexing that reduces token
+consumption by 62% while avoiding context inflation. Additionally,Cve2PoCsupports dynamic
+executor selection to handle environment-specific issues across multiple languages.
+7 Threats to Validity
+Baseline Selection.We compareCve2PoCagainst three baseline methods: PoCGen, CAI, and
+OpenHands. PoCGen is specifically designed for npm package vulnerabilities, CAI is a security-
+focused LLM agent, and OpenHands is a general-purpose software engineering agent. These
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 18 ---
+18 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+Table 8. Comparison ofCve2PoCwith existing methods.
+Capability PoCGen CAI OpenHandsCve2PoC
+Strategic Planning× × ×✓
+Code Analysis Static Limited LLM LLM
+Sandbox Execution Limited Docker Docker Dynamic
+Feedback Signal None Binary Binary Dual-dim
+Route Decision None None None 3 routes
+Experience Reuse None Context Context Sparse Index
+Language Support npm Multi Multi Multi
+baselines may not fully represent all existing vulnerability reproduction approaches, and future
+work will extend comparisons to additional tools.
+Dataset Selection.Our evaluation uses SecBench.js and PatchEval, which cover JavaScript, Python,
+and Go ecosystems. The results may not fully generalize to other languages like C/C++ or Java,
+which have different build systems and memory models. The reliance on existing benchmarks also
+limits coverage to documented CVEs with available source code.
+Metric Selection.Reproduction Success Rate measures functional correctness but does not capture
+PoC quality or minimality. A generated PoC may successfully trigger the vulnerability but contain
+redundant code or lack readability. While RQ4 provides additional quality evaluation, our metrics
+may still not fully reflect practical usefulness in real-world security assessments.
+8 Related Work
+LLMs for Security.LLMs have transformed security research by enabling comprehension of
+natural language vulnerability descriptions. Foundation models [12, 17, 32] and security-specific
+variants [14, 18] support vulnerability classification and localization. LLM-based detection [38, 39]
+and repair systems [15, 49] demonstrate semantic understanding but focus on static analysis without
+execution feedback. Agent architectures [36, 41, 43, 47] enable iterative reasoning, while multi-agent
+systems [20, 42, 46] and memory mechanisms [29, 50] extend these ideas to complex software tasks.
+Automated PoC Generation.Several systems target PoC generation from vulnerability descrip-
+tions. PoCGen [37] combines LLMs with program analysis in npm ecosystem, while CVE-GENIE [40]
+coordinates multi-agent collaboration through resource gathering, environment reconstruction,
+and exploit generation phases. Recent work explores multi-agent teams for complex exploits [52]
+and modular LLM frameworks with analysis-generation-verification pipelines [30]. Process-based
+feedback [45, 51] enables iterative refinement. OpenHands [ 42] provides an agent adaptable to
+software engineering tasks, while CAI [ 23] offers security-focused tooling. However, these ap-
+proaches lack structured pre-analysis, employ unreliable verification, and use flat decision-making
+that conflates strategic and tactical errors [22, 36].Cve2PoCaddresses these through dual-loop
+architecture with progressive verification and sparse experience indexing.
+9 Conclusion
+In this paper, we introducedCve2PoC, a dual-loop agent framework for automated PoC generation
+from CVE descriptions.Cve2PoCconsists of three modules:Strategic Plannerfor vulnerability
+analysis and attack planning,Tactical Executorfor PoC synthesis and progressive verification,
+andAdaptive Refinerfor reward-driven feedback routing and sparse experience indexing. Ex-
+perimental results on 617 real-world vulnerabilities demonstrate thatCve2PoCachieves 82.9%
+reproduction success rate on SecBench.js and 54.3% on PatchEval, outperforming the best baseline
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 19 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 19
+by 11.3% and 20.4% respectively while consuming significantly fewer tokens. Impact analysis reveals
+robust performance across different LLM backbones, vulnerability types, and task complexities.
+Human evaluation confirms that generated PoCs achieve comparable code quality to human-written
+exploits in readability and reusability.
+References
+[1] Vivi Andersson, Sofia Bobadilla, Harald Hobbelhagen, and Martin Monperrus. 2025. PoCo: Agentic Proof-of-Concept
+Exploit Generation for Smart Contracts. arXiv:2511.02780 [cs.CR] https://arxiv.org/abs/2511.02780
+[2] Thanassis Avgerinos, Sang Kil Cha, Brent Lim Tze Hao, and David Brumley. 2011. AEG: Automatic Exploit Generation.
+InProceedings of the Network and Distributed System Security Symposium, NDSS 2011, San Diego, California, USA,
+6th February - 9th February 2011. The Internet Society. https://www.ndss-symposium.org/ndss2011/aeg-automatic-
+exploit-generation
+[3] Masudul Hasan Masud Bhuiyan, Adithya Srinivas Parthasarathy, Nikos Vasilakis, Michael Pradel, and Cristian-
+Alexandru Staicu. 2023. SecBench.js: An Executable Security Benchmark Suite for Server-Side JavaScript. In45th
+IEEE/ACM International Conference on Software Engineering, ICSE 2023, Melbourne, Australia, May 14-20, 2023. IEEE,
+1059–1070. doi:10.1109/ICSE48619.2023.00096
+[4] Cristian Cadar, Daniel Dunbar, and Dawson R. Engler. 2008. KLEE: Unassisted and Automatic Generation of High-
+Coverage Tests for Complex Systems Programs. In8th USENIX Symposium on Operating Systems Design and Imple-
+mentation, OSDI 2008, December 8-10, 2008, San Diego, California, USA, Proceedings, Richard Draves and Robbert van
+Renesse (Eds.). USENIX Association, 209–224. http://www.usenix.org/events/osdi08/tech/full_papers/cadar/cadar.pdf
+[5] Cristiano Calcagno, Dino Distefano, Jérémy Dubreil, Dominik Gabi, Pieter Hooimeijer, Martino Luca, Peter W. O’Hearn,
+Irene Papakonstantinou, Jim Purbrick, and Dulma Rodriguez. 2015. Moving Fast with Software Verification. InNASA
+Formal Methods - 7th International Symposium, NFM 2015, Pasadena, CA, USA, April 27-29, 2015, Proceedings (Lecture
+Notes in Computer Science, Vol. 9058), Klaus Havelund, Gerard J. Holzmann, and Rajeev Joshi (Eds.). Springer, 3–11.
+doi:10.1007/978-3-319-17524-9_1
+[6] Sang Kil Cha, Thanassis Avgerinos, Alexandre Rebert, and David Brumley. 2012. Unleashing Mayhem on Binary Code.
+InIEEE Symposium on Security and Privacy, SP 2012, 21-23 May 2012, San Francisco, California, USA. IEEE Computer
+Society, 380–394. doi:10.1109/SP.2012.31
+[7] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira Pinto, Jared Kaplan, Harri Edwards,
+Yuri Burda, Nicholas Joseph, Greg Brockman, Alex Ray, Raul Puri, Gretchen Krueger, Michael Petrov, Heidy Khlaaf,
+Girish Sastry, Pamela Mishkin, Brooke Chan, Scott Gray, Nick Ryder, Mikhail Pavlov, Alethea Power, Lukasz Kaiser,
+Mohammad Bavarian, Clemens Winter, Philippe Tillet, Felipe Petroski Such, Dave Cummings, Matthias Plappert,
+Fotios Chantzis, Elizabeth Barnes, Ariel Herbert-Voss, William Hebgen Guss, Alex Nichol, Alex Paino, Nikolas Tezak,
+Jie Tang, Igor Babuschkin, Suchir Balaji, Shantanu Jain, William Saunders, Christopher Hesse, Andrew N. Carr, Jan
+Leike, Josh Achiam, Vedant Misra, Evan Morikawa, Alec Radford, Matthew Knight, Miles Brundage, Mira Murati, Katie
+Mayer, Peter Welinder, Bob McGrew, Dario Amodei, Sam McCandlish, Ilya Sutskever, and Wojciech Zaremba. 2021.
+Evaluating Large Language Models Trained on Code. arXiv:2107.03374 [cs.LG] https://arxiv.org/abs/2107.03374
+[8] DeepSeek-AI, Aixin Liu, Aoxue Mei, Bangcai Lin, Bing Xue, Bingxuan Wang, Bingzheng Xu, Bochao Wu, Bowei
+Zhang, Chaofan Lin, Chen Dong, Chengda Lu, Chenggang Zhao, Chengqi Deng, Chenhao Xu, Chong Ruan, Damai
+Dai, Daya Guo, Dejian Yang, Deli Chen, Erhang Li, Fangqi Zhou, Fangyun Lin, Fucong Dai, Guangbo Hao, Guanting
+Chen, Guowei Li, H. Zhang, Hanwei Xu, Hao Li, Haofen Liang, Haoran Wei, Haowei Zhang, Haowen Luo, Haozhe Ji,
+Honghui Ding, Hongxuan Tang, Huanqi Cao, Huazuo Gao, Hui Qu, Hui Zeng, Jialiang Huang, Jiashi Li, Jiaxin Xu,
+Jiewen Hu, Jingchang Chen, Jingting Xiang, Jingyang Yuan, Jingyuan Cheng, Jinhua Zhu, Jun Ran, Junguang Jiang,
+Junjie Qiu, Junlong Li, Junxiao Song, Kai Dong, Kaige Gao, Kang Guan, Kexin Huang, Kexing Zhou, Kezhao Huang,
+Kuai Yu, Lean Wang, Lecong Zhang, Lei Wang, Liang Zhao, Liangsheng Yin, Lihua Guo, Lingxiao Luo, Linwang Ma,
+Litong Wang, Liyue Zhang, M. S. Di, M. Y Xu, Mingchuan Zhang, Minghua Zhang, Minghui Tang, Mingxu Zhou,
+Panpan Huang, Peixin Cong, Peiyi Wang, Qiancheng Wang, Qihao Zhu, Qingyang Li, Qinyu Chen, Qiushi Du, Ruiling
+Xu, Ruiqi Ge, Ruisong Zhang, Ruizhe Pan, Runji Wang, Runqiu Yin, Runxin Xu, Ruomeng Shen, Ruoyu Zhang, S. H. Liu,
+Shanghao Lu, Shangyan Zhou, Shanhuang Chen, Shaofei Cai, Shaoyuan Chen, Shengding Hu, Shengyu Liu, Shiqiang
+Hu, Shirong Ma, Shiyu Wang, Shuiping Yu, Shunfeng Zhou, Shuting Pan, Songyang Zhou, Tao Ni, Tao Yun, Tian Pei,
+Tian Ye, Tianyuan Yue, Wangding Zeng, Wen Liu, Wenfeng Liang, Wenjie Pang, Wenjing Luo, Wenjun Gao, Wentao
+Zhang, Xi Gao, Xiangwen Wang, Xiao Bi, Xiaodong Liu, Xiaohan Wang, Xiaokang Chen, Xiaokang Zhang, Xiaotao
+Nie, Xin Cheng, Xin Liu, Xin Xie, Xingchao Liu, Xingkai Yu, Xingyou Li, Xinyu Yang, Xinyuan Li, Xu Chen, Xuecheng
+Su, Xuehai Pan, Xuheng Lin, Xuwei Fu, Y. Q. Wang, Yang Zhang, Yanhong Xu, Yanru Ma, Yao Li, Yao Li, Yao Zhao,
+Yaofeng Sun, Yaohui Wang, Yi Qian, Yi Yu, Yichao Zhang, Yifan Ding, Yifan Shi, Yiliang Xiong, Ying He, Ying Zhou,
+Yinmin Zhong, Yishi Piao, Yisong Wang, Yixiao Chen, Yixuan Tan, Yixuan Wei, Yiyang Ma, Yiyuan Liu, Yonglun Yang,
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 20 ---
+20 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+Yongqiang Guo, Yongtong Wu, Yu Wu, Yuan Cheng, Yuan Ou, Yuanfan Xu, Yuduan Wang, Yue Gong, Yuhan Wu,
+Yuheng Zou, Yukun Li, Yunfan Xiong, Yuxiang Luo, Yuxiang You, Yuxuan Liu, Yuyang Zhou, Z. F. Wu, Z. Z. Ren, Zehua
+Zhao, Zehui Ren, Zhangli Sha, Zhe Fu, Zhean Xu, Zhenda Xie, Zhengyan Zhang, Zhewen Hao, Zhibin Gou, Zhicheng
+Ma, Zhigang Yan, Zhihong Shao, Zhixian Huang, Zhiyu Wu, Zhuoshu Li, Zhuping Zhang, Zian Xu, Zihao Wang, Zihui
+Gu, Zijia Zhu, Zilin Li, Zipeng Zhang, Ziwei Xie, Ziyi Gao, Zizheng Pan, Zongqing Yao, Bei Feng, Hui Li, J. L. Cai, Jiaqi
+Ni, Lei Xu, Meng Li, Ning Tian, R. J. Chen, R. L. Jin, S. S. Li, Shuang Zhou, Tianyu Sun, X. Q. Li, Xiangyue Jin, Xiaojin
+Shen, Xiaosha Chen, Xinnan Song, Xinyi Zhou, Y. X. Zhu, Yanping Huang, Yaohui Li, Yi Zheng, Yuchen Zhu, Yunxian
+Ma, Zhen Huang, Zhipeng Xu, Zhongyu Zhang, Dongjie Ji, Jian Liang, Jianzhong Guo, Jin Chen, Leyi Xia, Miaojun
+Wang, Mingming Li, Peng Zhang, Ruyi Chen, Shangmian Sun, Shaoqing Wu, Shengfeng Ye, T. Wang, W. L. Xiao, Wei
+An, Xianzu Wang, Xiaowen Sun, Xiaoxiang Wang, Ying Tang, Yukun Zha, Zekai Zhang, Zhe Ju, Zhen Zhang, and
+Zihua Qu. 2025. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556 [cs.CL]
+https://arxiv.org/abs/2512.02556
+[9] Gelei Deng, Yi Liu, Víctor Mayoral-Vilches, Peng Liu, Yuekang Li, Yuan Xu, Tianwei Zhang, Yang Liu, Martin Pinzger,
+and Stefan Rass. 2024. PentestGPT: An LLM-empowered Automatic Penetration Testing Tool. arXiv:2308.06782 [cs.SE]
+https://arxiv.org/abs/2308.06782
+[10] Dino Distefano, Manuel Fähndrich, Francesco Logozzo, and Peter W. O’Hearn. 2019. Scaling static analyses at Facebook.
+Commun. ACM62, 8 (2019), 62–70. doi:10.1145/3338112
+[11] Richard Fang, Rohan Bindu, Akul Gupta, and Daniel Kang. 2024. LLM Agents can Autonomously Exploit One-day
+Vulnerabilities. arXiv:2404.08144 [cs.CR] https://arxiv.org/abs/2404.08144
+[12] Zhangyin Feng, Daya Guo, Duyu Tang, Nan Duan, Xiaocheng Feng, Ming Gong, Linjun Shou, Bing Qin, Ting Liu,
+Daxin Jiang, and Ming Zhou. 2020. CodeBERT: A Pre-Trained Model for Programming and Natural Languages.
+arXiv:2002.08155 [cs.CL] https://arxiv.org/abs/2002.08155
+[13] Andrea Fioraldi, Dominik Christian Maier, Heiko Eißfeldt, and Marc Heuse. 2020. AFL++ : Combining Incremental Steps
+of Fuzzing Research. In14th USENIX Workshop on Offensive Technologies, WOOT 2020, August 11, 2020, Yuval Yarom
+and Sarah Zennou (Eds.). USENIX Association. https://www.usenix.org/conference/woot20/presentation/fioraldi
+[14] Michael Fu and Chakkrit Tantithamthavorn. 2022. LineVul: A Transformer-based Line-Level Vulnerability Prediction.
+In2022 IEEE/ACM 19th International Conference on Mining Software Repositories (MSR). 608–620. doi:10.1145/3524842.
+3528452
+[15] Michael Fu, Chakkrit Tantithamthavorn, Trung Le, Van Nguyen, and Dinh Phung. 2022. VulRepair: a T5-based
+automated software vulnerability repair. InProceedings of the 30th ACM Joint European Software Engineering Conference
+and Symposium on the Foundations of Software Engineering(Singapore, Singapore)(ESEC/FSE 2022). Association for
+Computing Machinery, New York, NY, USA, 935–947. doi:10.1145/3540250.3549098
+[16] GitHub. 2019. CodeQL. https://github.com/github/codeql.
+[17] Daya Guo, Shuo Ren, Shuai Lu, Zhangyin Feng, Duyu Tang, Shujie Liu, Long Zhou, Nan Duan, Alexey Svyatkovskiy,
+Shengyu Fu, Michele Tufano, Shao Kun Deng, Colin Clement, Dawn Drain, Neel Sundaresan, Jian Yin, Daxin Jiang,
+and Ming Zhou. 2021. GraphCodeBERT: Pre-training Code Representations with Data Flow. arXiv:2009.08366 [cs.SE]
+https://arxiv.org/abs/2009.08366
+[18] Hazim Hanif and Sergio Maffeis. 2022. VulBERTa: Simplified Source Code Pre-Training for Vulnerability Detection. In
+2022 International Joint Conference on Neural Networks (IJCNN). 1–8. doi:10.1109/IJCNN55064.2022.9892280
+[19] Julius Henke. 2025. AutoPentest: Enhancing Vulnerability Management With Autonomous LLM Agents.
+arXiv:2505.10321 [cs.CR] https://arxiv.org/abs/2505.10321
+[20] Sirui Hong, Mingchen Zhuge, Jonathan Chen, Xiawu Zheng, Yuheng Cheng, Jinlin Wang, Ceyao Zhang, Zili Wang,
+Steven Ka Shing Yau, Zijuan Lin, Liyang Zhou, Chenyu Ran, Lingfeng Xiao, Chenglin Wu, and Jürgen Schmidhuber. 2024.
+MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework. InThe Twelfth International Conference on
+Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024. OpenReview.net. https://openreview.net/forum?
+id=VtmBAGCN7o
+[21] He Kong, Die Hu, Jingguo Ge, Liangxiong Li, Tong Li, and Bingzhen Wu. 2025. VulnBot: Autonomous Penetration
+Testing for A Multi-Agent Collaborative Framework. arXiv:2501.13411 [cs.SE] https://arxiv.org/abs/2501.13411
+[22] Jiawei Liu, Chunqiu Steven Xia, Yuyao Wang, and Lingming Zhang. 2023. Is Your Code Generated by ChatGPT
+Really Correct? Rigorous Evaluation of Large Language Models for Code Generation. arXiv:2305.01210 [cs.SE]
+https://arxiv.org/abs/2305.01210
+[23] Víctor Mayoral-Vilches, Luis Javier Navarrete-Lozano, María Sanz-Gómez, Lidia Salas Espejo, Martiño Crespo-Álvarez,
+Francisco Oca-Gonzalez, Francesco Balassone, Alfonso Glera-Picón, Unai Ayucar-Carbajo, Jon Ander Ruiz-Alcalde,
+Stefan Rass, Martin Pinzger, and Endika Gil-Uriarte. 2025. CAI: An Open, Bug Bounty-Ready Cybersecurity AI.
+arXiv:2504.06017 [cs.CR] https://arxiv.org/abs/2504.06017
+[24] Aleksandr Misonizhnik, Sergey Morozov, Yurii Kostyukov, Vladislav Kalugin, Aleksei Babushkin, Dmitry Mordvinov,
+and Dmitry Ivanov. 2024. KLEEF: Symbolic Execution Engine (Competition Contribution). InFundamental Approaches
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 21 ---
+A Dual-Loop Agent Framework for Automated Vulnerability Reproduction 21
+to Software Engineering: 27th International Conference, FASE 2024, Held as Part of the European Joint Conferences on
+Theory and Practice of Software, ETAPS 2024, Luxembourg City, Luxembourg, April 6–11, 2024, Proceedings(Luxembourg
+City, Luxembourg). Springer-Verlag, Berlin, Heidelberg, 314–319. doi:10.1007/978-3-031-57259-3_18
+[25] Dongliang Mu, Alejandro Cuevas, Limin Yang, Hang Hu, Xinyu Xing, Bing Mao, and Gang Wang. 2018. Understanding
+the reproducibility of crowd-reported security vulnerabilities. InProceedings of the 27th USENIX Conference on Security
+Symposium(Baltimore, MD, USA)(SEC’18). USENIX Association, USA, 919–936.
+[26] National Institute of Standards and Technology (NIST). 2025. NVD Dashboard – 2025 Vulnerability Statistics. https:
+//nvd.nist.gov/general/visualizations/vulnerability-visualizations.
+[27] OpenAI. 2025. GPT-5 System Card. https://openai.com/index/introducing-gpt-5/.
+[28] OpenAI. 2025. GPT-OSS: Open-Weight Language Models. https://github.com/openai/gpt-oss.
+[29] Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. 2024.
+MemGPT: Towards LLMs as Operating Systems. arXiv:2310.08560 [cs.AI] https://arxiv.org/abs/2310.08560
+[30] Wanzong Peng, Lin Ye, Xuetao Du, Hongli Zhang, Dongyang Zhan, Yunting Zhang, Yicheng Guo, and Chen Zhang.
+2025. PwnGPT: Automatic Exploit Generation Based on Large Language Models. InProceedings of the 63rd Annual
+Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), Wanxiang Che, Joyce Nabende,
+Ekaterina Shutova, and Mohammad Taher Pilehvar (Eds.). Association for Computational Linguistics, Vienna, Austria,
+11481–11494. doi:10.18653/v1/2025.acl-long.562
+[31] Qwen Team, Alibaba Cloud. 2025. Qwen3-Coder: Code-Specialized Large Language Models. https://github.com/
+QwenLM/Qwen3-Coder.
+[32] Baptiste Rozière, Jonas Gehring, Fabian Gloeckle, Sten Sootla, Itai Gat, Xiaoqing Ellen Tan, Yossi Adi, Jingyu Liu, Romain
+Sauvestre, Tal Remez, Jérémy Rapin, Artyom Kozhevnikov, Ivan Evtimov, Joanna Bitton, Manish Bhatt, Cristian Canton
+Ferrer, Aaron Grattafiori, Wenhan Xiong, Alexandre Défossez, Jade Copet, Faisal Azhar, Hugo Touvron, Louis Martin,
+Nicolas Usunier, Thomas Scialom, and Gabriel Synnaeve. 2024. Code Llama: Open Foundation Models for Code.
+arXiv:2308.12950 [cs.CL] https://arxiv.org/abs/2308.12950
+[33] Semgrep, Inc. 2020. Semgrep: Lightweight Static Analysis for Many Languages. https://github.com/semgrep/semgrep.
+[34] Kosta Serebryany. 2016. Continuous Fuzzing with libFuzzer and AddressSanitizer. In2016 IEEE Cybersecurity Develop-
+ment (SecDev). 157–157. doi:10.1109/SecDev.2016.043
+[35] Ze Sheng, Zhicheng Chen, Shuning Gu, Heqing Huang, Guofei Gu, and Jeff Huang. 2025. LLMs in Software Security: A
+Survey of Vulnerability Detection Techniques and Insights. arXiv:2502.07049 [cs.CR] https://arxiv.org/abs/2502.07049
+[36] Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. 2023. Reflexion: language
+agents with verbal reinforcement learning. InAdvances in Neural Information Processing Systems 36: Annual Conference
+on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023, Alice Oh,
+Tristan Naumann, Amir Globerson, Kate Saenko, Moritz Hardt, and Sergey Levine (Eds.). http://papers.nips.cc/paper_
+files/paper/2023/hash/1b44b878bb782e6954cd888628510e90-Abstract-Conference.html
+[37] Deniz Simsek, Aryaz Eghbali, and Michael Pradel. 2025. PoCGen: Generating Proof-of-Concept Exploits for Vulnera-
+bilities in Npm Packages. arXiv:2506.04962 [cs.CR] https://arxiv.org/abs/2506.04962
+[38] Yuqiang Sun, Daoyuan Wu, Yue Xue, Han Liu, Wei Ma, Lyuye Zhang, Yang Liu, and Yingjiu Li. 2025. LLM4Vuln: A
+Unified Evaluation Framework for Decoupling and Enhancing LLMs’ Vulnerability Reasoning. arXiv:2401.16185 [cs.CR]
+https://arxiv.org/abs/2401.16185
+[39] Yuqiang Sun, Daoyuan Wu, Yue Xue, Han Liu, Haijun Wang, Zhengzi Xu, Xiaofei Xie, and Yang Liu. 2024. GPTScan:
+Detecting Logic Vulnerabilities in Smart Contracts by Combining GPT with Program Analysis. InProceedings of the
+46th IEEE/ACM International Conference on Software Engineering, ICSE 2024, Lisbon, Portugal, April 14-20, 2024. ACM,
+166:1–166:13. doi:10.1145/3597503.3639117
+[40] Saad Ullah, Praneeth Balasubramanian, Wenbo Guo, Amanda Burnett, Hammond Pearce, Christopher Kruegel, Giovanni
+Vigna, and Gianluca Stringhini. 2025. From CVE Entries to Verifiable Exploits: An Automated Multi-Agent Framework
+for Reproducing CVEs. arXiv:2509.01835 [cs.CR] https://arxiv.org/abs/2509.01835
+[41] Lei Wang, Wanyu Xu, Yihuai Lan, Zhiqiang Hu, Yunshi Lan, Roy Ka-Wei Lee, and Ee-Peng Lim. 2023. Plan-and-Solve
+Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models. InProceedings of the
+61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), Anna Rogers, Jordan
+Boyd-Graber, and Naoaki Okazaki (Eds.). Association for Computational Linguistics, Toronto, Canada, 2609–2634.
+doi:10.18653/v1/2023.acl-long.147
+[42] Xingyao Wang, Boxuan Li, Yufan Song, Frank F. Xu, Xiangru Tang, Mingchen Zhuge, Jiayi Pan, Yueqi Song, Bowen Li,
+Jaskirat Singh, Hoang H. Tran, Fuqiang Li, Ren Ma, Mingzhang Zheng, Bill Qian, Yanjun Shao, Niklas Muennighoff,
+Yizhe Zhang, Binyuan Hui, Junyang Lin, and et al. 2025. OpenHands: An Open Platform for AI Software Developers as
+Generalist Agents. InThe Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April
+24-28, 2025. OpenReview.net. https://openreview.net/forum?id=OJd3ayDDoF
+, Vol. 1, No. 1, Article . Publication date: February 2026.
+
+--- PAGE 22 ---
+22 Bin Liu, Yanjie Zhao, Zhenpeng Chen, Guoai Xu, and Haoyu Wang
+[43] Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Brian Ichter, Fei Xia, Ed Chi, Quoc Le, and Denny
+Zhou. 2023. Chain-of-Thought Prompting Elicits Reasoning in Large Language Models. arXiv:2201.11903 [cs.CL]
+https://arxiv.org/abs/2201.11903
+[44] Zichao Wei, Jun Zeng, Ming Wen, Zeliang Yu, Kai Cheng, Yiding Zhu, Jingyi Guo, Shiqi Zhou, Le Yin, Xiaodong Su,
+and Zhechao Ma. 2025. PATCHEVAL: A New Benchmark for Evaluating LLMs on Patching Real-World Vulnerabilities.
+arXiv:2511.11019 [cs.CR] https://arxiv.org/abs/2511.11019
+[45] Boyang Yang, Zijian Cai, Fengling Liu, Bach Le, Lingming Zhang, Tegawendé F. Bissyandé, Yang Liu, and Haoye
+Tian. 2025. A Survey of LLM-based Automated Program Repair: Taxonomies, Design Paradigms, and Applications.
+arXiv:2506.23749 [cs.SE] https://arxiv.org/abs/2506.23749
+[46] John Yang, Carlos E. Jimenez, Alexander Wettig, Kilian Lieret, Shunyu Yao, Karthik Narasimhan, and Ofir Press.
+2024. SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering. arXiv:2405.15793 [cs.SE]
+https://arxiv.org/abs/2405.15793
+[47] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2023. ReAct: Synergizing
+Reasoning and Acting in Language Models. arXiv:2210.03629 [cs.CL] https://arxiv.org/abs/2210.03629
+[48] Michal Zalewski. 2014. American Fuzzy Lop: A Security-Oriented Fuzzer. https://lcamtuf.coredump.cx/afl/.
+[49] Yuntong Zhang, Haifeng Ruan, Zhiyu Fan, and Abhik Roychoudhury. 2024. AutoCodeRover: Autonomous Program
+Improvement. 13 pages. doi:10.1145/3650212.3680384
+[50] Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu Lin, Yong-Jin Liu, and Gao Huang. 2024. ExpeL: LLM Agents Are
+Experiential Learners. arXiv:2308.10144 [cs.LG] https://arxiv.org/abs/2308.10144
+[51] Yuze Zhao, Zhenya Huang, Yixiao Ma, Rui Li, Kai Zhang, Hao Jiang, Qi Liu, Linbo Zhu, and Yu Su. 2024. RePair:
+Automated Program Repair with Process-based Feedback. arXiv:2408.11296 [cs.SE] https://arxiv.org/abs/2408.11296
+[52] Yuxuan Zhu, Antony Kellermann, Akul Gupta, Philip Li, Richard Fang, Rohan Bindu, and Daniel Kang. 2025. Teams of
+LLM Agents can Exploit Zero-Day Vulnerabilities. arXiv:2406.01637 [cs.MA] https://arxiv.org/abs/2406.01637
+, Vol. 1, No. 1, Article . Publication date: February 2026.

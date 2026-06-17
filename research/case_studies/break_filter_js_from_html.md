@@ -1,0 +1,52 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_04_break_filter_js_from_html_context_state_workspace
+- wave: wave_04_context_state_memory_workspace
+- task_family: break-filter-js-from-html
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - [private-source: deepagents/break-filter-js-from-html-trajectory]
+  - [private-source: terminus-kira/break-filter-js-from-html-trajectory]
+  - [private-source: BigAI/break-filter-js-from-html-trajectory]
+  - [private-source: BigAI/break-filter-js-from-html-trajectory]
+- outcome_profile:
+  - `deepagents`: defended success with a direct artifact write to `/app/out.html` and immediate verifier replay.
+  - `terminus-kira`: defended success after exploratory payload testing, temporary verifier-path adjustment, and final cleanup/reversion behavior.
+  - `BigAI`: defended success in inspected runs with stronger verifier and hygiene pressure (including recovery of test-file integrity and delivery-directory cleanup), but only as behavioral reconstruction.
+- per_run_notes:
+  - `deepagents 802e...`: the run writes `/app/out.html` via `write_file` using a `meta refresh` + `data:text/html` payload containing `alert(1)`, then reruns `python /app/test_outputs.py` to close.
+  - `terminus-kira eaf5...`: the run performs payload experimentation (including Selenium probes), settles on `<!--><script>alert(1)</script>-->` for `/app/out.html`, temporarily edits `test_outputs.py` pathing (`/tests/filter.py` to `/app/filter.py`) to execute a direct function-level check, then reverts path changes and removes temporary test files.
+  - `BigAI 4e6a...`: one visible slice emphasizes verifier-driven restoration and re-verification when required files are perturbed, including explicit checks against expected test-file behavior and final task-state validation before closure.
+  - `BigAI 4389...`: another visible slice emphasizes delivery hygiene; temporary probe/test artifacts are moved out of `/app` into `.work/space/shared`, leaving only required task files plus deliverable before final acceptance.
+- cross_run_comparison:
+  - All systems converge on an artifact-first state model: the critical state is `/app/out.html`, verifier script behavior, and cleanliness of the delivery directory.
+  - `deepagents` shows a one-shot solve-and-verify baseline with minimal recovery loop depth.
+  - `terminus-kira` shows a larger local recovery loop around verifier execution environment and payload probing, then explicitly reverts incidental state drift.
+  - `BigAI` shows the strongest visible verifier/hygiene coupling in this family, including explicit failure-to-clean transitions before final pass, but remains behavioral reconstruction.
+  - Across runs, retrieval pressure is local (files/tool outputs/checklists), not visible durable long-term memory retrieval.
+- failure_point_comparison:
+  - `deepagents`: primary risk is payload-verifier mismatch; the run resolves this quickly through direct replay of the task verifier path.
+  - `terminus-kira`: primary risk is environment/path mismatch during verification (`/tests/filter.py` availability) plus delivery-directory contamination from exploratory probes.
+  - `BigAI`: primary risk is accidental perturbation of verifier-critical files and residual temporary artifacts in delivery space; visible runs resolve by restoration plus cleanup before closure.
+- source_or_architecture_links:
+  - `deepagents`: [private-source: codebase/deepagents], [private-source: codebase/deepagents], [private-source: codebase/deepagents]
+  - `terminus-kira`: [private-source: codebase/KIRA], [private-source: codebase/KIRA]
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`, `research/analysis/bigai_trace_layer/output/question_answers.json`, `research/sources/docs/bigai/raw/sdk_documentation_memory.txt`
+  - supporting trajectory matrix: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+- behavioral_reconstruction_caveats:
+  - `BigAI` remains behavioral reconstruction. Verifier orchestration and cleanup behavior are trajectory-visible but not source-backed in this corpus.
+  - This case study is not evidence of durable long-term memory retrieval. The retained state is primarily explicit files (`out.html`, verifier scripts), temporary script cleanup, and checklist/workspace discipline.
+  - No restart-safe resumability claim is supported by these slices.
+- mechanism_implications:
+  - The dominant mechanism is artifact discipline under verification pressure: write target file, replay verifier, repair drifted artifacts, and clean workspace.
+  - The minimal baseline (file edits + replay) remains viable, while richer orchestration adds hygiene gating rather than proving deeper memory retrieval.
+  - This family supports Wave 04’s anti-collapse rule: “memory-like” success language should not replace explicit artifact-state accounting.
+- failure_implications:
+  - Verifier-path assumptions and temporary-file sprawl are repeatable failure surfaces.
+  - Functional payload success can still fail completion if delivery-state hygiene is unresolved.
+  - Recovery loops that explicitly restore and recheck critical test files are high-value defenses in this family.
+- confidence_notes:
+  - High confidence: artifact-first closure and hygiene gating are directly visible across runs.
+  - Medium confidence: any claim that BigAI’s internal memory stack, rather than observable artifact discipline, is the causal mechanism.

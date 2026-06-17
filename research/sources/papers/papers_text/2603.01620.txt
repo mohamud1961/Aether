@@ -1,0 +1,888 @@
+--- PAGE 1 ---
+ToolRLA: Multiplicative Reward Decomposition for Tool-Integrated Agents
+Pengbo Liu
+Unaffiliated
+liupengbo.work@gmail.com
+Abstract
+Tool-integrated agents that interleave reasoning
+with API calls are promising for complex tasks,
+yet aligning them for high-stakes, domain-
+specific deployment remains challenging: ex-
+isting reinforcement learning approaches rely
+on coarse binary rewards that cannot distin-
+guish tool selection errors from malformed
+parameters. We presentToolRLA, a three-
+stage post-training pipeline (SFT → GRPO
+→ DPO) for domain-specific tool agents. The
+core contribution is afine-grained reward func-
+tion with multiplicative correctness decompo-
+sitionspanning four dimensions—format va-
+lidity, tool selection, parameter accuracy, and
+regulatory compliance—that encodes domain
+priority orderings as inductive biases in the
+reward landscape. Deployed on a financial
+advisory copilot (80+ advisors, 1,200+ daily
+queries), ToolRLA achieves over three months:
+a47% improvementin task completion rate
+(62%→91%), a63% reductionin tool invoca-
+tion errors (38%→14%), and a93% reduction
+in regulatory violations (12%→0.8%), within
+sub-2-second latency. Ablation studies show
+the multiplicative reward design accounts for 7
+percentage points of improvement over additive
+alternatives. Generalization is further validated
+on ToolBench and API-Bank.
+1 Introduction
+Large language models (LLMs) augmented with
+external tool access have demonstrated remarkable
+capabilities in solving complex, multi-step tasks
+that require dynamic information retrieval and com-
+putation (Yao et al., 2023; Schick et al., 2023; Qin
+et al., 2024). By interleaving natural language rea-
+soning (Thought) with structured API invocations
+(Action) and grounding subsequent reasoning on ex-
+ecution results (Observation), ReAct-style agents
+can tackle tasks that are intractable for closed-form
+generation alone.
+Despite this promise, deploying tool-integrated
+agents indomain-specific, high-stakes production
+environmentsintroduces a set of challenges that re-
+main underexplored. Consider a financial advisory
+copilot serving investment advisors: the system
+must orchestrate calls across 15+ heterogeneous
+backend APIs (portfolio management, fund profil-
+ing, market data, compliance records), maintain
+strict regulatory constraints (no yield guarantees,
+no individual stock recommendations), and deliver
+responses within a latency budget acceptable for
+real-time advisory workflows. In such settings, a
+single tool invocation error—wrong API selected,
+malformed parameters, or a missing required call—
+can cascade into a completely unusable response.
+Limitations of Prior Approaches.Existing ap-
+proaches to tool-integrated agent training face two
+key limitations when applied to domain-specific
+deployment.
+First, pipeline-based systems that cascade sep-
+arate intent classification, slot filling, and routing
+modules suffer from compounding errors. With
+each module operating at 85–90% accuracy, the
+end-to-end success rate for tasks requiring three or
+more steps degrades to as low as 62% in our pro-
+duction setting. More critically, hard-coded routing
+provides no mechanism for mid-trajectory error re-
+covery: once the router selects the wrong branch,
+the agent cannot observe execution feedback and
+self-correct.
+Second, reinforcement learning approaches for
+tool use typically employ coarse binary reward
+signals—a trajectory either succeeds or fails (Patil
+et al., 2024; Du et al., 2024). Binary re-
+wards provide insufficient gradient signal for the
+multi-dimensional quality requirements of domain-
+specific tool invocation: a trajectory that selects the
+correct tools but constructs malformed parameters
+is qualitatively different from one that selects the
+wrong tool entirely, yet both receive reward0 under
+binary evaluation. This coarseness slows conver-
+gence and fails to encode domain-specific priority
+arXiv:2603.01620v4  [cs.AI]  11 Mar 2026
+
+--- PAGE 2 ---
+orderings (e.g., regulatory compliance must dom-
+inate task completion). Figure 1 illustrates this
+limitation and motivates our fine-grained decompo-
+sition.
+Our Approach: ToolRLA.We presentTool-
+RLA, a three-stage post-training framework for
+tool-integrated agents in domain-specific settings.
+ToolRLA consists of: (1)SFT cold-starton 4.2K
+sandbox-verified trajectories to establish basic tool
+invocation capabilities; (2)GRPO-based tool
+alignmentwith a novel fine-grained reward func-
+tion; and (3)DPO compliance alignmentto cap-
+ture the implicit distribution of regulatory bound-
+aries that are difficult to formalize as explicit rules.
+The central contribution is afine-grained re-
+ward functiondecomposed along four dimensions:
+format (Rfmt), correctness (Rcor), efficiency (Reff),
+and compliance (Rcpl). Critically, Rcor is amulti-
+plicativecomposition of tool-name, coverage, and
+parameter accuracy sub-scores, so a wrong tool
+selection collapses correctness regardless of param-
+eter quality. A large negative compliance penalty
+(Rcpl ∈ {−10,0} ) enforcescompliance ≻ correct-
+ness ≻ efficiencyas an inductive bias in the reward
+landscape.
+Deployment and Results.Deployed on a finan-
+cial advisory copilot (80+ advisors, 1,200+ daily
+queries), ToolRLA achieves over three months:
+TCR 62% →91% (+47%), TIER 38% →14%
+(−63%), latency 2.8s→1.6s (−43%), violation rate
+12%→0.8% (−93%), satisfaction 3.1→4.3/5.
+Contributions.(1) A four-dimensional
+multiplicatively-decomposed reward function for
+tool invocation quality, with ablation evidence for
+multiplicative over additive composition. (2) A
+three-stage pipeline (SFT →GRPO→DPO) with
+characterization of each stage’s role and systematic
+ablation. (3) Multi-month production deployment
+validation plus public benchmark generalization
+on ToolBench and API-Bank.
+2 Related Work
+Tool-Augmented Language Models.Tool-
+former (Schick et al., 2023) showed LLMs can
+self-supervise tool use. ReAct (Yao et al., 2023)
+introduced theThought–Action–Observation
+loop for dynamic, feedback-driven planning.
+Subsequent work scaled to large API libraries:
+ToolLLM (Qin et al., 2024) trained on 16,000+
+APIs via depth-first search; Gorilla (Patil et al.,
+2024) fine-tuned LLaMA on 1,600+ function
+calls; AnyTool (Du et al., 2024) further improved
+scalability via hierarchical retrieval with self-
+reflection. These works target general-purpose
+benchmarks and do not address alignment in
+regulated, domain-specific settings.
+RL for LLM Alignment and Tool Use.
+RLHF (Ouyang et al., 2022) established preference-
+based alignment via PPO. DPO (Rafailov et al.,
+2023) simplified this with a direct classifica-
+tion objective. GRPO (Shao et al., 2024) re-
+moved the value network by estimating advantages
+from within-group relative rewards; DeepSeek-
+R1 (DeepSeek-AI, 2025) further demonstrated that
+GRPO alone can elicit strong reasoning without
+any SFT warm-up. For multi-turn agent training,
+GiGPO (Feng et al., 2025b) extends group-based
+RL with per-step credit assignment, yielding gains
+on ALFWorld and WebShop. AvaTaR (Wu et al.,
+2024) optimizes tool-use prompts via contrastive
+reasoning between successful and failed trajecto-
+ries. ReTool (Feng et al., 2025a) applies outcome-
+based RL to teach strategic tool selection in code-
+generation settings. Despite this progress, prior RL
+work for tool use relies on binary success/failure
+signals that cannot distinguish incorrect tool selec-
+tion from malformed parameters. ToolQA (Zhuang
+et al., 2023) confirms argument errors dominate
+tool-use failures, motivating the fine-grained re-
+ward decomposition in ToolRLA.
+Domain-Specific Agents.Work on regulated-
+domain deployments remains sparse. Li et al.
+(2023) introduced API-Bank for tool-use eval-
+uation but omits regulatory compliance as an
+evaluation dimension. A recent ACL 2025 ef-
+fort (Bloomberg AI Engineering, 2025) proposes
+training-free joint optimization for tool utilization
+but does not address compliance alignment. Tool-
+RLA is among the first to integrate compliance as
+an explicit RL reward signal, validated with multi-
+month production deployment data.
+3 The ToolRLA Framework
+Figure 2 illustrates the three-stage ToolRLA
+pipeline. We describe each component in detail
+below.
+3.1 System Architecture: Single-Model ReAct
+Agent
+From Pipeline to ReAct.Our production prede-
+cessor was a cascaded multi-model pipeline (in-
+2
+
+--- PAGE 3 ---
+τ1: Correct (right tool, right params)
+τ2: Wrong tool selected
+τ3: Right tool, wrong params
+τ4: Regulatory violation
+(a) Binary Reward
++1
+0
+0
+0
+identical
+zero reward:
+no signal
+(b) ToolRLA Fine-Grained Reward
++3.0
+veto +1.5
++2.0
+−7(λ=10)
+Rfmt Rcor Reff Rcpl
+Figure 1: Motivation for ToolRLA’s fine-grained reward decomposition.(a)Coarse binary rewards assign identical
+zero reward to qualitatively distinct failures—wrong tool ( τ2), wrong parameters (τ3), and regulatory violation (τ4)—
+providing no gradient signal to distinguish or prioritize them.(b)ToolRLA’s four-component reward differentiates
+each mode: wrong tool triggers aveto( Sname=0 collapses Rcor to zero); malformed parameters yield partial credit;
+a compliance violation incurs a λ=10 penalty that dominates all positive components, enforcingcompliance ≻
+correctness≻efficiency.
+Stage 1
+SFT Cold-Start
+LLM distillation (60%)
+Expert annotation (25%)
+Log rewriting (15%)
+SFT · 4.2K traj.
+πsft
+Stage 2
+GRPO + Fine-Grained Reward
+Query→K=8trajectories (sandbox)
+Group-normalized advantage estimation
+Rfmt Rcor Reff Rcpl
+Rcor=Sname×Scomp×Sacc (multiplicative veto)
+GRPO policy update (ϵ=0.2)
+πgrpo
+Stage 3
+DPO Compliance
+2,038 pref. pairs
+Compliance officers
+DPO (β=0.2)
+grey-area suppression
+ToolRLA
+Agent
+Figure 2: Overview of the ToolRLA three-stage post-training pipeline. Stage 1 (SFT) establishes basic tool
+invocation capabilities from 4.2K sandbox-verified trajectories. Stage 2 (GRPO) optimizes tool-use quality via
+four fine-grained reward components; Rcor employs multiplicative veto composition (Sname×Scomp×Sacc). Stage 3
+(DPO) captures grey-area compliance boundaries from expert-annotated preference pairs.
+tent classifier → slot filler → router), which de-
+graded end-to-end success to 62% and lacked mid-
+trajectory error recovery. We replaced it with a
+single-model ReAct agentthat implements the
+Thought–Action–Observation loop:
+τ= (T 1, A1, O1, T 2, A2, O2, . . . , T n, An)(1)
+At each step t, the model generates a natural lan-
+guage reasoning trace Tt, then emits a structured
+action At = (tool name,params) as a JSON ob-
+ject. The action is dispatched to the corresponding
+backend API; the returned result forms the obser-
+vation Ot, which is appended to the context for
+the next step. This closed-loop design enables the
+agent to detect execution anomalies (e.g., empty re-
+turns, schema mismatches) and adaptively re-route
+without modifying the underlying tool implementa-
+tions.
+Tool System.We expose 15 atomic tools and
+5 composite tools, each specified as a four-tuple
+(name,description,parameters,returns) following
+the standard JSON Schema specification. Com-
+posite tools aggregate multiple atomic calls into
+a single invocation (e.g., GetClientOverview
+returns portfolio holdings, fund profiles, and recent
+transactions in one round-trip), reducing average
+invocation rounds from 4.2 to 2.8.
+Hallucination Defense.We combine prompt-
+level tool enumeration, runtime tool-name valida-
+tion (returning a structured error observation on
+failure), and ∼5% error-recovery demonstrations
+in the SFT corpus. This reduces hallucinated tool
+invocations from ∼8% to <1% after GRPO (see
+Appendix A for details).
+3.2 Stage 1: SFT Cold-Start
+SFT establishes basic tool invocation capabilities
+before RL, ensuring trajectories are well-formed
+enough for GRPO’s group-relative advantage esti-
+mation to provide stable gradient signal.
+3
+
+--- PAGE 4 ---
+Data Construction.We build 4.2K sandbox-
+verified trajectories via three pipelines: LLM dis-
+tillation (∼60%, GPT-4/Claude-generated), expert
+annotation (∼25%, hand-crafted by advisors and
+compliance officers for complex branching and
+compliance scenarios), and log rewriting (∼15%,
+legacy successful sessions converted to ReAct
+format). Each trajectory is executed in a sand-
+box connected to de-identified production APIs;
+18% are filtered for hallucinated tool names or
+malformed parameters. The corpus is stratified
+across single-tool (30%), sequential multi-tool
+(35%), conditional-branch (20%), and compliance-
+rejection (15%) scenarios, with ≥400 examples per
+stratum.
+3.3 Stage 2: GRPO with Fine-Grained
+Reward Decomposition
+3.3.1 Group Sampling and Advantage
+Estimation
+We use GRPO (Shao et al., 2024) over PPO because
+tool-integrated dialogue has a high-dimensional
+state space (conversation history × heterogeneous
+tool outputs) where learning an accurate value net-
+work is impractical. GRPO estimates the advantage
+baseline from within-group mean rewards, requir-
+ing no additional model and halving GPU memory
+cost relative to policy+critic training.
+For each training query q, we sample K=8 com-
+plete trajectories {τ1, . . . , τK} from the current pol-
+icy at temperature T=0.8 and execute each in the
+sandbox. The per-trajectory reward R(τi) is com-
+puted as described in Section 3.3.2. The group-
+normalized advantage estimate is:
+ˆAi = R(τi)−µ K
+σK +ϵ ,
+µK = 1
+K
+X
+j
+R(τj),
+σK =
+r
+1
+K
+X
+j
+(R(τj)−µ K)2 (2)
+Trajectories scoring above the group mean are re-
+inforced; those below are suppressed. The GRPO
+policy gradient objective is:
+LGRPO =−E q,τi
+
+min(ri ˆAi,ˆri ˆAi)
+
+,
+ˆri = clip(ri,1−ϵ,1+ϵ), r i = πθ(τi|q)
+πref(τi|q)
+(3)
+with clipping coefficientϵ=0.2.
+R(τ)
+Rfmt
+{0,1}
+Rcor
+[0,1]
+Reff
+[0,1]
+Rcpl
+{−λ,0}
++ + + +
+Sname
+tool name
+Scomp
+coverage
+Sacc
+param acc.× ×
+multiplicative composition (veto logic)
+Figure 3: Reward decomposition structure. The four
+components aggregate additively into R(τ); within
+Rcor, multiplicative composition enforces a veto hier-
+archy: Sname=0 collapses the correctness score regard-
+less of parameter quality. Rcpl∈{−λ,0} with λ=10
+dominates all non-violating trajectories, enforcing com-
+pliance≻correctness≻efficiency.
+Group size K=8.We validated K∈ {4,8,16} :
+K=4 yields unstable advantage estimates given
+the high path diversity of financial queries; K=16
+linearly increases sandbox API cost with diminish-
+ing returns. K=8 balances estimation stability and
+execution cost.
+3.3.2 Fine-Grained Reward Function
+The total reward decomposes additively across four
+dimensions (Figure 3):
+R(τ) =R fmt(τ)+R cor(τ)+R eff(τ)+R cpl(τ)(4)
+Format Reward Rfmt ∈ {0,1} .A binary gate
+that checks strict structural validity of the model
+output: JSON parseability, correct field names,
+presence of a Thought trace, and correct tool name
+spelling. A trajectory failing any structural check
+receives Rfmt=0 and is ineligible for positive rein-
+forcement regardless of other reward components.
+This prevents the optimizer from learning to trade
+format correctness against task performance.
+Correctness Reward Rcor ∈[0,1] : Multiplica-
+tive. Rcor =S name ×S comp ×S acc, where Sname ∈
+{0,1} flags any hallucinated tool name, Scomp =
+|Tinv∩Treq|/|Treq| measures required-tool coverage,
+and Sacc ∈[0,1] is sandbox-measured parameter ac-
+curacy. Multiplicative composition encodes a veto
+logic: a wrong tool name collapses correctness re-
+gardless of parameter quality—unlike additive com-
+position, which lets the optimizer trade tool-name
+errors against parameter scores. This accounts for
+7pp TIER improvement over the additive baseline
+(Table 2).
+4
+
+--- PAGE 5 ---
+Efficiency RewardR eff ∈[0,1].
+Reff(τ) = max
+
+0,1− |τ| − |τ ∗|
+|τ ∗|
+
+(5)
+where |τ| is the actual invocation step count and
+|τ ∗| is the minimum step count of the annotated op-
+timal trajectory. A trajectory matching the optimal
+length scores 1; each excess step linearly reduces
+the score to a floor of 0. This incentivizes the model
+to avoid redundant confirmation calls that inflate
+latency.
+Compliance RewardR cpl ∈ {−λ,0},λ=10.
+Rcpl(τ) =
+(
+−λcompliance violated
+0otherwise (6)
+Compliance violations are detected by a two-stage
+checker: (i) a regular expression layer covering
+hard-proscribed patterns (yield guarantees, indi-
+vidual stock recommendations, fabricated data),
+followed by (ii) a lightweight fine-tuned classifier
+handling nuanced cases (implied forecasts, unso-
+licited investment opinions).
+With λ=10, a perfect non-compliant trajectory
+scores ≈ −7 , below any non-violating trajectory
+(≥0), enforcing the prioritycompliance ≻ correct-
+ness ≻ efficiency. λ=5 proved insufficient; λ=20
+gave no additional gain.
+3.4 Stage 3: DPO Compliance Alignment
+Why DPO for compliance.GRPO’s Rcpl
+catches rule-violating outputs but misses grey-
+area expressions (e.g., implied recommendations,
+soft forecasts) that resist explicit formalization.
+DPO (Rafailov et al., 2023) captures the implicit
+distributional boundary of compliance-safe lan-
+guage from expert-annotated (chosen, rejected)
+pairs without disrupting GRPO-acquired tool in-
+vocation capabilities.
+Data and Mitigation.We sample 4–6 responses
+per query from 2,500 compliance-sensitive produc-
+tion queries (yield expectations, product recom-
+mendations, market forecasts, client privacy) at
+T=1.0 and have two compliance officers annotate
+them; disagreements are resolved by a third officer,
+yielding 2,038 preference pairs. Initial DPO pro-
+duced 8% over-refusal; adding∼300 helpful≻over-
+cautious pairs and raising β from 0.1 to 0.2 reduces
+this to 1.5%.
+DPO Objective.
+LDPO =−E (q,yw,yl)
+
+logσ(β∆)
+
+,
+∆ = log πθ(yw|q)
+πref(yw|q) −log πθ(yl|q)
+πref(yl|q) (7)
+where yw and yl denote the chosen and rejected re-
+sponses, πref is the GRPO-trained reference policy,
+andβ=0.2.
+3.5 Continuous Improvement via Data
+Flywheel
+Four online signals flag hard examples: tool exe-
+cution failure, trajectory length >4 rounds, advi-
+sor re-query within 30 seconds, and compliance
+model alert (∼200–300 candidates/week). Verified
+failures are added to both the SFT corpus and the
+GRPO hard-example query pool, with one cycle
+every 2–3 weeks. This flywheel raised TCR from
+88% at launch to 91% after three months.
+4 Experimental Setup
+4.1 Datasets
+FA-Bench(internal): 500 production queries
+across four difficulty levels—L1 (single-tool), L2
+(sequential multi-tool), L3 (conditional branch),
+L4 (compliance-sensitive)—annotated by domain
+specialists and sandbox-verified.ToolBench(Qin
+et al., 2024): standard I1/I2/I3 test split; we re-
+port Pass Rate via ToolEval to assess cross-domain
+generalization.API-Bank(Li et al., 2023): 73 ex-
+ecutable APIs, 314 dialogues; we reportCalland
+Plan+Retrieve+Callaccuracy.
+4.2 Metrics and Baselines
+We evaluate on six metrics: Task Completion Rate
+(TCR), Tool Invocation Error Rate (TIER), Average
+Invocation Rounds (AIR), Compliance Rejection
+Rate (CRR), Violation Rate (VR), and end-to-end
+P50 Latency.
+We compare against five baselines:Multi-
+Model Pipeline(cascaded intent classifier →slot
+filler→router→execution);ReAct+SFT(no RL);
+ReAct+PPO(binary reward, learned value net-
+work);GRPO-coarse(binary success/failure re-
+ward);GRPO-additive(same four reward compo-
+nents as ToolRLA but Rcor composed additively).
+On public benchmarks we additionally compare
+Gorilla (Patil et al., 2024), ToolLLM (Qin et al.,
+2024), and GPT-4 function calling.
+5
+
+--- PAGE 6 ---
+4.3 Implementation Details
+All variants use Qwen3-14B (Qwen Team, 2025)
+(local deployment required by data privacy regula-
+tions; 14B closes the gap to 70B within 3pp on FA-
+Bench at 4–5× lower inference cost). SFT: cross-
+entropy on 4.2K trajectories, 3 epochs. GRPO:
+10K+ queries, K=8, ϵ=0.2, λ=10, via TRL (von
+Werra et al., 2022) with custom reward hooks.
+DPO: 2K+ pairs, β=0.2, initialized from GRPO
+checkpoint. Inference: vLLM on 4 ×A100 (contin-
+uous batching, KV-cache), P50 latency 1.6 s at 2.8
+mean invocation rounds.
+5 Results
+5.1 Main Results on FA-Bench
+Table 1 reports performance on our internal FA-
+Bench across all baselines. ToolRLA achieves the
+best result on every metric, reaching 91% TCR and
+14% TIER.
+SFT alone reduces cascading errors (TCR
+62%→68%) but TIER stagnates at 38%, confirm-
+ing supervised imitation is insufficient. Adding
+coarse GRPO delivers the largest single jump
+(TIER 38%→21%, TCR →82%), establishing RL
+as the decisive stage. ToolRLA’s multiplicative
+Rcor then reduces TIER a further 7pp to 14% over
+additive alternatives. DPO adds marginal TIER
+gain (15%→14%) but delivers the compliance im-
+provements: CRR rises to 96% and VR drops from
+12% to 0.8%.
+5.2 Ablation Study
+Table 2 reports the ablation over reward compo-
+nents, holding the GRPO training procedure con-
+stant and varying only the reward function configu-
+ration.
+Multiplicative vs. additive Rcor.Additive com-
+position raises TIER by 7pp (15% →22%) and
+drops TCR by 8pp: the optimizer learns to com-
+pensate wrong tool selection with high parameter
+scores, a pathological behavior the multiplicative
+veto logic eliminates.
+Effects of Reff and Rcpl.Removing Reff costs
+2pp TIER and 3pp TCR via unconstrained redun-
+dant calls. Removing Rcpl leaves TIER unchanged
+but elevates VR, confirming GRPO handles clear-
+cut violations while DPO is needed for grey-area
+compliance language.
+5.3 Public Benchmark Results
+ToolRLA achieves 51.3% Pass Rate on ToolBench
+(+5.1pp over GPT-4 function calling) and 71.8%
+Call Accuracy on API-Bank (+4.7pp). AvaTaR’s
+contrastive trajectory reasoning (44.3%) falls 7pp
+short, reflecting the advantage of RL-shaped
+parameter-level feedback over prompt optimiza-
+tion alone. The 3.1pp advantage over Bloomberg
+AI Engineering (2025) (48.2%) is consistent with
+the 7pp multiplicative-vs-additive gap in our abla-
+tion, suggesting fine-grained reward decomposition
+provides a generalizable inductive bias across API
+ecosystems.
+5.4 Online Deployment Results
+Table 4 reports online production metrics collected
+over three months of operation.
+The 67% reduction in manual retry rate
+(28%→9%) and 60% reduction in abandonment
+rate (35% →14%) reflect improved reliability in
+daily advisory workflows. Daily query volume
+grew 50% (800→1,200+), driven by advisor confi-
+dence in the system’s responses. Satisfaction scores
+stabilized at 4.3/5 by week 12 (up from 3.1), ruling
+out novelty effects.
+6 Analysis
+6.1 Case Study: Compliance Boundary
+Learning
+Query: “Does client W’s account show any large
+recent redemptions?”GRPO-only: “Client W re-
+deemed $500K. She may be losing confidence in
+the market—I recommend monitoring her emo-
+tional state.”ToolRLA: “Client W had one re-
+demption of $500K in the past 30 days.”
+The GRPO-only response passes the Rcpl key-
+word checker (no yield guarantee, no stock recom-
+mendation) yet is non-compliant: the phrase “los-
+ing confidence” is an unsupported behavioral infer-
+ence, and “monitoring her emotional state” implies
+inappropriate advisor influence. DPO learns to
+suppress such implicit inferences from compliance-
+officer preference pairs—a behavior no explicit rule
+can fully capture.
+6.2 Error Analysis
+We manually analyze 200 failure cases from FA-
+Bench across all ToolRLA-failed queries. Failures
+distribute across four categories:
+The dominant failure modes are wrong param-
+eter values (39%, consistent with Zhuang et al.
+6
+
+--- PAGE 7 ---
+System TCR↑TIER↓AIR↓CRR↑VR↓Latency↓
+Multi-Model Pipeline 62.0 38.0 4.2 61.0 12.0 2.8s
+ReAct + SFT only 68.0 38.0 3.9 65.0 10.5 2.4s
+ReAct + PPO (binary) 76.0 26.0 3.4 70.0 8.0 2.1s
+ReAct + GRPO (coarse) 82.0 21.0 3.1 74.0 6.5 1.9s
+ReAct + GRPO (additive) 80.0 22.0 3.0 75.0 6.2 1.8s
+ToolRLA(ours)91.0 14.0 2.8 96.0 0.8 1.6s
+Table 1: Main results on FA-Bench (500 queries). TCR = Task Completion Rate (%), TIER = Tool Invocation Error
+Rate (%), AIR = Average Invocation Rounds, CRR = Compliance Rejection Rate (%), VR = Violation Rate (%).
+PPO and GRPO (coarse/additive) are initialized from the same SFT checkpoint.
+Configuration TIER↓TCR↑
+Base (no fine-tuning) 55.0 40.0
+SFT only 38.0 68.0
+SFT + GRPO (full, multiplicative) 15.0 88.0
+−R eff 17.0 85.0
+−R cpl 15.0 87.0
+Rcor additive 22.0 80.0
+SFT + GRPO + DPO (ToolRLA)14.0 91.0
+Table 2: Ablation on FA-Bench. Each row removes or
+modifies one component of ToolRLA. TIER (%), TCR
+(%).
+2023—mainly ID formatting and date parsing er-
+rors), missing required tool calls (26%, mainly on
+L3 conditional-branch queries), and incomplete fi-
+nal answers (21%). Hallucinated tool names are
+now rare (9%), down from∼8% at SFT via runtime
+validation and GRPO penalization ofS name=0.
+6.3 Reward Signal Dynamics
+Figure 4 plots the reward signal dynamics through-
+out GRPO training. The fraction of group-8 sam-
+ples with Rcor>0 rises from 45% (SFT initializa-
+tion) to 78% by convergence, confirming the re-
+ward signal remains non-degenerate throughout.
+Rcpl triggers on <3% of trajectories after 1,000
+steps; the residual grey-area violations motivate the
+subsequent DPO stage.
+6.4 Model Size and Training Efficiency
+Table 6 reports the accuracy–latency trade-off
+across three Qwen3 model sizes, all trained with
+the full ToolRLA pipeline.
+Qwen3-14B closes 84% of the TCR gap between
+8B and 32B while maintaining sub-2s latency. The
+32B variant provides only marginal gains (+2.5pp
+TCR, −1.8pp TIER) at 2.4× higher inference cost,
+making it impractical under our latency budget.
+GRPO convergence stabilizes at≈8,000 steps (78%
+of samples with positive advantage), faster than
+System ToolBench API-Bank
+Pass Rate↑Call Acc.↑
+Gorilla (Patil et al., 2024) 20.4 38.7
+ToolLLM (Qin et al., 2024) 36.8 52.4
+AvaTaR (Wu et al., 2024) 44.3 63.5
+GPT-4 (function calling)† 46.2 67.1
+Bloomberg AI Engineering (2025) 48.2 66.7
+ToolRLA (ours)51.3 71.8
+Table 3: Results on public benchmarks. ToolBench Pass
+Rate (%) and API-Bank Call Accuracy (%) on standard
+evaluation splits. ToolRLA uses Qwen3-14B; baseline
+numbers from published papers. AvaTaR (NeurIPS ’24)
+optimizes tool-use prompts via contrastive reasoning;
+Bloomberg AI Engineering (ACL ’25) applies training-
+free joint scheduling of tool invocations. †GPT-4 num-
+bers are reproduced from prior benchmark papers for
+reference; frontier models available as of 2026 (e.g.,
+GPT-4o, o3) are not evaluated on these benchmarks in
+published work and are excluded.
+typical PPO schedules requiring >50K rollouts,
+attributable to the fine-grained reward reducing
+sparsity by providing dense per-dimension gradient
+signal even for partially correct trajectories.
+7 Discussion and Limitations
+Generalizability.Public benchmark results on
+ToolBench and API-Bank suggest the multiplica-
+tive reward structure transfers beyond the financial
+domain. The prerequisite-chain insight applies to
+any setting where tool selection errors and parame-
+ter errors have qualitatively different semantics and
+domain constraints require explicit priority order-
+ing.
+Limitations.Sandbox fidelity: our reward de-
+pends on a weekly-synchronized data replica; a
+backend API field rename once caused zero accu-
+racy scores for two days, underscoring the need
+for automated schema consistency checks.FA-
+Bench privacy: the internal benchmark cannot be
+7
+
+--- PAGE 8 ---
+Metric Before After
+Advisor manual retry rate 28% 9%
+Advisor abandonment rate 35% 14%
+Daily query volume 800+ 1,200+
+Advisor satisfaction (1–5) 3.1 4.3
+Consultation handling time 12 min 7 min
+Table 4: Online production metrics before (Multi-Model
+Pipeline) and after (ToolRLA) deployment. Data col-
+lected over 3 months of stable operation across 80+
+investment advisors.
+Error Type Count %
+Wrong parameter value 78 39%
+Missing required tool call 52 26%
+Incomplete final answer 42 21%
+Hallucinated tool name 18 9%
+Compliance grey-area 10 5%
+Table 5: Error breakdown for ToolRLA failures on FA-
+Bench (200 sampled).
+released; reproducibility relies on public bench-
+mark results.Annotation cost: the DPO compli-
+ance dataset required ∼3 weeks of part-time expert
+annotation; inter-annotator agreement was 84% be-
+fore arbitration, reflecting genuine boundary ambi-
+guity.Modality: the current system handles text-
+only inputs; multimodal extensions (chart images,
+scanned documents) would require additional re-
+ward signals.
+Future Directions.Promising extensions include
+multimodal tool integration, event-triggered proac-
+tive advisory (non-episodic RL), and lightweight
+per-advisor personalization via LoRA fine-tuning.
+8 Conclusion
+We presented ToolRLA, a three-stage post-training
+framework for tool-integrated agents in domain-
+specific settings. The central contribution is a fine-
+grained multiplicative reward function that evalu-
+ates tool invocation quality along four dimensions
+and encodes task-specific priority orderings as in-
+ductive biases in the reward landscape. Ablation
+studies demonstrate that multiplicative composi-
+tion of the correctness reward accounts for 7 per-
+centage points of TIER improvement over additive
+alternatives, and that the three-stage pipeline (SFT
+→ GRPO → DPO) is strictly better than any pre-
+fix thereof. Deployed on a production financial
+advisory copilot over three months, ToolRLA de-
+livers a 47% improvement in task completion rate,
+a 63% reduction in tool invocation errors, and a
+0 2K 4K 6K 8K 10K
+·104
+0
+20
+40
+60
+80
+GRPO Training Steps
+Percentage (%) Rcor>0fraction
+Rcpl trigger rate
+Figure 4: Reward signal dynamics during GRPO train-
+ing. The fraction of group-8 samples with Rcor>0
+(solid) rises from 45% at SFT initialization to 78% at
+convergence, confirming a non-degenerate reward sig-
+nal throughout training. The Rcpl trigger rate (dashed)
+falls below 3% after 1,000 steps; residual grey-area vio-
+lations motivate the subsequent DPO stage.
+Model TCR↑TIER↓Latency↓
+Qwen3-8B 84.0 20.5 1.1s
+Qwen3-14B 91.0 14.0 1.6s
+Qwen3-32B 93.5 12.2 3.8s
+Table 6: Model size ablation on FA-Bench (all trained
+with ToolRLA).
+93% reduction in regulatory violations. These re-
+sults establish structured, semantics-aware reward
+decomposition as a practically effective direction
+for tool-integrated reinforcement learning beyond
+binary feedback signals.
+References
+Bloomberg AI Engineering. 2025. A joint optimization
+framework for enhancing efficiency of tool utilization
+in LLM agents. InFindings of the Association for
+Computational Linguistics (ACL).
+DeepSeek-AI. 2025. DeepSeek-R1: Incentivizing rea-
+soning capability in LLMs via reinforcement learning.
+Nature, 645:633–638.
+Yu Du, Fangyun Wei, and Hongyang Zhang. 2024. Any-
+Tool: Self-reflective, hierarchical agents for large-
+scale API calls. InInternational Conference on Ma-
+chine Learning (ICML).
+Jiazhan Feng, Shijue Huang, Xingwei Qu, Ge Zhang,
+Yujia Qin, Baoquan Zhong, Chengquan Jiang, Jinxin
+Chi, and Wanjun Zhong. 2025a. ReTool: Reinforce-
+ment learning for strategic tool use in LLMs.arXiv
+preprint arXiv:2504.11536.
+Lang Feng, Zhenghai Xue, Tingcong Liu, and Bo An.
+2025b. Group-in-group policy optimization for LLM
+agent training.arXiv preprint arXiv:2505.10978.
+8
+
+--- PAGE 9 ---
+Minghao Li, Yingxiu Zhao, Bowen Yu, Feifan Song,
+Hangyu Li, Haiyang Yu, Zhoujun Li, Fei Huang,
+and Yongbin Li. 2023. API-Bank: A comprehensive
+benchmark for tool-augmented LLMs. InProceed-
+ings of the 2023 Conference on Empirical Methods
+in Natural Language Processing (EMNLP), pages
+3102–3116.
+Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Car-
+roll L. Wainwright, Pamela Mishkin, Chong Zhang,
+Sandhini Agarwal, Katarina Slama, Alex Ray, John
+Schulman, Jacob Hilton, Fraser Kelton, Luke Miller,
+Maddie Simens, Amanda Askell, Peter Welinder,
+Paul Christiano, Jan Leike, and Ryan Lowe. 2022.
+Training language models to follow instructions with
+human feedback. InAdvances in Neural Information
+Processing Systems (NeurIPS).
+Shishir G. Patil, Tianjun Zhang, Xin Wang, and
+Joseph E. Gonzalez. 2024. Gorilla: Large language
+model connected with massive APIs. InAdvances in
+Neural Information Processing Systems (NeurIPS).
+Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan
+Yan, Yaxi Lu, Yankai Lin, Xin Cong, Xiangru Tang,
+Bill Qian, Sihan Zhao, Lauren Hong, Runchu Tian,
+Ruobing Xie, Jie Zhou, Mark Gerstein, Dahai Li,
+Zhiyuan Liu, and Maosong Sun. 2024. ToolLLM:
+Facilitating large language models to master 16000+
+real-world APIs. InInternational Conference on
+Learning Representations (ICLR).
+Qwen Team. 2025. Qwen3 technical report.arXiv
+preprint arXiv:2505.09388.
+Rafael Rafailov, Archit Sharma, Eric Mitchell, Christo-
+pher D. Manning, Stefano Ermon, and Chelsea Finn.
+2023. Direct preference optimization: Your language
+model is secretly a reward model. InAdvances in
+Neural Information Processing Systems (NeurIPS).
+Timo Schick, Jane Dwivedi-Yu, Roberto Dess`ı, Roberta
+Raileanu, Maria Lomeli, Luke Zettlemoyer, Nicola
+Cancedda, and Thomas Scialom. 2023. Toolformer:
+Language models can teach themselves to use tools.
+InAdvances in Neural Information Processing Sys-
+tems (NeurIPS).
+Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu,
+Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan
+Zhang, Y .K. Li, Y . Wu, and Daya Guo. 2024.
+DeepSeekMath: Pushing the limits of mathematical
+reasoning in open language models.arXiv preprint
+arXiv:2402.03300.
+Leandro von Werra, Younes Belkada, Lewis Tunstall,
+Edward Beeching, Tristan Thrush, Nathan Lambert,
+and Shengding Hu. 2022. TRL: Transformer rein-
+forcement learning.
+Shirley Wu, Shiyu Zhao, Qian Huang, Kexin Huang,
+Michihiro Yasunaga, Kaidi Cao, Vassilis N. Ioanni-
+dis, Karthik Subbian, Jure Leskovec, and James Zou.
+2024. AvaTaR: Optimizing LLM agents for tool us-
+age via contrastive reasoning. InAdvances in Neural
+Information Processing Systems (NeurIPS).
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak
+Shafran, Karthik Narasimhan, and Yuan Cao. 2023.
+ReAct: Synergizing reasoning and acting in language
+models. InInternational Conference on Learning
+Representations (ICLR).
+Yuchen Zhuang, Yue Yu, Kuan Wang, Haotian Sun, and
+Chao Zhang. 2023. ToolQA: A dataset for LLM
+question answering with external tools. InAdvances
+in Neural Information Processing Systems (NeurIPS).
+A Hallucination Defense:
+Implementation Details
+We employ a three-layer defense against halluci-
+nated tool invocations.
+Layer 1: Prompt-level tool enumeration.The
+system prompt enumerates all valid tool names
+and their JSON Schema definitions at every in-
+ference step. This gives the model a grounded
+vocabulary of admissible actions and reduces
+out-of-vocabulary tool generation at the output-
+distribution level.
+Layer 2: Runtime tool-name validation.
+Before dispatching any action to a backend
+API, the execution engine checks the gener-
+ated tool name against the registered tool
+registry. An unrecognized name returns a
+structured error observation, e.g., {"error":
+"unknown tool", "valid tools":
+[...]}, which the model can read and self-
+correct within the same trajectory.
+Layer 3: Error-recovery demonstrations in the
+SFT corpus.Approximately 5% of SFT tra-
+jectories explicitly demonstrate the recover-from-
+hallucination pattern: the model emits an invalid
+tool name, receives the error observation, and then
+selects the correct tool. This teaches the model that
+hallucination is recoverable rather than terminal,
+improving robustness under distribution shift.
+Effect.Combined, these three layers reduce hal-
+lucinated tool invocations from ∼8% (SFT initial-
+ization) to <1% after GRPO training, as measured
+on the FA-Bench held-out set.
+9

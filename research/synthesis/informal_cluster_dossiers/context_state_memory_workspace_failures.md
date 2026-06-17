@@ -1,0 +1,163 @@
+INFORMAL_CLUSTER_DOSSIER
+- cluster: `context_state_memory_workspace_failures`
+- status: `updated for failure_taxonomy Wave 03 informal lane first-pass`
+- scope_note:
+  - Focused on contradiction pressure for context/state/memory/workspace failures.
+  - Informal and issue evidence is treated as pressure and clustering input, not source-backed mechanism proof.
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_949d7288362a/artifact.txt`
+  - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+  - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+  - `research/sources/issues/src_iss_819b6ec7ad57/artifact.txt`
+  - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt`
+  - long-tail informal captures outside direct context/state/memory/workspace failure pressure
+- cluster_findings:
+  - cluster_id: `context_compaction_failure_modes`
+    - observation:
+      - Multiple reports show compaction failing exactly when context pressure peaks (ignored/no-op compaction, hang, hard over-limit loops, mis-triggering).
+    - inference:
+      - Treat compaction as two independent failure families: trigger/accounting failures and execution/summary failures.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+      - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+      - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+      - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - cluster_id: `post_compaction_rule_and_instruction_loss`
+    - observation:
+      - Compaction-linked reports include loss of injected project rule context and degraded adherence after compaction.
+    - inference:
+      - Keep `post-compaction instruction/rule-loss` as a distinct subfamily and avoid collapsing with generic model regression narratives.
+    - confidence: `medium`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+      - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+      - `research/sources/informal/humanlayer_ace_fca.md`
+  - cluster_id: `resume_session_state_drift`
+    - observation:
+      - Resume path reports include stale indexes, rewind nullification of initial state, old checkpoint restoration, parser crash under large transcript lines, and silent resume failure on API-error terminal states.
+    - inference:
+      - State persistence failures should be partitioned into index/update atomicity, transcript robustness, and recovery-state validation rather than one generic resume bug.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+      - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+      - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+  - cluster_id: `workspace_path_and_session_file_corruption`
+    - observation:
+      - Reports show wrong-target file edit loops, repeated session-state file corruption under concurrent control, relative/absolute path mismatch behavior, and mapped/UNC path failures.
+    - inference:
+      - This cluster sits at model-harness-tool-environment interaction boundary and should remain separate from branch hygiene or context-window-only families.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+      - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+      - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+      - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+      - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+- operator_support_pressure:
+  - claim: `file-backed context and memory are becoming default operational doctrine`
+    - confidence: `medium`
+    - evidence_paths:
+      - `research/sources/informal/cursor_dynamic_context_discovery.md`
+      - `research/sources/informal/langchain_agent_builders_memory.md`
+      - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - claim: `compaction timing/quality is treated as a first-order workflow concern`
+    - confidence: `medium`
+    - evidence_paths:
+      - `research/sources/informal/cursor_self_summarization.md`
+      - `research/sources/informal/langchain_autonomous_context.md`
+      - `research/sources/informal/humanlayer_ace_fca.md`
+- contradictions_to_preserve:
+  - `Long-running resilience claims coexist with live reports of stale resume, silent resume failure, and state rollback.`
+  - `Compaction is promoted as mitigation but repeatedly appears as a direct failure source.`
+  - `File-backed state improves legibility but does not eliminate corruption, parser, and integrity failures.`
+- carry_forward_notes:
+  - Keep anecdotal/product claims below direct issue evidence for behavioral failure attribution.
+  - Keep runtime allocator-memory failures out of this cluster unless directly tied to context/state/workspace surfaces.
+  - Keep mixed-cause labeling explicit where model/harness/environment boundaries are unresolved.
+- downstream_relevance:
+  - `failure_taxonomy`: supports Wave 03 subfamily split for compaction, resume-state drift, and workspace/path corruption.
+  - `contradiction_analyst`: provides explicit contradiction set between operator claims and field failure reports.
+  - `principal_synthesis`: provides confidence-bounded informal pressure without over-promoting anecdotal material.
+- wave_03_codebase_lane_crosscheck_update_2026_04_10:
+  - coverage_delta:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_context_state_failure_map.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/codebase_support_workspace_persistence_map.md`
+  - crosscheck_notes:
+    - informal compaction and resume-failure clusters align with source-backed Wave 03 findings in deepagents and KIRA around compaction fallback and bounded/clipped memory retrieval.
+    - informal workspace/path corruption pressure aligns with codebase lane insistence on keeping workspace drift separate from in-window context compression failures.
+    - BigAI remains behavioral-only in both lanes and should not be promoted to source-backed mechanism claims in this dossier.
+  - confidence:
+    - medium
+
+- wave_03_formal_crosspressure_refresh_2026_04_11:
+  - formal_sources_checked:
+    - `research/sources/papers/papers_text/2512.13564.txt`
+    - `research/sources/papers/papers_text/src_pap_b191e17f02bb.txt`
+    - `research/sources/papers/papers_text/2510.11967.txt`
+    - `research/sources/papers/papers_text/2512.05470.txt`
+    - `research/sources/papers/papers_text/2602.05447.txt`
+    - `research/sources/papers/papers_text/src_pap_8ffcaa41e955.txt`
+    - `research/sources/papers/papers_text/src_pap_9dbf664b6954.txt`
+    - `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+    - `research/sources/docs/src_doc_29494193a1c5/artifact.txt`
+  - crosspressure_notes:
+    - Formal context literature strengthens the cluster split between context-window degradation and persistence/resume-state failures.
+    - Formal compaction/folding methods strengthen treatment of compaction as an operator-level failure surface, aligning with informal compaction-failure clusters.
+    - Formal workspace/file-native evidence supports keeping retrieval/format/scope failures separate from pure context-length and memory-retrieval failures.
+  - contradiction_pressure_updates:
+    - Formal docs present resumability/session contracts as available mechanisms, while informal reports still show stale resume and rollback failures; keep this contradiction explicit for principal synthesis.
+    - Formal memory architecture richness should not dilute issue-backed evidence that many observed failures still occur under artifact-first operational practice.
+  - confidence:
+    - medium
+  - evidence_paths:
+    - `research/sources/papers/papers_text/2512.13564.txt`
+    - `research/sources/papers/papers_text/src_pap_b191e17f02bb.txt`
+    - `research/sources/papers/papers_text/2510.11967.txt`
+    - `research/sources/papers/papers_text/2512.05470.txt`
+    - `research/sources/papers/papers_text/2602.05447.txt`
+    - `research/sources/papers/papers_text/src_pap_8ffcaa41e955.txt`
+    - `research/sources/papers/papers_text/src_pap_9dbf664b6954.txt`
+    - `research/sources/docs/src_doc_07fd01b8b76a/artifact.txt`
+    - `research/sources/docs/src_doc_118b78fe9c63/artifact.txt`
+    - `research/sources/docs/src_doc_29494193a1c5/artifact.txt`

@@ -1,0 +1,48 @@
+{
+  "call_id": "qemu-startup__SZBEip3_execute_4",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"success_contract\",\"objective\":\"Start /app/alpine.iso in QEMU in the background and expose a login prompt reachable at telnet 127.0.0.1 6665, then block until readiness is confirmed.\",\"required_artifacts\":[\"A running QEMU process launched from /app using alpine.iso\",\"A host-forwarded TCP listener on 127.0.0.1:6665 connected to the guest login service\"],\"required_behaviors\":[\"QEMU remains running in the background after launch\",\"Connecting to 127.0.0.1:6665 shows the Alpine login prompt\",\"The VM is left running for the user to log in\"],\"known_invalid_patterns\":[\"Only verifying that files exist\",\"Only checking that QEMU starts without confirming the login prompt\",\"Launching QEMU in the foreground so the task is not left running\",\"Forwarding the wrong guest port or exposing a shell instead of the login prompt\"],\"verification_plan\":[\"Inspect workspace for any existing launch helpers or receipts\",\"Launch QEMU with user networking and hostfwd from 127.0.0.1:6665 to guest port 23 or serial console as needed\",\"Probe 127.0.0.1:6665 until the login prompt is observed\",\"Keep the VM running after successful probe\"],\"finalization_evidence_required\":[\"Receipt-backed evidence of the QEMU launch command and background process\",\"Receipt-backed probe evidence showing the Alpine login prompt on 127.0.0.1:6665\"],\"notes\":[\"If the ISO boots to a console rather than telnet by default, adjust QEMU console/serial settings while preserving the original objective.\"]},{\"type\":\"plan_update\",\"content\":\"Need to inspect visible files and any prior receipts, then launch QEMU with the correct forwarding and verify the login prompt on localhost:6665.\"},{\"type\":\"raw_bash\",\"command\":\"cd /app && find . -maxdepth 2 -type f | sed 's#^./##' | sort\",\"timeout\":120000}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && find . -maxdepth 2 -type f | sed 's#^./##' | sort\",\"timeout\":120000}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "cd /app && find . -maxdepth 2 -type f | sed 's#^./##' | sort",
+        "timeout": 120000
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3082,
+    "cached_input_tokens": 1792,
+    "output_tokens": 478,
+    "total_tokens": 3560,
+    "provider_usage_raw": {
+      "completion_tokens": 478,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 65,
+        "engine_ttlt_ms": 2523,
+        "pre_inference_ms": 177,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 696,
+        "service_ttlt_ms": 3137,
+        "total_duration_ms": 2972,
+        "user_visible_ttft_ms": 519
+      },
+      "prompt_tokens": 3082,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 1792
+      },
+      "total_tokens": 3560
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

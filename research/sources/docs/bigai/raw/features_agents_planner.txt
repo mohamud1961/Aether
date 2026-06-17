@@ -1,0 +1,100 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/features/agents/planner/?q=
+================================================================================
+
+Judy Planner¶
+
+Judy 的 Planner 负责任务规划和分解，是 Judy 多智能体系统的核心组件之一。
+
+概述¶
+
+Planner 基于 tong-cell 框架构建，负责将复杂用户请求分解为可执行的子任务计划。
+
+位置¶
+tong-cell/judy/packages/judy-core/src/judy_core/agents/planner.py
+
+功能¶
+任务理解：分析用户输入，理解任务意图
+计划生成：生成多步骤执行计划
+子任务编排：确定子任务执行顺序和依赖关系
+动态调整：根据执行结果动态调整计划
+类定义¶
+from judy_core.agents import PlannerAgent
+
+
+
+class PlannerAgent:
+
+    def __init__(self, config: PlannerConfig):
+
+        self.llm = config.llm
+
+        self.max_subtasks = config.max_subtasks
+
+
+
+    async def plan(self, user_request: str) -> ExecutionPlan:
+
+        """生成执行计划"""
+
+        # 1. 理解任务
+
+        task_understanding = await self.llm.understand(user_request)
+
+
+
+        # 2. 分解子任务
+
+        subtasks = await self.llm.decompose(task_understanding)
+
+
+
+        # 3. 生成计划
+
+        plan = ExecutionPlan(subtasks=subtasks)
+
+        return plan
+
+
+
+    async def revise_plan(self, plan: ExecutionPlan, feedback: str) -> ExecutionPlan:
+
+        """根据反馈修订计划"""
+
+        pass
+
+配置参数¶
+参数	说明	默认值
+max_subtasks	最大子任务数	10
+timeout	超时时间	60s
+retry_count	重试次数	3
+与 Executor 协作¶
+用户请求 → Planner 生成计划 → Executor 执行 → Verifier 验证 → 结果返回
+
+使用示例¶
+from judy_core.agents import PlannerAgent, PlannerConfig
+
+
+
+config = PlannerConfig(
+
+    llm="gemini-pro",
+
+    max_subtasks=15
+
+)
+
+
+
+planner = PlannerAgent(config)
+
+
+
+# 生成计划
+
+plan = await planner.plan("帮我写一个 Python Web 服务器")
+
+print(plan.subtasks)
+
+下一步¶
+Executor →
+Verifier →

@@ -1,0 +1,254 @@
+INFORMAL_ISSUES_POSTMORTEMS_OUTPUT
+- artifact: `failure_taxonomy`
+- role: `informal/issues/postmortems analyst`
+- preflight_scope_confirmed:
+  - Confirmed this pass targets Wave 03 `context_state_memory_workspace_failures` contradiction pressure, not generic mechanism recap.
+  - Confirmed eval/benchmark fifth lane remains inactive in this lane pass because current attribution pressure is explainable from informal/issues/postmortems without grader-contract deep reads.
+  - Confirmed corpus scope anchor read from `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json` and then narrowed only for this lane's evidence class remit.
+- preflight_planned_read_order:
+  - Wave controls and inheritance surfaces first.
+  - Existing informal cluster dossier and wave output manifest second.
+  - Direct issue artifacts for compaction, resume/session state, and workspace/path failures third.
+  - Informal and postmortem/operator writeups fourth.
+  - Synthesis write + required dossier update last.
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- preflight_coverage_risks:
+  - Most negative evidence is issue-report self-reporting; severity details can be exaggerated or environment-specific.
+  - Several informal/postmortem captures are product/architecture narratives rather than incident-grade postmortems.
+  - This lane did not run new support clustering artifacts; grouping is analyst-synthesized from direct reads.
+- preflight_likely_blind_spots:
+  - Missing maintainer-resolution depth for many closed-as-duplicate/closed-as-not-planned issues.
+  - Limited cross-vendor reproducibility validation for Windows path/session corruption reports.
+  - No direct trajectory replay in this lane pass; contradiction pressure remains informal/issue-heavy.
+- preflight_blockers:
+  - none
+- coverage_used:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+  - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+  - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+  - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+  - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+  - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+  - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+  - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/informal/langchain_autonomous_context.md`
+  - `research/sources/informal/langchain_agent_builders_memory.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_self_summarization.md`
+  - `research/sources/informal/humanlayer_ace_fca.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/informal/*.md` long-tail items not directly tied to context/state/memory/workspace failure pressure
+  - `research/sources/issues/src_iss_*.html` full comment-thread context and maintainer discussion bodies
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt` (low-signal mixed-content capture)
+  - direct benchmark/grader and trajectory replay evidence classes for this wave
+- evidence_classes_touched:
+  - wave governance/control artifacts
+  - informal articles/blog captures
+  - GitHub issue captures
+  - postmortem/blog captures
+  - prior informal cluster dossier
+- priority_sources_not_yet_read:
+  - `research/sources/issues/src_iss_949d7288362a/artifact.txt`
+  - `research/sources/issues/src_iss_6ba217fff208/artifact.txt`
+  - `research/sources/issues/src_iss_6e82661ad778/artifact.txt`
+  - `research/sources/issues/src_iss_819b6ec7ad57/artifact.txt`
+  - `research/sources/issues/src_iss_e88081f909bc/artifact.txt`
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+- support_artifacts_requested_or_deferred:
+  - Deferred `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/outputs/informal_support_context_workspace_failure_cluster.md` for this pass because direct issue clustering was tractable within the lane output and required dossier update.
+- coverage_register_updates_needed:
+  - Mark Wave 03 informal lane first-pass output as present at this path.
+  - Mark `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace_failures.md` as updated from stub to synthesized content.
+  - Carry forward that contradiction pressure here is issue-heavy and remains mixed-cause (model/harness/environment).
+- required_dossier_updates:
+  - Updated `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace_failures.md` with cluster-level evidence and confidence boundaries.
+- high_signal_operating_claims:
+  - claim_id: `op_claim_01`
+    - observation: Multiple independent informal sources present file-backed context handling as a practical pattern (store large outputs/history/tool descriptions as files and retrieve on demand).
+    - inference: The operator norm is shifting from static prompt stuffing to artifactized context surfaces, which is directly relevant to Wave 03 anti-collapse around memory vs workspace state.
+    - confidence: `medium`
+    - what_weakens_confidence: These are mostly vendor/operator narratives, not controlled failure studies.
+    - evidence_paths:
+      - `research/sources/informal/cursor_dynamic_context_discovery.md`
+      - `research/sources/informal/langchain_agent_builders_memory.md`
+      - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - claim_id: `op_claim_02`
+    - observation: Informal/operator sources repeatedly emphasize compaction timing and compaction quality as failure-sensitive control points.
+    - inference: Compaction should be treated as its own failure surface (trigger policy + summary fidelity), not just a generic memory helper.
+    - confidence: `medium`
+    - what_weakens_confidence: Causal language in informal sources is mostly hypothesis-level or product-team self-report.
+    - evidence_paths:
+      - `research/sources/informal/cursor_self_summarization.md`
+      - `research/sources/informal/langchain_autonomous_context.md`
+      - `research/sources/informal/humanlayer_ace_fca.md`
+  - claim_id: `op_claim_03`
+    - observation: Product narratives claim long-running and multi-agent workflows can preserve progress via isolation/worktrees/history reuse.
+    - inference: This strengthens the design-side expectation that workspace/state infrastructure should prevent many drift failures, creating measurable contradiction pressure when issue evidence shows persistent corruption/resume drift.
+    - confidence: `medium`
+    - what_weakens_confidence: Sources are product/marketing-adjacent and may overrepresent success paths.
+    - evidence_paths:
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+      - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- issue_and_postmortem_findings:
+  - finding_id: `ctx_compaction_failure_cluster`
+    - observation: Issue reports converge on context-limit and compaction-path failures: full context with non-functional `/compact`, compaction hangs, context blowups from oversized tool outputs, and mis-triggered auto-compaction.
+    - inference: Wave 03 should separate at least two subfamilies: `compaction-unavailable/hang` and `compaction-trigger-accounting-error`; both are context/state-control failures, not purely model-memory failures.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+      - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+      - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+      - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - finding_id: `resume_state_drift_cluster`
+    - observation: Several issue reports describe resume/session restoration drift: stale or missing session index entries, hours-old resume state, resume parser failures on large JSONL lines, silent task-agent resume failure after API-error terminal states, and rewind nullifying initial state keys.
+    - inference: Recovery/resume fragility from Wave 02 is materially coupled to Wave 03 state persistence surfaces; attribution should remain mixed between storage/index policy, transcript format robustness, and state-delta semantics.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+      - `research/sources/issues/src_iss_a1a5a26e92ab/artifact.txt`
+      - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+  - finding_id: `workspace_path_state_corruption_cluster`
+    - observation: Workspace/path integrity failures recur: wrong-file edit loops (path contamination), repeated session-state file corruption under concurrent remote control, path-matching mismatch for relative/absolute permission patterns, and mapped/UNC path write failures for patch tooling.
+    - inference: Wave 03 should keep `workspace/path state corruption` distinct from `context compaction` and from pure branch hygiene; this cluster sits at harness/tool/environment boundary.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+      - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+      - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+      - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+      - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - finding_id: `post_compaction_instruction_loss_cluster`
+    - observation: Reports explicitly describe post-compaction loss of injected rule context (`AGENTS.md`, `SOUL.md`, persistent memory directives) and degraded adherence after compaction.
+    - inference: A dedicated `post-compaction rule-loss` subfamily is warranted under context/state failures, with explicit anti-collapse against generic model-quality regression claims.
+    - confidence: `medium`
+    - what_weakens_confidence: Some evidence is mixed with broader model-regression complaints and not always isolated to compaction mechanics.
+    - evidence_paths:
+      - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+      - `research/sources/issues/src_iss_b8d7092a954f/artifact.txt`
+      - `research/sources/informal/humanlayer_ace_fca.md`
+- contradiction_or_support_notes:
+  - contradiction_id: `contradiction_01`
+    - observation: Informal/product sources present long-running agents as resumable and safely parallelizable.
+    - observation: Issue evidence shows stale resume indexes, rollback to older snapshots, and silent resume failures in live usage.
+    - inference: Current operator reality does not yet support treating resumability as a solved primitive; it remains failure-prone and mixed-cause.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/informal/cursor_long_running_agents.md`
+      - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_edac72dd9b31/artifact.txt`
+      - `research/sources/issues/src_iss_ed4eb57a9d2b/artifact.txt`
+  - contradiction_id: `contradiction_02`
+    - observation: Informal docs advocate compaction as a protective context-control action.
+    - observation: Issue reports include compaction hangs, no-op/ignored compaction, false-trigger loops, and post-compaction instruction loss.
+    - inference: Compaction is simultaneously mitigation and failure source; Wave 03 taxonomy should model this bidirectional role explicitly.
+    - confidence: `high`
+    - evidence_paths:
+      - `research/sources/informal/langchain_autonomous_context.md`
+      - `research/sources/informal/cursor_self_summarization.md`
+      - `research/sources/issues/src_iss_15bd3d2d6a1d/artifact.txt`
+      - `research/sources/issues/src_iss_f736e544a5b9/artifact.txt`
+      - `research/sources/issues/src_iss_b69884cd17d8/artifact.txt`
+      - `research/sources/issues/src_iss_d227a621da26/artifact.txt`
+  - contradiction_id: `contradiction_03`
+    - observation: File-backed memory/context strategies are presented as robust and legible.
+    - observation: Issue reports show file/index corruption, oversized transcript pathology, and serializer/deserializer state corruption.
+    - inference: File-backed state improves observability but does not remove correctness hazards; integrity and schema/size controls are first-order.
+    - confidence: `medium`
+    - what_weakens_confidence: Cross-project implementations differ, so portability of exact failure rates is unclear.
+    - evidence_paths:
+      - `research/sources/informal/langchain_agent_builders_memory.md`
+      - `research/sources/informal/cursor_dynamic_context_discovery.md`
+      - `research/sources/issues/src_iss_222a58240294/artifact.txt`
+      - `research/sources/issues/src_iss_836cb2fc3bdb/artifact.txt`
+      - `research/sources/issues/src_iss_a1b2c3d4e5f6/artifact.txt`
+- unvalidated_leads:
+  - `Context overflow pressure may be substantially amplified by tool-output/result formatting policy (size caps, truncation signaling, lazy retrieval), but this lane has not validated root-cause code paths across stacks.`
+  - `Windows-specific path/session corruption may involve platform semantics plus harness policy interactions; reproducibility outside reported environments remains unresolved.`
+  - `Post-compaction instruction-loss reports may blend rule reinjection gaps with broader model-follow-through regressions; stronger isolation needs trajectory/codebase corroboration.`
+- confidence_notes:
+  - `High confidence`: existence of major failure clusters (compaction failures, resume/state drift, workspace/path corruption) due to multi-issue convergence with concrete repro narratives.
+  - `Medium confidence`: cross-system causal unification; mechanisms likely differ by harness and platform even when failure symptoms look similar.
+  - `Low confidence`: generalized success claims in informal/product narratives as proof of operational reliability under adverse state conditions.
+- open_questions:
+  - Which resume failures are primarily index/update atomicity problems vs transcript-size/parser robustness vs API-error terminal-state handling?
+  - Which compaction failures are trigger-policy/accounting errors vs summarization-quality losses vs command execution deadlocks?
+  - Can workspace/path contamination be cleanly partitioned into model tool-targeting behavior vs tool schema/permission path normalization faults?
+  - What minimal invariant set (state checksum, schema validation, post-compaction rule reinjection checks) most reduces Wave 03 failure incidence?
+- next_hand_off_target:
+  - `trajectory/failure analyst` and `codebase/source-reconstruction analyst` for causal discrimination against direct runs/source.
+  - `contradiction_analyst` for cross-lane reconciliation before principal synthesis.

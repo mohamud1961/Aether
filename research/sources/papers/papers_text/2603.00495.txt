@@ -1,0 +1,459 @@
+--- PAGE 1 ---
+AI Runtime Infrastructure.
+Christopher Cruz
+February 2026
+Abstract
+Agentic AI systems increasingly operate over long horizons, interact
+with external tools, and must adapt to dynamic environments during ex-
+ecution. While significant progress has been made in model serving in-
+frastructure, orchestration frameworks, and post-hoc observability, these
+approaches do not address failures, inefficiencies, and safety risks that
+emergeduringagent execution. In practice, many of the most costly
+agent failures occur at runtime, after planning has begun and outside the
+scope of static orchestration or offline analysis.
+We introduceAI Runtime Infrastructure, a distinct execution-time
+layer that operates above the model and below the application, actively
+observing, reasoning over, and intervening in agent behavior to optimize
+task success, latency, token efficiency, reliability, and safety while the
+agent is running. Unlike model-level optimizations or passive logging sys-
+tems, runtime infrastructure treats execution itself as an optimization sur-
+face, enabling adaptive memory management, failure detection, recovery,
+and policy enforcement over long-horizon agent workflows.
+We formalize the scope, responsibilities, and boundaries of AI runtime
+infrastructure, distinguishing it from related areas such as inference opti-
+mization, agent orchestration, and observability tooling. We outline core
+design principles for runtime systems, including execution-time interven-
+tion, long-horizon state awareness, and integrated recovery mechanisms.
+Finally, we describe Adaptive Focus Memory (AFM) and VIGIL as early
+instantiations of this layer, demonstrating how runtime infrastructure can
+materially improve agent robustness and efficiency in real-world settings.
+We argue that AI runtime infrastructure represents a foundational
+component of scalable and reliable agentic systems, and that formalizing
+this layer is necessary for the next generation of production-grade AI
+agents.
+1 Introduction
+Agentic AI systems are increasingly deployed to perform complex tasks over
+long horizons, interacting with external tools, APIs, and environments while
+operating under latency, cost, and safety constraints. Unlike single-turn model
+inference, these systems execute multi-step workflows in which decisions made
+1
+arXiv:2603.00495v1  [cs.AI]  28 Feb 2026
+
+--- PAGE 2 ---
+early in execution can have cascading effects on downstream behavior, resource
+consumption, and failure modes. As a result, many of the most significant
+challenges in production agentic systems arise not at model invocation time,
+but during execution itself.
+Existing infrastructure has largely addressed adjacent concerns. Model serv-
+ing and inference infrastructure focuses on optimizing the execution of individual
+model calls through techniques such as batching, caching, and hardware-aware
+scheduling. Agent orchestration frameworks provide abstractions for compos-
+ing tools, prompts, and control flow, enabling developers to specify how agents
+should act. Observability and AgentOps tooling captures logs, traces, and met-
+rics to support debugging and offline analysis. Safety mechanisms are often
+applied post-hoc, filtering or moderating outputs after generation. While each
+of these layers is essential, none is designed to actively intervene in agent be-
+haviorduringexecution.
+In practice, agent failures frequently emerge after execution has begun: con-
+text windows overflow, intermediate reasoning drifts off task, tool interactions
+compound errors, or latent safety risks surface mid-workflow. Because these
+failures occur at runtime, static orchestration logic and post-hoc analysis are
+insufficient to prevent or mitigate them. Once an agent has entered an unrecov-
+erable execution state, logging the failure provides insight but does not restore
+correctness, efficiency, or safety.
+This gap suggests the need for a distinct execution-time layer that treats
+agent runtime behavior itself as a first-class optimization surface. Such a layer
+must be capable of observing execution state over long horizons, reasoning about
+emerging failure modes, and intervening dynamically to adjust memory, con-
+trol flow, resource usage, or policy enforcement while the agent is running.
+Importantly, this functionality is orthogonal to model-level optimization and
+application-specific logic, and cannot be reduced to either.
+In this work, we introduceAI Runtime Infrastructure, a systems layer
+that operates above the model and below the application, providing active
+execution-time oversight and intervention for agentic systems. We argue that
+formalizing this layer is necessary for building scalable, reliable, and safe AI
+agents, and that its absence represents a structural limitation in current agent
+deployments. The remainder of this paper defines the scope and boundaries of
+AI runtime infrastructure, situates it relative to prior work, and describes early
+instantiations that demonstrate its practical value.
+2 Defining AI Runtime Infrastructure
+We defineAI Runtime Infrastructureas an execution-time systems layer
+that actively observes, reasons over, and intervenes in the behavior of agentic
+AI systems while they are running. This layer operates above the model and
+below the application, and is responsible for optimizing agent execution with
+respect to task success, latency, token efficiency, reliability, and safety over long
+horizons.
+2
+
+--- PAGE 3 ---
+Unlike model serving infrastructure, which focuses on optimizing the per-
+formance of individual inference calls, AI runtime infrastructure treats agent
+execution itself as a first-class object. Its scope includes monitoring evolving
+execution state, detecting emerging failure modes, and applying corrective ac-
+tions during runtime rather than after execution has completed. This distinc-
+tion is critical in agentic systems, where errors often compound across steps and
+cannot be addressed through static orchestration or post-hoc analysis alone.
+Formally, an AI runtime infrastructure system satisfies three necessary prop-
+erties. First, it operatesduring execution, maintaining continuous visibility into
+agent state, intermediate outputs, and environmental interactions across multi-
+ple steps. Second, it performsactive intervention, modifying execution behavior
+through actions such as adaptive memory management, control-flow adjustment,
+recovery triggering, or policy enforcement. Third, it reasons overlong-horizon
+context, incorporating execution history rather than relying solely on the current
+prompt or model invocation.
+AI runtime infrastructure is distinct from several adjacent categories of sys-
+tems. It does not encompass inference optimization techniques such as caching,
+batching, or hardware-aware scheduling, which improve model execution but do
+not reason about agent behavior. It is not equivalent to agent orchestration
+frameworks, which define control flow and tool composition but lack execution-
+time introspection and adaptive intervention. It is also separate from observ-
+ability and AgentOps tooling, which capture execution traces for offline analysis
+but do not influence outcomes while an agent is running. Finally, runtime in-
+frastructure differs from post-hoc safety layers, as it addresses safety risks as
+they emerge during execution rather than filtering outputs after generation.
+The responsibilities of AI runtime infrastructure include, but are not lim-
+ited to: maintaining execution-time state representations; identifying deviations
+from task objectives or safety constraints; allocating and compressing contextual
+information; triggering recovery or rollback mechanisms; and enforcing runtime
+policies that balance efficiency, robustness, and risk. Importantly, this layer is
+designed to be application-agnostic, providing general-purpose execution control
+rather than encoding domain-specific logic.
+By formalizing AI runtime infrastructure as a distinct systems layer, we aim
+to clarify the architectural requirements of reliable agentic AI and to provide a
+foundation for principled design and evaluation. The following sections situate
+this layer within the broader AI systems stack and outline core design principles
+for effective runtime infrastructure.
+3 Architectural Positioning
+AI runtime infrastructure occupies a distinct position within theagentic sys-
+tems stack, operating between model execution and application-level logic. This
+placement is intentional: runtime infrastructure must have sufficient proximity
+to the model to observe intermediate outputs and resource utilization, while re-
+maining abstracted from application-specific objectives and domain logic. Fig-
+3
+
+--- PAGE 4 ---
+ure 1 illustrates the full agentic systems stack and the architectural role of AI
+runtime infrastructure within it.
+At the lowest level of the stack, model serving and inference infrastructure
+is responsible for executing individual model calls efficiently. This includes con-
+cerns such as batching, caching, hardware scheduling, and latency optimization.
+These components expose inference capabilities but do not reason about multi-
+step agent behavior or execution history.
+Above this layer, AI runtime infrastructure maintains continuous visibility
+into the agent’s execution state across steps. It consumes signals such as in-
+termediate model outputs, tool responses, memory utilization, and policy con-
+straints, and uses these signals to make execution-time decisions. Crucially,
+this layer is empowered to intervene during execution, for example by modify-
+ing contextual inputs, adjusting control flow, triggering recovery mechanisms, or
+enforcing runtime policies. These interventions occur without requiring changes
+to the underlying model or to the application logic that invokes the agent.
+At the top of the stack, application logic specifies task objectives, user in-
+teraction patterns, and domain-specific behavior. Applications define what an
+agent should accomplish, but they typically lack mechanisms to monitor or
+correct execution failures as they unfold. By decoupling execution oversight
+from application logic, AI runtime infrastructure enables reusable, application-
+agnostic control over agent behavior.
+Architecturally, AI runtime infrastructure can be implemented as an execution-
+time control plane that interfaces with both the agent execution loop and exter-
+nal system resources. The agent produces execution artifacts—such as interme-
+diate reasoning steps, tool invocations, and partial outputs—which are observed
+by the runtime layer. In response, the runtime layer may emit control signals
+that alter subsequent execution, forming a closed feedback loop that persists
+for the duration of the agent’s operation. This structure distinguishes runtime
+infrastructure from static orchestration pipelines, which define execution paths
+but do not adapt based on observed outcomes.
+Importantly, AI runtime infrastructure does not replace existing layers but
+composes with them. Model serving infrastructure remains responsible for ef-
+ficient inference, orchestration frameworks continue to manage high-level task
+decomposition, and observability systems provide retrospective analysis with-
+out influencing execution-time behavior. Runtime infrastructure complements
+these components by providing execution-time intelligence that bridges the gap
+between planning and outcome. By explicitly formalizing this architectural role,
+we clarify how adaptive, reliable, and safe agentic systems can be constructed
+without entangling concerns across layers.
+4
+
+--- PAGE 5 ---
+4 Design Principles for AI Runtime Infrastruc-
+ture
+AI runtime infrastructure introduces a distinct set of design requirements that
+differ from those of model serving systems, orchestration frameworks, and ob-
+servability tooling. To clarify what constitutes effective runtime infrastructure
+for agentic systems, we outline a set of core design principles. These principles
+are not tied to specific implementations, but instead characterize the essential
+properties required for execution-time oversight and control.
+4.1 Execution-Time Intervention
+AI runtime infrastructure must be capable of interveningduringagent execu-
+tion rather than operating solely before or after a run. Many agent failures
+emerge only after execution has begun, when intermediate reasoning, tool inter-
+actions, or accumulated context diverge from intended objectives. Systems that
+observe failures but cannot alter execution behavior in response do not satisfy
+this requirement. Runtime infrastructure must therefore support mechanisms
+that can modify agent inputs, control flow, or execution state while the agent
+is actively running.
+4.2 Long-Horizon State Awareness
+Agentic systems frequently operate over extended horizons involving dozens or
+hundreds of steps. AI runtime infrastructure must maintain visibility into ex-
+ecution history across these horizons, rather than relying exclusively on the
+current prompt or most recent model output. This includes tracking inter-
+mediate decisions, memory utilization, tool outcomes, and prior interventions.
+Without long-horizon state awareness, runtime systems are unable to reason
+about cumulative failure modes or compounding inefficiencies.
+4.3 Closed-Loop Control
+Effective runtime infrastructure forms a closed feedback loop between observa-
+tion and action. Execution signals produced by the agent—such as intermediate
+outputs, latency measurements, or tool responses—are continuously evaluated
+and used to inform subsequent interventions. This closed-loop structure distin-
+guishes runtime infrastructure from static orchestration pipelines, which define
+execution paths in advance but do not adapt based on observed outcomes during
+execution.
+4.4 Model-Agnostic Operation
+AI runtime infrastructure should operate independently of specific model ar-
+chitectures or providers. While it must interface closely with model execution
+to observe outputs and resource usage, it should not require modification of
+5
+
+--- PAGE 6 ---
+the underlying model or rely on model-specific internals. This separation en-
+ables runtime infrastructure to generalize across different models and to evolve
+independently as model capabilities change.
+4.5 Application-Agnostic Control
+Runtime infrastructure is designed to provide execution-time control that is
+reusable across applications. It should not encode domain-specific task logic or
+application-level objectives, which remain the responsibility of the application
+layer. By maintaining this separation, runtime infrastructure can serve as a
+general-purpose control plane that supports diverse agentic workloads without
+entangling execution oversight with business logic.
+4.6 Safety, Cost, and Reliability as Runtime Concerns
+Safety, efficiency, and reliability constraints must be enforced as part of execution-
+time decision making rather than solely through static policies or post-hoc fil-
+tering. AI runtime infrastructure enables these concerns to be evaluated dy-
+namically as execution unfolds, allowing systems to respond to emerging risks,
+escalating costs, or degraded performance before failures become irreversible.
+Treating these dimensions as runtime concerns is essential for deploying agentic
+systems in production environments.
+Together, these principles define AI runtime infrastructure as an execution-
+time control layer that complements existing components of the agentic systems
+stack. Systems that satisfy these criteria can actively shape agent behavior as it
+unfolds, enabling adaptive, robust, and scalable agentic AI beyond what static
+orchestration or offline analysis alone can provide.
+5 Early Systems and Precursors
+The formalization of AI runtime infrastructure is motivated by practical chal-
+lenges encountered in long-horizon agentic systems, where failures, inefficiencies,
+and safety risks emerge during execution rather than at planning time. Prior
+to the explicit definition of runtime infrastructure as an execution-time con-
+trol layer, several systems addressed aspects of runtime behavior without fully
+satisfying the criteria outlined in Section 4. In this section, we describe two
+such systems—VIGIL and Adaptive Focus Memory (AFM)—to illustrate the
+progression from runtime-aware precursors to a fully realized instantiation of
+AI runtime infrastructure.
+5.1 VIGIL: A Runtime-Aware Precursor
+VIGIL [?] is a reflective runtime system designed to diagnose and respond to
+failures in long-running agent workflows. It analyzes structured execution logs
+and traces to detect anomalous behavior, degraded performance, or violations of
+6
+
+--- PAGE 7 ---
+expected execution patterns, and can trigger remediation actions or human-in-
+the-loop escalation. By reasoning over execution histories that span many agent
+steps, VIGIL demonstrates the limitations of purely post-hoc observability in
+agentic systems.
+While VIGIL is explicitly runtime-aware, it operates primarily outside the
+agent execution loop. Its diagnostic and recovery mechanisms are invoked after
+failures have been detected, and its influence on agent behavior occurs through
+external remediation rather than continuous, in-loop control. As a result, VIGIL
+does not perform execution-time intervention in the sense required for AI run-
+time infrastructure. Instead, it serves as a precursor system that exposes the
+need for tighter integration between execution monitoring and control, and mo-
+tivates the development of runtime infrastructure capable of intervening directly
+during agent execution.
+5.2 Adaptive Focus Memory: AI Runtime Infrastructure
+Adaptive Focus Memory (AFM) [2] represents an early instantiation of AI run-
+time infrastructure as defined in this work. AFM operates directly within the
+agent execution loop, continuously observing execution state and intervening
+in real time to manage contextual information over long horizons. By dynami-
+cally allocating, compressing, and reweighting memory during execution, AFM
+actively shapes agent behavior while tasks are in progress.
+AFM satisfies the core properties of AI runtime infrastructure. It performs
+execution-time intervention by modifying the contextual inputs provided to the
+model as execution unfolds. It reasons over long-horizon state by maintain-
+ing and adapting memory representations across many agent steps. Finally, it
+participates in a closed-loop control process, where execution signals inform sub-
+sequent interventions that directly influence agent behavior. These operations
+occur without requiring changes to the underlying model or application logic,
+positioning AFM as an execution-time control layer rather than an orchestration
+or observability component.
+5.3 From Precursors to Runtime Infrastructure
+Together, VIGIL and AFM illustrate the evolution from runtime-aware monitor-
+ing toward fully integrated execution-time control. VIGIL demonstrates that
+post-hoc diagnostics and recovery are insufficient for managing long-horizon
+agent failures, while AFM operationalizes the principles of AI runtime infras-
+tructure by embedding adaptive control directly into agent execution. This
+progression underscores the necessity of formalizing runtime infrastructure as
+a distinct systems layer and clarifies the architectural and functional boundary
+between precursors and true execution-time control systems.
+7
+
+--- PAGE 8 ---
+6 Related Work
+AI runtime infrastructure intersects with several established areas of research
+and engineering, including model serving infrastructure, agent orchestration
+frameworks, observability and AgentOps tooling, and AI safety systems. While
+these domains address important aspects of agentic system deployment, they do
+not provide execution-time control over agent behavior as defined in this work.
+6.1 Model Serving and Inference Infrastructure
+A large body of work focuses on optimizing the execution of individual model
+invocations through techniques such as batching, caching, quantization, and
+hardware-aware scheduling. These systems aim to improve throughput, latency,
+and cost efficiency at inference time, and are critical for deploying large-scale
+language models in production environments. However, model serving infras-
+tructure treats each inference call largely in isolation and does not reason about
+multi-step agent execution, long-horizon state, or task-level outcomes. As a
+result, inference optimization alone is insufficient for managing failures or inef-
+ficiencies that emerge during extended agent workflows.
+6.2 Agent Orchestration Frameworks
+Agent orchestration frameworks provide abstractions for composing prompts,
+tools, and control flow into structured agent behaviors. These frameworks en-
+able developers to specify execution graphs, routing logic, and tool usage pat-
+terns, and have been instrumental in accelerating the development of agentic
+systems. However, orchestration frameworks primarily define executionplans
+rather than execution-time control. Once an agent is running, orchestration
+logic typically executes as specified, with limited ability to adapt based on ob-
+served runtime behavior. In contrast, AI runtime infrastructure reasons over
+execution state as it unfolds and intervenes dynamically to influence agent be-
+havior during operation.
+6.3 Observability and AgentOps Tooling
+Observability and AgentOps systems capture logs, traces, metrics, and evalu-
+ation artifacts from agent executions to support debugging, monitoring, and
+offline analysis. These tools provide valuable insight into agent performance
+and failure modes, particularly in production settings. However, they are inher-
+ently retrospective: execution data is collected for inspection after the fact, and
+does not directly influence agent behavior during execution. While runtime-
+aware precursors such as VIGIL [1] demonstrate the limitations of purely post-
+hoc analysis, observability tooling alone does not satisfy the requirements of
+execution-time intervention and closed-loop control.
+8
+
+--- PAGE 9 ---
+6.4 AI Safety and Policy Enforcement Systems
+AI safety mechanisms are often implemented as static policies or post-hoc filters
+that constrain or moderate model outputs. These approaches play an important
+role in mitigating harmful behavior, but typically operate outside the agent
+execution loop and lack visibility into long-horizon execution state. More recent
+work explores adaptive safety mechanisms that respond to contextual signals,
+but these are rarely integrated as general-purpose execution-time control layers.
+AI runtime infrastructure treats safety, reliability, and efficiency as runtime
+concerns, enabling dynamic intervention as risks emerge during execution rather
+than solely at output time.
+6.5 Positioning AI Runtime Infrastructure
+AI runtime infrastructure complements, rather than replaces, these existing
+systems. Model serving infrastructure remains responsible for efficient inference,
+orchestration frameworks continue to define high-level behavior, observability
+tooling supports retrospective analysis, and safety systems enforce constraints.
+Runtime infrastructure addresses a distinct gap by providing execution-time
+oversight and control across long-horizon agent workflows. By formalizing this
+layer, we clarify architectural boundaries and enable principled design of systems
+that actively shape agent behavior as it unfolds.
+7 Implications and Future Directions
+Formalizing AI runtime infrastructure as a distinct execution-time layer has
+several implications for the design, evaluation, and deployment of agentic sys-
+tems. By treating agent execution itself as an optimization surface, runtime
+infrastructure enables new classes of adaptive behavior that are difficult or im-
+possible to achieve through static orchestration, model-level optimization, or
+post-hoc analysis alone.
+7.1 Scalable Reliability for Long-Horizon Agents
+As agentic systems are deployed to perform increasingly long-horizon tasks,
+failure modes that compound over time become a dominant source of cost and
+unreliability. AI runtime infrastructure provides a mechanism for addressing
+these failures during execution, before they propagate into irrecoverable states.
+This suggests a shift from reactive debugging toward proactive execution-time
+control as a foundation for scalable agent reliability.
+7.2 Runtime-Aware Safety and Governance
+Treating safety and policy enforcement as runtime concerns enables more nu-
+anced and adaptive governance of agent behavior. Rather than relying solely on
+9
+
+--- PAGE 10 ---
+static constraints or output filtering, runtime infrastructure can respond dynam-
+ically to evolving execution context, emerging risks, or changes in environmental
+conditions. This opens opportunities for safety mechanisms that are sensitive to
+long-horizon behavior and cumulative risk, rather than isolated model outputs.
+7.3 Evaluation Beyond Post-Hoc Metrics
+The presence of an execution-time control layer also motivates new approaches
+to evaluating agentic systems. Traditional metrics that summarize outcomes
+after execution may fail to capture the benefits of runtime intervention, such as
+avoided failures or reduced recovery costs. Future evaluation frameworks may
+need to account for execution trajectories, intervention timing, and counterfac-
+tual outcomes enabled by runtime infrastructure.
+7.4 Open Research Directions
+AI runtime infrastructure introduces several open research challenges. These in-
+clude designing principled policies for intervention under uncertainty, balancing
+competing objectives such as efficiency and safety at runtime, and develop-
+ing abstractions that generalize across diverse agent architectures and environ-
+ments. Additionally, understanding how runtime infrastructure interacts with
+learning-based adaptation remains an open question, particularly in systems
+that combine execution-time control with online or continual learning.
+More broadly, formalizing runtime infrastructure highlights the need for
+clearer architectural boundaries in agentic AI systems. As agents become more
+autonomous and are entrusted with higher-impact tasks, execution-time control
+is likely to become a foundational requirement rather than an optional enhance-
+ment.
+8 Conclusion
+Agentic AI systems increasingly operate over long horizons, interact with ex-
+ternal environments, and must satisfy constraints on reliability, efficiency, and
+safety during execution. While existing infrastructure addresses model execu-
+tion, orchestration, observability, and post-hoc evaluation, these components do
+not provide execution-time control over agent behavior. As a result, many criti-
+cal failure modes remain unaddressed until after execution has already degraded
+or failed.
+In this work, we formalizedAI runtime infrastructureas a distinct execution-
+time systems layer that operates above the model and below the application.
+We defined its scope, responsibilities, and architectural boundaries, and identi-
+fied core design principles that distinguish runtime infrastructure from adjacent
+systems. Through the examination of runtime-aware precursors and early in-
+stantiations, we illustrated how execution-time intervention enables adaptive
+10
+
+--- PAGE 11 ---
+control that cannot be achieved through static orchestration or retrospective
+analysis alone.
+By explicitly naming and formalizing this layer, we aim to clarify the ar-
+chitectural requirements of scalable, reliable agentic systems and to provide a
+foundation for principled system design and evaluation. As agentic AI continues
+to move toward more autonomous and high-impact deployments, execution-time
+control is likely to become a foundational requirement rather than an optional
+enhancement. AI runtime infrastructure provides a framework for meeting this
+requirement and for advancing the next generation of production-grade agentic
+systems.
+References
+[1] Cruz, C. (2025). V.I.G.I.L: A Reflective Runtime for Self-Healing LLM
+Agents.arXiv preprint arXiv:2512.07094.
+[2] Cruz, C. (2025). Adaptive Focus Memory for Long-Horizon Agentic Sys-
+tems.arXiv preprint arXiv:2511.12712.
+[3] Shinn, N., et al. (2023). Reflexion: Language Agents with Verbal Rein-
+forcement Learning.Advances in Neural Information Processing Systems.
+[4] Madaan, A., et al. (2023). Self-Refine: Iterative Refinement with Self-
+Feedback.arXiv preprint arXiv:2303.17651.
+[5] Yao, S., et al. (2022). ReAct: Synergizing Reasoning and Acting in Lan-
+guage Models.arXiv preprint arXiv:2210.03629.
+[6] Park, J., et al. (2023). Generative Agents: Interactive Simulacra of Human
+Behavior.arXiv preprint arXiv:2304.03442.
+[7] Wang, X., et al. (2023). Voyager: An Open-Ended Embodied Agent with
+LLMs.arXiv preprint arXiv:2305.16291.
+[8] Zhou, M., et al. (2023). SWE-agent: Autonomously Coding in the Wild.
+arXiv preprint arXiv:2305.18276.
+[9] Torantulino, S. (2023). Auto-GPT: An Autonomous GPT-4 Experiment.
+GitHub repository.https://github.com/Torantulino/Auto-GPT.
+[10] Liu, J., et al. (2023). MemPrompt: Memory-Augmented Prompting for
+Language Models.arXiv preprint arXiv:2305.10417.
+[11] Chen, E., et al. (2023). Teaching Large Language Models to Self-Debug.
+arXiv preprint arXiv:2304.05128.
+11
+
+--- PAGE 12 ---
+Figure 1: The full agentic AI systems stack. AI runtime infrastructure operates
+as an execution-time control layer between agent orchestration and model serv-
+ing, observing execution state and intervening during runtime to optimize task
+success, efficiency, reliability, and safety. Observability and evaluation systems
+span the stack but do not influence execution-time behavior.
+12

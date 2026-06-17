@@ -1,0 +1,190 @@
+INFORMAL_ISSUES_POSTMORTEMS_OUTPUT
+- artifact: `mechanism_map`
+- role: `informal/issues/postmortems analyst`
+- preflight_scope_confirmed:
+  - `yes - this is a vertical Wave 05 domain pass on tools, environment handling, and permission boundaries; this lane is contradiction pressure and does not promote source-backed implementation facts on its own`
+  - `trajectory/failure remains the primary empirical anchor and codebase/source reconstruction remains the primary implementation anchor for promoted mechanism claims; this lane contributes operational pressure and unresolved contradictions only`
+  - `minimal-sufficient baseline kept visible: shell-plus-file workflow with stable cwd/workdir control and strict permission boundaries remains the baseline to test against richer browser/MCP stacks`
+  - `optional eval/benchmark fifth lane remains inactive in this lane because selected evidence is dominated by runtime tool, sandbox, path, and approval behavior; no benchmark-contract or grader logic became load-bearing in preflight`
+- preflight_planned_read_order:
+  - `1) wave control surfaces and carry-forward constraints (brief, protocol, lane closure criteria, cumulative synthesis, prior principal synthesis, coverage register)`
+  - `2) issue clusters for sandbox/approval failures`
+  - `3) issue clusters for MCP/tool-gateway state and tool-sprawl`
+  - `4) issue clusters for browser-crash and path/workdir/cwd mismatch`
+  - `5) informal/postmortem operator writeups to extract doctrine and test it against issue evidence`
+- preflight_critical_sources_selected:
+  - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+  - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_agent_computer_use.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+- preflight_coverage_risks:
+  - `issue evidence is concentrated in a few public agent systems, so cross-system prevalence claims must remain bounded`
+  - `issue status is mixed (open/closed/duplicate/stale), so presence of a report is not equivalent to unresolved current defect`
+  - `informal and postmortem sources include promotional material; they are operator-claim evidence, not direct behavioral truth`
+- preflight_likely_blind_spots:
+  - `thin direct informal evidence for BigAI and other non-public harness families in this domain`
+  - `limited postmortem material that is purely incident-forensic (several captures are product or architecture narratives)`
+  - `sparse informal evidence that directly reconciles browser/tool doctrine with trajectory-level failures in required Wave 05 slices`
+- preflight_blockers:
+  - `none structural; sufficient issue density exists to produce contradiction pressure with explicit caveats`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `research/sources/issues/src_iss_594e5f13600f/artifact.txt`
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`
+  - `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`
+  - `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`
+  - `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`
+  - `research/sources/issues/src_iss_84bccb83da69/artifact.txt`
+  - `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+  - `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`
+  - `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`
+  - `research/sources/issues/src_iss_ad20a8115187/artifact.txt`
+  - `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`
+  - `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`
+  - `research/sources/issues/src_iss_3bf359056169/artifact.txt`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt`
+  - `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`
+  - `research/sources/issues/src_iss_f68a2210a011/artifact.txt`
+  - `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`
+  - `research/sources/issues/src_iss_446b495f52a8/artifact.txt`
+  - `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+  - `research/sources/issues/src_iss_809077092a02/artifact.txt`
+  - `research/sources/issues/src_iss_f07284ab370e/artifact.txt`
+  - `research/sources/informal/cursor_agent_sandboxing.md`
+  - `research/sources/informal/cursor_dynamic_context_discovery.md`
+  - `research/sources/informal/cursor_agent_computer_use.md`
+  - `research/sources/informal/cursor_long_running_agents.md`
+  - `research/sources/informal/langchain_anatomy_of_harness.md`
+  - `research/sources/informal/humanlayer_12_factor_agents.md`
+  - `research/sources/postmortems/src_pmt_350e236460b0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt`
+  - `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+  - `research/sources/postmortems/src_pmt_afc13590bd50/artifact.txt`
+- coverage_not_yet_used:
+  - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_6bbe542bed6c/artifact.txt`
+  - `research/sources/issues/src_iss_f44f83f3fbc3/artifact.txt`
+  - `research/sources/issues/src_iss_98321aba9fd0/artifact.txt`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+  - `research/sources/postmortems/src_pmt_2c716b81f9a5/artifact.txt`
+  - `research/sources/postmortems/src_pmt_ca79e818d699/artifact.txt`
+- evidence_classes_touched:
+  - `informal sources`
+  - `issues`
+  - `postmortems`
+  - `prior accepted synthesis and coverage-control surfaces`
+- priority_sources_not_yet_read:
+  - `research/sources/issues/src_iss_677a876a6ea9/artifact.txt`
+  - `research/sources/issues/src_iss_7ea08b4fb93c/artifact.txt`
+  - `research/sources/issues/src_iss_6bbe542bed6c/artifact.txt`
+  - `research/sources/informal/cursor_cursorbench.md`
+  - `research/sources/informal/anthropic_long_running_harness.md`
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+- support_artifacts_requested_or_deferred:
+  - `deferred tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_support_sandbox_permission_cluster.md (cluster size remained manageable from direct reads)`
+  - `deferred tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_support_tool_friction_cluster.md (tool-friction matrix captured directly in lane output)`
+  - `deferred tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_support_cwd_workdir_env_mismatch_cluster.md (path/workdir cluster captured directly from issue evidence)`
+- coverage_register_updates_needed:
+  - `mark Wave 05 informal lane as first-pass complete once contradiction review accepts this output`
+  - `add explicit carry-forward warning: permission policy declarations and runtime execution paths can diverge (policy-runtime mismatch)`
+  - `add explicit carry-forward warning: MCP/tool state freshness and context-budget handling remain unresolved in issue evidence`
+  - `carry-forward caution from Waves 03 and 04 unchanged: BigAI remains behavioral reconstruction and should not be upgraded by informal analogy`
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+- high_signal_operating_claims:
+  - claim: `Permission and approval systems fail as two distinct modes: under-enforcement and over-prompting.`
+    - observation: `Under-enforcement appears in reports of Windows unified_exec PTY bypassing configured sandbox behavior and running as normal user in research/sources/issues/src_iss_c684343ec3ff/artifact.txt. Over-prompting appears in repeated safe-command prompts and Playwright MCP prompt storms in research/sources/issues/src_iss_8ceca39ae528/artifact.txt and research/sources/issues/src_iss_92c9398f0f96/artifact.txt; policy-allowed commands still prompting appears in research/sources/issues/src_iss_594e5f13600f/artifact.txt.`
+    - inference: `Wave 05 should treat permission handling as at least two separate mechanism surfaces: policy-to-runtime enforcement integrity and prompt-volume/approval-UX integrity.`
+    - confidence: `high`
+  - claim: `Hook-based approval governance is brittle at handoff boundaries, especially for subagents.`
+    - observation: `PermissionRequest hook not triggering, hook decision ignored, and subagent-origin requests bypassing hook paths are reported in research/sources/issues/src_iss_72d11ef0f608/artifact.txt, research/sources/issues/src_iss_84bccb83da69/artifact.txt, and research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt.`
+    - inference: `Approval doctrine that looks coherent in top-level flow can collapse when requests traverse subagent or tool-routing boundaries; contradiction review should test for explicit boundary handling in trajectory and source lanes.`
+    - confidence: `high`
+  - claim: `Tool gateway performance is constrained by both tool-sprawl and stale-tool state, not just raw token volume.`
+    - observation: `MCP tool-description bloat and context warnings are reported in research/sources/issues/src_iss_e9fe7e122de1/artifact.txt and research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt. Stale tool inventory after list_changed and stale auth cache are reported in research/sources/issues/src_iss_ad20a8115187/artifact.txt and research/sources/issues/src_iss_62f4e8001a9d/artifact.txt. Cursor doctrine claims dynamic loading and tool-state visibility as mitigation in research/sources/informal/cursor_dynamic_context_discovery.md.`
+    - inference: `Wave 05 should separate “tool catalog size” from “tool catalog freshness and invalidation” as distinct mechanism stresses.`
+    - confidence: `high`
+  - claim: `Browser substrate capabilities and browser substrate reliability move independently.`
+    - observation: `Informal material presents browser-driven autonomous validation and artifact generation in research/sources/informal/cursor_agent_computer_use.md. Direct issue evidence reports non-recovery after browser crash in long-running runs in research/sources/issues/src_iss_da41417f5655/artifact.txt.`
+    - inference: `Do not treat browser integration itself as reliability evidence; reliability depends on crash detection, watchdog behavior, and resumable browser state.`
+    - confidence: `medium`
+    - weakeners: `single direct crash report family in the selected slice; broader cross-vendor crash-rate evidence is not yet read`
+  - claim: `Path/cwd/workdir handling remains a high-impact integrity surface across Windows and mixed path forms.`
+    - observation: `Wrong-file loop/path contamination is reported in research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt. Relative-vs-absolute permission mismatch on writes appears in research/sources/issues/src_iss_f68a2210a011/artifact.txt. UNC/mapped worktree failure in apply_patch appears in research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt. Unexpected read scope behavior appears in research/sources/issues/src_iss_b2c0019233ff/artifact.txt.`
+    - inference: `Path canonicalization and cwd-root fencing are not peripheral details; they are core mechanism requirements for trustworthy tool execution.`
+    - confidence: `high`
+  - claim: `Environment-local control hooks can fail in ways that perturb cost and control flow even when the target service is healthy.`
+    - observation: `Intermittent localhost hook ECONNREFUSED with unchanged server health and resulting prompt-cache invalidation is reported in research/sources/issues/src_iss_446b495f52a8/artifact.txt.`
+    - inference: `Environment discovery and precondition checks must include local-hook reliability and stable error encoding, not only command/tool availability checks.`
+    - confidence: `medium`
+    - weakeners: `single-system report; cross-system replication was not performed in this lane`
+- issue_and_postmortem_findings:
+  - cluster: `sandbox and approval friction/bypass`
+    - evidence: `research/sources/issues/src_iss_594e5f13600f/artifact.txt`, `research/sources/issues/src_iss_c684343ec3ff/artifact.txt`, `research/sources/issues/src_iss_8ceca39ae528/artifact.txt`, `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`, `research/sources/issues/src_iss_72d11ef0f608/artifact.txt`, `research/sources/issues/src_iss_84bccb83da69/artifact.txt`, `research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt`
+    - finding: `The same domain shows both permissiveness gaps and prompt-overload regressions; this supports a bifurcated permission mechanism model rather than a single “approval works/doesn't work” axis.`
+  - cluster: `tool gateway and tool-sprawl failure`
+    - evidence: `research/sources/issues/src_iss_2f7fef40c4cf/artifact.txt`, `research/sources/issues/src_iss_e9fe7e122de1/artifact.txt`, `research/sources/issues/src_iss_ad20a8115187/artifact.txt`, `research/sources/issues/src_iss_62f4e8001a9d/artifact.txt`, `research/sources/issues/src_iss_bfc82053a70d/artifact.txt`, `research/sources/issues/src_iss_3bf359056169/artifact.txt`, `research/sources/informal/cursor_dynamic_context_discovery.md`
+    - finding: `Operational failures arise from oversized tool schemas, stale registry state, and silent truncation semantics; tool gateway quality depends on schema shape, state freshness, and explicit truncation signaling together.`
+  - cluster: `browser/tool substrate mismatch`
+    - evidence: `research/sources/issues/src_iss_da41417f5655/artifact.txt`, `research/sources/issues/src_iss_92c9398f0f96/artifact.txt`, `research/sources/informal/cursor_agent_computer_use.md`, `research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt`
+    - finding: `Browser substrate expands achievable workflows but also creates high-frequency mutating actions and long-lived runtime failure modes that existing approval and recovery pathways do not consistently absorb.`
+  - cluster: `cwd/workdir/path/environment mismatch`
+    - evidence: `research/sources/issues/src_iss_c07dfa2bcbb3/artifact.txt`, `research/sources/issues/src_iss_f68a2210a011/artifact.txt`, `research/sources/issues/src_iss_c0022a3aa0a0/artifact.txt`, `research/sources/issues/src_iss_446b495f52a8/artifact.txt`, `research/sources/issues/src_iss_b2c0019233ff/artifact.txt`
+    - finding: `Path-shape, path-scope, and local-environment assumptions remain fragile enough to corrupt targeting and permission intent, especially on Windows/mapped/UNC and mixed absolute-relative workflows.`
+- contradiction_or_support_notes:
+  - `Support: multiple informal sources independently prioritize sandboxing, dynamic tool loading, and environment-aware harness design as core architecture decisions in research/sources/informal/cursor_agent_sandboxing.md, research/sources/informal/cursor_dynamic_context_discovery.md, research/sources/informal/langchain_anatomy_of_harness.md, and research/sources/informal/humanlayer_12_factor_agents.md.`
+  - `Contradiction: those doctrine claims do not eliminate practical regressions in the issue corpus; policy bypass, hook bypass, prompt storms, stale tool state, and browser non-recovery remain visible in research/sources/issues/src_iss_c684343ec3ff/artifact.txt, research/sources/issues/src_iss_51e11ab8bc0e/artifact.txt, research/sources/issues/src_iss_8ceca39ae528/artifact.txt, research/sources/issues/src_iss_ad20a8115187/artifact.txt, and research/sources/issues/src_iss_da41417f5655/artifact.txt.`
+  - `Carry-forward from Wave 04 preserved: do not collapse distinct mechanism surfaces into one family; this lane adds pressure to keep tool gateway, permission boundaries, browser substrate, and cwd/path discipline separate.`
+- unvalidated_leads:
+  - `research/sources/issues/src_iss_c684343ec3ff/artifact.txt reports a resolved/closed issue; source and trajectory lanes should verify whether this was fully fixed or merely patched in one execution path.`
+  - `research/sources/issues/src_iss_da41417f5655/artifact.txt is a single-project browser recovery report; broader browser watchdog prevalence needs cross-system evidence.`
+  - `research/sources/postmortems/src_pmt_cddfa4a4dcc6/artifact.txt and research/sources/postmortems/src_pmt_95c4bda555e0/artifact.txt are architecture/product narratives; treat as doctrine pressure rather than failure proof.`
+- confidence_notes:
+  - `High confidence that the selected failure clusters are real operational surfaces because multiple issue records converge on each cluster.`
+  - `Medium confidence on cross-system saturation because the sample is still concentrated in public issue trackers from a handful of systems.`
+  - `Medium-to-low confidence on durability of claimed mitigations because this lane did not run longitudinal or regression-followup validation from source commits.`
+- open_questions:
+  - `Where do trajectory slices in headless_terminal and extract_moves_from_video show explicit approval-boundary failures versus clean escalation behavior?`
+  - `Which source systems implement strong policy-to-runtime equivalence checks for permission decisions across classic and PTY/unified exec paths?`
+  - `Do any first-class families surface explicit tool-catalog freshness invalidation and truncation flags that prevent stale-tool or silent-partial-data failures?`
+  - `What minimal browser watchdog/resume contract is necessary for long-running browser-assisted tasks to avoid dead hangs after substrate crash?`
+  - `Which local harness changes in blocks/runner/evals can enforce cwd-root/path-canonicalization invariants without over-constraining normal workflows?`
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst.md`

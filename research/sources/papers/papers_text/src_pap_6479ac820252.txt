@@ -1,0 +1,1150 @@
+--- PAGE 1 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic
+Root Cause Analysis in Cloud Systems
+YILUN WANG,The Chinese University of HongKong, China
+GUANGBA YU∗,The Chinese University of HongKong, China
+HAIYU HUANG,The Chinese University of HongKong, China
+ZIRUI WANG,Sun Yat-sen University, China
+YUJIE HUANG,The Chinese University of HongKong, China
+PENGFEI CHEN,Sun Yat-sen University, China
+MICHAEL R. LYU,The Chinese University of HongKong, China
+The transition to agentic Root Cause Analysis (RCA) necessitates benchmarks that evaluate active reasoning
+rather than passive classification. However, current frameworks fail to reconcile ecological validity with
+reproducibility. We introduce Cloud-OpsBench, a large-scale benchmark that employs a State Snapshot
+Paradigm to construct a deterministic digital twin of the cloud, featuring 452 distinct fault cases across
+40 root cause types spanning the full Kubernetes stack. Crucially, Cloud-OpsBench serves as an enabling
+infrastructure for next-generation SRE research: (1) As a Data Engine, it harvests high-quality reasoning
+trajectories to bootstrap Supervised Fine-Tuning (SFT) for Small Language Models; (2) As an Reinforcement
+Learning (RL) environment, it transforms high-risk operations into a safe low-latency sandbox for training
+policy optimization agents; and (3) As a Diagnostic Standard, its process-centric protocol uncovers architectural
+bottlenecks guiding the design of robust specialized multi-agent system for RCA.
+Additional Key Words and Phrases: Large Language Models, Cloud Computing, Root Cause Analysis, Bench-
+mark, Agentic AI
+ACM Reference Format:
+Yilun Wang, Guangba Yu, Haiyu Huang, Zirui Wang, Yujie Huang, Pengfei Chen, and Michael R. Lyu. 2026.
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems. InProceedings
+of Make sure to enter the correct conference title from your rights confirmation email (Conference acronym ’XX).
+ACM, New York, NY, USA, 22 pages. https://doi.org/XXXXXXX.XXXXXXX
+1 Introduction
+The reliability of cloud-native systems constitutes the foundation of modern online services [54,
+62]. However, system complexity makes Root Cause Analysis (RCA) notoriously difficult [6, 27].
+∗Guangba Yu is the corresponding author.
+Authors’ Contact Information: Yilun Wang, ylwang25@cse.cuhk.edu.hk, The Chinese University of HongKong, Hong
+Kong SAR, China; Guangba Yu, guangbayu@cuhk.edu.hk, The Chinese University of HongKong, Hong Kong SAR, China;
+Haiyu Huang, hyhuang25@cse.cuhk.edu.hk, The Chinese University of HongKong, Hong Kong SAR, China; Zirui Wang,
+wangzr39@mail2.sysu.edu.cn, Sun Yat-sen University, Guangzhou City, China; Yujie Huang, yjhuang@cse.cuhk.edu.hk,
+The Chinese University of HongKong, Hong Kong SAR, China; Pengfei Chen, chenpf7@mail.sysu.edu.cn, Sun Yat-sen
+University, Guangzhou City, China; Michael R. Lyu, lyu@cse.cuhk.edu.hk, The Chinese University of HongKong, Hong
+Kong SAR, China.
+Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee
+provided that copies are not made or distributed for profit or commercial advantage and that copies bear this notice and the
+full citation on the first page. Copyrights for components of this work owned by others than the author(s) must be honored.
+Abstracting with credit is permitted. To copy otherwise, or republish, to post on servers or to redistribute to lists, requires
+prior specific permission and/or a fee. Request permissions from permissions@acm.org.
+Conference acronym ’XX, Woodstock, NY
+©2026 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+ACM ISBN 978-1-4503-XXXX-X/2018/06
+https://doi.org/XXXXXXX.XXXXXXX
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+arXiv:2603.00468v1  [cs.SE]  28 Feb 2026
+
+--- PAGE 2 ---
+2 Yilun Wang, Guangba Yu et al.
+Traditional discriminative Artificial Intelligence for IT Operations (AIOps) models (e.g., VAEs)
+detect anomalies but lack the semantic understanding to explain failures [15, 26, 48, 56]. Recently,
+Large Language Models (LLMs) have triggered a paradigm shift towards Agentic RCA [8, 45]. Unlike
+passive classifiers, these agents function as autonomous SREs, actively interacting with systems to
+verify hypotheses. This transition necessitates benchmarks that evaluate active diagnostic reasoning
+rather than static pattern recognition.
+However, existing frameworks fail to balance ecological validity and reproducibility. (1)Static
+Telemetry Benchmarks(e.g., LogHub [ 65], RCAEval [36]) rely on retrospective data dumps. They
+reduce agents to passive readers, ignoring the essential capability of interactive tool use. (2)Dynamic
+Environment Benchmarks(e.g., AIOpsLab [ 7]) deploy live microservices but suffer from stochasticity.
+Non-deterministic factors (e.g., network jitter) introduce noise, rendering rigorous A/B testing
+impossible. Furthermore, reliance onoutcome-based metrics(e.g., Accuracy@1) rewards spurious
+guesses, failing to distinguish systematic reasoning from statistical probability.
+To bridge this gap, we present Cloud-OpsBench, the first large-scale reproducible benchmark
+on Kubernetes for Agentic RCA. At its core is theState Snapshot Paradigm, which functions as
+a deterministic digital twin. Instead of relying on transient live clusters [7, 43], Cloud-OpsBench
+freezes the complete operational context (control plane objects, metrics, logs) into an immutable
+persistence layer. Interaction is reconstructed via a mocked interface simulating standard tools (e.g.,
+kubectl) with zero latency. This design guarantees 100% reproducibility while supporting complex
+tool usage. Cloud-OpsBench comprises 452 distinct fault cases across 40 fault types, covering the
+full Kubernetes stack.
+Crucially, we position Cloud-OpsBench not merely as a leaderboard, but as an enabling infras-
+tructure for next-generation SRE research. Our empirical evaluation serves to validate its utility in
+three key dimensions: (1) As a Data Engine, it demonstrates that procedural demonstrations out-
+perform declarative knowledge, proving its value in harvesting trajectories to bootstrap Supervised
+Fine-Tuning (SFT); (2) As a Diagnostic Standard, its process-centric protocol uncovers architectural
+bottlenecks (e.g., “Redundancy Paradox” in DeepSeek-V3.2 and “Syntactic Fragility” in Qwen-14B)
+guiding the design of specialized multi-agent swarms; (3) As an RL Environment, its deterministic
+nature provides the necessary stability for training future agents via policy optimization.
+In summary, this paper makes the following contributions:
+• A Process-Centric Evaluation Paradigm.We propose Cloud-OpsBench, the first white-box
+benchmark for Agentic RCA. By quantifying trajectory alignment, we demonstrate that how an
+agent verifies is as critical as what it concludes, establishing a new standard for reliability.
+• An Enabling Data Engine for Model Bootstrapping.We establish Cloud-OpsBench as a
+high-quality data engine. By validating that 14B-parameter models using our procedural demon-
+strations can rival proprietary giants, we provide a cost-efficient blueprint for bootstrapping
+private SRE agents via SFT.
+• A Safe Sandbox for Policy Optimization.We construct a high-fidelity Digital Twin that
+transforms AIOps from a risky operational task into a safe low-latency learning environment.
+This unlocks the capability to train agents via RL to dynamically optimize exploration strategies.
+2 Motivation and Challenges
+2.1 The Paradigm Shift: From Statistical Detection to Agentic Root Cause Analysis
+The field of AIOps is currently undergoing a fundamental transition from discriminative artificial
+intelligence to generative agents. This shift represents a change in both the definition of failure and
+the mechanism of diagnosis. In the era dominated by deep learning, failures were primarily defined
+as statistical deviations [29, 51–53]. The objective of traditional AIOps models (e.g., VAEs [ 48],
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 3 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 3
+Table 1. Comparison of Cloud-OpsBench against existing AIOps benchmarks.
+Benchmark Paradigm Interaction Mechanism Knowledge Context Reproducibility Evaluation Focus
+(Gap 1) (Gap 1) (Gap 2) (Gap 3)
+Static Telemetry Benchmarks
+LogHub [65] Static Artifact None✗ ✓Outcome Only
+RCAEval [36] Static Artifact None✗ ✓Outcome Only
+TimeSeriesBench [41] Static Artifact None✗ ✓Outcome Only
+Nezha [53] Static Artifact None✗ ✓Outcome Only
+OpenRCA [49] Static Artifact Generative Tools 1 ✗ ✓Outcome Only
+Dynamic Environment Benchmarks
+AIOpsArena [43] Live Environment None✗ ✗Outcome Only
+AIOpsLab [7] Live Environment Standard Tool-Use✗ ✗Outcome Only
+ITBench [18] Live Environment Standard Tool-Use✗ ✗Outcome Only
+Proposed Benchmark
+Cloud-OpsBench (Ours) State Snapshot Standard Tool-Use2 ✓ ✓Outcome & Process
+1 Generative Tooling: Refers to mechanisms where agents synthesize ad-hoc code (e.g., Python) to parse offline files.
+2 Standard Tool-Use: Implemented viaMocked Interfacesto ensure determinism while preserving native command patterns.
+No Interact
+No Knowledge No Knowledge
+Tools Tools
+Interactwith Cluster
+StateSnapshot
+Cluster Knowledge
+pDiagnose ProcesspRoot  CausepRoot  Cause pRoot  Cause
+CollectStatic Data CollectState
+Label Label Label
+Agent
+(a) Static Telemetry Benchmark(b) Dynamic EnvironmentBenchmark(c) State Snapshot Benchmark
+.csv Fault InjectionFault InjectionFault Injection
+Interactwith Mock API
+Slow EvaluationFast Evaluation
+Fig. 1. Comparison of benchmarking paradigms.
+LSTMs [26]) was to model the normal distribution of system metrics. In this context, RCA were
+treated as curve-fitting or classification tasks [15, 56], where the goal was to identify data points
+that diverged significantly from historical baselines. The emergence of LLMs has redefined the
+problem [1, 8, 28]. The focus has moved toward identifying the logical conflicts between observed
+states and expected behaviors defined in system protocols [33, 50].
+Consequently, the role of the AI model has evolved from passive classifiers to autonomous SREs.
+Unlike their predecessors, these agentic SREs must possess three critical operational competencies:
+• Active Perception:The ability to proactively query system states via tools rather than passively
+ingesting dumps.
+•Knowledge Grounding:The capacity to synthesize telemetry with external documentation.
+•Deductive Reasoning:The capability to verify hypotheses through multi-step logic.
+However, existing benchmarks [2, 3, 10, 31, 36, 41, 49, 53, 57, 65] largely remain aligned with the
+previous paradigm of statistical pattern recognition (details shown in Table 1). This discrepancy
+creates a significant threat to construct validity. As detailed in the following sections, current
+benchmarks fail to adequately measure the specific capabilities required for Agentic RCA across
+three critical dimensions: data modality, environmental interaction, and evaluation metrics.
+2.2 Gap 1: The Ecological Validity Gap in Static Telemetry Artifacts
+To function as an SRE, an agent must interact with the system. However, most existing benchmarks,
+such as TimeSeriesBench [41], LogHub [65], RCAEval [36], and LogEval [10], are fundamentally
+constructed upon static telemetry artifacts, as illustrated in Fig. 1(a). These artifacts are retrospective
+collections of logs, metrics, or traces that have been dumped and stored after an incident has
+occurred. These retrospective collections of logs or metrics effectively strip away the environment,
+reducing the agent from an engineer to a reader. This static paradigm fails to motivate or measure
+the core competencies of Agentic RCA in three ways:
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 4 ---
+4 Yilun Wang, Guangba Yu et al.
+1. Interaction Constraints.Real-world SREs rely on defined APIs (e.g., kubectl) to actively
+investigate issues. In contrast, benchmarks like LogHub or RCAEval provide only raw data files
+without execution interfaces. This absence forces the model to process entire datasets essentially
+as a reading comprehension task. This setup implicitly assumes the agent is a passive entity with
+infinite context, which contradicts the reality of large-scale operations where telemetry exceeds
+gigabytes per hour. By denying the agent the ability to retrieve information, existing benchmarks
+fail to evaluate the critical skill of information seeking efficiency.
+2. Modality Mismatch.Human experts rarely parse raw high-dimensional tensors; they rely
+on monitoring tools to abstract signals into semantic events (e.g., “Latency spike detected”) [55].
+Existing benchmarks, however, force a bottom-up, perception-heavy approach, requiring agents
+to parse thousands of metric points. This conflates signal processing with diagnostic reasoning.
+A motivated agentic benchmark should assess whether an agent can interpret high-level system
+states, not whether it can perform arithmetic on CSV rows.
+3. Knowledge Vacuum.Benchmarks based on toy systems (e.g., Train Ticket [ 63]) typically
+provide only runtime data, creating a knowledge vacuum. This setup ignores the fact that human
+operators rely heavily on external knowledge sources, including troubleshooting guides, API
+documentation, and system topology diagrams. Without access to system specifications or known
+failure patterns, agents are forced to rely on parametric knowledge or speculation rather than
+grounded logical reasoning.
+2.3 Gap 2: The Reproducibility Challenge in Dynamic Environments
+Recognizing the limitations of static artifacts, recent research has pivoted toward dynamic eval-
+uation frameworks [7, 18, 43] that deploy actual microservices and inject faults in real time. As
+shown in Fig. 1(b), while this approach improves fidelity, it introduces a critical trade-off regarding
+reproducibility and efficiency.
+The primary obstacle is the inherent non-determinism of live cloud systems. In a cloud system,
+the manifestation of a fault is heavily influenced by non-deterministic factors. For instance, a
+network delay injection of 500 milliseconds may trigger a cascade of timeouts in one experimental
+run but result in a seamless retry in another. This environmental volatility undermines the fairness
+of comparative evaluations. In a scientific benchmark, the test conditions must be invariant across
+different models. If Model A fails due to a transient network jitter while Model B succeeds because
+the network was stable, the comparison is invalid. Current dynamic frameworks fail to decouple
+intrinsic system complexity from experimental noise, rendering rigorous A/B testing impossible.
+Beyond stochasticity, the operational overhead of dynamic environments creates a prohibitive
+barrier to entry. Maintaining a high-fidelity cluster requires substantial cloud resources, but more
+critically, it imposes excessive verification latency. A single evaluation cycle comprising system
+deployment, fault injection, agent execution, and environment restoration is inherently slow.
+Running a comprehensive benchmark on live systems can consume dozens of machine hours per
+iteration [58]. This prolonged feedback loop drastically hinders the iterative development of agent
+strategies, making essential tasks like prompt refinement and hyperparameter tuning practically
+infeasible for researchers without industrial-scale infrastructure.
+2.4 Gap 3: The Evaluation Gap in Outcome-Oriented Metrics
+Even if data and environmental challenges are resolved, the prevailing metrics used in AIOps
+benchmarks remain a bottleneck. The majority of existing studies continue to rely on standard
+classification metrics, such as Precision, Recall, and F1-score [36, 43, 65]. While these metrics are
+effective for discriminative models where the goal is a single label prediction, they exhibit a severe
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 5 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 5
+outcome bias when applied to generative agents. This bias obscures the critical distinction between
+genuine reasoning and spurious guessing.
+The core limitation is that outcome-oriented metrics fail to scrutinize the intermediate reasoning
+process [20, 46]. LLMs are known to be susceptible to hallucinations and can exploit shortcuts
+in the data distribution. It is possible for an agent to identify the correct root cause based on a
+completely erroneous logical path, a phenomenon often described as being right for the wrong
+reasons. For instance, an agent might correctly flag a database service as the culprit not because it
+retrieved and analyzed the relevant latency metrics, but simply because the database component
+appeared frequently in the historical training data associated with generic error keywords.
+A benchmark that only evaluates the final output assigns a perfect score to such unreliable behav-
+ior. This validates a diagnostic process that lacks grounding in evidence. In a real-time diagnostic
+task, the value of an agent lies not just in its conclusion, but in the efficiency and logical coherence
+of its investigation. Current metrics are blind to the quality of the investigation. They treat a “logical
+but failed” diagnosis equivalent to a “hallucinated and failed” one. Consequently, a comprehensive
+evaluation must shift focus from calculating simple prediction accuracy to quantifying reasoning
+alignment and efficiency, ensuring that the agent follows a logical evidence-based trajectory similar
+to that of a human expert [13, 46].
+2.5 Bridging the Gaps: Requirements for Benchmarking Agentic RCA
+The transition to Agentic RCA has exposed a dilemma: researchers are currently forced to choose
+between static artifacts (reproducible but unrealistic) and live environments (realistic but unstable).
+To resolve this and align benchmarking with the true motivation of enabling the Agentic RCA, we
+identify three design requirements:
+• High-Fidelity Interaction with Deterministic Replay: The environment must support essen-
+tial SRE tool-use capabilities (e.g., kubectl) to enable active information seeking, while simultane-
+ously guaranteeing deterministic state transitions. This necessitates a shift from live execution to
+state snapshotting, where the system state is frozen and served via mock interfaces to ensure
+zero-cost and 100% reproducible evaluations.
+• Knowledge-Augmented Context: To bridge the epistemic void, the benchmark must integrate
+system and operational knowledge (e.g., system documents, troubleshooting guides) alongside
+telemetry. The objective is not merely to evaluate retrieval mechanics, but to assess the agent’s
+capacity for knowledge-grounded reasoning. Specifically, how well it synthesizes external infor-
+mation to diagnose novel issues in an open-book setting.
+• Process-Oriented Evaluation: Assessment protocols must move beyond binary success/failure
+labels. A rigorous benchmark should quantify the alignment of the diagnosis trajectory, penalizing
+agents that hallucinate evidence or execute illogical query sequences, even if they accidentally
+arrive at the correct root cause.
+3 Cloud-OpsBench
+To address the limitations of existing benchmarks, we present Cloud-OpsBench. As illustrated in
+Fig. 2, Cloud-OpsBench is designed as a high-fidelity, deterministic, and process-oriented bench-
+mark. It comprises 452 distinct fault cases spanning 40 specific cloud fault types, covering the full
+Kubernetes stack. The core innovation of Cloud-OpsBench lies in its architectural alignment with
+the requirements identified in Section 2.5:
+• Addressing Gap 1:We utilize a high-fidelity Kubernetes testbed (§ 3.3.1) and a knowledge-rich
+fault generation pipeline (§ 3.3.2) to ensure agents operate in a realistic open-book context.
+• Addressing Gap 2:We introduce theState Snapshotparadigm (§ 3.2), which freezes the crime
+scene into a deterministic Digital Twin, eliminating noise while preserving interactivity.
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 6 ---
+6 Yilun Wang, Guangba Yu et al.
+Kubernetes Doc.
+Stack Overflow
+Existent Research
+ClusterInfo.
+SREs
+DraftMetadataValidatedFaultMetadata
+Gemini 3 Pro
+Fault Know.
+GeneratorAgent
+Executor Agent
+Verifier Agent
+Target Cluster
+Freeze State
+State Snapshot
+Fault PlanFault InjectionTelemetryFailed InjectionSuccess Injection
+Phase 1: Fault Knowledge Base Construction
+SREs
+1.Root cause2.Diag. path
+Phase 2: Automatic Faults Generation
+Phase 3: Benchmarking
+LLMs
+Leaderboard452Cases
+ToolsetLabeling
+Fig. 2. Overview of Cloud-OpsBench.
+• Addressing Gap 3:We formalize the task as a trajectory-based decision process (§ 3.1) and
+synthesize canonical reference trajectories, enabling the assessment of reasoning logic rather
+than just final outcomes.
+3.1 Agentic RCA Task Formulation
+To rigorously evaluate both theoutcome accuracyand theprocess validityof SRE agents, we
+formalize the Agentic RCA task as a trajectory-based decision process. We define the ground truth
+as a tuple R∗ =⟨𝑆, 𝐶, 𝑅⟩ (denoting Stage, Component, and Root Cause) and a set of expert reference
+trajectories {T ∗}. Formally, the agentic diagnosis is modeled as a mapping function𝑓 that produces
+a composite output:
+𝑓:⟨𝐴 𝑎𝑙𝑒𝑟𝑡 ,E 𝑠𝑛𝑎𝑝𝑠ℎ𝑜𝑡 ⟩ → ⟨T, ˆR⟩.(1)
+This process consists of three distinct phases:
+1. Input Space:The agent receives a natural language alert 𝐴𝑎𝑙𝑒𝑟𝑡 (e.g., “Service unreachable”)and
+access to a cached system snapshot E𝑠𝑛𝑎𝑝𝑠ℎ𝑜𝑡 . Crucially, E𝑠𝑛𝑎𝑝𝑠ℎ𝑜𝑡 serves as a deterministic high-
+fidelity cache of the system state, enabling the agent to execute interactive queries (e.g., kubectl
+logs) without stochastic noise.
+2. Diagnostic Trajectory ( T ):The agent interacts with the environment to generate a reasoning
+trajectoryT=[(𝑡 1, 𝑎1, 𝑜1), . . . ,(𝑡 𝑛, 𝑎𝑛, 𝑜𝑛)]. At each step𝑖:
+•Thought (𝑡 𝑖 ): The agent analyzes the current context to formulate a hypothesis.
+•Action (𝑎 𝑖 ): The agent issues a tool call to probeE 𝑠𝑛𝑎𝑝𝑠ℎ𝑜𝑡 .
+•Observation (𝑜 𝑖 ): The environment returns the pre-recorded execution result.
+This trajectoryTis treated as part of the system output to enable process-oriented evaluation.
+3. Output Space:Upon concluding the investigation, the agent yields a final result consisting of:
+• Trajectory (T ):The complete sequence of investigative actions, which is evaluated against
+expert trajectories{T ∗}for procedural alignment.
+• Predicted Diagnosis ( ˆR):The final structured tuple identifying the root cause, which is
+evaluated against the ground truthR ∗ for outcome accuracy.
+3.2 Design Philosophy: The State Snapshot Paradigm
+The core design philosophy of Cloud-OpsBench addresses the fundamental tension betweenre-
+producibilityandecological validity(§ 2). To bridge this gap, we introduce theState Snapshot
+paradigm (depicted in Fig. 1(c)), which conceptually serves as a deterministic digital twin of the
+target system at the precise moment of failure. Unlike traditional static artifacts (Gap 1)(§ 2), a State
+Snapshot captures the holistic operational context. This encompasses not only historical telemetry
+(e.g., logs, metrics) but also the static control plane configurations (e.g., Kubernetes manifests)
+and the instantaneous data plane states (e.g., Kubernetes pod lists), thereby freezing the complete
+environmental context required for diagnosis.
+The fundamental innovation of this paradigm lies in the decoupling of state storage from tool
+interaction. In dynamic benchmarks, system state is transient and tightly coupled to a runtime envi-
+ronment. In contrast, our approach freezes this state into immutable persistence layers, eliminating
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 7 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 7
+environmental noise. Interactivity is then reconstructed via a mocked operational interface that
+acts as a deterministic translation layer. When an agent executes a command like kubectl get
+pods, it does not query a volatile API server but rather retrieves data from the frozen snapshot.
+This architecture enables standard tool-use within a strictly deterministic environment. By simu-
+lating the behavior of native CLI tools on top of static data, Cloud-OpsBench ensures high-fidelity
+interaction where agents operate exactly as human SREs would, while guaranteeing reproducibility.
+Every execution yields the exact same output regardless of external factors, allowing for rigorous
+repetitive evaluation of agentic reasoning trajectories.
+3.3 Benchmark Construction
+As illustrated in Figure 2, we design a pipeline that bridges unstructured operational knowledge
+with deterministic runtime environments. This pipeline integrates a human-verified knowledge
+base with a Multi-Agent System (MAS) to generate the final dataset of 452 distinct fault cases.
+3.3.1 Benchmark Testbed.Before detailing the generation pipeline, we first introduce the target
+cloud-native environment. To ensure ecological validity, we establish a high-fidelity testbed on
+Huawei Cloud ECS. The testbed operates on a Kubernetes cluster (v1.31) hosted on 4 instances. As
+the foundation of cloud-native infrastructure, Kubernetes offers not only a complex distributed
+control plane for fault injection but also a standardized corpus of documentation. This allows us
+to rigorously test knowledge-grounded reasoning, distinguishing our approach from benchmarks
+based on proprietary or obscure systems. Integrated within this infrastructure is a lightweight native
+observability plane designed to support theState Snapshotmechanism. Specifically, we deploy
+Prometheus [37] and Istio [17] to capture metrics (e.g., CPU Usage) which power the anomaly
+detection tools. Furthermore, we leverage the native Kubernetes API to directly expose real-time
+object states and retrieve on-demand container logs, ensuring low-latency access for resource
+inspection and log analysis.
+To stimulate this infrastructure, we deploy Google Online Boutique [12], thede factostandard
+benchmark for cloud-native research. We select this workload not for its specific business logic,
+but for its structural representativeness as a cloud-native systems proxy. It comprises 11 polyglot
+microservices communicating via gRPC, covering a wide spectrum of generic operational patterns
+(e.g., synchronous RPC, asynchronous queuing, and caching). By employing a load generator
+(Locust[32]) to simulate continuous user traffic, we utilize the application purely as a “canary
+in the coal mine”: its latency and error rates serve as high-level indicators of the underlying
+platform instability (e.g., node exhaustion or network partition) that our agents aim to diagnose.
+Complementing this setup, we integrate ChaosBlade [5] for infrastructure-level perturbations (e.g.,
+network loss, disk pressure) and utilize atomic kubectl commands for configuration mutations,
+ensuring the benchmark covers the full spectrum of cloud reliability challenges.
+3.3.2 Phase 1: Fault Knowledge Base Construction.To comprehensively evaluate the diagnostic
+capabilities of Agentic RCA, we collect a diverse fault dataset by synthesizing information from
+multiple complementary sources. First, we extracted specification-based misconfigurations from
+official Kubernetes documentation and deployment tutorials[19], which clarify deterministic re-
+lationships between configuration parameters and potential failure consequences (e.g., incorrect
+service selectorresulting in traffic routing failures). Second, we extracted empirical operational faults
+from developer communities (e.g., Stack Overflow)[22, 42], capturing errors frequently encountered
+by users. Finally, we supplemented these with established academic paper [ 4, 7, 18] to ensure
+coverage of widely recognized canonical failure modes in the AIOps community.
+Raw data from these sources are typically unstructured and combine narrative prose with
+fragmented code snippets. To transform this into a usable knowledge base, we leverage Gemini 3
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 8 ---
+8 Yilun Wang, Guangba Yu et al.
+Table 2. Comprehensive Taxonomy of Kubernetes Faults in Cloud-OpsBench. Difficulty levels (Easy/Medi-
+um/Hard) correspond to the diagnostic reasoning complexity.
+Fault Category
+(Mechanism Description)
+Specific Fault Types (Full List) Difficulty # Cases
+Admission ControlRequests rejected by API server due toquota or permission violations.
+NamespaceCPUQuotaExceeded, NamespaceMemoryQuotaExceeded,
+NamespacePodQuotaExceeded, NamespaceServiceQuotaExceeded,
+NamespaceStorageQuotaExceeded, MissingServiceAccount
+Hard58
+Scheduling
+Pods stay Pending due to unsatisfiednode constraints or affinity rules.
+NodeCordoned, NodeAffinityMismatch, NodeSelectorMismatch,
+PodAntiAffinityConflict, TaintTolerationMismatch, InsufficientNodeCPU,
+InsufficientNodeMemory, PVBindingOccupied, PVCSelectorMismatch,
+PVCStorageClassMismatch, PVCCapacityMismatch, PVCAccessModeMismatch
+Medium164
+Startup
+Container creation fails due to image pullor storage mount errors.
+VolumeMountPermissionDenied, IncorrectImageReference,
+ImageRegistryDNSFailure, MissingImagePullSecret
+Easy62
+RuntimeApplication crashes or fails health probesduring execution.
+OOMKilled, LivenessProbeIncorrectProtocol, LivenessProbeIncorrectPort,
+LivenessProbeIncorrectTiming, ReadinessProbeIncorrectProtocol,
+ReadinessProbeIncorrectPort
+Easy45
+Service Routing
+Traffic routing failures between internalcomponents.
+ServiceSelectorMismatch, ServicePortMappingMismatch, ServiceProtocolMismatch,
+ServiceEnvVarAddressMismatch
+Medium54
+PerformanceNon-fatal degradation (latency/through-put) due to saturation.
+PodCPUOverload, PodNetworkDelayHard21
+InfrastructureOutages in underlying cluster controlplane or node components.
+ContainerdUnavailable, KubeletUnavailable, KubeProxyUnavailable,
+KubeSchedulerUnavailable, NodeNetworkDelay, NodeNetworkPacketLoss
+Hard48
+Total 40 distinct fault types-452
+Pro, a state-of-the-art LLM, to extract structured metadata via few-shot prompting. We define a
+uniform fault reproduction model composed of two core dimensions:
+• Semantic Metadata:This component includes the fault name, a symptom description, and the
+root cause logic. These details provide the agent with natural language context to understand the
+causality chain (e.g., Pod remains Pending because node taints block scheduling).
+• Deployment Artifacts:To ensure deterministic execution, we formalize the reproduction
+steps into a tuple ⟨P,A,S⟩ .(i)Prerequisites ( P)capture the necessary cluster state pre-injection
+(e.g., ResourceQuotas); (ii)Fault Artifact ( A)represents the core defective configuration (e.g., a
+misconfigured YAML) or the active injection rule (e.g., a ChaosBlade command); (iii)Activation
+Sequence (S)defines the ordered operations to applyPandA.
+To ensure the accuracy and practical utility of the Fault Knowledge Base, we validate both the
+semantic quality of fault descriptions and reproducibility of faults. First, we employ an LLM-as-a-
+Judge[59] mechanism base on Gemini 3 Pro to iteratively score and refine the fault descriptions,
+thereby enhancing their technical accuracy and readability for humans. These pre-filtered candidates
+are then presented to cloud-native experts for the final review. As illustrated in Figure 2, experts
+focus on validating the semantic logic of root causes and refining the technical details of the
+deployment artifacts. Finally, to verify execution fidelity, we deploy the approved artifacts in a
+sandbox cluster, confirming that the formalized model ⟨P,A,S⟩ consistently triggers expected
+symptoms. Only entries passing this triad of checks (LLM Judge → Human Expert → Runtime
+Verification) are committed to the final Knowledge Base. Finally, we build a comprehensive fault
+knowledge base organized around the rigorous taxonomy detailed in Table 2. Our taxonomy
+encompasses 7 distinct fault categories spanning the full Kubernetes stack. Within these categories,
+we define 40 specific root cause types, ensuring fine-grained coverage.
+3.3.3 Phase 2: Automatic Fault Case Generation.Traditional fault injection relies heavily on manual
+orchestration, which is labor-intensive and unscalable. To automate this, we employ a Multi-Agent
+System (MAS) that mirrors a collaborative engineering team. As illustrated in Fig. 2, the system
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 9 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 9
+orchestrates three agents in a closed loop to transform static fault knowledge into reproducible
+benchmark cases.
+1. Generation-Correction Loop.The core workflow operates as a closed-loop iterative process
+designed to overcome the inherent resilience of cloud systems. The cycle initiates withGenerator
+Agent, acting as the architect. By synthesizing the structured fault knowledge with real-time cluster
+info, it employs Chain-of-Thought (CoT) reasoning to construct a precise fault reproduction triplet
+M=⟨P,A,S⟩, which encapsulates the prerequisites, fault artifact, and activation sequence.
+This model is immediately operationalized byExecutor Agent, which serves as the infrastructure
+interface. It translates the abstract activation sequence S into imperative low-level operations (e.g.,
+applying Kubernetes manifests via kubectl or executing chaos scripts) and strictly enforces the
+deployment order to ensure the fault is physically injected into the live Kubernetes environment.
+Following execution,Verifier Agentcontinuously monitors telemetry to perform a rigorous
+validation check. Crucially, if the injection fails to trigger the expected anomaly, which is often
+due to Kubernetes automatically masking the fault (e.g., rescheduling a Pod to bypass a taint),
+Verifier Agentdiagnoses the discrepancy between the intended logic and the actual runtime state.
+It then instructsGenerator Agentto refine the injection parameters (e.g., increasing resource stress
+intensity). This self-correcting loop persists until the fault is reliably verified, ensuring that every
+generated case is ecologically valid.
+2. State Snapshot.Upon verification, theState Snapshotmodule materializes the paradigm pro-
+posed in Section 3.2. The system freezes the crime scene by preserving raw telemetry (a fixed
+window of metrics, logs, and objects). To construct the mocked operational interface, we perform
+an exhaustive parameter sweep using our diagnostic toolset (T1–T10, Table 3). The module pre-
+executes every plausible diagnostic command against the frozen data, effectively pre-rendering the
+Digital Twin’s responses:
+• Resource Enumeration:The system iterates through all standard Kubernetes objects (e.g., Pods,
+Services, PVCs) in the target namespace. For every identified object, it executes retrieval tools
+(T1,T2) to capture their full specifications, runtime statuses, and events.
+• Service Topology & Telemetry:For each registered service, the system executes diagnostic
+tools to freeze its application state. This includes: (i) running reachability checks (T6) against
+target service ports; (ii) fetching static configurations (T3) and dependency graphs (T4); and (iii)
+extracting and analyzing logs via both raw retrieval (T5) and error pattern summary (T9).
+• Cluster-Wide Context:To capture the global context, the system scans all nodes to record
+hardware capacity, metadata (T7) and cluster component health (T10), while processing all raw
+metrics into structured anomaly alerts (T8).
+The resulting JSON repository serves as the immutable persistence layer. To ensure the snapshot
+effectively covers the investigative search space, we enforce aMaximum Information Coverage
+strategy. On average, each fault case generates 487 distinct tool invocations. This exhaustive pre-
+computation guarantees that valid agent queries (e.g., correct service names and ports) will hit
+a deterministic entry, while invalid queries (e.g., non-existent pods) map to realistic Not Found
+errors, thereby faithfully simulating the boundaries of a live system.
+Crucially, this finite set of pre-computed states does not trivialize the diagnostic challenge. We
+design the interaction paradigm to enforce combinatorial complexity rather than atomic selection.
+First, the agent operates in an open-ended generation setting. Since the mock interface simulates an
+infinite parameter space by returning realistic errors for invalid inputs, the agent must syntactically
+generate precise commands rather than selecting from a closed menu. Second, a successful diagnosis
+requires a coherent chain of interdependent steps (typically 𝑁≈ 10), creating a reasoning search
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 10 ---
+10 Yilun Wang, Guangba Yu et al.
+Table 3. Description of specialized diagnostic tools in Cloud-OpsBench
+Category Tool Name
+Arguments
+Output Description
+Resource
+Inspection
+T1.GetResources
+Args: resource_type, namespace, resource_name
+List resources in a namespace with status and extended attributes.
+T2.DescribeResource
+Args: resource_type, resource_name, namespace
+Get runtime details of a specific resource: state, conditions, and events.
+T3.GetAppYAML
+Args: service_name
+Get the deployment configuration YAML for a given service.
+Service
+Interaction
+T4.GetServiceDependencies
+Args: service_name
+Get service dependencies in a tree structure.
+T6.CheckServiceConnectivity
+Args: namespace, service_name, port
+Test service reachability via TCP handshake, returns connection success/failure.
+Telemetry
+Analysis
+T8.GetAlerts
+Args: -
+Get alerts for cluster metric anomalies generated by a threshold-based detector.Returns abnormal metrics with deviation magnitude.T5.GetRecentLogs
+Args: service_name, namespace
+Get recent logs of a service in a namespace for error detection (default: 50 lines).
+T9.GetErrorLogs
+Args: service_name, namespace
+Return a characteristic summary of abnormal logs by matching error keywords(e.g., ERROR, FAIL).
+Infra.
+Diagnostics
+T7.GetClusterConfiguration
+Args: -
+Get cluster-wide node details such as resources, labels, taints, and status.
+T10.CheckNodeServiceStatus
+Args: node_name, component_name
+Probes liveness of control plane components on a node. Returns process status,runtime state, and recent log snippets.
+space of487 𝑁 . This combinatorial explosion ensures that random guessing is statistically impossible,
+thereby maintaining the benchmark’s rigor as a test of systematic deductive logic.
+3. Ground Truth Annotation.To evaluate both the final diagnosis and the investigative process,
+the module automatically synthesizes a ground truth tuple G∗ =⟨R ∗,T ∗⟩. The first component,
+the true root cause (R∗), is derived directly from theGenerator Agent’s design intent, specifying
+the exact location (e.g., node-1) and fault category to serve as the gold standard for evaluating
+diagnosis accuracy.
+To support process-oriented evaluation, we synthesize a canonical diagnostic path by inverting
+the injection logic. SinceGenerator Agentpossesses omniscient knowledge of the fault artifact
+A, we employ a rule-based engine to deterministically map the injected fault (e.g., “Added a
+Taint”) to the specific verification step required to reveal it (e.g., “Executedescribe node tool”).
+This inversion process yields a critical evidence chain that serves as the logical skeleton for the
+ground truth, structured around two design principles: (i)Strict Causal Precedence (Anti-Guessing):
+We define the trajectory not merely as a set of actions, but as a directed graph where symptom
+discovery (identifying the observable anomaly) is a logical prerequisite for root cause verification
+(confirming the defect). This structure ensures that the ground truth captures the full deductive
+chain, distinguishing valid reasoning from unfounded shortcuts. (ii)Exploratory Noise Tolerance (Pro-
+Redundancy):Recognizing that realistic troubleshooting involves trial-and-error, we define T ∗ as a
+minimal mandatory subsequence rather than a rigid script. This definition inherently accommodates
+interstitial heuristic actions (e.g., checking logs that turn out to be empty), ensuring that the ground
+truth represents the necessity of evidence without excluding the reality of exploration.
+4 Evaluation
+In this section, we evaluate LLM agents on Cloud-OpsBench to answer the following RQs:
+•RQ1 (Outcome Effectiveness):How accurately can LLM agents diagnose root causes?
+•RQ2 (Process Alignment):Do agents follow human expert diagnostic paths?
+•RQ3 (Tool Robustness):How robust are LLM agents in invoking diagnostic tools?
+•RQ4 (Knowledge Efficacy):Does external knowledge improve diagnostic performance?
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 11 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 11
+4.1 Experimental Setup
+The evaluating agent framework is implemented in Python 3.10, utilizing CrewAI[9] as the orches-
+tration engine and Pydantic[38] for structured tool interface definitions. Consistent with white-box
+design principles, we employ Langfuse[23] for comprehensive agent observability, which automati-
+cally captures detailed traces of LLM generations, reasoning steps, and tool invocations during the
+diagnostic process.
+We evaluate the benchmark using seven models, explicitly categorized into two tiers to assess
+the impact of parameter scale. The Large Language Models tier comprises high-capacity frontier
+models, including proprietary leaders (GPT-5,GPT-4o,Claude-4-Sonnet) and open-source giants
+(DeepSeek-V3.2,Qwen3-235B). In contrast, the Small Language Models (SLMs) tier [60] represents
+efficiency-optimized baselines with parameters under 20B, specificallyQwen3-14BandQwen3-8B.
+4.2 Evaluation Metrics
+To provide a holistic assessment, we evaluate performance across two dimensions:Outcome Effec-
+tivenessandProcess Quality. Unlike prior works [ 7, 18, 36, 49, 53] that only rely on outcome-based
+metrics which inadvertently reward lucky guesses, our framework quantifies the logical fidelity of
+the diagnosis. By aligning the agent’s trajectory withexpert-annotated paths(§ 3.3.3), we distinguish
+systematic reasoning from stochastic trial-and-error.
+4.2.1 Outcome-based Metrics.These metrics evaluate the final diagnostic conclusion. A diagnosis
+is considered correct only if it strictly matches the ground truth R∗ in three dimensions: fault
+lifecycle stage, faulty component, and failure reason.
+• Top-k Accuracy Rate( 𝐴@𝑘)[36, 51, 53]: This measures the probability that the correct root
+cause is included in agent’s top-𝑘predictions. Let𝑟𝑐 𝑖 denote the set of ground truth for the𝑖-th
+case, and 𝐸𝑘
+𝑖 be the top-𝑘 predicted elements. The metric is defined as:𝐴@𝑘= 1
+|𝐼|
+Í|𝐼|
+𝑖=1 I(𝑟𝑐 𝑖 ⊆𝐸 𝑘
+𝑖 ).
+We evaluate with𝑘=1,3. A higher𝐴@𝑘indicates better accuracy in identifying root causes.
+• Task Completion Rate(TCR): Proxies the agent’s operational stability and instruction-following
+capability. It is defined as the ratio of episodes where the agent successfully outputs a structured
+diagnosis without crashing or violating the output schema.
+4.2.2 Process-based Metrics.To quantify reasoning quality, we compare the agent’s tool execution
+trajectory 𝑇𝑎𝑔𝑒𝑛𝑡 =[𝑎 1, . . . , 𝑎𝑛] against the expert ground truth path 𝑇𝑔𝑜𝑙𝑑 =[𝑔 1, . . . , 𝑔𝑚]. An action
+𝑎𝑖 matches 𝑔𝑗 if and only if both thetool nameandcritical argumentsare identical. Let S𝑇 be the
+set of distinct tool calls in𝑇.
+• Trajectory Alignment.We employ three strictness levels to evaluate how closely the agent
+mimics expert procedures [13, 20]: (1)Exact Matchmeasures how exactly the agent replicate the
+expert’s sequence of tool invocations, with no deviations in action or order. This stringent metric
+reflects a scenario where only the canonical diagnostic path is considered correct. (2)Any-Order
+Match:measures functional completeness by checking whether all necessary diagnostic actions
+in the gold trajectory are present in the agent’s execution, regardless of order or extra steps.
+(3)In-Order Matchmeasures whether the agent performs all essential diagnostic steps in the
+correct relative order, while allowing arbitrary extra actions.
+• Tool Usage Efficiency.To assess the quality of tool selection independent of execution order,
+we measureTool RelevanceandTool Coverage[ 46]. Relevance (𝑅𝑒𝑙𝑒𝑣𝑎𝑛𝑐𝑒=
+| S𝑎𝑔𝑒𝑛𝑡 ∩S𝑔𝑜𝑙𝑑 |
+| S𝑎𝑔𝑒𝑛𝑡 | )
+quantifies the fraction of the agent’s tool invocations that align with expert practice, while
+Coverage (𝐶𝑜𝑣𝑒𝑟𝑎𝑔𝑒=
+| S𝑎𝑔𝑒𝑛𝑡 ∩S𝑔𝑜𝑙𝑑 |
+| S𝑔𝑜𝑙𝑑 | ) measures the proportion of essential diagnostic tools that
+the agent successfully employed. To assess operational overhead, we measure diagnostic efficiency
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 12 ---
+12 Yilun Wang, Guangba Yu et al.
+Table 4. Performance comparison of LLMs in Agentic RCA on outcome and process metrics
+Outcome Process
+ModelA@1↑A@3↑TCR↑Exact↑InO.↑AnyO.↑Rel.↑Cov.↑Steps↓IAC↓MTTI↓RAR↓ZTDR↓
+Qwen3-235B 0.5 0.53 0.96 0.13 0.38 0.41 0.55 0.67 5.34 0.22 143.55 0.06 0.17
+DeepSeek-V3.20.73 0.79 0.9900.53 0.630.430.8810 0.25 975.41 0.110
+GPT-5 0.67 0.750.99 0.160.38 0.480.650.77 5.570.04172.57 0.05 0.04
+GPT-4o 0.49 0.550.990.14 0.45 0.46 0.63 0.78 5.67 0.2723.27 0.020.02
+Claude-4-Sonnet 0.5 0.54 0.98 0.05 0.24 0.25 0.46 0.524.250.12 39.19 0.05 0.32
+Qwen3-14B 0.34 0.43 0.82 0.04 0.31 0.42 0.63 0.71 5.82 0.4 108.51 0.10
+Qwen3-8B 0.21 0.23 0.92 0.01 0.15 0.2 0.36 0.47 5.46 0.4 86.53 0.16 0.27
+via Mean Time to Identify (MTTI) andSteps(total tool invocations). Lower values indicate faster
+and more concise troubleshooting.
+• Operational Robustness.We define three penalty metrics to quantify distinct failure modes:
+(1)Invalid Action Count (IAC)counts the number of tool invocations in a diagnostic episode
+that fail due to malformed arguments, hallucinated parameters, or violations of the expected
+tool schema. (2)Redundant Action Rate (RAR)is the fraction of redundant actions without
+new context or state change, indicating either reasoning stagnation or excessive re-confirmation.
+(3)Zero-Tool Diagnosis Rate (ZTDR)quantifies speculative hallucination by measuring the
+fraction of episodes where the agent directly generates a final result without performing any
+valid tool invocations, indicating reliance on parametric knowledge over evidence gathering.
+4.3 RQ1: RCA Outcome Effectiveness
+We present the evaluation results in Tab. 4 and Fig. 3. Tab. 4 provides a comparative analysis of
+seven LLM agents across outcome effectiveness and process quality metrics. Complementing this,
+Fig. 3 visualizes the performance distribution across seven specific fault scenarios.
+High accuracy necessitates extensive exploration rather than rushed convergence.Our
+results indicate a positive correlation between diagnostic accuracy and the depth of exploration,
+challenging the assumption that shorter diagnosis implies higher efficiency. DeepSeek-V3.2 achieves
+the highest 𝐴@1(0.73) alongside the highest average step count (10.0) and Coverage (0.88). This
+pattern reflects an exhaustive verification strategy where the model systematically validates metrics,
+logs, and events. Conversely, GPT-4o demonstrates premature convergence. It records the lowest
+MTTI (23.27s) and shorter trajectories (5.67 steps) but yields significantly lower accuracy (𝐴@1 =
+0.49). This divergence suggests that current agents lack an optimized termination mechanism
+calibrated for accuracy. Models employing redundant verification successfully identify complex
+root causes, whereas models prioritizing rapid conclusion often overlook critical evidence located
+deep within the system state.
+Syntactic validity constitutes a primary bottleneck for SLMs.While reasoning capability
+is often considered the primary differentiator, our analysis reveals that SLM performance is con-
+strained by fundamental tool-use correctness. Although the Task Completion Rate (TCR) remains
+high across all models (>0.82), the Invalid Action Count (IAC) metric exposes a significant disparity.
+SLMs such as Qwen3-14B exhibit an IAC of 0.40, which is approximately10 × higher than that of
+GPT-5 (0.04). Trace analysis confirms that these models frequently generate invalid Kubernetes
+API payloads, such as referencing non-existent Pod names or producing malformed JSON. Unlike
+code generation tasks where compiler feedback is precise, runtime API errors are often ambiguous.
+Consequently, syntactic robustness functions as a strict prerequisite. An agent must possess the
+capability to generate valid queries to retrieve the telemetry required for subsequent reasoning.
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 13 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 13
+Performance stratification is determined by symptom explicitness and observability.
+Diagnostic effectiveness varies significantly based on the logical distance between the symptom and
+the root cause. As visualized in the radar charts of Fig. 3, model performance follows a consistent
+trend across fault categories:
+• Explicit Faults:InStartupandRuntimescenarios, agents achieve high accuracy (Avg 𝐴@1 >
+0.65). These faults produce explicit signals in Kubernetes Events (e.g., CrashLoopBackOff or
+OOMKilled). The diagnosis primarily involves symptom matching, which requires mapping a
+visible error code to a known cause.
+• Implicit Faults:Performance declines inAdmissionandPerformancescenarios (Avg 𝐴@1 < 0.36).
+In these cases, the root cause location (e.g., resource contention) is decoupled from the symptom
+manifestation. Resolution requires cross-layer causal inference to correlate application latency
+with underlying infrastructure metrics.
+This stratification indicates that current agents are proficient at processing explicit telemetry
+logs but face challenges in establishing holistic system topology representations when errors are
+distributed or lack direct error signals.
+4.4 RQ2: RCA Process Alignment
+To determine whether agents mimic human experts or develop independent reasoning patterns,
+we analyze the alignment metrics in Table 4. The data reveals a significant divergence between
+RCA result and procedural mimicry.
+Functional completeness consistently supersedes procedural linearity.Across all models,
+Any-Order Matchscores consistently outperformIn-Order Matchscores (e.g., for Qwen3-235B, 0.41
+vs. 0.38). This gap quantifies the exploration overhead. Agents typically perform the necessary
+verification steps required by the ground truth but often intersperse them with irrelevant or
+redundant actions. The substantial drop from Any-Order to In-Order alignment highlights that
+while agents are proficient at identifyingwhatinformation is needed (Information Retrieval),
+they struggle to organize these actions into the logical, linear deductive chain (Logical Planning)
+characteristic of human experts.
+Operational redundancy serves as a necessary mechanism for reliability.Conventional
+wisdom in software engineering prioritizes execution efficiency (minimizing steps). However, our
+data suggests a redundancy paradox in agentic reasoning. Comparing the Redundant Action Rate
+(RAR), the highest-performing model, DeepSeek-V3.2, exhibits a notable RAR of 0.11, indicating
+that 11% of its actions are redundant. As illustrated in Case #1 of Fig. 4, where DeepSeek diagnoses
+anAdmissionfailure, the agent intersperses redundant verification steps (yellow nodes) with
+progressive diagnostic actions to confirm system states before isolating the root cause. In contrast,
+the underperforming GPT-4o shows a near-zero RAR of 0.02. This correlation implies that what
+appears as inefficiency is functionally cognitive self-correction. High-performing agents utilize
+redundant checks to confirm transient system states or validate hypotheses before committing to a
+conclusion. Conversely, agents that strictly optimize for non-redundant paths often suffer from
+fragile reasoning, lacking the verification loops necessary to filter out hallucinations.
+Top-tier models exhibit divergent reasoning strategies.While both DeepSeek-V3.2 and GPT-
+5 achieve SOTA accuracy, their underlying process metrics reveal fundamentally different reasoning
+paradigms: (i)Coverage-Centric Strategy (DeepSeek-V3.2):This model adopts a brute-force
+approach, maximizing evidence collection. It records the highestSteps(10.0) andCoverage(0.88),
+ensuring that nearly all expert-defined critical information is retrieved. This strategy prioritizes
+recall over precision, accepting higher redundancy (RAR=0.11) to guarantee diagnostic safety. (2)
+Relevance-Centric Strategy (GPT-5):Conversely, GPT-5 mimics the efficiency of a seasoned
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 14 ---
+14 Yilun Wang, Guangba Yu et al.
+A@1                                                              A@3                                                               TCR
+In-Order                                                    Any-Order                                                     Relevance
+Coverage                                                          Steps                                                      MTTI
+IAC                                                                  RAR                                                     ZTDR
+Fig. 3. Details of metrics across 7 fault categories.
+expert. It achieves the highestRelevance(0.65) with significantly fewer steps (5.57). This indicates
+a high signal-to-noise ratio in tool selection, where the model filters out exploratory noise and
+targets critical system states directly. This divergence implies that there is a trade-off between the
+safety of exhaustive search and the efficiency of heuristic leaps.
+Tool selection precision dissociates from diagnostic success in SLMs.Our analysis uncovers
+a competence illusion in SLMs. As shown in Table 4, Qwen3-14B achieves a Tool Relevance score
+of 0.63, matching that of the much larger GPT-4o (0.63) and nearly approaching GPT-5 (0.65). This
+indicates that the model possesses strong semantic knowledge regardingwhichtools are appropriate
+for a given context (Classifier Competence). However, this high relevance does not translate to
+outcome effectiveness (𝐴@1 = 0.34vs. GPT-5’s0 .67). This gap suggests that the bottleneck for
+SLMs is not tool selection (identifying the right API) but information integration (interpreting the
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 15 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 15
+----------Correct OutputFormat----------Thought: I will retrieve the cluster configuration.Action: GetClusterConfigurationAction Input: {}-------------AgentOutput-------------Thought: I will retrieve the cluster configuration.Action: GetClusterConfiguration#ParsingError: Do not provide arguments
+Query: Service quality degradation-------------AgentOutput-------------(Step 1)Final Answer: Alerts show frontend experiencing critical HighLatency…                    # HallucinationCase#2 Case #4
+🟢GetResources{pods}àAll podsruning
+🟢GetResources{deployments}  àfrontend 0/1 ready
+🟡GetResources{pods,app=frontend}
+🟡GetResources{pods, output_wide}
+🟢DescribeResource{deployments,frontend}
+🟢└─ DescribeResource{replicaset, frontend} àforbidden: exceeded quota
+🔴GetResources{resourcequota}  àrequests.cpu: 10/10
+🟡GetResources{pods, show_labels}
+🟡DescribeResource{resourcequotas}
+🟡GetAppYAML{frontend}Final Answer: ‘resourcequotaexceed’
+----------AgentOutput----------…(Step i)Thought: Listpodwhereapp=adserviceAction: GetResourcesAction Input: {’pod’,’app=adservice’}Output: null(Step i+1)Thought: Listpodwhereapp=adserviceAction: GetResourcesAction Input: {’pod’,’app=adservice’}#Repetition LoopOutput: null
+Case #3
+🟢Progress
+🟡Redundant
+🔴RootCauseCase #1
+step
+Fig. 4. Qualitative case studies illustrating distinct diagnostic behaviors and failure modes.
+API response). While they can correctly identify the need to check logs, they fail to synthesize the
+returned log data into a causal chain, highlighting that tool selection and diagnostic reasoning are
+distinct capability layers that scale differently with model size.
+4.5 RQ3: Tool Robustness
+Robustness evaluates the agent’s ability to generate valid tool invocations and recover from runtime
+execution errors. We analyze the Invalid Action Count (IAC) and Zero-Tool Diagnosis Rate (ZTDR)
+alongside the qualitative behaviors visualized in Fig. 4.
+Lack of self-correction capabilities leads to reasoning stagnation in SLMs.The critical
+differentiator between model tiers is not merely the occurrence of errors, but the ability to uti-
+lize runtime feedback for recovery. As illustrated in Case#2 of Fig. 4, when small models (e.g.,
+Qwen3-14B) encounter an API error (e.g., Pod not found ), they fail to interpret the error message
+as corrective feedback. Instead of revising the query, they enter a repetition loop, retrying the
+exact same invalid payload until the step limit is exhausted. In contrast, large-scale models like
+DeepSeek-V3.2 demonstrate reflective debugging, where they analyze the error trace and suc-
+cessfully reformulate the tool invocation in the subsequent step. This indicates that robustness is
+defined by the meta-cognitive loop of error handling, which is largely absent in sub-20B models.
+Proprietary models exhibit laziness via speculative shortcuts.Robustness also encompasses
+the discipline to strictly adhere to evidence-based workflows. We identify a premature conclusion
+failure mode in Claude-4-Sonnet, quantifiable by its high ZTDR of 0.32. As depicted in Case#4 of
+Fig. 4, this model occasionally bypasses the investigation phase entirely, hallucinating a specific root
+cause (e.g., claiming “High Latency due to CPU”) based solely on the generic alert description. While
+this behavior reduces steps (Avg 4.25), it compromises reliability (𝐴@1 = 0.5). True robustness
+requires the agent to suppress the parametric urge to generate a probable answer and instead verify
+the system state through execution, ensuring that every diagnosis is backed by runtime telemetry.
+Schema Hallucination undermines tool utility.Beyond syntax errors, we observe a semantic
+failure mode in mid-tier models termed schema hallucination (Case #3 in Fig. 4). Agents frequently
+invent non-existent parameters for valid tools (e.g., passing filters to parameter-less APIs). Unlike
+simple syntax errors, these hallucinations suggest a fundamental misalignment between the agent’s
+internal representation of the tool and the actual API definition. This decoupling prevents the agent
+from utilizing the toolset effectively, even when the reasoning intent is correct.
+4.6 RQ4: Knowledge Efficacy
+In this section, we evaluate three mainstream knowledge enhancement strategies against the zero-
+shot baseline: (i) Chain-of-Thought (CoT), which enforces a structured reasoning template (e.g.,
+Status → Events → Config → Cluster) to guide pre-action planning. (ii) In-Context Learning (ICL),
+which retrieves 3 historical diagnostic traces from the same fault category, including tool invocations
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 16 ---
+16 Yilun Wang, Guangba Yu et al.
+Table 5. Performance comparison of knowledge-enhanced agents.
+Outcome Process
+Model Techs A@1↑A@3↑TCR↑Exact↑InO.↑AnyO.↑Rel.↑Cov.↑Steps↓IAC↓MTTI↓RAR↓ZTDR↓
+Qwen3-235B
+Base 0.5 0.53 0.96 0.13 0.38 0.41 0.55 0.67 5.34 0.22 143.55 0.06 0.17
+COT 0.47 0.5 0.96 0.09 0.31 0.34 0.5 0.61 4.96 0.19 138.06 0.05 0.22
+ICL 0.590.63 0.98 0.27 0.52 0.54 0.570.663.11 0.09 72.21 0.030.3
+RAG 0.60.62 0.95 0.1 0.45 0.5 0.540.755.77 0.25 163.91 0.040.1
+GPT-4o
+Base 0.49 0.550.990.14 0.45 0.46 0.630.785.67 0.2723.270.02 0.02
+COT 0.49 0.56 0.94 0.15 0.34 0.38 0.53 0.66 5.19 0.24 25.95 0.02 0.15
+ICL 0.7 0.750.970.28 0.49 0.52 0.670.764.4 0.0824.5700.13
+RAG 0.61 0.67 1 0.17 0.35 0.41 0.62 0.76 5.99 0.19 27.78 0.020
+Qwen3-14B
+Base 0.34 0.43 0.82 0.04 0.31 0.42 0.63 0.715.820.4108.51 0.1 0
+COT 0.44 0.48 0.95 0.02 0.31 0.47 0.55 0.77 7.65 0.35 178.15 0.140
+ICL 0.71 0.75 0.99 0.11 0.44 0.59 0.7 0.866.290.29234.52 0.110
+RAG 0.5 0.54 0.97 0.02 0.4 0.51 0.59 0.79 7.08 0.28 172.9 0.140
+and outcomes as dynamic demonstrations. (iii) Retrieval-Augmented Generation (RAG), which
+injects relevant knowledge from authoritative Kubernetes operations documentation [24] to ground
+domain understanding. The results in Table 5 indicate that providing procedural demonstrations is
+more effective than providing declarative knowledge or encouraging abstract reasoning.
+Procedural demonstration (ICL) outweighs declarative knowledge retrieval (RAG).A
+consistent trend across all models is the dominance of In-Context Learning (ICL). For GPT-4o, ICL
+improves A@1 from 0.49 to 0.7, significantly outperforming RAG (0.61). This performance gap
+illuminates the nature of the agentic bottleneck. RAG injects authoritative Kubernetes operations
+documentation, which helps agents understand what a tool does (enhancingCoverage), but fails
+to instruct how to orchestrate these tools in a multi-step diagnosis. In contrast, ICL retrieves
+historical diagnostic traces, providing concrete examples of valid tool invocations and outcome
+interpretations. This suggests that agents benefit more from mimicking the execution patterns of
+experts (Procedural Norms) than from reading the manuals of the system (Declarative Knowledge).
+Few-shot demonstrations effectively bridge the scale gap for SLMs.One of the most
+profound findings is the disproportionate benefit ICL confers on SLMs. Under the Base setting,
+Qwen3-14B (A@1=0.34) lags far behind GPT-4o (0.49). However, with ICL, Qwen3-14B achieves a
+A@1 of 0.71, effectively matching or even surpassing the performance of the unprompted GPT-5 tier.
+Table 5 reveals the mechanism behind this resurrection: ICL significantly reduces the Invalid Action
+Count (IAC) for Qwen3-14B from 0.40 to 0.29. This indicates that SLMs possess latent reasoning
+capabilities that are suppressed by syntactic fragility. By observing valid tool invocation examples
+in the context window, SLMs can copy-paste the correct schema structure, bypassing the syntax
+barrier identified in RQ3 and unlocking their reasoning potential.
+Structured reasoning templates (CoT) yield diminishing returns.Contrary to its success in
+logical reasoning tasks, the CoT strategy, which enforces a “Status→ Events → Config” template,
+proves ineffective for Agentic RCA. For Qwen3-235B, CoT degrades performance (0.50→ 0.47), and
+for GPT-4o, it offers no gain. We attribute this to template rigidity and hallucination amplification.
+First, a fixed pre-action planning template may not align with the dynamic nature of diverse
+faults (e.g., a network issue requires a different flow than a crash loop). Second, without external
+grounding (like RAG or ICL), forcing a model to generate a long reasoning chain often induces it
+to hallucinate plausible but incorrect intermediate states. This indicates that reasoning structure
+alone is insufficient without the grounding of valid execution history or external knowledge.
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 17 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 17
+5 Discussion
+5.1 Significance and Impact
+Redefining the Evaluation Standard for Autonomous SRE.Prior to Cloud-OpsBench, the field
+relied on outcome-based metrics that inadvertently rewarded stochastic guessing [2, 3, 36, 49, 53]
+. This work invalidates that approach. By enforcing a process-centric evaluation paradigm, we
+demonstrate that how an agent verifies is as critical as what it concludes. We establish the first
+rigorous standard for differentiating between fragile probability generation and robust systematic
+reasoning in industrial reliability tasks.
+Diagnosing the Diagnosers.Beyond aggregate performance rankings, this work provides a
+rigorous taxonomy of failure mechanisms in Agentic RCA. We empirically isolate distinct cognitive
+deficits:Syntactic Fragilityin SLMs andParametric Hallucinationin frontier models. This white-box
+analysis suggests that future improvements should focus on targeted interventions (e.g., syntax-
+constrained decoding or verification loops) rather than relying solely on parameter scaling.
+Democratizing Research via Zero-Cost Replay.Prior to Cloud-OpsBench, the high barrier of
+entry which requires expensive cloud clusters and incurring lengthy feedback loops (often hours
+per run [7]) effectively gated Agentic RCA research to industrial labs with abundant resources. By
+decoupling system state from runtime execution, we reduce the evaluation cost from substantial
+cloud bills to negligible computation. Cloud-OpsBench enables a full-scale benchmark run in
+seconds on a standard laptop. This infrastructure empowers the broader academic community to
+iterate rapidly on agent designs without the friction of deployment overhead.
+5.2 Future Research Opportunities
+Cloud-OpsBench serves as an extensible environment for next-generation SRE research. We map
+our empirical insights to specific future research opportunities.
+From Monolithic to Multi-Agent Architectures.Our identification of a competence mis-
+match where SLMs fail due to rigid schema compliance despite having sufficient semantic intuition
+proves that generic reasoning capability is not the sole bottleneck. To address this, future re-
+search can abandon the one-model-fits-all approach in favor of multi-agent architectures based on
+Cloud-OpsBench. For example, researchers can explore multi-agent architectures where roles are
+specialized: a planner agent (powered by robust models like GPT-5) orchestrates the diagnostic
+logic, while lightweight executor agents (fine-tuned SLMs) handle specific tool interactions, thereby
+optimizing the cost-accuracy trade-off.
+From Open-Ended Prompting to RL Policies.The reasoning stagnation and premature con-
+vergence observed in RQ2 (§ 4.4) indicate that current agents operate as open-loop systems lacking
+an optimal stopping mechanism. By functioning as a high-fidelity Digital Twin, Cloud-OpsBench
+transforms AIOps into a safe reinforcement learning environment. We encourage researchers to
+utilize process metrics (Steps, RAR) as reward signals to train agents via PPO [ 40] or DPO [39].
+This shifts the paradigm from static prompt engineering to dynamic policy optimization, allowing
+agents to learn exploration strategies that balance thoroughness with efficiency.
+From Static Manuals to Self-Evolving Data Engines.Our RQ4 findings (§ 4.6) demonstrate
+that procedural demonstrations (ICL) significantly outperform declarative documentation (RAG),
+suggesting that SRE knowledge is best represented by trajectories rather than static manuals. This
+establishes Cloud-OpsBench as a data engine capable of harvesting massive expert-level diagnostic
+traces. This infrastructure unlocks critical avenues for Supervised Fine-Tuning (SFT) [34] to align
+small models with expert behaviors and drives automated prompt optimization (APO) [64], where
+diagnostic outcomes serve as feedback to scientifically evolve agent instructions (e.g., via DSPy [21])
+without expensive retraining.
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 18 ---
+18 Yilun Wang, Guangba Yu et al.
+5.3 Threats to Validity
+External Validity.While Cloud-OpsBench covers 7 diverse fault categories, it is grounded in
+a Kubernetes microservices environment. The specific toolsets may not generalize perfectly to
+monolithic architectures or serverless platforms, though the fundamental reasoning patterns
+(resource contention, cascading failure) remain transferable.
+Internal Validity.The prompt engineering strategies (CoT, ICL) were implemented using generic
+templates to ensure fairness. It is possible that model-specific prompt optimization could yield
+different performance ceilings. However, our goal was to benchmark the foundational capabilities
+of the models themselves rather than the efficacy of prompt tuning.
+Construct Validity.A potential concern regarding the State Snapshot paradigm is that it restricts
+the agent’s ability to observe real-time state transitions, effectively freezing the crime scene. We
+acknowledge this limitation but emphasize that for RCA, the “post-mortem” context, compris-
+ing Kubernetes object status, time-series metrics and timestamped logs, inherently captures the
+vast majority (typically > 90%) of diagnostic clues required for logical deduction [1]. Therefore,
+Cloud-OpsBench is rigorously scoped to evaluate reasoning based on existing evidence, explicitly
+distinguishing itself from downstream tasks that require trial-and-error remediation or active
+environmental intervention.
+6 Related Work
+Evolution of RCA.Traditional RCA methods primarily formulated diagnosis as a discriminative
+task, utilizing causal graphs or neural networks to identify anomalies [16, 25, 26, 29, 30, 51–53, 62].
+The integration of LLMs later shifted the paradigm towards generative diagnosis, leveraging RAG
+to retrieve expert knowledge for passive analysis [ 1, 8, 11, 28, 47]. However, most LLM-based
+methods remain passive, analyzing only provided snapshots without the ability to interactively
+verify hypotheses.
+To enable active diagnosis, recent research has shifted toward agentic workflows [14]. Unlike
+static LLM-based approaches, agents are designed to actively reason and interact with complex
+environments via code execution or API calls. This trend has rapidly permeated various layers of the
+technology stack, ranging from diagnosing distributed cloud and AI workloads to resolving database
+failures via expert-aligned reasoning [33, 35, 44, 45, 50, 61]. These advancements collectively signal
+a consensus that agentic workflows capable of multi-step reasoning and tool utilization are essential
+for addressing the non-deterministic nature of modern software failures.
+Benchmarking in AIOps.Current benchmarks face a fundamental trade-off between repro-
+ducibility and ecological validity, which limits the scope of evaluation metrics. Static artifact
+benchmarks [2, 3, 10, 25, 36, 41, 53, 57, 65] rely on offline datasets collected from historical inci-
+dents. While offering high determinism, they inherently lack interactivity. Recent works [49] have
+advanced this paradigm by allowing agents to query data. However, this interaction is restricted to
+generative tooling, which requires agents to synthesize Python code to parse local CSV files. While
+this tests data manipulation skills, it fails to capture the standard tool-use central to real-world
+SRE operations. Furthermore, evaluation in this paradigm is strictly outcome-based (e.g., accuracy),
+ignoring whether the agent arrived at the root cause through valid reasoning.
+Conversely, dynamic benchmarks [ 7, 18, 43] prioritize ecological validity by deploying live
+microservice applications. Although these environments support standard tool use, they suffer
+from inherent stochasticity. Environmental noise, such as network jitter or race conditions, renders
+experiments non-deterministic, making it difficult to disentangle agent reasoning errors from
+system instability. Consequently, these benchmarks are also forced to rely on outcome-based
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 19 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 19
+metrics, as the non-deterministic environment precludes precise alignment and scoring of the
+agent’s investigative process.
+As summarized in Table 1, Cloud-OpsBench bridges this gap by introducing theState Snapshot
+paradigm. By simulating standard tool-use via deterministic mocked interfaces, we achieve the high
+ecological validity of dynamic environments while retaining the rigorous reproducibility of static
+datasets. This unique combination enables not just outcome assessment, but also process-oriented
+evaluation, measuring how well the agent’s actions align with expert SRE trajectories.
+7 Conclusion
+This paper introduces Cloud-OpsBench, the first large-scale benchmark that resolves the tension
+between ecological validity and reproducibility in Agentic RCA via a deterministic state snapshot
+paradigm. By constructing a noise-free Digital Twin of the cloud, we enable the rigorous process-
+centric evaluation of SRE agents across 452 diverse fault cases. Our empirical analysis challenges the
+efficiency-first orthodoxy, revealing that operational redundancy is essential for reliability and that
+syntactic rigidity, not logic, bottlenecks SLMs. Ultimately, Cloud-OpsBench serves as an enabling
+infrastructure for next-generation research, functioning as both a data engine for bootstrapping
+SFT and a safe RL Sandbox for policy optimization, thereby laying the groundwork for evolving
+agents from fragile chat-bots into robust self-improving reliability engineers.
+8 Data Availability
+We have made our collected dataset of 452 cloud fault cases and the code for running the experiments
+publicly available at https://github.com/LLM4Ops/Cloud-OpsBench.
+References
+[1] Toufique Ahmed, Supriyo Ghosh, Chetan Bansal, Thomas Zimmermann, Xuchao Zhang, and Saravan Rajmohan. 2023.
+Recommending Root-Cause and Mitigation Steps for Cloud Incidents using Large Language Models. InICSE 2023.
+IEEE, 1737–1749. doi:10.1109/ICSE48619.2023.00149
+[2] AIOPS.CN. 2020. AIOPS 2020 challenges data. https://github.com/NetManAIOps/AIOps-Challenge-2020-Data.
+[3] AIOPS.CN. 2021. AIOPS 2021 challenges data. https://www.aiops.cn/gitlab/aiops-nankai/data/trace/aiops2021.
+[4] Marco Barletta, Marcello Cinque, Catello Di Martino, Zbigniew T. Kalbarczyk, and Ravishankar K. Iyer. 2024. Mutiny!
+How Does Kubernetes Fail, and What Can We Do About It?. InDSN 2024. IEEE, 1–14. doi:10.1109/DSN58291.2024.00016
+[5] Chaosblade. 2026. Chaosblade. https://chaosblade.io/.
+[6] Junjie Chen, Shu Zhang, Xiaoting He, Qingwei Lin, Hongyu Zhang, Dan Hao, Yu Kang, Feng Gao, Zhangwei Xu,
+Yingnong Dang, and Dongmei Zhang. 2020. How Incidental are the Incidents? Characterizing and Prioritizing Incidents
+for Large-Scale Online Service Systems. InASE 2020. IEEE, 373–384. doi:10.1145/3324884.3416624
+[7] Yinfang Chen, Manish Shetty, Gagan Somashekar, Minghua Ma, Yogesh Simmhan, Jonathan Mace, Chetan Bansal,
+Rujia Wang, and Saravan Rajmohan. 2025. AIOpsLab: A Holistic Framework to Evaluate AI Agents for Enabling
+Autonomous Clouds. InMLSys 2025. https://openreview.net/forum?id=3EXBLwGxtq
+[8] Yinfang Chen, Huaibing Xie, Minghua Ma, Yu Kang, Xin Gao, Liu Shi, Yunjie Cao, Xuedong Gao, Hao Fan, Ming Wen,
+Jun Zeng, Supriyo Ghosh, Xuchao Zhang, Chaoyun Zhang, Qingwei Lin, Saravan Rajmohan, Dongmei Zhang, and
+Tianyin Xu. 2024. Automatic Root Cause Analysis via Large Language Models for Cloud Incidents. InEuroSys 2024.
+ACM, 674–688. doi:10.1145/3627703.3629553
+[9] CrewAI. 2025. Build a crew of AI Agents today, save countless hours forever. Retrieved Oct. 10, 2025 from https:
+//www.crewai.com/
+[10] Tianyu Cui, Shiyu Ma, Ziang Chen, Tong Xiao, Chenyu Zhao, Shimin Tao, Yilun Liu, Shenglin Zhang, Duoming Lin,
+Changchang Liu, Yuzhe Cai, Weibin Meng, Yongqian Sun, and Dan Pei. 2025. LogEval: A comprehensive benchmark
+suite for LLMs in log analysis.Empir. Softw. Eng.30, 6 (2025), 173. doi:10.1007/S10664-025-10701-6
+[11] Drishti Goel, Fiza Husain, Aditya Singh, Supriyo Ghosh, Anjaly Parayil, Chetan Bansal, Xuchao Zhang, and Saravan
+Rajmohan. 2024. X-Lifecycle Learning for Cloud Incident Management using LLMs. InFSE Companion 2024. ACM,
+417–428. doi:10.1145/3663529.3663861
+[12] Google. 2026. Online Boutique: Sample cloud-first application with 10 microservices showcasing Kubernetes, Istio,
+and gRPC. https://github.com/GoogleCloudPlatform/microservices-demo.
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 20 ---
+20 Yilun Wang, Guangba Yu et al.
+[13] Antonio Gulli, Lavi Nigam, Julia Wiesinger, Vladimir Vuskovic, Irina Sigler, Ivan Nardini, Nicolas Stroppa, Sokratis
+Kartakis, Narek Saribekyan, A Nawalgaria, et al. 2025. Agents Companion.Kaggle/Google, Tech. Rep.(2025).
+[14] Taicheng Guo, Xiuying Chen, Yaqi Wang, Ruidi Chang, Shichao Pei, Nitesh V. Chawla, Olaf Wiest, and Xiangliang
+Zhang. 2024. Large Language Model Based Multi-agents: A Survey of Progress and Challenges. InIJCAI 2024. ijcai.org,
+8048–8057. https://www.ijcai.org/proceedings/2024/890
+[15] Zijun Hu, Pengfei Chen, Guangba Yu, Zilong He, and Xiaoyun Li. 2022. TS-InvarNet: Anomaly Detection and
+Localization based on Tempo-spatial KPI Invariants in Distributed Services. InICWS 2022, Claudio Agostino Ardagna,
+Nimanthi L. Atukorala, Boualem Benatallah, Athman Bouguettaya, Fabio Casati, Carl K. Chang, Rong N. Chang,
+Ernesto Damiani, Chirine Ghedira Guegan, Robert Ward, Fatos Xhafa, Xiaofei Xu, and Jia Zhang (Eds.). IEEE, 109–119.
+doi:10.1109/ICWS55610.2022.00031
+[16] Jin Huang, Pengfei Chen, Guangba Yu, Yilun Wang, Haiyu Huang, and Zilong He. 2024. FaaSRCA: Full Lifecycle Root
+Cause Analysis for Serverless Applications. InISSRE 2024. IEEE, 415–426. doi:10.1109/ISSRE62328.2024.00047
+[17] Istio. 2026. Service Mesh. Simplified. https://istio.io/.
+[18] Saurabh Jha, Rohan R. Arora, Yuji Watanabe, Takumi Yanagawa, Yinfang Chen, Jackson Clark, Bhavya, Mudit Verma,
+Harshit Kumar, Hirokuni Kitahara, Noah Zheutlin, Saki Takano, Divya Pathak, Felix George, Xinbo Wu, Bekir O.
+Turkkan, Gerard Vanloo, Michael Nidd, Ting Dai, Oishik Chatterjee, Pranjal Gupta, Suranjana Samanta, Pooja Aggarwal,
+Rong Lee, Jae-wook Ahn, Debanjana Kar, Amit M. Paradkar, Yu Deng, Pratibha Moogi, Prateeti Mohapatra, Naoki Abe,
+Chandrasekhar Narayanaswami, Tianyin Xu, Lav R. Varshney, Ruchi Mahindru, Anca Sailer, Laura Shwartz, Daby Sow,
+Nicholas C. Fuller, and Ruchir Puri. 2025. ITBench: Evaluating AI Agents across Diverse Real-World IT Automation
+Tasks. InICML 2025. OpenReview.net. https://openreview.net/forum?id=jP59rz1bZk
+[19] k8sdoc. 2025. Kubernetes Documentation. Retrieved Oct. 10, 2025 from https://kubernetes.io/docs/concepts/
+[20] NVJK Kartik, Garvit Sapra, Rishav Hada, and Nikhil Pareek. 2025. AgentCompass: Towards Reliable Evaluation of
+Agentic Workflows in Production. arXiv:2509.14647 [cs.AI] https://arxiv.org/abs/2509.14647
+[21] Omar Khattab, Arnav Singhvi, Paridhi Maheshwari, Zhiyuan Zhang, Keshav Santhanam, Sri Vardhamanan, Saiful Haq,
+Ashutosh Sharma, Thomas T Joshi, Hanna Moazam, et al. 2023. Dspy: Compiling declarative language model calls into
+self-improving pipelines.arXiv preprint arXiv:2310.03714(2023).
+[22] KodeKloud. 2025. KodeKloud Notes. Retrieved Oct. 10, 2025 from https://notes.kodekloud.com/
+[23] Langfuse. 2025. Open Source LLM Engineering Platform. Retrieved Oct. 10, 2025 from https://langfuse.com/
+[24] LearnKube.CN. 2025. LearnKUBE. https://learnkube.com/troubleshooting-deployments.
+[25] Cheryl Lee, Tianyi Yang, Zhuangbin Chen, Yuxin Su, and Michael R Lyu. 2023. Eadro: An end-to-end troubleshooting
+framework for microservices on multi-source data. In2023 IEEE/ACM 45th International Conference on Software
+Engineering (ICSE). IEEE, 1750–1762.
+[26] Xiaoyun Li, Pengfei Chen, Linxiao Jing, Zilong He, and Guangba Yu. 2023. SwissLog: Robust Anomaly Detection
+and Localization for Interleaved Unstructured Logs.IEEE Trans. Dependable Secur. Comput.20, 4 (2023), 2762–2780.
+doi:10.1109/TDSC.2022.3162857
+[27] Xiaoyun Li, Guangba Yu, Pengfei Chen, Hongyang Chen, and Zhekang Chen. 2022. Going through the Life Cycle of
+Faults in Clouds: Guidelines on Fault Handling. InISSRE 2022. IEEE, 121–132. doi:10.1109/ISSRE55969.2022.00022
+[28] Yichen Li, Yulun Wu, Jinyang Liu, Zhihan Jiang, Zhuangbin Chen, Guangba Yu, and Michael R. Lyu. 2025. COCA:
+Generative Root Cause Analysis for Distributed Systems with Code Knowledge. InICSE 2025. IEEE, 1346–1358.
+doi:10.1109/ICSE55347.2025.00234
+[29] Yufeng Li, Guangba Yu, Pengfei Chen, Chuanfu Zhang, and Zibin Zheng. 2022. MicroSketch: Lightweight and Adaptive
+Sketch Based Performance Issue Detection Localization in Microservice Systems. InICSOC 2022. Springer-Verlag,
+Berlin, Heidelberg, 219–236. doi:10.1007/978-3-031-20984-0_15
+[30] Zeyan Li, Nengwen Zhao, Mingjie Li, Xianglin Lu, Lixin Wang, Dongdong Chang, Xiaohui Nie, Li Cao, Wenchi Zhang,
+Kaixin Sui, Yanhua Wang, Xu Du, Guoqiang Duan, and Dan Pei. 2022. Actionable and interpretable fault localization
+for recurring failures in online service systems. InESEC/FSE 2022. ACM, 996–1008. doi:10.1145/3540250.3549092
+[31] Jinyang Liu, Wenwei Gu, Zhuangbin Chen, Yichen Li, Yuxin Su, and Michael R. Lyu. 2024. MTAD: Tools and Benchmarks
+for Multivariate Time Series Anomaly Detection.CoRRabs/2401.06175 (2024). arXiv:2401.06175 doi:10.48550/ARXIV.
+2401.06175
+[32] Locust. 2026. An open source load testing tool. https://locust.io.
+[33] Jiayi Mao, Liqun Li, Yanjie Gao, Zegang Peng, Shilin He, Chaoyun Zhang, Si Qin, Samia Khalid, Qingwei Lin, Saravan
+Rajmohan, Sitaram Lanka, and Dongmei Zhang. 2025. Agentic Troubleshooting Guide Automation for Incident
+Management.CoRRabs/2510.10074 (2025). arXiv:2510.10074 doi:10.48550/ARXIV.2510.10074
+[34] Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong Zhang, Sandhini
+Agarwal, Katarina Slama, Alex Ray, et al. 2022. Training language models to follow instructions with human feedback.
+Advances in neural information processing systems35 (2022), 27730–27744.
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 21 ---
+Cloud-OpsBench: A Reproducible Benchmark for Agentic Root Cause Analysis in Cloud Systems 21
+[35] Changhua Pei, Zexin Wang, Fengrui Liu, Zeyan Li, Yang Liu, Xiao He, Rong Kang, Tieying Zhang, Jianjun Chen,
+Jianhui Li, Gaogang Xie, and Dan Pei. 2025. Flow-of-Action: SOP Enhanced LLM-Based Multi-Agent System for Root
+Cause Analysis. InWWW 2025. Association for Computing Machinery, 422–431. doi:10.1145/3701716.3715225
+[36] Luan Pham, Hongyu Zhang, Huong Ha, Flora Salim, and Xiuzhen Zhang. 2025. RCAEval: A Benchmark for Root Cause
+Analysis of Microservice Systems with Telemetry Data. InWWW 2025. ACM, 777–780. doi:10.1145/3701716.3715290
+[37] Prometheus. 2026. Open source metrics and monitoring for your systems and services. https://prometheus.io/.
+[38] Pydantic. 2026. A widely used data validation library for Python. https://docs.pydantic.dev/latest/.
+[39] Rafael Rafailov, Archit Sharma, Eric Mitchell, Christopher D Manning, Stefano Ermon, and Chelsea Finn. 2023. Direct
+preference optimization: Your language model is secretly a reward model.Advances in neural information processing
+systems36 (2023), 53728–53741.
+[40] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. 2017. Proximal policy optimization
+algorithms.arXiv preprint arXiv:1707.06347(2017).
+[41] Haotian Si, Jianhui Li, Changhua Pei, Hang Cui, Jingwen Yang, Yongqian Sun, Shenglin Zhang, Jingjing Li, Haiming
+Zhang, Jing Han, Dan Pei, and Gaogang Xie. 2024. TimeSeriesBench: An Industrial-Grade Benchmark for Time Series
+Anomaly Detection Models. InISSRE 2024. IEEE, 61–72. doi:10.1109/ISSRE62328.2024.00017
+[42] stackoverflow. 2025. Stack Overflow. Retrieved Oct. 10, 2025 from https://stackoverflow.com/questions
+[43] Yongqian Sun, Jiaju Wang, Zhengdan Li, Xiaohui Nie, Minghua Ma, Shenglin Zhang, Yuhe Ji, Lu Zhang, Wen Long,
+Hengmao Chen, Yongnan Luo, and Dan Pei. 2025. AIOpsArena: Scenario-Oriented Evaluation and Leaderboard for
+AIOps Algorithms in Microservices. InSANER 2025. IEEE, 809–813. doi:10.1109/SANER64311.2025.00082
+[44] Yifang Tian, Yaming Liu, Zichun Chong, Zihang Huang, and Hans-Arno Jacobsen. 2025. GALA: Can Graph-Augmented
+Large Language Model Agentic Workflows Elevate Root Cause Analysis?CoRRabs/2508.12472 (2025). arXiv:2508.12472
+doi:10.48550/ARXIV.2508.12472
+[45] Zefan Wang, Zichuan Liu, Yingying Zhang, Aoxiao Zhong, Jihong Wang, Fengbin Yin, Lunting Fan, Lingfei Wu, and
+Qingsong Wen. 2024. RCAgent: Cloud Root Cause Analysis by Autonomous Agents with Tool-Augmented Large
+Language Models. InCIKM 2024. ACM, 4966–4974. doi:10.1145/3627673.3680016
+[46] Zirui Wang, Guangba Yu, and Michael R. Lyu. 2026. AI-NativeBench: An Open-Source White-Box Agentic Benchmark
+Suite for AI-Native Systems. arXiv:2601.09393 [cs.SE] https://arxiv.org/abs/2601.09393
+[47] Yong Xiang, Charley Peter Chen, Liyi Zeng, Wei Yin, Xin Liu, Hu Li, and Wei Xu. 2025. Simplifying Root Cause Analysis
+in Kubernetes with StateGraph and LLM.CoRRabs/2506.02490 (2025). arXiv:2506.02490 doi:10.48550/ARXIV.2506.02490
+[48] Zhe Xie, Haowen Xu, Wenxiao Chen, Wanxue Li, Huai Jiang, Liangfei Su, Hanzhang Wang, and Dan Pei. 2023.
+Unsupervised Anomaly Detection on Microservice Traces through Graph VAE. InWWW2023. ACM, New York, NY,
+USA, 2874–2884. doi:10.1145/3543507.3583215
+[49] Junjielong Xu, Qinan Zhang, Zhiqing Zhong, Shilin He, Chaoyun Zhang, Qingwei Lin, Dan Pei, Pinjia He, Dongmei
+Zhang, and Qi Zhang. 2025. OpenRCA: Can Large Language Models Locate the Root Cause of Software Failures?. In
+ICLR 2025. OpenReview.net. https://openreview.net/forum?id=M4qNIzQYpd
+[50] Yitao Yang, Yangtao Deng, Yifan Xiong, Baochun Li, Hong Xu, and Peng Cheng. 2025. AidAI: Automated Incident
+Diagnosis for AI Workloads in the Cloud.CoRRabs/2506.01481 (2025). arXiv:2506.01481 doi:10.48550/ARXIV.2506.01481
+[51] Guangba Yu, Pengfei Chen, Hongyang Chen, Zijie Guan, Zicheng Huang, Linxiao Jing, Tianjun Weng, Xinmeng
+Sun, and Xiaoyun Li. 2021. MicroRank: End-to-End Latency Issue Localization with Extended Spectrum Analysis in
+Microservice Environments. InWWW 2021. ACM, 3087–3098. doi:10.1145/3442381.3449905
+[52] Guangba Yu, Pengfei Chen, Zilong He, Qiuyu Yan, Yu Luo, Fangyuan Li, and Zibin Zheng. 2024. ChangeRCA:
+Finding Root Causes from Software Changes in Large Online Systems.Proc. ACM Softw. Eng.1, FSE (2024), 24–46.
+doi:10.1145/3643728
+[53] Guangba Yu, Pengfei Chen, Yufeng Li, Hongyang Chen, Xiaoyun Li, and Zibin Zheng. 2023. Nezha: Interpretable
+Fine-Grained Root Causes Analysis for Microservices on Multi-modal Observability Data. InESEC/FSE 2023. ACM,
+553–565. doi:10.1145/3611643.3616249
+[54] Guangba Yu, Pengfei Chen, and Zibin Zheng. 2022. Microscaler: Cost-effective Scaling for Microservice Applications
+in the Cloud with an Online Learning Approach.IEEE TCC10, 2 (2022), 1100–1116. doi:10.1109/TCC.2020.2985352
+[55] Guangba Yu, Genting Mai, Rui Wang, Ruipeng Li, Pengfei Chen, Long Pan, and Ruijie Xu. 2026. AlertGuardian:
+Intelligent Alert Life-Cycle Management for Large-scale Cloud Systems. arXiv:2601.14912 [cs.DC] https://arxiv.org/
+abs/2601.14912
+[56] Chenxi Zhang, Xin Peng, Tong Zhou, Chaofeng Sha, Zhenghui Yan, Yiru Chen, and Hong Yang. 2022. TraceCRL:
+contrastive representation learning for microservice trace analysis. InESEC/FSE 2022. ACM, 1221–1232. doi:10.1145/
+3540250.3549146
+[57] Chaoli Zhang, Yingying Zhang, Lanshu Peng, Qingsong Wen, Yiyuan Yang, Chongjiong Fan, Minqi Jiang, Lunting Fan,
+and Liang Sun. 2024. Advancing Multivariate Time Series Anomaly Detection: A Comprehensive Benchmark with
+Real-World Data from Alibaba Cloud. InCIKM 2024. ACM, 5410–5414. doi:10.1145/3627673.3679128
+, Vol. 1, No. 1, Article . Publication date: March 2026.
+
+--- PAGE 22 ---
+22 Yilun Wang, Guangba Yu et al.
+[58] Lingzhe Zhang, Yunpeng Zhai, Tong Jia, Chiming Duan, Minghua He, Leyi Pan, Zhaoyang Liu, Bolin Ding, and
+Ying Li. 2025. MicroRemed: Benchmarking LLMs in Microservices Remediation. arXiv:2511.01166 [cs.CL] https:
+//arxiv.org/abs/2511.01166
+[59] Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin, Zhuohan
+Li, Dacheng Li, Eric Xing, et al. 2023. Judging llm-as-a-judge with mt-bench and chatbot arena.Advances in neural
+information processing systems36 (2023), 46595–46623.
+[60] Renyi Zhong, Yichen Li, Guangba Yu, Wenwei Gu, Jinxi Kuang, Yintong Huo, and Michael R. Lyu. 2025. Larger Is Not
+Always Better: Exploring Small Open-source Language Models in Logging Statement Generation.ACM Trans. Softw.
+Eng. Methodol.(2025). doi:10.1145/3773287
+[61] Wei Zhou, Peng Sun, Xuanhe Zhou, Qianglei Zang, Ji Xu, Tieying Zhang, Guoliang Li, and Fan Wu. 2025.
+DBAIOps: A Reasoning LLM-Enhanced Database Operation and Maintenance System using Knowledge Graphs.
+arXiv:2508.01136 [cs.DB] https://arxiv.org/abs/2508.01136
+[62] Xiang Zhou, Xin Peng, Tao Xie, Jun Sun, Chao Ji, Wenhai Li, and Dan Ding. 2021. Fault Analysis and Debugging of
+Microservice Systems: Industrial Survey, Benchmark System, and Empirical Study.IEEE Trans. Software Eng.47, 2
+(2021), 243–260. doi:10.1109/TSE.2018.2887384
+[63] Xiang Zhou, Xin Peng, Tao Xie, Jun Sun, Chenjie Xu, Chao Ji, and Wenyun Zhao. 2018. Benchmarking microservice
+systems for software engineering research. InICSE 2018 Poster. ACM, 323–324. doi:10.1145/3183440.3194991
+[64] Yongchao Zhou, Andrei Ioan Muresanu, Ziwen Han, Keiran Paster, Silviu Pitis, Harris Chan, and Jimmy Ba. 2022. Large
+language models are human-level prompt engineers. InThe eleventh international conference on learning representations.
+[65] Jieming Zhu, Shilin He, Pinjia He, Jinyang Liu, and Michael R. Lyu. 2023. Loghub: A Large Collection of System Log
+Datasets for AI-driven Log Analytics. InISSRE 2023. IEEE, 355–366. doi:10.1109/ISSRE59848.2023.00071
+, Vol. 1, No. 1, Article . Publication date: March 2026.

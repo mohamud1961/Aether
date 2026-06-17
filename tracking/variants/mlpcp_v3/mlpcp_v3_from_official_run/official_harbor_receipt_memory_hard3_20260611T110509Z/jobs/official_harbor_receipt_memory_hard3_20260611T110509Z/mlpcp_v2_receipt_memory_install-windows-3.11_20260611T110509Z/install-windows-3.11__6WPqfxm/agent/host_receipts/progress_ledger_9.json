@@ -1,0 +1,55 @@
+{
+  "action_types": [
+    "raw_bash",
+    "probe_service",
+    "probe_service",
+    "probe_service",
+    "search_receipts"
+  ],
+  "artifact_states": [
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A running QEMU process launched against /app/isos/win311.img",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    },
+    {
+      "exists": false,
+      "likely_invalid": false,
+      "likely_stub": false,
+      "path": "A VNC listener on 127.0.0.1:5901 or equivalent :1 binding",
+      "sha256": null,
+      "signals": [],
+      "size_bytes": null
+    }
+  ],
+  "commands": [
+    "set -euo pipefail\ncd /app\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU_BIN=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU_BIN=qemu-system-x86_64; else echo 'NO_QEMU_BIN'; exit 1; fi\ncat > /app/win311-qemu.sh <<'EOF'\n#!/usr/bin/env bash\nset -euo pipefail\nQEMU_BIN=${QEMU_BIN:-qemu-system-i386}\nIMG=/app/isos/win311.img\nexec \"$QEMU_BIN\" \\\n  -m 32 \\\n  -cpu 486 \\\n  -machine pc \\\n  -drive file=\"$IMG\",if=ide,format=raw,snapshot=on \\\n  -vnc 127.0.0.1:1 \\\n  -monitor unix:/tmp/win311-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -rtc base=localtime \\\n  -net none\nEOF\nchmod +x /app/win311-qemu.sh\nmkdir -p /app/www\ncat > /app/www/index.html <<'EOF'\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC: 127.0.0.1:5901</p></body></html>\nEOF\nif command -v nginx >/dev/null 2>&1; then\n  cat > /tmp/nginx-win311.conf <<'EOF'\nworker_processes  1;\nevents { worker_connections  1024; }\nhttp {\n  include       mime.types;\n  default_type  application/octet-stream;\n  sendfile        on;\n  keepalive_timeout  65;\n  server {\n    listen 80;\n    server_name _;\n    root /app/www;\n    index index.html;\n  }\n}\nEOF\n  nginx -c /tmp/nginx-win311.conf\nfi\nnohup env QEMU_BIN=\"$QEMU_BIN\" /app/win311-qemu.sh >/tmp/win311-qemu.log 2>&1 &\nsleep 2\nps -ef | grep -E '[q]emu-system-(i386|x86_64).*win311.img' || true\nss -ltnp | grep ':5901\\b' || true\nss -ltnp | grep ':80\\b' || true\nprintf 'monitor socket: '; test -S /tmp/win311-monitor.sock && echo yes || echo no\n"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 5,
+  "facts": [
+    "Required artifact(s) missing: A running QEMU process launched against /app/isos/win311.img, A VNC listener on 127.0.0.1:5901 or equivalent :1 binding"
+  ],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [
+    "A running QEMU process launched against /app/isos/win311.img",
+    "A VNC listener on 127.0.0.1:5901 or equivalent :1 binding"
+  ],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [
+    "A running QEMU process launched against /app/isos/win311.img",
+    "A VNC listener on 127.0.0.1:5901 or equivalent :1 binding"
+  ],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 9
+}

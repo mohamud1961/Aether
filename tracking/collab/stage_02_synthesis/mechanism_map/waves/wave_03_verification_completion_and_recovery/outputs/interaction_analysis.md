@@ -1,0 +1,43 @@
+INTERACTION_ANALYSIS
+- artifact: mechanism_map
+- wave: wave_03_verification_completion_and_recovery
+- status: principal interaction map for Wave 03
+- highest_leverage_interactions:
+  - interaction: `agent completion signal` vs `external verification layer`
+    - detail: A-Evolve and BigAI both show that completion signaling and final acceptance are distinct layers, while DeepAgents shows that inline agent-authored proof can sometimes substitute for a separate verifier in narrow tasks.
+    - evidence:
+      - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/react_solver.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+      - `research/analysis/bigai_trace_layer/output/question_answers.json`
+      - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - interaction: `cleanup and delivery hygiene` vs `completion proof`
+    - detail: BigAI and DeepAgents both show that cleanup state can be part of completion, not merely recovery after completion.
+    - evidence:
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+      - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+      - `research/sources/issues/src_iss_5d861db09829/artifact.txt`
+  - interaction: `checkpoint/resume substrate` vs `actual restart-safe behavior`
+    - detail: Source and docs show strong persistence and session machinery, but trajectories and issue evidence show that visible restart-safe recovery is still weaker than the substrate story suggests.
+    - evidence:
+      - `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+      - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+      - `research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`
+      - `research/sources/issues/src_iss_613424e145e5/artifact.txt`
+      - `research/sources/issues/src_iss_4c8fe1b50b87/artifact.txt`
+  - interaction: `benchmark contract` vs `family-local completion doctrine`
+    - detail: Benchmark pages and generic eval libraries define one layer of completion, but family-local doctrine such as KIRA confirmation, BigAI delivery hygiene, and DeepAgents inline proof can be stricter or differently shaped.
+    - evidence:
+      - `research/sources/benchmarks/src_bnm_e5f985948a0e/artifact.txt`
+      - `research/sources/codebases/langchain/openevals/python/openevals/prompts/trajectory/task_completion.py`
+      - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - interaction: `formal verifier doctrine` vs `minimal-sufficient proof`
+    - detail: The formal slice is verifier-heavy, while direct evidence still supports simple artifact-backed completion proof as a real family.
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+      - `research/sources/papers/papers_text/src_pap_9c739fa97b90.txt`
+      - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+- interaction_level_open_questions:
+  - What exact conditions make verifier `PASSED` diverge from final success in BigAI?
+  - Which cleanup criteria are benchmark-enforced versus family-local?
+  - When does checkpoint substrate become genuine restart-safe behavior rather than only resumability intent?

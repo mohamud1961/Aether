@@ -1,0 +1,48 @@
+{
+  "call_id": "qemu-startup__nbTESYj_execute_14",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cd /app && (qemu-system-x86_64 -m 512 -nographic -serial telnet:127.0.0.1:6665,server,nowait -cdrom /app/alpine.iso -boot d -net none > /tmp/alpine-qemu.log 2>&1 & echo $! > /tmp/alpine-qemu.pid) && sleep 2 && python3 - <<'PY'\\nimport socket,sys,time\\nhost,port='127.0.0.1',6665\\nend=time.time()+30\\nbuf=b''\\nwhile time.time()<end:\\n    try:\\n        s=socket.create_connection((host,port),timeout=2)\\n        s.settimeout(2)\\n        try:\\n            data=s.recv(4096)\\n            buf+=data\\n            if b'login' in buf.lower():\\n                print(buf.decode('utf-8','replace'))\\n                sys.exit(0)\\n        finally:\\n            s.close()\\n    except Exception:\\n        time.sleep(1)\\nprint(buf.decode('utf-8','replace'))\\nsys.exit(1)\\nPY\",\"timeout\":120000,\"receipt_id\":\"receipt:0015_action_raw_bash\"},{\"type\":\"working_checklist\",\"items\":[\"QEMU launched in background with /app/alpine.iso\",\"Probe 127.0.0.1:6665 for Alpine login prompt\"],\"model_notes\":{\"notes\":\"If the ISO does not boot to a login prompt with the initial QEMU invocation, inspect /tmp/alpine-qemu.log and adjust boot/device flags while preserving the requirement to expose the guest console on 127.0.0.1:6665.\"}}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"cat /tmp/alpine-qemu.log && echo '---PID---' && cat /tmp/alpine-qemu.pid\",\"receipt_id\":\"receipt:0016_action_raw_bash\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "cat /tmp/alpine-qemu.log && echo '---PID---' && cat /tmp/alpine-qemu.pid",
+        "receipt_id": "receipt:0016_action_raw_bash"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 2470,
+    "cached_input_tokens": 0,
+    "output_tokens": 442,
+    "total_tokens": 2912,
+    "provider_usage_raw": {
+      "completion_tokens": 442,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 60,
+        "engine_ttlt_ms": 2085,
+        "pre_inference_ms": 111,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 676,
+        "service_ttlt_ms": 2691,
+        "total_duration_ms": 2593,
+        "user_visible_ttft_ms": 566
+      },
+      "prompt_tokens": 2470,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 2912
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

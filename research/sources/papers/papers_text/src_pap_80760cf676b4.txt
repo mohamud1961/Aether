@@ -1,0 +1,2249 @@
+--- PAGE 1 ---
+ADAPTIVEMOMENTUM ANDNONLINEARDAMPING FOR
+NEURALNETWORKTRAINING
+PREPRINT
+Aikaterini Karoni
+School of Mathematics
+University of Bristol
+ve24580@bristol.ac.uk
+Rajit Rajpal
+School of Mathematics
+University of Edinburgh
+s2592586@ed.ac.uk
+Benedict Leimkuhler
+School of Mathematics
+University of Edinburgh
+b.leimkuhler@ed.ac.uk
+Gabriel Stoltz
+CERMICS, Ecole Des Ponts, Institut polytechnique de Paris, CNRS, Marne-la-Vallée, France
+MATHERIALS team-project, Inria Paris, France
+gabriel.stoltz@enpc.fr
+ABSTRACT
+We propose a continuous-time scheme for large-scale optimization that introduces individual, adaptive
+momentum coefficients regulated by the kinetic energy of each model parameter. This approach
+automatically adjusts to local landscape curvature to maintain stability without sacrificing convergence
+speed. We demonstrate that our adaptive friction can be related to cubic damping, a suppression
+mechanism from structural dynamics. Furthermore, we introduce two specific optimization schemes
+by augmenting the continuous dynamics of mSGD and Adam with a cubic damping term. Empirically,
+our methods demonstrate robustness and match or outperform Adam on training ViT, BERT, and
+GPT2 tasks where mSGD typically struggles. We further provide theoretical results establishing the
+exponential convergence of the proposed schemes.
+KeywordsOptimization, Neural Networks, Large Language Models, Dynamical Systems, Transformers
+1 Introduction
+Neural network loss landscapes are highly non-convex, multi-modal and difficult to navigate [3, 15]. Improvements in
+training dynamics directly impact convergence speed, generalization performance, and computational cost. Momentum-
+based stochastic gradient methods are widely used to address these challenges. By maintaining exponentially weighted
+averages of past gradients, momentum stochastic gradient descent (mSGD) can help the optimization dynamics advance
+along flat regions, overcome barriers and control oscillations induced by stochastic gradients and ill-conditioning of
+the optimization landscape [30]. Recent work also shows that momentum can reduce stochastic-gradient bias [27]. In
+practice, this allows for larger and more robust learning rate choices than standard SGD. However, the inertia introduced
+through the momentum mechanism can itself become a new source of oscillations and instability.
+When tuned appropriately, the momentum mechanism can help suppress oscillations in directions of high curvature
+and speed-up convergence in low-curvature regions. The standard practice deep learning is to keep the momentum
+coefficient fixed during training, despite the presence of highly coordinate-dependent curvature. In this work, we argue
+that the momentum coefficient should not remain fixed during training. Instead, it should be dynamically adapted to
+reflect the evolving kinetic energy of each parameter. Importantly, this adaptation should operate on a per-parameter
+basis to account for heterogeneity in the loss landscape.
+The persistent performance gap between mSGD and Adam in training transformer architectures suggests that a single
+global momentum coefficient is often insufficient to handle the coordinate-wise variability of modern loss landscapes.
+Recent research has sought to explain this discrepancy [35, 13, 31, 34]. While one proposed explanation is that Adam is
+more robust to heavy-tailed gradient noise [34], recent work [13] demonstrates that Adam’s advantage persists even in
+arXiv:2602.00334v1  [cs.LG]  30 Jan 2026
+
+--- PAGE 2 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Epochs
+Loss
+Gap
+DistilBERT (SST-2)
+Steps
+Gap
+GPT2-XS (OpenWebText)
+Adam mSGD CD (Ours) iKFAD (Ours)
+Figure 1:Adam-mSGD gap: Selected experiments demonstrating that CD and iKFAD can close the gap between
+Adam and mSGD without per-parameter adaptive learning rates on language modeling tasks using Transformers.
+the full gradient setting, where it behaves similarly to sign descent with momentum. This suggests that Adam’s strength
+lies in its coordinate-wise normalization, which allows it to tackle the Hessian heterogeneity and anisotropic curvature
+that often cause mSGD to struggle [34]. As illustrated in Figure 1, our proposed damping mechanisms (CD and iKFAD)
+effectively bridge this gap in Transformer-based tasks without requiring explicit per-parameter adaptive learning rates.
+To clarify the mechanics of our approach, we first establish the connection between momentum and friction (or damping).
+We begin with the discrete dynamics of mSGD [25], which can be written as
+pn+1 =µp n+∇f(xn),(1a)
+xn+1 =x n−δtpn+1.(1b)
+In the zero–learning rate limit, these equations correspond to Linearly Dissipative Hamiltonian Dynamics (LDHD)
+[7, 16, 28]:
+˙x=p,(2a)
+˙p=−∇f(x)−γp,(2b)
+where γ>0 is the friction coefficient. The " −γp"term introduces linear damping or friction into the dynamics.
+Conversely, applying an Euler discretization to the system(2) yields the discrete dynamics in (1) suggesting that the
+linear dissipation manifests as the exponentially weighted averaging of gradients characteristic of classical momentum.
+This relationship establishes a direct equivalence between the friction coefficientγ and the momentum coefficient µ
+through the relation
+µ=1−γ
+√
+δt(3)
+(see Appendix A). Consequently, the momentum coefficientµ in the discrete setting performs the exact same role as
+frictionγin continuous time: both regulate the momentapand, by extension, the kinetic energy of the optimizer.
+In continuous time the optimization process can therefore be viewed as the motion of a particle (whose coordinates
+correspond to the model parameters) navigating a potential field defined by the loss function f(x) . The state of the
+optimizer is defined by its position x and its momentum p, with the total system energy H(x, p)=f(x)+ 1
+2∥p∥2
+representing the sum of the current loss (potential energy) and the squared norm of the momenta (kinetic energy).
+In a non-dissipative system ( γ=0 ), energy is conserved, causing the optimizer to oscillate perpetually around the
+minimum without settling. To achieve convergence, one must introduce dissipation to remove kinetic energy and allow
+the parameters to stabilize. While the momentum mechanism is often viewed as introducing exponentially weighted
+averages, this Hamiltonian perspective reframes it as a dissipative force. This µ−γ equivalence shows that a fixed
+momentum coefficient µ corresponds to applying the same damping across all coordinates. This fails to account for the
+heterogeneous structure of modern loss landscapes, where different parameters exhibit varying update velocities and
+require localized, adaptive damping to stabilize their individual trajectories.
+2
+
+--- PAGE 3 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+2
+ 1
+ 0 1 2
+x
+1
+0
+1
+2
+3
+y
+min
+Rosenbrock landscape
+2.5
+ 0.0 2.5
+0
+5
+10
+15
+mGD
+2
+ 0 2
+2
+1
+0
+1
+2
+CD
+2
+ 0 2
+2
+1
+0
+1
+2
+iKFAD
+2
+ 0 2
+2
+0
+2
+Adam
+Figure 2:Phase portraits for a two-dimensional Rosenbrock function: Each red grid point corresponds to a different
+initialization in the (x, y) domain and each blue line corresponds to a different optimization trajectory. The minimum
+(xmin, ymin)=(1,1) , is denoted by a green star. We set γ=1 , h=0.005 , and α=ρ=c=1 . mSGD exhibits
+significant oscillations and overshooting of the minimum (note the different scale of the mSGD y-axis). In contrast, our
+per-parameter, adaptive friction method iKFAD and cubic damping method CD lead to smoother and much more direct
+trajectories towards the minimum, similarly to Adam.
+Here, it is also useful to present the continuous dynamics of Adam [4], [8]. 1
+˙x= p√ζ+ϵ ,(4a)
+˙p=−∇f(x)−γp,(4b)
+˙ζ=[∇f(x)]2−αζ.(4c)
+Adam [11] employs the same momentum mechanism as mSGD that can potentially smooth out gradient oscillations
+and help the dynamics advance along flat regions and overcome barriers. In addition, Adam maintains an exponential
+moving average of squared gradients. While this quantity does not estimate curvature, it provides a crude diagonal
+approximation to the gradient second moment, enabling adaptive per-parameter learning rates that dampen updates in
+directions with high gradient variability.
+Even though momentum-based methods commonly employ a fixed momentum coefficient, the choice of µ can
+significantly influence training dynamics and convergence speed. When tuned appropriately the momentum mechanism
+can help control oscillations, speed-up convergence in low-curvature regions, as well as overcome barriers. If not
+carefully chosen, the momentum mechanism can become the source of new oscillations, especially in directions of
+high curvature or introduce excessive damping to the system. Apart from using a time-independent (fixed) momentum
+coefficient, momentum-based methods also typically apply the same momentum coefficient across all parameters. This
+uniform treatment disregards directional differences in the local geometry of the loss landscape.
+In this work, we argue for a dynamic and coordinate-wise adaptation of the momentum coefficient, that accounts for
+anisotropy in the optimization dynamics. Our iKFAD and CD methods can be thought of as replacing the constant
+friction coefficient in(2) with a coordinate-wise friction term. The resulting dynamics are of the following general form
+˙x=p,(5a)
+˙p=−∇f(x)−g(p)⋆p,(5b)
+where "⋆", denotes element-wise vector multiplication and g∶R→R>0 is applied componentwise, i.e. [g(p)]i =g(p i).
+In order to qualitatively highlight the behavior of our optimizers, we examine their performance on two low-dimensional
+examples (see Figures 2 and 3 and observe that our methods are more stable than mGD and exhibit faster convergence
+in these simple settings.
+2 Outline
+The rest of this work is structured as follows. Section 3 introduces the continuous dynamics of three new optimizers
+(iKFAD, CD and Cadam) based on the aforementioned adaptive friction and cubic damping mechanism ideas. In
+Section 5, we examine the dynamical properties of the optimizers and show convergence of the continuous and discrete
+dynamics for iKFAD and CD. Finally, in Section 6 we present an empirical study of our methods on deep learning
+benchmarks.
+1We note that unlike LDHD-mSGD, this continuous-time version of Adam in Eq (4) doesn’t have a direct correspondence to
+Adam [11], and does not include bias correction. However, it serves as a useful dynamical systems model of Adam as a damped
+system with per-parameter adaptive learning rates.
+3
+
+--- PAGE 4 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+3 Methodology
+The linear dissipation term−γpin Equation (2b) acts as a damping force on the momenta, with the value of the friction
+coefficient γ directly affecting their magnitude. Insufficient damping (low values of the friction parameter γ) can lead
+to high momenta, which can in turn result in oscillations and instability [22]. Excessive damping on the other hand
+(high values of γ), leads to excessive energy dissipation, small momenta and slow convergence. Having a friction or
+momentum coefficient that dynamically adapts based on the kinetic energy of the system would allow us to increase
+the damping when momenta are getting too high and decrease it when momenta are lower. This acts like a gentle
+thermostat on the system, allowing us to control the magnitude of the momenta. This adaptive friction mechanism was
+first introduced in the context of optimization in [9] with only a single adaptive coefficient for all parameters. Here, we
+modify the original dynamics, by introducing individual adaptive friction coefficients for each of the model parameters.
+We refer to this new optimizer asIndividual Kinetic Friction Adaptive Descent (iKFAD)and describe its dynamics as
+˙x=p,(6a)
+˙p=−∇f(x)−γp−ξ⋆p,(6b)
+˙ξ= [p]2
+ρ −αξ,(6c)
+where γ, α, ρ>0 , x, p, ξ∈RN and “⋆”, “[⋅]k” denote element-wise multiplication and exponentiation respectively. Note
+that while Equation (6b) also includes a standard fixed friction term apart from the new adaptive friction mechanism, we
+find that in practice we can often setγ≈0 and still maintain performance. The existence of a fixed friction term however
+is helpful in obtaining theoretical convergence guarantees. Note that iKFAD does not rescale individual learning rates
+like ADAM.
+To better understand the role of the adaptive friction coefficientξ, we look at the exact solution of equation (6c), given
+as
+ξ(t)=e −αtξ(0)+ 1
+ρ ∫
+t
+0
+[p(s)]2e−α(t−s)ds.
+We see that ξ is an exponentially weighted average of the squares of past momenta, i.e. kinetic energies. Thus, a
+history of high momenta leads to an increased damping coefficient ξ, which helps “cool down” the system and control
+oscillatory behavior which might otherwise arise in the presence of high momenta. Conversely, a history of low
+momenta leads to less damping, allowing the optimizer to advance along low gradient, low-momenta regions.
+In the discrete setting, we tend to think of Adam as performing per-parameter learning rate adaptation through the
+second-moment estimate ζ. In its continuous form (Equation (4)), Adam can be thought of as a method performing
+per-parameter momentum adaptation. We can therefore draw a parallel between iKFAD (6) and Adam. Both methods
+scale each element of the momentum vector individually, but while Adam does this in the x equation by dividing by the
+auxiliary variable ζ, iKFAD performs this adaptation in the momentum equation by applying adaptive, per-parameter
+damping on the momentapthrough the adaptive frictionξ.
+Our individual adaptive friction scheme addresses coordinate-wise anisotropy in the optimization dynamics in a manner
+analogous to the per-parameter learning rates used in adaptive optimizers such as Adam. While iKFAD does not
+explicitly rescale the gradient, the use of a separate friction coefficient for each parameter in the momentum update
+(6b) effectively regulates the update velocity on a per-coordinate basis. This is particularly relevant for architectures
+like Transformers, where parameters in different layers or attention heads exhibit vastly different update scales and
+noise characteristics, often limiting the effectiveness of mSGD’s global momentum. By introducing parameter-specific
+damping, iKFAD adaptively modulates the inertia of each parameter, allowing the optimizer to suppress oscillations in
+high-variance directions while maintaining progress in flatter regions, achieving a similar stabilizing effect to Adam.
+Next, we consider the near–equilibrium behaviour of (6c). When α is sufficiently large and upon setting ˙ξ≈0, we
+obtain
+ξ≈(αρ)−1[p]2.
+Substituting this approximation into (6b) yields
+˙p≈−∇f(x)−(αρ)−1[p]3,
+indicating that iKFAD behaves like acubically dampedmomentum method in this regime. This motivates the study
+of the effect of cubic damping in state of the art optimizers such as mSGD and Adam. Cubic damping has long been
+studied as an effective vibration-suppression technique in engineering applications [23] [24][36][1]. Higher odd-order
+damping (such as quintic damping) would also be possible, provided that we use an odd power, so that the sign of the
+momenta is maintained.
+4
+
+--- PAGE 5 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+0 100 200 300 400 500
+Step
+10 8
+10 6
+10 4
+10 2
+100
+102
+f(xk) f *
+iKFAD
+CD
+mGD
+0.0 0.1 0.2 0.3 0.4 0.5
+Frequency (cycles per step)
+10 4
+10 3
+FFT Amplitude
+Figure 3:Effect of adaptive friction and cubic damping on a two-hundred dimensional anisotropic quadratic:
+f(x)= 1
+2 xT Ax, with eigenvalues ranging between 1 and 104. For momentum gradient descent (mGD), we choose
+the theoretically optimal learning rateh=2/
+√
+Mand frictionγ=2 √m, wherem=1andM=10 4 are the minimum
+and maximum eigenvalues of f respectively.Left: Objective function value f(x) across optimization steps. Note that
+both iKFAD and CD outperform mGD in this setting.Right: Fourier spectrum of trajectory in direction of highest
+eigenvalue.
+We first introduceCubically Damped mSGD (CD), the dynamics of which are obtained by augmenting the momentum
+equation (2b) in LDHD by a cubic damping term.
+˙x=p,(7a)
+˙p=−∇f(x)−γp−c[p]3.(7b)
+An advantage of the cubic damping mechanism is that it is more gentle than its linear counterpart for low momenta and
+becomes more aggressive than linear damping as momentum increases. This allows for gentler damping and therefore
+enhanced exploration along directions where gradients and momenta are low, while allowing for increased damping and
+oscillation control along high-momentum directions.
+Figure 3 shows CD and iKFAD converging faster than theoretically optimal mGD on a 200-dimensional anisotropic
+quadratic function. Interestingly, mGD exhibits a pronounced spectral peak in the direction of the highest eigenvalue,
+while iKFAD and CD are able to significantly suppress oscillatory modes. Figure 2 shows phase portraits of various
+optimizers on the Rosenbrock function. For each optimizer, we initialize a grid of starting points (red dots) and plot the
+corresponding deterministic trajectories (blue lines). CD and iKFAD display strong suppression of oscillations akin to
+Adam, whereas mGD exhibits significant oscillations and overshooting of the minimum.
+We now introduce our third optimizer,Cubically damped Adam (CADAM), the dynamics of which are obtained by
+augmenting the momentum equation in (4) by a cubic damping term:
+˙x= p√ζ+ϵ ,(8a)
+˙p=−∇f(x)−γp−c[p]3,(8b)
+˙ζ=[∇f(x)]2−αζ.(8c)
+To numerically integrate the continuous-time dynamics, we employ anoperator splittingscheme. The key idea of
+operator splitting is to decompose the full vector field of the ODE into a sum of simpler sub-operators, each of which
+can be integrated exactly. The full update over one time step is then obtained by composing these partial flows, a type
+of splitting method (see [14]), although in practice an Euler-type discretization can be used of suitable modification of
+the dissipation coefficient is used. The explicit update rules for each step are provided in Appendix B.
+In terms of memory and compute, CD maintains an identical memory footprint of 2N optimizer states (position
+and momentum) as mSGD, while adding only negligible computational overhead for the element-wise cubing of the
+momentum vector. Similarly, iKFAD and CADAM have the same memory requirements as Adam (3N) as they each
+maintain one additional auxiliary vector state variable (adaptive friction (ξ) for iKFAD and second-moment estimate (ζ)
+for CADAM).
+5
+
+--- PAGE 6 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+4 Related Work
+Although adaptation of the momentum hyperparameter µ has been suggested in prior works, the area remains relatively
+unexplored. The authors of [30] advocated for a gradual increase in the momentum coefficient as training progresses,
+based on the theoretical convergence results of [ 20, 21]. We provide a comparison of iKFAD against two known
+momentum schedules on FashionMNIST training with a ResNet18 in Appendix C. The authors of [ 29] derive a
+second-order ODE for Nesterov’s accelerated gradient method, which also involves a time-dependent friction coefficient.
+In [9], an adaptive momentum coefficient based on the kinetic energy of the system was demonstrated (on molecular
+optimization) to lead to faster convergence and increased robustness with respect to the choice of learning rate compared
+to the use of a fixed momentum parameter. Adaptive friction has been studied in Langevin sampling, known as the
+Adaptive Langevin method [5, 26], which employs a thermostat to regulate noisy gradients. Controlling the momenta p
+to stabilize the optimization process and avoid oscillations has also been explored in [22], where the authors propose a
+momentum restart mechanism that resets the momenta to zero when oscillatory behavior emerges, typically once the
+momenta exceed a critical threshold. Rather than resetting momenta, iKFAD employs a continuous control mechanism
+that adapts the friction to keep the momenta within a stable range. In terms of theoretical work, [6] prove that choosing
+the friction parameter based on the smallest eigenvalue of the Hessian leads to convergence speed-ups in the case of
+strongly convex potentials.
+5 Theoretical Results
+This section establishes the convergence properties of iKFAD and CD. For strongly convex objective functionsf∈C2
+with an bounds on the highest and lowest eigenvalues of the Hessian, we prove that the continuous-time dynamics of
+iKFAD and CD exhibit exponential convergence to the global minimum. We also demonstrate that this exponential
+convergence rate is preserved in the discrete-time schemes for a sufficiently smallδt. We leave the convergence analysis
+of CADAM for future work.
+5.1 iKFAD convergence analysis
+Theorem 1.Consider a functionf∈C 2 and assume that there exista, b>0such that
+a[f(x)−f(x∗)]+b∥x−x∗∥2
+≤(x−x∗)⋅(∇f(x)−∇f(x∗)).
+(9)
+Then, for any initial condition (x0, p0, ξ0)∈Rd×Rd×R+, and considering γ>0 , there exist κ>0 and C∈R+ such
+that the solution of(6)satisfies
+f(x(t))−f(x ∗)+∥p(t)∥+∥ξ(t)∥≤Ce−κt.
+The condition (9) is satisfied forf∈C 2 with0<m≤∇ 2f(x)≤M<+∞. A similar condition is considered in [18].
+Proof. See Appendix H.2 for the proof, which follows the same reasoning as the FAD continuous convergence proof in
+[9].
+Consider the splitting (17) of the continuous iKFAD dynamics and the integration scheme CDBA (see Table 2). The
+resulting discrete iKFAD dynamics can be written as
+pn+1 =β n,δtpn−δt∇f(xn),(10a)
+xn+1 =x n+δtβ n,δtpn−δt2∇f(xn),(10b)
+ξn+1 =e −αδt([ξ n]2+ (I−e−2Ξnδt)[pn]2
+ρ )
+1/2
+, (10c)
+where Ξ=diag(ξ) and βn,δt =e −(γI+Ξn)δt (see Appendix H.3 for more details). We can then state the following
+convergence result.
+Theorem 2.Consider a function f∈C 2 satisfying 0<m≤∇ 2f(x)≤M<+∞ . Assume that γ>0 and consider
+L>0. Then, for any initial condition(x 0, p0, ξ0)∈Rd×Rd×Rd such that
+∥x0∥+∥p0∥+∥ξ0∥≤L,
+there existδt ⋆>0,κ>0andC>0(depending onL) such that∀δt∈(0, δt ⋆),∀n≥0,
+f(x n)−f(x∗)+∥pn∥2+∥ξn∥2 ≤Ce−κnδt.
+Proof.See Appendix H.3. The proof follows the strategy of the FAD discrete convergence analysis in [9].
+6
+
+--- PAGE 7 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+5.2 CD convergence analysis
+Theorem 3.Consider a functionf∈C 2. Assume thatγ, c>0and that there exista, b>0such that
+a[f(x)−f(x∗)]+b∥x−x∗∥2
+≤(x−x∗)⋅(∇f(x)−∇f(x∗)).
+(11)
+Then, for any initial condition (x0, p0, ξ0)∈Rd×Rd×R+, there exist κ>0 and C∈R+ such that the solution of (7)
+satisfies
+f(x(t))−f(x ∗)+∥p(t)∥≤Ce−κt.
+Proof.See Appendix I.2.
+Next, we consider an Euler discretization of (7), which is simpler to work with than the splitting scheme proposed in
+Table 2:
+pn+1 =(1−γδt)p n−cδt[pn]3−δt∇f(xn), (12a)
+xn+1 =x n+δtp n,(12b)
+where we assume thatγδtis sufficiently small.
+Theorem 4.Consider f∈C2 and assume that there exist m, M∈R+ such that m≤∇2f(x)≤M∀x∈RN . Fix L>0 ,
+then, for any initial condition(x 0, p0)such that∥x 0∥+∥p0∥≤L,there existsδt∗>0, r>0andC>0for which
+∀n≥0and∀δt∈(0, δt∗),
+f(x n)−f(x∗)+∥pn∥2 ≤Ce−κnδt.
+Proof.See Appendix I.3.
+6 Numerical experiments
+6.1 Results
+To evaluate the performance of our proposed optimizers, we conduct a series of experiments across different machine
+learning tasks, including image classification on CIFAR-10 [12] using ResNet-18 and TinyViT [33], language classifi-
+cation with DistilBERT (66M) for SST-2 GLUE [32] and QNLI finetuning, and language generation via GPT2-Nano
+(0.85M) [10] as well as a custom GPT2-XS (45M). We downsized GPT2-S for computational efficiency by reducing
+the depth to 6 layers, number of heads to 8„ and embedding dimension to 512. We refer to this as GPT2-XS. For
+language modeling experiments, we utilize a batch size of 16, following evidence that small batches can achieve
+performance comparable to larger scales [17], while TinyViT and ResNet-18 utilize a batch size of 128. We include
+comparisons against Adam and mSGD (standard implementations). We allocate equal resources to all optimizers
+during hyperparameter search. For a clean and simpler comparison, we omit common regularization and acceleration
+techniques such as learning rate scheduling, weight decay, and gradient accumulation. ResNet-18 results are reported in
+Appendix D, as all optimizers exhibited very similar performance in that setting. CADAM results are also discussed in
+Appendix E, as we did not observe a significant improvement in performance over Adam. A possible explanation is that
+cubic damping adds little if per-parameter learning rates are already being used.
+7
+
+--- PAGE 8 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+0 10 20 30 40 50
+Epochs
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2Training Loss
+TinyViT (CIFAR-10)
+0 1 2
+Epochs
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+DistilBERT (SST-2)
+0 1 2
+Epochs
+0.3
+0.4
+0.5
+0.6
+DistilBERT (QNLI)
+0 1 2 3 4 5
+Steps (×103)
+1.4
+1.6
+1.8
+2.0
+2.2
+2.4
+2.6
+GPT2-Nano (SPC)
+0 10 20 30 40 50
+Steps (×103)
+3.8
+4.0
+4.2
+4.4
+GPT2-XS (OWT)
+0 10 20 30 40 50
+Epochs
+0.6
+0.7
+0.8
+0.9
+1.0
+1.1
+1.2Test Loss
+0 1 2
+Epochs
+0.25
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+0.60
+0 1 2
+Epochs
+0.30
+0.35
+0.40
+0.45
+0.50
+0 1 2 3 4 5
+Steps (×103)
+1.6
+1.8
+2.0
+2.2
+2.4
+2.6
+0 10 20 30 40 50
+Steps (×103)
+3.8
+4.0
+4.2
+4.4
+4 4.5 51.4
+1.5
+4 4.5 5
+1.650
+1.675
+1.700
+48 49 50
+3.675
+3.700
+3.725
+48 49 50
+3.675
+3.700
+3.725
+ADAM mSGD iKFAD CD
+Figure 4:Training and test lossesfor iKFAD, CD, CADAM, Adam, and mSGD across ResNet-18, DistilBERT, and GPT2. All
+curves are averaged over 10 random seeds. Standard deviations are omitted for readability. All experiments showcase a substantial
+gap in performance between Adam and mSGD. Both iKFAD and CD are able to overcome this gap despite not using per-parameter
+learning rates.
+Hyperparameter optimization for all schemes was conducted using Optuna Bayesian search with a fixed budget of 80
+trials per experiment, with specific search ranges detailed in Appendix F. Our evaluation includes two distinct sweeps
+for the proposed optimizers—one with γ>0 and one with γ=0 , selecting the top-performing configuration for each.
+Notably, CD and iKFAD exhibit similar performance (see Section 6.2). All the descriptions below pertain to Figure 4.
+TinyViT.iKFAD and CD outperform Adam. They both reduce training loss faster and reach a slightly lower test
+loss. mSGD converges much more slowly, although it eventually approaches a similar test loss. We also note that the
+TinyViT accuracies obtained are competitive with those reported in [33] (without the use of distillation).
+DistilBERT.There is a substantial performance gap between Adam and mSGD across both the SST-2 and QNLI tasks.
+On the SST-2 pretraining task, iKFAD and CD outperform Adam in both training and test loss. For the QNLI finetuning
+task, while a large gap persists between Adam and mSGD in training loss, the discrepancy in test loss is notably smaller.
+iKFAD reaches a lower test loss more rapidly, whereas CD initially follows Adam before eventually matching iKFAD’s
+test loss. We observe a sharp decline in training loss at the start of the second epoch, most notoceably in QNLI, which
+is not mirrored in the validation loss and suggests the onset of overfitting.
+GPT2.We evaluated GPT2-Nano on Shakespeare and GPT2-XS on OpenWebText, and observe the same pattern
+across both benchmarks. The pronounced Adam-mSGD gap is visible in both scenarios. In GPT2-Nano, iKFAD
+exhibits accelerated convergence relative to Adam, while CD converges more gradually, ultimately matching the other
+optimizers toward the end of training. For GPT2-XS, the training and test loss trajectories of iKFAD and CD are nearly
+identical. This similarity may indicate that iKFAD operates near the steady state ( ˙ξ≈0), with the adaptive friction
+dynamics effectively behaving as a cubic damping.
+Table 1: Best Test Loss results (µ±σ).
+Model (Dataset) Adam mSGD CD iKFAD
+TinyViT (CIFAR-10)0.613±0.018 0.647±0.012 0.619±0.0160.612±0.014
+DistilBERT (SST-2)0.299±0.012 0.345±0.0220.268±0.0090.276±0.011
+DistilBERT (QNLI)0.340±0.012 0.361±0.0160.328±0.0100.329±0.013
+GPT2-Nano (SPC)1.647±0.010 1.784±0.011 1.664±0.0081.641±0.006
+GPT2-XS (OWT)3.710±0.011 3.797±0.0083.691±0.0163.693±0.018
+8
+
+--- PAGE 9 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Across all benchmarks, iKFAD, CD, and CADAM consistently achieve lower training and test losses than Adam and
+mSGD, as well as higher accuracies. While we observe a persistent performance gap between fully-tuned mSGD and
+Adam in all language modeling tasks, our nonlinear damping mechanisms effectively bridge this discrepancy. Table 1
+summarizes the best losses averaged over ten runs in each experiment along with the corresponding standard deviations.
+The accuracies for relevant experiments can be found in Figure 5. The optimal hyperparameters ρ in iKFAD and c in
+CD exhibit a wide range in magnitude across tasks indicating a strong dependence on gradient scales in each setting.
+This was not explored, but it could be remedied by normalizing gradients between training iterations.
+0 10 20 30 40 50
+Epochs
+40
+60
+80
+Train Accuracy (%)
+TinyViT (CIFAR-10)
+0 1 2
+Epochs
+60
+70
+80
+90
+DistilBERT (SST-2)
+0 1 2
+Epochs
+75
+80
+85
+90
+DistilBERT (QNLI)
+0 10 20 30 40 50
+Epochs
+30
+40
+50
+60
+70
+80
+Test Accuracy (%)
+0 1 2
+Epochs
+70
+75
+80
+85
+90
+0 1 2
+Epochs
+80
+82
+84
+86
+ADAM mSGD iKFAD CD
+Figure 5:Corresponding training and test accuracies for the experiments in Figure 4. Standard deviations are included.
+In Figure 6, we study the effect of removing the linear frictionγon the dynamics of iKFAD and CD. We observe that
+setting γ=0 does not worsen performance, suggesting that the linear damping term is not essential in practice and can
+be removed to reduce the number of hyperparameters by one.
+0 20 40
+Epochs
+0.2
+0.4
+0.6
+0.8
+1.0Training Loss
+TinyViT (CIFAR-10)
+0 1 2
+Epochs
+0.20
+0.25
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+0.60
+DistilBERT (SST-2)
+0 1 2
+Epochs
+0.20
+0.25
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+0.60
+DistilBERT (QNLI)
+0 2 4
+Steps (×103)
+1.4
+1.6
+1.8
+2.0
+2.2
+GPT2-Nano (SPC)
+0 20 40
+Steps (×103)
+3.8
+4.0
+4.2
+4.4
+GPT2-XS (OWT)
+0 20 40
+Epochs
+0.6
+0.7
+0.8
+0.9
+1.0
+1.1
+1.2Test Loss
+0 1 2
+Epochs
+0.25
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+0.60
+0 1 2
+Epochs
+0.300
+0.325
+0.350
+0.375
+0.400
+0.425
+0.450
+0.475
+0.500
+0 2 4
+Steps (×103)
+1.6
+1.7
+1.8
+1.9
+2.0
+2.1
+2.2
+0 20 40
+Steps (×103)
+3.8
+4.0
+4.2
+4.4
+4 4.5 5
+1.40
+1.45
+1.50
+×103
+4 4.5 5
+1.650
+1.675
+1.700
+×103
+48 49 50
+3.675
+3.700
+3.725
+×103
+48 49 50
+3.675
+3.700
+3.725
+×103
+CD CD ( = 0)
+ iKFAD iKFAD ( = 0)
+Figure 6:Effect of removing linear damping.Hyperparameter sweeps for CD and iKFAD comparing γ=0 against
+γ∈[10−6,10]. Settingγ=0, does not worsen performance, allowing us to eliminateγas a hyperparameter.
+9
+
+--- PAGE 10 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+0.0000
+0.0001
+0.0004
+0.0013
+0.0046
+0.0167
+0.0599
+0.2154
+0.7743
+2.7826
+10.0000
+TinyViT
+CD
+ iKFAD
+ LDHD
+ mSGD
+0.00100.00170.00280.00460.00770.01290.02150.03590.05990.1000
+0.0001
+0.0004
+0.0013
+0.0046
+0.0167
+0.0599
+0.2154
+0.7743
+2.7826
+10.0000
+SST-2
+0.00100.00170.00280.00460.00770.01290.02150.03590.05990.1000
+0.00100.00170.00280.00460.00770.01290.02150.03590.05990.1000
+0.00100.00170.00280.00460.00770.01290.02150.03590.05990.1000
+0.01000.05000.10000.20000.30000.40000.50000.60000.70000.80000.90001.0000
+0.0000
+0.0001
+0.0004
+0.0013
+0.0046
+0.0167
+0.0599
+0.2154
+0.7743
+1.0000
+NanoGPT
+0.01000.05000.10000.20000.30000.40000.50000.60000.70000.80000.90001.0000
+0.01000.05000.10000.20000.30000.40000.50000.60000.70000.80000.90001.0000
+0.01000.05000.10000.20000.30000.40000.50000.60000.70000.80000.90001.0000
+55
+60
+65
+70
+75
+80
+Acc
+60
+65
+70
+75
+80
+85
+90
+Acc
+1.75
+2.00
+2.25
+2.50
+2.75
+3.00
+Loss
+Step Size ( t)
+Figure 7: γ−δtgrid. Test accuracies/losses for iKFAD, CD, LDHD, and mSGD on various experiments as functions of
+learning rate δt and linear friction γ. Higher color intensity indicates better performance. γ for mSGD is obtained by
+the correspondence derived in Appendix A. LDHD uses splitting for discretization.
+The best CD and iKFAD results from the current figure (eitherγ=0orγ>0) were selected to present in Figure 4.
+6.2 Ablation on linear damping.
+Removing linear dampingγ=0.
+To study the role of the linear damping term γ, we repeat the experiments in Figure 4 with γ=0 and present the results
+in Figure 6. This isolates the effect of adaptive friction and cubic damping. We find that while CADAM tends not to
+perform very well without linear friction (see Appendix E Figure 11), CD and iKFAD maintain their good performance
+even when γ=0 . This is expected because after hyperparameter optimization in the γ>0 setting, the optimal γ values
+were typically near the lower end of the search range for CD and iKFAD. Hence, we can set γ=0 , which reduces the
+hyperparameter count for both CD and iKFAD to two and three hyperparameters respectively (matching mSGD and
+Adam). We note that the hyperparameter search space for sweeps with γ=0 searches over one dimension less than if
+we set γ>0 . This offers a possible explanation as to why γ=0 sweeps arrive at a better hyperparameter configuration.
+The results of CADAM are presented in Appendix E. We observe that CADAM tends to rely more heavily on linear
+damping (see Figure 11) and Table 4 where optimalγvalues corresponding to CADAM are significantly higher).
+Varyingγ−δt.
+To assess the robustness of iKFAD and CD with respect to the learning rateδt and linear friction γ, we evaluated both
+optimizers across the NanoGPT (SPC), DistilBERT (SST2), and TinyViT (CIFAR-10) tasks. Note that while we varyγ
+and δt, the rest of the hyperparameters are kept fixed at some reasonable values (the best setting for each experiment
+from Section 6. We compare against mSGD and LDHD. For mSGD, we map γ to the momentum parameter µ using the
+correspondence derived in Appendix A. LDHD corresponds to the same continuous dynamics as mSGD, but while
+mSGD uses an Euler discretization, LDHD uses a splitting discretization. Figure 7 shows that iKFAD and CD maintain
+substantially higher robustness and accuracy over wide ranges of (γ, δt) compared to mSGD and LDHD. Both iKFAD
+and CD also exhibit very similar behavior in terms of test metrics. This indicates that iKFAD is close to equilibrium
+˙ξ=0 for the majority of training. This is expected, as iKFAD and CD are closely related: in both methods the amount
+of damping depends on kinetic energy. In iKFAD, the adaptive friction variable ξ is an exponentially weighted average
+of past kinetic energies ([p]2), so damping reflects a short history of the dynamics. In CD, the damping is instantaneous.
+The cubic term can be written as−c[p]2⋆p, i.e., the damping coefficient scales with the current kinetic energy p2. We
+note that both optimizers remain effective even for very smallγ, demonstrating that their adaptive friction and cubic
+damping mechanisms can compensate for minimal linear damping. We also observe that the optimal hyperparameter for
+10
+
+--- PAGE 11 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+CDc≈ 1
+αρ is obtained in some of the experiments (e.g NanoGPT), which also reflects the aforementioned connection
+between the two methods. As a side note, mSGD and LDHD share the same underlying continuous dynamics, but their
+stability regions differ under the discretizations used, as demonstrated in Figure 7.
+7 Conclusion and future work
+In this work, we introduce Individual Kinetic Friction Adaptive Descent (iKFAD), Cubically Damped mSGD (CD), and
+Cubically Damped Adam (CADAM), a family of optimizers motivated by a continuous-time view of momentum as
+friction that regulates kinetic energy. By making the connection between adaptive friction and cubic damping explicit,
+we obtain a simple set of dynamics that improve stability and can accelerate convergence in practice. We also prove
+exponential decay for both the continuous-time systems and their discrete-time schemes. Across image and language
+benchmarks, our methods are more robust to learning-rate choice, often generalize better, and achieve test performance
+that is competitive with, or better than, Adam. In particular, iKFAD and CD bridge much of the Adam–mSGD gap
+in language modeling without relying on per-parameter learning rates. Notably, CD (with γ=0 ) achieves this while
+keeping the same memory footprint as mSGD.
+Limitations and Future Work.The computational cost of hyperparameter tuning limited our study to at most
+80 trials per experiment. Also, since our benchmarks were limited to models under 100M parameters, evaluating
+these schemes on large-scale LLMs remains future work. On the theory side, we have not yet obtained exponential
+convergence guarantees for CADAM similar to those proved for iKFAD and CD.
+Acknowledgements
+This research was supported by the MAC-MIGS Centre for Doctoral Training. This work of G.S. is supported by Hi!
+PARIS and ANR/France 2030 program (ANR-23-IACL-0005). We would like to thank Cameron Barker for his useful
+insights on configurations for language model training.
+References
+[1] A. Babister. Non-linear differential equations having both cubic damping and stiffness. Technical Report 7601,
+University of Glasgow, 1976. Department of Aeronautics and Fluid Mechanics.
+[2] Dami Choi, Christopher J. Shallue, Zachary Nado, Jaehoon Lee, Chris J. Maddison, and George E. Dahl. On
+empirical comparisons of optimizers for deep learning, 2020.
+[3] Anna Choromanska, Mikael Henaff, Michael Mathieu, Gérard Ben Ben Arous, and Yann LeCun. The Loss
+Surfaces of Multilayer Networks. In Guy Lebanon and S. V . N. Vishwanathan, editors,Proceedings of the
+Eighteenth International Conference on Artificial Intelligence and Statistics, volume 38 ofProceedings of
+Machine Learning Research, pages 192–204, San Diego, California, USA, 2015. PMLR.
+[4] André Belotto Da Silva and Maxime Gazeau. A general system of differential equations to model first-order
+adaptive algorithms.The Journal of Machine Learning Research, 21(1):5072–5113, 2020.
+[5] Nan Ding, Youhan Fang, Ryan Babbush, Changyou Chen, Robert D. Skeel, and Hartmut Neven. Bayesian
+sampling using stochastic gradient thermostats. In Z. Ghahramani, M. Welling, C. Cortes, N. Lawrence, and K.Q.
+Weinberger, editors,Advances in Neural Information Processing Systems, volume 27. Curran Associates, Inc.,
+2014.
+[6] Paul Dobson, Jesus Maria Sanz-Serna, and Konstantinos Zygalakis. On the connections between optimization
+algorithms, lyapunov functions, and differential equations: theory and insights.arXiv preprint arXiv:2305.08658,
+2023.
+[7] X. Gao, M. Gurbuzbalaban, and L. Zhu. Global convergence of stochastic gradient hamiltonian monte carlo for
+non-convex stochastic optimization: Non-asymptotic performance bounds and momentum-based acceleration,
+2018.
+[8] Aikaterini Karoni.Higher-order damping mechanisms with applications in optimisation and machine learning.
+PhD thesis, The University of Edinburgh, 2024.
+[9] Aikaterini Karoni, Benedict Leimkuhler, and Gabriel Stoltz. Friction-adaptive descent: A family of dynamics-
+based optimization methods.Journal of Computational Dynamics, 2023.
+11
+
+--- PAGE 12 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+[10] Andrej Karpathy. nanogpt: The simplest, fastest repository for training/finetuning medium-sized gpts. https:
+//github.com/karpathy/nanoGPT, 2022. Accessed: 2026-01-22.
+[11] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. In Yoshua Bengio and Yann
+LeCun, editors,3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA,
+May 7-9, 2015, Conference Track Proceedings, 2015.
+[12] Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple layers of features from tiny images. Technical report,
+University of Toronto, 2009.
+[13] Frederik Kunstner, Jacques Chen, Jonathan Wilder Lavington, and Mark Schmidt. Noise is not the main factor
+behind the gap between sgd and adam on transformers, but sign descent might be.arXiv preprint arXiv:2304.13960,
+2023.
+[14] Benedict Leimkuhler and Sebastian Reich.Simulating Hamiltonian Dynamics. Cambridge Monographs on
+Applied and Computational Mathematics. Cambridge University Press, 2005.
+[15] Hao Li, Zheng Xu, Gavin Taylor, Christoph Studer, and Tom Goldstein. Visualizing the loss landscape of neural
+nets.Advances in neural information processing systems, 31, 2018.
+[16] C.J. Maddison, D. Paulin, Y .W. Teh, B. O’Donoghue, and A. Doucet. Hamiltonian descent methods.arXiv
+preprint, 1809.05042, 2018.
+[17] Martin Marek, Sanae Lotfi, Aditya Somasundaram, Andrew Gordon Wilson, and Micah Goldblum. Small batch
+size training for language models: When vanilla SGD works, and why gradient accumulation is wasteful. InThe
+Thirty-ninth Annual Conference on Neural Information Processing Systems, 2025.
+[18] J.C. Mattingly, A.M. Stuart, and D.J. Higham. Ergodicity for SDEs and approximations: locally Lipschitz vector
+fields and degenerate noise.Stochastic Processes and their Applications, 101(2):185–232, 2002.
+[19] Céline Moucer, Adrien Taylor, and Francis Bach. A systematic approach to Lyapunov analyses of continuous-time
+models in convex optimization.SIAM Journal on Optimization, 33(3):1558–1586, 2023.
+[20] Yurii Nesterov. A method of solving a convex programming problem with convergence rate o( 1
+k2 ).Doklady
+Akademii Nauk SSSR, 269(3):543, 1983.
+[21] Yurii Nesterov.Introductory lectures on convex optimization: A basic course, volume 87. Springer Science &
+Business Media, 2013.
+[22] Brendan O’Donoghue and Emmanuel Candès. Adaptive restart for accelerated gradient schemes.Found. Comput.
+Math., 15(3):715–732, 2015.
+[23] N. Panananda, N.S. Ferguson, and T.P. Waters. The effect of cubic damping in an automotive vehicle suspension
+model. InComputational Modelling and Analysis of Vehicle Body Noise and Vibration, 2012.
+[24] Z. K. Peng, Z. Q. Lang, X. J. Jing, S. A. Billings, G. R. Tomlinson, and L. Z. Guo. The transmissibility of
+vibration isolators with a nonlinear antisymmetric damping characteristic.Journal of Vibration and Acoustics,
+132(1):014501, 01 2010.
+[25] B. T. Poljak. Some methods of speeding up the convergence of iterative methods.Ž. Vyˇ cisl. Mat i Mat. Fiz.,
+4:791–803, 1964.
+[26] Xiaocheng Shang, Zhanxing Zhu, Benedict Leimkuhler, and Amos J Storkey. Covariance-controlled adaptive
+langevin thermostat for large-scale bayesian sampling. In C. Cortes, N. Lawrence, D. Lee, M. Sugiyama, and
+R. Garnett, editors,Advances in Neural Information Processing Systems, volume 28. Curran Associates, Inc.,
+2015.
+[27] Luke Shaw and Peter A Whalley. Randomised splitting methods and stochastic gradient descent. arXiv preprint
+arXiv:2504.04274, 2025.
+[28] U. Simsekli, L. Zhu, Y .-W. Teh, and M. Gurbuzbalaban. Fractional underdamped langevin dynamics: Retargeting
+sgd with momentum under heavy-tailed gradient noise. InInternational conference on machine learning, pages
+8970–8980. PMLR, 2020.
+[29] Weijie Su, Stephen Boyd, and Emmanuel J. Candès. A differential equation for modeling Nesterov’s accelerated
+gradient method: theory and insights.J. Mach. Learn. Res., 17:Paper No. 153, 43, 2016.
+[30] Ilya Sutskever, James Martens, George Dahl, and Geoffrey Hinton. On the importance of initialization and
+momentum in deep learning. InInternational conference on machine learning, pages 1139–1147. PMLR, 2013.
+[31] Akiyoshi Tomihari and Issei Sato. Understanding why adam outperforms sgd: Gradient heterogeneity in
+transformers.arXiv preprint arXiv:2502.00213, 2025.
+12
+
+--- PAGE 13 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+[32] Alex Wang, Amanpreet Singh, Julian Michael, Felix Hill, Omer Levy, and Samuel R Bowman. Glue: A multi-task
+benchmark and analysis platform for natural language understanding.arXiv preprint arXiv:1804.07461, 2018.
+[33] Kan Wu, Jinnian Zhang, Houwen Peng, Mengchen Liu, Bin Xiao, Jianlong Fu, and Lu Yuan. Tinyvit: Fast
+pretraining distillation for small vision transformers. InEuropean conference on computer vision (ECCV), 2022.
+[34] Jingzhao Zhang, Sai Praneeth Karimireddy, Andreas Veit, Seungyeon Kim, Sashank Reddi, Sanjiv Kumar, and
+Suvrit Sra. Why are adaptive methods good for attention models?Advances in Neural Information Processing
+Systems, 33:15383–15393, 2020.
+[35] Yushun Zhang, Congliang Chen, Tian Ding, Ziniu Li, Ruoyu Sun, and Zhi-Quan Luo. Why transformers need
+adam: A hessian perspective. In A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and
+C. Zhang, editors,Advances in Neural Information Processing Systems, volume 37, pages 131786–131823. Curran
+Associates, Inc., 2024.
+[36] YP. Zhu and Z.Q. Lang. Beneficial effects of antisymmetric nonlinear damping with application to energy
+harvesting and vibration isolation under general inputs.Nonlinear Dynamics, 108:2917–2933, 2022.
+A Equivalence between mSGD and LDHD
+In this section we will show how the mSGD discrete equations (1a), (1b) can be obtained as an Euler discretisation
+of linearly dissipative Hamiltonian dynamics (LDHD) (2a), (2b). We start with the system of ODEs corresponding to
+LDHD
+˙x=p,
+˙p=−∇f(x)−γp.
+Applying Euler discretization, with time stepδt, we obtain
+pn+1 =p n+δt(−∇f(xn)−γpn)
+xn+1 =x n+δtp n+1
+/Leftr⫯g⊸tl⫯ne⇒pn+1 =(1−δtγ)p n−δt∇f(xn)
+xn+1 =x n+δtp n+1
+Dividing the momentum equation by the learning rateδt, we obtain
+pn+1
+δt =(1−δtγ) pn
+δt −∇f(xn),
+xn+1 =x n+δt 2 pn+1
+δt ,
+˜p=p/δt
+/Leftr⫯g⊸tl⫯ne⇒
+˜pn+1 =(1−δtγ)˜pn−∇f(xn),
+xn+1 =x n+δt 2˜pn+1.
+Finally, after setting ˜δt=δt 2 andµ= (1−γ
+√
+˜δt), we have
+˜pn+1 = (1−γ
+√
+˜δt) ˜pn−∇f(xn),
+xn+1 =x n+ ˜δt˜pn+1,
+¯p=−˜p
+/Leftr⫯g⊸tl⫯ne⇒
+¯pn+1 =µ¯pn+∇f(xn),
+xn+1 =x n−˜δt¯pn+1,
+which is exactly the system of discrete momentum gradient descent equations (1a), (1b). Although this equivalence is
+correct, there are pairings(γ, δt)for which it would be invalid becauseµ>0i.e.,γ⋅δt>1.
+B Analytical Updates in Splitting
+To derive practical discrete-time algorithms from the continuous-time dynamics, we employ an operator-splitting
+approach. The key idea is to decompose a complex system of ordinary differential equations (ODEs) into a sum of
+simpler sub-dynamics, each of which can be solved exactly in closed form. Rather than integrating the full coupled
+system at once, which typically admits no analytical solution, we sequentially apply the exact flows of these sub-systems
+over short time intervals and compose them to obtain a single update step.
+13
+
+--- PAGE 14 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Table 2: Splitting of ODE dynamics for iKFAD, CD, and CADAM.
+iKFAD
+⎛
+⎜
+⎝
+˙x
+˙p
+˙ξ
+⎞
+⎟
+⎠
+= ⎛
+⎝
+p
+0
+0
+⎞
+⎠
+⌟⟨⟨⟪rl⟫⌟⟨l⟪3
+A
++⎛
+⎝
+0
+−∇f(x)
+0
+⎞
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+B
++
+⎛
+⎜
+⎝
+0
+−ξ⋆p
+[p]2
+ρ
+⎞
+⎟
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+C
++⎛
+⎝
+0
+−γp
+−αξ
+⎞
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+D
+CD ( ˙x
+˙p)=( p
+0)
+⌟⟨⟨⟪rl⟫⌟⟨l⟪2
+A
++( 0
+−∇f(x))
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+B
++( 0
+−c[p]3)
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+C’
++( 0
+−γp)
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+D’
+CADAM
+⎛
+⎜
+⎝
+˙x
+˙p
+˙ζ
+⎞
+⎟
+⎠
+=
+⎛
+⎜
+⎝
+p√
+ζ+ϵ
+0
+0
+⎞
+⎟
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+A′
++⎛
+⎝
+0
+−∇f(x)
+0
+⎞
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+B
++
+⎛
+⎜
+⎝
+0
+−c[p]3
+0
+⎞
+⎟
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+C’
++⎛
+⎝
+0
+−γp
+0
+⎞
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+D’
++
+⎛
+⎜
+⎝
+0
+0
+[∇f(x)]2−αζ
+⎞
+⎟
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+E
+Concretely, consider an ODE of the form ˙z=∑k Fk(z) , where each vector field Fk represents a distinct physical or
+algorithmic effect (e.g., transport, gradient forcing, damping, or adaptive scaling). Operator splitting replaces the exact
+flow of the full system over a time step δt by a composition of flows induced by each Fk individually. When each
+sub-system ˙z=F k(z) is analytically solvable, this yields explicit and stable update rules without requiring numerical
+ODE solvers. For more information about splitting methods, please refer to [14].
+In our setting, the dynamics of iKFAD, CD, and CADAM naturally decompose into interpretable components such as
+position transport, gradient descent, nonlinear momentum damping, and auxiliary-state adaptation. Table 2 lists the
+resulting decomposition into sub-operators (labeled A–E), while Table 3 reports the corresponding exact solutions over
+a time interval δt. The discrete-time optimizers studied in the main text are obtained by composing these analytical
+updates in a prescribed order, yielding schemes that faithfully reflect the underlying continuous-time structure while
+remaining fully explicit.
+The discrete-time optimizers are constructed using first-order Lie-Trotter operator splitting. Specifically, for iKFAD,
+we employ the CDBA composition, while CD follows a C’D’BA sequence. CADAM utilizes a C’D’BAE ordering,
+where E represents the update for the second-moment estimate. While higher-order symmetric splittings (such as the
+second-order Strang splitting) exist, we find that these first-order compositions are sufficient to preserve the qualitative
+dissipative structure of the continuous dynamics while maintaining a low computational cost per iteration. In each case,
+the full update zn+1 =Φ δt(zn) is obtained by the sequential application of the analytical sub-flows detailed in Table 3.
+Table 3: Analytical updates for unique splitting steps.
+Step Analytical update
+A xn+1 =x n+δt p n
+A’ xn+1 =x n+δt pn√
+ζn+ϵ
+B pn+1 =p n−δt∇f(xn)
+C pn+1 =e −Ξnδtpn,
+˜ξn+1 =
+√
+[ξn]2+ (I−e−2Ξn δt)
+ρ [pn]2
+C’ pn+1 = pn√
+1+2c[pn]2δt
+D pn+1 =e −γδtpn,
+ξn+1 =e −αδt˜ξn+1
+D’ pn+1 =e −γδtpn
+E ζn+1 =e −αδtζn+ (1−e−αδt)
+α [∇f(xn)]2
+14
+
+--- PAGE 15 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+C Comparison of known momentum schedules to our adaptive one
+Both [30] and [20] propose gradually increasing the momentum parameter µ for non-strongly-convex functions, which
+is typical of neural network loss landscapes. The schedules are given by
+µt =min(1−2−1−log2(⌊ t
+250⌋+1), µ max),
+µt =1− 3
+t+5 ,
+(13)
+respectively. iKFAD naturally reproduces this behaviour. Since an increase inµ corresponds to a decrease in γ ((3)),
+the gradual reduction of friction observed in Figure 8 aligns with the progressive momentum increase proposed in [20]
+and [30]. As optimization progresses toward equilibrium (∇f(x∗), p∗)=(0,0) , the system’s kinetic energy decays,
+leading to a corresponding decrease in the adaptive friction ξ. Intuitively, higher friction (lower momentum) at the
+beginning of training allows careful exploration of the loss landscape, while lower friction later facilitates traversal
+of flat regions and local minima. Unlike static or monotonic schedules [30, 20], our thermostated mechanism adapts
+friction dynamically and individually per parameter, preventing excessive buildup of momentum.
+0 1000 2000 3000
+t
+0
+1
+2
+3
+4
+5Friction coefficient
+ Sutskever et al. [2013]
+Nesterov [1983]
+0 50 100 150 200
+Epoch
+0
+1
+2
+3
+4
+1
+N | (t)|1
+h = 0.0001
+h = 0.0005
+h = 0.0020
+Figure 8: Left: Friction schedules corresponding to (13) via the mapping in (3) (h=0.01 ). Right: Mean L1-norm of
+the adaptive friction ξ in iKFAD (with γ=0 ) during ResNet18 training on FashionMNIST for three learning rates. The
+decreasing trend ofξmirrors the momentum annealing behaviour in classical schedules.
+D ResNet-18 on CIFAR-10 Results
+0 10 20 30 40
+Epochs
+0.05
+0.10
+0.15
+0.20
+0.25
+0.30
+0.35
+0.40
+Training Loss
+ADAM
+mSGD
+CADAM
+CD
+IKFAD
+0 10 20 30 40
+Epochs
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+0.60
+Test Loss
+0 10 20 30 40
+Epochs
+90
+91
+92
+93
+94
+95
+96
+97
+98
+Train Accuracy (%)
+0 10 20 30 40
+Epochs
+80
+82
+84
+86
+88
+90
+Test Accuracy (%)
+0.0010.00170.00280.00460.00770.01290.02150.03590.0599
+0.1
+t
+0.0001
+0.0004
+0.0013
+0.0046
+0.0167
+0.0599
+0.2154
+0.7743
+2.7826
+10
+CD
+0.0010.00170.00280.00460.00770.01290.02150.03590.0599
+0.1
+t
+iKFAD
+0.0010.00170.00280.00460.00770.01290.02150.03590.0599
+0.1
+t
+LDHD
+0.0010.00170.00280.00460.00770.01290.02150.03590.0599
+0.1
+t
+mSGD
+70.0
+72.5
+75.0
+77.5
+80.0
+82.5
+85.0
+87.5
+90.0
+Figure 9: Complete Results on ResNet-18. First row has train + test accuracy and losses. Second row is a grid search
+on linear damping and learning rate.
+15
+
+--- PAGE 16 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+For ResNet-18, we train on CIFAR-10 we choose a batch size of 128. After hyperparameter tuning, the performance of
+all optimizers is comparable. This is a well-documented result [2] where after hyperparameter tuning, most standard
+optimizers on ResNet or VGG architectures will perform roughly the same. On the other hand, iKFAD and CD display
+greater robustness to hyperparameter variations as highlighted in the second row by the γ−δt grid of test accuracies. It
+is also interesting to see that CADAM achieves a lower training loss but a higher test loss. This might indicate that
+CADAM is more prone to overfitting. Perhaps it is due to the lack of bias correction in the CADAM dynamics that
+is there in Adam. It is also worth commenting on the differences between LDHD and mSGD. They have the same
+underlying continuous dynamics but only differen in the way they are discretized. It would appear that they are mostly
+stable in the same regions, but mSGD does not converge in the high (γ, δt) cases.
+E CADAM Results
+We present the complete experimental results in this section, including full CADAM loss curves and corresponding
+confidence intervals. As a preliminary observation, CADAM maintains three optimizer state variables, mirroring
+Adam, but additionally introduces one extra hyperparameter. Despite this similarity, its behavior differs substantially in
+practice. As shown in Fig. 11, CADAM fails to operate reliably in the absence of linear damping. When linear damping
+is removed and optimization relies solely on cubic damping, we observe a dramatic degradation in performance across
+all settings. A plausible explanation for this behavior lies in the role of the linear damping term in approximating
+second-order curvature information. In particular, the linear damping effectively serves as a diagonal approximation to
+the local Fisher information matrix, thereby providing a stabilizing preconditioning effect similar in spirit to Adam’s
+adaptive learning rates. When only cubic damping is employed, this approximation is lost, and the optimizer no longer
+benefits from a meaningful estimate of local curvature. As a result, parameter updates become poorly scaled, leading to
+instability and significantly worse convergence behavior. Furthermore, CADAM does not incorporate bias correction
+for its moment estimates. This omission is especially detrimental during the early stages of training, where biased
+moment estimates can severely distort update magnitudes. Empirically, this issue manifests clearly in our experiments:
+CADAM performs poorly across all evaluated tasks, and in the GPT2-Nano setting the training loss diverges entirely.
+To accommodate these unstable runs, we rescale the axes of the plots to include results corresponding toγ=0. When
+linear damping is enabled, as shown in Fig. 10, CADAM exhibits markedly improved stability and can occasionally
+achieve performance comparable to Adam. However, even in this regime, CADAM is generally inferior to Adam across
+most tasks. The sole exception is the DistilBERT model trained on SST-2, where CADAM marginally outperforms
+Adam. Overall, these results suggest that linear damping and its implicit approximation of diagonal Fisher information,
+is critical to CADAM’s viability, yet insufficient to consistently surpass established adaptive optimizers such as Adam.
+0 20 40
+Epochs
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2Training Loss
+TinyViT (CIFAR-10)
+0 1 2
+Epochs
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+DistilBERT (SST-2)
+0 1 2
+Epochs
+0.25
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+DistilBERT (QNLI)
+0 2 4
+Steps (×103)
+1.4
+1.6
+1.8
+2.0
+2.2
+2.4
+2.6
+GPT2-Nano (SPC)
+0 20 40
+Steps (×103)
+3.8
+4.0
+4.2
+4.4
+GPT2-XS (OWT)
+0 20 40
+Epochs
+0.6
+0.7
+0.8
+0.9
+1.0
+1.1
+1.2Test Loss
+0 1 2
+Epochs
+0.25
+0.30
+0.35
+0.40
+0.45
+0.50
+0.55
+0.60
+0 1 2
+Epochs
+0.30
+0.35
+0.40
+0.45
+0.50
+0 2 4
+Steps (×103)
+1.6
+1.8
+2.0
+2.2
+2.4
+2.6
+0 20 40
+Steps (×103)
+3.8
+4.0
+4.2
+4.4
+ADAM mSGD iKFAD CD CADAM
+Figure 10:Complete results of losses including CADAM.This includes standard deviations. CADAM (yellow)
+performs competitively to Adam in some cases. However, more often than not, the performance of CADAM is slightly
+worse. Despite having the same number of optimizer states and hyperparameters as Adam, with the advantage of
+per-parameter adaptive learning rates, CADAM still does not perform as well as iKFAD and CD.
+16
+
+--- PAGE 17 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+0 20 40
+Epochs
+0.25
+0.50
+0.75
+1.00
+1.25
+1.50
+Training Loss
+TinyViT (CIFAR-10)
+0.0 0.5 1.0 1.5 2.0
+Epochs
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+DistilBERT (SST-2)
+0.0 0.5 1.0 1.5 2.0
+Epochs
+0.3
+0.4
+0.5
+DistilBERT (QNLI)
+0 2 4
+Steps (×103)
+1.50
+1.75
+2.00
+2.25
+2.50
+2.75
+GPT2-Nano (SPC)
+0 20 40
+Steps (×103)
+4
+6
+8
+10
+GPT2-XS (OWT)
+0 20 40
+Epochs
+0.6
+0.8
+1.0
+1.2
+1.4
+1.6
+Test Loss
+0.0 0.5 1.0 1.5 2.0
+Epochs
+0.3
+0.4
+0.5
+0.6
+0.0 0.5 1.0 1.5 2.0
+Epochs
+0.35
+0.40
+0.45
+0.50
+0 2 4
+Steps (×103)
+1.6
+1.8
+2.0
+2.2
+2.4
+2.6
+0 20 40
+Steps (×103)
+4
+6
+8
+10
+CADAM CADAM ( = 0)
+Figure 11:CADAM when γ=0 .We conducted a hyperparameter sweep when γ=0 and when γ∈[1e−6,10]for
+CADAM. This is the same experiment as done in Figure 6, but for CADAM. It is clear that CADAM relies heavily on
+linear damping. This implies that the cubic damping mechanism is not as helpful when per-parameter learning rates are
+already available. The scale of the plots were adjusted to include the curves of CADAM when γ=0 . In fact, relative to
+Figure 4, the drop in performance when removing linear damping from CADAM is quite dramatic.
+F Hyperparameter values for Optuna searches
+Across all models, we observed a dramatic variance in the optimal scales for theρ (iKFAD) and c (CD) hyperparameters.
+This variance likely stems from the fact that these coefficients are inherently coupled to the scale of gradient norms at
+equilibrium. While normalizing gradients between iterations could potentially unify these hyperparameter scales, we
+leave this exploration for future work. Experimental configurations:
+• ResNet18-CIFAR-10: batch size 128, 40 epochs, γ∈[10−9,10], (ρ, c, α)∈[10−9,10 10]. h∈[10−6,10−2]
+for CADAM and h∈[10−6,10−1]for iKFAD and CD. The ranges here are quite vast as this was the very first
+experiment.
+• TinyViT - CIFAR-10: batch size 128, 50 epochs. γ∈[10−5,10], ρ∈[10−8,10], c∈[104,10 10]. h∈
+[10−6,10−2]for CADAM andh∈[10−4,3×10−1]for iKFAD and CD.
+• DistilBERT - SST-2: batch size 16, 2 epochs, γ∈[10 −6,1] for CADAM/iKFAD and γ=0 for CD,
+ρ∈[10−8,10],α∈[0.001,1].
+• DistilBERT - QNLI: batch size 16, 2 epochs, γ∈[10 −6,1] for CADAM/iKFAD and γ=0 CD, c∈
+[0.01,1013],α∈[0.001,10],ρ∈[10−8,10].
+• GPT2-Nano - Shakespeare: batch size 16, 5000 steps. γ∈[10−5,10], h∈[10−5,5×10−1]for CD/iKFAD
+and h∈[10−6,10−2]for CADAM, c∈[10−1,10 6], α∈[10−3,10] for CADAM and α∈[10−5,10] for iKFAD.
+ρ∈[10−8,10]
+• GPT2-XS - OpenWebText: batch size 16, 50000 steps. h∈[10−6,10−2]for CADAM and h∈[10−4,10−1]
+for CD/iKFAD.γ∈[10−5,10].α∈[10−3,1].c∈[104,10 10].ρ∈[10−8,10].
+For all experiments, Adam and mSGD were sweeped over: h∈[10−6,10−2]for Adam and h∈[10−6,10−1]for mSGD
+andµ∈[0.5,0.99], β1 ∈[0.85,0.999], β2 ∈[0.85,0.999].
+17
+
+--- PAGE 18 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Table 4: Optimized hyperparameters for all loss curves in Figure 4.
+δt γ α ρ c β 1 β2 µ
+ResNet-18
+iKFAD 0.0973 0.40 0.402 1.87 - - - -
+CD 0.0448 0.17 - - 56814.47 - - -
+CADAM 0.0037 3.55 0.005 - 82552.90 - - -
+mSGD 0.0260 - - - - - - 0.86
+Adam 0.0008 - - - - 0.97 0.99 -
+TinyViT
+iKFAD 0.08991 0.04537 0.101106.29×10 −6 - - - -
+CD 0.19983 0.00221 - -6.55×10 5 - - -
+CADAM 0.00197 4.46870 24314309 - 0.91377 - - -
+mSGD 0.02133 - - - - - - 0.87439
+Adam 0.00055 - - - - 0.86082 0.88521 -
+SST-2(Pretrain)
+iKFAD 0.027041.28×10 −6 0.04653.61×10 −7 - - - -
+CD 0.0363 0 - -9.78×10 6 - - -
+CADAM 0.00035 9.2188 0.03233 - 0.0237 - - -
+mSGD 0.00237 - - - - - - 0.8335
+Adam3.82×10 −5 - - - - 0.9187 0.98254 -
+QNLI(Finetune)
+iKFAD 0.04131.36×10 −8 2.80 6.71 - - - -
+CD 0.03144 0 - -1.90×10 8 - - -
+CADAM 0.0002 9.66 0.0026 - 22754.57 - - -
+mSGD 0.0015 - - - - - - 0.895
+Adam3.52×10 −5 - - - - 0.855 0.933 -
+GPT2-XS(OWT)
+iKFAD 0.09956 0. 0.047561.04×10 −5 - - - -
+CD 0.09975 0.00138 - -1.43×10 6 - - -
+CADAM 0.00678 7.53239 0.44020 -3.11×10 6 - - -
+mSGD 0.05362 - - - - - - 0.95277
+Adam 0.00065 - - - - 0.89447 0.99454 -
+NanoGPT(Shakespeare)
+iKFAD 0.390552.58×10 −5 0.03474 0.00017 - - - -
+CD 0.42614 0 - -1.95×10 5 - - -
+CADAM 0.00828 9.47376 8.82877 - 0.95201 - - -
+mSGD 0.09791 - - - - - - 0.90054
+Adam 0.00168 - - - - 0.88757 0.92653 -
+G Ablation ofγ=0
+For ablations of setting γ=0 , we used all the same hyperparameter search ranges as in the previous section but just
+changed γ=0 . There were some curves with γ=0 that ended up doing better than γ>0 . We ended up choosing
+those as the "overall" best hyperparameters when presenting them in Figure 4. In Table 5, the left column denotes
+hyperparameters when γ>0 while the right column is when γ=0 so the γ column is ommitted. We see that the other
+values are of roughly the same scale without too much difference for CD/iKFAD. However, note that the search space
+for a Bayesian hyperparameter search is one dimension smaller when we set γ=0 which may explain why better results
+might be seen for that in some cases.
+18
+
+--- PAGE 19 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Table 5: Comparison of optimal hyperparameters. Left: Unconstrained ( γ>0 ). Right: Constrained ( γ=0 ). Note: The
+ρ/ccolumn denotesρfor iKFAD andcfor CD/CADAM.
+Unconstrained(γ>0)Constrained(γ=0)
+Dataset Methodδt γ α ρ/c δt α ρ/c
+TinyViT
+CD 0.200 0.0022 –6.55×10 5 0.117 –5.35×10 5
+iKFAD 0.090 0.045 0.1016.29×10 −6 0.073 0.0901.26×10 −5
+CADAM 0.0020 4.47 0.9142.43×10 7 8.17×10 −4 0.1738.84×10 9
+SST-2
+CD 0.0422 0.052 –3.34×10 7 0.0363 –9.78×10 6
+iKFAD 0.02701.28×10 −6 0.0473.61×10 −7 0.0165 0.0579.89×10 −6
+CADAM3.49×10 −4 9.22 0.032 0.0243.39×10 −5 0.0213.39×10 5
+QNLI
+CD 0.0789 2.78 –1.12×10 8 0.0314 –1.90×10 8
+iKFAD 0.04131.36×10 −8 2.806.71×10 −9 0.0448 0.00172.77×10 −7
+CADAM1.60×10 −4 9.66 0.00262.28×10 4 1.74×10 −5 0.0331.52×10 7
+GPT2-XS
+CD 0.0997 0.0014 –1.43×10 6 0.0990 –1.37×10 6
+iKFAD 0.0763 0.0009 0.67371.3857×10 −6 0.0996 0.04761.0429×10 −5
+CADAM 0.0068 7.53 0.4403.11×10 6 1.32×10 −5 0.4911.43×10 8
+NanoGPT
+CD 0.499 0.0038 –1.87×10 5 0.426 –1.95×10 5
+iKFAD 0.3912.58×10 −5 0.0351.71×10 −4 0.494 2.204.55×10 −6
+CADAM 0.0083 9.47 8.83 0.952 0.0052 0.0127.02×10 5
+H iKFAD Convergence Analysis
+This section establishes the convergence properties of the proposed iKFAD optimizer. We focus our analysis on strictly
+convex objective functions (specificallyC2 functions with bounded Hessian) to provide stability guarantees. We first
+prove that the continuous-time iKFAD dynamics converges at an exponential rate to the global minimum. We then show
+that this geometric convergence rate is preserved in a discrete-time setting, provided the step sizeδt is sufficiently small.
+H.1 Dynamical properties of iKFAD
+Equation 6c reads ˙ξ= [p(s)]2
+ρ −αξ. Therefore,
+ξ(t)=e −αtξ(0)+ ∫
+t
+0
+e−α(t−s)[p(s)]2
+ρ ds.
+This means that, ξ(t)≥0 for all t>0 , given ξ(0)≥0. Therefore ξ can be seen as a friction coefficient, similarly to γ.
+We next show that under some conditions onfthe dynamics of (6) is well-posed on infinite time horizons.
+Lemma 1.Assume that f is smooth and f(x)→+∞as ∥x∥→+∞. Then, for any initial condition (x0, p0, ξ0)∈
+Rd×Rd×Rd
++, the solution of(6)is well defined for all timest≥0, and there existsR>0such that
+∀t≥0,∥x(t)∥≤R,∥p(t)∥≤R,∥ξ(t)∥≤R.
+Proof. The Cauchy–Lipschitz theorem ensures the existence and uniqueness of a solution for a positive time. To show
+that the solution is global in time, we introduce the following Lyapunov function
+G(x, p, ξ)=f(x)−f(x ∗)+ 1
+2∥p∥2+ ρ
+2∥ξ∥2.
+The functionG(t)=G(x(t), p(t), ξ(t))satisfies
+˙G(t)=∇f(x(t))⋅˙x(t)+p(t)⋅˙p(t)+ρξ(t)⋅˙ξ(t)
+=−γ∥p(t)∥2−(ξ(t)∗p(t))⋅p(t)+ξ(t)⋅[p(t)]2−αρ∥ξ(t)∥2
+=−γ∥p(t)∥2−αρ∥ξ(t)∥2 ≤0,
+where we used that ξ(t)≥0. This shows that G(t)≤G(0) , from which the result easily follows since f(x)−f(x∗)≥
+0,∀x∈R d.
+19
+
+--- PAGE 20 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+The next result, whose derivation is straightforward, characterizes equilibria of the dynamics.
+Proposition 1.The equilibria of the system(6)correspond to
+(˙x,˙p,˙ξ)=0⇒(p ∗,−∇f(x∗), ξ∗)=0,
+i.e. they coincide with the physical equilibria.
+H.2 Exponential convergence of the continuous iKFAD dynamics
+Next, we show exponential convergence of the iKFAD dynamics (6) to the equilibria of Proposition 1.
+Theorem 1.Consider a functionf∈C 2 and assume that there exista, b>0such that
+a[f(x)−f(x∗)]+b∥x−x∗∥2
+≤(x−x∗)⋅(∇f(x)−∇f(x∗)).
+(9)
+Then, for any initial condition (x0, p0, ξ0)∈Rd×Rd×R+, and considering γ>0 , there exist κ>0 and C∈R+ such
+that the solution of(6)satisfies
+f(x(t))−f(x ∗)+∥p(t)∥+∥ξ(t)∥≤Ce−κt.
+Proof. Consider ε>0 and introduce the following Lyapunov function (which is, up to the additional term ∥ξ∥2, a
+common choice for stochastic Langevin dynamics [18], also considered for dissipated Hamiltonian dynamics [19]):
+Wε(x, p, ξ)=f(x)−f(x ∗)+ 1
+2∥p∥2+ ρ
+2∥ξ∥2+ε(x−x∗)⋅p+ε∥x(t)−x∗∥2.(14)
+We first derive a lower bound forW(t)which ensures positivity of the Lyapunov function.
+W(t)=f(x)−f(x ∗)+ ρ
+2∥ξ∥2+ 1
+4∥p∥2+ 1
+4∥p∥2+2ε(x−x∗)⋅p
+2 +ε 2∥x−x∗∥2−ε2∥x−x∗∥2
++ ε
+2∥x−x∗∥2+ ε
+2∥x−x∗∥2
+=f(x)−f(x ∗)+ ρ
+2∥ξ∥2+ 1
+4∥p∥2+
+⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪
+p
+2 +ε(x−x∗)
+⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪
+2
++( ε
+2 −ε2)∥x−x∗∥2+ ε
+2∥x−x∗∥2.
+Assumingε∈[0,1/2], we then have the following lower bound for the Lyapunov function (14)
+Wε(x, p, ξ)≥f(x)−f(x∗)+ 1
+4∥p∥2+ ρ
+2∥ξ∥2+ ε
+2∥x−x∗∥2,(15)
+We can similarly derive an upper bound forW ε(x, p, ξ)as follows
+W(t)=f(x)−f(x ∗)+ ρ
+2∥ξ∥2+ 3
+4∥p∥2−1
+4∥p∥2+2ε(x−x∗)⋅p
+2 −ε2∥x−x∗∥2
++ε 2∥x−x∗∥2+ 3ε
+2 ∥x−x∗∥2−ε
+2∥x−x∗∥2
+=f(x)−f(x ∗)+ ρ
+2∥ξ∥2+ 3
+4∥p∥2−⎛
+⎝
+⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪
+p
+4 −ε(x−x∗)
+⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪⌟⎥rro⟪⟪⟩r⟪
+2
++[ ε
+2 −ε2]∥x−x∗∥2⎞
+⎠
++ 3ε
+2 ∥x−x∗∥2.
+As we have assumedε∈[0,1/2], we then have the following upper bound
+Wε(x, p, ξ)≤f(x)−f(x∗)+ 3
+4∥p∥2+ ρ
+2∥ξ∥2+ 3ε
+2 ∥x−x∗∥2.(16)
+We can then upper bound the time derivative ofW ε(t)=W ε(x(t), p(t), ξ(t))as follows
+˙Wε(t)=∇f(x(t))⋅˙x(t)+p(t)⋅˙p(t)+ρξ(t)⋅˙ξ(t)+εp(t)⋅˙x(t)
++ε˙p(t)⋅(x(t)−x∗)+2ε˙x(t)⋅(x(t)−x∗)
+=−(γ−ε)∥p(t)∥2−αρ∥ξ(t)∥2−ε(x(t)−x∗)⋅∇f(x(t))
+−ε(γ−2)(x(t)−x∗)⋅p(t)−ε(x(t)−x∗)⋅(ξ∗p)
+≤−(γ−ε)∥p(t)∥2−αρ∥ξ(t)∥2−ε(x(t)−x∗)⋅∇f(x(t))
++ε∣γ−2∣(η∥x(t)−x∗∥2+ 1
+4η∥p(t)∥2)+ε(∆∥x(t)−x ∗∥2+ R2
+4∆∥p(t)∥2),
+20
+
+--- PAGE 21 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+where we used weighted Young’s inequalities as well as Lemma 1. Specifically, we used that∥ξ∥≤Rso that ξ2
+i ≤R2
+in particular. We can therefore bound∥ξ⋆p∥2 as∥ξ⋆p∥2 = ∑(ξipi)2 ≤R2∥p∥2. Using assumption (9), we have
+˙Wε(t)≤−
+⎡⎢⎢⎢⎢⎣
+γ−ε⎛
+⎝1−R2
+4∆ −∣γ−2∣
+4η
+⎞
+⎠
+⎤⎥⎥⎥⎥⎦
+∥p(t)∥2−αρ∥ξ(t)∥2−aε(f(x)−f(x∗))
+−ε(b−∣γ−2∣η−∆)∥x(t)−x∗∥2.
+We setη= b
+4∣γ−2∣and∆=b/4, upon which, we obtain
+˙Wε(t)≤−
+⎡⎢⎢⎢⎢⎣
+γ−ε⎛
+⎝1−R2+(γ−2) 2
+b
+⎞
+⎠
+⎤⎥⎥⎥⎥⎦
+∥p(t)∥2−αρ∥ξ(t)∥2−aε(f(x)−f(x∗))
+−εb
+2 ∥x(t)−x∗∥2.
+Using (16), we obtain the following upper bound for the time derivative of the Lyapunov function (14)
+˙Wε(t)≤−min
+⎧⎪⎪⎨⎪⎪⎩
+4
+3
+⎡⎢⎢⎢⎢⎣
+γ−ε⎛
+⎝1−R2−(γ−2)2
+b
+⎞
+⎠
+⎤⎥⎥⎥⎥⎦
+,2α, aε, b
+3
+⎫⎪⎪⎬⎪⎪⎭
+Wε(t).
+Considering a sufficiently small ε, the above upper bound gives us the desired exponential convergence result through
+the use of Grönwall’s inequality.
+H.3 Discrete Convergence Analysis
+Consider the following splitting of the continuous dynamics (6)
+⎛
+⎜
+⎝
+˙x
+˙p
+˙ξ
+⎞
+⎟
+⎠
+= ⎛
+⎝
+p
+0
+0
+⎞
+⎠
+⌟⟨⟨⟪rl⟫⌟⟨l⟪3
+A
++⎛
+⎝
+0
+−∇f(x)
+0
+⎞
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+B
++
+⎛
+⎜
+⎝
+0
+−ξ⋆p
+[p]2
+ρ
+⎞
+⎟
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+C’
++⎛
+⎝
+0
+−γp
+−αξ
+⎞
+⎠
+⌟⟨⟨⟪rl⟫l⟩⟩⟪⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫m⟩⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟪⟨⟨⟪rl⟫mo⟨⌟⟨⟨⟪rl⟫r⟩⟩⟩⟪
+D
+,(17)
+and the integration scheme C′DBA. For step C′, similarly to the analysis performed in [9], we observe that p2
+i +ρξ 2
+i is
+an invariant quantity. Using this, and definingΞ=diag(ξ), the integration schemeC ′DBAcan be written as follows
+StepC ′ ˜pn+1/2 =e −Ξnδtpn (18)
+˜ξn+1 =
+√
+[ξn]2+ (I−e−2Ξn∆t)
+ρ [pn]2 (19)
+StepD˜p n+1 =e −γδt˜pn+1/2 (20)
+ξn+1 =e −αδt˜ξn+1 (21)
+StepB p n+1 =˜pn+1−δt∇f(xn)(22)
+StepA x n+1 =x n+δtp n+1 (23)
+where for the C′step, we first fix ξ and analytically solve ˙pi =−ξ⋆pi⇒pn+1,i =p n,ie−ξn,it, which, in vector form
+corresponds to Equation (18). We then update ξ by observing that for the C′step d
+dt (p2
+i +ρξ 2
+i) =2p i ˙pi+2ρξ i ˙ξi =
+2pi(−ξi⋆pi)+2ρξ i
+p2
+i
+ρ =0. We therefore have p2
+n+1,i+ρξ 2
+n+1,i =p 2
+n,i+ρξ 2
+n,i⇒ξ2
+n+1,i =ξ 2
+n,i+
+p2
+n,i−p2
+n+1,i
+ρ . This,
+written in vector form, yields the update rule forξin Equation (19).
+Upon definingβ n,δt =e −(γI+Ξn)δt, we can rewrite equations (18)-(23) as
+pn+1 =β n,δtpn−δt∇f(xn)(24a)
+xn+1 =x n+δtβ n,δtpn−δt2∇f(xn)(24b)
+ξn+1 =e −αδt
+√
+[ξn]2+ (I−e−2Ξnδt)[pn]2
+ρ .(24c)
+21
+
+--- PAGE 22 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Equations (24) are a restatement of the system of equations (10). We now show that every equilibrium point of the
+discrete dynamics is also an equilibrium point of the continuous dynamics, thus the discretization does not introduce
+any “artificial” equilibrium points. Conversely, we also show that every equilibrium of the continuous dynamics is also
+an equilibrium of the discrete dynamics.
+Proposition 2.A state s=(x, p, ξ) is an equilibrium point of the discrete iKFAD dynamics given by equations
+(10a)-(10c) if and only if it is an equilibrium of the continuous iKFAD dynamics(6).
+Proof. Let s∗be an equilibrium of the continuous dynamics as described in Proposition 1 and let sn =(x n, pn, ξn) be
+an equilibrium point of the discrete dynamics (10a)-(10c). This implies that if we take a step of the discrete dynamics
+starting from sn, we will remain at equilibrium, that is sn+1 =s n. Using equation (23) and setting xn+1 =x n gives
+us pn+1 =0 which implies pn =p n+1 =0 . Substituting pn =0 into Equation (24c) and using ξn+1 =ξ n, yields
+ξn =e −αδtξn, so thatξ n =0asαδt>0. Finally, forp n+1 =p n =0, equation (10a) yields∇f(x n)=0.
+We next show that any equilibrium point of the continuous dynamics is also an equilibrium of the discrete dynamics.
+Consider an equilibrium s∗=(x ∗, p∗, ξ∗)=(x ∗,0,0) such that ∇f(x∗)=0 . Let sn =s ∗and let us take a step
+following the discrete dynamics as given by equations (10a)-(10c). It is straightforward to see that zn =(x ∗,0,0) leads
+tos n+1 =s n =s ∗.
+Next, we establish convergence to the minimizer for the discrete-time dynamics in Equations (24).
+Theorem 2.Consider a function f∈C 2 satisfying 0<m≤∇ 2f(x)≤M<+∞ . Assume that γ>0 and consider
+L>0. Then, for any initial condition(x 0, p0, ξ0)∈Rd×Rd×Rd such that
+∥x0∥+∥p0∥+∥ξ0∥≤L,
+there existδt ⋆>0,κ>0andC>0(depending onL) such that∀δt∈(0, δt ⋆),∀n≥0,
+f(x n)−f(x∗)+∥pn∥2+∥ξn∥2 ≤Ce−κnδt.
+Proof. This proof follows the same steps as the convergence analysis of the discretized FAD dynamics presented in [9],
+the only difference being the fact that ξ in the iKFAD dynamics is a vector, rather than a scalar (as was the case for
+FAD), and that the matrix A(x) involved in the FAD dynamics is now taken to be the identityA(x)=I . Without loss
+of generality (upon translating and adding a constant to f(x) ) we can assume that f(x∗)=0 and x∗=0 . We consider
+the Lyapunov function
+W(x, p, ξ)=f(x)+ 1
+2∥p∥2+A δtρ∥ξ∥2+B δt∥x∥2+C δtx⋅p,(25)
+which is the Lyapunov function of Equation (14), with coefficients Aδt, Bδt, Cδt to be determined. We can rewrite
+Equation (25) as
+W(x, p, ξ)=f(x)+A δtρ∥ξ∥2+[ x p ][ Bδt Cδt/2
+Cδt/2 1/2 ][x
+p].
+To ensure positivity of W(x, p, ξ), we need det([ Bδt Cδt/2
+Cδt/2 1/2 ])>0⇒B δt >C 2
+δt/2 and also want Aδt >0 . We
+start by expressing each of the terms in the Lyapunov function at step n+1 as a function of corresponding terms at step
+n and deriving upper bounds where possible. Using the fact that∇2f(x)≤M we can derive the following upper bound
+forf(x n+1):
+f(x n+1)≤f(x n)+∇f(x n)⋅(xn+1−xn)+ M
+2 ∥xn+1−xn∥2
+≤f(xn)+δtβ n,δtpn⋅∇f(xn)+Cδt 2(∥pn∥2+∥∇f(xn)∥2).
+Next,
+∥xn+1∥2 =∥xn+δtβ n,δtpn−δt2∇f(xn)∥2
+≤∥xn∥2+2δtβ n,δtxn⋅pn−2δt2xn⋅∇f(xn)+Cδt 2(∥pn∥2+∥∇f(xn)∥2).
+We also have
+∥pn+1∥2 =∥βn,δtpn−δt∇f(xn)∥2
+=p n⋅βn,2δtpn−2δtβn,δtpn⋅∇f(xn)+δt 2∥∇f(xn)∥2.
+22
+
+--- PAGE 23 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Moreover,
+xn+1⋅pn+1 =β n,δtpn⋅xn−δtxn⋅∇f(xn)+δt∥β n,δtpn∥2
+−2δt2βn,δtpn⋅∇f(xn)+δt 3∥∇f(xn)∥2
+≤xn⋅pn−δtxn⋅∇f(xn)−(I−βn,δt)xn⋅pn
++δtp n⋅βn,2δtpn+Cδt 2(∥pn∥2+∥∇f(xn)∥2).
+Finally, we have
+ρ∥ξn+1∥2 =e −2αδt[pT
+n(I−e−2Ξnδt)pn+ρ∥ξn∥2].
+Given the above, we have the following upper bound for the Lyapunov function at stepn+1:
+W(x n+1, pn+1, ξn+1)≤W(x n, pn, ξn)−Aδt (1−e−2αδt) ρ∥ξn∥2
++[(2B δtδtβn,δt−Cδt(I−βn,δt))p n]⋅xn−(Cδt+2B δtδt)δt xn⋅∇f(xn)
+−[1
+2 −Aδte−2αδt−Cδtδte−2γδt]∥pn∥2+[ e−2γδt
+2 −Aδte−2αδt]p T
+ne−2Ξn∆tpn
++Cδt 2(∥pn∥2+∥∇f(xn)∥2) .
+We chooseA δt = 1
+2e2(α−γ)δt, which eliminates the term proportional top T
+ne−2Ξnδtpn. This gives us
+W(x n+1, pn+1, ξn+1)≤W(x n, pn, ξn)−e2(α−γ)δt
+2 (1−e−2αδt) ρ∥ξn∥2
++[(2B δtδtβn,δt−Cδt(I−βn,δt))p n]⋅xn−(Cδt+2B δtδt)δt xn⋅∇f(xn)
+−[1−e−2γδt
+2 −Cδtδte−2γδt]∥pn∥2+Cδt 2(∥pn∥2+∥∇f(xn)∥2) .
+SettingB δt =C δt =ε>0, choosingε, δtto be sufficiently small and using thatx⋅∇f(x)≥0, we obtain
+W(x n+1, pn+1, ξn+1)≤W(x n, pn, ξn)−αρδt∥ξn∥2−γδt∥pn∥2−εδt xn⋅∇f(xn)
++ε([2δtβ n,δt−(I−βn,δt)]pn)⋅xn+Cδt 2(∥pn∥2+∥∇f(xn)∥2) .
+The assumption 0<m<∇ 2f(x)≤M together with the equalities f(0)=0 and∇f(0)=0 implies through Taylor
+expansions with integral remainder that f(x)≥m∥x∥2/2 and ∥∇f(x)∥≤M∥x∥. In view of these two inequalities,
+there existsK∈R+ such that, uniformly inε∈(0,1/2],
+∥p∥2+∥∇f(x)∥2 ≤KW(x, p, ξ).
+Since Bδt >C 2
+δt/2 and Aδt >0 , we have Aδtρ∥ξn∥2 ≤W(xn, pn, ξn) so that ∥ξn∥≤
+√
+W(x n, pn, ξn)/(A δtρ). Let
+us fix R>0 and define WR =A δtρR2. Then, whenever W(x n, pn, ξn)≤W R holds, we can deduce ∥ξn∥≤Rand
+therefore
+∥I−βn,δt∥=∥I−e−(γI+Ξn)δt∥≤1−e−(γ+R)δt.
+We now conclude the proof by induction. Assume W(x n, pn, ξn)≤WR. Using the above bound on ∥I−βn,δt∥, we
+obtain
+W(x n+1, pn+1, ξn+1)≤(1+CKδt 2)W(x n, pn, ξn)−αρδt∥ξn∥2−γδt∥pn∥2−εδt xn⋅∇f(xn)
++ε (2δt+1−e−(γ+R)δt)∥pn∥∥xn∥
+≤(1+CKδt 2)W(x n, pn, ξn)−αρδt∥ξn∥2
+−εδt⎛
+⎝xn⋅∇f(xn)−η∣2δt+1−e−(γ+R)δt∣
+δt ∥xn∥2⎞
+⎠
+−δt⎛
+⎝γ− ε
+4η
+∣2δt+1−e−(γ+R)δt∣
+δt
+⎞
+⎠∥pn∥2.
+Note that we can then use the strong convexity inequality to bound−xn⋅∇f(xn)≤−f(xn)−m
+2 ∥x∥2 ≤m∥x∥2, upon
+which, the third term in the above inequality can be written as
+−εδt⎛
+⎝xn⋅∇f(xn)−η∣2δt+1−e−(γ+R)δt∣
+δt ∥xn∥2⎞
+⎠=−εδt⎛
+⎝m−η∣2δt+1−e−(γ+R)δt∣
+δt
+⎞
+⎠∥xn∥2.
+23
+
+--- PAGE 24 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+The constant η then needs to be chosen sufficiently small, so that m−η∣2δt+1−e−(γ+R)δt∣
+δt >0 . Similarly, we must choose
+a sufficienty small ε in order to ensure positivity of the term γ− ε
+4η
+∣2δt+1−e−(γ+R)δt∣
+δt >0 . We can then group terms of
+O(δt) , upon which we get a term of the form O(δt)(∥xn∥2+∥pn∥2+∥ξn∥2). From the definition of the Lyapunov
+function and upon completing the squares we can obtain an inequality of the form
+W(x n, pn, ξn)≤C(∥xn∥2+∥pn∥2+∥ξn∥2)⇒−O(δt)(∥xn∥2+∥pn∥2+∥ξn∥2) ≤−W(xn, pn, ξn).
+The above implies that there existsκ>0, such that
+W(x n+1, pn+1, ξn+1)≤(1−κδt+CKδt 2)W(x n, pn, ξn).
+For a sufficiently small step-size δt, so that 0<(1−κδt+CKδt 2)<1 , the right hand side of the above inequality can
+be upper bounded byW R, which proves that the induction hypothesis also holds forn+1. This allows us to conclude
+the claimed exponential convergence result.
+I CD convergence analysis
+This section establishes the convergence properties of the proposed CD optimizer. We first prove that the continuous-time
+CD dynamics converge at an exponential rate to the global minimum. We then show that this exponential (geometric)
+rate is preserved in discrete time, provided the step sizeδtis sufficiently small.
+I.1 Dynamical properties of CD
+In this section we study the dynamical properties of the system (7). We propose a Lyapunov function to prove
+exponential convergence of the dynamics under the assumption thatfis strongly convex.
+A first result is that the dynamics is well posed on infinite time horizons under some conditions onf.
+Lemma 2.Assume that f is a smooth function, such that f(x)→∞as ∥x∥→+∞. Then, for any initial condition
+(x0, p0)∈Rd×Rd, the solution of (7) is well defined for all times t≥0 and there exists R∈R+ such that ∥x(t)∥≤R
+and∥p(t)∥≤R, for anyt≥0.
+Proof. Existence and uniqueness of a local in time solution of (7) follow from the Cauchy-Lipschitz theorem. To prove
+that the solution is global in time we define the following Lyapunov function
+G(x, p, ξ)=f(x)−f(x ∗)+ 1
+2∥p∥2.
+A simple computation shows that the functionG(t)=G(x(t), p(t), ξ(t))satisfies
+˙G(t)=∇f(x(t))⋅˙x(t)+p(t)⋅˙p(t)
+=−γ∥p(t)∥2−cp(t)⋅[p(t)]3 ≤0,
+since γ, c≥0 . This means that G(t)≤G(0) , from which the result easily follows since f−f(x∗) and ∥p∥2 are
+non-negative.
+The next proposition, whose proof is immediate, characterizes the equilibria of the dynamics.
+Proposition 3.The equilibria of the system(7)coincide with the physical equilibria, i.e.
+(˙x,˙p)=0⇔(p∗,∇f(x∗))=0.
+I.2 Exponential convergence of the continuous CD dynamics
+Theorem 3.Consider a functionf∈C 2. Assume thatγ, c>0and that there exista, b>0such that
+a[f(x)−f(x∗)]+b∥x−x∗∥2
+≤(x−x∗)⋅(∇f(x)−∇f(x∗)).
+(11)
+Then, for any initial condition (x0, p0, ξ0)∈Rd×Rd×R+, there exist κ>0 and C∈R+ such that the solution of (7)
+satisfies
+f(x(t))−f(x ∗)+∥p(t)∥≤Ce−κt.
+24
+
+--- PAGE 25 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Proof.Similarly to the steps followed for the proof of Theorem 1, we consider the Lyapunov function
+Wε(x, p)=f(x)−f(x ∗)+ 1
+2∥p∥2+ε(x−x∗)⋅p+ε∥x−x∗∥2.(26)
+for which the following upper bound can be derived (forε∈[0,1/2])
+Wε(x, p)≤f(x)−f(x∗)+ 3
+4∥p∥2+ 3ε
+2 ∥x−x∗∥2.(27)
+DifferentiatingW ε(t)=W ε(x(t), p(t))with respect to time, we obtain
+˙Wε(t)=∇f(x(t))⋅˙x(t)+p(t)⋅˙p(t)+ε˙x(t)⋅p(t)
++ε(x(t)−x∗)⋅˙p(t)+2ε(x(t)−x∗)⋅˙x(t)
+=−(γ−ε)∥p(t)∥2−ε(x(t)−x∗)⋅∇f(x(t))
++ε(2−γ)(x(t)−x ∗)⋅p(t)−cε(x(t)−x∗)⋅[p(t)]3−cp(t)⋅[p(t)]3
+≤−(γ−ε)∥p(t)∥2−ε(x(t)−x∗)⋅∇f(x(t))
++ε∣γ−2∣(∆∥x(t)−x∗∥2+ 1
+4∆∥p(t)∥2)+cε(η∥x(t)−x ∗∥2+ R4
+4η ∥p(t)∥2),
+where we used a Cauchy–Schwarz inequality to bound the last two terms, as well as Lemma 2 to bound the term∥[p]3∥2
+as follows:∥[p]3∥2 = ∑(p3
+i)2 = ∑(p2
+i)3 ≤(∑ p2
+i)3 =(∥p∥2)3 ≤∥p∥2R4. We have also used the fact thatp⋅p3 ≥0.
+In view of Condition (11), we can write
+˙Wε(t)≤−aε(f(x(t))−f(x∗))−⎛
+⎝γ−ε(1+ (γ−2)2
+b +c 2 R4
+b )⎞
+⎠∥p(t)∥2−bε
+2 ∥x(t)−x∗∥2,
+where we set∆= b
+4∣γ−2∣andη= b
+4c. This bound for ˙Wε(t), combined with the upper bound in equation (27) yields
+˙Wε(t)≤−min
+⎧⎪⎪⎨⎪⎪⎩
+aε, b
+3 , 4
+3
+⎛
+⎝γ−ε(1+ (γ−2)2
+b +c 2 R4
+b )⎞
+⎠
+⎫⎪⎪⎬⎪⎪⎭
+Wε
+For a sufficiently small ε we can use Gronwall’s inequality to conclude to an exponential convergence of the dynamics
+(7).
+I.3 Discrete Convergence Analysis
+We consider the following Euler discretization of the continuous CD equations (7), which is simpler to analyze than a
+splitting scheme:
+pn+1 =(1−γδt)p n−cδt[pn]3−δt∇f(xn),
+xn+1 =x n+δtp n,
+where we assume γδt is sufficiently small. The above discretization scheme coincides with Equations (12a)-(12b) and
+is restated here for completeness. We next consider a perturbation of the Lyapunov function (26), namely
+Wδt(xn, pn)=f(x n)+A δt
+∥pn∥2
+2 +B δt∥xn∥2+C δtxn⋅pn,(28)
+whereA δt >0andB δt > C2
+δt
+2Aδt
+.
+Theorem 4.Consider f∈C2 and assume that there exist m, M∈R+ such that m≤∇2f(x)≤M∀x∈RN . Fix L>0 ,
+then, for any initial condition(x 0, p0)such that∥x 0∥+∥p0∥≤L,there existsδt∗>0, r>0andC>0for which
+∀n≥0and∀δt∈(0, δt∗),
+f(x n)−f(x∗)+∥pn∥2 ≤Ce−κnδt.
+25
+
+--- PAGE 26 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+Proof. We begin the proof by upper bounding/expanding each of the terms in the Lyapunov function at step n+1 .
+Since0≤∇2f(x)≤Mwe have
+f(x n+1)≤f(xn)+δt∇f(x n)⋅pn+ δt2M
+2 ∥pn∥2.
+We assume that γδt≤1. We can bound terms of the form ∥[p]3∥similarly to the continuous case, provided there exists
+R>0 such that ∥p∥<R. Such a bound on ∥p∥can be derived by induction. Since Bδt >C 2
+δt/(2Aδt) and Aδt >0 ,
+the quadratic form in (x, p) is positive definite and together with f(x)≥ m
+2 ∥x∥2, this implies that there exists c0 >0
+such that c0∥pn∥2 ≤c0(∥xn∥2+∥pn∥2)≤W(x n, pn). Hence, ∥pn∥≤
+√
+W(x n, pn)/c0. Fix R>0 and set WR =c 0R2.
+Then, whenever W(x n, pn)≤WR holds, we can deduce ∥pn∥≤R. We choose R=R(L) so that W(x 0, p0)≤WR and
+proceed by induction assumingW(x n, pn)≤WR.
+∥pn+1∥2 =∥(1−γδt)pn−cδt[pn]3−δt∇f(xn)∥2
+=∥(1−γδt)pn−cδt[pn]3∥
+2
+−2δt[(1−γδt)pn−cδt[pn]3]⋅∇f(xn)+∥∇f(xn)∥2
+=∥(1−γδt)pn∥2−2c(1−γδt)δtpn⋅[pn]3+∥cδt[pn]3∥2
+−2[(1−γδt)pn−cδt[pn]3]δt∇f(xn)+∥δt∇f(xn)∥2
+≤(1−γδt)2∥pn∥2+c 2δt2R4∥pn∥2
+−2δt(1−γδt)pn⋅∇f(xn)+2cδt 2[pn]3⋅∇f(xn)+δt 2∥∇f(xn)∥2
+≤∥pn∥2−2γδt∥pn∥2+γ 2δt2∥pn∥2+c 2δt2R4∥pn∥2
+−2δt(1−γδt)pn⋅∇f(xn)+2cδt 2( 1
+4θ∥[pn]3∥2+θ∥∇f(xn)∥2)+δt 2∥∇f(xn)∥2
+≤∥pn∥2−2γδt∥pn∥2+γ 2δt2∥pn∥2+c 2δt2R4∥pn∥2
+−2δt(1−γδt)pn⋅∇f(xn)+2cδt 2( R4
+4θ ∥pn∥2+θ∥∇f(xn)∥2)+δt 2∥∇f(xn)∥2
+=∥pn∥2−2γδt∥pn∥2+γ 2δt2∥pn∥2+c 2δt2R4∥pn∥2
+−2δtpn⋅∇f(xn)+2γδt 2pn⋅∇f(xn)+ cR4
+2θ δt2∥pn∥2+2cδt 2θ∥∇f(xn)∥2+δt 2∥∇f(xn)∥2
+≤∥pn∥2−2γδt∥pn∥2+γ 2δt2∥pn∥2+c 2R4δt2∥pn∥2−2δtpn⋅∇f(xn)
++2γδt 2⎛
+⎝
+1
+4ξ∥pn∥2+ξ∥∇f(xn)∥2⎞
+⎠+ cR4
+2θ δt2∥pn∥2+2cθδt 2∥∇f(xn)∥2+δt 2∥∇f(xn)∥2.
+Therefore
+∥pn+1∥2 ≤∥pn∥2−2γδt∥pn∥2−2δtpn⋅∇f(xn)+Qδt 2(∥pn∥2+∥∇f(xn)∥2).
+We also have
+∥xn+1∥2 =∥xn∥2+2δtx n⋅pn+δt 2∥pn∥2.
+Finally,
+xn+1⋅pn+1 =(x n+δtp n)⋅((1−γδt)pn−cδt[pn]3−δt∇f(xn))
+=(1−γδt)xn⋅pn−cδtxn⋅[pn]3−δtxn⋅∇f(xn)
++(1−γδt)δtp n⋅pn−cδt2pn⋅[pn]3−δt2pn⋅∇f(xn)
+≤xn⋅pn−γδtxn⋅pn+cδt∣xn⋅[pn]3∣−δtxn⋅∇f(xn)
++δt∥pn∥2−γδt2∥pn∥2+δt 2( 1
+4κ∥pn∥2+κ∥∇f(xn)∥2)
+≤xn⋅pn−γδtxn⋅pn+cδt∣xn⋅[pn]3∣−δtxn⋅∇f(xn)
++δt∥pn∥2+δt 2( 1
+4κ∥pn∥2+κ∥∇f(xn)∥2).
+26
+
+--- PAGE 27 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+We thus have
+W(x n+1, pn+1)≤f(xn)+δt∇f(x n)⋅pn
++A δt
+∥pn∥2
+2 −Aδtγδt∥pn∥2−Aδtδt∇f(xn)⋅pn
++B δt∥xn∥2+2B δtδt∥xn∥∥pn∥
++C δtxn⋅pn+C δt(γ+cR 2)δt∥xn∥∥pn∥−Cδtδtxn⋅∇f(xn)+C δtδt∥pn∥2
++Qδt 2(∥pn∥2+∥∇f(xn)∥2)
+=W(x n, pn)+(1−A δt)δt∇f(xn)⋅pn
+−Aδtγδt∥pn∥2+2B δtδt∥xn∥∥pn∥
++C δt(γ+cR 2)δt∥xn∥∥pn∥−Cδtδtxn⋅∇f(xn)+C δtδt∥pn∥2
++Qδt 2(∥pn∥2+∥∇f(xn)∥2)
+≤W(xn, pn)−Cδtδtxn⋅∇f(xn)+(1−A δt)δt∇f(xn)⋅pn
+−(Aδtγ−Cδt)δt∥pn∥2+[2B δt+C δt(γ+cR 2)]δt∥xn∥∥pn∥
++Qδt 2(∥pn∥2+∥∇f(xn)∥2).
+In order to eliminate the term∇f(xn)⋅pn, we setA δt =1, and we also demandC δt <γ, upon which we have
+W(x n+1, pn+1)≤W(xn, pn)−Cδtδtxn⋅∇f(xn)−(γ−Cδt)δt∥pn∥2
++[2Bδt+C δt(γ+cR 2)]δt∥xn∥∥pn∥+Qδt2(∥pn∥2+∥∇f(xn)∥2).
+Assuming that x∗=0, f(x ∗)=0 (where ∇f(x∗)=0 ) and using the strong convexity and Lipschitz continuity
+assumption we have f(x)≥m ∥x∥2
+2 and ∥∇f(x)∥2 ≤M2∥x∥2. These inequalities imply that there exists K∈R+ such
+that
+∥p∥2+∥∇f(x)∥2 ≤KW(x, p)
+forB δt >C 2
+δt. This allows us to upper boundW(x n+1, pn+1)as follows;
+W(x n+1, pn+1)≤(1+QKδt 2)W(x n, pn)−Cδtδtxn⋅∇f(xn)
+−(γ−Cδt)δt∥pn∥2+[2B δt+C δt(γ+cR 2)]δt∥xn∥∥pn∥.
+Finally, using the strong convexity assumption and a Cauchy-Schwarz inequality we obtain
+W(x n+1, pn+1)≤(1+QKδt 2)W(x n, pn)−aCδtδtf(x n)
+−⎛
+⎝Cδtb−λ2
+2 (2B δt+C δt(γ+cR 2))⎞
+⎠δt∥xn∥2
+−⎛
+⎝(γ−Cδt)−(2Bδt+C δt(γ+cR 2)) 1
+2λ2
+⎞
+⎠δt∥pn∥2.
+SettingB δt =C δt =εandλ 2 = √ε, we obtain
+27
+
+--- PAGE 28 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+W(x n+1, pn+1)≤(1+QKδt 2)W(x n, pn)−aεδtf(xn)
+−⎛
+⎝εb−
+√ε
+2 (2ε+ε(γ+cR 2))⎞
+⎠δt∥xn∥2
+−⎛
+⎝(γ−ε)−(2ε+ε(γ+cR 2)) 1
+2√ε
+⎞
+⎠δt∥pn∥2
+=(1+QKδt 2)W(x n, pn)−aεδtf(xn)
+−(εb−ε3/2(1+ 1
+2 γ+ 1
+2 cR2))δt∥xn∥2
+−(γ−ε−√ε(1+ γ
+2 + cR2
+2 ))δt∥p n∥2
+≤(1−νδt+QKδt 2)W(x n, pn).
+Note we need to choose a suffieciently small ε>0 such that the coefficient of the ∥xn∥2 and ∥pn∥2 terms remain
+negative. The above implies that there existsν>0such that
+W(x n+1, pn+1)≤(1−νδt+QKδt 2)W(x n, pn).
+Upon choosing sufficiently small step sizeδt, so that1−νδt+QKδt2 ≤1we obtain W(x n+1, pn+1)≤W(x n, pn)≤WR.
+This closes the induction argument. The same result also allows us to conclude exponential convergence of the discrete
+dynamics.
+I.4 Convergence of discretized CD dynamics with stochastic gradients
+We now show convergence of the discrete CD dynamics in the stochastic gradient setting. We include a stochastic-
+gradient version only for CD, since the noise shows up only in the gradient term and the proof is very similar to
+the deterministic case. We do not present a similar proof for iKFAD as the extra variable ξ depends on the (noisy)
+momentum and feeds back into the momentum update, which in turn adds extra cross-terms to control. We leave the
+stochastic iKFAD proof for future work.
+We use an Euler discretization similarly to (12a), (12b), where the update of the momenta is performed based on the
+stochastic gradient.
+pn+1 =(1−γδt)p n−cδt[pn]3−δtG(xn),
+xn+1 =x n+δtp n,
+where we assumeγδtis sufficiently small. We denote byG(x)the stochastic gradient, whereE[G(x)]=∇f(x).
+Assumption 1.The variance of the stochastic gradients is uniformly bounded, that is there exists D>0 such that, for
+allx∈R N ,E∥G(x)−∇f(x)∥2 ≤D.
+Proposition 4.Assume that f∈C2 and∃m, M∈R+ such that m≤∇2f(x)≤M for any x∈RN . Fix L>0 , then, for
+any initial condition(x 0, p0)such that
+∥x0∥+∥p0∥≤L,
+there existsδt ∗>0, r>0andC>0for which
+∀n≥0and∀δt∈(0, δt∗),E[f(x n)−f(x∗)]+E∥pn∥2 ≤Ce−κnδt.
+We again consider the Lyapunov function (28)
+W(x n, pn)=f(x n)+A δt
+∥pn∥2
+2 +B δt∥xn∥2+C δtxn⋅pn.
+We start by upper bounding the expectation of each of the terms in the discrete Lyapunov function. Note that the
+expectations are conditional on xn, pn. We follow the same procedure as in section I.3. As we have assumed that
+0<m<∇ 2f(x)≤M, we have
+f(x n+1)≤f(xn)+δt∇f(x n)⋅pn+ δt2M
+2 ∥pn∥2,
+28
+
+--- PAGE 29 ---
+Adaptive Momentum and Nonlinear Damping for Neural Network TrainingPREPRINT
+so that
+E[f(x n+1)]≤f(xn)+δt∇f(x n)⋅pn+ δt2M
+2 ∥pn∥2.
+Next, we can bound the expectation of the squared norm of the momenta (see proof of Theorem 4, Appendix I.3) as:
+∥pn+1∥2 ≤∥pn∥2−2γδt∥pn∥2−2δtpn⋅G(xn)+Cδt 2(∥pn∥2+∥G(xn)∥2),
+so that, using
+E[∥G(xn)∥2]=E∥∇f(xn)+(G(x n)−∇f(xn))∥2
+=∥∇f(xn)∥2+2∇f(xn)⋅E[G(xn)−∇f(xn)]+E∥G(xn)−∇f(xn)∥2
+≤∥∇f(xn)∥2+D,
+(note thatE[G(x n)−∇f(xn)]=E[G(x n)]−∇f(xn)=0) we obtain
+E∥pn+1∥2 ≤∥pn∥2−2γδt∥pn∥2−2δtpn⋅∇f(xn)+Cδt 2(∥pn∥2+E∥G(xn)∥2)
+≤∥pn∥2−2γδt∥pn∥2−2δtpn⋅∇f(xn)+Cδt 2(∥pn∥2+∥∇f(xn)∥2+D).
+Next, we have:
+E∥xn+1∥2 =∥xn∥2+2δtx n⋅pn+δt 2∥pn∥2.
+Finally
+xn+1⋅pn+1 ≤xn⋅pn+(γ+cR 2)δt∥xn∥∥pn∥−δtxn⋅G(xn)+δt∥p n∥2
++Cδt2(∥pn∥2+∥G(xn)∥2),
+so that
+E[xn+1⋅pn+1]≤xn⋅pn+(γ+cR 2)δt∥xn∥∥pn∥−δtxn⋅∇f(xn)+δt∥p n∥2
++Cδt2(∥pn∥2+∥∇f(xn)∥2+D).
+Having derived the above upper bounds, convergence can be shown following the same steps as in Section I.3.
+29

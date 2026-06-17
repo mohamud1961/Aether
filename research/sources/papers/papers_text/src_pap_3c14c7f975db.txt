@@ -1,0 +1,928 @@
+--- PAGE 1 ---
+GAPNet: Plug-in Jointly Learning Task-Specific
+Graph for Dynamic Stock Relation
+Yingjie Niu1[0000−0001−9322−2726], Lanxin Lu1[0000−0003−1094−0517], Changhong
+Jin1[0000−0003−2565−592X], and Ruihai Dong1[0000−0002−2509−1370]
+University College Dublin, Dublin, Ireland
+Abstract.The advent of the web has led to a paradigm shift in the
+financial relations, with the real-time dissemination of news, social dis-
+course, and financial filings contributing significantly to the reshaping
+of financial forecasting. The existing methods rely on establishing rela-
+tions a priori, i.e. predefining graphs to capture inter-stock relationships.
+However, the stock-related web signals are characterised by high lev-
+els of noise, asynchrony, and challenging to obtain, resulting in poor
+generalisability and non-alignment between the predefined graphs and
+the downstream tasks. To address this, we proposeGAPNet, aGraph
+AdaptationPlug-inNetwork that jointly learns task-specific topology
+and representations in an end-to-end manner. GAPNet attaches to ex-
+isting pairwise graph or hypergraph backbone models, enabling the dy-
+namic adaptation and rewiring of edge topologies via two complementary
+components: a Spatial Perception Layer that captures short-term co-
+movements across assets, and a Temporal Perception Layer that main-
+tains long-term dependency under distribution shift. Across two real-
+world stock datasets, GAPNet has been shown to consistently enhance
+the profitability and stability in comparision to the state-of-the-art mod-
+els, yielding annualised cumulative returns of up to 0.47 for RT-GCN and
+0.63 for CI-STHPAN, with peak Sharpe Ratio of 2.20 and 2.12 respec-
+tively. The plug-and-play design of GAPNet ensures its broad applica-
+bility to diverse GNN-based architectures. Our results underscore that
+jointly learning graph structures and representations is essential for task-
+specific relational modeling.
+Keywords:Graph Neural Network·Graph embeddings and represen-
+tation learning·Dynamic graphs·Pricing and market exchanges.
+1 Introduction
+Globally, the daily volume of transactions in stock markets is measured in bil-
+lions of dollars. The stock market is regarded as one of the most substantial
+and liquid components of the global financial system. It plays a pivotal role in
+every growing and thriving economy, with the total value of stocks traded reach-
+ing117.7%of GDP in 2024. The stock market is characterised by inherently
+volatile and exhibit complex temporal and cross-asset dependencies, resulting in
+the longstanding challenge of accurate forecasting. A number of studies modeled
+arXiv:2602.00888v1  [cs.LG]  31 Jan 2026
+
+--- PAGE 2 ---
+2 Niu et al.
+stock prices as univariate time series, prompting the adoption of recurrent neu-
+ral networks (RNNs), including long short-term memory (LSTM) networks [7],
+gated recurrent units (GRUs) [31], and Transformer-based methods [15]. How-
+ever, such sequential models typically overlook the inter-stock relationships.
+The web has become the beating heart of financial information flow, with
+breaking news, social discourse and financial filings spreading online, reshap-
+ing financial forecasting in real time. As these web signals induce contextual,
+time-varying relations among companies, a growing number of studies employ
+graph neural networks (GNNs) to aggregate information across related stocks
+by explicitly modeling their relationships.
+The methods typically follow a two-step training paradigm with the use of
+static graphs or rule-based dynamic graphs, which can be simplified intograph
+construction→GNN training, are shown in Figure 1a and Figure 1b. The
+static graphsbased on long-lasting relationships, e.g., sector information [8,4],
+and momentum spillover effects [3] remain unchanged. Therule-based dy-
+namic graphswhere edges are constructed via rules inference, e.g., corre-
+lation thresholds [29], news co-occurrence [16,17], and dynamic time warping
+(DTW) [20,28], evolve over time while remaining separate from the process of
+GNN training. Consequently, this two-step training paradigm limits generalis-
+ability and often fails to align with the downstream task, due to the graph being
+constructed independently before the optimisation process.
+Graph structures, defined from a variety of sources, possess their own dis-
+tinctive benefits and biases. Some studies employ more complicated rules and
+involve multiple data sources to reduce bias. However, such approaches gen-
+erally increase the complexity of the graph construction process (e.g. spatial-
+temporal graph [35]) or rely on information that is difficult to obtain (e.g.
+shared holdings [1]), thereby further limiting the generalisability of the mod-
+els. In the context of predefined graph structures limitations and the difficulty
+in obtaining stock relationship data, the question of how to use readily avail-
+able, high-frequency stock price information to reduce bias while jointly learning
+downstream tasks remains unresolved. In this study, the exploration can be de-
+fined as an alignment operation between a predefined graph structure and a
+downstream task using stock price information.
+Beyond the constraints introduced by the training paradigm, the predefined
+graph construction approaches themselves face two critical issues that remain to
+be addressed:
+1.Limited node receptive field:the node receptive field is defined as the
+number of nodes considered when establishing an edge, which is inherently
+constrained to pairwise in present rule-based dynamic graphs (e.g., the sim-
+ilarity between stockss i ands j in DTW). Pairwise node receptive field
+overlooks potentially crucial higher-order relationships within stock clusters
+which is shown to be more suitable than pairwise similarity in financial
+forecasting tasks [20,6]. This underscores the importance of considering a
+broader node receptive field during edge construction;
+
+--- PAGE 3 ---
+GAPNet 3
+t0
+GAPNet GNN-based
+Architecture
+t0
+GNN-based
+Architecture
+Optimization
+Joint  Optimization
+tn...
+...
+No Change
+tn
+Static graphs
+GNN Training
+GNN Training
+(a)
+(c)
+t0
+GNN-based
+Architecture
+Optimization...
+Rule-based dynamic graphs
+GNN Training
+(b)
+Predefined Graph with GAPNet
+Rules Inference
+tn
+Fig.1: Training paradigm comparison fromt0totn. (a) Two-step training
+paradigm using static graphs; (b) Two-step training paradigm using rule-based
+dynamic graphs; (c) End-to-end training paradigm using GAPNet.
+2.Singlefocus:staticgraphsareusuallybuiltonlong-termrelationshipswhile
+the rule-based dynamic ones tend to capture only short-term dependencies.
+Forexample,rollingcorrelationedgesondaytdependsolelyonthepreceding
+rolling window, ignoring historical context, while the industry graph only
+considers the stock industry information which exists for long term.
+To address the above issues, we propose a novelGraphAdaptationPlug-
+inNetwork (GAPNet) and achieve an end-to-end training paradigm, which
+isgraph construction→GAPNet→GNN trainingare shown in Fig-
+ure 1c. The paradigm enables graph structure alignment and GNN training
+to proceed simultaneously by plugging in a GAPNet between the graph con-
+struction and GNN architectures. Specifically, GAPNet dynamically refines the
+graph structure in a task-oriented manner, aligning it with the downstream
+task. Accordingly, it provides GNN models with the capability to adapt any
+given predefined graph by removing task-irrelevant or even harmful biases and
+injecting informative relations that enhance task performance. GAPNet also ad-
+dresses the limited generalisation problem of the traditional two-step training
+paradigm. Starting from any graph structure, GAPNet continually updates the
+graph structure with stock price information to align the graph structure more
+
+--- PAGE 4 ---
+4 Niu et al.
+Multi-Scale 1D Convolution
+Conv1D
+LeakyReLU
+ResidualConvBlock
+Conv1D
+ResidualConvBlock
+Conv1D
+LayerNorm
+LeakyReLU
++
+Concat
+kernel 1
+kernel 2
+kernel 3
+Transformer Encoder +
+Conduct
+Inter-node
+Attention
+Matrix Multiplication
+Node Embedding
+Matrix with Attention
+Adjacency
+attribute
+matrix
+(b) Spatial Perception Layer
+X +
+σ σ
+X
+tanh σ
+X
+tanh
+(c) Temporal Perception Layer
+threshold
+Any
+GNN-based
+Architecture
+OutputInformation Aggregation
+AND
+Update Node Embedding
+Predefined Graph Updated Graph
+(d) Downstream GNN model
+L: lookback_window
+Stock Price Time Series N: num_nodes
+M: feature_dim
+(a) Input Module
+Fig.2: Model architecture of GAPNet and an overview of the end-to-end training
+paradigm on the stock ranking task.
+effectively with downstream tasks, which enables the model to achieve consider-
+ably enhanced performance on tasks. This has the effect of reducing the impact
+of graph complexity and the difficulty to obtain information on model generali-
+sation. Furthermore, the issues with existing graph construction approaches are
+addressed by the GAPNet architecture: (1) theSpatial Perception Layerthat
+expands the node receptive field beyond pairwise by involving attention from
+a broader set of candidate nodes; and (2) theTemporal Perception Layerthat
+incorporates both short-term and long-term memory into graph construction.
+Our main contributions include:
+–Propose a novel end-to-end training paradigm for GNN-based financial fore-
+casting, resolving the non-alignment between predefined graph structures
+and the downstream tasks and improving generalisability.
+–Introduce GAPNet, a modular plug-in network between predefined graphs
+and GNN architectures to refine the graph in a task-oriented manner.
+–Address the limited node receptive and single focus problems in graph con-
+structionapproachesbydesigningthespatialandtemporalperceptionlayers.
+–Extensive experiments on two real-world stock datasets (i.e., NASDAQ and
+NYSE) demonstrate consistent and statistically significant improvements
+when integrating GAPNet with multiple SOTA backbone models.
+2 Related Work
+2.1 Pairwise Graph-based Methods
+Graph neural networks (GNN) [13,25] have become a leading paradigm for
+modeling inter-stock relationships [18]. Early studies typically constructs stock-
+relation graphs intuitively and then applied traditional GNNs. For instance, [1]
+
+--- PAGE 5 ---
+GAPNet 5
+derive a firm investment graph and proposes a stock prediction model that that
+aggregates signals from related stocks. [8] propose RSR-I and build industry co-
+membership and Wikipedia-linkage graphs to introduce domain knowledge into
+the temporal relation model. Furthermore, [30] propose the use of hierarchical
+(stock-industry-market) graphs to predict price-limits. However, static, prede-
+fined graphs often fail to reflect the rapidly evolving and dynamic dependencies
+in the financial market. In response, recent studies have increasingly enhance
+the graph construction and GNN architectures to improve performance on stock
+forecasting. For instance, [14] build construct correlation-based stock graphs and
+propose an LSTM-RGCN to predict the overnight stock movement, demonstrat-
+ing the benefit of incorporating cross-asset relations beyond single-stock signals.
+[3] introduce AD-GAT, which models momentum spillovers by weighting graph
+edges with firm attributes. [29] compute the dynamic rolling correlation, and
+develop temporal and heterogeneous graph neural network-based (THGNN) ap-
+proach to learn the dynamic relations. [35] design relational temporal convolu-
+tional networks (RT-GCN) to capture spatial relations and temporal dynamics
+for stock ranking prediction. [19] present a multi-relational dynamic (MDGNN)
+framework that builds the discrete dynamic graph to capture multifaceted rela-
+tions.
+2.2 Hypergraph-based Methods
+Compared with pairwise graphs, hypergraphs provide the capability to encode
+high-order relations among multiple entities [36]. Motivated by this advantage,
+STHAN-SR [20] has constructed financial relational hypergraphs to express
+higher-orderrelationsthatexistinstockclusters.ALSP-TF[26]andCI-STHPAN[28]
+have evolved further from explicitly defined relations to data-driven hypergraph
+similarity adjacency modeling. Beyond those relations, [6] exploits hypergraph
+structures to model high-order interactions between stock returns and factors.
+2.3 Graph Learning
+A growing line of studies has emerged that focuses on learnable graph con-
+struction, jointly learning the graph structure with the predictor. [11] intro-
+duce GLCN, which integrates a learnable pairwise adjacency matrix into GCN
+training for semi-supervised classification. Additionally, [34] propose structure
+learning convolution to infer both global and local graph structures for spatio-
+temporal traffic forecasting. In the context of time-series settings, [21] learn dis-
+crete graph structures end-to-end to enhance multi-series forecasting. For graph
+learning itself, [9] and [2] propose bilevel/iterative frameworks to jointly opti-
+mise topology and GNN parameters. In the field of financial forecasting, [32]
+propose DGDNN for constructing dynamic stock graphs via entropy-based edge
+generation, subsequently employing diffusion-based representation learning for
+stock trend classification.
+
+--- PAGE 6 ---
+6 Niu et al.
+3 GAPNet Design
+3.1 Problem Framework
+Following previous studies on graph- and hypergraph-based financial model-
+ing [8,20,26,28], we consider stock ranking problem as our downstream task,
+which selects stocks that maximise investment profits. Specifically, letS=
+{s1, s2, ..., sN }denote the set ofNstocks. For each stocks i ∈S, letp t
+i denote
+the closing price on dattand letr t
+i denote the one-day return ratio, defined as
+rt
+i = pt
+i−pt−1
+i
+pt−1
+i
+.
+The following rule is to be employed to establish a ranking of the stocks:for
+any two stockss i, sj ∈S, ifr t
+i > r t
+j, then it can be deduced thatyt
+i > y t
+j where
+yt
+i is the ranking score of stocksi on trading dayt. On any given trading dayt,
+there exists an optimal ranking, denote byYt ={y t
+1 > y t
+2 > ... > y t
+N }, where the
+higher the ranking of a stock, the higher the expected profit. In the context of
+stock trading data for a lookback window of sizeL(i.e.Xt
+i = [x t−L
+i , ..., xt−1
+i ]∈
+RL×M whereMdenotes the feature dimension, andX t = [X t
+1, Xt
+2, ..., Xt
+N ]∈
+RN×L×M), we aim to develop a ranking algorithm that can output the ranking
+list of stocksS. The top-rankedkstocks are then selected for investment on day
+t.
+Since the selected downstream task is stock ranking, a task-specific loss func-
+tion combining point-wise regression loss and pairwise ranking loss is applied.
+L=||ˆr t
+i −r t
+i||2 +α
+|S|X
+i=1
+|S|X
+j=1
+max(0−(ˆrt
+i −ˆrt
+j)(rt
+i −r t
+j))(1)
+whereαis a hyperparameter to balance the two loss terms. Working under the
+end-to-end training paradigm, GAPNet updates the graph structures to align
+the downstream task. It can be replaced with any task-specific loss function
+depending on the downstream task selection.
+3.2 Model Architecture
+Figure 2 demonstrates the GAPNet architecture and the end-to-end training
+paradigm under the stock ranking task, which comprises four components: (a)
+the input module, (b) the Spatial Perception Layer (SPL), (c) the Temporal
+Perception Layer (TPL), and (d) the downstream GNN model. Specifically, the
+stock price time seriesXt ∈R N×L×M is first fed into the SPL to encode multi-
+scale temporal patterns and inter-node interactions (via residual 1D convolutions
+and attention). The SPL is responsible for the construction of a temporary ad-
+jacency attribute matrixad jt,temp
+attr , combined with the predefined stock-relation
+graph, which is then used as input by the TPL. The TPL employs gated tem-
+poral aggregation to refine edge attributes across time and outputs the final
+adjacency attribute matrixad jt
+attr, which yields an updated, task-aligned graph
+for dayt. Finally, any GNN-based architecture can use this updated graph to-
+gether with node features to aggregate information and produce ranking scores
+for the stock-ranking task.
+
+--- PAGE 7 ---
+GAPNet 7
+Spatial Perception Layer (SPL)As demonstrated in the Figure 2b, the
+SPL uses short-term information embedded in the input feature matrixXt to
+construct a temporary adjacency attribute matrixad jtemp
+attr . Initially, the input
+matrix is processed by multiple 1D convolutional modules with different scales
+to generate node-specific embeddings. Since GAPNet aims to be integrated as
+a plug-in module into any GNN architecture, a common challenge arises when
+it is appended to already deep and complex models. This integration has the
+potential to result in excessively deep networks, making GAPNet susceptible to
+vanishing gradients. Such gradients hinders effective parameter updates. In order
+to address this issue, we introduce aResidual Convolution Blockto facilitate
+gradient flow and ensure stable training.
+ResConv(x) =x+LeakeyReLU(N orm(Conv1D(x)))(2)
+The convolution of each scale is comprised of two normalConv1Dmodules and
+twoResidual Convolution Blocks. These convolutions operate along the temporal
+dimension, whereKdifferent sizes of kernels are employed to capture localized
+temporal patterns within varying time windows for each node. Subsequently,
+the output of each kernel is concatenated, representing the feature embedding
+of each node. In particular,
+Xconv =|| K
+k=1M ultiScale1DConv k(Xt)(3)
+whereX conv ∈R N×Z×(K∗L), andZis the number of kernels of each size. Then,
+a Transformer Encoder [24] is employed to conduct inter-node self-attention and
+generate the new node representation with attention on all other nodes.
+Xenc =|| H
+h=1[Xconv +T ransf ormerEncoder(X conv)](4)
+whereHis the number of heads in the Transformer Encoder, andX enc ∈
+RZ×N×(H∗K∗L) . We then conduct a dot product between each pair of node em-
+beddings to obtain the temporary attribute of the potential edge between these
+two nodes.
+ad jtemp
+attr =X encX T
+enc (5)
+wheread j temp
+attr ∈R Z×N×N . For each pair of nodes, a vector of size[Z,1]is used
+to represent the attribute of the potential edge between them. It is evident that,
+given each node representation inXenc is computed by attending to all other
+nodes, the edge attributes inad jtemp
+attr inherently possess a node receptive field of
+N.
+Temporal Perception Layer (TPL)The construction of edges based solely
+on SPL with a limited lookback window captures only short-term dynamics
+while ignoring long-term dependencies. The TPL structure, has thus been de-
+signed with reference to Long Short-Term Memory (LSTM) [10] networks. In
+this structure, the temporary adjacency attribute matrixad jtemp
+attr serves as the
+input of the current time step. In addition, at each time stept, two auxiliary
+
+--- PAGE 8 ---
+8 Niu et al.
+inputs are maintained: a memory adjacency matrixad jmemory
+attr and a cell state
+Ct−1 to capture long-term structural dependencies. The function ofad jmemory
+attr
+is to store the memory of the adjacency attribute matrix from the previous step,
+whileC t−1 is employed to store the global long-term memory of the adjacency
+attribute matrix.
+In our experiment, the TPL maintains a memory state that evloves across
+days. We initialise the cell stateCt−1 to zero and set the memory adjacency
+ad jmemory
+attr from the predefined stock-relation graph (e.g. Industry/Wiki). As
+shown in Figure 2c, the calculation flow of TPL can be described as follows:
+the forget gate is responsible for determining the information to forget from the
+previous step.
+ft =σ(W f [ad jtemp
+attr ||ad jmemory
+attr ] +b f )(6)
+The input gate controls the information from the current input and previous
+memory into the memory cell.
+it =σ(W i[ad jtemp
+attr ||ad jmemory
+attr ] +b i)(7)
+ˆCt =tanh(W c[ad jtemp
+attr ||ad jmemory
+attr ] +b c)(8)
+The cell state is updated based on the forget gate and the input gate.
+Ct =f t ×C t−1 +i t × ˆCt (9)
+The output gate controls the information from the memory cell to the output
+at the current time step, which is denoted byad jt
+attr.
+ot =σ(W o[ad jtemp
+attr ||ad jmemory
+attr ] +b o)(10)
+ad jt
+attr =o t ×tanh(C t)(11)
+whereW f , Wi, Wc, Wo ∈R N×2N andb f , bi, bc, bo ∈R N.ad j t
+attr ∈R Z×N×N is
+the final adjacency attribute matrix on dayt, which has considered both short-
+term trendad jtemp
+attr and long-term memoriesad jmemory
+attr .ad j t
+attr will inherently
+become the long-term memory at time stampt+ 1.
+It is worth noting that GAPNet remains operational when no predefined
+stock-relation graph is available. In this case, the memory adjacencyad jmemory
+attr
+is randomly initialised, while the remainder of the calculation flow remains un-
+changed.
+In practice,ad j t
+attr may assign non-zero attributes to any number of node
+pairs, which can result in an overly dense (and noisy) graph. In order to avoid
+this, we have opted to constructad jt by thresholding. Specifically, an edge is
+only created when the average magnitude of the corresponding attribute vector
+inad j t
+attr exceeds a thresholdτ(i.e.|mean(ad j t
+attr[:, si, sj])|> τ).
+Finally,weapplyad j t asamasktoad j t
+attr matrix,retainingonlytheattribute
+information of the selected edges while filtering out spurious connections. The
+final output of the GAPNet module:ad jt andad j t
+attr, which respectively repre-
+sent the connectivity between nodes and the learned embeddings for each edge,
+respectively. When combined with the original node feature representations from
+the input data, this forms the constructed graph.
+
+--- PAGE 9 ---
+GAPNet 9
+Dataset Start date End date # StocksTrading
+Data
+Stock-relation Data Public
+Available Industry Wiki DTW Other relation
+ACL18 [31] 01/02/2014 12/30/2015 87✓- - - -✓
+CIKM18 [27] 01/03/2017 12/28/2017 38✓- - - -✓
+NASDAQ [8,28] 01/02/2013 1208/2017 1026✓ ✓ ✓ ✓-✓
+NYSE [8,28] 01/02/2013 12/08/2017 1737✓ ✓ ✓ ✓-✓
+SSE [33] 01/2015 12/2019 130✓ ✓- - -✓
+BigData22 [23] 07/05/2019 06/30/2020 50✓- - - -✓
+FNSPID [5] 1999 2023 4775✓- - - -✓
+CSI [19] 01/01/2020 02/31/2023 400✓ ✓- - Bank investment -
+SPNews [16] 05/31/2021 05/21/2023 431✓- - - News co-occurence✓
+Table 1: The comparison of candidate datasets
+Adjacency Matrix to HypergraphThe GAPNet is capable of supporting
+both standard pairwise graph alignment and hypergraph alignment. As pre-
+viously described, for standard graphs, we produce an adjacency matrix with
+shape[N, N]is constructed, along with its corresponding edge attribute matrix.
+In the case of hypergraphs, we similarly generate a matrixhyperad jt ∈R N×N
+and its associated attribute matrix. However, the semantics ofhyperad jt differ
+fromad j t. Indeed, thei-th row inhyperad jt corresponds to thei-th hyperedge,
+andhyperad j t[i, j]indicates whether nodejparticipates in hyperedgei. A row
+with all-zero entries signifies a non-existent hyperedge. In our experiments, we
+assume that the total number of hyperedges is less than or equal to the number
+of nodesN, as reflected by the fixed shape of thehyperad jt matrix, which is of
+size[N, N].
+4 Experiments
+4.1 Dataset Selection
+Table 1 outlines the key features of the candidate datasets that significantly im-
+pact backtesting and graph construction. These features include temporal cover-
+age (start/end dates), scale (number of stocks), the availability of stock-relation
+data (Industry, Wiki, DTW similarity and other relations) and public release
+status. From dataset comparison, the following observations can be deduced:
+1.Temporal coverage:the longest span of consecutive years is FNSPID
+(1999–2023), followed by NASDAQ, NYSE and SSE. However, CIKM18,
+BigData22 are limited in scope.
+2.Scale:compared to ACL18, CIKM18, SSE, BigData22 (with a maximum
+of 130 stocks), NASDAQ, NYSE, and FNSPID provide significantly larger
+range of stocks, which is a crucial aspect for both stock ranking and portfolio
+construction.
+3.Relational richness:both NASDAQ and NYSE include multiple stock-
+relation data, while other candidate datasets provide only one or no relation
+type.
+4.Openness:CSI is not released, whereas other candidate datasets are pub-
+licly available, allowing for replication.
+
+--- PAGE 10 ---
+10 Niu et al.
+NASDAQ NYSE
+Stocks(Nodes) 1,026 1,737
+Training Period 01/02/2013 - 12/31/2015
+Validation Period 01/04/2016 - 12/30/2016
+Testing Period 01/03/2017 - 12/08/2017
+Days(Train:Valid:Test) 756 : 252 : 237
+Table 2: NASDAQ and NYSE dataset statistics
+Accordingly, we adopt NASDAQ and NYSE, which contain stock trading
+data from 2013 to 2017 and three types of stock relation data. We strictly follow
+the sequential order to split the dataset into training/validation/testing sets.
+Detailed statistic of the dataset and splitting is shown in Table 2. Similar to
+previous works [8,28], we compute the 5-, 10-, 20- and 30-day moving averages
+of the closing price to represent the time series trend in stock trading data, yield-
+ing an input feature dimensionM= 5. We then standardise the entire dataset
+based on the maximum value of each feature on the training set. For the graph
+data, we use the hypergraphs constructed by [28] with different relations, in-
+cluding Industry, Wiki, DTW similarity and their combinations. Since we also
+experiment with models that use traditional pairwise graphs instead of hyper-
+graphs, we transfer the hypergraphs to its corresponding pairwise graphs with
+the following rule:
+For any two nodess i, sj on the same hyperedge, we build a pairwise edge
+betweens i, sj.
+4.2 Implementation Details
+Our experiments are implemented with PyTorch and PyTorch Geometric, and
+we fix the random seed as 2023. We align the lookback window length with the
+original settings of each backbone model, which are 336 for the CI–STHPAN
+model and 16 for all others. The convolutional kernels sizesK∈ {3,5,7}, and the
+number of each size of kernelZ∈ {1,4}. The hidden units of SPL is selected from
+{16,32,64,128,256}. For the Transformer encoder, we use single-head attention,
+a feedforward dimension of 128, a dropout rate of 0.1, and one encoder layer. The
+thresholdτ= 0.5. In all backtesting experiments, we construct a portfolio from
+thetop−5ranked stocks. All our experiments are conducted on a GeForce RTX
+4090 GPU with Adam optimiser [12]. The learning rate is dynamically adjusted
+using OnceCycleLR [22] with a maximum value of1e−4, and the loss weight
+is set to a valueα∈ {0.1,0.2,1,2,4,6,8,10}. The number of epochs is selected
+from{50,100}with the implementation of early stopping strategies.
+4.3 Evaluation Metrics
+According to the studies [8,20,28], we conduct experiments on a buy-hold-sell
+trading strategy. Specifically, at each trading dayt, the model predicts the re-
+turns of all individual stocks for the next dayt+ 1, and selects the topkstocks
+
+--- PAGE 11 ---
+GAPNet 11
+Dataset Model Architecture Graph TypeBasic with DTW Graph GAPNet-aligned
+Annualised IRR SRAnnualised IRR SR
+NASDAQ
+GCN Pairwise Graph 0.1402 0.4806 0.2084 (+0.068) 0.6891 (+0.209)
+RSR-I [8] Pairwise Graph 0.3919 1.3042 0.4967 (+0.105) 1.6365 (+0.332)
+RT-GCN [35] Pairwise Graph 0.3642 1.5687 0.4717 (+0.110) 2.2003 (+0.632)
+Hypergraph Conv Hypergraph 0.2064 0.6936 0.3108 (+0.104) 1.0288 (+0.335)
+STHAN-SR [20] Hypergraph 0.2382 0.7876 0.3034 (+0.065) 0.9866 (+0.199)
+CI-STHPAN [28] Hypergraph 0.4515 1.6599 0.6319 (+0.180) 2.1190 (+0.459)
+NYSE
+GCN Pairwise Graph 0.1620 0.4116 0.1865 (+0.025) 0.4502 (+0.039)
+RSR-I [8] Pairwise Graph 0.1651 0.4393 0.4798 (+0.315) 0.7128 (+0.274)
+RT-GCN [35] Pairwise Graph 0.1326 1.1135 0.2250 (+0.092) 1.5555 (+0.442)
+Hypergraph Conv Hypergraph 0.1326 0.3367 0.2171 (+0.085) 0.5760 (+0.239)
+STHAN-SR [20] Hypergraph 0.0627 0.1686 0.2157 (+0.153) 0.6651 (+0.497)
+CI-STHPAN [28] Hypergraph 0.1915 0.7141 0.3195 (+0.128) 0.8218 (+0.108)
+Table 3: Profitability improvements and generalisation ability of GAPNet on
+different backbone model architectures with a recent advanced predefined graph
+structure (DTW Graph).Basic with DTW Graphstands for the two-step
+paradigm using DTW graph construction (k= 20), andGAPNet-alignedis
+for our proposed end-to-end paradigm. The values in the brackets denote the
+absolute improvement in performance achieved by GAPNet. Results are aver-
+aged over 5 independent runs (p<0.01).
+Sk to hold based on their rank. These stocks are traded at the close price of
+t+ 1, and the daily return is calculated asR t = P
+i∈Sk
+ct+1
+i −ct
+i
+ct
+i
+, wherec t
+i de-
+notes the close price of stockion dayt. We backtest on the entire test set and
+report the annualised cumulative return (annualised IRR), and the Sharpe
+Ratio (SR). We also use the information coefficient (IC) and the information
+coefficient information ratio (ICIR) to further evaluate the predictive accuracy
+and stability.
+4.4 Overall Performance
+In order to evaluate the effectiveness and generalisability of the proposed GAP-
+Net, we conduct extensive experiments on two fundamental GNN architectures,
+i.e. GCN and hypergraph convolution, as well as four state-of-the-art (SOTA)
+stockrankingmodels,whichareRSR-I,STHAN-SR,RT-GCN,andCI-STHPAN 1.
+In consideration of DGDNN, which frames the prediction of next-day stock
+trends as a binary temporal node-classification problem [32], while the focus of
+our study is on the task of stock ranking and selection under portfolio-oriented
+objectives. The primary focus of DGDNN is classification metrics, whereas the
+present study assesses ranking and investment performance. In order to ensure a
+task-aligned comparison, the experiment adopts only DGDNN’s dynamic graph
+construction, i.e. entropy-driven edge generation. Each model is trained under
+the traditional two-step paradigm with a predefined graph, and under our end-
+1 Note that the CI-STHPAN model is trained under supervised learning in our exper-
+iments.
+
+--- PAGE 12 ---
+12 Niu et al.
+Graph Information CI-STHPAN RT-GCN
+Annualised IRR SR IC ICIR Annualised IRR SR IC ICIR
+Industry 0.3121 1.2344 -0.0003 -0.0050 0.2085 1.4745 -0.0016 -0.0488
+Wiki 0.4130 1.6502 -0.0004 -0.0062 0.4364 1.96780.00550.1149
+Industry+Wiki 0.4445 1.7319 -0.0003 -0.0039 0.1049 0.3351 0.0019 0.0470
+Industry+DTW 0.3970 1.5729 -0.0004 -0.0056 0.2516 1.4021 0.0050 0.1374
+Wiki+DTW 0.2623 1.0348 -0.0004 -0.0053 0.2869 1.2515 0.0029 0.0551
+DTW_K=20 0.4515 1.6599 0.00150.0178 0.3642 1.5687 0.0035 0.0595
+DTW_K=15 0.3380 1.1970 -0.0009 -0.0122 0.2673 1.1252 -0.0002 -0.0034
+DTW_K=10 0.3172 1.2643 -0.0005 -0.0069 0.0477 0.2296 -0.0005 -0.0098
+DTW_K=5 0.3282 1.3057 -0.0003 -0.0041 0.2631 1.5231 0.00360.1618
+DTW_K=1 0.4490 1.7709 -0.0003 -0.0042 0.1280 0.8902 -0.0007 -0.0267
+All 0.3301 1.3155 -0.0006 -0.0088 0.3021 1.7824 0.0055 0.1605
+GAPNet-aligned 0.6319 2.1190 0.0052 0.0597 0.4741 2.2003 0.00680.1613
+Table 4: The impact of different graph information on CI-STHPAN and
+RT-GCN.IndustryandWikirepresent predefined domain knowledge graphs.
+DTW_Kstands for the dynamic relation betweenkstocks based on the simi-
+larity, andAllis for merging all predefined graphs presented above. Results are
+averaged over 5 independent runs (p<0.01).
+to-end paradigm, aligned by GAPNet. The two variants are designated as the
+basicversion and theGAPNet-alignedversion, respectively.
+In Table 3, GAPNet-aligned versions consistently outperform their basic ver-
+sion across all backbone models on both NASDAQ and NYSE datasets, with sig-
+nificant improvements in annualised IRR and SR (p <0.01). The result indicates
+that involving GAPNet for alignment is necessary and effective for enhancing
+the backbone models’ performance on the downstream task. The most signifi-
+cant enhancements of the annualised IRR are observed in the NASDAQ with
+CI-STHPAN (+0.180) and in the NYSE with RSR-I (+0.315). The enhancement
+of SR is most pronounced in the NASDAQ with RT-GCN (+0.632) and in the
+NYSE with STHAN-SR (+0.497).
+To independently test the effect of different predefined graph structures on
+GNN models, we conduct experiments using RT-GCN (pairwise graph-based)
+and CI-STHPAN (hypergraph-based) on the NASDAQ dataset, with various
+predefined graph structures (see [28] for graph construction details). The re-
+sults are reported in Table 4. Consistent findings can be observed on the NYSE
+dataset, shown in the Appendix. The result shows that GNN models’ perfor-
+mance is highly sensitive to the choice of graph structure. RT-GCN, in partic-
+ular, exhibits considerable performance fluctuation across different graph con-
+figurations, with annualised IRR ranging from0.0477to0.4364, and with SR
+from0.2296to1.9678. This variability is indicative of the non-alignment limi-
+tation of predefined graph structures, i.e.any single predefined graph structure
+is inherently biased, and there exists no universal guideline for which relations
+to include or discard. As a result, models built on such graphs inevitably suffer
+fromlimitedgeneralisability.The findingsdemonstratethattheGAPNet-aligned
+graphconsistentlyoutperformsallpredefinedgraphs.Furthermore,theGAPNet-
+aligned graph demonstrates significant improvements in IC and ICIR, reflecting
+
+--- PAGE 13 ---
+GAPNet 13
+GAPNet Initialization Basic GAPNet-aligned
+Component Ann. IRR SR Ann. IRR SR
+SPL+TPL Industry 0.3121 1.2344 0.5649 1.9979
+SPL+TPL Wiki 0.4130 1.6502 0.5265 1.8604
+SPL+TPL Industry+Wiki 0.4445 1.7319 0.5906 2.0829
+SPL+TPL Industry+DTW 0.3970 1.5729 0.5365 1.9025
+SPL+TPL Wiki+DTW 0.2623 1.0348 0.5961 2.1196
+SPL+TPLDTW_K=200.4515 1.6599 0.6319 2.1190
+SPL+TPLDTW_K=150.3380 1.1970 0.5422 1.9248
+SPL+TPLDTW_K=100.3172 1.2643 0.5296 1.8833
+SPL+TPLDTW_K=50.3282 1.3057 0.5142 1.8201
+SPL+TPLDTW_K=10.4490 1.7709 0.5621 1.9658
+SPL+TPL All 0.3301 1.3155 0.5535 1.9590
+SPL+TPL Random - - 0.4876 1.8654
+w.o. TPL - - - 0.4542 1.7188
+Table 5: Ablation study on GAPNet’s components and initialization. CI-
+STHPAN is used as the backbone model.Basicrepresents the two-step
+paradigm.GAPNet-alignedrepresents the end-to-end paradigm.Ann. IRRde-
+notes annualized IRR.
+a stronger alignment between predicted and realized returns and a more stable
+predictive performance over time. Overall, the proposed GAPNet reduces bias
+by aligning predefined graph structures with downstream tasks in an end-to-end
+manner, which further promotes a generalised application of all backbone GNN
+models.
+4.5 Ablation Study
+Table 5 demonstrates the ablation results on the NASDAQ dataset to assess the
+contribution of each GAPNet component and graph initialisation. Consistent
+results can be observed on the NYSE dataset, provided in the Appendix. We
+focus on two aspects:
+1. the effect of different initialisation strategies (predefined graph construction)
+for GAPNet.
+2. the impact of removing TPL entirely (denoted asw.o. TPL, which GAPNet
+relying solely on the SPL to capture short-term dependencies.
+Initialisation SensitivityFirstly, when initialised with different predefined
+graphs, GAPNet consistently achieves powerful performance with reduced vari-
+ation in both metrics, demonstrating robustness to graph initialisation and the
+ability to generalise across diverse prior graph structures. Secondly, even in sce-
+narios where TPL is initialised at random without any prior relational knowl-
+edge, GAPNet remains highly competitive, exhibiting only a slight performance
+drop. This finding indicates that there is less loss in terms of GAPNet’s ability
+
+--- PAGE 14 ---
+14 Niu et al.
+0 50 100 150 200
+Trading days of Test Period
+0.1
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+Return Ratio
+NASDAQ Backtest Results
+RTGCN
+GAPNet_RTGCN
+S&P500
+DJI
+(a) RTGCN
+0 50 100 150 200
+Trading days of Test Period
+0.0
+0.2
+0.4
+0.6Return Ratio
+NASDAQ Backtest Results
+CI-STHPAN
+GAPNet_CI-STHPAN
+S&P500
+DJI (b) CI-STHPAN
+Fig.3: Backtesting (top-5) results on NASDAQ dataset with/without GAPNet.
+to effectively learn dynamic relational structures in the absence of structural
+priors.
+Effect of SPL and TPLw.o. TPLleads to a non-ignorable performance drop
+(IRR =0.4542, SR =1.7188) compared to the full version of GAPNet with
+random initialisation (IRR =0.4876, SR =1.8654), providing evidence that
+TPL is valuable in integrating short-term and long-term dependencies. Notably,
+w.o. TPLstill performs comparably to the bestbasicversion, which indicats
+that a GAPNet with SPL alone is approximately as effective as a predefined
+graph. These results highlight the independent effects of SPL and TPL, and the
+benefit of integrating both within the full GAPNet architecture.
+ECML
+4.6 Backtesting Results
+Figures 3a and 3b present the simulated backtesting results of two backbone
+models, RT-GCN and CI-STHPAN, on the NASDAQ testing period. To bench-
+mark the model performance against the market, we include theDow Jones
+Industrial Average (DJI)andS&P 500indices as reference baselines. We adopt
+an equal-weight investment strategy with an initial capital sum of10000. Since
+the dataset is updated on a daily basis, the portfolio rebalancing frequency is
+also set to daily. Specifically, at the termination of each trading dayt, the model
+ranks all candidate stocks and selects the top-kstocks for portfolio construc-
+tion. The selected stocks are equally weighted and held for one day; they are
+liquidated at the end oft+ 1, and a new portfolio is reconstructed based on the
+next day’s predictions. To simplify the experimental setup, transaction costs are
+ignored.
+As shown in Figures 3a and 3b, incorporating GAPNet consistently enhances
+the investment performance of both backbone models, outperforming their stan-
+daloneversionsandthemarketbenchmarks.ForRT-GCN,thecumulativereturn
+
+--- PAGE 15 ---
+GAPNet 15
+(CR) and the Sharpe ratio (SR) are 0.33 and 1.46, respectively, while RT-GCN
++ GAPNet achieves CR = 0.52 and SR = 2.11. Similarly, CI-STHPAN attains
+CR = 0.47 and SR = 1.75, whereas CI-STHPAN + GAPNet improves these
+metrics to CR = 0.68 and SR = 2.12. These results are consistent with the
+quantitative findings reported in Table 3, confirming that integrating GAPNet
+effectively enhances the backbone models’ downstream performance in stock se-
+lection tasks. The results of backtesting conducted on the NYSE demonstrate
+consistent trends, and the details are provided in the Appendix.
+4.7 Computational Cost
+Figure 4 provides a graphical representation of the training time and GPU mem-
+ory usage for six backbone models. To assess the scalability of the GAPNet, a
+comparison was made of resource usage when each backbone is trained under
+the two-step paradigm versus under the end-to-end paradigm. It was observed
+that the overhead incurred by GAPNet depends on the underlying graph repre-
+sentation. The impact on backbone models based on standard pairwise graphs
+(e.g., GCN, RSR-I, RT-GCN) in terms of additional training time and mem-
+ory usage is negligible. In contrast, when GAPNet is employed in conjunction
+with hypergraph-based models (e.g., HGCN, STHAN-SR, CI-STHPAN), there
+is an observed increase in resource consumption. This is primarily attributed
+to the denser structure of hypergraphs and the more computationally intensive
+transformation from dense adjacency matrices to hypergraph incidence represen-
+tations. Overall, the additional computational cost is acceptable in comparison
+to the predefined graph construction and the end-to-end GAPNet-aligned graph
+with backbone models, which indicates that GAPNet is a feasible option and
+should be preferentially employed in most practical scenarios.
+100
+75
+50
+25
+0Time Consumption (mins)
+NASDAQ Backbone NASDAQ GAPNet+Backbone NYSE Backbone NYSE GAPNet+Backbone
+Memory Consumption (GiB)
+25.0
+20.0
+15.0
+10.0
+5.0
+0.0
+Fig.4: The comparsion of computational cost for six backbone models. Left:
+training time; Right: memory usage.
+
+--- PAGE 16 ---
+16 Niu et al.
+5 Conclusion
+In this paper, we propose a novel end-to-end training paradigm for GNN-based
+stock ranking task, and GAPNet, a Graph Adaptation Plug-in Network that
+adaptively aligns predefined graphs for a given downstream task, and improves
+GNN performance on the task. GAPNet addresses the non-alignment and poor
+generalisation issues that are commonly suffered by predefined graphs. Through
+extensive experiments on NASDAQ and NYSE, we demonstrate the effective-
+ness and generalisability of GAPNet and the paradigm across both pairwise
+graph-based and hypergraph-based backbone models is demonstrated, highlight-
+ing its potential in relational modeling for financial forecasting. From a design
+perspective, the proposed paradigm and GAPNet are readily adaptable to any
+downstream tasks in the same end-to-end training paradigm. This finding pro-
+vides a foundation for future research, including the potential application of our
+paradigm and GAPNet to a wide-ranging set of financial forecasting tasks. It
+is also noteworthy that the proposed paradigm and GAPNet are conceptually
+independent: GAPNet is merely one implementation of the end-to-end training
+paradigm. In future studies, alternative designs of end-to-end training paradigm
+could be explored to further enhance flexibility and performance.
+References
+1. Chen, Y., Wei, Z., Huang, X.: Incorporating corporation relationship via graph
+convolutional neural networks for stock price prediction. In: Proceedings of the
+27th ACM international conference on information and knowledge management.
+pp. 1655–1658 (2018)
+2. Chen,Y.,Wu,L.,Zaki,M.:Iterativedeepgraphlearningforgraphneuralnetworks:
+Better and robust node embeddings. Advances in neural information processing
+systems33, 19314–19326 (2020)
+3. Cheng, R., Li, Q.: Modeling the momentum spillover effect for stock prediction via
+attribute-driven graph attention networks. In: Proceedings of the AAAI conference
+on artificial intelligence. vol. 35, pp. 55–62 (2021)
+4. Cui, C., Li, X., Zhang, C., Guan, W., Wang, M.: Temporal-relational hypergraph
+tri-attention networks for stock trend prediction. Pattern recognition143, 109759
+(2023)
+5. Dong, Z., Fan, X., Peng, Z.: Fnspid: A comprehensive financial news dataset in
+time series. In: Proceedings of the 30th ACM SIGKDD Conference on Knowledge
+Discovery and Data Mining. pp. 4918–4927 (2024)
+6. Duan, Y., Wang, W., Li, J.: Factorgcl: A hypergraph-based factor model with
+temporal residual contrastive learning for stock returns prediction. In: Proceedings
+of the AAAI Conference on Artificial Intelligence. vol. 39, pp. 173–181 (2025)
+7. Feng, F., Chen, H., He, X., Ding, J., Sun, M., Chua, T.S.: Enhancing stock move-
+ment prediction with adversarial training. arXiv preprint arXiv:1810.09936 (2018)
+8. Feng, F., He, X., Wang, X., Luo, C., Liu, Y., Chua, T.S.: Temporal relational
+ranking for stock prediction. ACM Transactions on Information Systems (TOIS)
+37(2), 1–30 (2019)
+
+--- PAGE 17 ---
+GAPNet 17
+9. Franceschi, L., Niepert, M., Pontil, M., He, X.: Learning discrete structures for
+graph neural networks. In: International conference on machine learning. pp. 1972–
+1982. PMLR (2019)
+10. Hochreiter, S., Schmidhuber, J.: Long short-term memory. Neural computation
+9(8), 1735–1780 (1997)
+11. Jiang, B., Zhang, Z., Lin, D., Tang, J., Luo, B.: Semi-supervised learning with
+graph learning-convolutional networks. In: Proceedings of the IEEE/CVF confer-
+ence on computer vision and pattern recognition. pp. 11313–11320 (2019)
+12. Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. arXiv preprint
+arXiv:1412.6980 (2014)
+13. Kipf, T.N., Welling, M.: Semi-supervised classification with graph convolutional
+networks. arXiv preprint arXiv:1609.02907 (2016)
+14. Li, W., Bao, R., Harimoto, K., Chen, D., Xu, J., Su, Q.: Modeling the stock relation
+withgraphnetworkforovernightstockmovementprediction.In:Proceedingsofthe
+twenty-ninthinternationalconferenceoninternationaljointconferencesonartificial
+intelligence. pp. 4541–4547 (2021)
+15. Muhammad, T., Aftab, A.B., Ibrahim, M., Ahsan, M.M., Muhu, M.M., Khan, S.I.,
+Alam, M.S.: Transformer-based deep learning model for stock price prediction: A
+case study on bangladesh stock market. International Journal of Computational
+Intelligence and Applications22(03), 2350013 (2023)
+16. Niu, Y., Lu, L., Dolphin, R., Poti, V., Dong, R.: Evaluating financial relational
+graphs: Interpretation before prediction. In: Proceedings of the 5th ACM Interna-
+tional Conference on AI in Finance. pp. 564–572 (2024)
+17. Niu, Y., Zhao, M., Poti, V., Dong, R.: Ngat: A node-level graph attention network
+for long-term stock prediction. arXiv preprint arXiv:2507.02018 (2025)
+18. Patel, M., Jariwala, K., Chattopadhyay, C.: A systematic review on graph neural
+network-based methods for stock market forecasting. ACM Computing Surveys
+57(2), 1–38 (2024)
+19. Qian, H., Zhou, H., Zhao, Q., Chen, H., Yao, H., Wang, J., Liu, Z., Yu, F., Zhang,
+Z., Zhou, J.: Mdgnn: Multi-relational dynamic graph neural network for compre-
+hensive and dynamic stock investment prediction. In: Proceedings of the AAAI
+Conference on Artificial Intelligence. vol. 38, pp. 14642–14650 (2024)
+20. Sawhney, R., Agarwal, S., Wadhwa, A., Derr, T., Shah, R.R.: Stock selection via
+spatiotemporal hypergraph attention network: A learning to rank approach. In:
+Proceedings of the AAAI Conference on Artificial Intelligence. vol. 35, pp. 497–
+504 (2021)
+21. Shang, C., Chen, J.: Discrete graph structure learning for forecasting multiple time
+series. In: Proceedings of International Conference on Learning Representations
+(2021)
+22. Smith, L.N., Topin, N.: Super-convergence: Very fast training of neural networks
+using large learning rates. In: Artificial intelligence and machine learning for multi-
+domain operations applications. vol. 11006, pp. 369–386. SPIE (2019)
+23. Soun, Y., Yoo, J., Cho, M., Jeon, J., Kang, U.: Accurate stock movement prediction
+with self-supervised learning from sparse noisy tweets. In: 2022 IEEE International
+Conference on Big Data (Big Data). pp. 1691–1700. IEEE (2022)
+24. Vaswani,A.,Shazeer,N.,Parmar,N.,Uszkoreit,J.,Jones,L.,Gomez,A.N.,Kaiser,
+Ł., Polosukhin, I.: Attention is all you need. Advances in neural information pro-
+cessing systems30(2017)
+25. Veličković, P., Cucurull, G., Casanova, A., Romero, A., Lio, P., Bengio, Y.: Graph
+attention networks. arXiv preprint arXiv:1710.10903 (2017)
+
+--- PAGE 18 ---
+18 Niu et al.
+26. Wang, H., Wang, T., Li, S., Zheng, J., Guan, S., Chen, W.: Adaptive long-short
+patterntransformerforstockinvestmentselection.In:IJCAI.pp.3970–3977(2022)
+27. Wu, H., Zhang, W., Shen, W., Wang, J.: Hybrid deep sequential modeling for
+social text-driven stock prediction. In: Proceedings of the 27th ACM international
+conference on information and knowledge management. pp. 1627–1630 (2018)
+28. Xia, H., Ao, H., Li, L., Liu, Y., Liu, S., Ye, G., Chai, H.: Ci-sthpan: pre-trained
+attention network for stock selection with channel-independent spatio-temporal
+hypergraph. In: Proceedings of the AAAI Conference on Artificial Intelligence.
+vol. 38, pp. 9187–9195 (2024)
+29. Xiang, S., Cheng, D., Shang, C., Zhang, Y., Liang, Y.: Temporal and heterogeneous
+graph neural network for financial time series prediction. In: Proceedings of the
+31st ACM international conference on information & knowledge management. pp.
+3584–3593 (2022)
+30. Xu, C., Huang, H., Ying, X., Gao, J., Li, Z., Zhang, P., Xiao, J., Zhang, J., Luo,
+J.: Hgnn: Hierarchical graph neural network for predicting the classification of
+price-limit-hitting stocks. Information Sciences607, 783–798 (2022)
+31. Xu, Y., Cohen, S.B.: Stock movement prediction from tweets and historical prices.
+In: Proceedings of the 56th Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers). pp. 1970–1979 (2018)
+32. You, Z., Shi, Z., Bo, H., Cartlidge, J., Zhang, L., Ge, Y.: Dgdnn: Decoupled
+graph diffusion neural network for stock movement prediction. arXiv preprint
+arXiv:2401.01846 (2024)
+33. You, Z., Zhang, P., Zheng, J., Cartlidge, J.: Multi-relational graph diffusion neural
+network with parallel retention for stock trends classification. In: ICASSP 2024-
+2024 IEEE International Conference on Acoustics, Speech and Signal Processing
+(ICASSP). pp. 6545–6549. IEEE (2024)
+34. Zhang, Q., Chang, J., Meng, G., Xiang, S., Pan, C.: Spatio-temporal graph struc-
+ture learning for traffic forecasting. In: Proceedings of the AAAI conference on
+artificial intelligence. vol. 34, pp. 1177–1185 (2020)
+35. Zheng, Z., Shao, J., Zhu, J., Shen, H.T.: Relational temporal graph convolutional
+networks for ranking-based stock prediction. In: 2023 IEEE 39th International
+Conference on Data Engineering (ICDE). pp. 123–136. IEEE (2023)
+36. Zhou, D., Huang, J., Schölkopf, B.: Learning with hypergraphs: Clustering, clas-
+sification, and embedding. Advances in neural information processing systems19
+(2006)

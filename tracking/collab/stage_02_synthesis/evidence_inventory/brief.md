@@ -1,0 +1,78 @@
+# Evidence Inventory Brief
+
+TASK_PACKET
+- stage: Stage 2A synthesis prep
+- artifact: evidence_inventory
+- objective: Repair the evidence inventory so it is a usable synthesis-prep index, not only a scope note, by binding the full frozen repo-local corpus onto harness dimensions, run-level trajectory structure, subsystem-level code/eval structure, and finer-grained confidence labels.
+- exact_question: How should the full frozen research corpus be organized, tagged, and routed so that multi-agent deep synthesis can analyze all in-scope evidence classes without missing, double-counting, or misrouting evidence?
+- why_now: `outputs/organizer.md` now closes the main scope-routing gap, but `outputs/red_team.md` blocks the artifact as an actual evidence inventory. The next pass should repair the organizer against the checklist instead of opening deep synthesis too early.
+- inputs:
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/red_team.md
+  - research/intake/normalized/manifests/
+  - research/intake/records/
+  - research/sources/papers/
+  - research/sources/docs/
+  - research/sources/informal/
+  - research/sources/codebases/
+  - research/sources/trajectories/
+  - research/sources/benchmarks/
+  - research/analysis/
+  - evals/
+  - runner/
+  - blocks/
+  - SYNTHESIS_PREP_CHECKLIST.md
+  - MECHANISM_CARD_SCHEMA.md
+  - FAILURE_CARD_SCHEMA.md
+  - TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md
+  - tracking/collab/stage_02_synthesis/eval_inventory/outputs/eval_metadata_repair.md
+  - tracking/collab/stage_02_synthesis/red_team_review/outputs/red_team_review_adjudicated.md
+  - tracking/ledger/open_questions.md
+- repair_focus:
+  - bind prioritized evidence explicitly onto `research/analysis/lego_dimensions.md`
+  - add a run-level trajectory matrix with system family, task, run ID, artifact availability, and initial tags for failure, verification, recovery, and context behavior
+  - add a subsystem-level codebase and eval matrix that lists relevant mirrored repos and captured `src_cod_*` and `src_bnm_*` assets individually
+  - index benchmark captures individually instead of only as a directory bucket
+  - split confidence labels below the evidence-class level where heterogeneity is material, especially for informal, issue, postmortem, and BigAI-derived evidence
+  - recut the first case-study slate so it includes at least one terminal-control case and at least one failure-heavy case
+- exclusions:
+  - no final mechanism claims
+  - no final failure taxonomy
+  - no eval-policy decisions
+  - no variant-family proposals
+  - do not edit canonical ledger files
+- output_contract:
+  - write one SYNTHESIS_PREP_OUTPUT to tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - include scope, evidence_inventory_paths, trajectory_priority_list, codebase_priority_list, eval_repo_priority_list, source_type_notes, confidence_notes, informal_signal_notes, malformed_or_missing_evidence, recommended_first_case_studies, blockers, and next_hand_off_target
+  - also include:
+    - stale_or_superseded_prep_artifacts
+    - first_deep_synthesis_priorities
+    - synthesis_prep_completion_judgment
+    - lego_dimension_map
+    - trajectory_matrix
+    - codebase_eval_matrix
+    - benchmark_inventory
+    - source_or_cluster_level_confidence_splits
+- collaboration_mode: single-agent repair specialist under principal routing, followed by a targeted adversarial rerun
+- external_agent_action: Run external agent now: yes for the synthesis-prep specialist, updating tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md. Rerun the synthesis-prep red-team reviewer after the repaired organizer exists.
+- assigned_roles:
+  - principal project steward
+  - synthesis-prep specialist
+  - synthesis-prep red-team reviewer (follow-on)
+- evidence_expectations:
+  - cite repo-local paths only
+  - distinguish direct behavior evidence, implementation evidence, conceptual evidence, and informal evidence
+  - explicitly map how all major evidence classes fit into the full frozen corpus
+  - use direct source scanning where needed instead of relying only on intake metadata or old prep summaries
+  - treat informal evidence as a mandatory evidence class, not an optional appendix
+  - retain high-signal informal sources with explicit confidence labels even when they are anecdotal
+  - note when informal evidence sharpens, contradicts, or extends the stronger official/code/trajectory evidence
+  - call out corpus-trust gaps plainly instead of smoothing them over
+  - identify stale or superseded synthesis-prep artifacts explicitly, especially when a newer repaired manifest or adjudicated review has replaced an older prep note
+  - prioritize trajectories and eval/codebase assets that can directly inform mechanism_map and failure_taxonomy
+  - name the first case studies and the first deep-synthesis priorities explicitly
+  - list individually important standalone codebase captures and benchmark captures rather than collapsing them into broad buckets
+  - say whether synthesis prep is complete after the repaired organizer or whether one more prep artifact is still required
+  - do not assume intake metadata is complete; read direct source captures where needed
+- decision_needed_from_human: None to open this artifact. Human approval is needed before a formal stage transition or before opening blind-parallel deep-synthesis artifacts.
+- done_condition: The repaired organizer is a usable full-corpus evidence inventory, not just a scope note: it binds the corpus onto harness dimensions, indexes trajectories and code/eval assets at useful granularity, uses finer confidence splits where needed, names balanced first case studies, and survives one rerun of the targeted adversarial review.

@@ -1,0 +1,147 @@
+# Mechanism Map Wave 01: Trajectory / Failure Analyst
+
+TRAJECTORY_FAILURE_OUTPUT
+- artifact: `mechanism_map`
+- role: `trajectory/failure analyst`
+- preflight_scope_confirmed:
+  - Confirmed active scope through the packet, execution protocol, and `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`, which in turn routes back to `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json` and `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`. I did not re-audit the full manifest or organizer in this sidecar.
+  - This pass stays behavior-first. I used direct readable trajectories first and only then used `research/analysis/bigai_trace_layer/output/answered_questions.md` as a routing and reconciliation aid.
+  - Candidate minimal-sufficient mechanisms that should not be crowded out by prestige architecture in later synthesis:
+    - planner or controller plus explicit execution loop plus hard verification gate
+    - cancellation-safe cleanup with explicit waiting on cancelled work
+    - backup-before-mutation discipline on stateful tasks
+    - simple branch-to-path deployment via `post-receive` hook rather than ornate orchestration
+- preflight_planned_read_order:
+  - protocol, audit checklist, packet, wave launch, shared policy, role prompt
+  - tracing readiness and organizer-linked trajectory selectors
+  - direct readable triads for `headless-terminal`, `cancel-async-tasks`, and `db-wal-recovery`
+  - branching and repo-state slices from `break-filter-js-from-html` and `git-multibranch`
+  - BigAI trace-layer reconciliation only after direct trajectory reads
+  - corpus-expansion family for later waves if needed: `research/sources/trajectories/*/extract-moves-from-video/*-traj.txt`
+- preflight_critical_sources_selected:
+  - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/BigAI/break-filter-js-from-html/4e6a3070-4a78-4c1a-ac1c-c0651045db08-traj.txt`
+  - `research/sources/trajectories/terminus-kira/break-filter-js-from-html/eaf5da17-d140-4652-bd00-3e6a83bf66cf-traj.txt`
+  - `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- preflight_coverage_risks:
+  - BigAI gives the clearest visible role separation, but no mirrored BigAI source exists in-scope for this wave, so BigAI mechanism attribution must remain behavior-grounded rather than implementation-grounded.
+  - Selected KIRA traces are readable, but some are noisy or exploration-heavy; visible shell churn can reflect logging style as much as controller weakness.
+  - This sidecar did not read benchmark captures directly, so verifier and completion implications that depend on grader contracts must stay provisional until the eval sidecar lands.
+  - The branching slice is stronger on repo-state and cleanup behavior than on proving true concurrent branch execution.
+- preflight_likely_blind_spots:
+  - hidden scheduler behavior inside BigAI multi-executor runs
+  - internal context packaging and retrieval policy differences not rendered in trajectory text
+  - exact causal boundary between harness weakness and task difficulty in KIRA exploration-heavy traces
+  - benchmark-contract effects on visible verification loops
+- preflight_blockers:
+  - none structural for a first-pass trajectory/failure sidecar
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `tracking/collab/stage_02_synthesis/tracing_readiness/outputs/tracing_readiness.md`
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/BigAI/break-filter-js-from-html/4e6a3070-4a78-4c1a-ac1c-c0651045db08-traj.txt`
+  - `research/sources/trajectories/terminus-kira/break-filter-js-from-html/eaf5da17-d140-4652-bd00-3e6a83bf66cf-traj.txt`
+  - `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/*/extract-moves-from-video/*-traj.txt`
+  - `research/sources/trajectories/BigAI/gpt2-codegolf/*`
+  - `research/sources/trajectories/deepagents/gpt2-codegolf/*`
+  - `research/sources/trajectories/terminus-kira/gpt2-codegolf/*`
+  - `research/sources/benchmarks/**/*`
+  - `research/sources/issues/**/*`
+  - `research/sources/postmortems/**/*`
+  - `research/sources/codebases/**/*`
+- evidence_classes_touched:
+  - `trajectories`
+  - `relevant local analysis`
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/*-traj.txt`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/*-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/*-traj.txt`
+  - `research/sources/trajectories/BigAI/gpt2-codegolf/*`
+  - `research/sources/benchmarks/src_bnm_8c3b5dc456f5/capture.json`
+  - `research/sources/benchmarks/src_bnm_e5f985948a0e/capture.json`
+- direct_behavior_observations:
+  - `[high]` DeepAgents `headless-terminal` exposes a PTY-backed interactive shell loop directly in the trajectory: `pty.fork`, `/bin/bash -i`, explicit `\x03` handling, python REPL interaction, and `.bashrc` sourcing checks all appear in one trace. This is unusually strong direct evidence for terminal-control mechanisms. Evidence: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `[high]` Terminus-KIRA `headless-terminal` shows the same core terminal-control requirements being proven empirically with `pexpect`, REPL interaction, `\x03`, import checks, and delivery-directory cleanup. Evidence: `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`
+  - `[medium]` BigAI `headless-terminal` provides stronger verifier-visible evidence than implementation-visible evidence in the selected read: the delivery is validated and cleaned, but the trace does not expose PTY internals the way DeepAgents and KIRA do. Evidence: `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - `[high]` DeepAgents `cancel-async-tasks` uses tight targeted tests for concurrency bound, cancellation cleanup, and exception cleanup, then re-reads the original task before accepting completion. Evidence: `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `[high]` BigAI `cancel-async-tasks` shows a distinct verifier-mediated stress test around `SystemExit`, sibling cancellation, and cleanup counts before `finish_verification`, which is strong evidence for completion gating through a separate audit role. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `[medium]` Terminus-KIRA `cancel-async-tasks` shows more exposed shell-batch debugging and manual reasoning about cleanup than a visibly separate verifier loop. The behavior still targets cleanup-on-cancel, but the control style is less role-separated. Evidence: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `[high]` BigAI `db-wal-recovery` visibly treats the task as stateful recovery: the planner doctrine is backup-first, and verifier work later uses copied databases plus restored WAL artifacts to keep the delivery state intact after verification. Evidence: `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`, `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - `[high]` DeepAgents `db-wal-recovery` is a direct inspect-repair-validate loop: inspect headers with `xxd`, XOR-decrypt the WAL in place, query SQLite, write JSON, then validate schema and sortedness against DB contents. Evidence: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `[medium]` Terminus-KIRA `db-wal-recovery` shows materially noisier search and shell-control pressure in the visible trace, including a root-wide `grep` that hangs until `^C`, after which the agent explicitly checks that the shell is responsive again. This is strong evidence for interrupt recovery pressure, but weaker evidence for early disciplined state handling than the BigAI and DeepAgents slices. Evidence: `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `[high]` BigAI `break-filter-js-from-html` contains a concrete repair loop under failure pressure: a payload works, `test_outputs.py` is accidentally removed during testing, another executor is asked to restore it, and verifier reruns the automated browser check before passing. Evidence: `research/sources/trajectories/BigAI/break-filter-js-from-html/4e6a3070-4a78-4c1a-ac1c-c0651045db08-traj.txt`, `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - `[high]` BigAI `git-multibranch` makes repo-state hygiene a first-class mechanism: it verifies hook deployment and endpoint content, measures deployment speed, then removes test branches and clears content directories so later automated checks see a clean initial state. Evidence: `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `[high]` Terminus-KIRA `git-multibranch` shows a simpler but still strong branching mechanism: set up SSH and Nginx, deploy via `git archive | tar -x` in `post-receive`, then run an end-to-end clone, push, and `curl` script to validate main and dev routes. Evidence: `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+- workflow_patterns:
+  - `[high]` BigAI is the clearest visible planner-executor-verifier family in this slice. The selected tasks and `answered_questions.md` both show planner-first routing, dedicated verifier loops, and cleanup or restoration steps before final acceptance. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`, `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - `[high]` DeepAgents behaves more like a compact implementation-plus-verification loop in one trajectory: direct coding, empirical micro-tests, then a forced reread of the original instruction before completion. Evidence: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `[high]` Terminus-KIRA is more shell-batch and checklist-centric in the visible traces: the agent emits planned command batches, recovers terminal control manually when necessary, and validates completion against an explicit task checklist rather than a visibly separate verifier role. Evidence: `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`, `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+- verification_and_recovery_patterns:
+  - `[high]` BigAI repeatedly treats verification as a distinct mechanism family, not just a final command. The verifier checks content correctness, side effects, workspace cleanliness, restoration of damaged files, and even whether verification itself mutated the task state. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`, `research/sources/trajectories/BigAI/break-filter-js-from-html/4e6a3070-4a78-4c1a-ac1c-c0651045db08-traj.txt`, `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `[high]` DeepAgents verification is less role-separated but still strong: it tests the hardest requirement directly and validates output structure against explicit field names and sortedness. Evidence: `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `[medium]` KIRA recovery is more operator-visible. The `db-wal-recovery` slice shows shell unresponsiveness recovery with `^C`, and the `git-multibranch` slice uses a straightforward scripted end-to-end validation path. This is real recovery evidence, but it is less clearly separated into detection versus adjudication roles than BigAI. Evidence: `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`, `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+  - `[high]` For mechanism extraction, the most credible cross-family recovery primitives from this slice are:
+    - explicit interruptibility
+    - targeted post-change validation
+    - cleanup or restoration before declaring done
+    - repo-state or delivery-state hygiene as part of completion, not an afterthought
+- failure_candidates:
+  - `[high]` Verification-induced state mutation is a real failure pressure. In `db-wal-recovery`, reading the recovered DB can consume or checkpoint the WAL, so verification itself can change what later observers see. Evidence: `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`, `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `[high]` Cleanup on cancellation or exceptional exit is an actual failure class, not a hypothetical one. The `cancel-async-tasks` triad is directly about whether sibling tasks release resources and finish cleanup under `CancelledError`, `KeyboardInterrupt`, or `SystemExit`. Evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `[high]` Workspace damage during exploratory testing is real. BigAI `break-filter-js-from-html` only reaches a passing end state after restoring a mistakenly deleted test file. Evidence: `research/sources/trajectories/BigAI/break-filter-js-from-html/4e6a3070-4a78-4c1a-ac1c-c0651045db08-traj.txt`
+  - `[high]` Repo-state contamination after testing is real. BigAI `git-multibranch` spends visible effort deleting branches and clearing deployment targets so the grader sees a clean initial state. Evidence: `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `[medium]` Long-running shell search can degrade control quality. KIRA `db-wal-recovery` visibly wedges itself on broad `grep` before recovering with `^C`, which is evidence for terminal-control and observability pressure, but not yet enough to localize the underlying cause to a specific harness mechanism. Evidence: `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+- cross_family_comparisons:
+  - `[high]` BigAI is strongest in visible adjudication structure: planner-first control, explicit verifier role, explicit cleanup and restore logic, and cross-branch hygiene. Evidence: `research/analysis/bigai_trace_layer/output/answered_questions.md`, `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/sources/trajectories/BigAI/git-multibranch/62d2bdf3-6678-44a2-bb90-efd397b7937d-traj.txt`
+  - `[high]` DeepAgents is strongest in direct task-to-test traceability: the same trajectory often shows the implementation, the targeted stress tests, and the output validation without needing a separate hidden controller to explain the behavior. Evidence: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`, `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`, `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `[medium]` KIRA is strongest in exposed shell control and operator-like recovery behavior, but weaker in this slice on visibly separate verification structure. That is a tracing-style difference first, not a proof that the underlying harness lacks stronger checks. Evidence: `research/sources/trajectories/terminus-kira/headless-terminal/a2ae3f53-cc59-4049-87ca-9e23781c00e4-traj.txt`, `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`, `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+  - `[high]` In the stateful recovery triad, the behavioral split is sharp:
+    - BigAI: backup first, verify on copies, restore delivery state
+    - DeepAgents: repair quickly in place, then validate final DB and JSON state
+    - KIRA: explore more broadly, recover terminal control when needed, then continue
+  - `[medium]` In the terminal-control triad, DeepAgents and KIRA expose terminal realism directly, while BigAI exposes it more indirectly through the surrounding verification and cleanup regime.
+  - `[high]` In the branching and repo-state slice, BigAI shows richer multi-agent recovery and cleanup behavior, while KIRA shows a simpler single-flow mechanism that is easier to reason about and may represent a genuinely sufficient baseline.
+- contradiction_notes:
+  - `behavioral reconstruction` warning: BigAI trace-layer summaries strongly suggest universal planner-executor-verifier structure, but the selected direct traces still do not expose internal scheduler or prompt-assembly logic. This should not be promoted to source-backed implementation fact.
+  - DeepAgents `db-wal-recovery` accepts SQLite checkpoint consumption of the WAL as part of successful repair, while BigAI explicitly restores the decrypted WAL after verification to preserve delivery-state semantics. Both traces pass. The mechanism difference is real even though the task outcome matches.
+  - KIRA `db-wal-recovery` looks less disciplined than BigAI in the visible slice, but the difference may partially be logging style or the absence of a separate rendered verifier role rather than a weaker harness.
+  - BigAI `git-multibranch` and `break-filter-js-from-html` show cleanup and repair behavior that could be attributed either to core harness doctrine or to verifier doctrine. This sidecar cannot yet separate those cleanly.
+- confidence_notes:
+  - High confidence where the trace directly shows shell commands, tests, verifier outputs, cleanup, or interrupt handling.
+  - Medium confidence where the visible trace is noisy, truncated, or strongly shaped by harness logging conventions rather than by a plainly isolated mechanism.
+  - Low confidence is avoided here by leaving hidden implementation or benchmark-contract questions unresolved instead of smoothing them into claims.
+- open_questions:
+  - Does BigAI's restore-after-verification behavior in stateful tasks generalize across other stateful recovery families, or is `db-wal-recovery` unusually strict?
+  - How often does KIRA rely on stronger hidden verification than the visible command-batch trace reveals?
+  - Are repo-state cleanup mechanisms owned by the main controller, by verifier doctrine, or by task-specific instructions?
+  - Do the branch-deployment and cleanup patterns in `git-multibranch` survive more adversarial repo histories, or are they tuned to the benchmark's clean-room setup?
+  - How much of the observed completion-quality difference is explained by benchmark or verifier contracts rather than by harness-control mechanisms?
+- next_hand_off_target:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`

@@ -1,0 +1,71 @@
+{
+  "call_id": "install-windows-3.11__6WPqfxm_execute_9",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU_BIN=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU_BIN=qemu-system-x86_64; else echo 'NO_QEMU_BIN'; exit 1; fi\\ncat > /app/win311-qemu.sh <<'EOF'\\n#!/usr/bin/env bash\\nset -euo pipefail\\nQEMU_BIN=${QEMU_BIN:-qemu-system-i386}\\nIMG=/app/isos/win311.img\\nexec \\\"$QEMU_BIN\\\" \\\\\\n  -m 32 \\\\\\n  -cpu 486 \\\\\\n  -machine pc \\\\\\n  -drive file=\\\"$IMG\\\",if=ide,format=raw,snapshot=on \\\\\\n  -vnc 127.0.0.1:1 \\\\\\n  -monitor unix:/tmp/win311-monitor.sock,server,nowait \\\\\\n  -serial mon:stdio \\\\\\n  -rtc base=localtime \\\\\\n  -net none\\nEOF\\nchmod +x /app/win311-qemu.sh\\nmkdir -p /app/www\\ncat > /app/www/index.html <<'EOF'\\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC: 127.0.0.1:5901</p></body></html>\\nEOF\\nif command -v nginx >/dev/null 2>&1; then\\n  cat > /tmp/nginx-win311.conf <<'EOF'\\nworker_processes  1;\\nevents { worker_connections  1024; }\\nhttp {\\n  include       mime.types;\\n  default_type  application/octet-stream;\\n  sendfile        on;\\n  keepalive_timeout  65;\\n  server {\\n    listen 80;\\n    server_name _;\\n    root /app/www;\\n    index index.html;\\n  }\\n}\\nEOF\\n  nginx -c /tmp/nginx-win311.conf\\nfi\\nnohup env QEMU_BIN=\\\"$QEMU_BIN\\\" /app/win311-qemu.sh >/tmp/win311-qemu.log 2>&1 &\\nsleep 2\\nps -ef | grep -E '[q]emu-system-(i386|x86_64).*win311.img' || true\\nss -ltnp | grep ':5901\\\\b' || true\\nss -ltnp | grep ':80\\\\b' || true\\nprintf 'monitor socket: '; test -S /tmp/win311-monitor.sock && echo yes || echo no\\n\",\"receipt_requested\":true},{\"type\":\"probe_service\",\"service\":\"qemu\",\"target\":\"unix:/tmp/win311-monitor.sock\",\"notes\":\"Verify running VM and use monitor to demonstrate programmatic keyboard input path if socket is available.\"},{\"type\":\"probe_service\",\"service\":\"vnc\",\"target\":\"127.0.0.1:5901\",\"notes\":\"Verify VNC listener for display :1.\"},{\"type\":\"probe_service\",\"service\":\"nginx\",\"target\":\"127.0.0.1:80\",\"notes\":\"Verify nginx listener on port 80.\"},{\"type\":\"search_receipts\",\"query\":\"win311 qemu vnc nginx keyboard input desktop\",\"notes\":\"Reuse any prior evidence before repeating checks.\"}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\nif command -v qemu-system-i386 >/dev/null 2>&1; then QEMU_BIN=qemu-system-i386; elif command -v qemu-system-x86_64 >/dev/null 2>&1; then QEMU_BIN=qemu-system-x86_64; else echo 'NO_QEMU_BIN'; exit 1; fi\ncat > /app/win311-qemu.sh <<'EOF'\n#!/usr/bin/env bash\nset -euo pipefail\nQEMU_BIN=${QEMU_BIN:-qemu-system-i386}\nIMG=/app/isos/win311.img\nexec \"$QEMU_BIN\" \\\n  -m 32 \\\n  -cpu 486 \\\n  -machine pc \\\n  -drive file=\"$IMG\",if=ide,format=raw,snapshot=on \\\n  -vnc 127.0.0.1:1 \\\n  -monitor unix:/tmp/win311-monitor.sock,server,nowait \\\n  -serial mon:stdio \\\n  -rtc base=localtime \\\n  -net none\nEOF\nchmod +x /app/win311-qemu.sh\nmkdir -p /app/www\ncat > /app/www/index.html <<'EOF'\n<!doctype html><html><body><h1>Windows 3.11 VM Remote Access</h1><p>QEMU VNC: 127.0.0.1:5901</p></body></html>\nEOF\nif command -v nginx >/dev/null 2>&1; then\n  cat > /tmp/nginx-win311.conf <<'EOF'\nworker_processes  1;\nevents { worker_connections  1024; }\nhttp {\n  include       mime.types;\n  default_type  application/octet-stream;\n  sendfile        on;\n  keepalive_timeout  65;\n  server {\n    listen 80;\n    server_name _;\n    root /app/www;\n    index index.html;\n  }\n}\nEOF\n  nginx -c /tmp/nginx-win311.conf\nfi\nnohup env QEMU_BIN=\"$QEMU_BIN\" /app/win311-qemu.sh >/tmp/win311-qemu.log 2>&1 &\nsleep 2\nps -ef | grep -E '[q]emu-system-(i386|x86_64).*win311.img' || true\nss -ltnp | grep ':5901\\b' || true\nss -ltnp | grep ':80\\b' || true\nprintf 'monitor socket: '; test -S /tmp/win311-monitor.sock && echo yes || echo no\n",
+        "receipt_requested": true
+      },
+      {
+        "type": "probe_service",
+        "service": "qemu",
+        "target": "unix:/tmp/win311-monitor.sock",
+        "notes": "Verify running VM and use monitor to demonstrate programmatic keyboard input path if socket is available."
+      },
+      {
+        "type": "probe_service",
+        "service": "vnc",
+        "target": "127.0.0.1:5901",
+        "notes": "Verify VNC listener for display :1."
+      },
+      {
+        "type": "probe_service",
+        "service": "nginx",
+        "target": "127.0.0.1:80",
+        "notes": "Verify nginx listener on port 80."
+      },
+      {
+        "type": "search_receipts",
+        "query": "win311 qemu vnc nginx keyboard input desktop",
+        "notes": "Reuse any prior evidence before repeating checks."
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3284,
+    "cached_input_tokens": 2304,
+    "output_tokens": 759,
+    "total_tokens": 4043,
+    "provider_usage_raw": {
+      "completion_tokens": 759,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 5,
+        "engine_ttft_ms": 60,
+        "engine_ttlt_ms": 3950,
+        "pre_inference_ms": 107,
+        "service_tbt_ms": 5,
+        "service_ttft_ms": 663,
+        "service_ttlt_ms": 4549,
+        "total_duration_ms": 4454,
+        "user_visible_ttft_ms": 557
+      },
+      "prompt_tokens": 3284,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 2304
+      },
+      "total_tokens": 4043
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

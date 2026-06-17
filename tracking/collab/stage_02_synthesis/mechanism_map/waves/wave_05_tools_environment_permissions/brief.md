@@ -1,0 +1,249 @@
+# Mechanism Map Wave 05 Tools Environment Permissions Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: mechanism_map
+- wave: wave_05_tools_environment_permissions
+- wave_focus_domain: tools_environment_permissions
+- objective: Build behavior-anchored mechanism cards for tool gateway design, browser and terminal substrate use, environment discovery, sandbox and approval boundaries, cwd or workdir discipline, and permission handling across the major harness families.
+- exact_question: How do the in-scope systems discover and shape their execution environment, choose and constrain tools, handle sandbox or approval boundaries, and keep tool, browser, shell, cwd, and permission state from corrupting task success or failure across trajectories, source, formal docs, and informal reports?
+- new_resolution_goal: Resolve whether tool use, environment handling, and permission boundaries form stable cross-system mechanism families with visible behavior and source reconciliation, or whether they are still being falsely merged into generic execution or planning rhetoric.
+- why_prior_waves_were_not_enough: `wave_02_execution_control_and_terminal_grounding` centered control and PTY realism rather than the broader tool or environment substrate, `wave_03_verification_completion_and_recovery` centered proof and recovery, and `wave_04_context_state_memory_workspace` centered continuity and state carriers. None made tool gateway, environment discovery, sandbox boundaries, cwd/workdir handling, browser substrate, or permission doctrine the central question.
+- why_now: The compressed 14-wave plan makes `tools_environment_permissions` the next `mechanism_map` domain after Wave 04 acceptance. The accepted carry-forward state now has enough control, verification, and workspace context to isolate tools/environment/permissions as its own mechanism surface.
+- lane_completion_rule: First-pass lane outputs are not wave-sufficient by default. A lane only becomes wave-sufficient if contradiction review plus principal synthesis say it is sufficient for this domain.
+- eval_fifth_lane_activated: `no`
+- eval_reactivation_rule: Activate the optional `eval/benchmark` fifth lane only if benchmark contracts or evaluator-side environment/tool constraints become load-bearing during Wave 05 preflight.
+- support_track_dependencies:
+  - `coverage_register`
+  - `trajectory_case_studies`
+  - `source_system_dossiers`
+  - `literature_dossiers`
+  - `informal_cluster_dossiers`
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/tool_use_and_gateways.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+- required_case_study_updates:
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/headless_terminal.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/extract_moves_from_video.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/cancel_async_tasks.md`
+- what_can_remain_unfinished_without_blocking_contradiction_review:
+  - second-tier browser or permission docs beyond the selected anchors
+  - long-tail issue clustering outside the selected sandbox, tool-friction, and approval families
+  - extra benchmark or eval contract review unless the eval lane is reactivated
+  - dossier polish after the wave if current claims can still cite the support artifacts honestly
+- inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/decision.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/README.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/README.md`
+  - `prompts/deep_synthesis_shared_policy_prompt.md`
+  - `prompts/deep_synthesis_support_subagent_prompt.md`
+  - `prompts/deep_synthesis_trajectory_failure_analyst_prompt.md`
+  - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+  - `prompts/deep_synthesis_literature_papers_docs_analyst_prompt.md`
+  - `prompts/deep_synthesis_informal_issues_postmortems_analyst_prompt.md`
+  - `prompts/deep_synthesis_contradiction_analyst_prompt.md`
+  - `prompts/deep_synthesis_checklist_adjudicator_prompt.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/inputs/support_subagent_rules.md`
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `research/analysis/bigai_trace_layer/output/`
+  - `research/sources/trajectories/`
+  - `research/sources/codebases/`
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - `blocks/`
+  - `runner/`
+  - `evals/`
+  - `MECHANISM_CARD_SCHEMA.md`
+  - `TRAJECTORY_SOURCE_CASE_STUDY_TEMPLATE.md`
+- preflight_requirements:
+  - confirm this is a vertical mechanism-domain wave centered on tool gateways, environment handling, and permission boundaries rather than generic execution control or state continuity
+  - confirm `trajectory/failure` is the primary empirical anchor and `codebase/source reconstruction` is the primary implementation anchor
+  - state explicitly why the optional `eval/benchmark` fifth lane is inactive unless reactivated during preflight
+  - list the planned read order across trajectories, source, formal docs, informal contradiction pressure, and relevant local harness surfaces
+  - name the critical trajectory slices, source systems, and contradiction-pressure sources selected for the wave
+  - identify at least one minimal-sufficient baseline that must stay visible against richer browser/tool/sandbox architectures, such as explicit shell-plus-file tools with stable cwd control and tight permission boundaries
+  - say which support artifacts are required before the lane can claim strong coverage
+  - stop and hand control back to the principal if the wave lacks enough trajectory or source visibility to support honest tool/environment synthesis
+- scope_anchor_paths:
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`
+  - `tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- evidence_classes_in_scope:
+  - trajectories
+  - mirrored codebases
+  - papers
+  - docs
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+- trajectory_slice_targets:
+  - `research/sources/trajectories/BigAI/headless-terminal/`
+  - `research/sources/trajectories/deepagents/headless-terminal/`
+  - `research/sources/trajectories/terminus-kira/headless-terminal/`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/`
+  - optional long-tail pressure from `research/sources/trajectories/*/git-multibranch/`
+- mirrored_source_targets:
+  - `research/sources/codebases/deepagents/`
+  - `research/sources/codebases/KIRA/`
+  - `research/sources/codebases/a-evolve/`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - local `blocks/`, `runner/`, and `evals/` paths relevant to execution, tool exposure, sandboxing, permissions, cwd/workdir, browser substrate, and environment discovery
+- behavior_reconstruction_targets:
+  - `research/sources/trajectories/BigAI/`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+  - `research/analysis/bigai_trace_layer/output/question_answers.json`
+- formal_literature_targets:
+  - `research/sources/papers/`
+  - `research/sources/docs/`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+- informal_signal_targets:
+  - `research/sources/informal/`
+  - `research/sources/issues/`
+  - `research/sources/postmortems/`
+  - sandboxing and approval friction clusters
+  - browser/tool gateway and MCP/tool sprawl clusters
+  - cwd/workdir/path discipline and environment mismatch clusters
+- required_case_slices:
+  - `browser and terminal tool substrate`
+  - `environment discovery and tool preconditions`
+  - `permission, approval, and sandbox boundaries`
+  - `cwd, workdir, path, and process discipline`
+- extraction_level_cap: `L4`
+- citation_contract:
+  - every `L3` or `L4` claim must cite repo-local paths
+  - behavior claims must anchor in trajectories first
+  - implementation claims must anchor in visible source first
+  - BigAI and any no-source family claims must remain explicitly labeled `behavioral reconstruction`
+  - formal literature can sharpen or challenge claims, but should not outrank stronger direct trajectory or source evidence
+- confidence_contract:
+  - confidence is per claim using `high`, `medium`, or `low`
+  - every `medium` or `low` claim must say what weakens it
+- support_subagent_policy:
+  - bounded support sub-agents are standard infrastructure for this wave
+  - use them for inventories, matrices, route maps, subsystem maps, archive triage, file discovery, paper grouping, and issue clustering
+  - support outputs must be saved explicitly and cited by the owning lane
+  - support outputs do not count as promoted mechanism claims on their own
+- contradiction_hand_off:
+  - route the first-pass lane outputs and any material follow-ups to `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst.md`
+  - attack unsupported browser/tool prestige claims, fake permission safety, source or trajectory mismatch, hidden environment assumptions, and over-read sandbox rhetoric
+- gate_review_plan:
+  - primary contradiction:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst.md`
+  - optional external breadth review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst__gemini.md`
+  - optional external adversarial contradiction or acceptance review:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst__claude.md`
+  - primary checklist adjudication:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/adjudication/checklist_adjudicator.md`
+  - optional external checklist reviews:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/adjudication/checklist_adjudicator__gemini.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/adjudication/checklist_adjudicator__claude.md`
+- carry_forward_operating_rules:
+  - update `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md` after the wave
+  - update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` after principal synthesis and again after checklist adjudication if the gate changes the accepted status
+  - keep `coverage_access` and extraction caveats visible rather than pretending they are closed
+  - organizer routing is still secondary to direct path accounting while organizer coverage stays incomplete
+  - keep Wave 04 artifact-first baseline visible while testing whether richer tool/environment stacks actually matter
+  - do not let browser or sandbox prestige outrank stronger direct behavior or source evidence
+- coverage_reporting_requirements:
+  - `coverage_used`
+  - `coverage_not_yet_used`
+  - `evidence_classes_touched`
+  - `priority_sources_not_yet_read`
+  - `support_artifacts_used`
+  - `support_artifacts_requested_or_deferred`
+  - `coverage_register_updates_needed`
+  - `required_dossier_updates`
+  - `coverage_used` must list concrete repo-local paths or path globs actually read in the current wave
+- exclusions:
+  - do not treat this wave as `mechanism_map` completion
+  - do not produce final failure-taxonomy, eval-policy, or variant-family conclusions
+  - do not edit canonical ledger files
+- output_contract:
+  - primary main-lane outputs should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/literature_papers_docs_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/informal_issues_postmortems_analyst.md`
+  - if the eval fifth lane is reactivated, its output should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/eval_benchmark_analyst.md`
+  - support outputs should land in the same wave outputs directory with descriptive names such as:
+    - `trajectory_support_tool_environment_matrix.md`
+    - `trajectory_support_permission_boundary_cases.md`
+    - `codebase_support_tool_gateway_map.md`
+    - `codebase_support_environment_permission_map.md`
+    - `literature_support_tool_gateway_cluster.md`
+    - `informal_support_sandbox_permission_cluster.md`
+    - `eval_support_tool_contract_map.md`
+  - follow-up outputs should use:
+    - `__followup_01`
+    - `__followup_02`
+    - `__revision_01`
+  - contradiction review should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/contradiction_analyst.md`
+  - interaction analysis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/outputs/interaction_analysis.md`
+  - wave principal synthesis should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - checklist adjudication should land in:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/adjudication/checklist_adjudicator.md`
+  - cumulative artifact state must be updated at:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - coverage register must be updated at:
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - wave principal synthesis must include explicit sections for:
+    - `what_this_wave_resolved`
+    - `what_still_requires_another_wave`
+    - `local_harness_implications`
+    - `coverage_not_yet_used`
+    - `priority_sources_not_yet_read`
+    - `support_track_updates`
+- collaboration_mode: serious-wave four-lane execution across trajectory/failure, codebase/source reconstruction, literature/papers/docs, and informal/issues/postmortems, bounded support sub-agents under heavy lanes, then contradiction review, then principal synthesis, then checklist adjudication
+- external_agent_action: Run external agent now: yes. This is the next governed multi-agent `mechanism_map` wave under the compressed 14-wave model.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+  - codebase/source-reconstruction analyst
+  - literature/papers/docs analyst
+  - informal/issues/postmortems analyst
+  - contradiction analyst
+  - checklist adjudicator
+  - optional eval/benchmark analyst if the fifth lane is reactivated during preflight
+- upstream_artifact_inputs:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/synthesis/principal_synthesis.md`
+- handoff_requirements:
+  - do not emit the cross-artifact `failure_taxonomy` handoff from this wave alone
+  - instead update the artifact-level cumulative synthesis and keep downstream handoff for artifact-level acceptance
+- evidence_expectations:
+  - trajectories are the primary empirical anchor for this wave
+  - source pressure should explain implementation shape where visible
+  - formal literature should sharpen definitions or challenge claims, not dominate them
+  - informal sources should surface operational tensions and contradiction pressure
+  - eval and benchmark evidence are secondary unless the wave reactivates the fifth lane

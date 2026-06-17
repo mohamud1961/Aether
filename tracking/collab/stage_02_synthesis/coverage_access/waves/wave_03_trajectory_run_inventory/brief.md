@@ -1,0 +1,50 @@
+# Coverage Access Wave 03 Trajectory Run Inventory Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: coverage_access
+- objective: Build a usable inventory of the full trajectory corpus so later Deep Synthesis waves know which task families, run bundles, and source-link opportunities exist before making cross-task claims.
+- exact_question: Which trajectory task families exist across `BigAI`, `deepagents`, and `terminus-kira`, what run artifacts are present or missing, which families are pass-heavy vs failure-heavy, and where do strong source-link opportunities exist?
+- why_now: The binding wave plan requires trajectory inventory as a real support wave rather than a rhetorical promise. This packet is instantiated now so trajectory coverage does not remain plan-only while mechanism work resumes later.
+- inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_access/brief.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - research/sources/trajectories/
+  - research/analysis/bigai_trace_layer/output/
+- preflight_requirements:
+  - enumerate all trajectory task families across the three major systems
+  - inventory readable `*-traj.txt`, tar bundles, verifier artifacts, and obvious missing-data pockets
+  - identify where source-backed systems can later be linked directly to trajectory families
+  - keep inventory separate from mechanism claims
+  - stop and return a blocker if trajectory visibility is materially broken or miscounted
+- exclusions:
+  - do not produce final mechanism or failure claims
+  - do not silently narrow to the already-sampled Wave 01 slices
+  - do not open new `mechanism_map` waves from inside this support wave
+- output_contract:
+  - wave synthesis:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_03_trajectory_run_inventory/synthesis/principal_synthesis.md
+  - trajectory inventory:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_03_trajectory_run_inventory/outputs/trajectory_run_inventory.md
+  - source-link opportunities:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_03_trajectory_run_inventory/outputs/source_link_map.md
+  - trajectory case-study scaffolding:
+    - tracking/collab/stage_02_synthesis/trajectory_case_studies/
+- collaboration_mode: bounded support wave; blind parallel allowed for inventory validation or source-link cross-checks under the same packet
+- external_agent_action: Run external agent now: no. This wave is instantiated and staged; it may overlap later Deep Synthesis work under the approved wave plan.
+- assigned_roles:
+  - principal project steward
+  - trajectory/failure analyst
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- handoff_requirements:
+  - write the task-family inventory and source-link opportunities back into the wave outputs so later mechanism and failure waves can cite them directly
+  - route strong source-linked families into `trajectory_case_studies/` candidates for later deep waves
+- evidence_expectations:
+  - inventory the full trajectory family set, not just a few familiar tasks
+  - keep missing-data pockets visible
+  - distinguish inventory facts from performance or mechanism interpretation
+- decision_needed_from_human: none to instantiate the packet; execution timing follows the approved wave plan.
+- done_condition: the full trajectory family surface is inventoried, missing-data pockets are explicit, and later waves have one concrete route map for trajectory coverage rather than ad hoc file discovery.

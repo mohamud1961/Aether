@@ -1,0 +1,1874 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/documentation/tool/?q=
+================================================================================
+
+工具
+使用Tool¶
+
+在TongAgents中，工具是连接Agent和外部世界的桥梁。
+
+通过工具，Agent可以从外部获取信息，并利用这些信息来指导自己的决策和行动。或者，Agent可以通过工具执行具身动作和环境进行交互，从而完成一些复杂的任务。
+
+2.0 架构说明
+
+TongAgents 2.0 的 ToolManager、MCPClient、MCPToolManager 与 Tool 基类统一由开源 chuang_agent 提供底层实现，用户侧 API 保持兼容。
+
+本地工具¶
+
+使用本地工具，只需要在agent的初始化时，传入工具列表即可。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY")
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[web_search_tool]##本地实现的工具方法
+
+)
+
+
+
+# 运行agent
+
+result = agent.step("搜索哪吒2票房")
+
+print(result)
+
+"""
+
+全球总票房：截至2025年3月20日，《哪吒2》的全球累计票房已突破152亿人民币（约21亿美元），位列全球影史票房榜第五位，距离第四名的《泰坦尼克号》还有约12亿人民币的差距48。
+
+
+
+中国内地票房：中国内地市场贡献了约20.55亿美元（约150亿人民币），稳居中国影史票房冠军48。
+
+
+
+海外票房：海外市场（包括中国香港、北美等）贡献了约4500万美元（约3.25亿人民币），其中北美市场贡献了2000多万美元，创下了国产片在北美市场的近二十年最高票房纪录
+
+"""
+
+
+TongAgents提供了一些开箱即用的内置工具，如天气查询等。此外，TongAgents开放平台为开发者提供了更多工具服务，开发者可以方便的将工具发布到开放平台，并被其他开发者使用。
+
+远程工具¶
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+from tongagents.tools.tool_service import ToolService
+
+
+
+REMOTE_TOOL_SERVICE_URI="{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+# 获取所需工具
+
+web_search_tool = tool_service.get_tool("web_search")
+
+
+
+# 创建agent并配置
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY")
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[web_search_tool]
+
+)
+
+
+
+# 运行agent
+
+result = agent.step("搜索哪吒2票房")
+
+print(result)
+
+"""
+
+全球总票房：截至2025年3月20日，《哪吒2》的全球累计票房已突破152亿人民币（约21亿美元），位列全球影史票房榜第五位，距离第四名的《泰坦尼克号》还有约12亿人民币的差距48。
+
+
+
+中国内地票房：中国内地市场贡献了约20.55亿美元（约150亿人民币），稳居中国影史票房冠军48。
+
+
+
+海外票房：海外市场（包括中国香港、北美等）贡献了约4500万美元（约3.25亿人民币），其中北美市场贡献了2000多万美元，创下了国产片在北美市场的近二十年最高票房纪录
+
+"""
+
+
+相比于local工具，用户只需要通过REMOTE_TOOL_SERVICE_URI初始化ToolService并获取工具。随后任何的工具即可通过唯一命名的方式来和Agent绑定。
+
+REMOTE_TOOL_SERVICE_URI可以是用户自建的工具服务的地址和端口号，比如http://10.1.100.242:8000。也可以是TongAgents开放平台提供的工具服务网关地址，从而使用多个开放平台提供的工具。
+
+定义Tool¶
+
+现有工具难以满足需求时，开发者有几种方法可以实现工具的定义和注册：
+
+基于@tool()注解
+继承Tool基类
+使用ToolService连接远程工具
+基于注解¶
+
+大多数情况下，使用基于注解的方式来定义工具是最佳实践。
+
+from tongagents.tools.tool_manager import tool
+
+from pydantic import BaseModel
+
+from dataclasses import dataclass
+
+
+
+
+
+# 基础类型参数
+
+@tool()  # 带括号
+
+def demo_func_tool1(location: str, time: str):
+
+    """查询天气"""
+
+    return f"天气晴朗: {location} {time}"
+
+
+
+
+
+@tool  # 不带括号
+
+def demo_func_tool2(location: str, time: str):
+
+    """查询天气"""
+
+    return f"天气晴朗: {location} {time}"
+
+
+
+
+
+@tool(name="weather_query", description="查询天气信息", retry_times=3)  # 带参数
+
+def demo_func_tool3(location: str, time: str, **kwargs):
+
+    """查询天气"""
+
+    return f"天气晴朗: {location} {time}"
+
+
+
+
+
+# BaseModel 参数
+
+class Query(BaseModel):
+
+    location: str
+
+    time: str
+
+
+
+@tool()
+
+def demo_basemodel_tool(args: Query):
+
+    """查询天气 - 使用BaseModel参数
+
+
+
+    Args:
+
+        args: 查询参数，自动转换为BaseModel实例
+
+    """
+
+    return f"天气晴朗: {args.location} {args.time}"
+
+
+
+
+
+# dataclass 参数
+
+@dataclass
+
+class QueryData:
+
+    location: str
+
+    time: str
+
+
+
+@tool()
+
+def demo_dataclass_tool(args: QueryData):
+
+    """查询天气 - 使用dataclass参数
+
+
+
+    Args:
+
+        args: 查询参数，自动转换为dataclass实例
+
+    """
+
+    return f"天气晴朗: {args.location} {args.time}"
+
+
+
+
+
+# 泛型集合参数
+
+@tool()
+
+def demo_dict_tool(args: dict[str, Query]):
+
+    """批量查询天气 - 使用字典参数
+
+
+
+    Args:
+
+        args: 查询参数字典，值自动转换为BaseModel实例
+
+    """
+
+    results = []
+
+    for key, query in args.items():
+
+        results.append(f"{key}: {query.location} {query.time}")
+
+    return results
+
+
+
+
+
+@tool()
+
+def demo_list_tool(args: list[Query]):
+
+    """批量查询天气 - 使用列表参数
+
+
+
+    Args:
+
+        args: 查询参数列表，项自动转换为BaseModel实例
+
+    """
+
+    results = []
+
+    for query in args:
+
+        results.append(f"{query.location} {query.time}")
+
+    return results
+
+
+其中，@tool()装饰器是TongAgents SDK提供的工具装饰器，用于将函数转换为工具。 框架会根据函数签名和注释生成工具的描述信息，并自动注册到工具管理器中。 kwargs是框架/agent.run传入的kv信息，用于工具的调用。
+
+@tool装饰器使用方式： - @tool() - 带括号的标准形式 - @tool - 不带括号的简化形式 - @tool(name="custom_name", description="自定义描述", retry_times=3) - 带参数形式
+
+装饰器参数： - name (str, optional): 工具名称，默认使用函数名 - description (str, optional): 工具描述，默认使用函数docstring - retry_times (int, optional): 调用失败时的重试次数，默认为1
+
+如果没有为参数指定默认值，则视为必填参数。
+
+支持的参数类型： - 基础类型：str, int, float, bool 等 - BaseModel：自动将字典转换为BaseModel实例 - dataclass：自动将字典转换为dataclass实例 - 泛型集合：dict[str, T], list[T] 其中T为BaseModel或dataclass - 多层嵌套泛型：dict[str, list[T]], list[dict[str, T]] 等复杂嵌套结构 - 多参数：支持同时使用多种类型的参数
+
+多层嵌套泛型示例：
+
+# 多层嵌套字典列表
+
+@tool()
+
+def demo_nested_dict_list_tool(args: dict[str, list[Query]]):
+
+    """批量查询天气 - 使用多层嵌套字典列表参数
+
+
+
+    Args:
+
+        args: 嵌套查询参数字典，自动递归转换为BaseModel实例
+
+    """
+
+    results = []
+
+    for region, query_list in args.items():
+
+        for query in query_list:
+
+            results.append(f"{region}: {query.location} {query.time}")
+
+    return results
+
+
+
+# 多层嵌套列表字典
+
+@tool()
+
+def demo_nested_list_dict_tool(args: list[dict[str, Query]]):
+
+    """批量查询天气 - 使用多层嵌套列表字典参数
+
+
+
+    Args:
+
+        args: 嵌套查询参数列表，自动递归转换为BaseModel实例
+
+    """
+
+    results = []
+
+    for query_dict in args:
+
+        for time_key, query in query_dict.items():
+
+            results.append(f"{time_key}: {query.location}")
+
+    return results
+
+
+
+# 混合使用多种参数类型
+
+@tool()
+
+def demo_mixed_tool(
+
+    simple_param: str,
+
+    base_model_param: Query,
+
+    dataclass_param: QueryData,
+
+    nested_param: dict[str, list[Query]]
+
+):
+
+    """混合参数类型示例
+
+
+
+    Args:
+
+        simple_param: 基础类型参数
+
+        base_model_param: BaseModel参数
+
+        dataclass_param: dataclass参数
+
+        nested_param: 嵌套泛型参数
+
+    """
+
+    return {
+
+        "simple": simple_param,
+
+        "base_model": f"{base_model_param.location} {base_model_param.time}",
+
+        "dataclass": f"{dataclass_param.location} {dataclass_param.time}",
+
+        "nested": [
+
+            f"{region}: {query.location} {query.time}"
+
+            for region, query_list in nested_param.items()
+
+            for query in query_list
+
+        ]
+
+    }
+
+
+类型转换说明： - 所有类型转换都是自动进行的，无需手动转换 - 支持任意层级的嵌套结构 - 转换失败时会保持原始值，确保工具调用不会因类型转换失败而中断
+
+继承基类¶
+from typing import ClassVar
+
+
+
+from tongagents.tools.tool_manager import Tool, ToolParameters
+
+
+
+
+
+class DummyTool(Tool):
+
+    name: ClassVar[str] = "dummy_tool"
+
+    description: ClassVar[str] = "A dummy tool for testing"
+
+    parameters: ClassVar[ToolParameters] = ToolParameters(
+
+        {
+
+            "type": "object",
+
+            "properties": {
+
+                "required_arg": {
+
+                    "type": "string",
+
+                    "description": "A required argument",
+
+                },
+
+                "optional_arg": {
+
+                    "type": "integer",
+
+                    "description": "An optional argument",
+
+                },
+
+            },
+
+            "required": ["required_arg"],
+
+        }
+
+    )
+
+    name_for_human: ClassVar[str] = "Dummy Tool"
+
+    args_format: ClassVar[str] = "json"
+
+
+
+    def _do_call(self, params: dict, **kwargs) -> str:
+
+        return f"Called with params: {params}"
+
+
+ToolParameters为TongAgents SDK内部使用的统一工具参数签名表征方式，支持传入一个标准的json schema，亦或一个list（近似OpenAPI/Swagger）风格的描述方式
+
+params = ToolParameters(
+
+        [
+
+            {
+
+                "name": "query",
+
+                "type": "string",
+
+                "description": "The search query",
+
+                "required": True,
+
+            },
+
+            {
+
+                "name": "limit",
+
+                "type": "integer",
+
+                "description": "Maximum number of results",
+
+                "required": False,
+
+            },
+
+        ]
+
+    )
+
+
+
+params = ToolParameters(
+
+        {
+
+            "type": "object",
+
+            "properties": {
+
+                "query": {"type": "string", "description": "The search query"},
+
+                "limit": {
+
+                    "type": "integer",
+
+                    "description": "Maximum number of results",
+
+                },
+
+            },
+
+            "required": ["query"],
+
+        }
+
+    )
+
+
+我们更推荐用json schema，通常有着更好的描述能力。
+
+此外，工具的执行逻辑需要用户实现在 _do_call 中。
+
+MCP工具¶
+
+TongAgents支持集成Model Context Protocol (MCP) 工具，MCP是一个开放标准，用于连接LLM应用与外部数据源和工具。通过MCP，可以轻松地将各种本地和远程工具集成到Agent中。
+
+MCP简介¶
+
+MCP（Model Context Protocol）提供了一种标准化的方式来：
+
+连接数据源：数据库、文件系统、API服务等
+集成工具：计算器、搜索引擎、代码执行器等
+访问资源：文档、图像、实时数据等
+基本使用示例¶
+
+以下是一个使用MCP工具的完整示例：
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+from tongagents.tools.mcp_client import MCPClient
+
+from tongagents.tools.mcp_tool_manager import MCPToolManager
+
+
+
+
+
+def create_mcp_agent():
+
+    # 1. 创建MCP客户端连接
+
+    client = MCPClient("tongagents/tools/mcp_tools/weather.py", timeout=10)
+
+
+
+    # 2. 初始化MCP工具管理器
+
+    tools = MCPToolManager.initialize_from_mcp(client)
+
+
+
+    # 3. 配置Agent
+
+    agent_settings = ReactAgentSetting(
+
+        llm_config=ModelConfig(
+
+            model_name=os.environ.get("MODEL_NAME"),
+
+            url=os.environ.get("MODEL_URL"),
+
+            api_key=os.environ.get("MODEL_API_KEY")
+
+        )
+
+    )
+
+
+
+    # 4. 创建带有MCP工具的Agent
+
+    agent = ReactAgent(
+
+        dep_context=LLMRunContext(),
+
+        agent_settings=agent_settings,
+
+        tools=tools  # 使用MCP工具
+
+    )
+
+
+
+    # 5. 执行Agent
+
+    result = agent.step("获取Sacramento的天气预报")
+
+    print(result.response)
+
+
+
+    return agent
+
+
+
+
+
+if __name__ == "__main__":
+
+    agent = create_mcp_agent()
+
+MCP客户端配置¶
+
+MCPClient支持多种配置选项：
+
+# 连接到本地MCP工具脚本
+
+client = MCPClient(
+
+    command_or_url="path/to/mcp_tool.py",
+
+    timeout=10,
+
+    retry_attempts=3,
+
+    retry_interval=1.0
+
+)
+
+
+
+# 连接到远程MCP服务
+
+client = MCPClient(
+
+    command_or_url="http://localhost:3001/sse",
+
+    timeout=30
+
+)
+
+
+参数说明：
+
+command_or_url: MCP工具脚本路径或远程服务URL
+timeout: 连接超时时间（秒）
+retry_attempts: 重试次数
+retry_interval: 重试间隔（秒）
+MCP工具管理¶
+
+MCPToolManager提供了工具管理功能：
+
+# 加载所有可用工具
+
+all_tools = MCPToolManager.initialize_from_mcp(client)
+
+
+
+# 只加载指定的工具
+
+allowed_tools = ["weather_forecast", "currency_converter"]
+
+filtered_tools = MCPToolManager.initialize_from_mcp(
+
+    client,
+
+    allowed_tools=allowed_tools,
+
+    retry_times=3
+
+)
+
+
+
+# 查看可用工具列表
+
+tool_list = client.list_tools()
+
+for tool in tool_list:
+
+    print(f"工具名称: {tool.name}")
+
+    print(f"工具描述: {tool.description}")
+
+错误处理和重试¶
+
+MCP工具支持自动重试和错误处理：
+
+# 配置重试策略
+
+client = MCPClient(
+
+    "path/to/unreliable_tool.py",
+
+    retry_attempts=5,
+
+    retry_interval=2.0
+
+)
+
+
+
+# 工具调用时的错误处理
+
+try:
+
+    result = agent.step("处理请求")
+
+    print(f"成功结果: {result}")
+
+except Exception as e:
+
+    print(f"工具调用失败: {e}")
+
+
+通过MCP工具集成，TongAgents能够轻松地连接各种外部数据源和服务，大大扩展了Agent的能力边界。
+
+自建远程工具¶
+
+为了增强Agent的能力，开发者通常需要为其提供多种工具。如果所有工具都由开发者自行实现，可能会带来较高的开发成本，甚至超出Agent本身的开发成本。
+
+此外，本地工具的执行会占用本地资源，如果工具数量较多，本地资源的负载也会相应增加。
+
+为了解决这些问题，TongAgents 提供了一系列远程工具，并且支持开发者自定义和部署远程工具服务。
+
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from py_tongos_lite_sdk import tongos_api
+
+
+
+uv = tongos_api.UV()
+
+
+
+
+
+# 定义输入模型
+
+class Input(BaseModel):
+
+    other: Optional[str] = Field(None, description="其他信息")
+
+    q: str = Field(..., description="请求内容")
+
+
+
+    class Config:
+
+        extra = "forbid"
+
+
+
+
+
+# 定义输出模型
+
+class Output(BaseModel):
+
+    answer: Optional[str] = Field(None, description="回答内容")
+
+    code: str = Field(..., description="响应状态码")
+
+    message: str = Field(..., description="响应消息")
+
+
+
+
+
+@uv.U(
+
+    name="color_tool",
+
+    provider="tongagents",
+
+    description="颜色查询工具",
+
+    is_tool=True,
+
+)
+
+async def handler(req: Input) -> Output:
+
+    print("111", req)
+
+    return Output(answer="黄色的", code="200", message="Success")
+
+
+
+
+
+
+
+@uv.Tool(
+
+    name="shape_tool",
+
+    provider="tongagents",
+
+    description="形状查询工具",
+
+)
+
+def handler2(req: Input) -> Output:
+
+    print("222", req)
+
+    return Output(answer="正方形", code="200", message="Success")
+
+
+（依赖：py_tongos_lite_sdk==1.0.1+68e283a）
+
+其中@uv.U(is_tool=True)表示该函数是一个工具，和@uv.Tool()等价。其参数包括：
+
+name: 工具名称
+provider: 工具提供者
+description: 工具描述
+
+需要注意，TongAgent通过name来识别工具，因此需要确保工具名称的唯一性。工具描述将作为工具的说明文档，提供给LLM，因此需要确保描述的准确性。
+
+启动方式：
+
+uv_service server:uv
+
+启动服务后，您可以在Agent项目中通过ToolService进行工具的获取和使用。
+
+工具Hook系统¶
+概述¶
+
+工具Hook系统是TongAgents框架的一个核心功能，它允许业务方在工具调用的不同阶段插入自定义逻辑。这个系统解决了以下常见需求：
+
+参数预处理：在工具调用前自动填充参数（如用户登录态信息）
+响应后处理：在工具调用后格式化输出（如结构化 JSON 为可读文本）
+权限控制：在工具调用前检查用户权限
+Schema 过滤：从 LLM 可见的 schema 中移除不需要的参数
+核心概念¶
+ToolHook 接口¶
+from tongagents.tools.base import ToolHook
+
+
+
+class MyHook(ToolHook):
+
+    def pre_hook(self, tool: 'Tool', params: dict, **kwargs) -> dict:
+
+        """在工具调用前处理参数"""
+
+        return params
+
+
+
+    def post_hook(self, tool: 'Tool', response: Any, **kwargs) -> Any:
+
+        """在工具调用后处理响应"""
+
+        return response
+
+
+
+    def check_auth(self, tool: 'Tool', **kwargs) -> tuple[bool, Optional[str]]:
+
+        """检查用户权限，返回 (是否有权限, 错误信息)"""
+
+        return True, None
+
+
+
+    def filter_schema(self, tool: 'Tool', schema: dict) -> dict:
+
+        """过滤 schema 中不需要的参数"""
+
+        return schema
+
+工具集成¶
+from tongagents.tools.base import Tool
+
+
+
+# 创建带 Hook 的工具实例
+
+hook = MyHook()
+
+tool = MyTool(hook=hook)
+
+
+
+# 调用工具
+
+result = tool.call({"param": "value"})
+
+使用示例¶
+基本用户信息Hook¶
+class UserInfoHook(ToolHook):
+
+    def __init__(self, user_email: str):
+
+        self.user_email = user_email
+
+
+
+    def filter_schema(self, tool: 'Tool', schema: dict) -> dict:
+
+        # 从 schema 中移除 user_email 参数
+
+        filtered_schema = schema.copy()
+
+        if "properties" in filtered_schema:
+
+            filtered_schema["properties"].pop("user_email", None)
+
+        if "required" in filtered_schema:
+
+            filtered_schema["required"] = [
+
+                req for req in filtered_schema["required"]
+
+                if req != "user_email"
+
+            ]
+
+        return filtered_schema
+
+
+
+    def pre_hook(self, tool: 'Tool', params: dict, **kwargs) -> dict:
+
+        # 自动添加用户邮箱
+
+        params["user_email"] = self.user_email
+
+        return params
+
+
+
+    def post_hook(self, tool: 'Tool', response: Any, **kwargs) -> Any:
+
+        # 格式化响应
+
+        return {
+
+            "status": "success",
+
+            "data": response,
+
+            "user": self.user_email
+
+        }
+
+
+
+    def check_auth(self, tool: 'Tool', **kwargs) -> tuple[bool, Optional[str]]:
+
+        # 检查用户权限
+
+        if "@company.com" in self.user_email:
+
+            return True, None
+
+        return False, "用户无权限访问此工具"
+
+GitLab集成Hook¶
+class GitlabHook(ToolHook):
+
+    def __init__(self, user_email: str):
+
+        self.user_email = user_email
+
+
+
+    def filter_schema(self, tool: 'Tool', schema: dict) -> dict:
+
+        # 移除 access_token 和 usernames 参数
+
+        filtered_schema = schema.copy()
+
+        remove_params = ["access_token", "usernames"]
+
+
+
+        if "properties" in filtered_schema:
+
+            for param in remove_params:
+
+                filtered_schema["properties"].pop(param, None)
+
+
+
+        if "required" in filtered_schema:
+
+            filtered_schema["required"] = [
+
+                req for req in filtered_schema["required"]
+
+                if req not in remove_params
+
+            ]
+
+
+
+        return filtered_schema
+
+
+
+    def pre_hook(self, tool: 'Tool', params: dict, **kwargs) -> dict:
+
+        # 自动添加访问令牌和用户名
+
+        params["access_token"] = self.get_access_token()
+
+        params["usernames"] = [self.user_email.split("@")[0]]
+
+        return params
+
+
+
+    def check_auth(self, tool: 'Tool', **kwargs) -> tuple[bool, Optional[str]]:
+
+        # 检查 GitLab 访问权限
+
+        if self.check_gitlab_access():
+
+            return True, None
+
+        return False, "请先完成 GitLab OAuth 授权"
+
+
+
+    def get_access_token(self) -> str:
+
+        # 获取用户的 GitLab 访问令牌
+
+        return "gitlab_token_123"
+
+
+
+    def check_gitlab_access(self) -> bool:
+
+        # 检查用户是否有 GitLab 访问权限
+
+        return True
+
+与LLM的集成¶
+
+Hook系统与LLM模型无缝集成。当LLM请求工具信息时，系统会自动使用过滤后的schema：
+
+from tongagents.agents.llm.doubao import DouBaoModel
+
+
+
+# 创建带 Hook 的工具
+
+hook = UserInfoHook("user@company.com")
+
+tool = MyTool(hook=hook)
+
+
+
+# LLM 会自动获取过滤后的 schema
+
+model = DouBaoModel(model_config)
+
+tools = [tool]
+
+response = model._get_tool_info(tools)  # 自动使用过滤后的 schema
+
+从ToolWrapper迁移¶
+
+如果您之前使用的是ToolWrapper模式，可以轻松迁移到Hook系统：
+
+旧的ToolWrapper模式¶
+class ToolWrapperCreator:
+
+    @classmethod
+
+    def wrapper(cls, tool_class: type, wrapper_param: ToolWrapperBase):
+
+        class ToolWrapper(tool_class):
+
+            def call(self, params: str | dict, **kwargs):
+
+                # 权限检查
+
+                if not wrapper_param.check_auth():
+
+                    return "权限检查失败"
+
+
+
+                # 参数预处理
+
+                params = wrapper_param.process_request(params)
+
+
+
+                # 调用原始工具
+
+                response = super().call(params, **kwargs)
+
+
+
+                # 响应后处理
+
+                return wrapper_param.process_response(response)
+
+
+
+        return ToolWrapper()
+
+新的Hook模式¶
+class MigratedHook(ToolHook):
+
+    def __init__(self, wrapper_param: ToolWrapperBase):
+
+        self.wrapper_param = wrapper_param
+
+
+
+    def filter_schema(self, tool: 'Tool', schema: dict) -> dict:
+
+        self.wrapper_param.process_schema(schema)
+
+        return schema
+
+
+
+    def pre_hook(self, tool: 'Tool', params: dict, **kwargs) -> dict:
+
+        return self.wrapper_param.process_request(params)
+
+
+
+    def post_hook(self, tool: 'Tool', response: Any, **kwargs) -> Any:
+
+        return self.wrapper_param.process_response(response)
+
+
+
+    def check_auth(self, tool: 'Tool', **kwargs) -> tuple[bool, Optional[str]]:
+
+        if self.wrapper_param.check_auth():
+
+            return True, None
+
+        return False, "权限检查失败"
+
+
+
+# 使用新的 Hook
+
+hook = MigratedHook(wrapper_param)
+
+tool = MyTool(hook=hook)
+
+工具列表¶
+本地工具¶
+天气查询¶
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.agents.llm.messages import UserPromptMessage
+
+from tongagents.tools.common_tool.amap_weather import AmapWeather
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMInputEvent,
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+##准备工作:配置高德api调用key:export AMAP_TOKEN={your_key}
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[AmapWeather()]
+
+)
+
+
+
+# 运行agent
+
+result = agent.step(LLMInputEvent(input=UserPromptMessage("北京现在天气怎么样？")))
+
+print(''.join(msg.content for msg in result))
+
+"""
+
+北京现在的天气是多云，温度是18度。
+
+"""
+
+远程工具¶
+
+TongAgents提供了多种强大的远程工具，可以通过ToolManager从远程服务获取。以下是一些常用的远程工具及其使用示例。
+
+代码解释器（Code Interpreter）¶
+
+代码解释器工具允许Agent生成并执行Python代码，适用于需要进行计算、数据处理或编程任务的场景。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.tools.tool_service import ToolService
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+REMOTE_TOOL_SERVICE_URI = "{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+code_interpreter_tool = tool_service.get_tool("python_code_interpreter")
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[code_interpreter_tool]
+
+)
+
+
+
+# 运行agent
+
+response = agent.step("请生成python代码并执行，计算12314*3+3等于多少")
+
+print(response.response)
+
+"""
+
+计算结果是 36945。
+
+"""
+
+图像理解（Image Understanding）¶
+
+图像理解工具可以分析和理解图像内容，提取图像中的信息，识别物体、场景和文本等。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.tools.tool_service import ToolService
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+REMOTE_TOOL_SERVICE_URI = "{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+code_interpreter_tool = tool_service.get_tool("image_understanding")
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[code_interpreter_tool]
+
+)
+
+
+
+
+
+# 运行agent
+
+response = agent.step("请分析这张图片: https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg")
+
+print(response.response)
+
+"""
+
+这张照片展示了一位女士和她的狗在海滩上的场景。这位女士坐在沙滩上，她穿着一件格子衬衫，并且戴着一个手表。她的狗狗则躺在地上，看起来很放松。
+
+
+
+他们俩都面带微笑地看着对方，似乎正在享受着彼此的陪伴时光。背景是美丽的日落景色，海浪轻轻拍打着海岸线，整个场景充满了宁静和平静的气息。
+
+
+
+此外，在他们的周围还有一些沙粒、贝壳等自然元素的存在，这些细节进一步增强了这个温馨画面的真实感。整张照片给人一种和谐与幸福的感觉，让人不禁想要加入到这样的美好时刻之中去感受那份温暖的情感交流。
+
+"""
+
+文档理解（Document Understanding）¶
+
+文档理解工具可以分析和理解文本文档的内容，提取关键信息，总结文档内容等。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.tools.tool_service import ToolService
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+REMOTE_TOOL_SERVICE_URI = "{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+tool = tool_service.get_tool("long_document_understanding")
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[long_document_understanding]
+
+)
+
+
+
+# 运行agent
+
+test_doc = "这是一个测试文档。主要讨论了人工智能的发展历程。" # demo
+
+response = agent.step(f"请分析这篇文档的内容: {test_doc}")
+
+print(response.response)
+
+"""
+
+这篇文章主要讨论了人工智能（AI）的发展历程。根据描述，文章可能涵盖了以下几个方面：
+
+
+
+1. **早期概念与理论基础**：介绍了人工智能的起源，包括20世纪中期的初步探索和理论构建，如图灵测试、符号主义等。
+
+
+
+2. **技术突破与关键节点**：提到了人工智能发展过程中的重要里程碑，例如机器学习算法的进步、神经网络的复兴（特别是深度学习）、自然语言处理技术的提升等。
+
+
+
+3. **应用领域扩展**：探讨了AI在不同领域的应用，如医疗、金融、自动驾驶、智能制造等，并分析了这些应用对社会经济的影响。
+
+
+
+4. **挑战与未来展望**：讨论了当前AI面临的挑战，如数据隐私、伦理问题、算法偏见等，并对未来发展方向进行了预测或展望。
+
+
+
+如果你有更具体的内容或段落想要了解，可以提供更多细节，我会进一步帮助你总结或解释。
+
+"""
+
+
+长文档理解支持多种方式，除了直接基于文本，还可以基于url，或者基于文件。
+
+网页爬虫（Web Crawler）¶
+
+网页爬虫工具可以爬取和分析网页内容，提取网页中的信息，适用于需要获取网络信息的场景。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.tools.tool_service import ToolService
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+REMOTE_TOOL_SERVICE_URI = "{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+web_crawler_tool = tool_service.get_tool("web_crawler")
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[web_crawler_tool]
+
+)
+
+
+
+# 运行agent
+
+response = agent.step("请爬取并分析这个网页的内容: https://www.python.org/blogs/")
+
+print(response.response)
+
+"""
+
+已经爬取了 https://www.python.org/blogs/ 网页的内容。这是网页的主要部分:
+
+
+
+- **最新新闻**:
+
+  - Python 3.14.0 alpha 5 已经发布
+
+  - Python 3.13.2 和 3.12.9 现已发布！
+
+  - PSF 通讯: 关于奖项、资助及 PyCon US 2025！
+
+  - Python 3.14.0 alpha 4 已发布
+
+  - 感谢我们的社区，我们一起为 Python 提供动力！
+
+
+
+- **日期和内容摘要**:
+
+  - 2025年2月18日上午11:30: 关于如何在线找到 PSF 的相关信息: 社交媒体是主要渠道
+
+  - 2025年2月11日, 2025年2月4日, 2025年1月15日, 2025年1月14日的文章
+
+
+
+- **订阅**:
+
+  网页还提供了通过各种方式订阅 Python Insider 的选项，并也推荐了 Python-Dev 邮件列表。
+
+"""
+
+网页搜索（Web Search）¶
+
+网页搜索工具可以在互联网上搜索信息，获取最新的新闻、知识和数据，适用于需要获取最新信息的场景。
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.tools.tool_service import ToolService
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+REMOTE_TOOL_SERVICE_URI = "{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+web_search_tool = tool_service.get_tool("web_search")
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=[web_search_tool]
+
+)
+
+
+
+# 运行agent
+
+response = agent.step("搜索关于Python的最新新闻")
+
+print(response.response)
+
+"""
+
+根据您的请求，这里有一些关于Python在新闻领域应用的相关搜索结果：
+
+
+
+1. 【爬虫】用Python打造每日新闻资讯速达小工具的教程，可帮助您学习如何使用Python抓取新闻资讯。[详情](https://blog.csdn.net/Yhen1/article/details/105633416)
+
+
+
+2. 介绍一个强大的Python库——Newspaper3k，能够帮助您轻松地提取和分析网络新闻文章。[详情](https://zhuanlan.zhihu.com/p/680070016)
+
+
+
+3. 一个使用Python爬虫实时监控行业新闻的案例，实现步骤详细。[详情](https://blog.csdn.net/qq_44273429/article/details/145624915)
+
+
+
+这些内容可能会对您有所帮助。
+
+"""
+
+批量添加远程工具¶
+
+以下是一个更简洁的方式来使用远程工具，适用于需要快速集成多个工具的场景：
+
+import os
+
+from tongagents.agents.llm.base import ModelConfig
+
+from tongagents.tools.tool_service import ToolService
+
+from tongagents.agents.llm_agent.react_agent import (
+
+    LLMRunContext,
+
+    ReactAgent,
+
+    ReactAgentSetting,
+
+)
+
+
+
+REMOTE_TOOL_SERVICE_URI = "{your_tool_url}"
+
+tool_service = ToolService(REMOTE_TOOL_SERVICE_URI)
+
+
+
+tools = tool_service.get_tools(tool_service.list_tools())
+
+
+
+agent_settings = ReactAgentSetting(
+
+    llm_config=ModelConfig(
+
+        model_name=os.environ.get("MODEL_NAME"),
+
+        url=os.environ.get("MODEL_URL"),
+
+        api_key=os.environ.get("MODEL_API_KEY"),
+
+    )
+
+)
+
+
+
+# 创建agent并配置
+
+agent = ReactAgent(
+
+    dep_context=LLMRunContext(),
+
+    agent_settings=agent_settings,
+
+    tools=tools
+
+)
+
+
+
+# 运行agent
+
+response = agent.step("请告诉我你都能调用哪些工具")
+
+print(response.response)
+
+"""
+
+我可以调用以下工具来帮助您查询信息或解决问题：
+
+
+
+1. `calculator` - 执行基础的数学运算。
+
+2. `python_code_interpreter` - 执行Python代码并返回执行结果。
+
+3. `dictionary` - 查询词语的定义和用法。
+
+4. `image_understanding` - 理解图片的具体含义，并支持提问。
+
+5. `long_document_understanding` - 理解长篇幅文本的含义，并支持提问。
+
+6. `movie_info` - 获取电影相关信息和评分。
+
+7. `news_summary` - 获取热点新闻的简要概述。
+
+8. `restaurant_finder` - 查找附近的餐厅信息和用户评价。
+
+9. `stock_info` - 获取实时股票市场信息。
+
+10. `time_converter` - 在不同时区之间转换时间。
+
+11. `translation` - 将文本翻译成指定的目标语言。
+
+12. `unit_converter` - 在不同计量单位间进行转换。
+
+13. `weather_query` - 查询指定城市的天气信息。
+
+14. `web_crawler` - 根据链接获取网页内容。
+
+15. `web_search` - 根据关键字搜索相关网页。
+
+
+
+如果您需要使用这些工具中的任何一个，请告诉我具体需求。
+
+"""
+
+
+通过以上示例，您可以方便的接入TongAgents开放平台提供的所有工具，并使用它们来增强Agent的能力。

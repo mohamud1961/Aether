@@ -1,0 +1,179 @@
+DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
+- artifact: `mechanism_map / wave_04_context_state_memory_workspace`
+- overall_verdict: `pass_with_warnings`
+- preflight_scope_confirmed:
+  - `yes`
+  - `This review stayed inside the Wave 04 domain: context management, state persistence/drift, memory write/retrieval, workspace/artifact discipline, compaction, handoff, and restart/resume cautions.`
+  - `The four required main lanes exist and all four touched direct repo-local evidence.`
+  - `The optional eval lane remains correctly inactive; no benchmark-grader logic became load-bearing enough to require reactivation.`
+- preflight_planned_read_order:
+  - `1. Wave packet and governing control surfaces`
+  - `2. Prior accepted synthesis constraints and coverage register`
+  - `3. All four Wave 04 first-pass lane outputs`
+  - `4. All support artifacts actually cited by those lane outputs`
+  - `5. Spot-check direct source/trajectory paths behind the strongest promoted distinctions`
+  - `6. Spot-check required support-track files named by the packet`
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_store.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+  - `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`
+  - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+  - `research/sources/trajectories/deepagents/custom-memory-heap-crash/aa903d02-9999-4aa2-8d70-3a73a4eb6d8c-traj.txt`
+  - `research/sources/trajectories/terminus-kira/custom-memory-heap-crash/3c178f63-b5da-4ffa-b4c3-225d919b72ec-traj.txt`
+- preflight_coverage_risks:
+  - `BigAI remains behavior-only; all BigAI mechanism claims still depend on trajectory plus reconstruction pressure rather than mirrored implementation.`
+  - `The coverage register is stale relative to actual Wave 04 work: it still reports Wave 04 as "not started" despite existing first-pass outputs.`
+  - `Several packet-required support files are still absent on disk, so support-track completeness is weaker than the lane outputs' required-update lists imply.`
+  - `Long-tail trajectory pressure and deeper KIRA/DeepAgents memory surfaces remain unread.`
+- preflight_likely_blind_spots:
+  - `BigAI hidden scheduler/prompt-assembly/persistence internals`
+  - `restart-safe resumability beyond single-run traces`
+  - `KIRA-Slack memory-manager paths`
+  - `DeepAgents multi-run or cross-thread memory retrieval behavior`
+  - `branch/worktree hygiene outside the required git-multibranch slices`
+- preflight_blockers:
+  - `none structural for contradiction review`
+  - `the missing support-track files and stale coverage register are acceptance warnings, not enough on their own to block the wave, because the promoted claims remain conservative and directly evidenced`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/brief.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/trajectory_support_context_workspace_matrix.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_context_state_map.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/context_state_memory_workspace.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/context_and_memory.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/workspace_and_artifact_discipline.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/memory.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/memory_store.py`
+  - `research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py`
+  - `research/sources/trajectories/BigAI/git-multibranch/baabd142-9b5e-457d-8c39-2cdf5bd4f462-traj.txt`
+  - `research/sources/trajectories/deepagents/git-multibranch/e6e6d3a5-ee75-489a-a4a0-c3a751ea3421-traj.txt`
+  - `research/sources/trajectories/terminus-kira/git-multibranch/80b5619c-2b60-45e3-b209-ffbf02d27aa9-traj.txt`
+  - `research/sources/trajectories/deepagents/custom-memory-heap-crash/aa903d02-9999-4aa2-8d70-3a73a4eb6d8c-traj.txt`
+  - `research/sources/trajectories/terminus-kira/custom-memory-heap-crash/3c178f63-b5da-4ffa-b4c3-225d919b72ec-traj.txt`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/trajectories/*/headless-terminal/**`
+  - `research/sources/trajectories/*/large-scale-text-editing/**`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/**`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/**`
+  - `research/sources/codebases/deepagents/libs/evals/tests/evals/memory_agent_bench/test_memory_agent_bench.py`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+- evidence_classes_touched:
+  - `wave-control surfaces`
+  - `trajectories`
+  - `mirrored codebases`
+  - `papers`
+  - `docs`
+  - `informal sources`
+  - `issues`
+  - `postmortems`
+  - `support artifacts`
+  - `support-track dossiers`
+  - `local harness code`
+- priority_sources_not_yet_read:
+  - `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**`
+  - `research/sources/trajectories/*/headless-terminal/**`
+  - `research/sources/trajectories/*/large-scale-text-editing/**`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/agent.py`
+  - `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_retriever/agent.py`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+  - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+- support_artifact_gaps:
+  - `The cited first-pass support artifacts exist and were used honestly: trajectory matrix, codebase workspace-artifact map, codebase context-state map, literature theme dossiers, and informal cluster dossier.`
+  - `However, packet-required support files are incomplete on disk:`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md` is missing
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md` is missing
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md` is missing
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md` is missing
+  - `The main lane outputs also did not materially use the existing source-system dossiers for DeepAgents/KIRA/A-Evolve/BigAI, even though dossier coverage is a stated lane-closure surface.`
+- coverage_register_consistency:
+  - `inconsistent`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` still says Wave 04 \`context_state_memory_workspace\` is "not started" even though four first-pass outputs and multiple Wave 04 support artifacts already exist.`
+  - `This is a governance/control-surface defect, not a content-evidence defect, but it must be repaired before the wave is treated as cleanly accepted.`
+- supported_findings:
+  - `The wave does real mechanism-separation work rather than rebranding everything as "memory." Across trajectories, source, literature, and informal pressure, context compaction, durable memory, explicit state persistence, and workspace/artifact discipline are kept distinct instead of flattened. Evidence: trajectory output, codebase output, literature output, informal output, and direct source files in DeepAgents/KIRA/A-Evolve.`
+  - `The first-pass outputs preserve the mandatory Wave 04 caution that explicit artifacts often carry the real state: todos, scripts, restored files, repo cleanliness, and workspace manifests outrank vague long-term-memory rhetoric in the currently read evidence. Evidence: trajectory support matrix; DeepAgents and A-Evolve source; literature dossier contradictions.`
+  - `BigAI is handled conservatively enough for this gate. The trajectory and codebase lanes keep BigAI explicitly at behavioral reconstruction and do not promote hidden memory or restart implementation as source-backed fact. Evidence: trajectory output T3/T6, codebase output B1/B2, BigAI behavioral dossier, coverage register carry-forward warnings.`
+  - `Restart and resumability are still constrained honestly. No lane promotes restart-safe resumability beyond exploratory; the literature and informal lanes both preserve the distinction between substrate definitions and demonstrated reliable behavior. Evidence: literature Claim 4 and Conflict 2; informal high-signal resume claim; cumulative synthesis carry-forward warnings.`
+  - `The inactive eval lane was not stealth-reactivated. Benchmark and memory-eval materials appear only as bounded pressure on terminology and future eval implications, not as a hidden fifth lane driving the main wave verdict.`
+- unsupported_or_overclaimed_findings:
+  - `The wave cannot yet claim support-track completeness. The packet names three required case studies and one required claw-code dossier, but those files are not present on disk.`
+  - `The codebase lane's A-Evolve contribution is source-backed but not trajectory-backed in Wave 04. It is valid as a source-side pressure point, but it cannot be used to outrank the trajectory-backed artifact-first baseline or to imply a behaviorally demonstrated family in this wave.`
+  - `The codebase lane correctly warns that KiraClaw exposes richer durable memory runtime than the sampled Terminus-KIRA trajectories show. Principal synthesis must preserve that as a source/trajectory mismatch, not a promoted visible-behavior claim about the required KIRA slices.`
+  - `Coverage rhetoric is still slightly ahead of control-surface reality: the lane outputs report meaningful first-pass completion, but the coverage register has not been updated and the missing support files were not surfaced as hard missing dependencies inside the lane outputs themselves.`
+- missing_evidence_classes:
+  - `none structural among the four required main evidence classes for this contradiction pass`
+  - `the required main classes are present: trajectories, mirrored source, literature/docs, informal/issues/postmortems`
+  - `the missing pieces are support-track completeness and longer-tail pressure, not absence of a required main lane`
+- reconciliation_failures:
+  - `Source/trajectory reconciliation is strongest for DeepAgents and classic Terminus-KIRA, but still partial for KiraClaw and A-Evolve. Principal synthesis must not silently merge "family capability in source" with "visible use in required trajectories."`
+  - `The literature lane leans on a trajectory support artifact, not fresh trajectory reads, when pressuring formal memory rhetoric. That is acceptable for contradiction pressure, but it remains a secondary cross-lane reconciliation surface rather than new primary direct evidence.`
+  - `Support-track reconciliation is incomplete because packet-required case studies and the claw-code dossier are missing, so some reusable cross-lane joins are still absent even though the direct evidence base is good enough to continue.`
+- coverage_blind_spots:
+  - `BigAI verifier-heavy long-tail pressure remains thin without direct `adaptive-rejection-sampler` reading.`
+  - `No long-tail pressure yet from `headless-terminal` or `large-scale-text-editing`, so current anti-memory baseline could still shift modestly.`
+  - `KIRA-Slack memory-manager and retriever paths remain unread, leaving the broader KIRA durable-memory family only partially mapped.`
+  - `Branch/worktree hygiene is strong in git-multibranch but not broadly pressure-tested across other tasks or informal failure clusters.`
+- required_repairs_before_acceptance:
+  - `Update `tracking/collab/stage_02_synthesis/coverage_register/current_status.md` so Wave 04 no longer appears as "not started."`
+  - `Either create or explicitly governed-defer the missing packet-required support files:`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/git_multibranch.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/break_filter_js_from_html.md`
+    - `tracking/collab/stage_02_synthesis/trajectory_case_studies/custom_memory_heap_crash.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `Principal synthesis must preserve four carry-forward cautions explicitly:`
+    - `BigAI remains behavioral reconstruction`
+    - `restart/resumability remains under-evidenced`
+    - `workspace artifacts must not be promoted into proof of rich long-term memory`
+    - `A-Evolve source findings must not be mistaken for Wave 04 trajectory-backed behavior`
+- optional_pressure_tests:
+  - `Read `research/sources/trajectories/BigAI/adaptive-rejection-sampler/**` if principal synthesis wants stronger BigAI verifier/state pressure.`
+  - `Read `research/sources/codebases/KIRA/KIRA-Slack/app/cc_agents/memory_manager/**` and `.../memory_retriever/**` if the wave needs a fuller KIRA durable-memory map.`
+  - `Add a focused branch/worktree pressure pass from long-tail trajectories or issue clusters if the principal wants to promote workspace hygiene beyond the current git-multibranch-centered confidence.`
+- gate_review_recommendations:
+  - `Proceed to principal synthesis, but only on a pass-with-warnings basis.`
+  - `Do not treat wave acceptance as artifact completion.`
+  - `Use principal synthesis to lock in the content-level mechanism separations, while explicitly carrying forward the support-track and coverage-register defects as governance repairs rather than hiding them.`
+  - `If principal synthesis wants a cleaner acceptance surface, require the missing case studies/claw-code dossier before checklist adjudication.`
+- confidence:
+  - `high`
+  - `The core verdict is high-confidence because the central attack surface was handled conservatively: no thin long-term-memory promotion, no BigAI source laundering, no restart overclaim, and no collapse of workspace discipline into generic memory.`
+  - `The main uncertainty is governance completeness rather than mechanism validity.`

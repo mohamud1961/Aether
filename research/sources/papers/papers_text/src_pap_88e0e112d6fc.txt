@@ -1,0 +1,1169 @@
+--- PAGE 1 ---
+An Empirical Study of Policy-as-Code Adoption in
+Open-Source Software Projects
+Patrick Loic Foalem∗, Foutse Khomh, Leuson Da Silva, Ettore Merlo
+aDepartment of Computer and Software Engineering, Polytechnique
+Montreal, Montreal, H3T 1J4, Quebec, Canada
+Abstract
+Context:Policy-as-Code (PaC) has become a foundational approach for
+embedding governance, compliance, and security requirements directly into
+software systems. While organizations increasingly adopt PaC tools, the
+software engineering community lacks an empirical understanding of how
+these tools are used in real-world development practices.
+Objective:This paper aims to bridge this gap by conducting the first
+large-scale study of PaC usage in open-source software. Our goal is to char-
+acterize how PaC tools are adopted, what purposes they serve, and what
+governance activities they support across diverse software ecosystems.
+Method:Weanalyzed399GitHubrepositoriesusingninewidelyadopted
+PaC tools. Our mixed-methods approach combines quantitative analysis of
+tool usage and project characteristics with a qualitative investigation of pol-
+icy files. We further employ a Large Language Model (LLM)–assisted classi-
+fication pipeline, refined through expert validation, to derive a taxonomy of
+PaC usage consisting of 5 categories and 15 sub-categories.
+Results:Our study reveals substantial diversity in PaC adoption. PaC
+tools are frequently used in early-stage projects and are heavily oriented
+toward governance, configuration control, and documentation. We also ob-
+serve emerging PaC usage in MLOps pipelines and strong co-usage patterns,
+such as between OPA and Gatekeeper. Our taxonomy highlights recurring
+governance intents.
+Conclusion:Our findings offer actionable insights for practitioners and
+∗Corresponding author.
+Email address:{patrick-loic.foalem, foutse.khomh,
+leuson-mario-pedro.da-silva, ettore.merlo}@polymtl.ca(Patrick Loic Foalem)
+Preprint submitted to Elsevier January 12, 2026
+arXiv:2601.05555v1  [cs.SE]  9 Jan 2026
+
+--- PAGE 2 ---
+tool developers. They highlight concrete usage patterns, emphasize actual
+PaC usage, and motivate opportunities for improving tool interoperability.
+This study lays the empirical foundation for future research on PaC practices
+and their role in ensuring trustworthy, compliant software systems.
+Keywords:Empirical, Policy as Code, PaC tools, Github repositoriy.
+1. INTRODUCTION
+Modern software systems operate in hyper-connected environments, con-
+tinuously collecting and processing vast amounts of data. As a result, they
+are increasingly exposed to security violations, data leaks, and operational
+failures [1], which can lead to privacy breaches, regulatory non-compliance,
+financial penalties, service interruptions, and long-term loss of trust [2]. To
+address these challenges, requirements engineering and regulatory bodies
+have emphasized the role of policies in ensuring security, compliance, trace-
+ability, and operational governance [3]. Historically, policies were manually
+enforced or hard-coded, making them difficult to evolve, audit, or verify.
+With the rise of dynamic, distributed, and cloud-native systems, governance
+mandates such as GDPR, HIPAA, and the EU AI Act [4] have created de-
+mand for scalable, automated compliance mechanisms throughout the soft-
+ware lifecycle.Policy as Code(PaC) addresses those previously mentioned
+needs by encoding policies as machine-readable, version-controlled, and exe-
+cutable artifacts. By embedding policy logic into infrastructure and software
+pipelines, PaC enables proactive enforcement of security, compliance, and
+operational rules, thereby reducing risks of misconfiguration, unauthorized
+access, and regulatory violations. This approach enhances automation, trace-
+ability, andintegrationwithmodernpracticessuchasDevOpsandCI/CD[5].
+A growing ecosystem of PaC tools supports this paradigm, including Open
+Policy Agent (OPA), Kyverno, Cloud Custodian, and HashiCorp Sentinel.
+OPA is a general-purpose engine with the Rego language, often integrated
+into platforms such as Kubernetes and Terraform [6], while Kyverno is a
+Kubernetes-native engine that simplifies policy authoring through YAML
+configurations [7]. Despite these advances, to the best of our knowledge,
+there is little large-scale empirical evidence on how PaC tools are adopted
+and used in open-source software (OSS). Understanding their adoption is es-
+sential for identifying gaps in developer practices, guiding tool improvement,
+and informing future research on policy-driven governance. As a result, this
+2
+
+--- PAGE 3 ---
+paper presents the first large-scale empirical study of PaC tool adoption in
+OSS. We curate a comprehensive list of tools and mine a dataset of 399
+GitHub repositories that employ at least one PaC tool. Our study is driven
+by the following research questions:
+•RQ1: What is the popularity of different PaC tools in OSS
+projects?We analyze the usage of PaC tools across OSS repositories
+and find that OPA, Cloud Custodian, Kyverno, and Pulumi are the
+most popular tools. While our findings can guide practitioners toward
+widely adopted tools with strong community support, widely used tools
+provide researchers with a baseline for studying adoption trends and
+practitioners with guidance toward stable, well-supported solutions.
+•RQ2: What kind of projects adopt PaC tools?Through manual
+analysis, we observe that PaC tools are primarily adopted in projects,
+that can be classified into categories such asdocumentation (37%),
+tooling (32%), andDevOps infrastructure (17%). Wealsofindemerging
+adoptioninMLOps (1%)andAI/Research (0.2%), indicatingagrowing
+interest in using PaC tools to enforce governance within intelligent
+systems. These findings can guide developers in understanding the
+types of projects where PaC tools are commonly used, helping them
+envision appropriate adoption scenarios.
+•RQ3: How is PaC used in practice across different tools?We
+manually inspected policy files to understand their practical purposes
+and developed a structured taxonomy of PaC usage, comprising five
+high-level categories:Workflow Automation,Cost Optimization,Se-
+curity,Compliance, andDeployment Governance. Understanding the
+purpose of usage helps practitioners in their adoption process, as they
+can apply these tools for similar objectives, while also assisting tool de-
+velopers in designing more effective tools that integrate most of these
+use cases.
+•RQ4: Are different PaC tools used together?Understanding
+whether PaC tools are used in combination is essential for assessing
+how organizations manage interoperability, policy consistency, and gov-
+ernance complexity across their infrastructure. To explore this, we
+examine co-usage patterns across projects and tools. Our analysis re-
+veals that while most projects tend to adopt a single PaC tool, OPA
+3
+
+--- PAGE 4 ---
+frequently appears in combination with other tools. These insights
+can support practitioners in designing multi-tool adoption strategies
+and guide tool builders toward improved standardization and interop-
+erability support.
+Paper Organization:The remainder of the paper is organized as fol-
+lows. Section 2 introduces key background concepts on policies in software
+engineering and the PaC paradigm. Section 3 details our study methodol-
+ogy. Section 4 presents our results and answers to the research questions.
+Section 5 discusses the implications of our findings. In Section 6, we position
+our study within the context of related work. Section 7 outlines threats to
+validity. We conclude and propose future research directions in Section 8.
+2. BACKGROUND
+To investigate the usage of PaC tools in modern software systems, we
+first clarify the core concepts and typical system architecture. In this paper,
+we usePaC toolsto denote libraries or frameworks whose primary purpose
+is to express and enforce policies through code-based mechanisms.
+PolicyasCode(PaC).PaCspecifiesandenforcespoliciesasexecutable
+rules evaluated by a dedicated policy engine. A policy is a set of conditions
+governing system behavior, where the engine returns outcomes such asallow,
+warn, ordeny. By exposing decisions through APIs and keeping policies sep-
+arate from application code, PaC decouples governance from business logic
+and enables consistent, reusable, and testable enforcement across services
+and environments [8].
+Figure 1 illustrates a reference PaC architecture. Policies are typically
+written in declarative formats (e.g., JSON or YAML) or a domain-specific
+language (Listing 1) processed by the engine. The engine consumes contex-
+tual inputs (e.g., request parameters, user identity, or infrastructure meta-
+data), evaluates the rules, and returns a decision with optional explanations.
+This design supports multiple integration modes–embedded library, sidecar,
+admission controller, or standalone service–making PaC suitable for CI/CD
+pipelines and Infrastructure-as-Code (IaC) workflows [8].
+As an example, consider an organization that requires all AWS EC2 in-
+stances provisioned via Terraform to include anEnvtag for auditing and
+cost tracking. With OPA, this requirement can be expressed as a Rego rule
+4
+
+--- PAGE 5 ---
+that inspects a Terraform plan and flags any instance missing the tag (List-
+ing 1). The policy is evaluated using the OPA CLI (Listing 2), which loads
+the policy and the plan as input and reports violations. This centralizes pol-
+icy logic, ensures uniform enforcement at deploy time, and reduces manual
+review effort in continuous delivery settings [8].
+Listing 1OPA policy to enforceEnvtag on EC2 instances.
+1packageec2
+2
+3deny[msg] {
+4resource := input.resource_changes[_]
+5resource.type == "aws_instance"
+6notresource.change.after.tags.Env
+7
+8msg := sprintf("EC2␣instance␣%v␣is␣missing␣required␣’Env’␣
+tag", [resource.address])
+9}
+Listing 2Evaluate the OPA deny rule for EC2.
+1opa eval--data policy.rego --input plan.json "data.ec2.deny"
+Infrastructure
+Database
+Warning
+Error
+Approval
+Policy engine
+Policy as Code (PaC)
+Figure1: Policy-as-Codearchitecture: policiesareauthoredonceandenforcedconsistently
+by a centralized engine across services and pipelines.
+5
+
+--- PAGE 6 ---
+3. STUDY DESIGN
+1⃝Identifying PaC Tools from Gray Literature
+To identify PaC tools suitable for our study, we performed a search on
+Google 1 using the query:“(“policies as code” OR “policy as code”
+OR PAC) AND (tools OR solutions OR frameworks)”. We relied solely
+on Google because, to the best of our knowledge, no prior academic stud-
+ies have systematically catalogued PaC tools. This search was conducted in
+March 2025. Following the methodology of similar prior studies [9, 10], we
+collected all relevant PaC tools mentioned within the first 100 search results.
+In total, we identified 28 unique PaC tools. Which can be found in our
+replication package [11].
+2⃝Filtering PaC Tools
+The first two authors jointly reviewed the official documentation of each
+tool during a series of discussion meetings to apply our inclusion criteria.
+Tools were retained if they were (i) open-source and (ii) primarily designed
+for implementing policies as code, or if they provided clear documentation on
+PaC-specific modules, languages, or enforcement mechanisms. Importantly,
+we focused on tools whose core purpose is PaC, rather than multi-purpose
+tools that blend policy features with broader configuration or provisioning
+capabilities. This choice avoids conceptual overlap and prevents conflating
+Infrastructure-as-Code (IaC) functionalities with dedicated policy specifica-
+tion and enforcement mechanisms.
+For instance, although tools such as Terraform, Chef, and Ansible are
+occasionally cited as PaC tools in some sources [12], their primary pur-
+pose—according to their official documentation—is Infrastructure as Code
+(IaC), making it difficult to systematically distinguish IaC components from
+PaC components. After applying these criteria, we retained 9 PaC tools for
+our study. The complete list is available in Table 1.
+3⃝Collecting GitHub Projects Using PaC Tools
+Once we established the set of PaC tools, we moved into our third step
+(Figure 2). For that, we used the GitHub Search API [22] to collect open-
+source projects that use the selected PaC tools. Based on the official docu-
+mentation of each tool, we identified unique patterns that characterize the
+1https://www.google.ca/
+6
+
+--- PAGE 7 ---
+Table 1: Overview of PaC Tools with Metadata, Language, and Descriptions. Size in KB.
+PaC Tool Size(KB) Stars ForksReleasesLanguageDescription
+Open PolicyAgent (OPA)1,091,526 10,338 1,425 117 Go An open source, general-purpose policyengine [13].HashiCorpSentinel 330 52 13 10 Go A logic-based policies language formanaging your policy. [14].Pulumi 187,11423,247 1,204 313 Go A crossGuard policy-as-code for IaC andaccount insights [15].Cedar PolicyLanguage 8,582 1,041 100 38 Rust A language for writing policies in yourapplications [16].Kyverno OSS151,0896,414 1,028 250 Go A cloud-native Kubernetes policymanagement [17].Cloud Custodian136,1095,694 1,545 78 PythonA rules engine for managing policies incloud infrastructure [18].AWS Config4,595 468 172 38 PythonA tool that allows developers to writepolicies rules in AWS. [19].GateKeeper 182,8323,909 793 121 Go A kubernetes policy controller [20].Kubewarden2,982 209 37 122 Go A dynamic admission controller that usespolicies [21].
+adoption of each PaC tool within a GitHub repository. For instance, OPA
+and HashiCorp Sentinel use specific languages that can be identified through
+file extensions (.regoand.sentinel, respectively), while other tools like
+Gatekeeper can be detected by searching for YAML files containing the key-
+wordConstraintTemplate. The complete list of detection patterns is pro-
+vided in our replication package [11].
+This collection process initially yielded 6,010 candidate repositories for
+all PaC tools. We then removed 68 duplicate entries, since the search was at
+the file level, resulting in 5,942 unique repositories. To filter out irrelevant or
+outdated projects, we applied the following filtering criteria, adapted from
+best research practices [9, 23, 24]:
+•Size:Repository must have a size>0 KB.
+•Popularity:Repository must have≥5 starsorand≥5 forks.
+•Activity:The last commit must have been within 2024.
+After applying these filtering criteria, we retained a final dataset of 399
+OSS projects for analysis. Figure 3 shows that approximately 75% of the re-
+maining projects have low to moderate values across key metadata attributes
+(e.g., fewer than 10 contributors, 100 stars, 50 months of age, or 1MB in size),
+whileafewprojectsstandoutasmatureorhighlyactive. Dataanalysisbased
+on this project sample is presented in Section 4.
+7
+
+--- PAGE 8 ---
+PaC Tools from website. Filtering PaC Tools. Collecting GitHub
+projects using PaC Tools.
+PaC tools popularity
+1 2 3
+Using a search query Filter by OSS and easy identification Based on PaC identified pattern
+Projects
+Categorization
+Analyzing
+Co-usage of
+PaC tools
+Identifying
+purpose of using
+PaC tools
+RQ1 RQ2 RQ3 RQ4
+III. Study Design
+IV. Results
+Figure 2: Overview of our research workflow.
+Figure 3: Distribution of project metrics using PaC tools: Age (months), Size (bytes),
+Stars (popularity), and Contributors (collaboration) across our study projects.
+8
+
+--- PAGE 9 ---
+4. RESULTS
+4.1.RQ1: What is the popularity of different PaC tools in OSS
+projects?
+4.1.1.Motivation
+PaC tools are designed to define and enforce policies through high-level
+programming languages [5]. These tools enable organizations to automate
+policy enforcement across cloud-native environments as part of the software
+development lifecycle [5]. However, integrating PaC tools into software work-
+flows can be challenging due to the diversity of available tools and the com-
+plexity of their configurations [25, 26, 27]. Investigating the popularity of
+these tools in OSS projects provides valuable insight into which tools are
+most widely adopted and supported in practice. This information can guide
+cloud-native development teams in selecting PaC tools that are not only tech-
+nicallycapablebutalsobackedbyactivecommunities, betterdocumentation,
+and practical usage examples. The popularity of a tool is often a proxy for
+its maturity and reliability, making it a critical factor in adoption decisions.
+Furthermore, they represent a baseline for researchers for studying adoption
+trends and practitioners with guidance toward stable, well-supported solu-
+tions.
+4.1.2.Approach
+To analyze the popularity of PaC tools across the 399 projects using them,
+we relied on two complementary metrics:
+•Number of files containing PaC code:Since some PaC tools
+are built around domain-specific languages (e.g.,.rego,.sentinel,
+.cedar), while others are implemented within general-purpose lan-
+guages (e.g.,Python,Java), we opted for file-level analysis rather than
+line of code level granularity to minimize measurement bias [23]. Based
+on the identified patterns defined in Section 3, we scanned all reposi-
+tories of our sample, counting the number of files matching each tool’s
+pattern. A higher number of matched files indicates greater tool preva-
+lence within projects.
+•Number of repositories using a PaC tool:To complement the
+previous metric, we introduce a second one, the number of distinct
+repositories that include at least one file associated with a given PaC
+tool. This metric is essential to assess the distribution and popularity of
+9
+
+--- PAGE 10 ---
+tools across diverse projects. For instance, a tool might be heavily used
+in a few large projects (high file count, low repo count) or lightly used
+across many projects (low file count, high repo count). A repository is
+considered to use a PaC tool if it contains at least one file corresponding
+to one of the tool’s identified patterns. Therefore, a higher number of
+repositories using a given tool reflects broader adoption across the OSS
+ecosystem.
+Together, these two metrics offer a better perspective on the popularity
+of PaC tools by capturing both their depth of use within individual projects
+and their breadth of adoption across projects.
+4.1.3.Result
+Open Policy Agent (OPA)
+Kyverno OSSGateKeeper
+Pulumi
+HashiCorp Sentinel
+AWS Config
+Cloud Custodian
+Cedar Policy Language (CPL)
+Kubewarden
+Policy as Code (PaC) T ools
+0
+20
+40
+60
+80
+100
+No. of Files (%)
+62%
+16%
+7% 4% 4% 3% 3% 1% 0%
+(a) Percentage of PaC usage based on file counts.
+Open Policy Agent (OPA)
+Kyverno OSS
+Pulumi
+Cloud Custodian
+GateKeeperAWS Config
+HashiCorp Sentinel
+Cedar Policy Language (CPL)
+Kubewarden
+PaC T ools
+0
+20
+40
+60
+80
+100
+No. of Repos (%)
+29%
+21% 20% 16% 16%
+6% 5% 4% 1%
+(b) Percentage of PaC usage based on the number of repositories.
+Figure 4: Comparison of Policy as Code (PaC) tool usage
+Figure 4 summarizes the popularity of the nine PaC tools across our
+dataset of 399 projects. Figure 4a shows the percentage of files matching
+PaC tool patterns, capturing the intensity of tool usage within projects,
+10
+
+--- PAGE 11 ---
+while Figure 4b reports the percentage of repositories using at least one file
+from a given PaC tool, reflecting adoption breadth.
+From the file-based analysis (Figure 4a), OPA dominates PaC usage, ac-
+counting for 62% of all policy-related files that rely on OPA, followed at a
+distance by Kyverno (16%) and GateKeeper (7%). Pulumi and HashiCorp
+Sentinel each account for 4%, while AWS Config and Cloud Custodian con-
+tribute 3% each. Finally, the Cedar Policy Language (1%) shows lower but
+still notable adoption, whereas Kubewarden (<1%) has only a minimal pres-
+ence. Finally, the top three tools–OPA, Kyverno, and GateKeeper–account
+for 85% of the total PaC-related file count, illustrating their central role in
+active policy implementation.
+In contrast, the repository-level analysis (Figure 4b) shows a more bal-
+anced distribution. OPA appears in 29% of projects, followed by Kyverno
+(21%), Pulumi(20%), CloudCustodian(16%), andGateKeeper(16%). AWS
+Config (6%), HashiCorp Sentinel (5%), the Cedar Policy Language (4%), and
+Kubewarden (1%) round out the list. Collectively, the top four tools–OPA,
+Kyverno, Pulumi, and Cloud Custodian–account for 82% of the repositories.
+Overall, while OPA is the most deeply used tool (in terms of file count),
+other tools–especially Kyverno, Pulumi, and Custodian–demonstrate com-
+petitive breadth of adoption across OSS projects.
+All nine analyzed PaC tools are actively used by developers during
+the software development lifecycle. Among them,OPA,Kyverno,
+Pulumi, andCloud Custodianemerge as the top four most widely
+adopted tools across projects.
+4.2.RQ2: What kind of projects adopt PaC tools?
+4.2.1.Motivation
+Identifying the categories of projects that use PaC tools can reveal prac-
+tical contexts where PaC provides value. Understanding this landscape is
+critical for several reasons. First, it informs tool developers about the do-
+mains and development environments where their tools are being used, sup-
+porting future improvements and integration strategies. Second, it helps
+practitioners make informed decisions about where to adopt PaC or enhance
+existing development practices by aligning with project categories where PaC
+is commonly used, thereby supporting the development of more secure and
+governable software systems. Finally, it offers researchers a foundation for
+11
+
+--- PAGE 12 ---
+further empirical studies into the effectiveness, challenges, and potential of
+PaC in specific software development contexts.
+4.2.2.Approach
+To answer this research question, we conducted a manual qualitative anal-
+ysis of the open-source repositories that use PaC tools. This analysis was
+carried out by two researchers with strong backgrounds in Software Engi-
+neering for AI (SE4AI) and AI for Software Engineering (AI4SE).
+First, our labeling process began with a group discussion on an initial
+set of 20 repositories. The objective was to review these samples together
+and establish a shared understanding of the labeling categories. For this, we
+used the project taxonomy proposed by Majidi et al. [28] as a baseline and
+adapted it based on empirical evidence from our dataset, while introducing
+new categories when applicable. During labeling, we examined a variety of
+project metadata, including the GitHub repository name and topics, project
+description, README content, and, in some cases, the actual source code
+when additional context was needed. The time required to label a single
+project varied between 45 seconds and 30 minutes, depending on the com-
+plexity and clarity of the project documentation.
+Moving on, in order to validate and improve our understanding of the cat-
+egories and their definitions, each researcher independently labeled 40% of
+our sample of repositories (162 repositories). Next, we calculated the Cohen’s
+Kappa agreement score (κ), which yielded a substantial agreement score of
+0.77, indicating good consistency between the raters. All possible disagree-
+ments were discussed and resolved collaboratively, while also contributing to
+the refinement of our target categories. Following this harmonization step,
+we proceeded to label the remaining 217 repositories in parallel, applying the
+refined category schema. This phase achieved a near-perfect agreement score
+of 0.81. Once again, any remaining disagreements were resolved via collabo-
+rative discussion. As a result of this iterative manual inspection and reconcil-
+iation process, we categorized the dataset into six distinct project categories:
+DevOps, Toolkit, MLOps, Documentation, AI/Research, and Application
+System.
+4.2.3.Result
+Our manual categorization of our sample of GitHub repositories (399)
+shows that PaC tools are adopted across a diverse range of project types.
+Table 2 presents the distinct categories we identified (6) along with their
+12
+
+--- PAGE 13 ---
+Table 2: Distribution of Project Categories with Descriptions and Median Repository
+Metrics. The columns report the number and proportion of repositories per category,
+along with the median values for repository size (in kilobytes), number of contributors,
+forks, and stars.
+Category Descriptions Repos(%) Size(KB)ContribForksStars
+DevOps Projects that leverage infrastructure andoperations tools (e.g., Kubernetes,Ansible, Docker) to automate theprovisioning, deployment, andgovernance of software applications.
+68(17%)49,473 59 88 329
+Toolkit Standalone libraries, frameworks, APIs,plugins, or modules that offer reusablefunctionalities or components to simplifysoftware development.
+127(32%)13,354 23 40 152
+MLOps These projects combine AI/ML modelswith DevOps tools and practices toautomate the ML lifecycle, includingmodel training, deployment, monitoring,and governance.
+6 (1%) 10,104 4 33 164
+Documentation Projects that primarily serve asdocumentation, tutorials, workshops,demo or use case.
+147(37%)11,735 15 29 46
+AI/Research Academic or experimental projectsinvolving AI/ML models or techniques.1(0.2%)200 3 6 43
+ApplicationSystem These are software projects or programs.They may include web applications ortraditional systems without AI/MLcomponents.
+50(12%)26,253 22 31 80
+Total 399(100%)111,119126 227 814
+13
+
+--- PAGE 14 ---
+median repository characteristics. The most prevalent category isDocu-
+mentation(37%), comprising tutorials, workshops, and example use cases
+(e.g.,aws-samples/cfn101-workshop[29]). These projects tend to be modest
+in size and activity, with a median of 15 contributors, reflecting their role as
+educational or demonstrative resources. Next, we have the categoryToolkit
+(32%), mainly consisting of reusable libraries, APIs, and modules supporting
+software development (e.g.,kubescape/regolibrary[30]). These projects
+show moderate engagement, enabling integration and extension of PaC ca-
+pabilities.
+DevOpsprojects (17%) adopt PaC tools in infrastructure automation
+and governance workflows, consistent with their intended use in cloud-native
+systems (e.g.,cloudposse/atmos[31]). These repositories show the highest
+median values across all metrics, indicating production-grade adoption.Ap-
+plication System (12%)includes software systems–often web-based–that
+embedPaCtoolstoenforcepoliciesatruntime(e.g.,aquasecurity/postee[32]).
+MLOps (1%)projects, though few, integrate PaC tools within ML pipelines
+to support secure, trustworthy AI practices (e.g.,deployKF/deployKF[33]).
+Their presence signals early but growing interest in applying policy gov-
+ernance to AI systems. Finally, we identified a single project under the
+AI/Researchcategory (DataBassGit/AssistAF[34]).
+Overall, we observed that PaC tools are predominantly used indoc-
+umentationandtoolkits, reflecting their current ecosystem-building
+phase. Nonetheless, their adoption extends to a diverse range of do-
+mains, includingDevOps,application systems, andMLOps.
+4.3.RQ3: How is PaC used in practice across different projects?
+4.3.1.Motivation
+While prior questions establish the popularity and adoption contexts of
+PaC tools, they do not inform the types of policies being implemented. Un-
+derstanding how PaC is used in practice–i.e., the specific policy concerns
+being encoded–provides deeper insights into the functional roles these tools
+play within real-world software projects. Identifying which types of policies
+are most commonly defined can help assess how these tools align with devel-
+oper intentions and organizational priorities. Answering this question offers
+practical value for tool developers, as (i) it helps to identify which policy
+concerns receive the most attention, where existing tools may fall short, and
+14
+
+--- PAGE 15 ---
+(ii) how they can be improved to better align with developer workflows and
+organizational goals.
+4.3.2.Approach
+To investigate how PaC tools are used in practice and to identify the
+target resources governed by these policies, we employed a stratified random
+sampling approach combined with expert-guided policy analysis [35, 36, 37].
+For that, we followed the next steps:
+1 Data Collection
+From the full dataset (12,152 files from 399 repositories), we extracted a
+total of 373 PaC policy files using a 95% confidence level and a 5% confidence
+interval [10]. Stratified random sampling ensured proportional representation
+across different PaC tools.
+2 LLM-as-a-Judge - PaC Analysis
+To analyze and classify policies, we adopt theLLM-as-a-Judgeapproach,
+which treats LLMs as reference-free evaluators capable of categorizing in-
+puts based on structured schema [38]. This approach has shown promise
+in various domains of software engineering, including code summarization,
+bug triaging, and automated documentation [35, 38]. Inspired by this frame-
+work, each policy from the selected subset of files was analyzed using a LLM,
+specificallygpt-4o-mini, configured with a temperature of 0.2 [35]. The
+LLM was prompted with a detailed schema to classify each policy across
+seven structured dimensions: Primary Purpose, Sub-purposes, Taxonomy
+Category, Taxonomy Sub-category, Policy Implemented, and Rationale. The
+complete prompt and logic are included in our replication package [11]. The
+prompt guided the LLM to provide its answer in JSON.
+3 Manual Labelling - Pilot Study
+Knowing that no previous study defined categories for PaC, our goal is
+to build a taxonomy from our set of selected policies. For that, we ini-
+tially rely on the judgment of LLMs. Our approach is inspired by recent
+empirical work that also used LLM-generated judgments as a starting point
+for taxonomy construction [35], which developed a taxonomy of inefficient
+Python code generated by LLM using LLM-assisted analysis. Following this
+methodological precedent, we used LLM outputs as an initial guide. To start
+this process, we randomly selected a sample of 111 (S), representing 30% of
+15
+
+--- PAGE 16 ---
+the total sampleT, while maintaining proportional representation across all
+identified PaC tools. To ensure quality and reliability, two researchers with
+expertise in Software Engineering and Machine Learning collaboratively re-
+viewed and refined the LLM-generated taxonomy entries through discussion.
+Using an open coding approach [39], the researchers systematically evaluated
+each policy file by examining the LLM-assigned category and sub-category in
+relation to the content and structure of the policy. During this process, sev-
+eral issues with the raw LLM labels emerged. The LLM frequently produced
+overly specific categories such as“Kubernetes Workloads”,“Resource Paths”,
+“Network Access”, or“Infrastructure Deployment Configurations”. Through
+open coding, these fragmented or overly narrow labels were abstracted into
+broader, categories such asWorkload Management,“Resource Management”,
+and“Network Management”. Similarly, the LLM often used semantically
+overlapping high-level categories—such as“Security Governance”,“Access
+Control”, and“Resource Governance”—in inconsistent or interchangeable
+ways. Manual inspection revealed that many policies labeled as“Security
+Governance”were actually enforcing direct access restrictions (e.g., SSH ac-
+cess rules, API authorization, file-path permissions). These were therefore
+consolidated under a unified“Access Control”category. This manual re-
+finement was essential to correct hallucinations, resolve misinterpretations,
+and ensure conceptual coherence in the taxonomy [40]. Of the 111 pilot
+samples, 95 LLM-proposed labels were judged as conceptually acceptable
+with minor modifications, whereas 18 required substantive discussion and
+re-labelling. Through this open coding process, we arrived at an initial tax-
+onomy composed of 5 main categories and 15 sub-categories, grounded in
+both automated and expert insights.
+4 Full Dataset Labeling
+Once the pilot study was done, we moved into the second phase of our
+process by labelling the remaining samples of the dataset (70%), denoted as
+R. However, this time, we adopted a refined version of the LLM prompt, as
+we used the initial taxonomy, derived from the pilot study, as a guide to the
+LLM. The prompt explicitly asked the LLM to classify each policy according
+to the predefined categories and sub-categories. If a policy did not fit within
+the provided taxonomy, the LLM was instructed to suggest a new label. A
+notable outcome of this phase is that the taxonomy derived from the pilot
+sample proved fully stable when applied to the full dataset. No new top-level
+categories emerged during the full labelling step, indicating that the pilot-
+16
+
+--- PAGE 17 ---
+Figure 5: A Taxonomy of Policy-as-Code Usage and Adoption Patterns
+derived categories captured the principal governance intents present across
+tools. Likewise, at the sub-category level, all sub-categories observed in the
+full dataset had already been identified during the pilot phase. This confirms
+that the pilot taxonomy provided comprehensive coverage of the policy space
+and required no structural extensions when applied to the remaining samples.
+In contrast to the pilot study, two researchers independently reviewed the
+outputs. Inter-rater agreement was assessed using Cohen’s Kappa coefficient
+[41] to evaluate classification consistency across two dimensions: taxonomy
+category and sub-category. The resulting agreement scores were as follows:
+0.843for category,0.840for sub-category. These values indicate strong
+inter-rater reliability. All disagreements were resolved through discussion
+until full consensus was reached.
+4.3.3.Results
+Figure 5 presents the taxonomy of PaC usage, which consists of five main
+categories and fourteen sub-categories. During the taxonomy construction
+process, we were unable to classify 28 PaC files due to insufficient or in-
+complete code content. Now, we describe each main category along with its
+associated sub-categories as follows.
+Security Governance
+This category includes policies designed to protect software systems by
+defining and enforcing security-related rules. These rules ensure secure con-
+figurations, access restrictions, and appropriate behavior of infrastructure
+and services.
+17
+
+--- PAGE 18 ---
+•Access Control:This sub-category includes policies that restrict or
+grant access to specific resources based on roles, identity, or contextual
+factors. Examples include authorization policies for users, groups, or
+services that managewhocan accesswhatand under what conditions.
+•Configuration Validation:These policies ensure that individual re-
+sources conform to specific security, structural, or operational con-
+straints before being accepted or deployed. It focuses on validating
+fields such as volume types, base images, identity settings, and con-
+figuration correctness to prevent misconfigurations and enforce secure
+defaults.
+•Secrets Management:These policies focus on securing sensitive data
+such as API tokens, credentials, and keys. Policies in this sub-category
+enforce best practices for handling secrets–e.g., ensuring secrets are not
+hard-coded or are retrieved securely from a secrets manager.
+•NetworkManagement:Thesepoliciesregulatetrafficflow, IPwhitelist-
+ing, and connectivity rules within a system. They often include firewall
+rules, port restrictions, and control over ingress/egress configurations
+to reduce attack surfaces.
+•Resource Management:These policies enforce constraints on the
+creation, usage, and allocation of system resources such as CPU, mem-
+ory, containers, VMs, disk, clusters and Kubernetes pods. Typical
+policies ensure the creation, usage or allocation of secure system re-
+sources.
+•SecurityReviewCompliance:Itcontainspoliciesthatverifywhether
+certain conditions indicating security review processes have been prop-
+erly addressed. This ensures traceability and accountability during
+deployment and operational workflows.
+•Vulnerability Management:These policies aim to detect and pre-
+vent the deployment of software with known vulnerabilities or missing
+updates. This may include policies enforcing up-to-date package ver-
+sions or disallowing insecure dependencies.
+•Actions Restrictions:This sub-category focuses on preventing the
+execution of specific actions or commands that are considered harmful,
+18
+
+--- PAGE 19 ---
+unauthorized, or non-compliant with security policies. For example,
+a policy might deny execution of any command listed in a predefined
+deny list within a cloud-native container environment.
+•Workloads Management:This sub-category focuses on the config-
+uration and enforcement of operational constraints for workloads. For
+example, policies may deny the deployment of workloads that automat-
+ically mount service account tokens to enhance runtime security.
+Compliance Governance
+This taxonomy category ensures systems adhere to organizational poli-
+cies, industry standards, and legal requirements. It covers internal best prac-
+tices, external regulations, and service-specific constraints.
+•Resource Compliance:Policies that enforces structural or content
+rules on resource definitions to comply with organizational standards.
+These policies verify whether a resource instance meets defined com-
+pliance criteria–typically structural, security, or configuration require-
+ments. These policies operate at the level of resource correctness, such
+as ensuring a Kubernetes Pod has a required label, a Terraform file
+is in valid format, or a YAML config is syntactically and semantically
+sound.
+•Service Compliance:These policies ensure that services meet spe-
+cific operational, security, or performance requirements–e.g., ensuring
+logging or monitoring is enabled for critical services.
+•Standards Enforcement:This category enforces adherence of a par-
+ticular technology to its best practice implementations, often to im-
+prove maintainability, reusability, and operational consistency. It in-
+cludes policies that ensure consistent naming, approved module usage,
+tagging standards, and container optimization across systems. For ex-
+ample, a common policy requires the inclusion ofyum clean allafter
+yum installcommands in Dockerfile2 to ensure optimized image sizes
+and prevent unnecessary cache buildup.
+2https://shorturl.at/QnN19
+19
+
+--- PAGE 20 ---
+Deployment Governance
+Security Governance
+Workflow Automation
+Compliance Governance
+Cost Optimization
+Main categories of purpose
+AWS Config
+Cedar Policy Language
+Cloud Custodian
+GateKeeper
+HashiCorp Sentinel
+Kubewarden
+Kyverno OSS
+Open Policy Agent (OPA)
+Pulumi
+PaC tools
+Value 20 40 60
+Figure 6: Mapping PaC Tools to Governance Categories in OSS (Bubble size = % share)
+Cost Optimization
+Thiscategoryincludespoliciesaimedatreducingunnecessarycloudspend-
+ing. Examples include enforcing resource quotas, limiting compute capacity,
+and identifying idle or underutilized resources.
+Workflow Automation
+This category includes policies that trigger actions or workflows auto-
+matically, such as enforcing compliance during CI/CD, triggering audits, or
+provisioning of clouds infrastructure, resource allocation.
+Deployment Governance
+This category includes policies that govern the secure, compliant, and au-
+ditable deployment of software systems. It ensures that deployments are per-
+formed by authorized entities, under predefined conditions, and in alignment
+with operational and security requirements–such as validating artifact in-
+tegrity, enforcing configuration constraints, and controlling deployment per-
+missions.
+•Key Management:This sub-category focuses on the creation, mon-
+itoring, and lifecycle control of deployment-related keys. For example,
+20
+
+--- PAGE 21 ---
+a policy might trigger alerts when a new deploy key is created, ensur-
+ing visibility and accountability over sensitive credential usage during
+deployment workflows.
+•Access Control:This sub-category focuses on regulating who can
+perform which deployment actions and under what conditions. Poli-
+cies in this group ensure that only specific users or agents with verified
+identities and attributes are permitted to initiate deployment opera-
+tions.
+In complement to our taxonomy, Figure 6 offers a detailed breakdown of
+how different PaC tools are distributed across the five main governance cat-
+egories. Each bubble’s area is proportional to the percentage of policies
+within that tool that fall into the corresponding category (occurrences÷
+total policies for that tool×100). The legend markers (20/40/60) indi-
+cate representative percentage levels; the absence of a bubble denotes no ob-
+served policy for that tool–category pair. We clearly observe thatSecurity
+Governance, andCompliance Governancedominate the landscape, appear-
+ing across nearly all tools. Tools like OPA, Kyverno, and Pulumi exhibit
+substantial focus on security policies while sharing other purposes. Con-
+versely,Cost Optimizationremains the least targeted category, with only
+a few scattered instances across tools like Kyverno OSS and GateKeeper.
+This figure shows the importance of tool-purpose alignment in real-world
+PaC adoption: while some tools offer broad applicability, others like kuber-
+warden and cedar are more specialized.
+We identified five main categories of PaC usage, with Security Gov-
+ernance (65.4%) and Compliance Governance (21.3%) emerging as
+the most dominant purposes across the OSS ecosystem. While
+less frequent categories–such as Workflow Automation, Deployment
+Governance, and especially Cost Optimization–highlight emerging or
+context-specific adoption needs.
+4.4.RQ4: Are different PaC tools used together?
+4.4.1.Motivation
+When addressing RQ1, we observed that OPA alone accounts for more
+than half of the PaC-related files, while RQ3 shows that some purposes are
+shared by multiple PaC tools. These findings raised the question of whether
+21
+
+--- PAGE 22 ---
+some PaC tools are commonly used in conjunction with other PaC tools. Un-
+derstanding the co-usage of PaC tools can provide valuable insights for sev-
+eral stakeholders: (i) practitioners may benefit from knowledge about com-
+mon tool combinations to inform their adoption strategies and integration
+workflows; (ii) researchers can further investigate the rationale behind tool
+combinations and their complementary use cases; and (iii) tool developers
+can enhance interoperability by designing features that facilitate integration
+with other commonly co-used PaC tools.
+4.4.2.Approach
+To investigate whether different PaC tools are used together in the same
+projects, we performed a co-usage analysis across the 399 repositories. This
+analysis consisted of the following steps:
+Binary Co-usage Matrix Construction
+For each repository, we identified the set of tools used, based on the
+presence of corresponding policy files as defined in our identification patterns
+(see Section 3). Next, we take this information and build a binary matrix
+where rows represent repositories and columns indicate the presence (1) or
+absence (0) of each PaC tool.
+Co-usage Frequency Calculation
+Using the binary matrixBof sizen×m(wherenis the number of
+repositories andmthe number of PaC tools), we computed a symmetric co-
+usage matrixCby multiplying the transpose ofBwith itself:C=B ⊤B.
+Each cellC ij in the resulting matrix represents the number of repositories
+where both toolsiandjare used together.
+Normalization & Co-usage Intensity Analysis
+To better understand the relative co-usage, we normalized the matrix
+to express values as a percentage of total repositories, allowing for intuitive
+identification of strong co-usage relationships between specific tools. Finally,
+to complement the matrix co-usage, we also calculated how many distinct
+PaC tools were used per repository (e.g., using 1, 2, 3, or more tools).
+4.4.3.Result
+Figure 7 presents the co-usage matrix between PaC tools, showing how
+frequently tools appear together across repositories. Most PaC tools are
+22
+
+--- PAGE 23 ---
+HashiCorp Sentinel
+Open Policy Agent (OPA)
+Pulumi
+Cedar Policy Language (CPL)
+Kyverno OSS
+Cloud Custodian
+AWS ConfigGateKeeperKubewarden
+PaC T ools
+HashiCorp Sentinel
+Open Policy Agent (OPA)
+Pulumi
+Cedar Policy Language (CPL)
+Kyverno OSS
+Cloud Custodian
+AWS Config
+GateKeeper
+Kubewarden
+PaC T ools
+1.00 0.09 0.00 0.00 0.00 0.00 0.00 0.05 0.00
+0.01 1.00 0.01 0.01 0.05 0.03 0.01 0.15 0.00
+0.00 0.12 1.00 0.00 0.00 0.00 0.18 0.00 0.00
+0.00 0.17 0.00 1.00 0.00 0.00 0.00 0.00 0.00
+0.00 0.08 0.00 0.00 1.00 0.02 0.03 0.16 0.05
+0.00 0.07 0.00 0.00 0.03 1.00 0.03 0.02 0.02
+0.00 0.08 0.12 0.00 0.12 0.08 1.00 0.00 0.00
+0.01 0.30 0.00 0.00 0.20 0.01 0.00 1.00 0.01
+0.00 0.00 0.00 0.00 1.00 0.25 0.00 0.25 1.00
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Figure 7: Co-usage matrix of PaC tools.
+predominantly used in isolation, with co-usage values close to zero across
+most pairs. However, a few tools demonstrate notable integration patterns.
+In particular, OPA exhibits the highest co-usage with GateKeeper (30%),
+followed by Cedar Policy Language (17%) and Pulumi (12%). Overall, OPA
+is used in combination with seven other PaC tools, except Kubewarden.
+This pattern can be explained by OPA’s design as a general-purpose policy
+engine, which benefits from coupling with domain-specific tools that offer
+more context-aware policy abstractions, as highlighted in Section 4.3. While
+the large majority of repositories (85.24%) adopt only one PaC tool, 13.53%
+of projects use two tools, and very few employ three tools simultaneously
+(1.23%). Notably, only one project uses more than three PaC tools. This
+finding suggests that while PaC tools can be combined, they are most often
+adopted in isolation.
+Most OSS projects (85.24%) adopt only one PaC tool, showing a
+clear preference for isolated use. Multi-tool adoption is less common
+(14.76%), most notablyOPAwithGateKeeper, though OPA also
+appears with seven other tools, suggesting emerging integration prac-
+tices.
+23
+
+--- PAGE 24 ---
+5. DISCUSSION AND IMPLICATION
+This section presents the implications of our findings for the research
+community, practitioners, and tools developers.
+Researchers
+Our study offers a broad perspective on how practitioners use PaC tools
+in open-source projects. The results show that these tools are widely adopted
+in different project categories, particularly those serving as documentation
+(Table 2). Future research could investigate the factors shaping adoption,
+such as project maturity, community engagement, and organizational needs.
+Beyond documentation, PaC tools are most frequently used in traditional
+software systems, with limited adoption in Software 2.0 projects that embed
+AI or ML components. This underrepresentation suggests that the use of
+PaC in AI-enabled systems remains at an early stage, possibly because exist-
+ing tools do not yet address the unique governance requirements of AI. This
+gap opens promising directions for research on how PaC frameworks could
+evolve to support trustworthiness, compliance, and lifecycle governance in
+intelligent systems, especially under emerging regulations such as the EU AI
+Act. Our methodological approach–combining LLM-assisted classification
+with expert validation–also illustrates both the potential and the limitations
+of using AI in empirical software engineering. This hybrid strategy highlights
+opportunities for advancing methods that integrate automated classification
+with human expertise, enabling the scalable analysis of large, heterogeneous
+code corpora while maintaining reliability and interpretability. Finally, our
+taxonomy provides a foundation for future extensions. As governance needs
+evolve in domains such as AI, cloud-native systems, and regulatory compli-
+ance, new categories and subcategories should be incorporated to capture
+emerging practices.
+PaC Tool Developers
+Our results show that PaC tools are mainly used for security governance
+and compliance, with limited cases of advanced automation or multi-tool
+integration. Tool developers should therefore focus on improving the inter-
+operability of PaC tools. Co-usage patterns–such as OPA frequently paired
+with GateKeeper–signal demand for complementary features that could be
+enabled through standardized APIs, modular architectures, or shared policy
+libraries to ease the combination of multiple PaC tools. The prominence
+24
+
+--- PAGE 25 ---
+of documentation-oriented projects further highlights the importance of ac-
+cessible learning resources and well-designed examples as adoption drivers.
+Developers should also explore opportunities in emerging domains such as
+MLOps, where policies must extend beyond infrastructure governance to ad-
+dress fairness, accountability, and regulatory compliance.
+Practitioners
+For practitioners, our study offers concrete insights into the adoption
+contexts and usage patterns of PaC tools. These findings can help them
+understandtoolpopularityandthediversepurposesforwhichPaCisapplied,
+informing the design and implementation of policies in their own systems.
+Our results also show that PaC tools often align with specific purposes–
+for example, Kuberwarden, which is more specialized for compliance, and
+Cedar specializes in security governance. Recognizing these distinctions can
+guide practitioners in selecting tools that best match their deployment and
+governance needs, rather than treating all PaC tools as interchangeable.
+6. RELATED WORKS
+In this section, we review research that intersects with our investigation
+on the adoption and usage of PaC tools in software engineering.
+Chinamanagonda et al. [42] highlight the growing reliance on automation
+to enforce cloud governance, showing how policy-driven frameworks improve
+compliance, security, and operational efficiency by reducing human error and
+enabling continuous monitoring. Xu et al. [43] present Aurasium, a system
+that enforces security and privacy policies in Android applications by repack-
+aging APKs with user-level sandboxing. Their approach demonstrates how
+static instrumentation and runtime monitoring enable fine-grained enforce-
+ment without OS modifications.
+Verdet et al. [44] conduct an empirical study of security policies in Ter-
+raform scripts across AWS, Azure, and GCP. Using static analysis tools such
+as Checkov and Tfsec, they assess the prevalence and enforcement of 682
+security policies. While focused on IaC, their findings complement our work
+by providing evidence on policy adoption in cloud infrastructure, whereas
+we broaden the scope to include PaC tools for access control, compliance,
+and validation (e.g., OPA, Kyverno). He et al. [45] introduce ReCAPS, a
+requirements-based method for integrating access control policy specifica-
+tion into the software development process. Their case study shows how
+25
+
+--- PAGE 26 ---
+inconsistencies between requirements, policies, and design artifacts can be
+systematically resolved, resonating with our interest in automating policy
+enforcement in OSS projects.
+Wei et al. [46] conducted a comprehensive multivocal literature review
+of theEverything-as-Code(EaC) paradigm and proposed a conceptual tax-
+onomy encompassing multiple dimensions, includingInfrastructure-as-Code,
+Configuration-as-Code, and Policy-as-Code, organized into six broader func-
+tional layers. Within this model, they emphasize security and compliance as
+central governance concerns across several PaC practices, which align with
+two of the dominant categories identified in our empirical taxonomy. Our
+study complements Wei et al.’s work by providing large-scale empirical ev-
+idence from open-source repositories, illustrating how these governance as-
+pects manifest in practice. Furthermore, our analysis extends beyond the
+conceptual dimensions described by Wei et al. by uncovering additional,
+practice-driven categories,cost optimization, workflow automation, and de-
+ployment governance, that emerge from real-world PaC adoption.
+Caracciolo et al [47] explore the implementation of compliance automa-
+tionincloudenvironmentsusingthePolicy-as-Codeparadigm. Thestudyde-
+velops a proof-of-concept integrating OPA Gatekeeper within a cloud-based
+DevSecOps pipeline to demonstrate how policies can be automatically en-
+forced across cloud workloads. This work complements our research by pro-
+viding a system-level evaluation of PaC effectiveness in enforcing compliance
+and security policies within practical DevOps workflows.
+Together, these studies demonstrate how policy management and au-
+tomation have been advanced across mobile, web, and cloud domains. Yet,
+to the best of our knowledge, no prior work has undertaken a large-scale
+empirical investigation of PaC adoption in open-source projects. Our study
+addresses this gap by providing a comprehensive analysis of PaC usage trends
+in real-world repositories.
+7. THREATS TO VALIDITY
+Now, we discuss the thread on the validity of our work.
+Construct validity threats
+Threats to construct validity primarily concern errors in identifying PaC
+tools based on ad-hoc detection patterns. To reduce this risk, we system-
+atically derived patterns from official tool documentation and made them
+26
+
+--- PAGE 27 ---
+publicly available in our replication package [11]. Another concern is false
+positives, such as repositories including PaC files only as illustrative exam-
+ples. We mitigated this risk in two ways. First, at the project selection
+stage, we excluded “toy” repositories using activity, popularity, and accessi-
+bility filters. Second, during taxonomy construction, we discarded files whose
+content was insufficient to determine an intended usage, thereby reducing the
+influence of non-representative artifacts on our findings.
+Internal validity threats
+We manually classified projects using PaC tools and analyzed a sam-
+ple of PaC code to understand the types of projects adopting these tools
+and the purposes for which they are employed. Manual labeling, however,
+introduces risks to reliability, and even LLM-based classification can suffer
+from errors such as hallucinations. To mitigate these risks, we applied strat-
+ified sampling and a double-coding strategy: two researchers independently
+performed the labeling and evaluated inter-rater agreement, achieving sub-
+stantial consistency (see Section 4.3), in line with established practices in
+software engineering research [23, 35]. Despite these measures, we acknowl-
+edge that some practitioners’ use of PaC tools may fall outside the scope of
+our taxonomy. Future surveys and qualitative studies would be valuable to
+validate and extend our findings.
+Another possible threat arises from our decision to treat each PaC file
+as an atomic unit of analysis. This assumes that the dominant concern ex-
+pressed in a file reflects its primary purpose. In practice, a file may encode
+multiple, overlapping concerns that are not fully captured by our catego-
+rization. We chose the file level because most PaC frameworks—such as
+Rego, Sentinel, or JSON/YAML-based engines—are built on declarative lan-
+guages where the file constitutes the standard unit of authoring, execution,
+and distribution. This makes the file level the most natural lens through
+which to study developer practices. To reduce oversimplification, we de-
+signed our prompt and review process to capture both primary purposes and
+sub-purposes, and we applied normalization across heterogeneous outputs.
+Nevertheless, future work could explore finer-grained analyses, for instance
+at the level of individual rules or function calls, to better capture cases where
+a single file encodes multiple governance concerns.
+27
+
+--- PAGE 28 ---
+External validity threats
+Our dataset is restricted to open-source projects hosted on GitHub, which
+may not fully represent proprietary or enterprise contexts where PaC adop-
+tion could follow different practices and motivations. Moreover, our filtering
+criteria (e.g., minimum stars, forks, and recent activity) excluded smaller
+or inactive projects, potentially underrepresenting early experimentation or
+niche usage. While our findings offer valuable insights into adoption trends
+in the open-source ecosystem, caution is warranted when extrapolating them
+to industrial settings. Future work should examine custom in-house solutions
+and proprietary tools, which may exhibit distinct usage patterns.
+8. CONCLUSION AND FUTURE WORK
+This paper presented the first large-scale empirical study of PaC adoption
+in open-source projects. We examined nine prominent tools and showed that
+they are mainly used in traditional software systems, while beginning to gain
+traction in intelligent systems.
+Using LLM-assisted classification combined with systematic sampling and
+expert validation, we found that PaC tools are most commonly applied to
+security and compliance governance. Adoption is also shaped by resource
+environments, with Kubernetes-native tools and cloud-specific frameworks
+dominating their domains. Analysis of co-usage patterns revealed that, al-
+though OPA is occasionally combined with other tools, most projects adopt
+a single PaC tool in isolation.
+Future work will investigate underutilized features that may indicate us-
+abilitychallengesoropportunitiesfortoolevolution, andquantitativelystudy
+factors influencing successful adoption across both open-source and propri-
+etary contexts.
+9. ACKNOWLEDGMENT
+ThisworkissupportedbytheDEELprojectCRDPJ537462-18fundedby
+the Natural Sciences and Engineering Research Council of Canada (NSERC)
+and the Consortium for Research and Innovation in Aerospace in Québec
+(CRIAQ), together with its industrial partners Thales Canada inc, Bell Tex-
+tron Canada Limited, CAE inc and Bombardier inc.
+28
+
+--- PAGE 29 ---
+References
+[1] P. Anthonysamy, A. Rashid, R. Chitchyan, Privacy requirements:
+Present & future, in: 2017 IEEE/ACM 39th International Conference
+on Software Engineering: Software Engineering in Society Track (ICSE-
+SEIS), 2017, pp. 13–22.doi:10.1109/ICSE-SEIS.2017.3.
+[2] A. Anwar, A. Khormali, D. Nyang, A. Mohaisen, Understanding the
+hidden cost of software vulnerabilities: Measurements and predictions,
+in: International Conference on Security and Privacy in Communication
+Systems, Springer, 2018, pp. 377–395.
+[3] B. N. Taylor, C. E. Kuyatt, et al., Guidelines for evaluating and ex-
+pressing the uncertainty of NIST measurement results, Vol. 1297, US
+Department of Commerce, Technology Administration, National Insti-
+tute of ..., 1994.
+[4] E. A. I. Act, The eu artificial intelligence act, European Union (2024).
+[5] Policy as code, accessed March 2025 (2025).
+URLhttps://shorturl.at/DQ7QX
+[6] Open policy agent (opa), accessed March 2025 (2025).
+URLhttps://www.openpolicyagent.org/
+[7] Kyverno, accessed March 2025 (2025).
+URLhttps://kyverno.io/
+[8] What is policy as code (pac) & how do you implement it?, accessed
+June 2025 (2025).
+URLhttps://spacelift.io/blog/what-is-policy-as-code#
+policy-as-code-tools
+[9] P. L. Foalem, L. D. Silva, F. Khomh, H. Li, E. Merlo, Logging require-
+ment for continuous auditing of responsible machine learning-based ap-
+plications, Empirical Software Engineering 30 (3) (2025) 97.
+[10] P. L. Foalem, F. Khomh, H. Li, Studying logging practice in machine
+learning-based applications, Information and Software Technology 170
+(2024) 107450.
+29
+
+--- PAGE 30 ---
+[11] Replication package,https://github.com/foalem/Pac-paper, re-
+trieved August 2025.
+[12] Policy as code tools & examples to make better infrastructure easier,
+anywhere, accessed March 2025 (2025).
+URLhttps://www.puppet.com/blog/policy-as-code
+[13] Open policy agent (opa), accessed June 2025 (2025).
+URLhttps://www.openpolicyagent.org/
+[14] Hashicorp sentinel, accessed June 2025 (2025).
+URLhttps://developer.hashicorp.com/sentinel/docs/
+concepts/policy-as-code
+[15] Pulumi crossguard: Core concepts, accessed June 2025 (2025).
+URLhttps://www.pulumi.com/docs/iac/using-pulumi/
+crossguard/core-concepts/
+[16] Cedar policy language (cpl), accessed June 2025 (2025).
+URLhttps://docs.cedarpolicy.com/
+[17] Kyverno oss: Security documentation, accessed June 2025 (2025).
+URLhttps://kyverno.io/docs/security/
+[18] Cloud custodian documentation, accessed June 2025 (2025).
+URLhttps://cloudcustodian.io/docs/
+[19] Aws config, accessed June 2025 (2025).
+URLhttps://aws.amazon.com/config/
+[20] Opa gatekeeper documentation, accessed June 2025 (2025).
+URLhttps://open-policy-agent.github.io/gatekeeper/
+website/docs/
+[21] Kubewarden, accessed June 2025 (2025).
+URLhttps://www.kubewarden.io/
+[22] Github rest api documentation, accessed March 2025 (2025).
+URLhttps://docs.github.com/en/rest?apiVersion=2022-11-28
+30
+
+--- PAGE 31 ---
+[23] M. Openja, F. Majidi, F. Khomh, B. Chembakottu, H. Li, Studying the
+practices of deploying machine learning projects on docker, in: Proceed-
+ings of the 26th international conference on evaluation and assessment
+in software engineering, 2022, pp. 190–200.
+[24] D. Gonzalez, T. Zimmermann, N. Nagappan, The state of the ml-
+universe: 10 years of artificial intelligence & machine learning software
+development on github, in: Proceedings of the 17th International con-
+ference on mining software repositories, 2020, pp. 431–442.
+[25] Everyone loves policy as code, no one wants to write rego, accessed
+March 2025 (2025).
+URLhttps://www.permit.io/blog/no-one-wants-to-write-rego
+[26] H. L. Sgard, Navigating the challenges of policy as code in azure,
+accessed March 2025 (2024).
+URLhttps://hlokensgard.no/2024/01/15/
+navigating-the-challenges-of-policy-as-code-in-azure/
+[27] How policy-as-code can make your developers infallible, accessed March
+2025 (2025).
+URLhttps://axiomatics.com/blog/how-policy-as-code-can-make-your-developers-infallible
+[28] F. Majidi, M. Openja, F. Khomh, H. Li, An empirical study on the
+usage of automated machine learning tools, in: 2022 IEEE International
+Conference on Software Maintenance and Evolution (ICSME), IEEE,
+2022, pp. 59–70.
+[29] Repo,https://github.com/aws-samples/cfn101-workshop, re-
+trieved August 2025.
+[30] Repo,https://github.com/kubescape/regolibrary, retrieved Au-
+gust 2025.
+[31] Repo,https://github.com/cloudposse/atmos, retrieved August
+2025.
+[32] Repo,https://github.com/aquasecurity/postee, retrieved August
+2025.
+31
+
+--- PAGE 32 ---
+[33] Repo,https://github.com/deployKF/deployKF, retrieved August
+2025.
+[34] Repo,https://github.com/DataBassGit/AssistAF, retrieved August
+2025.
+[35] A. A. Abbassi, L. Da Silva, A. Nikanjam, F. Khomh, Unveiling inef-
+ficiencies in llm-generated code: Toward a comprehensive taxonomy,
+arXiv preprint arXiv:2503.06327 (2025).
+[36] A. Ouni, I. Saidani, E. Alomar, M. W. Mkaouer, An empirical study on
+continuous integration trends, topics and challenges in stack overflow,
+in: Proceedings of the 27th International Conference on Evaluation and
+Assessment in Software Engineering, 2023, pp. 141–151.
+[37] Z. Chen, Y. Cao, Y. Liu, H. Wang, T. Xie, X. Liu, A comprehensive
+study on challenges in deploying deep learning based software, in: Pro-
+ceedings of the 28th ACM joint meeting on European software engineer-
+ing conference and symposium on the foundations of software engineer-
+ing, 2020, pp. 750–762.
+[38] H. Li, C.-P. Bezemer, A. E. Hassan, Software engineering and foun-
+dation models: Insights from industry blogs using a jury of foundation
+models, in: 2025 IEEE/ACM 47th International Conference on Software
+Engineering: Software Engineering in Practice (ICSE-SEIP), 2025, pp.
+307–318.doi:10.1109/ICSE-SEIP66354.2025.00033.
+[39] C. B. Seaman, Qualitative methods in empirical studies of software en-
+gineering, IEEE Transactions on software engineering 25 (4) (1999) 557–
+572.
+[40] Z. Zhang, C. Wang, Y. Wang, E. Shi, Y. Ma, W. Zhong, J. Chen,
+M. Mao, Z. Zheng, Llm hallucinations in practical code generation:
+Phenomena, mechanism, and mitigation, Proceedings of the ACM on
+Software Engineering 2 (ISSTA) (2025) 481–503.
+[41] J. Cohen, A coefficient of agreement for nominal scales, Educational and
+psychological measurement 20 (1) (1960) 37–46.
+[42] S. Chinamanagonda, Automating cloud governance-organizations au-
+tomating compliance and governance in the cloud (2021).
+32
+
+--- PAGE 33 ---
+[43] R. Xu, H. Saïdi, R. Anderson, Aurasium: Practical policy enforce-
+ment for android applications, in: 21st USENIX Security Symposium
+(USENIX Security 12), 2012, pp. 539–552.
+[44] A. Verdet, M. Hamdaqa, L. D. Silva, F. Khomh, Assessing the adop-
+tion of security policies by developers in terraform across different cloud
+providers, Empirical Software Engineering 30 (3) (2025) 74.
+[45] Q.He, P.Otto, A.I.Anton, L.Jones, Ensuringcompliancebetweenpoli-
+cies, requirements and software design: A case study, in: Fourth IEEE
+International Workshop on Information Assurance (IWIA’06), IEEE,
+2006, pp. 14–pp.
+[46] H. Wei, N. Madhavji, J. Steinbacher, Understanding everything as code:
+A taxonomy and conceptual model, arXiv preprint arXiv:2507.05100
+(2025).
+[47] M. Caracciolo, Policy as code, how to automate cloud compliance verifi-
+cation with open-source tools, Ph.D. thesis, Politecnico di Torino (2023).
+33

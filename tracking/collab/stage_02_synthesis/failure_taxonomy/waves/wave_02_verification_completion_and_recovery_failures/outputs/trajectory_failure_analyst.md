@@ -1,0 +1,186 @@
+TRAJECTORY_FAILURE_OUTPUT
+- artifact: `failure_taxonomy`
+- role: `trajectory/failure analyst`
+- preflight_scope_confirmed:
+  - Wave 02 is handled as failure attribution for `verification_completion_and_recovery_failures`, not as generic verification recap.
+  - Eval/benchmark fifth lane is treated as load-bearing for acceptance mismatch claims.
+  - BigAI claims remain `behavioral reconstruction`.
+- preflight_planned_read_order:
+  - control files and wave packet controls
+  - required trajectory triads for `db-wal-recovery`, `cancel-async-tasks`, `extract-moves-from-video`
+  - BigAI trace-layer answered-questions surface
+  - bundled verifier artifacts (`reward.txt`, `ctrf.json`, `test-stdout.txt`, `exception.txt`) for required runs
+  - required support-track dossiers and case studies for wave updates
+- preflight_critical_sources_selected:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/synthesis/principal_synthesis.md`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- preflight_coverage_risks:
+  - Required trajectory scope includes only one readable BigAI extract run and a near-empty deepagents extract run; extraction-family attribution remains thin.
+  - Several required directories include only tar bundles for some runs (no paired `-traj.txt`), forcing reliance on verifier bundle artifacts for those rows.
+  - A-Evolve remains trajectory-thin for this wave; attribution for A-Evolve stays source/eval-routed.
+- preflight_likely_blind_spots:
+  - Hidden controller criteria for when BigAI verifier is invoked vs omitted.
+  - Exact internal mapping between in-run “verified” narration and benchmark reward assignment.
+  - KIRA db-wal-recovery failure root-cause beyond visible `getcwd`/cwd-loss symptoms.
+- preflight_blockers:
+  - none
+- coverage_used:
+  - `research/sources/trajectories/BigAI/db-wal-recovery/*-traj.txt`
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/*-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - `research/sources/trajectories/deepagents/extract-moves-from-video/67dc6598-86d3-4439-b6be-de398cd964e8-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+  - required tar verifier artifacts under:
+    - `research/sources/trajectories/BigAI/db-wal-recovery/*.tar.gz`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/*.tar.gz`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/*.tar.gz`
+    - `research/sources/trajectories/deepagents/db-wal-recovery/*.tar.gz`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/*.tar.gz`
+    - `research/sources/trajectories/deepagents/extract-moves-from-video/*.tar.gz`
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/*.tar.gz`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/*.tar.gz`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/*.tar.gz`
+  - wave controls:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/brief.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+- coverage_not_yet_used:
+  - direct BigAI `extract-moves-from-video/20be4239-23ea-49e2-afa1-c5098adeccf3-traj.txt` (no paired `-traj.txt` captured)
+  - additional BigAI verifier-heavy task families outside required packet (`adaptive-rejection-sampler/**`)
+  - full benchmark grader implementations beyond bundled per-run verifier outputs
+- evidence_classes_touched:
+  - `trajectories`
+  - `benchmark captures` (bundled verifier outputs in trajectory tar artifacts)
+  - `local analysis` (`bigai_trace_layer`)
+  - `local synthesis artifacts` (case studies/dossiers/control surfaces)
+- priority_sources_not_yet_read:
+  - `research/sources/benchmarks/**` grader internals for each required task family
+  - additional trajectory slices for deepagents and BigAI in extraction regime with complete end-state traces
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/outputs/trajectory_support_false_completion_matrix.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_02_verification_completion_and_recovery_failures/outputs/trajectory_support_recovery_failure_matrix.md`
+- support_artifacts_requested_or_deferred:
+  - requested+produced in-lane:
+    - `trajectory_support_false_completion_matrix.md`
+    - `trajectory_support_recovery_failure_matrix.md`
+  - deferred:
+    - none
+- coverage_register_updates_needed:
+  - mark `failure_taxonomy` Wave 02 from `packet-prepared, not started` to `in progress (trajectory lane first pass complete)`.
+  - add concrete warning: verifier-pass/narrative-success can diverge from reward/ctrf failure in required wave trajectories.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/verification_and_replay.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/checkpoint_restore_and_resumability.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/verification_completion_recovery_failures.md`
+  - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_and_recovery.md`
+  - `tracking/collab/stage_02_synthesis/eval_benchmark_dossiers/verification_completion_recovery_failures.md`
+- direct_behavior_observations:
+  - observation: BigAI `cancel-async-tasks` run `98b7...` emits `finish_verification` with `verification_result_status: "PASSED"` and a success narrative, but bundled verifier output fails `test_tasks_cancel_above_max_concurrent` with reward `0`.
+    inference: false-completion and stale-success signaling can survive an in-run verifier pass path when final benchmark gate is stricter.
+    confidence: high
+    evidence_paths:
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee.tar.gz`
+  - observation: deepagents `cancel-async-tasks` run reports local checks (`max_running 2`, `cleaned [0, 1]`) and a verified narrative, but bundled verifier output also fails `test_tasks_cancel_above_max_concurrent` with reward `0`.
+    inference: inline verification can be systematically incomplete for above-concurrency cancellation contracts, producing replay/grader mismatch.
+    confidence: high
+    evidence_paths:
+      - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+      - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf.tar.gz`
+  - observation: BigAI `extract-moves-from-video` run `953d...` contains no `finish_verification` call and no visible verifier closeout; KIRA run `3df8...` marks task complete after unresolved count/quality pressure; both runs end with reward `0` and content-similarity failure in verifier bundles.
+    inference: verifier omission (BigAI) and weak completion gating (KIRA) both map to final-acceptance mismatch in perception-heavy extraction tasks.
+    confidence: high
+    evidence_paths:
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d.tar.gz`
+      - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+      - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd.tar.gz`
+  - observation: terminus-kira `db-wal-recovery` bundle fails with reward `0` and verifier/test stderr dominated by `getcwd: cannot access parent directories`; no successful completion bundle is visible in this required run.
+    inference: recovery/resume breakdown can be environment-state drift (cwd invalidation) rather than purely algorithmic WAL repair failure.
+    confidence: medium
+    evidence_paths:
+      - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+      - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2.tar.gz`
+  - observation: BigAI `db-wal-recovery` required runs show repeated `finish_verification: PASSED` and bundle-level reward `1` / `ctrf passed` after backup/cleanup-state handling.
+    inference: this family is a positive control where layered verifier plus cleanup checks align with final acceptance.
+    confidence: high
+    evidence_paths:
+      - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+      - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+      - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+      - `research/sources/trajectories/BigAI/db-wal-recovery/*.tar.gz`
+- workflow_patterns:
+  - recurring cross-family pattern: self-asserted completion before hardest verifier contract runs.
+  - recurring BigAI pattern: planner/executor success narration followed by explicit verifier pass/fail loop.
+  - recurring KIRA pattern in required slices: task-complete pressure appears before contradiction closure in extraction-heavy runs.
+- verification_and_recovery_patterns:
+  - pattern: inline local checks validate simple invariants (existence/basic counts) but miss benchmark edge cases (`cancel_above_max_concurrent`).
+  - pattern: external verifier bundles expose mismatch between in-run confidence and final reward/ctrf status.
+  - pattern: recovery that fixes logic can still fail acceptance when environment state is broken (cwd/path invalidation) or quality contract unmet (content similarity).
+- failure_candidates:
+  - `FT-W02-VCRF-01 verifier_omission_or_absence_in_high-risk_regimes`
+    - behavioral surface: no visible verifier closeout in BigAI extract trajectory despite high ambiguity extraction workflow.
+    - confidence: medium
+    - weakening factor: only one readable BigAI extract trajectory in required packet.
+  - `FT-W02-VCRF-02 false_completion_and_stale_success_signaling`
+    - behavioral surface: BigAI and deepagents cancel runs claim verified success while benchmark bundle fails same run.
+    - confidence: high
+  - `FT-W02-VCRF-03 cleanup_confirmed_but_invalid_completion`
+    - behavioral surface: runs can present cleanup/verification narratives and still fail benchmark content/corner-case assertions.
+    - confidence: high
+  - `FT-W02-VCRF-04 recovery_resume_breakdown_from_environment_state_drift`
+    - behavioral surface: KIRA db-wal-recovery fails with cwd/path collapse (`getcwd` errors) instead of converging on recovery closure.
+    - confidence: medium
+    - weakening factor: single required KIRA run; no second confirming run in packet.
+  - `FT-W02-VCRF-05 replay_grader_final_acceptance_mismatch`
+    - behavioral surface: in-run `PASSED` or completion narration diverges from `reward.txt` and `ctrf` fail outcomes.
+    - confidence: high
+- cross_family_comparisons:
+  - BigAI: richest visible verifier loop, but still exhibits verifier/narrative vs final-gate mismatch in required cancel/extract slices; remains `behavioral reconstruction`.
+  - deepagents: strongest inline-proof posture in db-wal-recovery; weakest against above-max-concurrency cancellation edge in bundled verifier.
+  - terminus-kira: strongest explicit completion protocol in source family, but required trajectories still show completion-pressure over unresolved quality/environment contradictions.
+- contradiction_notes:
+  - contradiction: verifier-heavy narrative does not guarantee final acceptance (`BigAI cancel 98b7`, `deepagents cancel ca5a...`).
+  - contradiction: completion protocol presence (`task_complete` confirmation prompts in KIRA) does not guarantee benchmark-grade correctness (`extract-moves` similarity fail).
+  - contradiction: strong db-wal-recovery success in BigAI and deepagents coexists with KIRA failure from environment drift, so attribution must remain mixed across model/harness/environment layers.
+- confidence_notes:
+  - high-confidence claims are those with both trajectory evidence and bundle-level verifier outcome alignment/mismatch.
+  - medium-confidence claims are those with single-run surfaces (notably KIRA db-wal-recovery root-cause attribution).
+  - no low-confidence family was promoted as decision-ready.
+- open_questions:
+  - What concrete controller policy in BigAI decides verifier invocation/omission for high-risk tasks?
+  - Are deepagents and BigAI cancel failures on `cancel_above_max_concurrent` caused by same semantic gap or different runtime policies?
+  - Is KIRA db-wal-recovery cwd collapse reproducible across multiple runs or an isolated environment incident?
+- next_hand_off_target:
+  - `eval/benchmark analyst` for grader/replay contract deep dive on required tasks.
+  - `codebase/source-reconstruction analyst` for cancellation edge semantics and recovery-state handling paths.

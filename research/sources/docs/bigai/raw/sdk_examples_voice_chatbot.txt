@@ -1,0 +1,84 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/sdk/examples/voice_chatbot/?q=
+================================================================================
+
+Voice Chatbot Web 示例¶
+
+TongAgents 框架支持多模态交互。该示例展示了如何结合实时语音输入、Gradio 界面与异步处理，实现语音聊天机器人的端到端应用。
+
+环境准备¶
+安装 TongAgents SDK，参考安装指南
+配置模型服务及相应依赖（如 Gradio、NumPy、SciPy 等）
+代码示例¶
+
+示例中一个核心组件是 WebEnv 类，用于管理音频数据流：
+
+事件生成：event_generator 从音频队列读取音频字节，并将其转换为 base64 编码的流式事件。
+音频处理：process_audio 函数对采集到的音频数据进行重采样、降噪及转码处理，并将处理后的 WAV 数据推送到音频队列。
+
+以下是核心逻辑摘录：
+
+examples/gui_audio_chat/demo.py
+import os
+
+
+
+from dotenv import load_dotenv
+
+
+
+from examples.gui_audio_chat.knowledge import create_knowledge_store
+
+from examples.gui_audio_chat.web_env import WebEnv
+
+from tongagents.agents.voice_chatbot import VoiceChatbotSettings
+
+from tongagents.agents.voice_chatbot_with_tool import VoiceChatbotWithTool
+
+from tongagents.tools.common_tool.amap_weather import AmapWeather
+
+
+
+if __name__ == "__main__":
+
+    load_dotenv()
+
+    web_env = WebEnv()
+
+    store = create_knowledge_store(
+
+        list_of_docs=["小明喜欢打篮球，小李喜欢打羽毛球，小张喜欢打乒乓球"]
+
+    )
+
+
+
+    agent = VoiceChatbotWithTool(
+
+        agent_setting=VoiceChatbotSettings(
+
+            llm_model_name=os.getenv("MODEL_NAME"),
+
+            llm_api_base=os.getenv("MODEL_URL"),
+
+            llm_api_key=os.getenv("MODEL_API_KEY"),
+
+        ),
+
+        tools=[store.as_tool(), AmapWeather],
+
+    )
+
+
+
+    agent.run_with_env_in_thread(web_env)
+
+    web_env.launch()
+
+Gradio 被用于构建前端界面，实现实时音频录制、处理和回放，展示了 TongAgents 在多模态交互场景下的高效整合能力。
+
+说明¶
+实时处理：通过多线程与队列机制实现音频的实时采集与响应传递。
+多模态交互：结合语音采集、音频处理和可视化展示，构成完整的语音聊天系统。
+高扩展性：框架设计支持轻松接入其他输入/输出模态，实现跨领域智能对话应用。
+
+通过本示例，你可以快速构建一个实时语音聊天机器人，体验 TongAgents 框架在多模态交互领域的强大能力。

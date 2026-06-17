@@ -1,0 +1,53 @@
+LITERATURE_PAPERS_DOCS_OUTPUT
+- artifact: mechanism_map
+- role: Literature/Papers/Docs Analyst
+- preflight_scope_confirmed: yes, confirmed this is a vertical mechanism-domain wave focused on execution control, terminal grounding, PTY control, stop rules, and replanning, rather than a source-only pass.
+- preflight_planned_read_order:
+  1. `research/sources/docs/` (Codex CLI, Anthropic Agent SDK, LangGraph, MCP protocol) for implementation intent.
+  2. `research/sources/papers/papers_text/` for formal literature claims on replanning and execution flow.
+  3. `tracking/collab/stage_02_synthesis/literature_dossiers/` (none matched the domain directly yet).
+- preflight_critical_sources_selected:
+  - `src_doc_b7033ea360f5` / `src_doc_3d68ad8e1324` (Codex CLI release notes on PTY/sandbox cleanup)
+  - `src_doc_776484f287d8` (LangGraph durable execution)
+  - `src_doc_78e1a708df4a` (Model Context Protocol / MCP)
+  - `src_doc_9fa759b72385` (Anthropic long-running agent harness design)
+  - `src_pap_dd4ca3841fb4` (Execution interruptions and asynchronous job parallelization)
+  - `src_pap_e07505155ed0` (Strategic replanning vs tactical refinement)
+- preflight_coverage_risks: Formal papers often gloss over low-level execution problems (e.g. process groups, PTY sizing) and treat "replanning" as a stateless high-level transition. Docs often present idealized "pause/resume" functionality without confronting repo-state corruption.
+- preflight_likely_blind_spots: The messy realities of signal propagation to child processes, interactive shell stalls, and orphaned background servers are under-represented in formal literature.
+- preflight_blockers: none.
+- coverage_used:
+  - `research/sources/docs/src_doc_b7033ea360f5/artifact.html`
+  - `research/sources/docs/src_doc_3d68ad8e1324/artifact.html`
+  - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+  - `research/sources/docs/src_doc_78e1a708df4a/artifact.txt`
+  - `research/sources/docs/src_doc_9fa759b72385/artifact.txt`
+  - `research/sources/papers/papers_text/src_pap_dd4ca3841fb4.txt`
+  - `research/sources/papers/papers_text/src_pap_e07505155ed0.txt`
+- coverage_not_yet_used: `research/sources/benchmarks/`, other general papers that do not explicitly address loop control or terminal grounding.
+- evidence_classes_touched: docs, papers.
+- priority_sources_not_yet_read: Local harness code implementation (to be covered by Codebase/Source Analyst) and `research/sources/trajectories/` (to be covered by Trajectory/Failure Analyst).
+- formal_claims:
+  - **Durable Execution:** The formal intent of frameworks like LangGraph is to provide "durable execution" where processes can be paused (via interrupts) and resumed exactly where they left off by preserving state.
+  - **Long-Running Harnesses:** Agent capability is a function of time and tools, but long-running tasks require specialized orchestration—such as initializer agents setting up the environment, and coding agents leaving structured artifacts to hand off context between separated sessions (Anthropic harness design).
+  - **Dual-loop Replanning:** Formal literature (`src_pap_e07505155ed0`) draws a hard distinction between "tactical refinement" (fixing implementation errors) and "strategic replanning" (changing the overall execution vector when stuck).
+  - **Human-in-the-Loop Interruption:** Tools provided via protocols like MCP must support human-in-the-loop interruption, requiring reliable ways to pause, persist, and resume agent execution (`src_doc_78e1a708df4a`).
+- terminology_and_definition_notes:
+  - **Durable Execution:** State preservation allowing a workflow to pause and resume.
+  - **PTY/TTY:** Pseudo-terminal interfaces necessary for streaming output and sizing, explicitly distinct from raw synchronous sub-process execution.
+- benchmark_definition_notes:
+  - `src_pap_dd4ca3841fb4` outlines that handling asynchronous jobs properly requires correctly executing cleanup code specifically on keyboard interrupts, marking this as a measurable task capability.
+- mechanism_or_failure_support:
+  - **PTY and interactive shell control:** Codex CLI changelogs reveal substantial, repeated engineering effort dedicated to stabilizing PTY output, handling Windows sandbox PTY `TerminateProcess` inverted logic, and managing streaming spawns. This formally supports the claim that shell grounding is complex and fragile.
+  - **Interrupt and stuck-process recovery:** Codex CLI explicitly notes changes like "Preserve background terminals on interrupt" and "Delay pending cleanup until task aborts." This suggests that simplistic "stop rules" or full-process tear-downs are inadequate when agents spin up background development servers.
+  - **Replanning versus direct execution control:** While literature presents replanning as a clean strategic shift, Anthropic's docs emphasize the need to decompose builds into chunks and use structured artifacts to hand off state.
+- conflicts_with_direct_evidence:
+  - **The "Pause/Resume" Illusion:** Official framework docs (like LangGraph and MCP) describe "pausing" and "resuming" agents via interrupts as a solved problem through memory persistence. However, Codex CLI release notes contradict this by showing that resuming execution requires intense OS-level process management to avoid orphaned background tasks, stale worktree deletion collisions, and memory leaks.
+  - **Stateless Replanning:** Papers often describe replanning without addressing repository state. If an agent shifts strategy globally, the actual codebase may be left in a broken, half-implemented state. Docs show little formal intent around handling "repo-state-safe branching and cleanup," leaving it as an unstated operational risk.
+- confidence_notes:
+  - **High** confidence in the formal claims and intent around what agent execution layers *should* do (durable execution, long-running artifact handoffs).
+  - **Medium** confidence in the operational success of these mechanisms, as the documentation reveals frequent low-level PTY/sandbox bugs that disrupt the idealized workflow.
+- open_questions:
+  - How severely do actual trajectories fail when attempting to execute long-running tasks without the "structured artifact handoff" patterns described in the docs?
+  - Does the empirical evidence in trajectories show agents successfully utilizing repo-state-safe branching when they decide to engage in "strategic replanning"?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/contradiction_analyst.md`

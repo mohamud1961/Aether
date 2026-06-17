@@ -1,0 +1,91 @@
+TRAJECTORY_CASE_STUDY
+- case_id: wave_03_db_wal_recovery
+- wave: wave_03_verification_completion_and_recovery
+- task_family: db-wal-recovery
+- systems_compared:
+  - `deepagents`
+  - `terminus-kira`
+  - `BigAI`
+- run_paths:
+  - `research/sources/trajectories/deepagents/db-wal-recovery/0333a30b-2678-4f0e-a672-26279fd01b7a-traj.txt`
+  - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/47f2454e-2528-4427-94c8-6b13f8c63f53-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/a1ed78b8-5ec9-4fb3-8a5a-e881a75c3bec-traj.txt`
+  - `research/sources/trajectories/BigAI/db-wal-recovery/e150eebe-6edd-4306-9d61-0b60351e4fa0-traj.txt`
+- outcome_profile:
+  - `deepagents`: defended success via direct postcondition checks against the live database and the delivered JSON artifact.
+  - `terminus-kira`: visible failure-heavy recovery search with no visible recovered artifact or bounded closure in the inspected run.
+  - `BigAI`: repeated success pattern with backup-first handling, verifier-mediated audit, and delivery-state cleanup, but only as behavioral reconstruction.
+- per_run_notes:
+  - `deepagents 0333...`: the run inspects the WAL header, XOR-fixes `main.db-wal`, confirms SQLite now sees `11` rows, writes `/app/recovered.json`, and then explicitly verifies `json_length 11`, `db_length 11`, `json_sorted_by_id True`, `keys_ok True`, and `match_db True`. It also notices that `/app/main.db-wal` is gone after checkpointing rather than treating that disappearance as a hidden failure.
+  - `terminus-kira 3481...`: the run starts from the base `5` rows, loses direct access to the WAL path, then escalates into overlay and device spelunking. Visible steps include reading `/proc/mounts`, probing `lowerdir`, seeing `/var/lib/docker/` effectively unavailable, hitting permission denial on `mount /dev/md1 /mnt/host`, and searching block devices and overlay paths without surfacing a visible recovered JSON file or a visible 11-row check.
+  - `BigAI 47f2...`: visible verifier output reports `PASSED` after decrypting the WAL, checking the recovered rows with SQLite, and inspecting `recovered.json`. The run also restores a backup after passive checkpoint side effects, so recovery includes state hygiene as well as content recovery.
+  - `BigAI a1ed...`: this run shows the clearest verifier script surface. A verifier file under `.work/space/verifier-0/test_json.py` checks for `11` records, correct `id/name/value` fields, sorted output, and a delivery-clean final state. `finish_verification` reports `verification_result_status: "PASSED"`.
+  - `BigAI e150...`: the planner requires backup first, the executor reports XOR-style repair of the WAL, `/app/recovered.json` is produced, and later verifier checks validate `len(data)==11`, sorted order, and file-state expectations. This run makes backup-first recovery doctrine visible even when the exact hidden mechanism stays opaque.
+- cross_run_comparison:
+  - `deepagents` is the clearest minimal-sufficient completion-proof case in this family. It does not need a separate visible verifier role to establish completion because the run itself performs artifact-backed checks against the live DB.
+  - `BigAI` repeatedly turns the same family into a layered planner/executor/verifier workflow. Across the three readable runs, completion is not accepted on artifact existence alone; it is coupled to explicit verifier pass states and cleanup of delivery state after backup and checkpoint side effects.
+  - `terminus-kira` diverges sharply from both. The visible run never settles into a stable repair-and-verify loop. Once the WAL path disappears from the working directory, the run shifts toward environment archaeology instead of bounded recovery.
+  - Across families, this task family is the strongest evidence that verification and recovery are not one monolithic mechanism. The same task is closed by inline postcondition proof in DeepAgents, by external audit plus cleanup in BigAI, and is visibly not closed in the inspected KIRA run.
+- failure_point_comparison:
+  - `deepagents`: the main risk point is whether the repaired WAL really replays into SQLite. The run resolves that risk immediately by querying the DB and matching the JSON artifact to the live result set.
+  - `terminus-kira`: the visible failure point is loss of grounding after the WAL vanishes from `/app`. From there the run treats host/container substrate access as the recovery target, and no later visible step re-establishes artifact-level proof.
+  - `BigAI`: the key failure point is not only recovery of the missing rows but also whether the recovery can survive verifier scrutiny and leave the delivery state acceptable. The readable successful runs resolve both.
+- source_or_architecture_links:
+  - `deepagents`: `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py`, `research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py`
+  - `terminus-kira`: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `BigAI` architecture only: `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- behavioral_reconstruction_caveats:
+  - `BigAI` remains behavioral reconstruction in this case study. The planner/executor/verifier layering, backup doctrine, and verifier pass states are visible in trajectories and local reconstruction, but no mirrored BigAI source tree was read for this repair pass.
+  - `terminus-kira` is a visible failure-heavy run, not proof that KIRA cannot recover this family in any unseen slice. The caveat is run completeness, not the visible lack of closure inside the inspected slice.
+  - `deepagents` is source-light on the exact task-specific verifier path. The trajectory proves inline verification behavior, but the exact code path generating those checks is still not directly traced in mirrored source.
+- mechanism_implications:
+  - `db-wal-recovery` is the cleanest task family for separating artifact-backed postcondition proof from verifier-mediated completion proof.
+  - `deepagents` keeps the minimal baseline visible: direct DB-vs-artifact checks can be enough to close a stateful recovery task.
+  - `BigAI` shows a stronger layered family where backup, audit, and delivery hygiene are bundled into closure.
+  - `terminus-kira` provides the negative control: when recovery loses artifact grounding, completion proof does not emerge from persistence alone or from a confirmation protocol.
+- failure_implications:
+  - Recovery tasks are especially vulnerable to drift once the relevant artifact path disappears or mutates under the agent.
+  - Backup-first doctrine matters in this family because passive checkpointing and WAL side effects can change the working state during inspection.
+  - The strongest false-success defense in this family is not a verbal claim of recovery but direct evidence that the live database and the delivered artifact agree on all recovered rows.
+- confidence_notes:
+  - High confidence: `deepagents` defended success, `BigAI` verifier-mediated success as observed behavior, `terminus-kira` visible recovery collapse in the inspected run.
+  - Medium confidence: any family-wide prevalence claim for `terminus-kira` beyond this run, and any BigAI implementation-mechanism claim beyond public behavioral contract.
+- wave_01_literature_pressure_update_2026_04_10:
+  - observation: Formal verifier/replay doctrine prioritizes outcome-checked closure and traceable recovery evidence over narrative success signals.
+  - inference: WAL-recovery attribution should explicitly separate `artifact restoration` from `verified end-state reconciliation`; only the latter closes failure risk.
+  - confidence: high
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_f6aa42bfdc1a.txt`
+    - `research/sources/papers/papers_text/src_pap_d4370863a7e0.txt`
+    - `research/sources/papers/papers_text/src_pap_2531fb990b03.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_01_execution_control_and_terminal_failures/outputs/literature_papers_docs_analyst.md`
+- wave_01_execution_control_and_terminal_failures_update:
+  - observations:
+    - this family still cleanly separates inline postcondition proof (`deepagents`) from verifier-mediated closure (`BigAI`) and visible grounding collapse (`terminus-kira`).
+    - recovery success attribution remains brittle when artifact path visibility is lost or environment access becomes the dominant search target.
+    - backup/cleanup discipline is repeatedly coupled with acceptance in successful runs.
+  - inference:
+    - Wave 01 failure taxonomy should model `stateful recovery proof` and `recovery-environment drift` as separate failure families.
+  - confidence:
+    - high on observed run-level contrasts
+- wave_02_verification_completion_and_recovery_failures_update_2026_04_10:
+  - added_wave_02_observations:
+    - bundle-level final-gate review confirms BigAI/deepagents required runs as accepted controls (reward `1`).
+    - required KIRA run is a recovery-breakdown pressure case: bundle reward `0` and verifier output dominated by invalid cwd (`getcwd`) signals.
+  - failure_taxonomy_implication:
+    - preserve a separate recovery-resume failure family for environment-state drift (not just algorithmic repair failure).
+  - evidence_paths:
+    - `research/sources/trajectories/terminus-kira/db-wal-recovery/3481ab1c-d322-4bda-bd10-49c0708403d2.tar.gz`
+- wave_02_codebase_source_reconstruction_update_2026_04_10:
+  - source_pressure_observation:
+    - DeepAgents source shows layered eval primitives, but this case is still primarily closed by inline run-authored postcondition checks in the trajectory.
+    - KIRA source-level completion protocol exists, yet the inspected KIRA run still collapses into environment spelunking without defended artifact closure.
+    - BigAI behavior shows verifier-mediated closure and cleanup, but remains no-source reconstruction.
+  - failure_taxonomy_implication:
+    - keep separate failure cards for `inline proof absent`, `external verifier mismatch`, and `recovery path lost to environment drift`.
+  - confidence: medium-high
+  - evidence_paths:
+    - `research/sources/codebases/deepagents/libs/evals/tests/evals/utils.py`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`

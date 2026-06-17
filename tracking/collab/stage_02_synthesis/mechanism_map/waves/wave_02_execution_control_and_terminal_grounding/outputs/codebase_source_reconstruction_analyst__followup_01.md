@@ -1,0 +1,255 @@
+CODEBASE_SOURCE_RECON_OUTPUT
+- artifact: mechanism_map
+- role: codebase/source-reconstruction analyst
+- wave: wave_02_execution_control_and_terminal_grounding
+- followup_id: followup_01
+- preflight_scope_confirmed:
+  - yes: this is a same-wave governed follow-up depth pass for `execution_control_and_terminal_grounding`, not a replacement of `.../outputs/codebase_source_reconstruction_analyst.md`.
+  - yes: this pass executes the packet requirements with explicit deepening on `claw-code`, `src_cod_*` archives, KIRA Harbor-adjacent internals where visible, and stronger behavior-to-source reconciliation.
+  - yes: `autoagent` is treated as a family-placement pressure source and not promoted as a new family unless source forces it.
+  - scope discipline: no-source claims (especially BigAI internals) remain behavioral reconstruction.
+
+- preflight_planned_read_order:
+  1. Re-read governance and packet contracts:
+     - `prompts/deep_synthesis_shared_policy_prompt.md`
+     - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+     - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+     - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+     - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/codebase_followup_01_packet.md`
+     - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/support_subagent_rules.md`
+  2. Re-anchor on wave-level judgments and contradictions:
+     - `.../outputs/codebase_source_reconstruction_analyst.md`
+     - `.../outputs/trajectory_failure_analyst.md`
+     - `.../outputs/contradiction_analyst.md`
+     - `.../synthesis/principal_synthesis.md`
+     - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  3. Deepen direct source families in-repo:
+     - KIRA: `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, `.../KiraClaw/.../process_tools.py`, `.../process_manager.py`
+     - DeepAgents: `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/backend.py`, `.../deepagents_wrapper.py`, `.../deepagents/backends/local_shell.py`, `.../deepagents/graph.py`, `.../tests/unit_tests/backends/test_local_shell_backend.py`
+     - claw-code: `research/sources/codebases/quarantine/claw-code/src/{runtime.py,query_engine.py,execution_registry.py,remote_runtime.py,commands.py,tools.py}` + snapshots
+  4. Deepen archive lane:
+     - `research/sources/codebases/src_cod_*/capture.json`
+     - `artifact.zip` content extracted and read for top-tier execution-control files.
+  5. Reconcile with wave behavior anchors and local harness implementation status:
+     - trajectory lane outputs + local scaffolds under `blocks/`, `runner/`, `evals/`.
+
+- preflight_critical_sources_selected:
+  - required packet anchors:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/brief.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/codebase_followup_01_packet.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/lane_followup_plan.md`
+  - KIRA family:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+  - DeepAgents family:
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/backend.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/deepagents_wrapper.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/tests/unit_tests/backends/test_local_shell_backend.py`
+  - claw-code pressure:
+    - `research/sources/codebases/quarantine/claw-code/src/runtime.py`
+    - `research/sources/codebases/quarantine/claw-code/src/query_engine.py`
+    - `research/sources/codebases/quarantine/claw-code/src/execution_registry.py`
+    - `research/sources/codebases/quarantine/claw-code/src/remote_runtime.py`
+    - `research/sources/codebases/quarantine/claw-code/src/commands.py`
+    - `research/sources/codebases/quarantine/claw-code/src/tools.py`
+    - `research/sources/codebases/quarantine/claw-code/src/reference_data/{commands_snapshot.json,tools_snapshot.json}`
+  - top-tier `src_cod_*` extracts (from `artifact.zip`):
+    - OpenHands (`src_cod_086db5a6312e`): `openhands/runtime/action_execution_server.py`, `openhands/controller/{stuck.py,agent_controller.py}`
+    - SWE-agent (`src_cod_e231561a3d69`): `sweagent/agent/agents.py`, `sweagent/environment/swe_env.py`
+    - agentsh (`src_cod_c7b08f87aeac`): `README.md`, `pkg/types/{sessions.go,exec.go}`, `proto/agentsh/v1/pty.proto`, `cmd/agentsh-{unixwrap,shell-shim}/main.go`
+    - codex (`src_cod_87b73c75d11a`): `codex-rs/core/src/tools/runtimes/{unified_exec.rs,shell.rs}`, `codex-rs/app-server/src/command_exec.rs`, `codex-rs/utils/pty/README.md`
+  - autoagent classification:
+    - `research/sources/codebases/autoagent/agent.py`
+    - `research/sources/codebases/autoagent/program.md`
+
+- preflight_coverage_risks:
+  - KIRA main harness imports Harbor `Terminus2`/`TmuxSession`, but those inherited implementation files are not mirrored in this corpus.
+  - `src_cod_*` evidence is deepened through extracted archives but still selective, not exhaustive across every file in each repo.
+  - BigAI remains source-opaque in this repository; claims there remain behavioral reconstruction.
+  - `claw-code` in this corpus is a mirrored Python port scaffold and snapshot index, not a full live execution runtime implementation.
+
+- preflight_likely_blind_spots:
+  - exact low-level Harbor tmux lifecycle semantics behind KIRA imports (`harbor.agents.terminus_2.*`)
+  - full DeepAgents CLI internals beyond opened Harbor backend/wrapper + core runtime files
+  - long-tail `src_cod_*` files not in this deepened subset
+  - benchmark/verifier internals that could further explain internal-vs-external completion disagreements
+
+- preflight_blockers: []
+
+- coverage_used:
+  - governance/prompt contract files:
+    - `prompts/deep_synthesis_shared_policy_prompt.md`
+    - `prompts/deep_synthesis_codebase_source_reconstruction_analyst_prompt.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_MULTI_AGENT_WORKFLOW_GUIDE.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/brief.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/codebase_followup_01_packet.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/support_subagent_rules.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/inputs/lane_followup_plan.md`
+  - wave synthesis anchors:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/trajectory_failure_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/outputs/contradiction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_02_execution_control_and_terminal_grounding/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md`
+  - direct source reads in-repo:
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_tools.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/process_manager.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/backend.py`
+    - `research/sources/codebases/deepagents/libs/evals/deepagents_harbor/deepagents_wrapper.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/local_shell.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+    - `research/sources/codebases/deepagents/libs/deepagents/tests/unit_tests/backends/test_local_shell_backend.py`
+    - `research/sources/codebases/quarantine/claw-code/src/{runtime.py,query_engine.py,execution_registry.py,remote_runtime.py,commands.py,tools.py}`
+    - `research/sources/codebases/quarantine/claw-code/src/reference_data/{commands_snapshot.json,tools_snapshot.json}`
+    - `research/sources/codebases/autoagent/{agent.py,program.md}`
+  - `src_cod_*` metadata and archive deepening:
+    - all `research/sources/codebases/src_cod_*/capture.json`
+    - extracted `artifact.zip` evidence for OpenHands, SWE-agent, agentsh, codex, openai-agents-python, aider, ralph-loop, AAMF, claude-code (selective files listed in `preflight_critical_sources_selected`)
+  - local harness gap files:
+    - `blocks/execution/flat_loop.py`
+    - `blocks/tools/raw_bash.py`
+    - `runner/agent.py`
+    - `evals/verification_eval.py`
+
+- coverage_not_yet_used:
+  - non-mirrored Harbor upstream internals referenced by KIRA imports:
+    - `harbor.agents.terminus_2.terminus_2`
+    - `harbor.agents.terminus_2.tmux_session`
+  - comprehensive file-by-file sweeps for each extracted `src_cod_*` repository (only top-tier execution-control files deeply read)
+  - deeper eval-side bundle internals beyond wave outputs for the same mechanism claims
+  - additional long-tail source families not packet-priority for this follow-up
+
+- evidence_classes_touched:
+  - packet/governance artifacts
+  - wave lane outputs and syntheses
+  - mirrored source code in repository
+  - extracted archive source from `src_cod_*` captures
+  - local harness scaffold implementation files
+
+- priority_sources_not_yet_read:
+  - Harbor `Terminus2` + `TmuxSession` implementation files (not present in current capture)
+  - deeper DeepAgents CLI implementation files beyond wrapper/backend stack for explicit completion orchestration internals
+  - un-read long-tail files inside top-tier `src_cod_*` repos that may add additional counterexamples
+  - benchmark adapter internals directly paired to the known internal-vs-external completion mismatches
+
+- source_deepening_targets:
+  - target: KIRA Harbor/session internals where visible
+    - result: closed one more layer around KIRA-visible execution control in `terminus_kira.py`:
+      - `_with_block_timeout` uses `asyncio.wait_for` block-timeout guard.
+      - `_execute_commands` sends keystrokes via `TmuxSession`, appends command-end markers, polls `capture_pane()`, and strips marker lines from model-facing output.
+      - run loop checks `is_session_alive()` and applies two-step completion confirmation through `_pending_completion` before final stop.
+    - remaining gap: imported Harbor base/session classes are still not visible in corpus.
+  - target: DeepAgents execution-control boundary and Harbor semantics
+    - result: source-backed boundary strengthened:
+      - `HarborSandbox.aexecute()` wraps `environment.exec(command)` with `asyncio.wait_for`, timeout fallback exits with code `124`, and normalizes shell noise.
+      - `deepagents_wrapper.py` uses Harbor sandbox as execution substrate with `auto_approve=True` and `enable_shell=False` in CLI mode.
+      - core `LocalShellBackend` remains explicit host-side `subprocess.run(..., shell=True)` path with no sandbox/isolation guarantees.
+      - tests confirm `virtual_mode` constrains filesystem semantics, not shell command reach.
+  - target: claw-code runtime-control relevance
+    - result: closure from implementation read:
+      - runtime routes prompt-to-match over mirrored command/tool inventories, invokes mirrored handlers, and submits turn summaries to `QueryEnginePort`.
+      - execution registry dispatches to message stubs (`execute_command` / `execute_tool`), not real PTY/process runtime.
+      - remote runtime file is explicitly placeholder mode reporting.
+      - snapshots are large (commands=207, tools=184) and useful as pressure inventory, not as execution substrate proof.
+  - target: top-tier `src_cod_*` execution-control families
+    - result: archive deepening materially expanded source pressure beyond `capture.json`:
+      - OpenHands V0 runtime/controller loop and stuck-detection internals read.
+      - SWE-agent loop/session/interrupt paths read.
+      - agentsh PTY/policy-gateway and shim/wrapper internals read.
+      - codex unified-exec + app-server command streaming runtime internals read.
+
+- subfamily_closure_updates:
+  - family_update: `KIRA tmux/keystroke session control` remains valid and source-backed (`emerging`, strengthened)
+    - support: `terminus_kira.py` now anchored at command marker polling, session alive checks, and explicit double-confirm completion gate.
+    - caveat: inherited Harbor base/session code still missing from local corpus.
+  - family_update: `DeepAgents discrete command-and-file execution` remains valid (`emerging`, strengthened)
+    - support: core runtime + Harbor adapter boundary read directly; shell execution remains discrete-command semantics, not visible PTY manager semantics.
+  - family_update: `policy-mediated PTY/exec gateway` appears as additional pressure family from archives (`exploratory`)
+    - support: agentsh `ExecRequest/ExecResponse` guidance/events model, explicit PTY gRPC protocol, seccomp/landlock/signal wrapper, and shell shim policy-routing behavior.
+    - note: this is source pressure from archive capture, not yet trajectory-linked in wave corpus.
+  - family_update: `streaming command-exec manager with PTY/pipe modes` appears as additional pressure family from archives (`exploratory`)
+    - support: codex app-server `command/exec` manager handles PTY vs pipe spawn, control messages (write/resize/terminate), expiration and timeout exit semantics.
+  - family_update: `role-separated controller` for BigAI remains behavioral only (`exploratory`, unchanged)
+    - no new source surfaced in this follow-up.
+
+- behavior_to_source_reconciliation:
+  - claim: Terminus-KIRA behavior shows interactive, session-grounded terminal control with guarded completion.
+    - behavior anchor: wave trajectory lane outputs and trajectories (e.g., KIRA headless-terminal/cancel-async traces cited in `.../outputs/trajectory_failure_analyst.md` and `.../trajectory_failure_analyst__followup_01.md`).
+    - source reconciliation: `terminus_kira.py` command keystroke dispatch + marker polling + `is_session_alive()` + pending completion double confirmation are directly compatible with those behavior claims.
+    - reconciliation status: strong, with one inherited-layer caveat (Harbor base/session internals not visible).
+  - claim: DeepAgents behavior is tool-mediated discrete shell/file execution with layered planning middleware, not proven PTY-native harness internals.
+    - behavior anchor: DeepAgents trajectories in prior wave output show repeated `execute` + file tools + forced verification phases.
+    - source reconciliation: `graph.py` middleware/tool stack and `local_shell.py` execution semantics plus Harbor wrapper/backend confirm discrete command grounding.
+    - reconciliation status: strong for discrete-command framing; PTY-native harness promotion remains unsupported.
+  - claim: completion/stopping is layered and can diverge between internal verifier status and final graded outcomes.
+    - behavior anchor: contradiction and trajectory follow-up cite BigAI internal pass vs external fail case in cancel-async.
+    - source pressure: codex app-server run loop explicitly separates process control/expiration/output-drain from final response emission; agentsh `ExecResponse` model separates execution result, event stream, and guidance classification.
+    - reconciliation status: mechanism doctrine strengthened as cross-family pressure, but BigAI-specific internals remain no-source.
+  - claim: cleanup/interruption robustness is a decisive execution-control surface.
+    - behavior anchor: Wave 02 strongest failures cluster around cancellation cleanup and state hygiene.
+    - source pressure: SWE-agent explicitly interrupts sessions on timeout and exits after consecutive timeouts; OpenHands stuck detector + loop recovery paths show explicit anti-loop governance and pending-action gating.
+    - reconciliation status: strengthened as general mechanism pressure; not all archive families are yet behavior-linked in this wave.
+
+- autoagent_impact_note:
+  - `autoagent` does not force a new family split.
+  - source evidence:
+    - `agent.py` exposes a single shell tool `run_shell(command)` calling `environment.exec(..., timeout_sec=120)` and runs with `MAX_TURNS = 30`.
+    - `program.md` describes this as baseline harness expected to be iteratively improved via tooling and orchestration.
+  - interpretation:
+    - this is another discrete command executor under Harbor adapter boundaries.
+    - it reinforces the existing `discrete command-and-file executor` family and does not introduce a distinct Wave 02 execution-control family.
+
+- claw_code_and_src_cod_pressure:
+  - claw-code:
+    - the mirrored Python runtime is useful for architectural pressure but is not a live execution substrate in this corpus.
+    - `commands.py` and `tools.py` load large mirrored snapshots from JSON; execution methods return mirrored "would handle" messages.
+    - `query_engine.py` tracks turn counters, token budgets, transcript compaction, and stop reasons; this is orchestration scaffolding, not terminal/session execution internals.
+    - `remote_runtime.py` explicitly reports placeholder remote/ssh/teleport modes.
+  - `src_cod_*` deepening outcomes:
+    - high relevance for execution-control pressure:
+      - `src_cod_086db5a6312e` (OpenHands, legacy V0 action server/controller)
+      - `src_cod_e231561a3d69` (SWE-agent loop + session runtime)
+      - `src_cod_c7b08f87aeac` (agentsh policy-enforced PTY/exec gateway)
+      - `src_cod_87b73c75d11a` (codex unified-exec + app-server command/pty execution)
+    - medium/low relevance for Wave 02 substrate closure:
+      - `src_cod_18ba360eb4b2` (openai-agents-python shell tool abstractions and approval/environment shapes)
+      - `src_cod_564b05dcc95b` (ralph-loop script-level iterative wrapper around external CLI)
+      - `src_cod_a1e1a27e13a1` (AAMF orchestration/migration framework process flow)
+      - `src_cod_ad409dc1ebde` (aider shell suggestion prompt file)
+      - `src_cod_c717c148e387` (claude-code changelog operational pressure, not primary runtime source implementation)
+
+- local_harness_gap_notes:
+  - local harness files remain scaffold/docstring level:
+    - `blocks/execution/flat_loop.py`
+    - `blocks/tools/raw_bash.py`
+    - `runner/agent.py`
+    - `evals/verification_eval.py`
+  - compared with promoted families, missing implementation surfaces include:
+    - explicit PTY/session lifecycle control and command-stream management
+    - discrete command runtime with robust timeout/interrupt semantics
+    - layered completion accounting (internal verification vs external grading vs runtime status)
+    - structured recovery/stuck-loop handling and cleanup-state discipline
+  - implication: Wave 02 currently contributes architecture pressure and family separation requirements; it does not yet validate local harness execution-control implementation parity.
+
+- followup_judgment:
+  - this follow-up materially deepens the source lane and closes the packet’s highest-priority follow-up asks:
+    - claw-code execution relevance is now source-constrained to mirrored scaffolding.
+    - top-tier `src_cod_*` execution-control files are now read at implementation level, not just capture metadata.
+    - DeepAgents Harbor boundary claims are tightened with direct backend/wrapper/runtime evidence.
+    - KIRA internals are deepened one layer further where visible, with explicit inherited-layer limits stated.
+    - autoagent is explicitly confirmed as reinforcement of the existing discrete-command family.
+  - strongest updated wave-safe claim:
+    - execution control remains multi-family (`tmux/session`, `discrete command-and-file`, behavioral role-separation), with additional archive pressure families now visible but not yet trajectory-coupled in-wave.
+  - unresolved but bounded:
+    - direct Harbor `Terminus2`/`TmuxSession` implementation remains absent in this corpus.
+    - BigAI remains behavioral reconstruction at source layer.
+    - some archive long-tail and eval internals remain unread.
+  - lane status from this follow-up:
+    - substantially strengthened and packet-compliant for follow-up depth.
+    - still carries explicit visibility limits rather than over-claiming full closure.

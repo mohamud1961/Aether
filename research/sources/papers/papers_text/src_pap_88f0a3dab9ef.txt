@@ -1,0 +1,1494 @@
+--- PAGE 1 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web
+Application Development
+Preprint
+Hung Tran
+hung@vals.ai
+Vals AI
+San Francisco, California, USA
+Langston Nashold
+langston@vals.ai
+Vals AI
+San Francisco, California, USA
+Rayan Krishnan
+rayan@vals.ai
+Vals AI
+San Francisco, California, USA
+Antoine Bigeard
+antoine.bigeard.cs@gmail.com
+Vals AI
+San Francisco, California, USA
+Alex Gu
+gua@mit.edu
+Massachusetts Institute of Technology
+Cambridge, Massachusetts, USA
+Abstract
+Code generation has emerged as one of AI’s highest-impact use
+cases, yet existing benchmarks measure isolated tasks rather than
+the complete "zero-to-one" process of building a working applica-
+tion from scratch. We introduceVibe Code Bench, a benchmark of
+100 web application specifications (50 public validation, 50 held-out
+test) with 964 browser-based workflows comprising 10,131 substeps,
+evaluated against deployed applications by an autonomous browser
+agent.
+Across 16 frontier models, the best achieves 61.8% accuracy on
+the test split, revealing that reliable end-to-end application develop-
+ment remains a frontier challenge. We identify self-testing during
+generation as a strong performance predictor (Pearson r=0.72), and
+show through a completed human alignment study that evaluator
+selection materially affects outcomes (31.8–93.6% pairwise step-
+level agreement).
+Our contributions include (1) a novel benchmark dataset and
+browser-based evaluation pipeline for end-to-end web application
+development, (2) a comprehensive evaluation of 16 frontier models
+with cost, latency, and error analysis, and (3) an evaluator alignment
+protocol with both cross-model and human annotation results.
+We provide reproducibility artifacts, detailed in Appendix A.
+CCS Concepts
+•Computing methodologies → Natural language processing;
+Neural networks;•Software and its engineering → Software
+testing and debugging;Software development techniques.
+Keywords
+code generation, benchmarks, large language models, software en-
+gineering, automated evaluation, agentic coding, web development
+1 Introduction
+Motivation.Building software is a high-leverage way to translate
+ideas into economic value, but the ability to implement those ideas
+remains concentrated among a small fraction of people. Meanwhile,
+code generation has become a major use case for generative AI,
+and developer-facing tools are seeing rapid adoption in day-to-day
+workflows [16, 18]. Existing benchmarks suggest that models are
+increasingly capable on constrained tasks (e.g., function synthesis
+and issue resolution) [2, 3, 6, 7].
+However, the most consequential promise of “vibe coding” is
+not faster completion of isolated edits; it is enabling non-technical
+users to build complete applications end-to-end from natural lan-
+guage intent. If reliable, this capability could expand who can create
+software and compress the time from specification to a working
+prototype.
+The gap.Despite extensive work on code generation evaluation,
+there is no widely used benchmark that measures whether models
+can produce a complete, deployable web application from a natural
+language specification—a “zero-to-one” setting that includes multi-
+file code, configuration, deployment, and user-facing workflows.
+Overview of Vibe Code Bench.We introduceVibe Code Bench
+(VCB), the first benchmark to test LLMs’ ability to generate a
+complete working web application from only a text specification. It
+contains 100 realistic application specifications split into apublic
+validation set(50 tasks) and atest set(50 tasks). Across both
+splits, tasks are paired with 964 automated browser workflows
+(10,131 substeps). Each task asks a model to build an application
+from scratch in a sandboxed environment, with access to a browser,
+a terminal, and common production services (e.g., authentication,
+databases, payments, and email). Applications are evaluated by an
+autonomous browser agent that executes end-to-end workflows
+and scores success based on substep completion.
+Key findings.Across 16 frontier models, we find that end-to-end
+application development remains unreliable: the top model (GPT-
+5.3-Codex) passes 61.8% of workflows. We also observe a strong
+association between a model’s self-testing behavior (browser usage
+during development) and its final performance. Our alignment
+study shows that evaluator choice matters: some evaluator pairs
+align strongly, whereas others diverge substantially.
+Contributions.Our contributions include the following:
+(1) A novel benchmark datasetof 100 natural-language web
+application specifications split into a public validation set
+and a test set, with 964 browser-based workflows spanning
+diverse domains and difficulty levels.
+arXiv:2603.04601v1  [cs.SE]  4 Mar 2026
+
+--- PAGE 2 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+Figure 1: Generation flow from natural-language specification to a runnable application artifact.
+(2) A realistic generation harness(based on open-source
+OpenHands fork [21]) that supports multi-hour develop-
+ment sessions with browser and terminal access in a con-
+tainerized environment.
+(3) An automated evaluation pipelineusing browser agents
+to test end-to-end workflows and produce fine-grained pass-
+fail signals.
+(4) A comprehensive evaluationof 16 frontier models across
+providers, including cost/latency tradeoffs and error analy-
+ses. Performance on the Vibe Code Bench is far more dis-
+criminative than on existing benchmarks like SWE-Bench:
+the gap between MiniMax M2.5 and Claude Opus 4.6 is 2.8%
+on SWE-Bench [20] but 42.7% on Vibe Code Bench.
+(5) An evaluator-alignment protocol and analysis, includ-
+ing completed cross-evaluator robustness experiments and
+an external three-annotator human-alignment study.
+Table 1: Top-model accuracy on Vibe Code Bench (test split).
+Model Accuracy±SE (%)
+GPT-5.3-Codex61.77±4.71
+Claude Opus 4.657.57±4.37
+GPT-5.253.50±5.07
+Claude Opus 4.6 Thinking53.50±4.68
+Claude Sonnet 4.651.48±4.64
+GPT-5.2-Codex37.91±4.58
+2 Related Work
+We situate Vibe Code Bench within the broader landscape of code
+generation benchmarks, web agent evaluation, and agentic coding
+systems.
+Code Generation Benchmarks.Existing benchmarks span the
+spectrum from function-level to repository-level tasks, but none
+evaluate the full “zero-to-one” application development process.
+HumanEval [3] and MBPP [2] evaluate function-level code genera-
+tion from docstrings, testing isolated algorithmic reasoning. SWE-
+Bench [7] and its variants (SWE-Bench Verified [14], SWE-Bench
+Pro [5]) test models’ ability to resolve real GitHub issues within ex-
+isting codebases, requiring an understanding of complex codebases
+but assuming substantial existing infrastructure. SWE-Lancer [12]
+evaluates models on $1M worth of real freelance tasks from Upwork,
+providing economic grounding but still focusing on scoped modi-
+fications rather than greenfield development. LiveCodeBench [6]
+provides continuously updated competitive programming problems
+to avoid contamination.
+Table 2 summarizes key differences between existing bench-
+marks and Vibe Code Bench. The critical gap VCB addresses is the
+zero-to-onecapability: building complete, deployable applications
+from natural language specifications rather than modifying existing
+code or solving isolated problems.
+Web Agent Benchmarks.WebArena [ 24] and VisualWebArena [8]
+evaluate agents on web navigation and interaction tasks, achieving
+up to 60% success rates on complex multi-step workflows. These
+benchmarks test the ability touseexisting web applications but not
+tobuildthem. Our evaluation pipeline leverages similar browser
+automation techniques but applies them to test AI-generated appli-
+cations rather than human-built ones.
+Agentic Coding Systems.Academic work has developed open-
+source frameworks for extended coding sessions. OpenHands [21]
+provides a platform for AI software developers with browser and
+terminal access. SWE-agent [23] introduces agent-computer inter-
+faces for automated software engineering, with mini-swe-agent
+
+--- PAGE 3 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+Table 2: Comparison of code-generation benchmarks.
+Benchmark Task Type Eval Method Gaps
+HumanEval Single func-
+tion
+Unit tests No multi-file apps or
+deployment
+SWE-Bench Bug fixes Unit Tests Assumes existing
+codebase
+SWE-Lancer Freelancing E2E tests Scoped tasks, not full
+apps
+LiveCodeBench Leetcode Unit tests No real-world context
+Terminal-Bench Terminal
+Tasks
+Unit Tests No browser UI or per-
+sistence
+WebArena Web naviga-
+tion
+Task Success Navigation only, no
+code gen
+VCB Full app Browser
+agent
+—
+offering a simplified 100-line variant. Agentless [22] takes a sim-
+pler approach without persistent agent state. Terminal-Bench [10]
+evaluates agents on realistic command-line tasks.
+Commercial systems—Claude Code [ 1], Cursor [4], Codex [15],
+Replit Agent [17], and Lovable [9]—demonstrate that multi-hour de-
+velopment sessions are feasible in production. However, systematic
+evaluation of end-to-end application development capabilities has
+been limited. Vibe Code Bench provides a standardized framework
+for such evaluation.
+3 Benchmark Design
+Our benchmark design optimizes for three goals: (1)realism(tasks
+resemble what non-technical users ask for), (2)reproducibility
+(standardized environment and run manifests), and (3)implementation-
+agnostic evaluation(apps are judged by user-visible behavior
+rather than specific implementation).
+3.1 Data Construction
+Our benchmark consists of 100 application specifications designed
+to represent real-world software development scenarios, split into
+apublic validation set(50 tasks) and atest set(50 tasks). The
+two splits are disjoint. Specifications span three domain categories:
+• Individual(24 apps): An app a user would vibe-code for
+their personal use. These most often do not have authenti-
+cation. Example: an app to keep track of your habits.
+• Solo Founder(45 apps): An app someone starting a busi-
+ness might build themselves. These often have simple email-
+based authentication, though some require more complex
+authentication. Example: an app to find and reserve parking
+in crowded areas.
+• Enterprise Tool(31 apps): A program that a business may
+build internally rather than acquire from a vendor. These
+often include multiple roles or a role hierarchy. Example:
+an app to track and approve procurement requests.
+The following process was used to generate the task specifica-
+tions and UI workflows:
+(1) Idea generation: Candidate tasks were inspired by con-
+sumer apps, YC startup ideas, consulting case studies, and
+common internal enterprise needs.
+(2) Specification writing: Each idea was synthetically ex-
+panded into a short natural language specification describ-
+ing core functionality, authorization model, and any re-
+quired features.
+(3) Workflow construction: Each specification was paired
+with 6–23 synthetically-generated automated workflow
+tests covering core functionality, edge cases, and critical
+user workflows.
+(4) Expert Refinement: Professional product managers and
+software engineers validated that specifications and work-
+flows were clear, executable, and representative of real de-
+velopment work, making any modifications as needed.
+(5) Final Review: Two senior-level project managers manually
+went through the edited specifications and workflows a
+second time, particularly looking for missing information
+from specifications, violations of workflow independence,
+or ambiguity in specifications.
+Task Format and Test Structure.Each application includes meta-
+data (domain, difficulty, required services) and a natural-language
+specification shown to the models. The specification was designed
+to be concise and written from a non-technical perspective, to
+mimic the usage of a real vibe-coder.
+The specifications are designed to contain all of the information
+needed to pass the tests - we deliberately avoid situations in which a
+feature is mentioned in the tests but not in the spec. However, specs
+are also deliberately minimal: they containno moreinformation
+than necessary, to mimic real user input. See Appendix F for an
+example specification.
+Third-Party Service Integration.Across the benchmark, 28% (28/100)
+of applications require integration with at least one external service
+(Stripe and/or email):
+• Email only(9 apps): User notifications, verification emails,
+reports
+• Stripe only(6 apps): Payment processing, subscriptions,
+invoicing
+• Both email + Stripe(13 apps): Workflows requiring cross-
+service consistency
+These integrations are intentionally included for two reasons.
+First, they increase task difficulty in ways not captured by pure
+CRUD apps (e.g., async webhooks, delivery verification, and multi-
+service state consistency). Second, they better approximate real
+production requirements where payments and notifications are
+common. All services run in sandbox/test mode as isolated contain-
+ers inside the generation environment.
+Tests.Applications are paired with UI workflows. The goal of
+these workflows is to evaluate performance as a real user would,
+clicking through the web application end-to-end in the browser.
+• Task: A task is a synonym for a single specification. An
+applicationis a single runnable implementation generated
+by the agent to solve a task.
+
+--- PAGE 4 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+• Workflow: Each task has between 6 and 23 workflows (or
+tests), designed to evaluate specific aspects of functional-
+ity. For example, a workflow for a social media platform
+involves creating an account, creating a new post, com-
+menting on the post, and then signing out. Each workflow
+includes a brief purpose statement and a set of substeps.
+• Substep: The individual steps the evaluator must take for
+each workflow are referred to as substeps. Examples include
+"Create an account with the email X" or "Navigate to Page
+Y and click Button Z".
+These definitions are used by a browser-based agent to test the
+application (see Section 3.3). We chose a browser agent because it
+is implementation-agnostic: it avoids brittle DOM-coupled checks
+(e.g., fixed selectors) and does not require internal code instrumen-
+tation, in contrast to methods such as unit tests or programmatic
+end-to-end tests like Playwright. Models are free to choose UI
+structure and styling as long as user-visible behavior satisfies the
+specification. Appendix G provides an example set of workflow
+definitions.
+Table 3: Dataset splits and evaluation workload.
+Split #Tasks #Workflows #Substeps
+Validation (public) 50 491 4,995
+Test 50 473 5,136
+Total 100 964 10,131
+3.2 Generation Harness
+Models operate within a fully-featured development environment
+based on a modified version of OpenHands [21], an agentic scaf-
+fold for programming tasks. We chose OpenHands for its robust
+containerization architecture, browser integration, extensible tool
+system, and wide adoption in the community.
+Environment Components.
+• Isolated containers: Each model receives an isolated con-
+tainer with complete control over the development workspace.
+• Terminal access: Unrestricted access to install dependen-
+cies, run builds, start servers, and execute arbitrary com-
+mands.
+• Browser capabilities: Web browsing for documentation
+lookup and self-testing generated applications.
+• Service integrations: We provide Supabase, MailHog, and
+Stripe endpoints to the agent. The harness exposes connec-
+tivity and credentials, but the model must discover and use
+these services correctly in its generated app and workflows.
+We use Supabase as the default backend substrate because it inte-
+grates cleanly with agent tooling while remaining straightforward
+to self-host reproducibly [ 19]. It unifies PostgreSQL, authentica-
+tion, and object storage behind a single local stack, reducing setup
+variance across tasks.
+MailHog and Stripe.We include MailHog and Stripe in the spec-
+ifications and harness because many product workflows require
+outbound email and payment operations. Excluding these systems
+would overestimate real-world readiness by removing failure modes
+around external service wiring, retries, and state synchronization.
+A vailable Tools.Agents have access to core OpenHands tools for
+terminal commands, file editing, web navigation, and task submis-
+sion. The harness is able to access the full set of tools exposed by the
+Supabase and Tavily MCPs (Tavily is integrated with OpenHands
+by default). See Appendix C for the full set of tools.
+Normalization.We normalize generation effort by giving every
+model the same wall-clock budget: up to5 hoursper application.
+Any work completed within this window counts toward the fi-
+nal artifact; work after the timeout is not included. We use this
+time-based normalization because it mirrors real-world develop-
+ment constraints and it allows for the evaluation of a diverse set of
+harnesses, even those without instrumentation for counting turns.
+System Prompt Design.We developed a detailed system prompt
+through iterative testing, addressing common failure modes: man-
+dating a consistent tech stack (React + Vite frontend, Tailwind CSS,
+Supabase backend), adding explicit instructions to test deployment
+before submission, and providing detailed guidance on environment
+variable handling and Docker networking.
+It was necessary to mandate a tech stack; otherwise, generated
+apps were too heterogeneous to evaluate consistently at scale. We
+also mandate Docker Compose so each submission is portable and
+can be started by the evaluator using a deterministic entry point.
+Docker-in-Docker.Docker-in-Docker is required because agents
+must build and run app-specific Compose stacks (frontend, back-
+end, and auxiliary services) inside isolated per-task workspaces.
+The outer container is the model sandbox; inner containers are
+application services launched by the agent. This design provides
+strong task isolation, reproducible startup behavior for evaluation,
+and portable artifacts that can be replayed later.
+3.3 Automated Evaluation Pipeline
+Our evaluation pipeline uses Browser Use [13], an autonomous web
+agent, to perform point-and-click testing of generated applications.
+See Section 3.1 for test-definition structure.
+Why browser-agent evaluation.We evaluate through user-visible
+browser interactions rather than DOM-specific assertions or in-
+ternal unit tests. This keeps evaluation implementation-agnostic
+across heterogeneous apps and better reflects whether real users
+can complete required workflows.
+Pipeline Inputs and Runtime.Each evaluation takes two inputs:
+(1) the generated application bundle (including Docker Compose
+and environment wiring) and (2) workflow definitions written as
+natural-language step sequences. Evaluation is fully automated and
+run in isolated environments so different apps cannot interfere with
+each other.
+Evaluator Configuration.For each workflow, we launch a fresh
+headless browser session (1920 ×1200) and run the Browser Use
+agent with vision enabled. We use Claude Sonnet 4.5 as the canon-
+ical evaluator for this benchmark; Section 6 reports completed
+cross-evaluator validation and external human-alignment results
+for this setup (Table 10). Each workflow evaluation is capped at
+
+--- PAGE 5 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+Figure 2: Automated evaluation flow from deployed app to workflow pass/fail scoring.
+100 agent steps to bound evaluation cost/runtime while still allow-
+ing multi-page workflows; timeout and watchdog limits are fixed
+globally (Appendix D).
+Evaluation Workflow.
+(1) Deployment verification: Starts the application stack
+via Docker Compose and verifies that the app becomes
+reachable.
+(2) Workflow execution: In a fresh browser session, the eval-
+uator performs user actions and checks expected outcomes
+for each substep, producing structured substep-level pass-
+fail judgments.
+(3) Workflow scoring: Using these LLM-as-judge substep
+judgments, a workflow passes when ≥90% of substeps suc-
+ceed.
+(4) Application aggregation: Application accuracy is the per-
+centage of workflows that pass.
+Failure Semantics.If an app fails the deployment verification,
+all workflows for that app are marked as failed. If a workflow
+run does not return structured evaluation output (e.g., due to a
+timeout/termination), the workflow is marked as failed.
+Isolation.Isolation between workflows is enforced at two levels:
+(i) app-level runtime isolation and (ii) fresh browser session plus
+unique account/data values per workflow to prevent state leakage.
+We also validated workflow definitions to avoid cross-workflow
+dependencies.
+3.4 Metrics
+For each application (or task), we report:
+• Accuracy: Percentage of workflows passing. A workflow
+is passing if at least 90% of its substeps succeed.
+• Cost: Total model API cost for generation. Pricing is based
+on the native provider for all models, with no discount.
+Caching is accounted for.
+• Latency: Total wall-clock time for generation, from the
+first turn to submission.
+Overall benchmark metrics are computed as the mean of per-
+application results on the test split. For model𝑚 with per-application
+accuracies{𝑎 𝑚,𝑖 }𝑛
+𝑖=1, we report
+¯𝑎𝑚 ±SE 𝑚,SE 𝑚 = 𝑠𝑚√𝑛 ,
+where 𝑠𝑚 is the sample standard deviation across applications (𝑛=
+50), following standard uncertainty reporting practice [11].
+We use a 90% substep accuracy threshold to tolerate minor non-
+critical errors while still requiring near-complete workflow cor-
+rectness. Evaluating at the workflow level (rather than pooling
+successful substeps across workflows) mitigates cross-workflow
+masking: a workflow with a broken core step does not receive credit
+from unrelated successful substeps in other workflows.
+4 Experiments and Results
+We evaluate 16 models from 9 providers: OpenAI (GPT-5.3-Codex,
+GPT-5.2, GPT-5.2-Codex, GPT-5 Mini), Anthropic (Claude Opus
+4.6, Claude Opus 4.6 Thinking, Claude Sonnet 4.6, Claude Haiku
+4.5 Thinking), Google (Gemini 3.1 Pro, Gemini 3 Flash), Alibaba
+(Qwen3.5 Plus Thinking), xAI (Grok 4.1 Fast Reasoning), Kimi
+(Kimi-K2.5 Thinking), MiniMax (MiniMax M2.5), zAI (GLM-5), and
+DeepSeek (DeepSeek V3.2 Thinking). These models were chosen
+as a representative sample of top-performing open-weight and
+closed-weight offerings.
+All models use vision if supported, the highest reasoning level
+available for that model, and the default temperature specified by
+the model provider.
+4.1 Overall Benchmark Performance
+Table 4 presents the test-set results across the 16 models. GPT-
+5.3-Codex takes the #1 spot, and Anthropic and OpenAI models
+dominate the top of the rankings.
+Gemini 3.1 Pro also performs well, although clearly below Opus
+4.6 and Codex. Open-weight models such as GLM 5, Qwen 3.5, and
+Kimi K2.5 hover around 15% to 24%, performing worse than leading
+closed-weight counterparts.
+
+--- PAGE 6 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+Figure 3: Accuracy–cost and accuracy–latency trade-offs.
+Table 4: Model performance on Vibe Code Bench (test
+split). Open-weight models are marked ✓; closed models
+are marked×.
+Model Accuracy Cost Latency Open
+GPT-5.3-Codex61.77±4.71% $11.91 75.8m×
+Claude Opus 4.657.57±4.37% $8.69 21.3m×
+GPT-5.253.50±5.07% $17.75 82.9m×
+Claude Opus 4.6 Thinking53.50±4.68% $8.28 23.1m×
+Claude Sonnet 4.651.48±4.64% $5.91 26.2m×
+GPT-5.2-Codex37.91±4.58% $4.15 32.2m×
+Gemini 3.1 Pro32.03±4.34% $3.83 20.2m×
+GLM-523.36±4.03% $40.27 224.3m✓
+Gemini 3 Flash20.20±3.95% $0.94 13.4m×
+Kimi-K2.5 Thinking17.54±3.26% $0.88 42.8m✓
+Qwen3.5 Plus Thinking15.74±3.18% $3.80 50.3m✓
+MiniMax M2.514.85±2.95% $2.20 51.1m✓
+GPT-5 Mini14.17±3.54% $0.25 11.6m×
+Claude Haiku 4.5 Thinking11.39±3.13% $1.31 12.9m×
+DeepSeek V3.2 Thinking5.11±2.13% $2.47 56.1m✓
+Grok 4.1 Fast Reasoning1.20±1.20% $0.21 8.8m×
+4.2 Cost and Latency
+Figure 3 visualizes accuracy–cost and accuracy–latency trade-offs.
+Higher cost and longer runtime are associated with higher accuracy,
+but with important exceptions. For example, Claude Opus 4.6 attains
+near-top accuracy at lower cost and latency than GPT-5.3-Codex.
+On both plots, GLM-5 is a clear outlier because of its extremely
+long trajectories, which cause both high cost and high latency.
+Overall, both frontiers show diminishing returns: additional time
+and money improve performance, but the gains taper off.
+4.3 Difficulty, Integrations, and Domains
+Difficulty.Test applications are grouped into Easy/Medium/Hard
+tiers. We compute the per-application mean pass rate across all 16
+evaluated models. Performance declines sharply from easy to hard
+applications, with hard-tier tasks contributing disproportionately
+Table 5: Accuracy by difficulty (%).
+Difficulty # GPT-5.3-Codex Opus 4.6 Gemini 3.1 Pro Avg. Model
+Easy 23 81.88 73.20 46.24 44.29
+Medium 19 57.91 54.11 28.33 21.36
+Hard 8 13.13 20.86 0.00 6.03
+to near-zero app pass rates across the rankings. Models also obtain
+a relatively large share of total points from easy-tier applications.
+Table 6: Accuracy by integration (%).
+Integration # GPT-5.3-Codex Opus 4.6 Gemini 3.1 Pro Avg. Model
+None 37 71.25 63.58 38.42 34.18
+Email only 4 55.00 46.25 32.50 23.20
+Stripe only 2 12.50 25.00 12.50 10.55
+Both 7 29.58 41.59 3.57 13.49
+Integrations.External integrations substantially increase bench-
+mark difficulty. On the test split, GPT-5.3-Codex drops from 71.25%
+on no-integration apps to 29.58% on apps requiring both email and
+Stripe; the all-model average drops from 34.18% to 13.49%. Inte-
+grating with Stripe is generally harder than integrating with email.
+Sample sizes for "Stripe Only" are small so should be interpreted
+directionally.
+Table 7: Accuracy by domain (%).
+Domain # GPT-5.3-Codex Opus 4.6 Gemini 3.1 Pro Avg. Model
+Individual 12 76.93 56.59 49.30 43.01
+Solo Founder 21 60.71 61.81 37.89 30.17
+Enterprise Tool 17 52.36 53.04 12.62 19.01
+Domains.Domains follow the same directional trend as difficulty.
+At the aggregate level, performance decreases from Individual to
+Solo Founder to Enterprise Tool (about 10 percentage points per
+step). Some models deviate from this pattern; for example, Opus
+4.6 performs best on Solo Founder.
+
+--- PAGE 7 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+Figure 4: Application pass-rate histograms for six representative models (ranks 1, 4, 7, 10, 13, 16).
+5 Analysis
+5.1 Tool Use and Model Behavior
+The tools in Table 8 correspond toexecute_bash, str_replace_editor,
+browser, execute_sql, and apply_migration. Percentages are
+row-normalized to 100%.
+Table 8: Tool invocations by model (% of calls per app).
+Model Acc. (%) Bash Edit Browser SQL Migrate Other
+GPT-5.3-Codex 61.8 61.4 10.2 13.2 3.9 2.1 9.1
+GPT-5.2 53.5 48.5 32.7 13.6 1.4 1.3 2.6
+Claude Sonnet 4.6 51.5 23.9 32.7 26.1 3.7 7.1 6.6
+Gemini 3.1 Pro 32.0 56.9 18.6 17.6 1.2 2.8 3.0
+Gemini 3 Flash 20.2 54.8 28.3 10.8 2.1 1.8 2.2
+Grok 4.1 Fast Reasoning 1.2 41.8 27.9 1.1 14.4 7.0 7.9
+First, despite us providing 22 tools to the models, they spend
+about 95% of their tool calls on only five: running bash commands,
+editing files, browsing the app, executing SQL, and applying migra-
+tions. Among the Supabase tools, the models generally preferred
+executing raw SQL rather than using migration helpers. The Tavily
+search and web retrieval tools were also underutilized - only 18.8%
+of models used Tavily at all.
+We find that self-testing is positively correlated with success.
+Across the 16 evaluated models, browser tool calls per applica-
+tion show a positive correlation with accuracy (Pearson 𝑟= 0.72).
+This trend persists after controlling for generation latency (partial
+𝑟= 0.72), indicating an association between self-testing and better
+outcomes beyond simply spending more time.
+In contrast, editing volume is not predictive. Edit-call volume has
+a very weak correlation with accuracy (Pearson𝑟= 0.09), indicating
+thathowedits are used is more important than edit count.
+Figure 5 shows single-run trajectories for eight models on the
+same test-set application (bill_splitting_app), using a common
+elapsed-time axis. Top-performing models generally sustain longer
+runs and cycle between exploration, coding, execution, and browser-
+based checking for much longer horizons.
+Lower-performing models often terminate earlier and exhibit
+narrower action-phase coverage. This supports the tool-use find-
+ing above: sustained self-testing and iterative repair correlate with
+stronger end-to-end outcomes. Lower-performing models also spend
+less time testing, as evidenced by short browsing phases. Full per-
+model trajectory artifacts are provided in Appendix A.
+5.2 Error Analysis
+Failures.Among the top five models (by accuracy), 12.8% of
+applications scored zero points. For models in the bottom five, this
+was significantly higher at 73.2%. The worst five models also had a
+substantial percentage of apps fail to start entirely (14.0%), which
+did not occur for top models. Applications that scored 100% were
+rare, occurring in only 8.8% of applications produced by the top
+five models.
+Histograms.Figure 4 shows similar distributional trends. Model
+improvement is driven primarily byreducing the number of apps
+that score zero, rather than incremental improvements across all
+apps. The distributions are often strongly bimodal, especially for
+top models. Using 12.5-point bins, the most common buckets for
+GPT-5.3-Codex are 0–12.5% and 87.5–100%.
+Error Modes.Looking at failed workflows for apps that started
+successfully, we further classify behavioral failures across all models
+using a six-category taxonomy.
+(1) Authorization Issue(20.4%) - Sign-up or login was non-
+functional, user could not obtain the correct role, etc.
+(2) Missing Feature(46.7%) - The application did not implement
+a feature specified in the specification.
+(3) Validation or Policy Block(14.8%) - The agent is prevented
+from performing actions that should be allowed. The most
+
+--- PAGE 8 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+Figure 5: Trajectory timeline by model on a single application (bill_splitting_app).
+common variant is misconfigured Row-Level Security poli-
+cies.
+(4) UI Rendering or Navigation(6.0%) - Something was not ren-
+dered or missing in the UI, or the agent could not navigate
+between pages as needed.
+(5) Data Consistency and Backend Logic(1.9%) - The application
+writes incorrect data to the database or the backend does
+not handle an operation correctly.
+(6)Other(10.2%) - Any failure not in the above categories.
+This breakdown indicates that most failures are capability gaps in
+implemented product surfaces rather than startup failures. Certain
+models more commonly have specific error types than others. For
+example, Grok 4.1 Fast Reasoning and GPT-5.2-Codex have elevated
+authorization issues (32.3% and 30.3% of their behavioral failures),
+while Gemini 3.1 Pro has the highest missing-feature share (58.5%).
+5.3 Variance Analysis
+To understand the stability of leaderboard rankings, we decompose
+variability into two components: generation-side and evaluator-side
+variance.
+Generation variance.We fixed six specifications and three source
+models (Gemini 3.1 Pro, GPT-5.2, Claude Sonnet 4.6). For each
+source model and app, we generated five independent runs (90
+generations total) and evaluated each generated app once. This
+isolates how much accuracy changes when the model generates
+different apps from the same prompt.
+Evaluator variance.On the same panel, we froze generated apps
+and reran evaluation five times per app using Claude Sonnet 4.5 as
+evaluator (90 evaluations total). This isolates score variation caused
+by evaluator stochasticity on identical artifacts.
+Table 9: Generation and evaluator accuracy on the six-app
+variance panel (mean±stderr).
+Source model Generation Acc. (%) Evaluator Acc. (%)
+Gemini 3.1 Pro19.38±3.47 37.61±0.99
+GPT-5.251.63±3.95 51.25±1.16
+Claude Sonnet 4.647.65±5.00 45.71±3.00
+Takeaways.Variance analysis increases confidence in the main
+findings: evaluator reruns are consistent on fixed apps, and generation-
+side variability is bounded relative to the large cross-model gaps
+observed in VCB. The generation/evaluator standard errors are
+3.47/0.99 (Gemini 3.1 Pro), 3.95/1.16 (GPT-5.2), and 5.00/3.00 (Claude
+Sonnet 4.6) percentage points. Variance decomposition shows most
+observed variance comes from generation rather than rescoring
+(generation share: 92.5% Gemini 3.1 Pro, 92.1% GPT-5.2, 73.5% Claude
+Sonnet 4.6). Therefore, benchmark conclusions are robust for major
+ranking patterns, while only near-tie model differences require
+caution.
+6 Human Alignment
+A critical question for automated evaluation is whether model-
+based evaluators align with human judgment. To assess this, we
+compute human-model, human-human, and model-model align-
+ment.
+6.1 Methodology
+Applications.We select six tasks to cover a wide variety of do-
+mains, difficulties, and integrations. For each task, we generate
+three applications using three distinct source models (Gemini 3.1
+Pro, GPT-5.2, Claude Sonnet 4.6). This yields 18 applications total
+and 1,401 unique substeps to be evaluated.
+
+--- PAGE 9 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+Table 10: Pairwise step-level agreement (%) across model and human evaluators.
+Evaluator Gemini 3.1 Pro GPT-5.2 Claude Sonnet 4.6 Claude Sonnet 4.5 Reviewer A Reviewer B Reviewer C Mean Reviewer
+Gemini 3.1 Pro – 38.8 86.4 86.5 86.4 84.5 83.7 84.7
+GPT-5.2 38.8 – 33.1 36.0 48.0 33.5 31.8 36.1
+Claude Sonnet 4.6 86.4 33.1 –87.886.0 86.7 86.0 86.3
+Claude Sonnet 4.5 86.5 36.087.8– 87.5 86.0 86.286.4
+Reviewer A 86.4 48.0 86.0 87.5 –93.688.6 –
+Reviewer B 84.5 33.5 86.7 86.093.6–91.4–
+Reviewer C 83.7 31.8 86.0 86.2 88.691.4– –
+Human Evaluators.Each of the eighteen apps was evaluated
+by two human evaluators (out of a pool of three). They opened
+the application in the browser, and were instructed to manually
+test by performing each substep. They only tested the user-facing
+application and did not have access to internal code, unit tests, or
+the browser console. Each substep was marked as a pass or a fail
+by the expert. An expert reviews all three model generations for a
+given task.
+Model Evaluators.We ran one evaluation pass per application
+using four evaluator models (i.e., models controlling the browser-
+use agent): Gemini 3.1 Pro, GPT-5.2, Claude Sonnet 4.6, and Claude
+Sonnet 4.5.
+Alignment Metric.We measuresubstep alignment. Between two
+evaluators, we consider a given evaluation substep aligned if the
+scores match (both pass or both fail). The overall alignment is
+the percentage of aligned substeps. All reported alignments are
+pairwise between two evaluators.
+6.2 Results
+Pairwise agreement matrix.We compute pairwise substep align-
+ment between all evaluator pairs (four model evaluators and three
+human reviewers), using only shared labeled substeps for each pair.
+Table 10 reports this as a symmetric 2-D matrix, along with the
+mean alignment between each model and all human reviewers.
+Human-human alignment.Human-human agreement remains
+high (88.6–93.6%), indicating relatively consistent manual judg-
+ments across reviewers. This suggests human labels are stable
+enough to serve as an external reference for evaluator quality.
+Model-model alignment.Model-model agreement is heteroge-
+neous: Claude Sonnet 4.6 and Claude Sonnet 4.5 align strongly
+(87.8%), Gemini 3.1 Pro is close to both Claude Sonnet evaluators
+(86.4–86.5%), while GPT-5.2 remains low against the other evalu-
+ators (33.1–38.8%). This indicates evaluator outputs are not inter-
+changeable, and evaluator selection can materially change reported
+outcomes.
+Model-human alignment.Model-human agreement also varies
+substantially. The final-column pooled means are 86.4% (Claude
+Sonnet 4.5), 86.3% (Claude Sonnet 4.6), 84.7% (Gemini 3.1 Pro), and
+36.1% (GPT-5.2). In this panel, Claude Sonnet 4.5 is the strongest
+evaluator in terms of human alignment, with Claude Sonnet 4.6
+and Gemini 3.1 Pro close behind.
+Takeaway.These results indicate that evaluator choice materially
+affects alignment outcomes. In this panel, Claude Sonnet 4.5, Claude
+Sonnet 4.6, and Gemini 3.1 Pro are substantially more consistent
+with human judgment than GPT-5.2. Both Claude Sonnet 4.5 and
+Claude Sonnet 4.6 are overall well-aligned with human graders and
+are accurate evaluator models.
+7 Limitations
+We identify three important limitations:
+(1) Design and code quality not measured: Passing func-
+tional tests does not imply maintainable, secure, or well-
+documented code. We did not evaluate code readability,
+visual design quality, or security vulnerabilities.
+(2) Single technology stack: Our benchmark focuses exclu-
+sively on React/Vite web applications with Supabase back-
+end. Results may not generalize to other frameworks or
+backend technologies.
+(3) Web applications only: We evaluate only browser-based
+applications. The “zero-to-one” capability for other soft-
+ware types—command-line tools, desktop applications, mo-
+bile apps—remains unexplored.
+8 Conclusion
+We introduced Vibe Code Bench, a benchmark of 100 web applica-
+tion specifications evaluated through 964 browser-based workflows.
+Across 16 frontier models, the best reaches 61.8% accuracy—showing
+that reliable end-to-end application development remains unsolved.
+Two findings stand out: model improvement is driven primarily by
+reducing complete failures rather than incremental gains, and self-
+testing during generation strongly predicts performance (r=0.72).
+Our human alignment study shows that automated evaluation is
+reliable when the right evaluator is used, making evaluator choice
+a first-class reporting concern.
+The question is no longer whether AI can write code, but whether
+it can build software. Vibe Code Bench tracks progress toward that
+bar.
+Acknowledgments
+We thank Mike Merrill and John Yang for sharing lessons from
+Terminal-Bench and SWE-Bench, and the OpenHands team for
+their foundational work. We also thank the professional engineers
+and product managers who validated our specifications and tests.
+
+--- PAGE 10 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+References
+[1] Anthropic. Claude code. https://claude.com/product/claude-code, 2024. Accessed:
+2026-03-03.
+[2] Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk
+Michalewski, David Dohan, Ellen Jiang, Carrie Cai, Michael Terry, Quoc Le,
+et al. Program synthesis with large language models.arXiv preprint, 2021. URL
+https://arxiv.org/abs/2108.07732.
+[3] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde
+de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph,
+Greg Brockman, et al. Evaluating large language models trained on code.arXiv
+preprint, 2021. URL https://arxiv.org/abs/2107.03374.
+[4] Cursor. Cursor: The AI-first code editor. https://cursor.sh, 2024.
+[5] Xiang Deng, Jeff Da, Edwin Pan, Yannis Yiming He, Charles Ide, Kanak Garg,
+Niklas Lauffer, Andrew Park, Nitin Pasari, Chetan Rane, Karmini Sampath, Maya
+Krishnan, Srivatsa Kundurthy, Sean Hendryx, Zifan Wang, Vijay Bharadwaj,
+Jeff Holm, Raja Aluri, Chen Bo Calvin Zhang, Noah Jacobson, Bing Liu, and
+Brad Kenstler. SWE-Bench Pro: Can AI agents solve long-horizon software
+engineering tasks?arXiv preprint, 2025. doi: 10.48550/arXiv.2509.16941. URL
+https://arxiv.org/abs/2509.16941.
+[6] Naman Jain, King Han, Alex Gu, Wen-Ding Li, Fanjia Yan, Tianjun Zhang, Sida
+Wang, Armando Solar-Lezama, Koushik Sen, and Ion Stoica. LiveCodeBench:
+Holistic and contamination free evaluation of large language models for code.
+arXiv preprint, 2024. URL https://arxiv.org/abs/2403.07974.
+[7] Carlos E Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir
+Press, and Karthik Narasimhan. SWE-bench: Can language models resolve real-
+world GitHub issues?arXiv preprint, 2024. doi: 10.48550/arXiv.2310.06770. URL
+https://arxiv.org/abs/2310.06770.
+[8] Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Chong Lim, Po-Yu
+Huang, Graham Neubig, Shuyan Zhou, Ruslan Salakhutdinov, and Daniel Fried.
+VisualWebArena: Evaluating multimodal agents on realistic visual web tasks.
+arXiv preprint, 2024. URL https://arxiv.org/abs/2401.13649.
+[9] Lovable. Lovable. https://lovable.dev, 2025. Accessed: 2026-03-02.
+[10] Mike A. Merrill et al. Terminal-Bench: Benchmarking agents on hard, realistic
+tasks in command line interfaces.arXiv preprint, 2025. URL https://arxiv.org/
+abs/2601.11868.
+[11] Evan Miller. Adding error bars to evals: A statistical approach to language model
+evaluations.arXiv preprint, 2024. URL https://arxiv.org/abs/2411.00640.
+[12] Samuel Miserendino, Michele Wang, Tejal Patwardhan, and Johannes Heidecke.
+SWE-Lancer: Can frontier LLMs earn $1 million from real-world freelance soft-
+ware engineering?arXiv preprint, 2025. URL https://arxiv.org/abs/2502.12115.
+[13] Magnus Müller and Gregor Zunić. Browser use: Enable AI to control your
+browser. https://github.com/browser-use/browser-use, 2024. Accessed: 2026-03-
+03.
+[14] OpenAI. Introducing SWE-bench verified. https://openai.com/index/introducing-
+swe-bench-verified/, 2024. Accessed: 2026-03-03.
+[15] OpenAI. Codex. https://developers.openai.com/codex, 2025. Accessed: 2026-03-
+02.
+[16] Sida Peng, Eirini Kalliamvakou, Peter Cihon, and Mert Demirer. The impact of
+AI on developer productivity: Evidence from GitHub Copilot.arXiv preprint,
+2023. doi: 10.48550/arXiv.2302.06590. URL https://arxiv.org/abs/2302.06590.
+[17] Replit. Replit agent. https://replit.com/products/agent, 2025. Accessed: 2026-03-
+02.
+[18] Stack Overflow. Developer survey 2024. https://survey.stackoverflow.co/2024,
+2024.
+[19] Supabase. Supabase. https://supabase.com, 2024. Accessed: 2026-02-27.
+[20] SWE-Bench. SWE-Bench leaderboard. https://www.swebench.com, 2026. Ac-
+cessed: 2026-02-27.
+[21] Xingyao Wang, Boxuan Li, Yufan Song, Frank F. Xu, Xiangru Tang, Mingchen
+Zhuge, Jiayi Pan, Yueqi Song, Bowen Li, Jasber Singh, Hoang H. Tran, Fuqiang
+Li, Ren Ma, Mingzhang Zheng, Bill Qian, Yanjun Shao, Niklas Muennighoff,
+Ziyang Zhang, Botian Jiang, Yongliang Shen, Weiming Lu, Stephanie Lin, Yuqing
+Du, Wenhu Chen, and Graham Neubig. OpenHands: An open platform for
+AI software developers as generalist agents.arXiv preprint, 2024. URL https:
+//arxiv.org/abs/2407.16741.
+[22] Chunqiu Steven Xia, Yinlin Deng, Soren Dunn, and Lingming Zhang. Agentless:
+Demystifying LLM-based software engineering agents.arXiv preprint, 2024. URL
+https://arxiv.org/abs/2407.01489.
+[23] John Yang, Carlos E Jimenez, Alexander Wettig, Kilian Lieret, Shunyu Yao, Karthik
+Narasimhan, and Ofir Press. SWE-agent: Agent-computer interfaces enable
+automated software engineering.arXiv preprint, 2024. URL https://arxiv.org/
+abs/2405.15793.
+[24] Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar,
+Xianyi Cheng, Yonatan Bisk, Daniel Fried, Uri Alon, and Graham Neubig. We-
+bArena: A realistic web environment for building autonomous agents.arXiv
+preprint, 2024. doi: 10.48550/arXiv.2307.13854. URL https://arxiv.org/abs/2307.
+13854.
+
+--- PAGE 11 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+A Artifacts
+The modified version of OpenHands that was used can be found at https://github.com/vals-ai/VibeCodeBench-Openhands-Scaffold. The full
+set of trajectories and generated apps for the models can be found here: https://github.com/vals-ai/vibe-code-bench-paper-artifacts. The
+example specification, UI tests, and prompt for the harness are in Appendices F, G, and E.
+B Pass-Rate Histograms for All Models
+Figure 6: Application pass-rate histograms for all evaluated models (test split).
+
+--- PAGE 12 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+C Tools Provided
+(a) OpenHands tools (7).
+# Tool Name Description
+1execute_bash Execute a bash command in a persistent shell session. Supports chaining,
+background processes, interactive input, and configurable timeouts.
+2browser Interact with a web page via 15 browser actions: navigate, click, fill, scroll,
+hover, press, select option, double-click, focus, clear, drag-and-drop, upload
+file, go back/forward, and wait.
+3str_replace_editor View, create, and edit files. Commands:view, create, str_replace, insert,
+undo_edit. Requires exact string matching for replacements.
+4execute_ipython_cell Run Python code in an IPython environment with persistent variables and
+%pipmagic support.
+5think Log a reasoning step for planning and brainstorming. Does not execute code
+or produce side effects.
+6finishSignal task completion with a summary message; ends the interaction.
+7task_tracker Structured task management. Commands: view (show task list) and plan
+(create/update tasks with status tracking).
+(b) Supabase Studio MCP tools (11).
+# Tool Name Description
+1execute_sql Execute a raw SQL query against the Postgres database. Intended for DML
+and one-off statements.
+2apply_migration Apply a DDL migration with version tracking. Requires a snake_case name
+and a SQL query.
+3list_tablesList all tables in one or more schemas (defaults topublic).
+4list_extensionsList all installed Postgres extensions.
+5list_migrationsList all previously applied migrations.
+6get_logs Fetch logs by service type (api, postgres, auth, storage, realtime, edge-
+function, branch-action) from the last 24 hours.
+7get_advisors Retrieve security or performance advisory notices (e.g. missing RLS policies).
+8get_project_urlReturn the API URL for the Supabase project.
+9get_anon_keyReturn the anonymous API key for the project.
+10generate_typescript_typesGenerate TypeScript type definitions from the database schema.
+11search_docs Search the Supabase documentation via a GraphQL query. Returns guides,
+CLI references, API references, and troubleshooting content.
+(c) Tavily MCP tools (4).
+# Tool Name Description
+1tavily-search Real-time web search with customizable depth, domain filtering, time-range
+filtering, and support for general and news topics. Returns titles, URLs,
+content snippets, and optional images.
+2tavily-extract Extract and process content from specified URLs with basic or advanced
+parsing modes, including tables and embedded content.
+3tavily-crawl Systematically crawl websites starting from a base URL with configurable
+depth, breadth limits, domain filtering, and path pattern matching.
+4tavily-map Create structured site maps by analyzing website structure and navigation
+paths. Supports configurable depth, domain restrictions, and category filter-
+ing.
+D Generation and Evaluation Hyper-Parameters
+All generation runs used the same API retry policy (maximum 20 retries with 15–120s backoff).
+
+--- PAGE 13 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+Table 12: Generation LLM hyper-parameters for all 16 models.
+Model ID Temp Top-p Reasoning Vision Disabled
+openai/gpt-5.3-codex-api-previewn/a n/a xhigh -
+anthropic/claude-opus-4-61.0 1 - -
+openai/gpt-5.2n/a 1 xhigh -
+anthropic/claude-sonnet-4-61.0 1 - -
+anthropic/claude-opus-4-6-thinking1.0 provider default - -
+openai/gpt-5.2-codexn/a 1 high -
+google/gemini-3.1-pro-preview1.0 1 high -
+zai/glm-51.0 0.95 -✓
+google/gemini-3-flash-preview1.0 provider default high -
+alibaba/qwen3.5-plus-thinking0.6 provider default - -
+kimi/kimi-k2.5-thinking1.0 0.95 - -
+minimax/MiniMax-M2.51.0 0.95 -✓
+openai/gpt-5-mini-2025-08-07n/a n/a high -
+anthropic/claude-haiku-4-5-20251001-thinking1.0 1 - -
+deepseek-v3p2-thinking (via Fireworks)1.0 provider default high✓
+grok/grok-4-1-fast-reasoning0.7 0.95 - -
+Table 13: UI evaluation hyper-parameters for the fixed evaluator used in reported runs.
+Parameter Value
+Evaluator model Claude Sonnet 4.5
+LLM adapter in Browser UseChatAnthropic(model)
+Model sampling override✓(none set in evaluator code)
+Browser mode headless
+Window/viewport 1920×1200
+Agent flagsuse_vision=True,use_thinking=True,calculate_cost=True
+LLM timeout (per call) 90s
+Step timeout 1200s
+Max agent steps (per workflow) 100
+App startup timeout 180s
+Per-app task timeout 7200s
+Workflow pass threshold≥90% substeps passed
+E Generation System Prompt
+This was the prompt passed into the OpenHands harness to produce the application. Placeholders are replaced at runtime.
+You are a great software engineer developing new web applications .
+You will be given a specification sheet for a web application meant to be used on a computer browser ( usual computer screen , do not use
+mobile screen sizes ) . Your task is to build the application .
+It is crucial your code works and follows the specification and deployment instructions given below . Focus hard when writing the code .
+You CANNOT interact with the user at any point , you are on your own . Everything that is asked of you must be done in the code before you
+submit your work .
+You CANNOT expect the user to perform any actions during or after the code is written .
+DO NOT stop working until you have a fully working application that you have tested .
+IT IS CRITICAL THAT YOU MAKE SURE TO TEST THE APPLICATION BEFORE SUBMITTING YOUR WORK , INCLUDING MAKING SURE YOU BUILD AND START THE DOCKER
+COMPOSE APPLICATION . DO NOT SUBMIT APPLICATIONS THAT DO NOT RUN . ALWAYS ASSUME ANY ERRORS IN BUILDING OR TESTING THE APPLICATION ARE
+YOUR FAULT AND YOUR RESPONSIBILITY TO FIX .
+< TECH_STACK_GUIDELINES >
+Tech stack guidelines :
+Always use ** React with Vite ** as the framework for the frontend .
+Do not use Next . js or any other framework unless explicitly requested .
+Project scaffold guidelines :
+1. The target directory already exists ( e . g . , " generated - app ") . Create any necessary folders and files within this directory , ** without **
+deleting any pre - existing files .
+- Example :
+cd generated - app
+yes | npm create vite@latest frontend -- -- template react
+- ** Do not overwrite`. env`** or any other files that the user has provided . . env is CRUCIAL for the development and testing of the
+application . You may copy some of the secrets to different places or append to this file , but always keep the original secrets
+intact .
+2. Keep the project ** minimal and lightweight **.
+3. Treat ** Supabase as the backend ** ( auth , database , storage , API ) using the`@supabase / supabase - js`client ( supabase details below ) .
+
+--- PAGE 14 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+4. Organize frontend code in a flat folder structure under`frontend / src /`:
+-`src / components /`-> reusable UI components
+-`src / pages /`-> page components
+-`src / hooks /`-> custom React hooks
+-`src / lib /`-> helper functions ( e . g . , Supabase client )
+5. Use ** React Router ** for navigation if multiple pages are required .
+6. Write clean , composable , and reusable code ; avoid unnecessary boilerplate .
+7. Follow Vite + React best practices :
+- Always use ** ES modules ** (`import`/`export`)
+- Lazy - load large components via`React . lazy`or dynamic imports
+- Do not modify Vite's default config unless necessary
+8. Try to use Tailwind CSS v3 . When scaffolding shadcn / ui , use`shadcn@2 .3.0`for compatibility .
+Backend Services ( use only when necessary ) for specific API endpoints :
+Use Express . js with Node . js for API endpoints that can't be handled by Supabase
+Examples of when a backend service is needed :
+Most likely : third - party API integrations that require server - side secrets : Stripe , etc .
+Less likely : complex business logic that requires server - side processing , but only if it is truly necessary .
+Keep REST API simple : use / api /[ resource ] structure
+Always validate inputs and handle errors gracefully
+Refer to the deployment setup for details on how to set it up and include it in the application
+Remember : most functionality should be handled by Supabase - only create backend services for truly necessary cases
+</ TECH_STACK_GUIDELINES >
+< UI_UX_DESIGN_GUIDELINES >
+UI / UX Design Guidelines :
+You must create a modern , professional interface . Make sure your nice design is actually rendered in the application .
+Follow these principles to create high - quality , professional interfaces :
+Visual Design :
+- Use consistent design system with unified color tokens , typography , spacing , and components
+- Limit typography to 4 -5 font sizes and weights for visual hierarchy
+- Stick to 1 neutral base color ( e . g . , zinc ) and up to 2 accent colors maximum
+- Always use multiples of 4 for padding and margins to maintain visual rhythm
+Component Architecture :
+- Build modular , reusable components to avoid duplication
+- Factor repeated UI patterns into shared components
+- Keep components small and focused , avoiding unnecessary complexity
+User Experience :
+- Use fixed height containers with internal scrolling for long content streams
+- Implement skeleton placeholders or`animate - pulse`for loading states
+- Indicate clickability with hover transitions (`hover : bg -*`,`hover : shadow - md`)
+- Provide clear visual feedback for user interactions and state changes
+- Ensure responsive design that works across different screen sizes
+CRITICAL : The design system is everything . You should never write custom styles in components , you should always use the design system and
+customize it and the UI components ( including shadcn components ) to make them look beautiful with the correct variants . You never use
+classes like text - white , bg - white , etc . You always use the design system tokens .
+- Maximize reusability of components .
+- Leverage the index . css and tailwind . config . ts files to create a consistent design system that can be reused across the app instead of
+custom styles everywhere .
+- Create variants in the components you'll use . Shadcn components are made to be customized !
+- You review and customize the shadcn components to make them look beautiful with the correct variants .
+- CRITICAL : USE SEMANTIC TOKENS FOR COLORS , GRADIENTS , FONTS , ETC . It's important you follow best practices . DO NOT use direct colors like
+text - white , text - black , bg - white , bg - black , etc . Everything must be themed via the design system defined in the index . css and tailwind .
+config . ts files !
+- Always consider the design system when making changes .
+- Pay attention to contrast , color , and typography .
+- Always generate responsive designs .
+- Beautiful designs are your top priority , so make sure to edit the index . css and tailwind . config . ts files as often as necessary to avoid
+boring designs and leverage colors and animations .
+- Pay attention to dark vs light mode styles of components . You should avoid making mistakes like having white text on white background and
+vice versa . You should make sure to use the correct styles for each mode .
+</ UI_UX_DESIGN_GUIDELINES >
+< SUPABASE_INTEGRATION >
+Supabase Integration :
+You must use Supabase for database , authentication , and storage .
+The Supabase service is already running and configured . You SHOULD NOT reproduce any of the Supabase services locally .
+Focus on using the MCP tools and the SDK to interact with the Supabase service as described below . You cannot use the default CLI as if
+you were accessing Supabase Cloud .
+The keys and URLs you will need are in the . env file :`SUPABASE_PROJECT_URL`,`SUPABASE_ANON_KEY`,`SUPABASE_SERVICE_ROLE_KEY`.
+Database :
+- Use the MCP tools for all database operations ( you have access to a self - hosted Supabase database )
+- The only way to interact with the database is through the MCP tools available to you
+- Do not create separate database services in Docker
+- When calling MCP SQL tools , pass statements via the`query`argument ( both`execute_sql`and`apply_migration`expect it )
+- Respect Row Level Security ( RLS ) and database constraints . Define explicit foreign keys and unique indexes for all relationships , and
+ensure all inserts / updates satisfy referential integrity to avoid " missing relation " and " duplicate key " errors .
+- Capture schema changes as real migrations : prefer the`apply_migration`tool so Supabase records the version , and check the generated
+SQL into`supabase / migrations /`. If you must fall back to`execute_sql`, send exactly one statement per call so the tool can parse
+the result reliably .
+- For admin / seed operations that require bypassing RLS , use the service role key ; for user - facing flows , use the anon key and create
+appropriate RLS policies . Never disable RLS .
+
+--- PAGE 15 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+- Apply schema migrations and policies via the MCP SQL tools before running the app .
+Seeding & Test Data :
+- Provide a minimal seed routine that creates the records required by the spec and tests ( e . g . , at least one event and organizer with
+valid relations ) .
+- Make seeding idempotent : upsert by natural keys to avoid duplicate key violations .
+- Document how to run the seed and run it before UI testing .
+Authentication & Storage :
+- Use Supabase SDK for authentication and file storage
+- Use MCP tools for server - side database operations and setup .
+- The Studio MCP server does not expose auth - user helpers . For seeding or admin automation , call Supabase Auth directly using the
+service role key -- either via`supabase . auth . admin .*`in the SDK or by POSTing to`/ auth / v1 / admin / users`through Kong . Document
+any seeded credentials in the README .
+- Implement proper auth flows ( login , signup , logout , protected routes ) , if it is required by the spec .
+- Handle authentication state management properly
+- For the authentication , the email verification is disabled , as well as the third - party authentication like Google , Apple , etc . Do not
+try to use them .
+- If there is an authentication flow , strongly test it , as it is the entry point of the application and if it doesn't work , the
+application won't work .
+- Use Supabase storage for file uploads when needed
+Additional Services :
+- You only can use Supabase authentication , database , and storage .
+- You DO NOT have access to edge functions , neither with MCP nor directly with SDK / CLI .
+- Any other services you may need must be written in the backend service , only if it is crucial .
+Configuration :
+- DO NOT hardcode any API keys , secrets , or URLs in the docker - compose . yml file
+- All sensitive configuration must be in a . env file . The . env file already contains the necessary URL and API keys for you to use the
+Supabase service .
+- Reference Supabase documentation if needed : https :// supabase . com / docs and https :// supabase . com / docs / reference .
+- Keep in mind the user will not be able to access the Supabase service once you have submitted the app .
+</ SUPABASE_INTEGRATION >
+< EMAIL_SERVICES >
+Email Services :
+- You have access to a MailHog SMTP server , that will keep running during both development and testing .
+- You can use it to create email sending workflows in your application . The server can handle sending and receiving from and to any email
+address .
+- The application should send emails via SMTP ( config in . env : MAILHOG_SMTP_HOST , M AI LHO G_ SM TP _P ORT )
+- Use MailHog without SMTP auth ; omit the auth block unless both SMTP_USER and SMTP_PASS are provided .
+- You can access the website at the MAILHOG_WEB_URL ( in . env ) to see the emails that are sent .
+- Use appropriate libraries : nodemailer for Node . js , smtplib for Python , etc .
+- ONLY use the MailHog server to send emails , do not try anything else .
+</ EMAIL_SERVICES >
+< STRIPE_SERVICES >
+Stripe Services :
+- Do NOT rely on MCP tools for Stripe ; use the official Stripe SDK only .
+- Read`STRIPE_SECRET_KEY`and`STRIPE_ACCOUNT_ID`and`STRIPE_PUBLISHABLE_KEY`from environment (. env ) and use them to initialize the SDK
+.
+- You MUST use the Stripe account ID to make sure your work is isolated to that account .
+- Keep the Stripe integration simple and minimal : just a Stripe - hosted Checkout page for payment / subscription with success URL and cancel
+URL .
+- Never hardcode secrets . All keys / IDs must come from environment variables .
+- Never send raw credit card numbers directly to Stripe ; this is unsafe and requires strict PCI compliance .
+- All card entry must happen on the Stripe - hosted Checkout page .
+- The currency is USD , always use it for all payments , products , and prices .
+- For testing , use credit card number 4242 4242 4242 4242 with any CVC and valid future expiration date .
+### Required Stripe + Supabase Integration Flow :
+** Steps :**
+1. ** Create Checkout Session ** ( server - side API route )
+- Link Stripe customer to Supabase user via metadata
+- Create payment record in Supabase with'pending'status
+- Set success_url and cancel_url pointing to your localhost app
+- Return session URL to client
+2. ** Success Page Verification ** ( CRITICAL !)
+- User returns with session_id parameter
+- Server - side : Retrieve session from Stripe API to verify payment status
+- Update Supabase tables based on verified payment status
+- Never trust client - side data for payment fulfillment
+** Implementation :**
+- Create API routes :`/ api / create - checkout`and`/ api / verify - payment`
+- Always verify payments server - side using`stripe . checkout . sessions . retrieve ( sessionId )`
+- Update user profiles and payment records in Supabase after verification
+- Works perfectly with localhost app + online Stripe services
+** IMPORTANT :** Use session status verification on success page instead of webhooks for development . This is reliable and works with
+localhost environments .
+</ STRIPE_SERVICES >
+< DEPLOYMENT_INSTRUCTIONS >
+# Deployment Instructions
+Docker and Docker Compose are already installed in the environment . Do not try to install them or change the installed versions .
+
+--- PAGE 16 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+The Docker daemon should also be running in the background . Only try to start it if you encounter an error such as " Is the docker daemon
+running ?".
+When you start the app , it should be available at the APP_PUBLIC_URL and APP_PUBLIC_PORT , using localhost .
+The different services ( like Supabase ) you have access to are using a different host , because they are running in a different place than
+your development environment . Keep it that way for those services , but for your application , use localhost .
+Inside the frontend , you should not hardcode any backend or Supabase URLs you query ; instead , you should append them as variables to a . env
+file .
+You are asked to make the application runnable with Docker Compose .
+It must be runnable from the generated - app directory , i . e . , {{ workspace_path }}/ generated - app / in your case .
+The project structure should be :
+```
+{{ workspace_path }}/
+. b r o w s e r _ s c r e e n s h o t s / ( DO NOT DELETE - used for testing )
+. downloads / ( DO NOT DELETE - used for testing )
+generated - app /
+. env ( DO NOT DELETE OR OVERWRITE - this file is provided before you start working on the application . It contains provided environment
+variables you will need for your application . Do not overwrite it . You may need to copy the values to other . env file ) .
+docker - compose . yml
+frontend /
+. env ( if necessary )
+. dockerignore
+Dockerfile . frontend # Dockerfile for the frontend
+src / # folder created by the Vite CLI , containing the frontend code
+... other folders / files ...
+backend / # Only create a backend if necessary
+. env ( if necessary )
+. dockerignore
+Dockerfile . backend
+... other folders / files ...
+```
+The backend folder is optional - you only need to create it if necessary .
+If you use CLI tools to initialize the app , never use options that can delete existing files you are provided with , especially the . env file
+.
+This . env file contains crucial information for you to build the application and to test it .
+## Docker Compose Setup
+- Create a single`docker - compose . yml`file in the project root ({{ workspace_path }}/ generated - app /)
+- Name the frontend service exactly`{ project_id }`( this service will be exposed )
+- Do NOT use`networks`configuration - only fill in the`services`section
+- Do NOT use`container_name`fields
+- Remember that at application test time , there will be no cached Docker images , so you must make sure the build command works .
+- Always run the container by building and then previewing it ( e . g .`npm run build`followed by`npm run preview`,`npm run serve`, or`npm
+start`) ; avoid`npm run dev`.
+- In case you need to save data outside of what Supabase already provides , DO NOT rely on Docker Compose creating persistent volumes for
+your app's data , because in the testing environment those volumes might not be preserved . Instead , any data your app needs to persist
+should be stored in normal files inside the container ( or a path you control ) , so that the tests can access it reliably .
+- Keep the docker - compose . yml and the Dockerfiles minimal , as simple as possible .
+- This doesn't need to be production - ready ; it just needs to run in development / preview mode . A simple Dockerfile is enough -- no need for a
+multi - stage or optimized production setup .
+- DO NOT use the network_mode field in the docker - compose . yml file .
+## Port Configuration
+- The app landing page URL is defined by`APP_PUBLIC_URL`in the`. env`; treat it as the source of truth and never assume`http :// localhost
+:4173`.
+- Always map the host port from`APP_PUBLIC_PORT`to the frontend preview port`4173`in Docker Compose ( for example ,`ports : - " $ {
+APP_PUBLIC_PORT }:4173"`) .
+- Do not override`APP_PUBLIC_URL`or`APP_PUBLIC_PORT`inside your code ; surface them through environment variables so both frontend and
+backend use the same public origin .
+- Always import the port from the . env file , never hardcode it in the application code anywhere .
+- Configure Vite to listen on all interfaces for both dev and preview ( set`server . host`/`preview . host`to`0.0.0.0`or pass`-- host
+0.0.0.0`) .
+- If you add backend services that are internal - only , prefer`expose : - 8000`instead of publishing them to the host .
+## Example of minimal docker - compose . yml and Dockerfile ( they might need to be more complex depending on the project ) . These match all the
+requirements described above . You might need them to be more complicated depending on the project ( especially if you need backend
+services ) , but always strive to keep it simple :
+```dockerfile
+FROM node :22 - alpine
+WORKDIR / app
+COPY package *. json ./
+RUN npm install
+COPY . .
+RUN npm run build
+EXPOSE 4173
+CMD [" npm " , " run " , " preview "]
+```
+```yaml
+services :
+donat ion_mana ger :
+build :
+context : ./ frontend
+dockerfile : Dockerfile . frontend
+ports :
+- " $ { APP_PUBLIC_PORT }:4173" # APP_PUBLIC_PORT should always be imported from the . env file
+
+--- PAGE 17 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+env_file :
+- . env
+backend : # Only use a backend service if necessary
+build :
+context : ./ backend
+dockerfile : Dockerfile . backend
+env_file :
+- . env
+expose : # NEVER use ports : - 8000:8000 kind of configuration here , as it would publish the backend port outside of the Docker Compose
+network
+- 8000
+```
+Example of a minimal backend Dockerfile ( if necessary ) :
+```
+FROM node :22 - alpine
+WORKDIR / app
+COPY package *. json ./
+RUN npm install
+COPY . .
+# Copy only what the backend needs , not the entire frontend
+EXPOSE 8000
+CMD [" node " , " server . js "]
+```
+## Docker Ignore
+Always include a`. dockerignore`file in any relevant folder ( e . g . frontend / , backend / , etc .) to avoid copying unnecessary files into the
+container image .
+At minimum , ignore build outputs and dependency folders such as : node_modules , dist , build , etc .
+Example of a`. dockerignore`file :
+```
+node_modules
+. next
+dist
+. git
+```
+## Development & Testing Workflow
+1. ** Initial build ( and try before submitting ) **:`docker compose -p { project_id } up -d -- build`
+2. ** After code changes **:`docker compose -p { project_id } restart < service >`
+3. ** Only rebuild when **: dependencies or docker - compose . yml change
+4. ** Check the logs to make sure the application is running correctly **: Run`docker compose -p { project_id } logs -- tail 200`( or wrap`logs
+-f`in a short`timeout`) so the command exits on its own .
+5. ** Test the app through the UI **: You must browse the running application and take screenshots ( you MUST save them in`{{ workspace_path
+}}/. b r o w s e r _ s c r e e n s h o t s /`) to verify functionality
+6. ** Before submitting **: Run`docker compose -p { project_id } down -v`
+7. ** Report **: Report how testing went in your final thoughts before submitting your work . Mention what worked or did not work , and whether
+you followed the expected workflow . Report precisely any deployment errors or issues you encountered .
+## Mandatory Testing
+- Browse the running application and take screenshots to verify functionality
+- Fix issues and restart services until you've verified everything works
+- Save all screenshots in`{{ workspace_path }}/. b r o w s e r _ s c r e e n s h o t s /`
+The application must be fully functional when run with the following command from {{ workspace_path }}/ generated - app /:
+```bash
+docker compose -p { project_id } up -d -- build
+```
+</ DEPLOYMENT_INSTRUCTIONS >
+Absolutely No Mocks or Stubs ( Hard Requirement ) :
+- Do not mock payments or return hardcoded success for checkout / subscription flows . A real Stripe test - mode call must occur .
+- Do not mock email sending ; use SMTP with the env values and send test emails ( MailHog will capture them in dev ) .
+- Avoid in - memory replacements for required services when the spec calls for them ( e . g . , do not replace Supabase / Stripe with in - memory
+data for subscriptions or billing flows ) .
+- Submissions that include phrases like " mock Stripe " , " fake payment " , or bypass external calls will be rejected .
+< README_INSTRUCTIONS >
+README instructions :
+You must create two READMEs for the application :
+First , a technical TECHNI CAL_READ ME . md at project root in {{ workspace_path }}/ generated - app / , at most one page long , with :
+1. General Implementation
+- App overview and key features
+- Tech stack summary
+- Architecture approach
+2. Code Structure
+- Frontend / backend directory layout
+- Key files and their purposes
+- Database schema
+Second , a user - friendly USER_README . md at project root in {{ workspace_path }}/ generated - app / , at most one page long , with :
+1. Navigation Guide to Test the Application
+- Authentication ( admin or not ) method if any
+- Key URLs and actions
+- If there is an authentication flow , provide default credentials to be able to test the application without recreating an account .
+Note : Exclude startup instructions - app runs via Docker commands in deployment docs
+</ README_INSTRUCTIONS >
+
+--- PAGE 18 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+< GENERAL_INSTRUCTIONS_AND_ADVICE >
+General Instructions and Advice :
+- The folder you are working in is`{{ workspace_path }}`. You cannot write outside of this folder . It also may contain the following files
+and folders , that you CANNOT delete in any circumstance ( it would break the application ) :
+```
+{{ workspace_path }}/
+. b r o w s e r _ s c r e e n s h o t s /
+. downloads /
+generated - app /
+```
+- You must create your application in`{{ workspace_path }}/ generated - app /`directory . This is where your docker - compose . yml , . env file , and
+all application code should be placed .
+- The . b r o w s e r _ s c r e e n s h o t s / and . downloads / folders at the`{{ workspace_path }}`level must NEVER be deleted or moved - they are used for
+testing purposes .
+- If you have trouble loading data in the application , make sure to`docker compose -p {{ project_id }} down -v`before running`docker
+compose -p {{ project_id }} up -d`again . It will clear the volumes and start fresh .
+- Ensure proper error handling and user feedback for all operations .
+- Strictly restrict yourself to the services you have access to . Do not try to implement services that are not available to you . If a
+feature requires an additional service that you do not have access to , just ignore that feature , or worst case create a button that
+just shows an error " missing service ".
+- If you encounter issues with the infrastructure you are running in , make sure to put them in your final thoughts before submitting your
+work . For example , mention any problems you encountered when trying to test the application , especially Docker - related issues . Make
+sure to report the commands that failed with the error message .
+- You must focus on doing the full task . Do not abandon until you have completed the task or try as much as possible to complete the task .
+If you encounter errors that you believe are not expected , do not give up , try to fix them or go around them .
+- You are on your own , you CANNOT interact with the user at any point . Do not expect them to take any actions after the code is written .
+The only thing the user will do is use the application and see if it is working as expected .
+- Before running any UI tests , run the project's seed routine to ensure required data exists and relationships are valid ( avoid RLS and
+constraint errors during evaluation ) .
+</ GENERAL_INSTRUCTIONS_AND_ADVICE >
+< TASK_INSTRUCTIONS >
+Specification for the application . Follow the instructions below closely to build the application :
+{{ spec }}
+</ TASK_INSTRUCTIONS >
+F Spec Example
+Zeeter Social Network
+Overview
+Deliver a browser - based short - form social app where members publish text updates , follow users , and interact through likes , comments , and in
+- app notifications . Guests can browse public content but cannot perform member actions .
+User Roles
+- Guest : Browses public profiles and public posts .
+- Member : Signs up , manages profile , creates / edits / deletes own posts , follows other members , likes and comments on posts , and views
+notifications .
+Authentication
+- Members sign up with username , email , and password .
+- Members sign in with username or email plus password .
+- Email verification is not required .
+- Guests can browse public content without signing in .
+Core Features
+1. Accounts and Profiles
+- Members can create accounts with username , email , and password .
+- Members can set and update display name , bio , and profile image .
+- Public profile pages show member identity fields and recent posts .
+2. Posts
+- Members can create posts from the home feed .
+- Post content is limited to 280 characters .
+- Members can edit and delete only their own posts .
+3. Feed and Discovery
+- Member home feed includes followed - member content and discovery content .
+- Feed supports sorting by Newest and Trending .
+- Feed supports search by keyword and hashtag .
+4. Social Interactions
+- Members can follow other members .
+- Members can like posts .
+- Members can comment on posts .
+
+--- PAGE 19 ---
+Vibe Code Bench: Evaluating AI Models on End-to-End Web Application Development
+5. In - App Notifications
+- Notifications page shows follow , like , and comment events relevant to the member .
+Content and Constraints
+- Text - only posting experience for this version ( no media in posts ) .
+- All key workflows must be executable in one browser session .
+Primary User Flows
+- Onboard and profile setup : sign up , complete profile fields , land on feed .
+- Publish and manage posts : create a post , edit it , and delete it .
+- Social engagement : follow , like , and comment across two member accounts .
+- Guest restrictions : browse public content but block member - only actions .
+- Discovery usage : sort feed and search by hashtag / keyword .
+G UI Test Example
+test_workflows :
+o n b o a r d i n g _ a n d _ p r o f i l e _ s e t u p :
+id : id_0
+title : Onboarding and Profile Setup
+purpose : Verify a new member can sign up with username , email , and password , complete profile setup , and land on the home feed .
+num_substeps : 6
+steps :
+- 1. Navigate to the Zeeter app and open the sign - up page .
+- 2. Sign up with username'zeeter_0', email'zeeter_ 0@exampl e . com', and password'UserPass123 !'.
+- 3. Complete profile setup with display name'Zeeter Zero'and bio'First Zeeter profile setup'.
+- 4. Upload a valid profile image and save profile changes .
+- 5. Verify the app navigates to the signed - in home feed .
+- 6. Open the public profile for'zeeter_0'and verify display name , bio , and profile image are visible .
+u p d a t e _ p r o f i l e _ f i e l d s :
+id : id_1
+title : Update Profile Fields
+purpose : Verify a member can update display name , bio , and profile image after account creation .
+num_substeps : 6
+steps :
+- 1. Sign up with username'zeeter_1', email'zeeter_ 1@exampl e . com', and password'UserPass123 !'.
+- 2. Open the profile settings page .
+- 3. Change display name to'Zeeter One Updated'and update bio to'Updated Zeeter profile bio'.
+- 4. Upload or replace the profile image .
+- 5. Save changes and verify an in - app success confirmation appears .
+- 6. Open the public profile for'zeeter_1'and verify updated fields are displayed .
+c r e a t e _ p o s t _ f r o m _ f e e d :
+id : id_2
+title : Create Post from Feed
+purpose : Verify a member can publish a post from the feed and the post appears in profile history .
+num_substeps : 6
+steps :
+- 1. Sign up with username'zeeter_2', email'zeeter_ 2@exampl e . com', and password'UserPass123 !'.
+- 2. On the home feed , locate the post composer .
+- 3. Enter post text'Gardening update # zeeterpost'.
+- 4. Publish the post .
+- 5. Verify the post appears in the feed .
+- 6. Open the public profile for'zeeter_2'and verify the same post appears in recent posts .
+e d i t _ a n d _ d e l e t e _ o w n _ p o s t :
+id : id_3
+title : Edit and Delete Own Post
+purpose : Verify a member can edit and delete only their own post .
+num_substeps : 8
+steps :
+- 1. Sign up with username'zeeter_3', email'zeeter_ 3@exampl e . com', and password'UserPass123 !'.
+- 2. Create a post with content'Original Zeeter message'.
+- 3. Open edit for that post , replace content with'Updated Zeeter message', and save .
+- 4. Verify the post now shows only'Updated Zeeter message'.
+- 5. Delete the same post and confirm deletion .
+- 6. Verify the deleted post is no longer visible in the home feed .
+- 7. Open the public profile for'zeeter_3'.
+- 8. Verify the deleted post is not listed in recent posts .
+v i s i t o r _ b r o w s i n g _ a n d _ r e s t r i c t i o n s :
+id : id_4
+title : Visitor Browsing and Restrictions
+purpose : Verify guests can browse public content but cannot perform member - only actions .
+num_substeps : 9
+steps :
+- 1. Sign up with username'zeeter_4', email'zeeter_ 4@exampl e . com', and password'UserPass123 !'.
+- 2. Create a post with content'Public post for guest access check'.
+- 3. Open the public profile for'zeeter_4'and then sign out .
+- 4. As a guest , navigate back to'zeeter_4'public profile .
+- 5. Verify the public post is visible .
+
+--- PAGE 20 ---
+Hung Tran, Langston Nashold, Rayan Krishnan, Antoine Bigeard, and Alex Gu
+- 6. Attempt to like the post and verify the app blocks the action or prompts sign - in .
+- 7. Attempt to comment on the post and verify the app blocks the action or prompts sign - in .
+- 8. Navigate to the home feed and verify post creation is unavailable to guests .
+- 9. Attempt to follow'zeeter_4'as a guest and verify the app blocks the action or prompts sign - in .
+f o l l o w _ m e m b e r _ a n d _ f e e d _ u p d a t e :
+id : id_5
+title : Follow Member and Feed Update
+purpose : Verify following a member updates the follower feed and creates a notification for the followed member .
+num_substeps : 11
+steps :
+- 1. Sign up with username'zeeter_5_a', email'z e e te r _ 5_ a @ ex a m pl e . com', and password'UserPass123 !'.
+- 2. Create a post with content'Follow workflow seed post # followseed'.
+- 3. Sign out from'zeeter_5_a'.
+- 4. Sign up with username'zeeter_5_b', email'z e e te r _ 5_ b @ ex a m pl e . com', and password'UserPass123 !'.
+- 5. Navigate to the public profile for'zeeter_5_a'.
+- 6. Follow'zeeter_5_a'and verify follow state is active .
+- 7. Open the home feed and verify the seed post from'zeeter_5_a'appears .
+- 8. Sign out from'zeeter_5_b'.
+- 9. Sign in with username'zeeter_5_a'( email'z e e te r _ 5_ a @ ex a m pl e . com') and password'UserPass123 !'.
+- 10. Open notifications page .
+- 11. Verify a new - follower notification referencing'zeeter_5_b'is present .
+l i k e _ c o m m e n t _ a n d _ n o t i f i c a t i o n s :
+id : id_6
+title : Like , Comment , and Notifications
+purpose : Verify likes and comments generate expected UI state changes and notifications .
+num_substeps : 11
+steps :
+- 1. Sign up with username'zeeter_6_a', email'z e e te r _ 6_ a @ ex a m pl e . com', and password'UserPass123 !'.
+- 2. Create a post with content'Interaction workflow seed post # interactionseed'.
+- 3. Sign out from'zeeter_6_a'.
+- 4. Sign up with username'zeeter_6_b', email'z e e te r _ 6_ b @ ex a m pl e . com', and password'UserPass123 !'.
+- 5. Open the public profile for'zeeter_6_a'and locate the seed post .
+- 6. Like the post and verify the like state updates .
+- 7. Submit comment'Great update from zeeter_6_b'.
+- 8. Verify the comment appears under the post .
+- 9. Sign out from'zeeter_6_b'.
+- 10. Sign in with username'zeeter_6_a'( email'z e e te r _ 6_ a @ ex a m pl e . com') and password'UserPass123 !'.
+- 11. Verify notifications include both the like and comment from'zeeter_6_b'.
+f e e d _ s o r t i n g _ n e w e s t _ a n d _ t r e n d i n g :
+id : id_7
+title : Feed Sorting by Newest and Trending
+purpose : Verify feed sorting supports Newest ordering and Trending engagement - based discovery .
+num_substeps : 10
+steps :
+- 1. Sign up with username'zeeter_7_a', email'z e e te r _ 7_ a @ ex a m pl e . com', and password'UserPass123 !'.
+- 2. Create post P1 with content'Trending seed post # zeetertrend'.
+- 3. Create post P2 with content'Newest seed post # zeetertrend'.
+- 4. Sign out from'zeeter_7_a'.
+- 5. Sign up with username'zeeter_7_b', email'z e e te r _ 7_ b @ ex a m pl e . com', and password'UserPass123 !'.
+- 6. Navigate to'zeeter_7_a'profile and like P1 .
+- 7. Sign out from'zeeter_7_b'and sign in with username'zeeter_7_a'( email'ze e t er _ 7_ a @ ex a m pl e . com') and password'UserPass123 !'.
+- 8. Set feed sorting to Newest and verify P2 appears above P1 .
+- 9. Set feed sorting to Trending .
+- 10. Verify P1 ranks above P2 in Trending based on the like received from'zeeter_7_b'.
+s e a r c h _ b y _ k e y w o r d _ a n d _ h a s h t a g :
+id : id_8
+title : Search by Keyword and Hashtag
+purpose : Verify search supports both keyword and hashtag queries .
+num_substeps : 7
+steps :
+- 1. Sign up with username'zeeter_8', email'zeeter_ 8@exampl e . com', and password'UserPass123 !'.
+- 2. Create a post with content'Gardening updates # urbanfarm'.
+- 3. Create a second post with content'Book club planning tonight'.
+- 4. Search for hashtag'# urbanfarm'.
+- 5. Verify the gardening post appears and the'Book club'post is not shown in hashtag results .
+- 6. Search for keyword'Book club'.
+- 7. Verify the'Book club planning tonight'post appears in results .
+p o s t _ c h a r a c t e r _ l i m i t _ v a l i d a t i o n :
+id : id_9
+title : Post Character Limit Validation
+purpose : Verify post creation enforces the 280 - character limit .
+num_substeps : 6
+steps :
+- 1. Sign up with username'zeeter_9', email'zeeter_ 9@exampl e . com', and password'UserPass123 !'.
+- 2. Attempt to publish a post with text'A'repeated 281 times .
+- 3. Verify publishing is blocked and an in - app validation message indicates the content exceeds the limit .
+- 4. Enter a post with text'B'repeated 280 times .
+- 5. Publish the 280 - character post .
+- 6. Verify the post is created and visible in the feed .

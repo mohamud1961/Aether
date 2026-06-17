@@ -1,0 +1,108 @@
+{
+  "schema_version": "aether2.targeted_board.v1",
+  "board_id": "aether2_g5_targeted_board_preregistration",
+  "registration_status": "preregistered_only",
+  "execution_state": "not_executed",
+  "scheduler": {
+    "concurrency_limits": {
+      "light_containers": 3,
+      "heavy_builds": 1,
+      "qemu_service_sensitive": 1
+    },
+    "preflight_checks": [
+      "disk_pressure",
+      "process_pressure"
+    ],
+    "cleanup_scope": "attributable_resources_only",
+    "output_dir_policy": {
+      "mode": "immutable_per_task_attempt",
+      "task_root_template": "runs/{board_id}/{task_id}",
+      "attempt_root_template": "runs/{board_id}/{task_id}/attempt-{attempt_id}"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "task_workspace_rooting",
+      "failure_family": "workspace_root_contract",
+      "reason_selected": "baseline evidence shows the task depends on stable workspace rooting",
+      "expected_capability_pressure": "workspace normalization and artifact isolation",
+      "baseline_evidence": [
+        {
+          "kind": "trace",
+          "ref": "tracking/collab/aether2_g5_implementation_orchestration_20260613/evidence/task_workspace_rooting/baseline_trace.jsonl"
+        },
+        {
+          "kind": "row",
+          "ref": "tracking/collab/aether2_g5_implementation_orchestration_20260613/evidence/task_workspace_rooting/baseline_row.json"
+        }
+      ],
+      "predicted_change": "normalize workspace resolution and preserve per-attempt output separation",
+      "named_sentinels": [
+        "workspace-root-resolution",
+        "attempt-output-isolation",
+        "cleanup-attribution"
+      ],
+      "resource_class": "light_container",
+      "timeout_seconds": 900,
+      "contamination_controls": [
+        "fresh workspace per attempt",
+        "no shared temporary tree"
+      ]
+    },
+    {
+      "task_id": "task_build_pressure",
+      "failure_family": "build_dependency_pressure",
+      "reason_selected": "baseline evidence points to slow or fragile build orchestration",
+      "expected_capability_pressure": "build coordination and artifact determinism",
+      "baseline_evidence": [
+        {
+          "kind": "trace",
+          "ref": "tracking/collab/aether2_g5_implementation_orchestration_20260613/evidence/task_build_pressure/baseline_trace.jsonl"
+        },
+        {
+          "kind": "row",
+          "ref": "tracking/collab/aether2_g5_implementation_orchestration_20260613/evidence/task_build_pressure/baseline_row.json"
+        }
+      ],
+      "predicted_change": "reduce build churn and stabilize generated artifacts",
+      "named_sentinels": [
+        "build-pressure-guard",
+        "artifact-determinism"
+      ],
+      "resource_class": "heavy_build",
+      "timeout_seconds": 3600,
+      "contamination_controls": [
+        "clean build tree",
+        "discard reused object files"
+      ]
+    },
+    {
+      "task_id": "task_service_serialization",
+      "failure_family": "service_boot_serialization",
+      "reason_selected": "baseline evidence suggests service startup is race-sensitive",
+      "expected_capability_pressure": "service sequencing and teardown hygiene",
+      "baseline_evidence": [
+        {
+          "kind": "trace",
+          "ref": "tracking/collab/aether2_g5_implementation_orchestration_20260613/evidence/task_service_serialization/baseline_trace.jsonl"
+        },
+        {
+          "kind": "row",
+          "ref": "tracking/collab/aether2_g5_implementation_orchestration_20260613/evidence/task_service_serialization/baseline_row.json"
+        }
+      ],
+      "predicted_change": "serialize service-sensitive setup and cleanly release shared state",
+      "named_sentinels": [
+        "service-start-order",
+        "qemu-slot-serialization",
+        "state-teardown-attribution"
+      ],
+      "resource_class": "qemu_service_sensitive",
+      "timeout_seconds": 2400,
+      "contamination_controls": [
+        "exclusive service slot",
+        "per-attempt state directory"
+      ]
+    }
+  ]
+}

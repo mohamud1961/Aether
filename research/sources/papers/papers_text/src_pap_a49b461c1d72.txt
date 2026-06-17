@@ -1,0 +1,4837 @@
+--- PAGE 1 ---
+Fixed effects as generated regressors
+Jiaqi Huang
+Department of Economics ∗, Pennsylvania State University
+February 10, 2026
+Abstract
+Many economic models feature moment conditions that involve latent variables.
+When the latent variables are individual fixed effects in an auxiliary panel data re-
+gression, we construct orthogonal moments that eliminate first-order bias induced by
+estimating the fixed effects. Machine Learning methods and Empirical Bayes methods
+can be used to improve the estimate of the nuisance parameters in the orthogonal mo-
+ments. We establish a central limit theorem based on the orthogonal moments without
+relying on exogeneity assumptions between panel data residuals and the cross-sectional
+moment functions. In a simulation study where the exogeneity assumption is violated,
+the estimator based on orthogonal moments has smaller bias compared with other es-
+timators relying on that assumption. An empirical application on experimental site
+selection demonstrates how the method can be used for nonlinear moment conditions.
+Keywords:Debiased/Double Machine Learning, Empirical Bayes, Panel Data
+Models, Elastic Net, Measurement error
+JEL classification:C13, C23, C55
+1 Introduction
+In this paper, we will consider a model in which the researcher is interested in a parameter
+µ0 that can be characterized by a set of moment conditions:
+E[m(Wi, αi, µ0)] = 0,(1)
+whereW i will be observables that are specific to an individuali, whileα i is unobservable to
+the researcher.
+If the researcher has no information aboutα i, one can derive observable implications from
+(1) which typically results in partial identification ofµ0 (see Schennach (2014); Ekeland et al.
+(2010); Li (2021)). However, oftentimes the researcher has a panel data model that specifies
+∗I am grateful to Patrik Guggenberger, Marc Henry, Sung Jae Jun and Andres Aradillas-Lopez for their
+generous comments on the paper. I would also like to thank my classmates in ECON 555 for constructive
+discussions, especially Taegyu Yang. All errors are mine.
+1
+arXiv:2602.08899v1  [econ.EM]  9 Feb 2026
+
+--- PAGE 2 ---
+αi as fixed effects. Formally, for each individuali, the researcher observes (Y it, X′
+it)T
+t=1 that
+are related toα i through the linear panel data model:
+Yit =X ′
+itβ0 +α i +u it,(2)
+withu it satisfying sequential exogeneity to accommodate dynamic panel data models. 1 We
+do not impose any independence assumption between (Y it, X′
+it)T
+t=1 andW i.
+Many interesting economic problems share the above structure. Typical examples include
+value-added for teachers (Chetty et al., 2014b) and the match quality between firm-product
+pairs (Kim and Jo, 2024). More concretely, Chetty et al. (2014a) and Jackson (2018) study
+whether students who are matched with teachers with higher value-added in primary school
+might also have better long-run outcomes in college attendance and earnings. The latent
+variableα i represents the value-added on students’ test scores for teacheri, andµ 0 is the
+slope coefficient of a linear regression of students’ average (for each teacheri) long-run
+outcomes onα i’s. The linear panel data model would be specified usingY it as the test score
+for studenttwho has teacheri, andX it’s are covariates that include lagged test scores and
+socio-economic status of the student. In the context of firm dynamics, Kim and Jo (2024)
+show that the firm-product match quality is an important predictor for firm’s product adding
+and dropping behaviors. In their specification,α i is the firm-product match quality where
+irepresents a firm-product pair andtrepresents time. The panel data model would use
+product-firm specific value of shipment asY it, product tenure and firm size as the covariates
+Xit. The parameter of interestµ 0 is the average marginal effect of a shift in product-firm
+match quality on the probability that the firm adds or drops that product.
+Using the panel data model, one can easily recover an estimate ˆα i ofα i, but directly
+plugging the estimated ˆαi into the moment condition (1) and ignoring the potential mea-
+surement error in ˆαi might render the inference results invalid. This paper aims to provide
+an inference procedure forµ 0 that takes into account the error in estimatingα i’s properly.
+Before describing the approach, we first consider a special case of (1) which has drawn a
+lot of attention in the literature (Chen et al., 2025; Xie, 2025; Battaglia et al., 2024; Deeb,
+2021).
+Example 1.Consider a simple example, whereα i is defined viaY it =X ′
+itβ0 +α i +u it. We
+are interested in the regression coefficientµ 02 for the regression
+Wi =µ 01 +µ 02αi +v i,(3)
+whereE(v i|αi) = 0.
+The two moment conditions for identifyingµ 01 andµ 02 are:
+E
+ Wi −µ 01 −µ 02αi
+αi(Wi −µ 01 −µ 02αi)
+
+=
+0
+0
+
+.(4)
+The teacher value-added example in Chetty et al. (2014a) follows the above structure
+whereW i is the average long-run outcome of the students who have teacheriwhileα i is
+teacheri’s value-added.
+1Models with additional time fixed effects can be reduced to the setup by first taking the within trans-
+formation for each time period (subtracting the mean of each variable within each time period. See Section
+6 for an example.
+2
+
+--- PAGE 3 ---
+The need to estimateα i’s and to use the estimates in the moment conditions (1) suggests
+having small average mean squared error (MSE) 1
+N
+PN
+i=1 E(ˆαi −α i)2 could be important for
+estimatingµ 0. Recognizing this fact, Empirical Bayes (EB) corrections of ˆαi’s are suggested
+to alleviate the potential impact of the measurement error (Angrist et al., 2017; Chen et al.,
+2025). Results using EB corrected versions ofα i’s typically abstract away from the panel data
+structure that definesα i and start by assuming that an estimator ˆαi ofα i is available which
+has a normal distribution with meanα i and some varianceσ 2
+i (Xie, 2025; Chen et al., 2025).
+The EB corrections are then applied to ˆαi’s. Xie (2025) establishes a central limit theorem
+where estimates ofµ 0 are obtained by replacingα i’s in the moments by the EB corrected
+estimates in Example 1. However, the above result requires i) independence betweenu it
+andv i; ii)α i being independent of Var i(PT
+t=1 uit). Chen et al. (2025) recognizes that the
+latter independence assumption is restrictive. Instead, they advocate combining the classical
+correction of error-in-variables regression in Deaton (1985) with bootstrapped confidence
+interval, which they showed is a valid inference procedure that relaxes the independence
+betweenα i and Vari(PT
+t=1 uit). However, they still need to assume orthogonality condition
+betweenu it andv i, and their approach is hard to extend to nonlinear moments.
+The required independence assumptionu it andv i may not hold in some applications of
+interest. For example, in the teacher value-added example, ifW i represents average college
+attendance rate of the students, it can be correlated withu it for the same set of students.
+In the firm-product match quality example, an idiosyncratic shock in demand could affect
+the product value of shipment and also induce the firm to drop the product.
+To address this issue, we instead exploit the panel data structure that definesα i’s. Al-
+though it can be more restrictive in some settings where estimators ofα i does not come from
+a panel data model, it enables us to relax the exogeneity assumption betweenu it andv i. We
+borrow insights from Bonhomme et al. (2024) and consider asymptotics in which both the
+dimension of individualsNand time periods of panel dataTgo to infinity. This allows us to
+use debiased machine learning (DML) techniques in Chernozhukov et al. (2022) to construct
+orthogonal moment conditions that eliminate any first order effect of the measurement error
+in ˆαi as long asTgoes to infinity sufficiently fast compared withN. More specifically, we re-
+quire limN→∞
+N
+1
+2
+T = 0 and limN→∞
+N
+T =∞. As long as the above limits hold, the asymptotic
+distribution of the estimator ˆµusing the orthogonalized moments will not depend on the
+specific rate at whichTgoes to infinity relative toN. Constructing the orthogonal moment
+conditions requires the sequential exogeneity assumption to derive the adjustment term to
+the moment function as shown in Ichimura and Newey (2022). This shows that taking the
+panel data structure into account can offer potential improvements on the estimator ˆµ. Fur-
+thermore, shrinkage methods like EB and Stein’s Unbiased Risk Estimation (SURE) can be
+readily applied to estimates ofα i, because with orthogonal moments howα i’s are estimated
+does not affect the asymptotic distribution. 2 We further derive a central limit theorem that
+characterizes the limit distribution of ˆµbased on orthogonal moments. The result is the
+first that unites the cross-sectional moments and linear panel data model without imposing
+parametric assumptions on the panel data part of the model. 3
+One stark difference of our approach from the standard DML literature is in the procedure
+2SURE has been studied in Xie et al. (2012), and for applications in econometrics, see Kwon (2023).
+3For the case of the panel data model being parametric, see Bonhomme et al. (2024).
+3
+
+--- PAGE 4 ---
+of cross-fitting. DML requires the nuisance parameterα i to be learned using samples from
+other folds and then use it to construct the sample momentsm(W i,ˆαi, µ) for the current
+fold. However, this is not possible in our context, because only data about individuali
+contains information aboutα i. Hence any reasonable estimator ofα i must depend on the
+data for individuali. We adapt the cross-fitting procedure by first estimatingβ 0 in the
+panel data model using samples from other folds (denote the estimator as ˜βl), and then an
+estimator ˜αil ofα i is constructed as the difference between averages ofY it over time and
+averages ofX ′
+it ˜βl over time. The difference ˜αil −α i depends oni-th sample only through the
+panel data residualsu it. We showed that with suitable controls on the correlation between
+uit and ∂m(Wi,αi,µ0)
+∂αi
+, usingi-th sample to estimate bothα i andµ 0 will not affect the limiting
+distribution of the orthogonal moments (see condition (ii) of Assumption 3 for a precise
+statement).
+In a simulation study with linear dynamic panel and linear regression model for (1), we
+showed that whenuit andW i are correlated, the approaches used in Chen et al. (2025) and Xie
+(2025) that ignore the potential endogeneity issue have non-negligible bias and consequently
+larger root mean squared error (RMSE). In addition, standard test statistics based on their
+estimators do not properly control the null rejection probabilities. In contrast, estimators
+that employ orthogonal moment conditions have null rejection probabilities closer to the
+nominal size, and employing an EB (or SURE) corrections on the ˆα i’s will perform slightly
+better in terms of null rejection probabilities but may incur larger RMSE. However, using
+orthogonal moment conditions results in larger variance in the estimator in the simulation,
+and can lose power compared with Chen et al. (2025) if endogeneity concerns are not present.4
+To demonstrate the power of the method in dealing with non-linear moment conditions,
+we further consider estimating coefficients of a logit model as an empirical illustration. The
+moment conditions in this context set the expectation of the score function to zero. Specif-
+ically, we focus on the experimental site selection of the agricultural catastrophe insurance
+(ACI) program in China. Wang and Yang (2025) have documented consistent patterns of
+positive site selection in the universe of policy experiments conducted by Chinese central
+government, but they did not commit to a particular explanation of the positive selections.
+As implementation details are relegated to local government and good practices discovered
+during the experimentation phase are encouraged to be rolled out across the whole country,
+the central government has incentive to pick experimental sites that are more specialized in
+the specific policy domain and could serve as “model sites”. We test the hypothesis in the
+context of ACI, where the key variable of interest (α i) is the level of specialization in grain
+production for each county. As the specialization level is unobserved to the researcher, it is
+captured as fixed effects in a linear panel data model withY it being the grain production
+per rural employment. We then focus on the parameter associated withα i that enters a
+linear logit model where the response is whether the county is selected as the experimental
+site. Results show that the coefficient associated with the level of specialization is positive
+and significant, but using orthogonal moments reduce the magnitude of the coefficient from
+around 0.56 (using simple plug-in methods) to around 0.4. EB and SURE corrections have
+more limited impacts on the estimates. Therefore, the evidence favors the theory that gov-
+4The estimator used in Chen et al. (2025) achieves the semi-parametric efficiency bound under their
+assumptions.
+4
+
+--- PAGE 5 ---
+ernments are choosing sites that are more experienced in agricultural production, and calls
+for usage of orthogonal moments when endogeneity betweenu it andW i is of concern.
+Literature
+This paper is related to literature on correcting measurement error for estimated latent
+variables. In addition to the classical approach like error-in-variables regression as in Deaton
+(1985) and the generated regressor problem in Pagan (1984), more recent contributions in-
+clude Chen et al. (2025), Xie (2025), Battaglia et al. (2024) and Deeb (2021). Battaglia et al.
+(2024) uses an asymptotic regime so that the measurement error is similar in magnitude to
+the sampling error of the model (1) and derives formulas for bias correction of the estima-
+tor. They focused on the case whereα i’s are estimated using Machine Learning Methods.
+Deeb (2021) focuses on the teacher value-added context and derives moment conditions that
+can help estimateµ 0 in Example 1. The results of these papers rely on the linear regression
+structure that definesµ 0, and generalizations to more general models are not straightforward.
+The long panel data asymptotics with bothNandTgoing to infinity has been studied
+in Hahn and Kuersteiner (2002). See also Hahn and Newey (2004) for the non-linear panel
+data context. The main objective is to derive bias correction methods forβ 0 to combat the
+incidental parameter problem of estimating infinitely manyα i’s (Neyman and Scott, 1948).
+Other approaches to circumvent the incidental parameter problem include reparametrization
+and integrating out theα i’s in a Bayesian framework (Lancaster, 2002).
+This paper also uses techniques from the DML literature as in Chernozhukov et al.
+(2018, 2022). The paper that is most closely related is Bonhomme et al. (2024), which
+also features a panel data first stage to recover latent variables that is going to be used
+in a model like (1). However, their focus is on non-linear panel data models that are fully
+parametric and enables the researcher to exploit the likelihood function and construct higher-
+order orthogonal moments. This paper extends their approach to a semi-parametric context
+without making any distributional assumptions onu it. The construction of the orthogonal
+moment functions and estimation procedure follows from Chernozhukov et al. (2022) and
+Ichimura and Newey (2022).
+The paper is also related to the literature on EB corrections for a parallel decision prob-
+lem. Examples that use Empirical Bayes to correct for potential measurement error include
+Angrist et al. (2017). Standard EB corrections may not work well when the error distribution
+is far from normal. Recent literature suggests choosing the shrinkage parameter based on
+the idea of Stein’s Unbiased Risk Estimation (SURE) (Kwon, 2023; Xie et al., 2012; Brown
+et al., 2018). In our framework, any corrections using EB or SURE on the estimates ofα i
+can be incorporated, will not affect the asymptotic distribution of ˆµ, and could be beneficial
+to the performance of the estimator in finite sample.
+The plan of the paper is as follows. Section 2 formally introduces the model and the
+concept of Neyman orthogonality. Section 3 describes the orthogonal moment conditions and
+the cross-fitting procedure, while Section 4 gives the assumptions that establishes a central
+limit theorem for the estimator proposed in Section 3. Section 5 conducts a simulation
+study of the estimator based on orthogonal moments compared with other estimators in the
+literature. The empirical illustration of experimental site selection is detailed in section 6.
+All proofs are relegated to the appendices.
+5
+
+--- PAGE 6 ---
+2 Individual fixed effects in cross-sectional moments
+We will consider a long-panel data setting in which the cross-sectional dimension is indexed
+byiand the time dimension is indexed byt. Suppose we have a balanced panel withN
+number of individuals observed acrossTtime periods. For each individualiat timet, the
+researcher observes a vector of observablesZ it = (Y it, X′
+it) and for each individuali, the
+researcher observes a vectorW i that only varies at the cross-sectional level. Assume that in
+the first-stage, the following fixed effect model is estimated to recover the set of fixed effects
+αi for each individuali. 5
+Yit =X ′
+itβ0 +α i +u it,(5)
+whereY it ∈Ris the scalar outcome variable, andX it ∈R p is a vector of observables.
+Assumption 1.The parameterµ 0 solves
+E[m(Wi, αi, µ0)] = 0,(6)
+for some moment functionm(W i, αi, µ0) that is individual specific andα i is unobserved but
+defined via (5).
+The idiosyncratic shocku it is assumed to be sequentially exogenous and have finite vari-
+ance:
+E[uit|Xit, αi,Φ it] = 0∀t= 1,· · ·, T, E[u 2
+it] =σ 2.(7)
+where Φit ={(Y it′, Xit′)t−1
+t′=1}is the filtration up to timet−1.
+One approach in dealing with the moment conditions is to use the plug-in principle by
+replacingα i’s with their corresponding estimates ˆα i, which gives us the sample analogue
+estimating equation for ˆµ:
+NX
+i=1
+m(Wi,ˆαi,ˆµ) = 0
+under Assumption 1.
+Assuming the moment conditionsm(·) are sufficiently smooth, a standard Taylor expan-
+sion of the above moment condition around (ˆαi, µ0) yields:
+− 1
+N
+NX
+i=1
+m(Wi,ˆαi,ˆµ) =E
+ ∂m(Wi,ˆαi, µ∗)
+∂µ ) +o p(1)
+
+(ˆµ−µ0),
+for some intermediate valueµ ∗. The RHS of the above equation is standard in M-estimation,
+and the main difficulty lies in establishing the asymptotic distribution of the LHS.
+Following insights from Bonhomme et al. (2024), we can do a further Taylor Expansion
+for the LHS of the above display (for simplicity drop the minus sign):
+5We will not restrict to a particular estimator for the first-stage model, but provide sufficient conditions
+on the estimatesβandα i that can eliminate the estimation bias in the second stage.
+6
+
+--- PAGE 7 ---
+1
+N
+NX
+i=1
+m(Wi,ˆαi, µ0) = 1
+N
+NX
+i=1
+m(Wi, αi, µ0)
+| {z }
+I
++
+ 1
+N
+NX
+i=1
+∂m(Wi, αi, µ0)
+∂αi
+−E
+ ∂m(Wi, αi, µ0)
+∂αi
+
+(ˆαi −α i)
+| {z }
+II
++ 1
+N
+NX
+i=1
+E
+ ∂m(Wi, αi, µ0)
+∂αi
+
+(ˆαi −α i)
+| {z }
+III
++Op(sup
+i
+|ˆαi −α i|2),(8)
+under Assumption 1 and also assuming the Hessian ofm(W i, αi, µ0) with respect toα i’s is
+uniformly bounded almost surely.
+The first term is the sum of moment conditions evaluated at the true parameter values,
+and a standard central limit theorem applies when we rescale the whole expression by
+√
+N.
+In standard DML setting, the termIIin (8) will beo p(1) by using sample splitting and cross-
+fitting method. For example, by estimating ˆα i on half of the sample and then estimating
+µ0 using the other half of the sample. However, in the current context, ˆα i has to depend
+on the data for individualiand hence could be correlated with ∂m(Wi,αi,µ0)
+∂αi
+−E( ∂m(Wi,αi,µ0)
+∂αi
+).
+Therefore, standard cross-fitting techniques do not apply in the current context and they
+need to be adapted to makeIInegligible asymptotically. We will show how to do this in
+the next section. The termIIIwill be zero ifE( ∂m(Wi,αi,µ0)
+∂αi
+) = 0. This condition is called
+Neyman Orthogonality and is widely used in the literature (Newey, 1994; Chernozhukov
+et al., 2018; Bonhomme et al., 2024). Finally, the termO p(supi |ˆαi −α i|2) =O p( 1
+T ), and
+whenTincreases sufficiently fast withN, it will not affect the asymptotic distribution of ˆµ.
+We now formally introduce the definition of Neyman Orthogonality:
+Definition 1.If for a moment functionm(W i, αi, µ0)
+E
+ ∂m(Wi, αi, µ0)
+∂αi
+
+= 0,(9)
+holds, thenm(·) satisfies the Neyman Orthogonality Condition.
+3 Inference procedure
+3.1 Constructing Orthogonal Moment Conditions
+As shown in (8), Neyman orthogonality is useful in controlling 1√
+N
+PN
+i=1 m(Wi,ˆαi, µ0) when
+the trueα i’s are replaced by their corresponding estimates. Here we will address the question
+of how to modify moment conditionsE(m(W i, αi, µ0)) = 0 to achieve Neyman Orthogonality,
+but still preserve identification ofµ 0.
+7
+
+--- PAGE 8 ---
+Before entering into the details, first note that (7) implies the following moment restric-
+tions onα i:
+E[b(Xi, αi)(YiT −X ′
+iT β0 −α i)] = 0,(10)
+for any functionb(X i, αi) withX i = (X ′
+i1,· · ·, X ′
+iT )′.6
+One way to construct orthogonal moment conditions is through modifying the original
+moment conditions by adding the influence function of the original moment condition with
+respect toα i as an adjustment term like Chernozhukov et al. (2022), Ichimura and Newey
+(2022) and Bonhomme et al. (2024). More specifically, we can choose a functiona(X i, αi, µ)
+and form a modified moment conditionm ∗(Wi, αi, Zi, β, µ, a) as:7
+m∗(Wi, αi, Zi, β0, µ, a) =m(W i, αi, µ) +a(X i, αi, µ)(YiT −X ′
+iT β0 −α i).
+By the sequential exogeneity assumption, we have for anyµ,
+E[a(Xi, αi, µ)(YiT −X ′
+iT β0 −α i)] =E[E(a(X i, αi, µ)(YiT −X ′
+iT β0 −α i)|Xi, αi)]
+=E[a(X i, αi, µ)E(YiT −X ′
+iT β0 −α i|Xi, αi)] = 0,
+hence the adjustment term will always have mean zero. Therefore,µsatisfies
+E[m∗(Wi, αi, Zi, β0, µ, a)] = 0 if and only ifE[m(Wi, αi, µ] = 0. As long asµ 0 can be identified
+by the original moment conditionsE[m(W i, Zi, µ)] = 0, then it can also be identified by the
+modified onesE[m ∗(Wi, αi, Zi, β0, µ, a)] = 0. This is becauseE[m ∗(Wi, αi, Zi, β0, µ, a)] =
+E[m(Wi, αi, µ] for anyµanda(X i, αi, µ).
+Differentiating with respect toα i, and then taking conditional expectation with respect
+to (Xi, αi), we have
+E
+ ∂m∗(Wi, αi, Zi, β0, µ0, a)
+∂αi
+|Xi, αi
+
+=E
+ ∂m(Wi, αi, µ0)
+∂αi
+|Xi, αi
+
+−a(X i, αi, µ0)
+− ∂a(Xi, αi, µ0)
+∂αi
+E(YiT −X ′
+iT β−α i|Xi, αi)
+=E
+ ∂m(Wi, αi, µ0)
+∂αi
+|Xi, αi
+
+−a(X i, αi, µ0).
+The last step follows by sequential exogeneity assumption in (7). The Neyman Orthogonality
+Condition can be achieved by choosinga(X i, αi, µ0) so that the above display equals zero: 8
+a(Xi, αi, µ0) =E
+ ∂m(Wi, αi, µ0)
+∂αi
+|Xi, αi
+
+In addition,
+E
+ ∂m∗(Wi, αi, Zi, β0, µ0, a)
+∂a
+
+=−E(Y iT −X ′
+iT β−α i) = 0
+6One can also exploit sequential exogeneity by choosing a different periodt ′ than the final periodTand
+restricting the set ofX ′
+i to be theX ′
+it up to periodt ′ −1. This corresponds to the endogenous orthogonality
+conditions in Ichimura and Newey (2022) which requires additional regularity conditions. For simplicity, we
+do not pursue further in that direction.
+7HereZ i denotes (Z ′
+i1,· · ·, Z ′
+iT )′, with (Y it, X′
+it) being a component ofZ it.
+8The fact thatE(m ∗(Wi, αi, Zi, β0, µ0, a)) = 0 can be easily checked via law of iterated expectation by
+conditioning on (X i, αi) first.
+8
+
+--- PAGE 9 ---
+so the new momentsm ∗(Wi, αi, Zi, β0, µ0, a) is also orthogonal to the new nuisance function
+a(Xi, αi, µ0). With some abuse of notation, from now on,a(X i, αi, µ0) is used exclusively to
+denoteE
+
+∂m(Wi,αi,µ0)
+∂αi
+|Xi, αi
+
+.
+This is the strategy proposed and implemented for nuisance parameters that are typ-
+ically non-parametric functions of the DGP (See e.g. Chernozhukov et al. (2018, 2022);
+Ichimura and Newey (2022)) rather than fixed effect estimates. The componentX i ina(·)
+concatenatesX it’s which will be a high-dimensional object under the data generating pro-
+cess ofN, T→ ∞. 9 Some sparsity restriction is needed for the conditional expectation
+E
+
+∂m(Wi,αi,µ0)
+∂αi
+|Xi, αi
+
+to be estimated with reasonable precision by employing standard high-
+dimensional regression tools like Elastic Net.
+Example 1 (continued)
+From the moment conditions in (4), letm1(Wi, αi, µ0) =W i−µ01−µ02αi, andm 2(Wi, αi, µ) =
+αi(Wi −µ 01 −µ 02αi) be the two moment functions. By taking derivatives, we see that the
+a1(Xi, αi, µ0) =−µ 02 anda 2(Xi, αi, µ0) =E(v i −µ 02αi|Xi, αi).
+3.2 Implementation
+Constructing the orthogonal momentm ∗(Wi, αi, Zi, β0, µ0, a) requires estimates ofα i,β 0,
+anda(X i, αi, µ0) which in turn needs a preliminary estimator ofµ 0. In order to avoid the
+recursiveness in estimatingµ 0 and control the bias due to using the same data to estimate
+both the nuisance parameters and the parameter of interestµ 0, cross-fitting procedures are
+widely adopted in the literature (Chernozhukov et al., 2018, 2022). Although standard cross-
+fitting cannot deal with the estimation error inα i, it is still useful to control the error in
+the estimation ofa(X i, αi, µ0) (see Assumption 2 below). In particular, sample splitting
+and cross-fitting enable us to form an estimate of the functiona(X i, αi, µ0) without using
+observationi. Analysis of the plug-in orthogonal momentsm ∗(Wi,ˆαi, Zi, ˆβ, µ,ˆa) can then
+be performed by conditioning on the observations used to estimatea(X i, αi, µ0), and hence
+one can treat ˆa(Xi, αi, µ0) as a fixed function and does not need to account for the effect
+of individualion estimatinga(X i, αi, µ0). Adapting the standard cross-fitting procedure to
+our context gives the following version:
+Algorithm 1.1. Split the cross-sectional dimension of the data intoLgroups{I l}L
+l=1
+with|I l| ≥ ⌊N/L⌋, forl= 1,· · ·, L. Here⌊x⌋denotes the greatest integer smaller than
+x. The number of foldsLis fixed and does not change with the sample size.
+2.Repeat for eachl= 1,· · ·, L
+(a) Goal of this step is to obtain a preliminary estimate ˜µ l ofµ 0 using data not in
+foldl, this is needed to estimatea(X i, αi, µ0) which depends on the trueµ 0:
+Repeat for eachl ′ ̸=l
+•For observationsi /∈I l ∪I l′ withl ′ ̸=lcompute the Fixed effect regression
+(5) and obtain ˜βll′.
+9Bonhomme et al. (2024) use the above construction but in their applications,W i only involvesX i.
+Consequently,E
+
+∂m(Wi,αi,µ0)
+∂αi
+|Xi, αi
+
+= ∂m(Wi,αi,µ0)
+∂αi
+, which is a significant simplification.
+9
+
+--- PAGE 10 ---
+•For eachi∈I l′, estimate ˜αill′ via ¯¯Yi − ¯¯X ′
+i ˜βll′, where ¯¯Yi = 1
+T−1
+PT−1
+t=1 Yit and
+similarly for ¯¯Xi. Alternatively, one can further modify ˜α ill′ using Empirical
+Bayes methods by shrinking the estimates ˜αill′ fori∈I l′.
+End for loop ofl ′
+Using observationsi /∈I l, obtain an initial estimate ˜µ l by solving the GMM
+moment condition with the original (unorthogonalized) moments using{˜αill′}l′̸=l.
+(b) Goal of this step is to obtain estimateα i and alsoβ 0 for foldI l:
+For observationsi /∈I l , compute the Fixed effect regression (5) and obtain ˜βl.
+For eachi∈I l, estimate ˜αil via ¯¯Yi − ¯¯X ′
+i ˜βl. Alternatively, one can further modify
+˜αil using Empirical Bayes methods by shrinking the estimates ˜αil fori∈I l.
+(c) Goal of this step is to obtain an estimate ˜ail of thea(X i, αi, µ0) using observations
+NOT inI l.
+We assume thata(X i, αi, µ0) can be well approximated by the linear span of a
+dictionary of transformations of (X i, αi)
+∂m(Wi,˜αill′,˜µl)
+∂αi
+=b(X i,˜αill′)′π0 +ϵ i,(11)
+where ˜αill′ is the estimator forα i in step (a). As one instance of the basis function
+b(Xi,˜αill′), it can be [X ′
+i1,· · ·, X ′
+iT ,˜αill′]′ and possibly some higher-order interac-
+tion terms betweenX i and ˜αill′.
+Typically,b(X i, αi) will be a high-dimensional object and regularization is needed
+to ensure desirable performance. Denote the estimated coefficientπ 0 as ˜πl, for
+i∈I l,a(X i, αi, µ0) is estimated by ˜ail(Xi,˜αil) =b(X i,˜αil)′˜πl.
+End for loop ofl
+3. The debiased sample moment functions are:
+ˆm∗(µ)≡ 1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ) + ˆψ,
+ˆψ= 1
+N
+LX
+l=1
+X
+i∈Il
+˜ail(YiT −X ′
+iT ˜βl −˜αil).(12)
+4. The final estimate ofµ 0 is:
+ˆµ= argµ min ˆm∗(µ)′ΥN ˆm∗(µ),(13)
+where Υ is a positive-definite weighting matrix. The optimal weighting matrix is
+Υ = Ω −1 with Ω =E(m ∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′), and it can be
+estimated by
+ˆΥ = ( 1
+N
+LX
+l=1
+X
+i∈Il
+(m(Wi,˜αil,˜µl) + ˆψil)(m(Wi,˜αil,˜µl) + ˆψil)′)−1,(14)
+10
+
+--- PAGE 11 ---
+where ˆψil = ˜ail(YiT −X iT ˜βl −˜αil) .
+5. The estimator for the asymptotic variance takes the usual sandwich form:
+ˆV= ( ˆG′ ˆΥ ˆG)−1 ˆG′ ˆΥˆΩ ˆΥ ˆG( ˆG′ ˆΥ ˆG)−1,(15)
+with
+ˆG= 1
+N
+LX
+l=1
+X
+i∈Il
+∂m(Wi,˜αil,ˆµ)
+∂µ ,
+ˆΩ = 1
+N
+LX
+l=1
+X
+i∈Il
+(m(Wi,˜αil,ˆµ) +ˆψil)(m(Wi,˜αil,ˆµ) +ˆψil)′.
+The user chosen quantities include the number of foldsLused in the cross-fitting, the
+dictionary of transformationb(X i,˜αill′) used in estimatinga(X i, αi, µ0), the regularization
+parameters used in estimatinga(X i, αi, µ0) and also whether shrinkage methods are used in
+estimatingα i’s.
+Before presenting the conditions that guarantee the validity of algorithm 1, the following
+remarks are helpful for implementation.
+Remark 1.1. As in Chernozhukov et al. (2022),µis not a variable to be minimized
+in ˆψil. In fact, theµthat we are minimizing over when solving (13) only enters the
+original moment functionm(W i, αi, µ).
+2. Unlike Chernozhukov et al. (2018, 2022) and Ichimura and Newey (2022), the estimate
+ofα i fori∈I l cannot be made completely independent of samples in foldl. It is
+one particular feature of the fixed effect model that only data on thei-th individual
+is informative of the fixed effectα i. The strategy of constructing estimator ofα i is
+to use cross-fitting to obtain an estimator of ˜βl not using sampleifirst, and then use
+¯¯Yi − ¯¯X ′
+i ˜βl to estimateα i. Under this construction, the difference ˜α il −α i depends on
+sampleionly through the panel data residuals (u i1,· · ·, u iT−1 ). With suitable controls
+on the correlation betweenu it and ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0), the fact that ˜αil depends
+onu it will not affect first-order asymptotics (see Assumption 3 below).
+3. Estimatinga(X i, αi, µ0) requires running a high-dimensional regression as in (11). Ma-
+chine learning methods that exploit sparsity of the function should be used to recover an
+estimate ofa(X i, αi, µ0). Although lasso is the standard option in the literature (Cher-
+nozhukov et al., 2018, 2022), it may not be suitable in the current context. Specifically,
+Zou and Hastie (2005) and Zou and Zhang (2009) document that lasso performs poorly
+when the regressors are highly correlated. Here the correlation betweenX it’s andα i
+could be high and make lasso undesirable. Instead, elastic net or adaptive elastic net
+incorporates an additionalL 2 penalty which helps to deal with the high correlation
+between the regressors and could perform better than lasso (Zou and Zhang, 2009; Zou
+and Hastie, 2005).
+11
+
+--- PAGE 12 ---
+4. One can employ different estimators for ˜α il and ˜αill′ instead of what one typically
+obtains using standard fixed effect dummy variable regression. In particular, using
+Empirical Bayes to improve the estimator precision has become quite popular in the
+literature (Kwon, 2023; Angrist et al., 2017; Bacher-Hicks and Koedel, 2023). The
+orthogonal moment construction is important for Empirical Bayes estimates to be
+used in the context. Otherwise, the shrinkage will introduce bias in the estimates
+ofα i which may not disappear in the asymptotic distribution. Moreover, simulation
+evidence suggests that using Empirical Bayes estimates leads to improvement in size
+control especially when the time dimension is relatively short.
+There are different ways to implement Empirical Bayes (EB) regularization of the
+estimates ˜αil. The case of ˜α ill′ is almost the same and is omitted. The basic idea
+is to assume thatα i ∼ N(¯α, σ2
+α), and employ a normal approximation to the usual
+dummy variable regression ˜αil ∼ N(α i, u2
+i ) withu 2
+i = Var( 1
+T−1
+PT−1
+t=1 uit).10 The Bayes
+estimate ofα i with the priorα i ∼ N(¯α, σ2
+α) is then
+˜αBayes
+il = u2
+i
+u2
+i +σ 2
+α
+¯α+ σ2
+α
+σ2
+α +u 2
+i
+˜αil
+We can then replace the unknown quantities by estimates of themselves: whenu it are
+iid across time, ˆu2
+i can be obtained by ˆu2
+i = 1
+(T−1) 2
+PT−1
+t=1 ˆu2
+it with ˆuit =Y it −X ′
+it ˜βl −˜αil.
+Whenu it’s are serially correlated across time, standard Newey-West estimator that is
+robust to autocorrelation can be used. ¯αcan be estimated by taking the sample mean
+of ˜αil fori∈I l: ˆ¯αl = 1
+|Il|
+P
+i∈Il
+˜αil. Using the assumption that the cross-sectional draws
+are iid, 1
+|Il|−1
+P
+i∈Il
+u2
+i +σ 2
+α can be estimated by 1
+|Il|−1
+P
+i∈Il
+(˜αil − ˆ¯αl)2, which leads us
+to an estimate ofσ 2
+α as
+1
+|Il| −1
+X
+i∈Il
+(˜αil − ˆ¯αl)2 − 1
+|Il| −1
+X
+i∈Il
+ˆu2
+i
+Another approach is suggested by Kwon (2023) and Xie et al. (2012) who use Stein’s
+Unbiased Risk Estimation (SURE) to select the best performingσ 2
+α in terms of risk for
+a fixed estimator ˆ¯αl = 1
+|Il|
+P
+i∈Il
+˜αil of ¯αl.11 In my context, using the squared loss, the
+risk of employing the empirical Bayes estimator ˜αEB
+il for the foldlis
+R({˜αEB
+il }i∈Il,{α i}i∈Il) = 1
+|Il|
+X
+i∈Il
+E(˜αEB
+il −α i)2
+It turns out that the risk can be estimated via SURE for any choice ofσ 2
+α. An un-
+biased estimator (conditional onα i fori∈I l) can be defined asU RE({α i}i∈Il, σ2
+α) =
+10I ignore the bias of ¯X ′
+i(β− ˜βl) which converges to zero at rate
+√
+N Tas in Kwon (2023); Angrist et al.
+(2017).
+11Kwon (2023) also considers shrinkage to another constant or a pre-estimated function. Here I focus on
+shrinkage to the sample mean in the ith fold for simplicity.
+12
+
+--- PAGE 13 ---
+1
+|Il|
+P
+i∈Il
+U REi(αi, σ2
+α) for (see pp.11 of Kwon (2023))
+U REi(αi, σ2
+α) = ˆu2
+i + ˆu4
+i (ˆαi − ˆ¯α)2
+(σ2
+α + ˆu2
+i )2 −2 ˆu4
+i
+σ2
+α + ˆu2
+i
+Kwon (2023) and Xie et al. (2012) show that under general conditions, choosing theσ 2
+α
+that minimizesU RE({α i}i∈Il, σ2
+α) can perform asymptotically as good as minimizing
+the true loss 1
+|Il|
+P
+i∈Il
+(˜αEB
+il −α i)2. Letσ 2
+α,SU RE be the minimizer ofU RE({α i}i∈Il, σ2
+α).
+Then the SURE estimator of ˜αSU RE
+il is defined as:
+˜αSU RE
+il = ˆu2
+i
+ˆu2
+i +σ 2
+α,SU RE
+ˆ¯αi + σ2
+α,SU RE
+σ2
+α,SU RE + ˆu2
+i
+˜αil (16)
+As both ˜αEB
+il and ˜αSU RE
+il applies shrinkage that depends on all the data in foldl, the
+modifications are going to introduce dependence in the estimates ofα i’s even with
+cross-fitting techniques. When dealing with the introduced dependence, I will use ˜α ∗
+il
+to represent both cases where either the EB method or the SURE method is used to
+obtain more precise estimates ofα i’s.
+4 Asymptotic Theory
+In this section, we give some high-level conditions that guarantee that the estimator ˆµ
+proposed in Section 3.2 will be
+√
+N-asymptotically normal under the asymptotics that both
+N, T→ ∞, and ˆVwill be a consistent estimator of the asymptotic variance. Importantly, as
+in Chernozhukov et al. (2022), I will first give conditions such that the orthogonal moment
+ˆm∗(µ0) defined in (12) satisfies
+1√
+N
+ˆm∗(µ0) = 1√
+N
+NX
+i=1
+m∗(Wi, αi, Zi, β0, µ0, a) +o p(1) (17)
+Assumption 2.SupposeT∝N g for some 1/2< g <1. There exists some constant
+1/2> ζ≥1−gsuch that
+(i) ˜βl −β=O p( 1√
+N T ) for alll= 1,· · ·, L
+(ii)E[(˜ail −a(X i, αi, µ0))2|W C
+l ] =o p(N −ζ) for alll= 1,· · ·, LwhereW C
+l denotes the data
+that are not inI l.
+(iii) The estimated function ˜ail is square integrable.
+(iv) 1
+|Il|
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))2 =o p(N −ζ) for alll= 1,· · ·, L.
+Condition (i) imposes a rate of convergence for the parameterβin the first-stage panel
+data regression. The rate of convergenceO p( 1√
+N T ) is standard for the panel data setting.
+Condition (ii) is a high-level convergence rate for prediction error of the functiona(Xi, αi, µ0).
+13
+
+--- PAGE 14 ---
+The restrictionζ≥1−gis needed to control (˜α il −α i)(˜ail −a(X i, αi, µ0). As ˜αil −α i =
+Op( 1√
+T ) =O p(N − g
+2 ), the conditionζ≥1−gensures that (˜α il −α i)(˜ail −a(X i, αi, µ0) =
+op( 1√
+N ). More primitive conditions can be specified depending on different types of learning
+algorithms that are used to learn the functiona(X i, αi, µ0). Condition (iii) focuses attention
+on functions that are square-integrable which is standard in non-parametric regressions.
+Condition (iv) is implied by condition (ii) by observing that conditional onW C
+l , we have
+1
+|Il|
+X
+i∈Il
+[(˜ail −a(X i, αi, µ0))2 −E((˜ail −a(X i, αi, µ0))2|W C
+l )] =O p(N −1/2) =o(N −ζ),
+where the first equality observes that it is an average of iid zero mean random variables
+and uses lemma 6.1 of Chernozhukov et al. (2018) to convert conditional convergence to
+unconditional convergence. The second one usesζ <1/2 in Assumption 2.
+Assumption 3.Let ˜α∗
+il be the estimator ofα i used in step 2(b) of Algorithm 1 with EB or
+SURE shrinkage. AssumeT∝N g for some 1/2< g <1, and
+(i) 1
+|Il|
+P
+i∈Il
+(˜α∗
+il −α i)2 =O p(T −1) for alll= 1,· · ·, L.
+(ii)E(( ∂m(Wi,αi,µ0)
+∂αi
+−a(Xi, αi, µ0))2¯¯u2
+i ) =o(1),E(( ∂m(Wi,αi,µ0)
+∂αi
+−a(Xi, αi, µ0))¯¯ui) =o p(N −1/2)
+for ¯¯ui = 1
+T−1
+PT−1
+t=1 uit.
+(iii) Var(α i) =σ 2
+α >0
+(iv)E[(Tˆu 2
+i )2+δ|W C
+l ]<∞forδthat satisfiesg > 1
+2 + 1
+2+δ
+Also assume the first two conditions hold with ˜α∗
+il replaced with ˜αil = ¯¯Yi − ¯¯X ′
+i ˜βl. 12
+Condition (i) of Assumption 3 imposes a rate of convergence of the loss for the parallel
+estimation problem for allα i’s withi∈I l. Although asymptotically using the original ˜α il
+based on averages over time leads to the same asymptotic results, for finite sample perfor-
+mance, using the Empirical Bayes variants and SURE can lead to null rejection probabilities
+that are closer to the nominal size. In addition, taking square of condition (i) on both sides,
+we see that 1
+N
+X
+i,j∈Il
+(˜α∗
+il −α i)2(˜α∗
+jl −α i)2 =O p( N
+T 2 ),
+which implies
+1
+N
+X
+i∈Il
+(˜α∗
+il −α i)4 =O p( N
+T 2 ) =o p(1).
+WhenT∝N g forg >1/2, thenO p( N
+T 2 ) =o p(1).
+Condition (ii) is needed to ensure that 1√
+N
+P
+i∈Il
+( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))(˜α∗
+il −α i) =
+op(1). Even if ˜αil is constructed using data on individuali, the condition makes the corre-
+lation of the estimation error with the mean zero term ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0) negligible.
+12Condition (iii) and (iv) are not needed if no shrinkage method is used for estimatingα i: ˜αil = ¯¯Yi − ¯¯X ′
+i ˜βl.
+14
+
+--- PAGE 15 ---
+The moment conditions are not restrictive as it involves the time averages ¯¯ui. Typically,
+under standard assumptions on weakly dependent data
+√
+T ¯¯ui =O p(1), hence one would
+expectTE(( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))2¯¯u2
+i )<∞, justifying the first part of condition (ii).
+The second part is similar to condition (ii) in assumption 1 of Battaglia et al. (2024). A
+sufficient condition is ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0) being mean independent of the time varying
+idiosyncratic shocksu it, which guarantees thatE(( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))¯¯ui) = 0. This
+is the case when (5) is a dynamic panel data model (X it includesY i,t−1): for anyt < T,
+E
+
+uit
+∂m(Wi, αi, µ0)
+∂αi
+
+=E[E
+
+uit
+∂m(Wi, αi, µ0)
+∂αi
+|αi, Xi
+
+]
+=E[u itE
+ ∂m(Wi, αi, µ0)
+∂αi
+|αi, Xi
+
+] =E(u ita(Xi, αi, µ0)),
+where the second last line follows becauseX i includesY it andX it, sou it fort < Tis a
+deterministic function ofX i andα i. If one constructs the estimator ˜αil using only data up to
+periodT−1, then the averages will be orthogonal to the deviation ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0).
+When (5) does not include a dynamic specification but the researcher is willing to assume
+thatu it’s are mean independent acrosst, one can simply add (Y i1,· · ·, Y it−1) intoX i. We do
+this in the empirical application in Section 6. A similar law of iterated expectation argument
+can show that condition (ii) still holds.
+The last two conditions are only needed when one uses data in foldlto perform shrinkage
+of ˜αil. Condition (iii) requires that there exists non-trivial individual heterogeneity inα i’s,
+the assumption is needed to ensure that in constructing the EB or SURE type estimators
+the shrinkage factor u2
+i
+u2
+i +σ2α
+will not involve division by a number close to zero. Combined
+with condition (iii), condition (iv) is a mild moment existence condition that guarantees
+that sup i∈Il
+ˆu2
+i
+ˆu2
+i +ˆσ2α
+=o p(N −1/2). For instance, under the assumption thatu it is iid across
+both time and individuals, an estimator foru 2
+i = Var( 1
+T−1
+PT−1
+t=1 uit) is 1
+(T−1) 2
+PT−1
+t=1 (ˆuit)2 for
+ˆuit =Y it −X ′
+it ˜βl −˜αil. Condition (iv) then requires that
+E{[ 1
+T−1
+T−1X
+t=1
+(ˆuit)2]2+δ}<∞,
+which holds under general moment existence conditions on (X it, uit, αi). A similar argument
+can be constructed for the case whereu it might be serially correlated across time. To control
+supi∈Il ˆu2
+i , there exists a trade-off between the existence of higher moments and the growth
+rate of the time dimensionTwithN, as manifested in the conditiong > 1
+2 + 1
+2+δ. In general,
+a smaller growth rate implies that we are taking supremum over a larger group of individuals
+for the same level of randomness due to averaging across time. Hence higher-order moments
+are needed to ensure that the quantity iso p(N −1/2).
+In addition to the rate conditions imposed above, we also collect the needed conditions
+on existence of moments:
+Assumption 4.(i) sup α,Wi ∥ ∂2m(Wi,αi,µ0)
+∂α2
+i
+∥=C m <∞,E(u 2
+iT |Xi, ¯¯Yi, αi)≤C <∞with
+probability approaching 1
+15
+
+--- PAGE 16 ---
+(ii)E(∥X it∥2)<∞for allt= 1,· · ·, T
+(iii)E(a(X i, αi, µ0)2∥XiT ∥2)<∞,E(˜a 2
+il∥XiT ∥2)<∞,E( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))4 <∞
+(iv)E(∥( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0)) ¯¯X ′
+i∥)<∞for ¯Xi = 1
+T
+PT
+t=1 Xit.
+Condition (i) imposes a bound on the second-order derivative ofm(W i, αi, µ0) with re-
+spect toα i. In Example 1, the moment function is quadratic inα i, and it will be satisfied
+automatically. In addition,E(u 2
+iT |Xi, ¯¯Yi, αi) is a restriction on the conditional variance of
+uiT . Conditions (ii)-(iv) guarantee the existence of moments so that suitable Law of Large
+Numbers can be applied.
+Assumption 5 lists additional moment conditions that are needed when ˜α ∗
+il uses the EB
+or SURE variant.
+Assumption 5.The following assumption is needed for estimates ofα i that applies Em-
+pirical Bayes shrinkage or SURE:
+E(|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))(αi + ¯¯ui −E(α))|)<∞
+Proposition 1.Under Assumption 1-5, and Assumption 5 is needed only if EB or SURE
+variants of estimators ˜α∗
+il forα i are used, forζandgsatisfyingζ+g≥1, we have
+1√
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ0) + ˜ail(YiT −X ′
+iT ˜βl −˜αil)
+= 1√
+N
+NX
+i=1
+m(Wi, αi, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT β0 −α i) +o p(1) (18)
+Proposition 1 is the key result that establishes that under the orthogonal moment con-
+struction and cross-fitting, the asymptotic distribution is the same as if the trueα i and
+the true functiona(X i, αi, µ0) are known atµ=µ 0. The fact that bothα i and the con-
+ditional mean functiona(X i, αi, µ0) are estimated will not affect the asymptotic distribu-
+tion of the estimator ˆµother than accounting for the addition of the orthogonal correc-
+tion terma(X i, αi, µ0)(YiT −X ′
+iT β0 −α i). Form ∗(Wi, αi, Zi, β0, µ0, a) =m(W i, αi, µ0) +
+a(Xi, αi, µ0)(YiT −X ′
+iT β0−αi), the second line of (18) is a normalized sum of iid mean zero ran-
+dom variables, under the condition that Ω≡E(m ∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′)
+(withE(∥m ∗(Wi, αi, Zi, β0, µ0, a)∥2)<∞), standard Central Limit Theorem will imply
+1√
+N
+NX
+i=1
+m∗(Wi, αi, Zi, β0, µ0, a)
+d
+− → N(0,Ω)
+The following condition ensures that Ω can be consistently estimated by ˆΥ−1 in (14).
+Assumption 6.(i) ( 1
+N
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))4)( 1
+N
+P
+i∈Il
+(αi −˜αil)4) =o p(1)
+16
+
+--- PAGE 17 ---
+(ii)E(∥m ∗(Wi, αi, Zi, β0, µ0, a)∥2)<∞
+(iii) ˜µl
+p
+− →µ0
+(iv) ∂m(Wi,αi,µ)
+∂µ′ , ∂2m(Wi,αi,µ)
+∂αi∂µ′ and ∂3m(Wi,αi,µ)
+∂α2
+i ∂µ′ exists and is continuous in a neighborhood
+N(µ 0) ofµ 0 and for almost allα i. In addition, sup αi,Wi supµ∈N(µ 0)
+∂3m(Wi,αi,µ)
+∂α2
+i ∂µ′ < C m <
+∞.
+(v)E(sup µ∈N(µ 0) ∥ ∂2m(Wi,αi,µ)
+∂αi∂µ′ ∥4)<∞,
+Condition (i) is not restrictive given 1
+N
+P
+i∈Il
+(αi −˜αil)4 =o p(1) and condition (ii) in
+Assumption 2. Conditions (ii) and (v) are suitable regularity conditions in order to apply
+Law of Large Numbers. Condition (iii) assumes consistency of the preliminary estimator of
+˜µl, which is established in Appendix A. Condition (iv) assumes that the functionm(Wi, αi, µ)
+is sufficiently smooth in bothα i andµ, which is satisfied in Example 1 withm(W i, αi, µ)
+being quadratic inα i and linear inµ.
+Proposition 2.Under Assumption 1-6 (Assumption 5 is needed only when EB or SURE
+variants are used to estimateα i), we have
+1
+N
+LX
+l=1
+X
+i∈Il
+(m(Wi,˜αil, ˜βl,˜µl,˜ail) + ˆψil)(m(Wi,˜αil, ˜βl,˜µl,˜ail) + ˆψil)′ p
+− →Ω (19)
+To establish the validity of (15) for estimating the asymptotic variance of ˆµ, we still need
+to show that ˆGconsistently estimatesG=E( ∂m(Wi,αi,µ0)
+∂µ ). The following conditions ensure
+the convergence of the estimator for the Jacobian matrixG, and is similar to assumption 5
+of Chernozhukov et al. (2022).
+Assumption 7.The limit Jacobian matrixGexists and is full-rank. Moreover, for some
+functionF(W i)
+supα ∥ ∂2m(Wi,αi,µ)
+∂αi∂µ′ ∥2 ≤F(W i) for allµwithin a neighborhoodN(µ 0) ofµ 0 andE(F(W i))<
+∞.
+In addition, forµ∈ N(µ 0), some constantC >0 and some functionF α(Wi, αi)
+∥∂m(Wi, αi, µ)
+∂µ − ∂m(Wi, αi, µ0)
+∂µ ∥ ≤F α(Wi, αi)∥µ−µ 0∥1/C,E(F α(Wi, αi))<∞.(20)
+Assumption 7 is easy to verify in Example 1. Withm(W i, αi, µ) being quadratic inα i
+and linear inµ, we can takeF(W i) = 0 and alsoF α(Wi, αi) = 0 withC= 1.
+Proposition 3.Under Assumptions 3, Assumption 6 and Assumption 7, if ˆµ
+p
+− →µ0, then
+1
+N
+LX
+l=1
+X
+i∈Il
+∂m(Wi,˜αil,ˆµ)
+∂µ′
+p
+− →G(21)
+17
+
+--- PAGE 18 ---
+The next theorem combines the above propositions to establish the validity of inference
+for ˆµ:
+Theorem 1.Under Assumptions 1-7 (Assumption 5 is needed only whenα i’s are estimated
+using either EB or SURE corrections), and if ˆµdefined in (13) is consistent forµ 0: ˆµ
+p
+− →µ0,
+then it satisfies the following asymptotic expansion:
+√
+N(ˆµ−µ0)
+d
+− → N(0, V), V= (G ′ΥG)−1G′ΥΩΥG(G′ΥG)−1.(22)
+withG=E( ∂m(Wi,αi,µ0)
+∂µ ), Ω =E(m ∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′) and Υ be-
+ing the probability limit of the weighting matrix.
+In addition, a consistent estimator for the asymptotic varianceVis given by (15):
+ˆV= ( ˆG′ ˆΥ ˆG)−1 ˆG′ ˆΥˆΩ ˆΥ ˆG( ˆG′ ˆΥ ˆG)−1 p
+− →V(23)
+Theorem 1 requires consistency of ˆµforµ 0, which follows under standard assumptions.
+The conditions required are specified in Appendix A.
+5 Monte-Carlo Simulation
+We will compare the estimator and inference procedure in 3.2 with those in Xie (2025) and
+Chen et al. (2025) through the lens of example 1. More specifically, we will consider a panel
+auto-regression model as the first stage:
+Yit =β 0Yit−1 +α i +u it,fort= 1,· · ·, T(24)
+The fixed effectsα i’s are independentN(0, 1
+2) draws, andu it’s (unobserved) are also
+N(0, 1
+2) constructed from the sum of two independent random variablesu 1it +u 2it each
+distributed asN(0, 1
+4). Bothu 1it’s andu 2it’s are also independent across time and indi-
+viduals. The initial conditionY i0 is generated from the stationary distribution asY i0 ∼
+N( αi
+1−β0
+, 1
+2(1−β2
+0)).
+The second stage is specified as in (3) with a slight modification:
+Wi =α i +v i −c 1
+⌊ T
+2 ⌋ −1
+⌊ T
+2 ⌋−1X
+t=1
+u1it,(25)
+where⌊x⌋denotes the largest integer that is smaller than or equal tox. In the notation
+of example 1,µ 01 = 0 andµ 02 = 1, and the parameter of interest isµ 02. We drawv i
+fromN(0,1) independent from all other variables andcis a scaling factor that gauges
+the level of correlation between ¯¯ui andv i −c 1
+⌊ T
+2 ⌋−1
+P⌊ T
+2 ⌋−1
+t=1 u1it. Forc̸= 0, then ¯¯ui and
+vi −c 1
+⌊ T
+2 ⌋−1
+P⌊ T
+2 ⌋−1
+t=1 u1it are correlated, which violates the conditions for inference in both
+Xie (2025) and Chen et al. (2025). In contrast, as explained in Section 4, we expect the
+orthogonal moment condition to be insensitive to the potential correlation between them
+and have null rejection probability close to the nominal size.
+18
+
+--- PAGE 19 ---
+As Xie (2025) and Chen et al. (2025) abstracts away from the problem of estimatingβ 0,
+we employ estimators from Blundell and Bond (1998) by constructing the following moment
+conditions:
+E
+
+
+∆yit −β∆y it−1
+yit−2(∆yit −β∆y it−1)
+yit−3(∆yit −β∆y it−1)
+∆yit−1(yit −βy it−1)
+
+ = 0 fort= 4,· · ·, T.
+β0 is then estimated via two-step GMM. 13
+To implement procedures in Xie (2025), I consider both ˆα i = 1
+T
+PT
+t=1 Yit − 1
+T
+PT−1
+t=0 Yit ˜β
+and also its EB (α EB
+i ) and SURE (α SU RE
+i ) variants. Xie (2025) estimates the standard error
+ofµ 02 with the usual heteroskedastic robust standard error formula by plugging the EB
+versions ofα EB
+i .
+In addition, I also consider the estimator recommended in Chen et al. (2025) which builds
+on the observation that
+µ02 = Cov(α i, Wi)
+Var(αi) = Cov(ˆαi, Wi)
+Var(ˆαi)
+Var(ˆαi)
+Var(αi) ,
+exploiting independence between ¯ui andW i in their assumptions (which does not hold when
+c̸= 0). They suggest replacing each population quantity by its sample analogue. In particu-
+lar, Var(αi) can be estimated by ˆVar(ˆαi)− ˆVar(¯ui), where ˆVar(¯ui) is a consistent estimator of
+the variance of ¯ui and can be constructed as 1
+N
+PN
+i=1
+1
+T 2
+PT
+t=1 ˆu2
+it. Inference can be conducted
+using percentile bootstrap.
+For the orthogonal moment constructions, I followed the procedures in Section 3.2 and
+uses ˜αil = 1
+T−1
+PT−1
+t=1 Yit− 1
+T−1
+PT−2
+t=0 Yit so that condition (ii) of assumption 3 is guaranteed to
+hold, and also for its EB and SURE variants ˜αEB
+il and ˜αSU RE
+il . A preliminary estimator of ˜µl =
+(˜µ1l,˜µ2l) is then obtained via linear regression. The estimator of conditional mean function
+a1(Xi, αi, µ0) =−µ 02 fori∈I l is constructed by−˜µ 2l and the conditional mean function
+a2(Xi, αi, µ0) =E(v i −µ 02αi|Xi, αi) is constructed via an adaptive elastic net regression of
+ˆvj −˜µ2l ˜αjl on ˜αjl and (Yj0, Yj1,· · ·, Y jT−1 ) forj /∈I l. Here ˆvj =W j −˜µ1l −˜µ2l ˜αjl. The penalty
+factors for the L1 regularization and L2 regularization terms in the Elastic Net regression are
+chosen using cross-validation. To alleviate potential noise introduced in the sample splitting
+process, we computed ˆµand ˆVusing orthogonal moments for 20 different realizations of
+sample splits (randomness coming from reshuffling of the sample along the cross-sectional
+dimension) and then averaged ˆµand ˆVacross them.
+Table 1 reports the simulation results forN= 100,T= 12 andβ 0 = 0 and three
+different choices ofcacross 1,000 simulations. We also compare performance of the inference
+procedure with different number of foldsL. 14
+The first column reports the results for estimators suggested by Chen et al. (2025) and the
+next three columns report results where heteroskedastic standard error for linear regression
+13I only included momentst >3 for the simulation results withT= 12 andt >5 for simulation results
+withT= 22 in order to avoid multicollinearity in constructing the optimal weighting matrix. The cutoffs
+are chosen based on finite sample performance in the simulations.
+14As explained in Blundell and Bond (1998), largerβ 0 will make the estimates ofβvery imprecise,
+resembling a weak instrument problem. Our asymptotic theory essentially ignores any noise in estimating
+β0, and poor estimates ofβ 0 will propagate and affect the inference results forβ 0 that is too large.
+19
+
+--- PAGE 20 ---
+CGK Naive Xie-EB Xie-SURE Orth-mean Orth-EB Orth-SURE Orth-mean Orth-EB Orth-SURE
+L= 5L= 10
+Panel A:c= 0
+Bias 0.006 -0.057 0.006 0.011 0.029 0.038 0.038 0.029 0.037 0.038
+Std 0.158 0.146 0.158 0.160 0.185 0.193 0.194 0.185 0.193 0.195
+RMSE 0.158 0.157 0.158 0.160 0.187 0.197 0.198 0.187 0.197 0.198
+Rej Prob 0.054 0.212 0.215 0.217 0.087 0.078 0.075 0.087 0.080 0.078
+Panel B:c= 4
+Bias -0.167 -0.219 -0.167 -0.163 -0.016 0.015 0.019 -0.014 0.021 0.027
+Std 0.214 0.199 0.214 0.215 0.253 0.269 0.269 0.253 0.268 0.270
+RMSE 0.271 0.296 0.271 0.269 0.253 0.269 0.270 0.253 0.269 0.272
+Rej Prob 0.143 0.404 0.342 0.335 0.077 0.065 0.064 0.077 0.065 0.065
+Panel C:c= 5
+Bias -0.211 -0.260 -0.210 -0.207 -0.027 0.010 0.015 -0.028 0.015 0.023
+Std 0.238 0.223 0.238 0.239 0.283 0.301 0.303 0.283 0.301 0.304
+RMSE 0.318 0.342 0.317 0.316 0.284 0.301 0.303 0.284 0.301 0.304
+Rej Prob 0.170 0.435 0.370 0.362 0.074 0.062 0.061 0.078 0.067 0.061
+Table 1: Comparisons in performance of different estimators and Inference procedures
+Note: This table reports the performance of various estimators forµ 02. I report the bias, standard error of the
+estimates ˆµ2, root mean squared error (RMSE) and also the null rejection probability with target size 0.05 across
+three different DGPs. The sample size isN= 100,T= 12, and the auto-regressive coefficientβ 0 = 0. Panel A
+considersc= 0 with no correlation between ¯¯ui andW i −α i, while Panel B and C setsc= 4 andc= 5 respectively.
+CGK corresponds to the measurement error correction estimator suggested in Chen et al. (2025). Naive, Xie-EB and
+Xie-SURE uses heteroskedastic robust standard error for ˆα i, ˆαEB
+i and ˆαSU RE
+i respectively. Orth-mean, Orth-EB
+and Orth-SURE uses the orthogonal moment constructions proposed in this paper but uses ˜α il, ˜αEB
+il and ˜αSU RE
+il
+respectively. Columns 6-8 report results when the data is split into 5 equal-sized folds, while column 9-11 reports
+the results with 10 folds.
+is used to compute asymptotic variance with different estimators ofα i. Finally, the last six
+columns employs the orthogonal moment construction with different estimators ofα i and
+with different number of folds. Comparing the bias of the estimators across different panels,
+the results show that when the endogeneity increases (cis large), there is significant bias in
+the estimates using Chen et al. (2025) and Xie (2025). Although these estimators typically
+has smaller standard error, it does not compensate for the bias. Therefore, estimators using
+orthogonal moments enjoy smaller Root Mean Squared Error (RMSE) for larger values ofc.
+We also consider testing the null hypothesis ofµ 02 = 1 using t-test based on different
+estimators and their estimated standard errors. The null rejection probability is reported
+in the last row of each panel with target size 0.05. We see that the endogneity between the
+measurement error and the residuals in (25) made the estimators of Chen et al. (2025) and
+Xie (2025) suffer from severe size distortion. In contrast, estimators that uses orthogonal
+moments have size control within acceptable levels. In addition, using the EB or SURE
+correction delivers better size control than the original ˜αil. Nevertheless, the shrinkage cor-
+rection inflates the RMSE compared with the case where no correction is applied. The
+simulation results suggest that in general, using orthogonal moment conditions is more im-
+portant than using EB or SURE corrections to mitigate the concerns of measurement error
+especially when endogeneity is a concern. In addition, comparing results from column 6-8
+with the results from column 9-11, we see that the number of foldsLdoes not have large
+impacts on either the estimates or the null rejection probabilities. One can choose a smaller
+foldL= 5 for computational reasons in the current DGP.
+20
+
+--- PAGE 21 ---
+Figure 1: Power function for Panel A
+Note: This figure plots the power function of the CGK estimator, the estimator of Xie (2025)
+using SURE and estimator using orthogonal moment conditions and SURE corrections. The other
+estimators behaves similarly, and are omitted.
+Figure 1 plots the power function of the CGK estimator, the estimator of Xie (2025)
+using SURE and estimator using orthogonal moment conditions and SURE corrections for
+the DGP in panel A where all estimators are expected to have null rejection probability
+close to 0.05. We see that a finite-sample distortion is present for the estimator proposed in
+Xie (2025), while the estimator from Chen et al. (2025) and estimator based on orthogonal
+moments have smaller null rejection probabilities. In addition, the estimator proposed in
+Chen et al. (2025) has higher power in rejecting the alternatives compared with the estimator
+using orthogonal moments. The phenomenon reflects the fact that estimators from Chen
+et al. (2025) achieves the semi-parametric efficiency bound when endogeneity concern is not
+present, and in this case their estimator should be preferred for power purposes.
+Table 2 reports the results withN= 500,T= 22 andβ 0 = 0.5 with different levels
+of endogeneity represented byc. As adaptive elastic net conducts variable selection, the
+values ofcis set to be 5 and 6 respectively to avoid potential local-to-zero coefficients in
+a(Xi, αi, µ0). As results in Table 1 shows that the number of folds has little impact on
+the estimator performance and size control, we report results only with 5-fold cross-fitting
+in Table 2. Table 2 shows patterns consistent with Table 1. Ascincreases, the bias of
+estimators from both Chen et al. (2025) and Xie (2025) increases and the tests over-reject
+the null. In contrast, estimators based on orthogonal moment conditions have better size
+control and smaller RMSE. Comparing column 6 with column 7 and column 8, we see that
+21
+
+--- PAGE 22 ---
+using EB or SURE shrinkage still delivers null rejection probabilities closer to the nominal
+size, albeit with a larger RMSE.
+CGK Naive Xie-EB Xie-SURE Orth-mean Orth-EB Orth-SURE
+L= 5
+Panel A:c= 0
+Bias 0.001 -0.038 0.002 0.002 0.004 0.006 0.006
+Std 0.076 0.072 0.076 0.076 0.086 0.088 0.088
+RMSE 0.076 0.081 0.076 0.076 0.086 0.088 0.088
+Rej Prob (size=0.05) 0.059 0.271 0.236 0.238 0.093 0.083 0.083
+Panel B:c= 5
+Bias -0.115 -0.149 -0.114 -0.114 -0.012 0.001 0.002
+Std 0.088 0.084 0.088 0.088 0.098 0.102 0.102
+RMSE 0.145 0.171 0.144 0.144 0.098 0.102 0.102
+Rej Prob (size=0.05) 0.250 0.666 0.508 0.500 0.069 0.061 0.062
+Panel C:c= 6
+Bias -0.138 -0.171 -0.137 -0.137 -0.008 0.008 0.008
+Std 0.093 0.089 0.093 0.093 0.105 0.109 0.110
+RMSE 0.167 0.193 0.166 0.166 0.105 0.110 0.110
+Rej Prob (size=0.05) 0.304 0.706 0.571 0.568 0.068 0.062 0.063
+Table 2: Comparisons in performance of different estimators and Inference procedures
+Note: This table reports the performance of various estimators forµ 02. I report the bias, standard
+error of the estimates ˆµ2, root mean squared error (RMSE) and also the null rejection probability
+with target size 0.05 across three different DGPs. The sample size isN= 500,T= 22, and
+the auto-regressive coefficientβ 0 = 0.5. Panel A considersc= 0 with no correlation between ¯¯ui
+andW i −α i, while Panel B and C setsc= 5 andc= 6 respectively. CGK corresponds to the
+measurement error correction estimator suggested in Chen et al. (2025). Naive, Xie-EB and Xie-
+SURE uses heteroskedastic robust standard error for ˆαi, ˆαEB
+i and ˆαSU RE
+i respectively. Orth-naive,
+Orth-EB and Orth-SURE uses the orthogonal moment constructions proposed in this paper but
+uses ˜αil, ˜αEB
+il and ˜αSU RE
+il respectively. Columns 6-8 report results when the data is split into 5
+equal-sized folds.
+6 Empirical Application
+We will consider an empirical application that studies the site selection of a policy experiment
+on agriculture catastrophe insurance in China. Wang and Yang (2025) built a comprehensive
+database for past policy experiments conducted by Chinese central government, and they
+documented consistent patterns of positive selection of experiment sites. Specifically, the
+t-statistics that compare the average fiscal revenue between experimental sites and non-
+experimental ones have a significant proportion that exceeds the usual 95% quantile of the
+t-distribution. The result is robust when they compare agriculture outputs between sites
+for agricultural related experiments. Wang and Yang (2025) also listed potential reasons for
+positive selection of the experimental sites, but did not commit to a particular explanation
+22
+
+--- PAGE 23 ---
+of the phenomenon. However, understanding the way that experimental sites are positively
+selected can be important in interpreting the experimental results and determining whether
+the new policy should be rolled out to the entire country.
+Policy experiments are typically implemented when there is substantial uncertainty over
+the effects of the proposed policy, and as a means to encourage local government to find op-
+timal policy instruments for promoting the central government’s policy objective (Heilmann,
+2008a).15 The central government usually sets the policy agenda, but leaves the particular
+implementation details to the experimental sites. The successful experimental sites will be
+designated as “model sites”, and the less successful ones are encouraged to learn from the
+experience of the “model sites”. In such context, positively selecting experimental sites that
+are better at adjusting policy details and organizing policy reforms can potentially yield
+valuable experience for non-experimental sites. Therefore, positive selection under this form
+can be desirable from the view of the central government.
+As an illustration, we focus on a particular policy experiment – the promotion of agricul-
+ture catastrophe insurance (ACI) – that has taken place in 2017. Prior to the experiment,
+the insured liability of the agriculture insurance typically only covered direct input costs like
+fertilizer and seeds, which made the farmers vulnerable to natural disasters. In response to
+the deficiency of the insurance products, the central government would like to develop in-
+surance that has higher coverage to help farmers guard against risks and encourage uptakes
+of more advanced agricultural production techniques. One major difference under the new
+ACI is that it covers land costs in addition to direct input costs. Under the new ACI, with
+the same premium, the insured liability increases from 450 CNY per acre to 900 CNY per
+acre in Shandong Province for instance (Li et al., 2025). To facilitate adoption of ACI, the
+premiums that farmers pay were highly subsidized by both the central and local government.
+The focus of the ACI experiment in 2017 was on moderately scaled farmers who were more
+susceptible to climate risks and also on strategic agriculture products that consist of rice,
+corn and wheat. The experiment was conducted at county-level, with in total 200 counties
+participating in the experiment. However, instead of directly choosing counties, the central
+government hand-picked 13 major grain production provinces and delegated the choice of
+specific counties to each provincial government with quotas. The guidelines issued by the
+central government required the experimental counties to have well-established insurance
+foundations, a sufficient number of moderately scaled farmers and also to be representative
+in the province. 16 In addition, policy details like the criteria of moderately scaled farmers,
+the formula for evaluating land costs and means of introducing the insurance to farmers
+were delegated to local governments. This suggests that selecting a (random) representative
+sample was not the sole objective of experimental site selection. Furthermore, the central
+government would also want to learn the best practice of implementation by enrolling coun-
+ties that were more specialized in agriculture insurance and agriculture production. We
+would like to test whether the provincial governments were indeed choosing counties that
+were more specialized in agriculture production as experimental sites.
+15For background and case studies on China’s policy experimentation before 2008, see Heilmann (2008a,b).
+16Seehttps://jcs.moa.gov.cn/trzgl/201705/t20170527_5626557.htm
+23
+
+--- PAGE 24 ---
+6.1 Data and measurements
+The data comes from the replication package of Wang and Yang (2025). In addition, the
+selected counties that participated in the ACI experiment are hand-collected from the provin-
+cial governments’ websites with the exception of the Inner Mongolia province whose informa-
+tion is not directly available. We restricted the sample to counties that are in the remaining
+12 major grain producing provinces and dropped counties whose administrative divisions
+have changed. The total sample consists of 961 counties, among which 168 of them were
+selected as experiment sites. For each county, we observe its GDP, population, fiscal in-
+come, fiscal expenditure, total grain production, agricultural mechanical power, total rural
+employment and the total number of policy experiment that the county has from 1997-2016.
+The variable total rural employment is only observed up until 2012. As a preliminary com-
+parison, Table 3 reports the means of the above measures in 2016 for both experimental and
+non-experimental counties. The value of rural employment is computed using 2012 data.
+In addition, we also compared the GDP and fiscal revenue growth rates over the period
+2013-2016.
+Mean (Experiment=0) Mean (Experiment=1) Diff p-value Obs
+GDP
+(100 million)
+225.260 312.566 87.306 0.000 961
+Population
+(10,000)
+55.335 88.488 33.153 0.000 961
+Agricultural Mechanical
+Power (10 million Watts)
+51.256 98.084 46.829 0.000 956
+Grain Output
+(10 thousand tons)
+30.678 77.366 46.688 0.000 894
+Fiscal Expense
+(100 million)
+34.204 45.986 11.782 0.000 961
+Fiscal Income
+(100 million)
+14.938 18.694 3.756 0.022 961
+GDP growth 0.062 0.054 -0.008 0.273 961
+Fiscal Revenue
+growth
+0.077 0.061 -0.016 0.188 961
+Number of
+Experiments
+8.851 9.607 0.756 0.071 961
+Rural Employment
+(10,000)
+24.857 39.855 14.998 0.000 960
+Table 3: Balance Table comparing experiment sites and non-experiment sites
+Note: The table reports the mean of the measures for both experimental and non-experimental
+counties, along with the p-value associated with the t statistics. GDP, Population, Agricultural
+Mechanical Power, Grain Output, Fiscal Expenditure, Fiscal Income and number of ongoing policy
+experiments are measured in 2016, while Rural Employment is measured in 2012. In addition,
+Fiscal revenue growth rate and GDP growth rate are computed from the period between 2013-
+2016.
+Compared with the non-experimental counties, the experimental ones tend to be larger
+in terms of population, GDP and fiscal expense. In addition, they also produced more
+24
+
+--- PAGE 25 ---
+grains and used more agricultural machinery. This serves as preliminary evidence that when
+choosing counties, the provincial governments not only aimed at obtaining a representative
+sample, but also wanted to enroll counties that were more developed and counties that
+had a larger share of agricultural industry. These counties can potentially lay out a better
+implementation plan of ACI, and thus establish “model practices” for other non-experimental
+ones. We now turn to more formal econometric analysis of the problem.
+6.2 Econometric Specification
+As the outcome is binary, we will specify a simple logit model:
+Experimenti =1(µ 01αi +µ 02GDP per capi +µ 03GDP growthi
++µ 04FR growthi +µ 05N policyi +δ p ≥v i),(26)
+where GDP per Capita and number of policy experiments are measured in 2016, and
+GDP growth and FR growth are GDP and fiscal revenue growth rate between 2013 and
+2016 for countyi.δ p is province fixed effect that captures heterogeneity across provinces,
+andv i’s are iid logit error. We also consider a version that omits the province fixed effects.
+in which case it will be replaced with an intercept. The key variable isα i which measures the
+degree of comparative advantage of countyiin grain production. If the provincial govern-
+ments were selecting experimental counties that were more specialized in grain production,
+then we should expect the coefficientµ01 to be positive. However, the degree of specialization
+is not directly observable to the researcher, and we propose a panel data model that can
+help us recoverα i’s.
+grain per empit =β01GDP per capit +β 02Mech per empit
++β 03FE per capit +α i +δ pt +u it,(27)
+where we regress grain output per rural employment for each countyiand yearton that
+county-year pair’s GDP per capita, mechanical power per rural employment and fiscal ex-
+penditure per capita, along with county fixed effectsα i and province by time fixed effects
+δpt. A larger value ofα i indicates that countyiis more efficient in grain production com-
+pared with its fellow counties that have similar fiscal support, income level and amount of
+agricultural machinery. Therefore,α i captures the level of specialization of grain production
+for different counties.
+Although the presence ofδ pt may cause some difficulties for directly implementing the
+procedure in Section 3.2. In practice, we first transform (27) by demeaning the province by
+time average of each variable to eliminate the province by time fixed effects.
+˙grain per empit =β01 ˙GDP per capit +β 02 ˙Mech per empit
++β 03 ˙FE per capit + ˙αi + ˙uit,
+where ˙Ait =A it − ¯Ap(i)t is the demeaned version ofA it with ¯Ap(i)t being the mean of
+Ait across provincepto whichibelongs and timet. TheX it in (5) would correspond
+25
+
+--- PAGE 26 ---
+to ( ˙GDP per capit, ˙Mech per empit, ˙FE per capit). Applying procedure in Section 3.2 then
+identifies ˙αi. Asα i is time invariant, ˙αi =α i −¯αp(i). Note that ˙αi andα i differ by a constant
+that only varies by province. Therefore, rewriting the logit model in (26), we have
+Experimenti =1(µ 01 ˙αi +µ 02GDP per capi +µ 03GDP growthi
++µ 04FR growthi +µ 05N policyi + (δp +µ 01 ¯αp)≥v i).
+Therefore,µ 0 can still be identified from the demeaned version ofα i as long as the province
+fixed effects are included in the cross-sectional logit model.
+To fit into the framework of (1), we will work with the moment conditions that are
+associated with the score of the likelihood function define by (26). With some abuse of
+notation defineW i = (GDP per capi,GDP growthi,FR growthi,N policyi, δp)′ whereδ p’s
+are understood as 12 dummy variables. Letµ 0,− = (µ 02, µ03, µ04, µ05, µ0,p)′ whereµ 0,p are
+fixed effects associated with the 12 provinces. Then we are solving the estimating equations
+E
+ (Experimenti −Λ(W ′
+i µ0,− +α iµ01))αi
+(Experimenti −Λ(W ′
+i µ0,− +α iµ01))Wi
+
+=
+0
+0
+
+,(28)
+where Λ(x) = exp(x)
+1+exp(x) is the logistic function. With the moment condition
+E[m(Wi,Experiment i, αi, µ0)] = 0 defined as in (28), the correspondinga(X i, αi, µ0) for
+Xi ={X it}2012
+t=1997 ∪ {grain per empit}2011
+t=1997 is
+a(Xi, αi, µ0) =E
+−µ01Λi(1−Λ i)αi + Experimenti −Λ i
+−µ01Λi(1−Λ i)Wi
+
+|Xi, αi
+
+,(29)
+where Λi = Λ(W ′
+i µ0,−+α iµ0,1). In practice, we estimatea(X i, αi, µ0) by performing adaptive
+elastic net regression onX i andα i.
+Estimation of the Jacobian matrix ofµ 0 is similar to the classical maximum likelihood
+theory:
+ˆG= 1
+N
+LX
+l=1
+X
+i∈Il
+Λi(1−Λ i)(˜αil, Wi)′(˜αil, Wi) (30)
+As in the simulation of Section 5, the estimates ofµ 0 and the asymptotic variance (15)
+are averaged across 20 different sample splits withL= 5.
+6.3 Results
+Before presenting estimates ofµ 0, it is useful to show the results of the panel regression (27)
+first.
+We see that the coefficients on both GDP per capita and fiscal expenditure per capita
+change significantly when county fixed effects are included, while inclusion of province-by-
+time fixed effects have more limited impacts on the magnitude and sign of all coefficients.
+The mechanical power per rural employment turns out to be a salient predictor of grain
+production per rural employment, while the coefficients on GDP per capita and fiscal ex-
+penditure per capita are not significantly different from zero. Now we turn to results on
+µ0.
+26
+
+--- PAGE 27 ---
+(1) (2) (3)
+cons 0.595***
+(0.196)
+GDP per cap -0.15 -0.041 -0.016
+(0.132) (0.04) (0.018)
+Mech per emp 0.611** 0.678** 0.676**
+(0.305) (0.33) (0.314)
+FE per cap 0.265 -0.423 -0.395
+(0.786) (0.264) (0.234)
+County Fixed Effects No Yes Yes
+Province-by-time Fixed Effects No No Yes
+Table 4: Panel regression results for (27)
+Note: The table reports estimates ofβ 0 for (27). Specification (1) is a simple linear regression.
+Specification (2) only includes county fixed effects, while specification (3) is the preferred specifi-
+cation which includes both county fixed effects and province-by-time fixed effects.
+Panel A of Table 5 report the results of estimating (26) without province fixed effects,
+while panel B report the ones with province fixed effects. Comparing results across panels,
+the coefficients on GDP growth rate and fiscal revenue growth rate switch signs. Even
+though the coefficients associated with the two variables are not statistically significant, it
+demonstrates the importance of including province fixed effects in (26) when (27) is estimated
+with province-by-time fixed effects. Now we turn to the comparison between the plug-in
+estimates and the estimates based on orthogonal moments. The coefficients are similar
+in sign and magnitude when we compare the plug-in estimates with estimates based on
+orthogonal moments except the coefficientµ 01 onα i. In both panels,µ 01 is estimated to
+be larger (around 0.6) when we use the simple plug-in methods, while the estimates based
+on orthogonal moments give estimates that range from 0.36 to 0.47. Therefore, correcting
+errors in estimatingα i could be important in certain applications. Nevertheless, in our
+setting, the use of orthogonal moments still gives consistent evidence that there is indeed
+positive selection of experimental counties in terms of their comparative advantage in grain
+production. The provincial governments were leaning towards more specialized counties to
+learn from their potentially better implementation practice and make the ongoing experiment
+more successful.
+7 Conclusion
+This paper employs debiased machine learning techniques to study inference of parameters
+characterized by cross-sectional moments involving latent variables that are fixed effects in an
+auxiliary panel data regression. Under the asymptotic regime that both the cross-sectional
+dimension and time dimension go to infinity, the asymptotic variance of the estimator based
+on orthogonal moments is the same as if the true latent variables are known to the re-
+searcher. In addition, shrinkage methods based on Empirical Bayes or Stein’s Unbiased Risk
+27
+
+--- PAGE 28 ---
+Panel A: Estimates ofµ 0 without county fixed effects
+(1) (2) (3) (4)
+Plug-in Orth-mean Orth-EB Orth-SURE
+cons -1.826 -1.829 -1.884 -1.855
+(0.209) (0.203) (0.212) (0.208)
+αi 0.615*** 0.399*** 0.47*** 0.41***
+(0.118) (0.123) (0.165) (0.138)
+GDP per Capita -0.016 -0.019 -0.014 -0.019
+(0.03) (0.028) (0.03) (0.029)
+GDP growth -0.333 -0.318 -0.045 -0.144
+(1.394) (1.406) (1.487) (1.457)
+FR growth -0.611 -0.62 -0.786 -0.685
+(0.729) (0.654) (0.716) (0.679)
+N policy 0.036** 0.039** 0.038** 0.038**
+(0.018) (0.018) (0.019) (0.018)
+County Fixed Effects No No No No
+Panel B: Estimates ofµ 0 with county fixed effects
+(1) (2) (3) (4)
+Plug-in Orth-mean Orth-EB Orth-SURE
+αi 0.562*** 0.362*** 0.467*** 0.378***
+(0.12) (0.122) (0.152) (0.13)
+GDP per Capita -0.049 -0.06 -0.052 -0.064
+(0.036) (0.037) (0.04) (0.039)
+GDP growth 2.479 2.047 2.342 2.208
+(2.114) (2.107) (2.246) (2.175)
+FR growth 0.175 0.209 0.134 0.247
+(0.776) (0.576) (0.633) (0.57)
+N policy 0.034* 0.031 0.032 0.031
+(0.02) (0.019) (0.021) (0.02)
+County Fixed Effects Yes Yes Yes Yes
+Table 5: Estimates ofµ 0 in (26)
+Note: The table reports estimates ofµ 0 for (26). Panel A estimates the version without the
+province fixed effects, while panel B includes the province fixed effects, which is the preferred
+specification. Across columns, we report estimates ofµ 0 using the plug-in ˆαi from specification
+(3) of Table 4, and also estimates that employs orthogonal moments proposed in this paper with
+and without shrinkage corrections.
+28
+
+--- PAGE 29 ---
+Estimation can be readily incorporated for estimating the latent variables. The approach
+enables researchers to deal with non-linearity in the cross-sectional moments and relaxes
+independence assumption between the panel data residuals and the cross-sectional moment
+functions. Simulation results show that using orthogonal moments have better null rejection
+probabilities compared with existing methods when the panel data residuals are correlated
+with the cross-sectional moment functions. In an empirical application, we examine the
+experimental site selection of the agricultural catastrophe insurance experiment in China.
+Interpreting the score function of a logit model as the targeted moments, we show that spe-
+cialization in grain production is an important determinant on whether a county is selected
+into the policy experiment where the level of specialization is captured as county fixed effects
+in an auxiliary linear panel data model. The estimates using orthogonal moments are smaller
+in magnitude compared with the simple plug-in approach, while SURE and EB corrections
+deliver similar results. In general, using orthogonal moments can be important for valid
+inference especially when researchers are in doubt that the residuals in the panel data model
+are uncorrelated with the cross-sectional moment functions.
+References
+J. D. Angrist, P. D. Hull, P. A. Pathak, and C. R. Walters. Leveraging lotteries for school
+value-added: Testing and estimation.The Quarterly Journal of Economics, 132(2):871–
+919, 2017.
+A. Bacher-Hicks and C. Koedel. Estimation and interpretation of teacher value added in
+research applications.Handbook of the Economics of Education, 6:93–134, 2023.
+Z. Bai, J. W. Silverstein, et al.Spectral analysis of large dimensional random matrices.
+Springer, 2010.
+L. Battaglia, T. Christensen, S. Hansen, and S. Sacher. Inference for regression with variables
+generated by ai or machine learning. 2024.
+R. Blundell and S. Bond. Initial conditions and moment restrictions in dynamic panel data
+models.Journal of econometrics, 87(1):115–143, 1998.
+S. Bonhomme, K. Jochmans, and M. Weidner. A neyman-orthogonalization approach to the
+incidental parameter problem.arXiv preprint arXiv:2412.10304, 2024.
+L. D. Brown, G. Mukherjee, and A. Weinstein. Empirical Bayes estimates for a two-way
+cross-classified model.The Annals of Statistics, 46(4):1693 – 1720, 2018. doi: 10.1214/
+17-AOS1599. URLhttps://doi.org/10.1214/17-AOS1599.
+J. Chen, J. Gu, and S. Kwon. Empirical bayes shrinkage (mostly) does not correct the
+measurement error in regression.arXiv preprint arXiv:2503.19095, 2025.
+V. Chernozhukov, D. Chetverikov, M. Demirer, E. Duflo, C. Hansen, W. Newey, and
+J. Robins. Double/debiased machine learning for treatment and structural parame-
+ters.The Econometrics Journal, 21(1):C1–C68, 01 2018. doi: 10.1111/ectj.12097. URL
+https://doi.org/10.1111/ectj.12097.
+29
+
+--- PAGE 30 ---
+V. Chernozhukov, J. C. Escanciano, H. Ichimura, W. K. Newey, and J. M. Robins. Locally
+robust semiparametric estimation.Econometrica, 90(4):1501–1535, 2022.
+R. Chetty, J. N. Friedman, and J. E. Rockoff. Measuring the impacts of teachers ii: Teacher
+value-added and student outcomes in adulthood.American economic review, 104(9):2633–
+2679, 2014a.
+R. Chetty, J. N. Friedman, and J. E. Rockoff. Measuring the impacts of teachers i: Evaluat-
+ing bias in teacher value-added estimates.American economic review, 104(9):2593–2632,
+2014b.
+A. Deaton. Panel data from time series of cross-sections.Journal of econometrics, 30(1-2):
+109–126, 1985.
+A. Deeb. A framework for using value-added in regressions.arXiv preprint arXiv:2109.01741,
+2021.
+I. Ekeland, A. Galichon, and M. Henry. Optimal transportation and the falsifiability of
+incompletely specified economic models.Economic Theory, 42(2):355–374, 2010.
+J. Hahn and G. Kuersteiner. Asymptotically unbiased inference for a dynamic panel model
+with fixed effects when both n and t are large.Econometrica, 70(4):1639–1657, 2002.
+J. Hahn and W. Newey. Jackknife and analytical bias reduction for nonlinear panel models.
+Econometrica, 72(4):1295–1319, 2004.
+S. Heilmann. From local experiments to national policy: the origins of china’s distinctive
+policy process.The China Journal, (59):1–30, 2008a.
+S. Heilmann. Policy experimentation in china’s economic rise.Studies in comparative inter-
+national development, 43(1):1–26, 2008b.
+H. Ichimura and W. K. Newey. The influence function of semiparametric estimators.Quan-
+titative Economics, 13(1):29–61, 2022.
+C. K. Jackson. What do test scores miss? the importance of teacher effects on non–test
+score outcomes.Journal of Political Economy, 126(5):2072–2107, 2018.
+S. Kim and K. Jo. Product switching and young firm dynamics. 2024.
+S. Kwon. Optimal shrinkage estimation of fixed effects in linear panel data models.arXiv
+preprint arXiv:2308.12485, 2023.
+T. Lancaster. Orthogonal parameters and panel data.The Review of Economic Studies, 69
+(3):647–666, 2002.
+F. Li, D. He, J. Liu, and N. Hong. Does crop insurance increase farmers’ income? evidence
+from the pilot program of agricultural catastrophe insurance in china.Economic Analysis
+and Policy, 86:1002–1019, 2025.
+30
+
+--- PAGE 31 ---
+L. Li. Identification of structural and counterfactual parameters in a large class of structural
+econometric models. Technical report, Working paper, 2021.
+W. K. Newey. The asymptotic variance of semiparametric estimators.Econometrica: Journal
+of the Econometric Society, pages 1349–1382, 1994.
+W. K. Newey and D. McFadden. Large sample estimation and hypothesis testing.Handbook
+of econometrics, 4:2111–2245, 1994.
+J. Neyman and E. L. Scott. Consistent estimates based on partially consistent observations.
+Econometrica: journal of the Econometric Society, pages 1–32, 1948.
+A. Pagan. Econometric issues in the analysis of regressions with generated regressors.In-
+ternational economic review, pages 221–247, 1984.
+S. M. Schennach. Entropic latent variable integration via simulation.Econometrica, 82(1):
+345–385, 2014.
+S. Wang and D. Y. Yang. Policy experimentation in china: The political economy of policy
+learning.Journal of Political Economy, 133(7):000–000, 2025.
+T. Xie. Automatic inference for value-added regressions.arXiv preprint arXiv:2503.19178,
+2025.
+X. Xie, S. Kou, and L. D. Brown. Sure estimates for a heteroscedastic hierarchical model.
+Journal of the American Statistical Association, 107(500):1465–1479, 2012.
+H. Zou. The adaptive lasso and its oracle properties.Journal of the American statistical
+association, 101(476):1418–1429, 2006.
+H. Zou and T. Hastie. Regularization and variable selection via the elastic net.Journal of
+the Royal Statistical Society Series B: Statistical Methodology, 67(2):301–320, 2005.
+H. Zou and H. H. Zhang. On the adaptive elastic-net with a diverging number of parameters.
+Annals of statistics, 37(4):1733, 2009.
+A Proof of results in section 4
+The proof of proposition 1 and the following lemmas are going to use the following result
+repeatedly,
+Lemma A.1.For random variablesA i andB i that satisfies 1
+N
+PN
+i=1 A2
+i =o p(1) and 1
+N
+PN
+i=1 B2
+i =
+op(1), then
+1
+N
+NX
+i=1
+(Ai +B i)2 =o p(1)
+31
+
+--- PAGE 32 ---
+Proof.Elementary inequality has (A i +B i)2 ≤2(A 2
+i +B 2
+i ), hence
+0≤ 1
+N
+NX
+i=1
+(Ai +B i)2 ≤ 2
+N
+NX
+i=1
+A2
+i +B 2
+i =o p(1)
+Throughout the proof, ˜α il will be used to represent an estimator ofα i which can be
+based on time average, EB or SURE corrections. For cases where distinguishing the type of
+estimators are important, ˜α∗
+il will be used to denote estimators that incorporate the shrinkage
+idea in EB or SURE.
+Lemma A.2.Under assumption 1-4, and we have
+1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))(YiT −X ′
+iT ˜βl −˜αil) =o p(1).(31)
+If further, assumption 6 holds, then
+1
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))2(YiT −X ′
+iT ˜βl −˜αil)2 =o p(1).(32)
+The conclusion also hold when ˜αil’s are replaced with their EB or SURE shrinkage ver-
+sions ˜α∗
+il.
+Remark A.1.As the number of foldsLis held fixed as sample size grows, the lemma will
+also imply
+1√
+N
+LX
+l=1
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))(YiT −X ′
+iT ˜βl −˜αil) =o p(1)
+In particular, under lemma A.2 we will be able to replace ˜ail in (12) with the truea(X i, αi, µ0)
+without changes in the asymptotic distribution:
+1√
+N
+LX
+l=1
+X
+i∈Il
+˜ail(YiT −X ′
+iT ˜βl −˜αil)
+= 1√
+N
+LX
+l=1
+X
+i∈Il
+a(Xi, αi, µ0)(YiT −X ′
+iT ˜βl −˜αil) +o p(1)
+Proof.Notice that
+YiT −X ′
+iT ˜βl −˜αil
+=Y iT −X ′
+iT β−α i| {z }
+uiT
++X ′
+iT (β− ˜βl) + (αi −˜αil)
+32
+
+--- PAGE 33 ---
+Hence, we can expand the LHS of (31) into the three terms:
+1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))(YiT −X ′
+iT ˜βl −˜αil)
+= 1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))uiT
+| {z }
+I
++ 1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))X ′
+iT (β− ˜βl)
+| {z }
+II
++ 1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))(αi −˜αil)
+| {z }
+III
+We will deal with the three terms separately and show that all of them areo p(1). For
+all three terms, notice that ˜ail and ˜βl are estimated using samples not inI l, hence ˜ail is a
+deterministic function ofX i, ¯¯Yi and hence ˜ail −a(X i, αi, µ0) are iid distributed conditional
+on data not in foldI l. LetW C
+l denote the data in the complement ofI l.
+For (I), we have 17
+E( 1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))uiT |W C
+l )
+= |Il|√
+N
+E[E((˜ail −a(X i, αi, µ0))uiT |W C
+l , Xi, ¯¯Yi), αi|W C
+l ]
+= |Il|√
+N
+E[(˜ail −a(X i, αi, µ0))E(uiT |W C
+l , Xi, ¯¯Yi, αi)|W C
+l ]
+= 0,
+hence by law of iterated expectationE
+
+1√
+N
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))uiT
+
+= 0, and
+E({ 1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))uiT }2|W C
+l )
+= |Il|
+N E((˜ail −a(X i, αi, µ0))2u2
+iT |W C
+l )
+= |Il|
+N E[E(˜ail −a(X i, αi, µ0))2u2
+iT |W C
+l , Xi, ¯¯Yi, αi)|W C
+l ]
+= |Il|
+N E[E(u2
+iT |Xi, ¯¯Yi, αi)E(˜ail −a(X i, αi, µ0))2|W C
+l , Xi, ¯¯Yi, αi)|W C
+l ]
+≤ C|I l|
+N E((˜ail −a(X i, αi, µ0))2|W C
+l )
+=o p(1)
+17Recall that ¯¯Yi = 1
+T−1
+PT−1
+t=1 Yit which is pre-determined at periodT
+33
+
+--- PAGE 34 ---
+where the last line follows from condition (ii) of assumption 2. I also used condition (i) of
+assumption 4 to boundE(u 2
+iT |Xi, ¯¯Yi, αi).
+For (II), recall that conditional onW C
+l , ˜βl is a constant. In addition, ˜βl −β=O p(1/
+√
+N),
+so it suffices to show that
+1
+N
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))XiT =o p(1)
+Notice that
+1
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))XiT
+≤
+s
+1
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))2
+s
+1
+N
+X
+i∈Il
+∥XiT ∥2
+=o p(1)Op(1)
+here the first term under the square root iso p(1) by condition (iv) of assumption 2 and the
+second term isO p(1) via law of large numbers and condition (ii) of assumption 4.
+For (III), we can apply Cauchy-Schwartz to get for some constantCdepending only on
+L
+1√
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))(αi −˜αil)
+≤C
+√
+N
+s
+1
+|Il|
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))2
+s
+1
+|Il|
+X
+i∈Il
+(αi −˜αil)2
+=C
+√
+N op(N −ζ/2)Op(T −1/2)
+=o p(1),
+where the second last line uses condition (ii) of assumption 3 and condition (iv) of assumption
+2.
+Now we will show (32) by using lemma A.1 applied to the terms (I), (II) and (III). For
+(I), we need to show that 1
+N
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))2u2
+iT =o p(1). Each term inside the
+summation is iid conditional onW C
+l . In addition,
+E((˜ail −a(X i, αi, µ0))2u2
+iT |W C
+l )
+=E[(˜ail −a(X i, αi, µ0))2E(u2
+iT |Xi, ¯¯Yi, αi)|W C
+l ]
+≤CE((˜ail −a(X i, αi, µ0))2|W C
+l )
+=o p(1)
+Conditional convergence (conditioning onW C
+l ) implies unconditional convergence by lemma
+6.1 of Chernozhukov et al. (2018).
+For (II), we need∥β− ˜βl∥2 1
+N
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))2∥XiT ∥2 =o p(1) . As∥β− ˜βl∥2 =
+Op( 1
+N ), we only need 1
+N
+P
+i∈Il
+(˜ail −a(X i, αi, µ0))2∥XiT ∥2 =O p(1). This is guaranteed by
+condition (iii) of assumption 4:
+34
+
+--- PAGE 35 ---
+E((˜ail −a(X i, αi, µ0))2∥XiT ∥2)
+≤2E(a(X i, αi, µ0)2∥XiT ∥2) +E(˜a2
+il∥XiT ∥2)
+<∞
+For (III), we need 1/N P
+i∈Il
+(˜ail −a(X i, αi, µ0))2(αi −˜αil)2 =o p(1). Using Cauchy-
+Schwartz,
+1
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))2(αi −˜αil)2
+≤ 1
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))2 sup
+i∈Il
+(αi −˜αil)2
+≤N( 1
+N
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))2 1
+N
+X
+i∈Il
+(αi −˜αil)2)
+=N o p(N −ζ)Op(T −1)
+=o p(1)
+which holds by assumption 6.
+Therefore, (32) holds as well.
+Lemma A.3.Under assumption 2, and assumption 4, we have
+1√
+N
+X
+i∈Il
+a(Xi, αi, µ0)X ′
+iT ( ˜βl −β) =o p(1) (33)
+In addition,
+1
+N
+X
+i∈Il
+a(Xi, αi, µ0)2∥XiT ∥2∥ ˜βl −β∥ 2 =o p(1) (34)
+Remark A.2.Lemma A.3 combined with lemma A.2 implies:
+1√
+N
+LX
+l=1
+X
+i∈Il
+˜ail(YiT −X ′
+iT ˜βl −˜αil)
+= 1√
+N
+LX
+l=1
+X
+i∈Il
+a(Xi, αi, µ0)(YiT −X ′
+iT ˜βl −˜αil) +o p(1)
+= 1√
+N
+LX
+l=1
+X
+i∈Il
+a(Xi, αi, µ0)(YiT −X ′
+iT β−˜αil) +o p(1)
+Proof.LetW C
+l be the data that are in the complement of foldl. We first establish (33).
+Condition (i) of assumption 2 implies that ˜βl −β=O p(1/
+√
+N T), so it suffices to show that
+35
+
+--- PAGE 36 ---
+1
+N
+PL
+l=1
+P
+i∈Il
+|a(Xi, αi, µ0)|∥XiT ∥=O p(1).
+Condition (iii) of assumption 4 implies thatE(|a(X i, αi, µ0)|∥XiT ∥)≤ ∞. As the samples
+are iid across individuals, one can apply standard law of large numbers for
+1
+N
+PL
+l=1
+P
+i∈Il
+|a(Xi, αi, µ0)|∥XiT ∥to conclude
+1
+N
+LX
+l=1
+X
+i∈Il
+|a(Xi, αi, µ0)|∥XiT ∥
+p
+− →E(|a(Xi, αi, µ0)|∥XiT ∥)<∞
+Therefore, 1
+N
+PL
+l=1
+P
+i∈Il
+|a(Xi, αi, µ0)|∥XiT ∥=O p(1)
+To prove (34), condition (iii) of assumption 4 implies 1
+N
+P
+i∈Il
+a(Xi, αi, µ0)2∥XiT ∥2 =
+Op(1). Along with the fact that∥ ˜βl −β∥ 2 =O p(1/(N T)), we have
+1
+N
+X
+i∈Il
+a(Xi, αi, µ0)2∥XiT ∥2∥ ˜βl −β∥ 2 =o p(1)
+Lemma A.4.Assume that assumption 1, assumption 2, assumption 3 and assumption 4
+hold, then
+1√
+N
+X
+i∈Il
+[m(Wi,˜αil, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT β0 −˜αil)]
+= 1√
+N
+X
+i∈Il
+[m(Wi, αi, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT β0 −α i)] +o p(1) (35)
+In addition, if one imposes further assumption 6,
+1
+N
+X
+i∈Il
+[m(Wi,˜αil, µ0)−m(W i, αi, µ0) +a(X i, αi, µ0)(αi −˜αil))]2 =o p(1) (36)
+Proof.We first note that
+1√
+N
+X
+i∈Il
+[m(Wi,˜αil, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT β0 −˜αil)]
+= 1√
+N
+X
+i∈Il
+[m(Wi, αi, µ0) +a(W i, αi, µ0)(YiT −X ′
+iT β0 −α i)]
++ 1√
+N
+X
+i∈Il
+[m(Wi,˜αil, µ0)−m(W i, αi, µ0) +a(X i, αi, µ0)(αi −˜αil)]
+Therefore, it suffices to show that the term in the last line iso p(1).
+36
+
+--- PAGE 37 ---
+Using the assumption thatm(W i, αi, µ0) is twice continuously differentiable inα i, a
+standard second-order Taylor expansion aroundα i gives
+1√
+N
+X
+i∈Il
+[m(Wi,˜αil, µ0)−m(W i, αi, µ0)]
+= 1√
+N
+X
+i∈Il
+∂m(Wi, αi, µ0)
+∂αi
+(˜αil −α i)
++ 1√
+N
+X
+i∈Il
+∂2m(Wi,ˇαi, µ0)
+∂α2
+i
+(˜αil −α i)2,
+for some ˇαi that lies betweenα i and ˜αil.
+Combining the above display with 1√
+N
+P
+i∈Il
+a(Wi, αi, µ0)(αi −˜αil), we have
+1√
+N
+X
+i∈Il
+[m(Wi,˜αil, µ0)−m(W i, αi, µ0) +a(X i, αi, µ0)(αi −˜αil)]
+= 1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))(˜αil −α i)
+| {z }
+I
++ 1√
+N
+X
+i∈Il
+∂2m(Wi,ˇαi, µ0)
+∂α2
+i
+(˜αil −α i)2
+| {z }
+II
+For (I), I will first prove the result under the assumption that ˜α il is constructed as the
+time averages: ¯¯Yi − ¯¯X ′
+i ˜βl. Under this construction ( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))(˜αil −α i)
+is independent of ( ∂m(Wj ,αj ,µ0)
+∂αj
+−a(X j, αj, µ0))(˜αjl −α j) fori̸=j. Note that ˜α il −α i =
+¯¯ui + ¯¯X ′
+i(β− ˜βl), we can further decompose (I) into two terms:
+1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))(˜αil −α i)
+= 1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))¯¯ui
++ 1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0)) ¯¯X ′
+i(β− ˜βl)
+37
+
+--- PAGE 38 ---
+The first term can be shown to beo p(1) by mean square convergence
+E({1/
+√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))¯¯ui}2|W C
+l )
+= 1
+N
+X
+i∈Il
+E(( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))2¯¯u2
+i |W C
+l )
++ 1
+N
+|Il|(|Il| −1)
+2 E(( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))¯¯ui|W C
+l )2
+=E(( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))2¯¯u2
+i )
++ |Il|(|Il| −1)
+2N E(( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))¯¯ui)2
+=o p(1) +o p(1) =o p(1)
+where condition (ii) of assumption 3 ensures the two terms areo p(1).
+The the second term can be shown to beo p(1):
+1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0)) ¯¯X ′
+i(β− ˜βl)
+≤
+√
+N 1
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0)) ¯¯X ′
+iOp(1/
+√
+N)
+=o p(1)
+where ( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0)) ¯X ′
+i is iid and mean zero by law of iterated expectation and
+the definition ofa(X i, αi, µ0) =E( ∂m(Wi,αi,µ0)
+∂αi
+|Xi, αi).
+For (II), using condition (i) of assumption 4 that sup α,Wi
+∂2m(Wi,ˇαi,µ0)
+∂α2
+i
+=C m <∞, we
+have
+1√
+N
+X
+i∈Il
+∂2m(Wi,ˇαi, µ0)
+∂α2
+i
+(˜αil −α i)2
+≤C m
+1√
+N
+X
+i∈Il
+(˜αil −α i)2
+=O p(
+√
+N /T) =o p(1)
+where the last line follows from assumption 3 and lim
+√
+N
+T = 0.
+To prove (36), we apply lemma A.1 to the term (I) and (II). For (I), we need to show
+38
+
+--- PAGE 39 ---
+that 1
+N
+P
+i∈Il
+( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))2(˜αil −α i)2 =o p(1):
+1
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))2(˜αil −α i)2
+≤
+vuut 1
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i, αi, µ0))4
+s
+1
+N
+X
+i∈Il
+(˜αil −α i)4
+=O p(1)op(1)
+where the first term isO p(1) by condition (iii) of assumption 4, and the second term iso p(1)
+by condition (i) of assumption 3.
+For (II), we need to show 1/N P
+i∈Il
+( ∂2m(Wi,ˇαi,µ0)
+∂α2
+i
+)2(˜αil −α i)4 =o p(1). Using condition
+(i) of assumption 4, we have
+1
+N
+X
+i∈Il
+( ∂2m(Wi,ˇαi, µ0)
+∂α2
+i
+)2(˜αil −α i)4
+≤C 2
+m
+1
+N
+X
+i∈Il
+(˜αil −α i)4
+=o p(1)
+where the last line is by condition (i) of assumption 3.
+Therefore, (36) holds.
+˜α∗
+il based on Empirical Bayes ideas
+The key challenge for this case is that ˜α∗
+il is constructed based on all the data in foldl, not
+just the data for observationi. Therefore, one has to account for the potential correlation
+introduced by the shrinkage. Note that either ˜αEB
+il or ˜αSU RE
+il takes the form: (1−sin)˜αil+sin ˆ¯αl
+where
+ˆ¯αl = 1
+|Il|
+X
+i∈Il
+˜αil = ¯¯Y− ¯¯X ′ ˜βl
+for ¯¯Y= 1
+(T−1)|I l|
+P
+i∈Il
+PT−1
+t=1 Yit and ¯¯X= 1
+(T−1)|I l|
+P
+i∈Il
+PT−1
+t=1 Xit
+In particular, the numerator ofs in is an estimator ofu 2
+i = Var( 1
+T−1
+PT−1
+t=1 uit) which con-
+verges to zero, while the denominator is strictly positive given condition (iii) of assumption
+3. Therefore,s in →0 and asymptotically, both ˜α EB
+il and ˜αSU RE
+il will behave like ˜αil. The
+strategy is then to show 1√
+N
+P
+i∈Il
+( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))(˜αil −˜α∗
+il) =o p(1) for ˜α∗
+il where
+˜α∗
+il equals either ˜αEB
+il or ˜αSU RE
+il . Abbreviatea(X i, αi, µ0) asa i we have
+39
+
+--- PAGE 40 ---
+1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a i)(˜αil −˜α∗
+il)
+= 1√
+N
+X
+i∈Il
+( ∂m(Wi, αi, µ0)
+∂αi
+−a i)sin(˜αil − ˆ¯αl)
+= 1√
+N
+X
+i∈Il
+sin( ∂m(Wi, αi, µ0)
+∂αi
+−a i)( ¯¯Yi − ¯¯X ′
+i ˜βl − ¯¯Y− ¯¯X ′ ˜βl)
+≤sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a i)( ¯¯ iY− ¯¯X ′
+i ˜βl − ¯¯Y− ¯¯X ′ ˜βl)|
+= sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a i)(αi + ¯¯ui −E(α))|
+| {z }
+I ′
++ sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a i) ¯¯X ′
+i(β− ˜βl)|
+| {z }
+II ′
++ sup
+i∈Il
+sin
+¯¯X ′ 1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a i)(β− ˜βl)|
+| {z }
+III ′
++ sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a i)¯¯u|
+| {z }
+IV ′
++ sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a i)(¯αl −E(α))|
+| {z }
+V ′
+where the ¯αl in the last term denotes 1
+|Il|
+P
+i∈Il
+αi.
+We will show that each term iso p(1) given the condition that sup i∈Il sin =o p(N −1/2):
+I ′ = sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))(αi + ¯¯ui −E(α))|
+=o p(1) 1
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))(αi + ¯¯ui −E(α))|
+=o p(1),
+givenE(|( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i))(αi + ¯¯ui −E(α))|)<∞as it is a sum of iid random variables.
+40
+
+--- PAGE 41 ---
+II ′ = sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i)) ¯¯X ′
+i(β− ˜βl)|
+=o p(1)∥β− ˜βl∥ 1
+N
+X
+i∈Il
+∥( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i)) ¯¯X ′
+i∥
+=o p(1)op( 1√
+N
+)
+givenE(∥( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i)) ¯¯X ′
+i∥)<∞. (Notice that the term inside the norm has mean
+zero)
+III ′ = sup
+i∈Il
+sin
+¯¯X ′ 1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))(β− ˜βl)|
+=o p(1)∥β− ˜βl∥ ¯¯X ′ 1
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))|
+=o p(1/
+√
+N T)
+givenE(∥( ∂m(Wi,αi,µ0)
+∂αi
+−a(X i, αi, µ0))∥)<∞.
+IV ′ = sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))¯¯u|
+=o p(1)|¯¯u|1
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))|
+=o p(1)op(1/
+√
+N T)Op(1) =o p(1)
+V ′ = sup
+i∈Il
+sin
+1√
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))(¯αl −E(α))|
+=o p(1)|(¯αl −E(α))| 1
+N
+X
+i∈Il
+|( ∂m(Wi, αi, µ0)
+∂αi
+−a(X i))|
+=o p(1)Op(1) =o p(1)
+Therefore, as long as supi∈Il sin =o p(N −1/2), using ˜α∗
+il as an estimate ofα i does not affect
+the rate of convergence ofI.
+Conditions that guaranteesup i∈Il sin =o p(N −1/2)
+Recall thats in = ˆu2
+i
+ˆu2
+i +ˆσ2α
+. Under condition (iii) of assumption 3, as ˆσ2
+α
+p
+− →Var(αi)>0, the
+denominator will be strictly positive for ˆσ2
+α that equals either the Empirical Bayes version or
+41
+
+--- PAGE 42 ---
+the SURE version. Therefore, showing that sup i∈Il sin =o p(N −1/2) is equivalent to showing
+that supi∈Il ˆu2
+i =o p(N −1/2)
+SupposeE(Tˆu2
+i )2+δ <∞for someδ >0, then using union bound and Markov inequality
+we will have
+P(sup
+i∈Il
+ˆu2
+i > ϵ)
+≤ |I l|P(Tˆu2
+i > T ϵ)
+≤ |I l| E[(Tˆu2
+i )2+δ]
+T 2+δϵ2+δ
+The above display can be converted to the high probability statement by definingι=
+|Il| E[(Tˆu2
+i )2+δ]
+T 2+δϵ2+δ : with probability at least 1−ι:
+sup
+i∈Il
+ˆu2
+i ≤ (|Il|E[(Tˆu2
+i )2+δ]ι−1)1/(2+δ)
+T
+which gives the result
+sup
+i∈Il
+ˆu2
+i =O p( |Il|1/(2+δ)
+T )
+If |Il|1/(2+δ)
+T =o(N −1/2), then we have sup i∈Il sin =o p(N −1/2). The condition holds if
+T∝N g andg >1/2 + 1/(2 +δ).
+Proof of proposition 1
+The proposition is a simple consequence of lemma A.2, lemma A.3 and lemma A.4:
+1√
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ0) + ˜ail(YiT −X ′
+iT ˜βl −˜αil)
+= 1√
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT ˜βl −˜αil) +o p(1)
+= 1√
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT β−˜αil) +o p(1)
+= 1√
+N
+NX
+i=1
+m(Wi, αi, µ0) +a(X i, αi, µ0)(YiT −X ′
+iT β−α i)
+,
+where the first equality is lemma A.2, the second equality is lemma A.3 and the last one
+is lemma A.4.
+Proof of proposition 2
+42
+
+--- PAGE 43 ---
+Recall the definition of Ω:
+Ω≡E(m ∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′)
+which implies that an infeasible consistent estimator is by law of large numbers:
+1
+N
+NX
+i=1
+m∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′
+We will show that
+1
+N
+LX
+l=1
+X
+i∈Il
+(m(Wi,˜αil,˜µl) + ˆψil)(m(Wi,˜αil, ˜βl,˜µl) + ˆψil)′
+= 1
+N
+NX
+i=1
+m∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′ +o p(1)
+which will imply (19).
+Using an argument in Lemma E1 of Chernozhukov et al. (2022), it suffices to show that
+1
+N
+NX
+i=1
+∥m(Wi,˜αil,˜µl) + ˆψil −m ∗(Wi, αi, Zi, β0, µ0, a)∥2 =o p(1) (37)
+as it implies
+∥ 1
+N
+LX
+l=1
+X
+i∈Il
+(m(Wi,˜αil,˜µl) + ˆψil)(m(Wi,˜αil,˜µl) + ˆψil)′
+− 1
+N
+NX
+i=1
+m∗(Wi, αi, Zi, β0, µ0, a)m∗(Wi, αi, Zi, β0, µ0, a)′∥
+≤
+LX
+l=1
+1/N
+X
+i∈Il
+(∥m(Wi,˜αil,˜µl) + ˆψil −m ∗(Wi, αi, Zi, β0, µ0, a)∥2
++ 2∥m∗(Wi, αi, Zi, β0, µ0, a)∥∥m(Wi,˜αil,˜µl) + ˆψil −m ∗(Wi, αi, Zi, β0, µ0, a)∥)
+≤o p(1) + 2
+LX
+l=1
+s
+1
+N
+X
+i∈Il
+∥m(Wi,˜αil,˜µl) + ˆψil −m ∗(Wi, αi, Zi, β0, µ0, a)∥2
+s
+1
+N
+X
+i∈Il
+∥m∗(Wi, αi, Zi, β0, µ0, a)∥2
+=o p(1)(1 +O p(1)) =o p(1)
+43
+
+--- PAGE 44 ---
+Therefore, the task is to show (37). In particular, we have the following decomposition:
+1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil,˜µl) + ˆψil −m ∗(Wi, αi, Zi, β0, µ0, a)
+= 1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil,˜µl)−m(W i,˜αil, µ0)
+| {z }
+I
++ 1
+N
+LX
+l=1
+X
+i∈Il
+(˜ail −a(X i, αi, µ0))(YiT −X ′
+iT ˜βl −˜αil)
+| {z }
+II
++ 1
+N
+LX
+l=1
+X
+i∈Il
+a(Xi, αi, µ0)X ′
+iT ( ˜βl −β)
+| {z }
+III
++ 1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ0)−m(W i, αi, µ0) +a(X i, αi, µ0)(αi −˜αil)
+| {z }
+IV
+We then apply lemma A.1 to the above decomposition, so that we need to show for the
+four terms if we replace the term inside the summation sign with its square, it is stillo p(1).
+(32) of lemma A.2 handles (II), (34 of lemma A.3 handles (III) and (36) of lemma A.4
+handles (IV). Therefore, it suffices to show that
+1
+N
+X
+i∈Il
+[m(Wi,˜αil,˜µl)−m(W i,˜αil, µ0)]2 =o p(1)
+We will use lemma A.1 again using the following decomposition:
+1
+N
+X
+i∈Il
+[m(Wi,˜αil,˜µl)−m(W i,˜αil, µ0)]
+= 1
+N
+X
+i∈Il
+∂m(Wi,˜αil,ˇµl)
+∂µ′ (˜µl −µ 0)
+= 1
+N
+X
+i∈Il
+∂2m(Wi, αi,ˇµl)
+∂αi∂µ′ (˜αil −α i)(˜µl −µ 0)
++ 1
+N
+X
+i∈Il
+∂3m(Wi,ˇαi,ˇµl)
+∂α2
+i ∂µ′ (˜αil −α i)2(˜µl −µ 0)
+where ˇµl is some vector that lies on the line segment between ˜µ l andµ 0, and ˇαi is some
+scalar lying between ˜αil andα i.
+44
+
+--- PAGE 45 ---
+Apply lemma A.1 to the above decomposition, we have
+1
+N
+X
+i∈Il
+[∂2m(Wi, αi,ˇµl)
+∂αi∂µ′ (˜αil −α i)(˜µl −µ 0)]2
+≤ ∥˜µl −µ 0∥2 1
+N
+X
+i∈Il
+∥∂2m(Wi, αi,ˇµl)
+∂αi∂µ′ ∥2(˜αil −α i)2
+≤ ∥˜µl −µ 0∥2
+vuut 1
+N
+X
+i∈Il
+∥∂2m(Wi, αi,ˇµl)
+∂αi∂µ′ ∥4
+s
+1
+N
+X
+i∈Il
+(˜αil −α i)4
+=o p(1)Op(1)op(1) =o p(1)
+by condition (v) of assumption 6 and condition (i) of assumption 3.
+1
+N
+X
+i∈Il
+[∂3m(Wi,ˇαi,ˇµl)
+∂α2
+i ∂µ′ (˜αil −α i)2(˜µl −µ 0)]2
+≤ ∥˜µl −µ 0∥2C2
+m
+1
+N
+X
+i∈Il
+(˜αil −α i)4
+=o p(1)
+by condition (i) of assumption 3 and condition (iv) of assumption 6.
+Therefore,
+1/N
+X
+i∈Il
+[m(Wi,˜αil,˜µl)−m(W i,˜αil, µ0)]2 =o p(1)
+and the proposition is proved.
+Proof of proposition 3
+We first show that the difference in usingα i and using ˜αil in constructingGis asymp-
+totically negligible:
+1
+N
+LX
+l=1
+X
+i∈Il
+∂m(Wi,˜αil,ˆµ)
+∂µ′ − 1
+N
+NX
+i=1
+∂m(Wi, αi,ˆµ)
+∂µ′ =o p(1)
+∥ 1
+N
+LX
+l=1
+X
+i∈Il
+∂m(Wi,˜αil,ˆµ)
+∂µ′ − 1
+N
+NX
+i=1
+∂m(Wi, αi,ˆµ)
+∂µ′ ∥
+=∥ 1
+N
+LX
+l=1
+X
+i∈Il
+∂2m(Wi,ˇαi,ˆµ)
+∂αi∂µ′ (˜αil −α i)∥
+≤
+LX
+l=1
+vuut 1
+N
+X
+i∈Il
+∥∂2m(Wi,ˇαi,ˆµ)
+∂αi∂µ′ ∥2
+s
+1
+N
+X
+i∈Il
+(˜αil −α i)2
+=O p(1)op(1) =o p(1)
+45
+
+--- PAGE 46 ---
+where ˇαi is some scalar lying between ˜αil andα i. Assumption 7 ensures that the first term
+under the square root is bounded in probability and assumption 3 ensures that the second
+square root term iso p(1).
+Next we show that
+1/N
+NX
+i=1
+∂m(Wi, αi,ˆµ)
+∂µ −1/N
+NX
+i=1
+∂m(Wi, αi, µ0)
+∂µ =o p(1)
+Note that applying standard law of large number yields 1
+N
+PN
+i=1
+∂m(Wi,αi,µ0)
+∂µ
+p
+− →G. Hence,
+showing the above display is sufficient to conclude our proof.
+∥ 1
+N
+NX
+i=1
+∂m(Wi, αi,ˆµ)
+∂µ′ − 1
+N
+NX
+i=1
+∂m(Wi, αi, µ0)
+∂µ′ ∥
+≤ 1
+N
+NX
+i=1
+Fα(Wi, αi)∥ˆµ−µ0∥1/C
+=O p(1)op(1) =o p(1)
+where the first average isO p(1) by assumption 7 and the second term iso p(1) by the consis-
+tency of ˆµ.
+Proof of theorem 1
+The theorem is proved by doing a Taylor expansion on the objective function as in
+standard GMM settings. Recall that
+ˆµ= argµ min ˆm∗(µ)′ΥN ˆm∗(µ)
+so it satisfies the approximate first order condition:
+∂ˆm∗(ˆµ)
+∂µ′
+′
+ΥN ˆm∗(ˆµ) =op( 1√
+N
+)
+Now a Taylor expansion on ˆm∗(ˆµ) yields that for some ˇµthat lies on the line segment
+betweenµ 0 and ˆµ, we have
+∂ˆm∗(ˆµ)
+∂µ′
+′
+ΥN( ˆm∗(µ0) + ∂ˆm∗(ˇµ)
+∂µ′ (ˆµ−µ0)) =o p( 1√
+N
+)
+Multiplying
+√
+Non both sides, and rearranging, we have
+√
+N(ˆµ−µ0)
+= ( ∂ˆm∗(ˆµ)
+∂µ′
+′
+ΥN
+∂ˆm∗(ˇµ)
+∂µ′ )−1 ∂ˆm∗(ˆµ)
+∂µ′
+′
+ΥN
+√
+Nˆm∗(µ0) +o p(1)
+Proposition 1 establishes that
+√
+Nˆm∗(µ0)
+d
+− → N(0,Ω)
+46
+
+--- PAGE 47 ---
+Notice that ˆm∗(µ) depends onµonly through the sums of the original moment function
+m(Wi,˜αil, µ), so
+∂ˆm∗(ˆµ)
+∂µ′
+= 1
+N
+LX
+l=1
+X
+i∈Il
+∂m(Wi,˜αil,ˆµ)
+∂µ′
+p
+− →G=E(∂m(Wi, αi, µ0)
+∂µ )
+by proposition 3. As ˇµlies between ˆµandµ0, ˇµis also consistent forµ0. Applying proposition
+3 again gives the same convergence result with ˆµreplace by ˇµ.
+By assumption that Υ N
+p
+− →Υ, applying continuous mapping theorem, we get the asymp-
+totic distribution in (22).
+The consistency of ˆVfollows from proposition 2 and proposition 3
+A.1 Consistency of Estimators
+Lemma A.5.Suppose assumption 2, assumption 3 and assumption 4 hold. In addition,
+1.µ 0 is the unique solution to the original moment conditionE(m(W i, αi, µ0)) = 0
+2. The parameter space Θ forµis compact
+3. Υ N
+p
+− →Υ for a positive definite matrix Υ.
+4. sup α ∥ ∂m(Wi,αi,µ)
+∂αi
+∥2 ≤F(W i) for allµ∈Θ andE(F(W i))<∞.
+5.E(sup µ∈Θ ∥m(Wi, αi, µ)∥)<∞
+then ˆµ
+p
+− →µ0.
+Proof.The proof uses Theorem 2.6 in Newey and McFadden (1994). We need to verify that
+the limit moment functionE(m(W i, αi, µ)) is continuous inµand that the convergence is
+uniform inµ∈Θ.
+We first show consistency of ˜µl which does not involve the correction term:
+Pointwise convergence follows from condition (iv):
+1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ)
+= 1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi, αi, µ) + 1
+N
+LX
+l=1
+X
+i∈Il
+∂m(Wi,ˇαi, µ)
+∂αi
+(˜αil −α i)
+where ˇαi lies betweenα i and ˜αil.
+47
+
+--- PAGE 48 ---
+The last summation iso p(1) as
+sup
+µ∈Θ
+| 1
+N
+X
+i∈Il
+∂m(Wi,ˇαi, µ)
+∂αi
+(˜αil −α i)|
+≤sup
+µ∈Θ
+vuut 1
+N
+X
+i∈Il
+∂m(Wi,ˇαi, µ)
+∂αi
+2s
+1
+N
+X
+i∈Il
+(˜αil −α i)2
+≤
+s
+1
+N
+X
+i∈Il
+F(W i)op(1)
+=o p(1)
+Standard law of large number applied to the first summation gives pointwise convergence.
+Condition (v) then guarantees the continuity of the limit function and uniform convergence.
+This establishes the consistency of ˜µl.
+To conclude consistency when the correction term ˜ail(YiT −X ′
+iT ˜βl −˜αil)
+is added, we note that the correction term does not depend onµ. In particular, lemma A.2,
+A.3 implies that
+1
+N
+LX
+l=1
+X
+i∈Il
+˜ail(YiT −X ′
+iT ˜βl −˜αil)
+= 1
+N
+LX
+l=1
+X
+i∈Il
+a(Xi, αi, µ0)(YiT −X ′
+iT β0 −˜αil) +o p(1)
+= 1
+N
+NX
+i=1
+a(Xi, αi, µ0)(YiT −X ′
+iT β0 −α i) + 1
+N
+LX
+l=1
+X
+i∈Il
+a(Xi, αi, µ0)(αi −˜αil) +o p(1)
+= 1
+N
+NX
+i=1
+a(Xi, αi, µ0)(YiT −X ′
+iT β0 −α i) +
+LX
+l=1
+s
+1
+N
+X
+i∈Il
+a(Xi, αi, µ0)2
+s
+1
+N
+X
+i∈Il
+(αi −˜αil)2 +o p(1)
+=o p(1)
+The first summation is summing over iid mean zero variables by the orthogonal moment
+condition, so it will beo p(1). For the second term, the first term in the square root isO p(1)
+by the assumption thata(X i, αi, µ0)∈L 2(PX,α), and the second term under the square root
+iso p(1) by assumption 3. Therefore, we conclude that
+sup
+µ∈Θ
+| 1
+N
+LX
+l=1
+X
+i∈Il
+m(Wi,˜αil, µ)−ˆm∗(µ)|
+=| 1
+N
+LX
+l=1
+X
+i∈Il
+˜ail(YiT −X ′
+iT ˜βl −˜αil)|
+=o p(1)
+In other words, ˆm∗(µ) has the limit uniformly inµasE(m(W i, αi, µ)) which is continuous.
+48
+
+--- PAGE 49 ---
+B Convergence rates for Elastic Net
+I will provide conditions that guarantee the convergence rate of ˜ail required in assumption 2.
+The techniques are adapted from Zou and Zhang (2009), which proposes the adaptive elastic
+net estimator. Adaptive Elastic Net is expected to perform well in our setting because it has
+the oracle property of variable selection established in Zou and Zhang (2009) but also avoids
+problems faced by lasso when the covariates are highly correlated (Zou and Hastie, 2005).
+In our setup, our covariates are functionsb(X i,˜αill′) whereX i = (X ′
+i1,· · ·, X ′
+iT )′ stacks the
+variables over all time periods. When the serial correlation among the covariates are strong,
+the performance of adaptive lasso could be undesirable.
+We are interested estimating the following conditional expectation:
+E( ∂m(Wi, αi, µ0)
+∂αi
+|Xi, αi)
+We will assume that the conditional expectation takes the linear-form and the dimension
+ofb(X i, αi) grows at the same rate asT 18
+∂m(Wi, αi, µ0)
+∂αi
+=b(X i, αi)′π0 +ξ i,E(ξ i|Xi) = 0 (38)
+The above problem is about high-dimensional regression with the dimension of the pa-
+rameterπ 0 growing withNat the rateT∝N g.19 As standard in the literature, to learn
+the parameterπ 0 well, I will impose sparsity assumptions onπ 0 and introduce bothl 1 and
+l2 regularization to exploit the sparsity structure. The main challenge in my set-up is that
+the dependent variable ∂m(Wi,αi,µ0)
+∂αi
+andα i is not observed, and we only have an estimate of
+it constructed from cross-validation (See section 3.2): ∂m(Wi,˜αill′ ,˜µl)
+∂αi
+and ˜αill′. Here we are
+learning (38) only using samples not in foldland fori∈l ′ estimate ˜αill′ ofα i is constructed
+from observationiand other observations not in foldlorl ′. Similarly, estimate ˜µl ofµ 0 is
+constructed using only data not in foldl.
+With some abuse of notation, in this section I will usey EN
+i to denote ∂m(Wi,αi,µ0)
+∂αi
+and
+˜yEN
+i to denote the estimate ∂m(Wi,˜αill′ ,˜µl)
+∂αi
+for individuali. Similarly,B i will be used to
+denoteb(X i, αi), while ˜Bi will be used to denoteb(X i,˜αill′). Our goal will be to establish
+condition (ii) and (iv) of assumption 2. By the remark following assumption 2, it suffices to
+establish (ii):E((˜ail −a(X i, αi, µ0))2|W C
+l ) =o p(N −ζ) which will imply (iv): 1
+|Il|
+P
+i∈Il
+[(˜ail −
+a(Xi, αi, µ0))2 =o p(N −ζ).
+By the assumption in (38), we will havea(X i, αi, µ0) =B ′
+iπ0 and ˜ail = ˜B′
+iˆπl for a general
+18The dimension ofb(X i, αi) should not grow too fast withN. We can allow the transformation of (X i, αi)
+to be of larger order thanTby potentially imposing a stronger sparsity assumption on the non-zero elements
+ofπ 0. For simplicity, this extension is omitted.
+19For dynamic panel data problems, ifY i0 is not observed, then one has to drop one time period and work
+withX i that has dimension proportional toT−1. We will ignore this difference in the following discussion.
+49
+
+--- PAGE 50 ---
+estimator ˆπl that uses data not in foldl. Hence,
+E((˜ail −a(X i, αi, µ0))2|W C
+l )
+=E[((B i − ˜Bi)′π0 + ˜B′
+i(π0 −ˆπl))2|W C
+l ]
+≤2E[((B i − ˜Bi)′π0)2|W C
+l ] + 2E[( ˜B′
+i(π0 −ˆπl))2)|W C
+l ]
+≤2π ′
+0E[(Bi − ˜Bi)(Bi − ˜Bi)′|W C
+l ]π0 + 2(π0 −ˆπl)′E( ˜Bi ˜B′
+i)(π0 −ˆπl),
+where the last line uses independence for samples in foldland samples not inl. If the
+maximum eigenvalue of the matrixE( ˜Bi ˜B′
+i) is bounded, andπ ′
+0E[(Bi− ˜Bi)(Bi− ˜Bi)′|W C
+l ]π0 =
+Op(T −1), the problem can then be reduced to establishing∥π 0 −ˆπl∥2 =o p(N −ζ) for some
+1−g≤ζ <1/2. When there are only finitely many number of elements inb(X i, αi) that
+depends onα i andb(X i, αi) is a smooth function ofα i,π ′
+0E[(Bi − ˜Bi)(Bi − ˜Bi)′|W C
+l ]π0 will
+beO(T −1) under suitable regularity conditions on (X it, uit)’s. In the following discussion,
+I will drop the subscriptland abstract away from the use of cross-fitting. I will point
+out derivations that relies on cross-fitting features. For example, the number of individuals
+that are used to estimate (38) will be the individuals not in foldlwhich equalsN L−1
+L , for
+simplicity, I will just useNinstead.
+Now I will introduce the Elastic Net (EN) estimator forπ 0, which is originally proposed
+by Zou and Hastie (2005).
+ˆπ(EN) = (1 +λ2/N){arg min
+π
+∥˜yEN − ˜Bπ∥2 +λ 2∥π∥2
+2 +λ 1∥π∥1}(39)
+where ˜yEN stacks ˜yEN
+i into anN×1 vector and ˜Bstacks ˜B′
+i into an overN.
+Ignoring the factor (1 +λ 2/N) then ˆπ(EN) equals the lasso estimator ifλ 2 = 0. When
+λ2 >0, the introduction ofl 2 regularization will improve prediction performance ifX i’s
+are highly correlated. In addition, the rescaling (1 +λ 2/N) is used to undo the shrinkage
+introduced by thel 2 penalty term, so that the resulting estimator incorporates both variable
+selection via the lasso penalty and has desirable properties when there exists high correlation
+among the covariates.
+The Adaptive Elastic Net estimator (AEN) is based on the first-step EN estimator.
+Specifically, we will introduce different penalty weights for different elements ofπby defining
+ˆwj = (|ˆπj(EN)|) −γ, whereγis a tuning parameter that satisfiesγ > 2g
+1−g. Zou and Zhang
+(2009) suggests choosingγ=
+l
+2g
+1−g
+m
++ 1, where⌈x⌉denotes the smallest integer larger than
+x. The AEN estimator introduced in Zou and Zhang (2009) is defined as
+ˆπ(AEN) = (1 +λ2/N){arg min
+π
+∥˜yEN −Xπ∥ 2 +λ 2∥π∥2
+2 +λ ∗
+1
+TX
+j=1
+ˆwj|πj|}(40)
+Remark B.1.1. The penalty factors ˆw j are only introduced on thel 1 regularization part
+but not on thel 2 part.
+2. The use of the penalty factors is to enforce consistent variable selections as in adaptive
+lasso (Zou, 2006). When|ˆπ j(EN)|is small, then AEN will impose a larger penalty on
+πj and further shrinks it towards zero. Conversely, when|ˆπ j(EN)|is relatively large,
+smaller regularization is imposed to reduce potential bias of estimatingπ 0.
+50
+
+--- PAGE 51 ---
+3. To avoid the problem of dividing a small number close to zero in finite sample, one can
+take ˆwj = (|ˆπj(EN)|+ 1
+N )−γ as suggested in Zou and Zhang (2009). 20
+The following assumption and lemmas are adapted from Zou and Zhang (2009).
+Assumption B.1.Letλ min(M) andλ max(M) denote the minimum and maximum eigen-
+values of a positive-definite matrixM. Suppose
+1.d≤λ min( 1
+N
+˜B′ ˜B)≤λ max( 1
+N
+˜B′ ˜B)≤Dfor 0< d≤D <∞.
+2. lim N→∞
+maxi=1,···,N
+PT
+j=1 B2
+ij
+N = 0,π ′
+0E[(Bi − ˜Bi)(Bi − ˜Bi)′|W C
+l ]π0 =O p(T −1)
+3.E(|ξ| 2|X)< σ 2
+ξ for someσ 2
+ξ >0
+4. lim N→∞
+T
+N g =cfor some 0< c <∞and 1/2< g <1
+5. lim N→∞
+λ2
+N = 0, limN→∞
+λ1√
+N = 0
+6. lim N→∞
+λ2√
+N ∥π0∥2 = 0, limN→∞ λ∗
+1N −1−(g−1)(1+γ)/2 =∞, lim N→∞
+λ∗
+1√
+N = 0
+lim
+N→∞
+min( N
+λ1
+√
+T
+,(
+√
+N√
+T λ∗
+1
+)1/γ) min
+j:|(π0)j |>0
+|(π0)j| → ∞,min
+j:|(π0)j |>0
+|(π0)j|>0
+7. ForF(W i) defined in assumption 7,E(F(W i)∥˜µl −µ 0∥2|W C
+ll′) =O p( 1
+N )
+8. sup α ∥ ∂2m(Wi,αi,µ)
+∂α2
+i
+∥2 ≤ ˜F(W i) for allµwithin a neighborhoodN(µ 0) ofµ 0 with ˜F(W i)
+satisfying limN→∞ E( ˜F(W i)∥ ¯Xi∥2)<∞and lim N→∞ TE( ˜F(W i)¯u2
+i )<∞.
+9. The number of non-zero elements ofπ 0 denoted as|A|grows slower thanT: lim N→∞
+|A|
+T =
+0.
+Remark B.2.1. The first assumption can also be modified to be imposed upon the
+(unobserved) matrix 1
+N B′Bunder suitable assumptions onb(X i, αi). For example,
+when only finitely manyKelements ofb(X i, αi) depend onα i withB i− ˜Bi =O p(T −1/2),
+thenλ max( 1
+N B′B− 1
+N
+˜B′ ˜B) =O p(T −1), and by theorem A.46 in Bai et al. (2010), one
+can then bound|λ max( 1
+N B′B)−λ max( 1
+N
+˜B′ ˜B)| ≤λ max( 1
+N B′B− 1
+N
+˜B′ ˜B) =O p(T −1). One
+can then convert it to a high probability statement as an upper bound ofλ max( 1
+N
+˜B′ ˜B),
+asO p(T −1) =o p(N −ζ), the following analysis can be done conditioning on the event
+thatλ max( 1
+N
+˜B′ ˜B) is bounded.
+2. The last three conditions are new in my context compared with Zou and Zhang (2009).
+These are needed to control the error of not observing ∂m(Wi,αi,µ0)
+∂αi
+andB i. The condi-
+tions are standard regularity conditions that guarantees the existence of finite moments.
+For example, lim N→∞ TE( ˜F(W i)¯u2
+i )<∞only requires the existence of moments for
+the random variable ˜F(W i)( 1√
+T
+PT
+t=1 uit)2 and typically a CLT for weakly dependent
+data yields 1√
+T
+PT
+t=1 uit =O p(1). One can also give more primitive mixing conditions
+to guarantee finite moments. For brevity, I will not give more detailed results here.
+20I used the above penalty factor in the simulations.
+51
+
+--- PAGE 52 ---
+In establishing the properties of EN estimator, a crucial step is to show that the difference
+betweeny EN
+i and ˜yEN
+i will not affect the asymptotic properties of ˆπ(AEN). To do this we
+need to bound the error:E((y EN − ˜yEN ) ˜B ˜B′(yEN − ˜yEN ))
+Lemma B.1.Under assumption 7 and B.1,
+E((yEN − ˜yEN )′ ˜B ˜B′(yEN − ˜yEN )) =o p(N T)
+Proof.
+E((yEN − ˜yEN ) ˜B ˜B′(yEN − ˜yEN ))
+≤
+X
+l′̸=l
+E[E(
+X
+i∈Il′
+∥ ˜B′
+i(yEN
+i −˜yEN
+i )∥2|W C
+ll′)]
+Let ˜Bl′ stack the ˜Bi in rows for samples only inl ′ and similarly fory EN
+l′ and ˜yEN
+l′ By the
+variational representation of eigenvalues, we have
+E[E(
+X
+i∈Il′
+∥ ˜B′
+i(yEN
+i −˜yEN
+i )∥2|W C
+ll′)]
+=E((y EN
+l′ − ˜yEN
+l′ ) ˜Bl′ ˜B′
+l′(yEN
+l′ − ˜yEN
+l′ )|W C
+ll′)
+≤E(λ max( ˜Bl′ ˜B′
+l′)∥yEN
+l′ − ˜yEN
+l′ ∥2)
+≤λ max( ˜B′
+l′ ˜Bl′)E(∥yEN
+l − ˜yEN
+l ∥2)
+≤DNE(∥y EN
+l′ − ˜yEN
+l′ ∥2)
+≤DN 2E(yEN
+i −˜yEN
+i )2
+here I used the property that ˜Bl′ ˜B′
+l′ and ˜B′
+l′ ˜Bl′ shares the same bounds on eigenvalues of
+1
+N
+˜B′ ˜B.
+Recall thaty EN
+i = ∂m(Wi,αi,µ0)
+∂αi
+and ˜yEN
+i = ∂m(Wi,˜αill′ ,˜µl)
+∂αi
+, a first-order Mean-Value expan-
+sion gives that for some ˇµl lying between ˜µl andµ 0 and ˇαill′ lying betweenα i and ˜αill′
+(yEN
+i −˜yEN
+i )2
+= ( ∂m(Wi, αi, µ0)
+∂αi
+− ∂m(Wi,˜αill′,˜µl)
+∂αi
+)2
+= ( ∂2m(Wi,ˇαill′,ˇµl)
+∂α2
+i
+(˜αill′ −α) + ∂2m(Wi,ˇαill′,ˇµl)
+∂αi∂µ′ (˜µl −µ 0))2
+≤2( ∂2m(Wi,ˇαill′,ˇµl)
+∂α2
+i
+)2(˜αill′ −α) 2
++ 2∥∂2m(Wi,ˇαill′,ˇµl)
+∂αi∂µ′ ∥2∥˜µl −µ 0∥2
+52
+
+--- PAGE 53 ---
+We immediately see that under assumption 7, we have
+E(∥ ∂2m(Wi,ˇαill′,ˇµl)
+∂αi∂µ′ (˜µl −µ 0)]∥2|W C
+ll′)
+≤E(F(W i)∥˜µl −µ 0∥2|W C
+ll′)
+=O p( 1
+N )
+For the quantity (˜αill′ −α) 2, I will only consider the case where ˜α ill′ is defined as the
+fixed effect averages ¯Yi − ¯X ′
+i ˜βll′. When ˜αill′ incorporates EB or SURE corrections, similar
+techniques used to prove lemma A.4 can be used to establish the same rates. For simplicity,
+formal derivations are omitted.
+(˜αill′ −α i)2
+= ( ¯¯X ′
+i( ˜βll′ −β 0) + ¯¯ui)2
+≤2∥ ¯¯Xi∥2
+2∥ ˜βll′ −β 0∥2
+2 + 2¯¯u2
+i
+Hence,
+E(∥ ∂2m(Wi,ˇαill′,ˇµl)
+∂α2
+i
+(˜αill′ −α)∥ 2|W C
+ll′)
+≤2∥ ˜βll′ −β 0∥2
+2E(∥ ¯¯Xi∥2
+2 ˜F(W i)|W C
+ll′)
++ 2E(¯¯u2
+i ˜F(W i)|W C
+ll′)
+≤O p(1/N) +O p(1/T)
+Finally, combining the above results, we see that
+E((yEN − ˜yEN ) ˜B ˜B′(yEN − ˜yEN ))
+≤2L 2DN 2E{E(∥ ∂2m(Wi,ˇαill′,ˇµl)
+∂αi∂µ′ (˜µill′ −µ 0)]∥2|W C
+ll′)
++E(∥ ∂2m(Wi,ˇαill′,ˇµl)
+∂α2
+i
+(˜αill′ −α)∥ 2|W C
+ll′)}
+=N 2(Op(1/N) +O p(1/T))
+=O p(N 2/T)
+Now use the fact thatT∝N g for someg >1/2 to conclude that the above display is
+op(N T)
+Lemma B.2.Under assumption B.1,
+E(π′
+0(B− ˜B)′ ˜B ˜B′(B− ˜B)π0) =o p(N T)
+Similarly,
+E(π′
+0(B− ˜B)′ ˜BA ˜B′
+A(B− ˜B)π0) =o p(N T)
+where the subscript in ˜BA forA ⊂ {1,· · ·, T}means taking submatrix with columns of ˜B
+that in the setA
+53
+
+--- PAGE 54 ---
+Proof.
+E(π′
+0(B− ˜B)′ ˜B ˜B′(B− ˜B)π0)
+≤E(λ max( ˜B ˜B′)π′
+0(B− ˜B)′(B− ˜B)π0))
+≤N DE(π ′
+0(B− ˜B)′(B− ˜B)π0)
+=N 2DE(π′
+0(Bi − ˜Bi)′(Bi − ˜Bi)π0)
+=N 2DO(T −1)
+=o(N T)
+where the second last line uses condition (ii) of assumption B.1 and the last line usesTgrow
+faster thanN 1/2.
+The second result follows the same proof by noticing thatλ max( ˜BA ˜B′
+A)≤λ max( ˜B ˜B′)
+Lemma B.3.Under assumption 2 and B.1, for a generic penalty factor ˆwj that may depend
+onXand ˜yEN , define
+ˆπˆw(λ2, λ1) = arg min
+π
+∥˜yEN − ˜Bπ∥2 +λ 2∥π∥2
+2 +λ 1
+TX
+j=1
+ˆwj|πj|
+then,
+E(∥ˆπˆw(λ2, λ1)−π 0∥2
+2)≤
+2λ2
+1E(PT
+j=1 ˆw2
+j ) + 8λ2
+2∥π0∥2
+2 + 8DN T σ2
+ξ +o(N T)
+(N d+λ 2)−2 (41)
+Remark B.3.1. For EN estimator ˆw j = 1 for allj, and one can obtain a similar bound
+by replacingE(PT
+j=1 ˆw2
+j ) withTas noticed in Zou and Zhang (2009).
+2. The lemma suggests that the convergence rate for ˆπ ˆw(λ2, λ1) isO p(T /N) and is con-
+sistent forπ 0 ifTgrows slower thanN.
+Proof.We will also consider a ridge regression estimator defined as
+ˆπ(λ2,0) = arg min
+π
+∥˜yEN − ˜Bπ∥2 +λ 2∥π∥2
+2
+We are going to use
+∥ˆπˆw(λ2, λ1)−π 0∥2
+2 ≤2∥ˆπ ˆw(λ2, λ1)−ˆπ(λ2,0)∥ 2
+2| {z }
+I
++2∥ˆπ(λ2,0)−π 0∥2
+2| {z }
+II
+and bound the terms on the RHS separately.
+Bounding term (I)
+By the definition of ˆπ(λ2,0) and ˆπˆw(λ2, λ1), we have
+∥˜yEN − ˜Bˆπ(λ2,0)∥ 2 +λ 2∥ˆπ(λ2,0)∥ 2
+2 +λ 1
+TX
+j=1
+ˆwj|ˆπj(λ2,0)|
+≥ ∥ ˜yEN − ˜Bˆπˆw(λ2, λ1)∥2 +λ 2∥ˆπˆw(λ2, λ1)∥2
+2 +λ 1
+TX
+j=1
+ˆwj|ˆπˆw(λ2, λ1)j|
+54
+
+--- PAGE 55 ---
+and
+∥˜yEN − ˜Bˆπˆw(λ2, λ1)∥2 +λ 2∥ˆπˆw(λ2, λ1)∥2
+2 ≥ ∥ ˜yEN − ˜Bˆπ(λ2,0)∥ 2 +λ 2∥ˆπ(λ2,0)∥ 2
+2
+The first one implies
+λ1
+TX
+j=1
+ˆwj(|ˆπj(λ2,0)| − |ˆπˆw(λ2, λ1)j|)
+≥(∥ ˜yEN − ˜Bˆπˆw(λ2, λ1)∥2 +λ 2∥ˆπˆw(λ2, λ1)∥2
+2)
+−(∥ ˜yEN − ˜Bˆπ(λ2,0)∥ 2 +λ 2∥ˆπ(λ2,0)∥ 2
+2)
+The RHS of the above display can be simplified by using the closed-form solution of
+ˆπ(λ2,0) = ( ˜B′ ˜B+λ 2I) −1 ˜B′˜yEN :
+(∥˜yEN − ˜Bˆπˆw(λ2, λ1)∥2 +λ 2∥ˆπˆw(λ2, λ1)∥2
+2)
+−(∥ ˜yEN − ˜Bˆπ(λ2,0)∥ 2 +λ 2∥ˆπ(λ2,0)∥ 2
+2)
+= (ˆπˆw(λ2, λ1)−ˆπ(λ2,0))( ˜B′ ˜B+λ 2I)(ˆπˆw(λ2, λ1)−ˆπ(λ2,0))
+We can further upper bound the LHS using Cauchy-Schwartz:
+TX
+j=1
+ˆwj(|ˆπj(λ2,0)| − |ˆπˆw(λ2, λ1)j|)≤
+vuut
+TX
+j=1
+ˆw2
+j ∥ˆπj(λ2,0)−ˆπ ˆw(λ2, λ1)∥2
+Finally, use the property thatλ min( ˜B′ ˜B+λ 2I) =λ min( ˜B′ ˜B) +λ 2, we have
+λ1
+vuut
+TX
+j=1
+ˆw2
+j ∥ˆπj(λ2,0)−ˆπ ˆw(λ2, λ1)∥2
+≥λ 1
+TX
+j=1
+ˆwj(|ˆπj(λ2,0)| − |ˆπˆw(λ2, λ1)j|)
+≥(ˆπˆw(λ2, λ1)−ˆπ(λ2,0))( ˜B′ ˜B+λ 2I)(ˆπˆw(λ2, λ1)−ˆπ(λ2,0))
+≥(λ min( ˜B′ ˜B) +λ 2)∥ˆπˆw(λ2, λ1)−ˆπ(λ2,0)∥ 2
+2
+Rearranging the term yields
+∥ˆπˆw(λ2, λ1)−ˆπ(λ2,0)∥ 2 ≤
+λ1
+qPT
+j=1 ˆw2
+j
+λmin( ˜B′ ˜B) +λ 2
+Bounding term (II)
+I will have to deal with the fact that ˜y EN
+i andy EN
+i differ and thatB i and ˜Bi differ for
+the term (II).
+55
+
+--- PAGE 56 ---
+Note
+ˆπ(λ2,0)−π 0
+= ( ˜B′ ˜B+λ 2I) −1 ˜B′(Bπ0 +ξ+ ˜yEN −y EN )−π 0
+=−λ 2( ˜B′ ˜B+λ 2I) −1π0 + (˜B′ ˜B+λ 2I) −1 ˜B′ξ
++ (˜B′ ˜B+λ 2I) −1 ˜B′(˜yEN −y EN ) + (˜B′ ˜B+λ 2I) −1 ˜B′(B− ˜B)π0
+Here the last two terms are new compared with results in Zou and Zhang (2009).
+E(∥ˆπ(λ2,0)−π 0∥2
+2)
+≤4λ 2
+2(λmin( ˜B′ ˜B) +λ 2)−2∥π0∥2
+2 + 4E(∥˜B′ ˜B+λ 2I) −1 ˜B′ξ∥2
+2)
++ 4E(∥(˜B′ ˜B+λ 2I) −1 ˜B′(˜yEN −y EN )∥2
+2)
++ 4E(∥(˜B′ ˜B+λ 2I) −1 ˜B′(B− ˜B)π0∥2
+2)
+≤4λ 2
+2(λmin( ˜B′ ˜B) +λ 2)−2∥π0∥2
+2
++ 4(λmin( ˜B′ ˜B) +λ 2)−2E(ξ′ ˜B ˜B′ξ)
++ 4(λmin( ˜B′ ˜B) +λ 2)−2E(∥ ˜B′(˜yEN −y EN ∥2
+2)
++ 4(λmin( ˜B′ ˜B) +λ 2)−2E(π′
+0(B− ˜B)′ ˜B ˜B′(B− ˜B)π0)
+≤4(λ min( ˜B′ ˜B) +λ 2)−2(λ2
+2∥π0∥2
+2 +T r( ˜B′ ˜B)σ2
+ξ +o(N T))
+≤4(λ min(X′X) +λ 2)−2(λ2
+2∥π0∥2
+2 +λ max( ˜B′ ˜B)T σ2
+ξ +o(N T))
+where lemma B.1 is used to boundE(∥ ˜B′(˜yEN −y EN ∥2
+2) and lemma B.2 to boundE(π ′
+0(B−
+˜B)′ ˜B ˜B′(B− ˜B)π0).
+Now combining the bounds on the two terms, we have
+E(∥ˆπˆw(λ2, λ1)−π 0∥2
+2)
+≤
+2λ2
+1E(PT
+j=1 ˆw2
+j ) + 8λ2
+2∥π0∥2
+2 + 8λmax(X′X)T σ2
+ξ +o(N T)
+(N d+λ 2)2
+≤
+2λ2
+1E(PT
+j=1 ˆw2
+j ) + 8λ2
+2∥π0∥2
+2 + 8DN T σ2
+ξ +o(N T)
+(N d+λ 2)2
+where the leading term in the numerator is 8DN T σ 2
+ξ which is of orderN T.
+LetAbe the set of coordinates ofπ 0 that is different from zero. Formally,
+A={j: (π 0)j ̸= 0, j= 1,· · ·, T}
+Let ˜BA denote the submatrix of ˜Bthat only contains columns whose index is inA, and
+similarly, letπ A denote the subvector ofπthat contains indexes inA.
+Now I will state an oracle property of the AEN estimator:
+56
+
+--- PAGE 57 ---
+Lemma B.4.Letπ 0 = ((π0)A,0), and define
+ˆπA = arg min
+π
+{∥˜yEN − ˜BAπ∥2
+2 +λ 2∥π∥2
+2 +λ ∗
+1
+TX
+j=1
+ˆwj|πj|}
+Then, under assumption B.1 and assumption 7, with probability going to 1, ((1+λ2/N)ˆπA,0)
+is going to be equal to ˆπ(AEN).
+The above lemma shows that the EN estimator successfully find out the elements ofπ 0
+that is zero under the stated assumptions. This is equivalent to theorem 3.2 in Zou and
+Zhang (2009).
+Proof.The proof is to establish that the Kuhn-Tucker condition for the AEN estimator is
+satisfied. More specifically, we need to bound the probability that AEN will set|ˆπ(AEN) j|
+to be greater than zero for allj∈ A C. Here,A C is understood as{1,· · ·, T} − A.
+Formally, we need to show that
+P(∃j∈ A C :| −2 ˜B′
+j(˜yEN − ˜BAˆπA)|> λ ∗
+1 ˆwj)→0
+We further defineη= min j∈A |(π0)j|and ˆη= min j∈A |(ˆπ(EN))j|. Notice
+P(ˆη≤η/2)
+≤P(∥ˆπ(EN)−π 0∥ ≥η/2)
+≤ 4E(∥ˆπ(EN)−π 0∥2
+2)
+η2
+≤4 2λ2
+1T+ 8λ 2
+2∥π0∥2
+2 + 8DN T σ2
+ξ +o(N T)
+(N d+λ 2)2η2 ,(42)
+where the first inequality is because the norm of ˆπ(EN)−π 0 must be greater than the
+difference in the value of smallest elements. The following steps use Markov inequality and
+results from lemma B.3.
+We now apply union bounds to have
+P(∃j∈ A C :| −2 ˜B′
+j(˜yEN − ˜BAˆπA)|> λ ∗
+1 ˆwj)
+≤
+X
+j∈AC
+P(| −2 ˜B′
+j(˜yEN − ˜BAˆπA)|> λ ∗
+1 ˆwj,ˆη > η/2) +P(ˆη≤η/2)| {z }
+I
+We already have a bound on term (I) from (42). To further bound the summation in the
+second line, letM= ( λ∗
+1
+N )1/(1+γ) (recallγis used to construct ˆw j = (ˆπ(EN)j)−γ.
+57
+
+--- PAGE 58 ---
+X
+j∈AC
+P(| −2 ˜B′
+j(˜yEN − ˜BAˆπA)|> λ ∗
+1 ˆwj,ˆη > η/2)
+≤
+X
+j∈AC
+P(| −2 ˜B′
+j(˜yEN − ˜BAˆπA)|> λ ∗
+1 ˆwj,ˆη > η/2,|ˆπ(EN)j|< M)
++
+X
+j∈AC
+P(|ˆπ(EN)j| ≥M)
+≤
+X
+j∈AC
+P(| −2 ˜B′
+j(˜yEN − ˜BAˆπA)|> λ ∗
+1M −γ,ˆη > η/2) +
+E(P
+j∈AC |ˆπ(EN)j|2)
+M 2
+≤ 4M 2γ
+λ∗2
+1
+E(
+X
+j∈AC
+| ˜B′
+j(˜yEN − ˜BAˆπA)|21(ˆη > η/2))
++ E(∥ˆπ(EN)j −π 0∥2
+2)
+M 2
+| {z }
+II
+Using lemma B.3, we have a bound on the term (II) as
+(II)≤ 2λ2
+1T+ 8λ 2
+2∥π0∥2
+2 + 8DN T σ2
+ξ +o(N T)
+(N d+λ 2)2M 2
+We now deal withP
+j∈AC | ˜B′
+j(˜yEN − ˜BAˆπA)|2:
+X
+j∈AC
+| ˜B′
+j(˜yEN − ˜BAˆπA)|2
+=
+X
+j∈AC
+| ˜B′
+j( ˜BA[(π0)A −ˆπA] + (BA − ˜BA)(π0)A +ξ+ ˜yEN −y EN )|2
+≤4
+X
+j∈AC
+| ˜B′
+j( ˜BA[(π0)A −ˆπA])|2 + 4
+X
+j∈AC
+| ˜B′
+j(BA − ˜BA)(π0)A|2
++ 4
+X
+j∈AC
+| ˜B′
+jξ|2 + 4
+X
+j∈AC
+| ˜B′
+j(˜yEN −y EN )|2
+≤4D 2N 2∥(π0)A −ˆπA)∥2
+2 + 4(π0)′
+A(BA − ˜BA)′ ˜B ˜B′(BA − ˜BA)(π0)A
++ 4
+X
+j∈AC
+| ˜B′
+jξ|2 + 4∥˜B(˜yEN −y EN )∥2
+2
+Taking expectations, we have
+E(
+X
+j∈AC
+| ˜B′
+j(˜yEN − ˜BˆπA)|21(ˆη > η/2))
+≤4D 2N 2E(∥(π0)A −ˆπA)∥2
+21(ˆη > η/2)) + 4DN T σ2
+ξ +o(N T)
+58
+
+--- PAGE 59 ---
+We now bound∥(π 0)A −ˆπA)∥2
+2: repeating a similar argument as in lemma B.3, we have
+∥ˆπA −ˆπA(λ2,0)∥ 2 ≤
+λ∗
+1
+qP
+j∈A ˆwj
+λmin( ˜B′
+A ˜BA) +λ 2
+≤ λ∗
+1ˆη−γ√
+T
+dN+λ 2
+where the last step uses the definition of ˆηand the definition of ˆw j. In addition,dN≤
+λmin( ˜X′ ˜B)≤λ min( ˜B′
+A ˜BA) andλ max( ˜B′
+A ˜BA)≤λ max( ˜B′ ˜B)≤DN
+Continuing the argument of lemma B.3, and note that∥ ˜B′
+Aξ∥2
+2 ≤ ∥ ˜B′ξ∥2
+2 and∥ ˜BA(˜yEN −
+yEN )∥2
+2 ≤ ∥ ˜B(˜yEN −y EN )∥2
+2 we have
+∥ˆπA(λ2,0)−(π 0)A∥2
+2 ≤4 λ2
+2∥π0∥2
+2 +λ max( ˜B′ ˜B)|A|σ2
+ξ +o(N T)
+(λmin( ˜B′ ˜B) +λ 2)2
+Therefore,
+E(∥(π0)A −ˆπA)∥2
+21(ˆη > η/2))
+≤8 λ∗2
+1 (η/2)−2γT+λ 2
+2∥π0∥2
+2 +λ max( ˜B′ ˜B)|A|σ2
+ξ +o(N T)
+(λmin( ˜B′ ˜B) +λ 2)2
+≤8 λ∗2
+1 (η/2)−2γT+λ 2
+2∥π0∥2
+2 +λ max( ˜B′ ˜B)T σ2
+ξ +o(N T)
+(dN+λ 2)2
+Combining all the derivations above, we have
+P(∃j∈ A C|| −2 ˜B′
+j(˜yEN − ˜BˆπA)|> λ 1 ˆwj)
+≤4 2λ2
+1T+ 8λ 2
+2∥π0∥2
+2 + 8DN T σ2
+ξ +o(N T)
+(N d+λ 2)2η2
+| {z }
+I
++ 2λ2
+1T+ 8λ 2
+2∥π0∥2
+2 + 8BN T σ2
+ξ +o(N T)
+(N d+λ 2)2M 2
+| {z }
+II
++ 4M 2γ
+λ∗2
+1
+{32D2N 2 λ∗2
+1 (η/2)−2γT+λ 2
+2∥π0∥2
+2 +λ max( ˜B′ ˜B)T σ2
+ξ +o(N T)
+(dN+λ 2)2 + 4DN T σ2
+ξ +o(N T)}
+| {z }
+III
+I=O( T
+N η2 ) =O((λ ∗
+1
+p
+T /N η−γ)2/γ( T
+N ( N
+λ∗
+1
+)2/(1+γ))
+1+γ
+γ T −2/γ) =o(1)
+II=O( T
+N ( N
+λ∗
+1
+)2/(1+γ)) =o(1)
+because lim N→∞ λ∗
+1N −1−(g−1)(1+γ)/2 =∞implies lim N→∞( N
+λ∗
+1
+)2/(1+γ)N g−1 = 0
+III=O(λ
+∗ −2
+1+γ
+1 N
+2
+1+γ +g−1) +O(( λ∗
+1
+N )
+2γ
+1+γ η−2γT) =o(1)
+59
+
+--- PAGE 60 ---
+We are now ready to prove the result that∥ˆπ(AEN)−π0∥2
+2 =o p(N g−1) which establishes
+the claim that∥ˆπ(AEN)−π 0∥2
+2 =o p(N −ζ) forζ= 1−g.
+Lemma B.5.Under assumption B.1, 2 and 7, we have
+∥ˆπ(AEN)−π 0∥2
+2 =o p(N g−1)
+Proof.It suffices to show that conditional on the event ˆπ(AEN) = (1 +λ 2/N)(ˆπA,0) for ˆπA
+defined in lemma B.4, we have∥ˆπ(AEN)−π 0∥2
+2 =o p(N g−1). This is because we have
+P(∥ˆπ(AEN)−π 0∥2
+2 > C)
+≤P(∥ˆπ(AEN)−π 0∥2
+2 > C,ˆπ(AEN) = (1 +λ 2/N)(ˆπA,0)) +P(ˆπ(AEN)̸= (1 +λ 2/N)(ˆπA,0))
+By lemma B.4, the second probability converges to zero, so for anyδ >0, we can choose
+Nsufficiently large such that the second probability is smaller thanδ/2 and then chooseC
+large enough so that the first probability is also smaller thanδ/2. Hence, I will now assume
+ˆπ(AEN) = (1 +λ2/N)(ˆπA,0)
+Recall that 1 +λ 2/N→1, so equivalently, it suffices to establish that
+∥ˆπA − N
+N+λ 2
+(π0)A∥2
+2 =o p(N g−1)
+Note the following inequality:
+∥ˆπA − N
+N+λ 2
+(π0)A∥2
+2
+≤ ∥ λ2
+N+λ 2
+(π0)A + (ˆπA −ˆπA(λ2,0)) + (ˆπA(λ2,0)−(π 0)A)∥2
+2
+≤3∥ λ2
+N+λ 2
+(π0)A∥2
+2
+| {z }
+I
++3∥ˆπA −ˆπA(λ2,0)∥ 2
+2| {z }
+II
++ 3∥ˆπA(λ2,0)−(π 0)A∥2
+2| {z }
+III
+It suffices to bound the three terms in the brackets.
+Bounding term (I)
+N 1−g∥ λ2
+N+λ 2
+(π0)A∥2
+2
+≤N 1−g λ2
+2
+(N+λ 2)2 ∥π0∥2
+2
+≤N 1−go(N −1)
+=o(1)
+60
+
+--- PAGE 61 ---
+where the third line uses lim N→∞
+λ2√
+N ∥π0∥2 = 0.
+Bounding term (II)
+Recall that in lemma B.4, we have established that
+∥ˆπA −ˆπA(λ2,0)∥ 2 ≤ λ∗
+1ˆη−γ√
+T
+dN+λ 2
+We will try to replace ˆηbyηin the above expression. This is done by noticing that by
+the definition ofηand ˆη,
+(ˆη−η)2
+≤ ∥ˆπ(λ2, λ1)−π 0∥2
+2
+≤ 2λ2
+1T+ 8λ 2
+2∥π0∥2
+2 + 8DN T σ2
+ξ +o(N T)
+(N d+λ 2)2
+=o p(1)
+using lemma B.3. Therefore, forηbounded away from zero, ˆη
+η
+p
+− →1.
+Consequently,
+N 1−g∥ˆπA −ˆπA(λ2,0)∥ 2
+2
+≤N 1−g λ∗2
+1 ˆη−2γT
+(bN+λ 2)2
+=N 1−g λ∗2
+1 η−2γT
+(bN+λ 2)2 ( ˆη
+η)−2γ
+=N 1−go(1/N)Op(1)
+=o p(N −g) =o p(1)
+where I used that (
+√
+N√
+T λ∗
+1
+)1/γ minj:|(π0)j |>0 |(π0)j| → ∞
+Boundng term (III)
+61
+
+--- PAGE 62 ---
+∥ˆπA(λ2,0)−(π 0)A∥2
+2
+≤4∥λ 2( ˜B′
+A ˜BA +λ 2I) −1(π0)A∥2
+2
++ 4∥(˜B′
+A ˜BA +λ 2I) −1 ˜B′
+Aξ∥2
+2
++ 4∥(˜B′
+A ˜BA +λ 2I) −1 ˜B′
+A(˜yEN −y EN )∥2
+2
++ 4∥(˜B′
+A ˜BA +λ 2I) −1 ˜B′
+A(BA − ˜BA)(π0)A∥2
+2
+≤4 λ2
+2∥π0∥2
+2
+(dN+λ 2)2 + 4T r(˜BA ˜B′
+A)σ2
+ξ
+(dN+λ 2)2
++ 4(yEN − ˜yEN )′ ˜B ˜B′(yEN − ˜yEN )
+(dN+λ 2)2
++ 4(π0)′
+A(BA − ˜BA) ˜BA ˜B′
+A(BA − ˜BA)(π0)A
+(dN+λ 2)2
+≤4o(N −1) + 4 |A|N B
+(dN+λ 2)2 + 4o(N T
+N 2 )
+≤3o(N −1+g) + 4O(|A|
+N ) + 4o(T
+N )
+All three terms will beo(N −1+g) if|A|/T→0.
+C Supplemental information for empirical application
+C.1 Missing values
+Although we restricted the time period to 1997-2012, during which observations have much
+fewer missing values, we still encounter missing values for some counties in the data. Most of
+these are counties whose administrative divisions have changed during the sample period, or
+their names have changed and hence dropped out of the dataset. We drop these counties, as
+they are not eligible to be selected as experimental sites. In addition, we do not observe grain
+production level for all counties in Sichuan Province for the year 2012. We used 2-nearest
+neighbor average to impute the grain production per rural employment for year 2012. For
+the rest of missing values that are scattered across the whole dataset, we simply replace it
+with the province-by-time average.
+C.2 Regularity conditions in section 4
+In this section, we verify that higher-order derivatives of the moment function satisfy the
+uniform bound assumed in section 4 for the logit model in our empirical application. Before
+proceeding to the details, we first establish a useful lemma for the results.
+Lemma C.1.Letx, y∈R, consider the functiong(x, y) = xs exp(tx+y)
+(1+exp(tx+y))2 fors∈Z +,s≥1
+andt̸= 0. It is uniformly bounded over{(x, y) : (x, y)∈R×K}for some compact setK.
+62
+
+--- PAGE 63 ---
+Proof.Consider the setS={(x, y) :|x| ≤M, y∈K}. The setSis compact, andg(x, y) is
+continuous overS, sog(x, y) is uniformly bounded overS.
+Supposet >0, For fixedy∈K, consider the function defined byf y(x) =g(x, y).
+Applying L’Hopital’s law and observing 0< exp(tx+y)
+(1+exp(tx+y)) <1 and 0< 1
+(1+exp(tx+y)) <1, we
+have
+lim
+x→∞
+fy(x)
+= lim
+x→∞
+xs exp(tx+y)
+(1 + exp(tx+y)) 2
+≤lim
+x→∞
+xs
+1 + exp(tx+y)
+= 0.
+Asf y(x)>0 forx >0, the limit lim x→∞ fy(x) equals 0. In addition, the compactness of
+Kimplies that the above can be made uniform iny∈K. For instance, there exists a lower
+bound−M y such thaty≥ −M y for ally∈K. Then simply choosex 0 such that for all
+x > x 0, xs
+1+exp(tx−My) < ϵ, then by the monotonicity of xs
+1+exp(tx+y) inyfor fixedx, for all
+x > x 0,f(x, y)< ϵ.
+Next consider the limit asx→ −∞. Whensis odd, note that
+lim
+x→−∞
+fy(x)
+= lim
+x→−∞
+xs exp(tx+y)
+(1 + exp(tx+y)) 2
+≥lim
+x→−∞
+xs exp(tx+y)
+= 0.
+Asf y(x)<0 forx <0 andsodd, the limit lim x→−∞ fy(x) also equals 0.
+Whensis even, we can upper boundf y(x) byx s exp(tx+y) which also has limit zero.
+Using the same reasoning, the convergence can be made uniform for ally∈Kusing the
+monotonicity ofx s exp(tx+y) inyfor fixedx.
+The case fort <0 is completely symmetric, where we upper boundf y(x) byx s exp(tx+y)
+forx→ ∞and by xs
+1+exp(tx+y) whenx→ −∞andseven and lower boundf y(x) by xs
+1+exp(tx+y)
+forx→ −∞andsodd.
+Therefore, by takingMthat definesSlarge enough, we will haveg(x, y) being uniformly
+bounded overR×K.
+Recall the moment condition for logit model (28):
+E
+ (Experimenti −Λ(W ′
+i µ0,− +α iµ0,1))αi
+(Experimenti −Λ(W ′
+i µ0,− +α iµ0,1))Wi
+
+=
+0
+0
+
+,
+63
+
+--- PAGE 64 ---
+Let ∆ Wi,αi =W ′
+i µ0,− +α iµ0,1. Recall the short hand Λ i = Λ(∆ Wi,αi) for the function
+Λ(x) = exp(x)
+1+exp(x), we get
+∂m(Wi,Experiment i, αi, µ0)
+∂αi
+=
+−µ01Λi(1−Λ i)αi + Experimenti −Λ i
+−µ01Λi(1−Λ i)Wi
+
+∂m(Wi,Experiment i, αi, µ0)
+∂µ =−Λ i(1−Λ i)
+ αiαi W ′
+i αi
+αiWi WiW ′
+i
+
+(43)
+∂2m(Wi,Experiment i, αi, µ0)
+∂α2
+i
+=
+"
+−2µ01Λi(1−Λ i)−α iµ2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi)
+−µ2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆w,α) Wi
+#
+(44)
+∂2m(Wi,Experiment i, αi, µ0)
+∂αi∂µ′ =−µ 01Λi(1−Λ i)1−exp(∆ Wi,αi)
+1 + exp(∆Wi,αi)
+ αiαi W ′
+i αi
+αiWi WiW ′
+i
+
+−Λ i(1−Λ i)
+2αi W ′
+i
+Wi 0
+
+(45)
+∂3m(Wi,Experiment i, αi, µ0)
+∂α2
+i ∂µ′
+=−µ 2
+01
+exp(∆Wi,αi)[exp(2∆Wi,αi)−4 exp(∆ Wi,αi) + 1]
+[1 + exp(∆Wi,αi)]4
+ αiαi W ′
+i αi
+αiWi WiW ′
+i
+
+−2µ 01
+exp(∆Wi,αi)[1−exp(∆ Wi,αi)]
+[1 + exp(∆Wi,αi)]3
+αi W ′
+i
+00
+
+−
+
+2Λi(1−Λ i) + 2αiµ01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi) 0
+2µ01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi) Wi 0
+
+ (46)
+With the expressions (43)-(46), we can now verify the assumptions imposed on the mo-
+ment function in section 4 for the logit model.
+Proposition 4.Suppose that the random vectorW i has support over a compact setK W ,
+then the following results hold:
+1. sup αi,Wi
+∂2m(Wi,Experimenti,αi,µ0)
+∂α2
+i
+=C m <∞
+2. sup αi,Wi supµ∈N(µ 0)
+∂3m(Wi,Experimenti,αi,µ0)
+∂α2
+i ∂µ < C ′
+m <∞
+3. sup α ∥ ∂2m(Wi,Experimenti,αi,µ)
+∂αi∂µ ∥2 ≤F(W i) for allµwithin a neighborhoodN(µ 0) ofµ 0
+andE(F(W i))<∞.
+64
+
+--- PAGE 65 ---
+4. Forµlying in a compact parameter space,
+∥∂m(Wi, αi, µ)
+∂µ − ∂m(Wi, αi, µ0)
+∂µ ∥ ≤F α(Wi, αi)∥µ−µ 0∥1/C E(Fα(Wi, αi))<∞
+if the following moment conditions hold:
+(a)E(∥W i∥4)<∞
+(b)E(∥W i∥3|αi|)<∞
+(c)E(∥W i∥2α2
+i )<∞
+(d)E(∥W i∥|αi|3)<∞
+(e)E(α 4
+i )<∞
+Proof.Proof of (i): Recall that
+∂2m(Wi,Experiment i, αi, µ0)
+∂α2
+i
+=
+"
+−2µ01Λi(1−Λ i)−α iµ2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi)
+−µ2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆w,α) Wi
+#
+We will verify that each term is uniformly bounded inα i andW i. First, observe that Λ i and
+(1−Λ i) lies between 0 and 1, so| −2µ 01Λi(1−Λ i)| ≤2µ 01 for allα i andW i.
+Next we considerµ 2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆w,α) Wi. AsW i has a compact support, it suffices
+to verify that the term Λ i(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆w,α) is uniformly bounded. In particular,
+Λi(1−Λ i)1−exp(∆ Wi,αi)
+1 + exp(∆w,α)
+= exp(∆Wi,αi)
+(1 + exp(∆Wi,αi))3 − exp(∆Wi,αi)2
+(1 + exp(∆Wi,αi))3 ,
+where the two summands are products of Λ i and 1−Λ i, so both of them are bounded by 1.
+Therefore,µ 2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆w,α) Wi is also uniformly bounded.
+Finally, we verifyα iµ2
+01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi) is uniformly bounded. In addition, recall
+that ∆ Wi,αi =W ′
+i µ0,− +α iµ0,1. We apply lemma C.1 withs= 1,x=α i,t=µ 01 and
+y=W ′
+i µ0,− which lies in a compact set. Therefore,α iµ2
+01
+exp(∆Wi,αi)
+(1+exp(∆Wi,αi))2 is also uniformly
+bounded. Now we further note that Λ i =
+exp(∆Wi,αi)
+1+exp(∆Wi,αi) and 1−Λ i = 1
+1+exp(∆Wi,αi) lie between
+zero and one. Therefore, any uniformly bounded function multiplied by them will still be
+unformly bounded. Therefore, we have
+αiµ2
+01Λi(1−Λ i)1−exp(∆ Wi,αi)
+1 + exp(∆Wi,αi)
+=α iµ2
+01
+exp(∆Wi,αi)
+(1 + exp(∆Wi,αi))3 −α iµ2
+01
+exp(∆Wi,αi)2
+(1 + exp(∆Wi,αi))3
+65
+
+--- PAGE 66 ---
+being the difference of two uniformly bounded functions, so it is also uniformly bounded.
+Proof of (ii): Recall that
+∂3m(Wi,Experiment i, αi, µ0)
+∂α2
+i ∂µ
+=−µ 2
+01
+exp(∆Wi,αi)[exp(2∆Wi,αi)−4 exp(∆ Wi,αi) + 1]
+[1 + exp(∆Wi,αi)]4
+ αiαi W ′
+i αi
+αiWi WiW ′
+i
+
+−2µ 01
+exp(∆Wi,αi)[1−exp(∆ Wi,αi)]
+[1 + exp(∆Wi,αi)]3
+αi Wi
+00
+
+−
+
+2Λi(1−Λ i) + 2αiµ01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi) 0
+2µ01Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi) Wi 0
+
+
+Note that each function is continuously differentiable inµforµin a neighborhood ofµ 0,
+so without loss of generality, we can take the neighborhood to be compact. Therefore, it
+suffices to prove uniformity inα i givenW i has compact support.
+A similar reasoning as in the proof of (i) shows that the two matrices in the second
+last line and the last line of the above display are uniformly bounded. It suffices to work
+with the first matrices. We apply lemma C.1 again, withs∈ {1,2},x=α i,t=µ 01 and
+y=W ′
+i µ0,− again to establish thatµ 2
+1α2
+i
+exp(∆Wi,αi)
+(1+exp(∆Wi,αi))2 is uniformly bounded. Therefore, for
+the upper-left corner of the matrix, noticing that
+µ2
+01α2
+i
+exp(∆Wi,αi)[exp(2∆Wi,αi)−4 exp(∆ Wi,αi) + 1]
+[1 + exp(∆Wi,αi)]4
+=µ 2
+01α2
+i
+exp(∆Wi,αi)3
+[1 + exp(∆Wi,αi)]4
+−4µ 2
+01α2
+i
+exp(∆Wi,αi)2
+[1 + exp(∆Wi,αi)]4
++µ 2
+01α2
+i
+exp(∆Wi,αi)
+[1 + exp(∆Wi,αi)]4 ,
+we can write each term as a product ofµ 2
+1α2
+i
+exp(∆Wi,αi)
+(1+exp(∆Wi,αi))2 and Λ i’s and 1−Λ i’s which are
+bounded between 0 and 1.
+Therefore,µ 2
+1α2
+i
+exp(∆Wi,αi)
+(1+exp(∆Wi,αi))2 is uniformly bounded. The reasoning for the other elements
+of the matrix is exactly the same.
+Proof of (iii): We shall prove that the element-wise squared norm of∂2m(Wi,Experimenti,αi,µ0)
+∂αi∂µ
+is uniformly bounded over a neighborhood ofµ 0,α i andW i.
+∂2m(Wi,Experiment i, αi, µ0)
+∂αi∂µ =−µ 01Λi(1−Λ i)1−exp(∆ Wi,αi)
+1 + exp(∆Wi,αi)
+ αiαi W ′
+i αi
+αiWi WiW ′
+i
+
+−Λ i(1−Λ i)
+2αi W ′
+i
+Wi 0
+
+66
+
+--- PAGE 67 ---
+It suffices to show that both summands has element-wise squared norm uniformly bounded
+by an integrable function ofW i overµ∈ N(µ 0) andα i. We start with the second matrix.
+By the boundedness of Λ i and 1−Λ i and the compact support ofW i, it suffices to show that
+Λ2
+i (1−Λ i)2α2
+i is uniformly bounded:
+Λ2
+i (1−Λ i)2α2
+i
+=α 2
+i
+exp(∆Wi,αi)2
+(1 + exp(∆Wi,αi))4
+The above display is a product ofα 2
+i
+exp(∆Wi,αi)
+(1+exp(∆Wi,αi))2 and Λi(1−Λ i), so it is uniformly bounded
+by results in the proof of (ii).
+We can also take the neighborhood ofµ 0 to be compact so that the uniformity overµ
+does not have any impact on the proof. Now we turn to the first matrix. We show that
+the square ofµ 01α2
+i Λi(1−Λ i)
+1−exp(∆Wi,αi)
+1+exp(∆Wi,αi) is also uniformly bounded. The reasoning for the
+other entries are similar and omitted.
+Note that
+(µ01α2
+i Λi(1−Λ i)1−exp(∆ Wi,αi)
+1 + exp(∆Wi,αi))2
+=µ 2
+01α4
+i
+exp(∆Wi,αi)2
+(1 + exp(∆Wi,αi))6
+−µ 2
+01α4
+i
+exp(∆Wi,αi)4
+(1 + exp(∆Wi,αi))6
+Here, we apply lemma C.1 again withs= 4,x=α i,t=µ 1 andy=W ′
+i µ− to obtain
+thatµ 2
+01α4
+i
+exp(∆Wi,αi)
+(1+exp(∆Wi,αi))2 . The two terms are products of the above with Λ i’s and (1−Λ i)’s
+which are still uniformly bounded.
+Proof of (iv):
+We will prove the result withC= 1. It suffices to show that for each element of ∂m(Wi,αi,µ)
+∂µ
+is satisfies the Lipschitz condition.
+∥∂m(Wi, αi, µ)
+∂µ − ∂m(Wi, αi, µ0)
+∂µ ∥ ≤F α(Wi, αi)∥µ−µ 0∥
+Recall that
+∂m(Wi,Experiment i, αi, µ0)
+∂µ =−Λ i(1−Λ i)
+ αiαi W ′
+i αi
+αiWi WiW ′
+i
+
+So it suffices to show that the function
+h(µ;W i, αi) = exp(W ′
+i µ− +α iµ1)
+[1 + exp(W′
+i µ− +α iµ1)]2
+67
+
+--- PAGE 68 ---
+is Lipschitz inµ.
+Taking derivative with respect toµ, we have
+∂h(µ;W i, αi)
+∂µ′ ={ exp(W ′
+i µ− +α iµ1)
+[1 + exp(W′
+i µ− +α iµ1)]3 − exp(W ′
+i µ− +α iµ1)2
+[1 + exp(W′
+i µ− +α iµ1)]3 }
+
+αi W ′
+i
+
+Recall that 0< exp(W ′
+i µ−+αiµ1)
+[1+exp(W ′
+i µ−+αiµ1)]3 <1 and 0< exp(W ′
+i µ−+αiµ1)2
+[1+exp(W ′
+i µ−+αiµ1)]3 <1. Therefore, the
+multiplier before the above matrix is bounded in absolute value by 2. Therefore, we can
+conclude that
+|h(µ;W i, αi)−h(µ 0;W i, αi)| ≤2∥(α i, W ′
+i)∥∥µ−µ 0∥.
+Therefore, we have
+∥ ∂m(Wi, αi, µ)
+∂µ − ∂m(Wi, αi, µ0)
+∂µ ∥2
+≤2F α(Wi, αi)∥µ−µ 0∥2,
+whereF α(Wi, αi) is the Frobenius norm of the matrix
+ α4
+i +∥W i∥2α2
+i + 2|α3
+i |∥Wi∥α 3
+i W ′
+i +|α i|∥Wi∥2W ′
+i + 2α2
+i ∥Wi∥W ′
+i
+|α3
+i |Wi +|α i|∥Wi∥2Wi + 2α2
+i ∥Wi∥Wi α2
+i WiW ′
+i +∥W i∥2WiW ′
+i + 2|αi|∥Wi∥WiW ′
+i
+
+The moment condition then ensures that the functionF α(Wi, αi) has finite expectation.
+68

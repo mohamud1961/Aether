@@ -1,0 +1,28 @@
+{
+  "action_types": [
+    "raw_bash",
+    "probe_service",
+    "raw_bash",
+    "plan_update"
+  ],
+  "artifact_states": [],
+  "commands": [
+    "set -euo pipefail\nif [ ! -f /app/alpine.iso ]; then echo 'missing /app/alpine.iso' >&2; exit 1; fi\n# Try to start QEMU in the background with telnet on localhost:6665.\n# Use a detached shell so the VM keeps running after this command returns.\nnohup sh -lc '\n  exec qemu-system-x86_64 \\\n    -m 512 \\\n    -cdrom /app/alpine.iso \\\n    -boot d \\\n    -nographic \\\n    -serial telnet:127.0.0.1:6665,server,nowait \\\n    -monitor none\n' >/tmp/alpine-qemu.log 2>&1 &\necho $!",
+    "set -euo pipefail\n# Show the launch log and confirm the QEMU process is still running.\ncat /tmp/alpine-qemu.log || true\npgrep -af 'qemu-system-x86_64.*6665|qemu-system-x86_64.*alpine.iso' || true"
+  ],
+  "compile_attempted": false,
+  "concrete_action_count": 3,
+  "facts": [],
+  "failed_missing_artifact_probe": false,
+  "failure_hint": "none",
+  "missing_required_artifacts": [],
+  "paths": [],
+  "plan_only": false,
+  "productive_step": true,
+  "progress_stage": "execution",
+  "repeated_command_count": 0,
+  "required_artifacts": [],
+  "runtime_attempted": false,
+  "schema": "progress_ledger.v1",
+  "step_index": 5
+}

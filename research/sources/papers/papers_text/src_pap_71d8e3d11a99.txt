@@ -1,0 +1,796 @@
+--- PAGE 1 ---
+Reformulate, Retrieve, Localize: Agents for Repository-Level Bug
+Localization
+Geneviève Caumartin
+Concordia University
+Montreal, Canada
+genevieve.caumartin@mail.concordia.ca
+Glaucia Melo
+Toronto Metropolitan University
+Toronto, Canada
+glaucia@torontomu.ca
+Abstract
+Bug localization remains a critical yet time-consuming challenge
+in large-scale software repositories. Traditional information re-
+trieval–based bug localization (IRBL) methods rely on unchanged
+bug descriptions, which often contain noisy information, leading to
+poor retrieval accuracy. Recent advances in large language models
+(LLMs) have improved bug localization through query reformula-
+tion, yet the effect on agent performance remains unexplored. In
+this study, we investigate how an LLM-powered agent can improve
+file-level bug localization via lightweight query reformulation and
+summarization. We first employ an open-source, non-fine-tuned
+LLM to extract key information from bug reports, such as identi-
+fiers and code snippets, and reformulate queries pre-retrieval. Our
+agent then orchestrates BM25 retrieval using these preprocessed
+queries, automating localization workflow at scale. Using the best-
+performing query reformulation technique, our agent achieves 35%
+better ranking in first-file retrieval than our BM25 baseline and up
+to +22% file retrieval performance over SWE-agent.
+Keywords
+Software Engineering, Agents, Large Language Models, Bug Local-
+ization, Query Reformulation
+1 Introduction
+As software systems grow in size and complexity, identifying the
+precise locations of bugs becomes increasingly challenging. Bug
+localization, the process of identifying the source of software de-
+fects, is a critical step in large repositories [2, 31]. Automated bug
+localization can help ease the debugging process by focusing on the
+buggy areas, improving software quality and developer productiv-
+ity [37]. Many automated approaches rely on information retrieval
+(IR) techniques that match keywords from bug reports with those
+in source code files [17, 26, 41]. However, when the terminology
+used in the report differs from that in the code, retrieval accuracy
+drops: a problem known as the lexical gap [15].
+Most existing works on information retrieval-based bug local-
+ization (IRBL) use unchanged bug descriptions to locate relevant
+files [26]. Consequently, the quality of the information in a bug,
+such as the inclusion of observed behaviour, steps to reproduce,
+and expected behaviour, as well as localization “hints” such as code
+snippets or identifiers, is paramount in building effective automated
+retrieval methods [17, 25].
+Prior work has explored query reformulation and summariza-
+tion for bug localization. Query reformulation expands, reduces, or
+replaces query terms to emphasize relevant information [26, 27],
+BoatSE ’26, Rio de Janeiro, Brazil
+2026.
+while summarization produces concise bug reports that retain essen-
+tial details [27]. LLMs have recently been used to improve retrieval
+focus in bug localization tasks by reformulating bug descriptions
+into more precise queries [9, 17]. While prior work has integrated
+lexical search tools into LLM-based agents for retrieval or search-
+space reduction [4],[24], the interaction between query reformula-
+tion and downstream agent performance remains under-explored.
+Existing research primarily evaluates each component in isolation,
+examining either the retrieval quality of reformulated queries or
+the reasoning ability of agents, without analyzing how reformu-
+lated inputs affect an agent’s ability to locate relevant files. Agent-
+based retrieval has been proposed to mitigate the issues of long
+context understanding and to enable large codebase traversal [4].
+LLM-based agents are used more and more for diverse software
+engineering (SE) tasks, such as bug localization, code generation
+and code review [6, 33, 39]. These agents coordinate retrieval and
+reasoning steps through tool use, providing a scalable alternative
+to end-to-end LLM reasoning.
+In this study, we leverage agentic query reformulation and sum-
+marization for file-level bug localization. First, we prompt an LLM
+to extract the relevant information from a bug report, asking it to
+explain the bug (a summary), along with information extracted from
+the bug description: file paths and names, identifiers (classes, meth-
+ods), code snippets, stack traces, and error messages. To retrieve
+relevant files using this reformulated bug description, a simple lex-
+ical search (BM25 [ 30]) can narrow down the repository files to
+only the top-𝑘 best candidates. The agent has access to the full
+bug description, the repository name, and tools to extract relevant
+information and preview file content. Each run begins with the bug
+report and a BM25 query built from the extracted fields, producing
+a ranked list of candidate files. The agent selects files to inspect
+and reasons about their relevance within a multi-step conversation.
+This setup allows us to measure how pre-retrieval (upstream) query
+reformulation affects both retrieval accuracy and post-retrieval
+(downstream) ranking quality in agent-based bug localization.
+Unlike prompt engineering or query expansion, which adjust
+prompt text to guide generation, our method treats reformulation
+as an intermediate representation task—transforming noisy bug
+reports into structured, retrieval-ready summaries optimized for
+repository-scale search. We then assess how LLM-based reformu-
+lation improves BM25 retrieval and benefits agentic workflows.
+Specifically, we ask:
+RQ1: How does query reformulation help in localizing files
+in a large repository?We prompt a smaller, open-sourced LLM
+to extract structured information from each bug description using
+a predefined JSON schema, and compare BM25 retrieval results
+against a baseline BM25 search using the full, unmodified bug
+description.
+arXiv:2512.07022v1  [cs.SE]  7 Dec 2025
+
+--- PAGE 2 ---
+BoatSE ’26, April 13, 2026, Rio de Janeiro, Brazil Geneviève Caumartin and Glaucia Melo
+RQ2: How does upstream query reformulation improve
+localization accuracy for LLM-based agents?We use open-
+source, non-fine-tuned models-Qwen2.5-coder-32B (Qwen2.5-32B)
+and Qwen3-coder-30B (Qwen3-30B), and integrate BM25 as a tool
+for search-space reduction within an LLM-based agentic pipeline.
+This work is the first to explore the effect of upstream query
+reformulation on agent-based bug localization. Specifically, we
+contribute:
+• Evaluate the impact of query reformulation using informa-
+tion extraction by an LLM on two long-context datasets:
+Long Code Arena [2] and SWE-Bench Lite [10]. We report
+improvements of up to 36% on MAP@1.
+• Design a lightweight agent workflow, including tools such
+as BM25 for space reduction and individual file viewing, to
+assess the retrieval ability of LLMs as agents against light-
+weight BM25 retrieval with query reformulation.
+• Evaluate the impact of upstream query reformulation and
+show improvements of up to 35% on first-file retrieval. Our
+agent achieves improvements of up to 22%.
+•Publish all artifacts in our replication package [1].
+2 Related Work
+Bug localization research has evolved from traditional information-
+retrieval (IR) techniques to modern, LLM-driven agentic systems.
+Early approaches focused on enhancing lexical and structural match-
+ing between bug reports and source code; subsequent work con-
+centrated on automating query reformulation to improve retrieval
+accuracy. Most recently, LLM-based and multi-agent frameworks
+have extended these ideas to repository-level reasoning and scalable
+localization.
+Retrieval-Based Bug Localization. Early studies on file-level bug
+localization focused on improving information retrieval techniques.
+Zhou et al. (BugLocator) [41] study a revised Vector Space Model
+(rVSM), outperforming VSM [28], LDA [16], LSI [22], and SUM [29].
+Saha et al. (BLUiR) [31] incorporates structured code information
+such as class and method names. Hybrid methods like DNNLOC [13]
+combine rVSM with deep neural networks, achieving 50% top-1
+localization accuracy.
+Query Reformulation.Kim et al. [ 12] improved retrieval by auto-
+matically selecting and augmenting bug report terms, yielding +17%
+top-1 and +10% Mean Average Precision (MAP)@10 gains. Rahman
+et al. [26] proposed BLIZZARD, which classifies bug report quality
+and reformulates queries accordingly, improving Hit@10 by 56%
+and MAP@10 by 19%. Mahmud [17] highlighted the lexical gap be-
+tween reporters and developers, showing through ChatGPT-based
+extraction that LLM reformulation can bridge this gap.
+Agent-Based Retrieval.Yang et al. introduced SWE-Agent [ 39],
+which integrates keyword-based search and file inspection tools to
+locate and edit relevant code segments, reaching an 18% resolution
+rate on SWE-bench Lite with GPT-4-Turbo. Xie et al. [36] developed
+SWE-Fixer, a lightweight approach comprising two modules: code
+retrieval (BM25-based) and code editing, using open-source fine-
+tuned models. They obtain competitive performance on SWE-bench
+Lite/Verified (22% and 30.2% task resolution, respectively). Chen et
+al. introduced LocAgent [4], which uses fine-tuned LLM agents and
+heterogeneous code graphs with BM25 indexing to locate buggy
+files, outperforming prior IR methods. Similarly, Rafi et al. [24] pro-
+posed LLM4FL, a multi-agent framework combining graph-based
+navigation and reasoning, achieving an 18.6% improvement over
+the baseline.
+We use a lightweight, non-fine-tuned LLM-based agent to ex-
+tract key information for lexical retrieval. We explicitly examine
+how reformulating bug descriptions upstream affects both lexical
+retrieval and the agent’s ability to identify relevant files.
+3 Proposed Method
+ForRQ1, we select BM25 [30], a lightweight lexical search tool that
+does not require prior training on our datasets and is widely used
+in other studies [2, 4, 10]. We use the Pyserini toolkit with default
+BM25 settings to first index all code files in each repository [14]. As
+a baseline, we use bug descriptions as input for the BM25 search,
+without any modifications. Similar to previous works [ 3, 23, 26],
+we select three top-𝑘 values: {1, 5, 10} to evaluate ranking quality
+(MAP) and the presence of at least one relevant file in the top- 𝑘
+results (Hit@K).
+Next, we integrate an LLM in the loop: from a bug description,
+we ask it to extract relevant information into a JSON schema. We
+select Qwen3-30B for this task, and set the temperature to 0 for
+stability. Our idea is to primarily use localization hints as strong
+signals [25] (variable and method identifiers, code snippets, stack
+traces, error messages), as they are more likely to match code files.
+Still, those hints may not always be available in bug reports. For
+this reason, we include an “explanation” as a summary of the bug,
+effectively eliminating any boilerplate characters included in bug
+report templates.
+Schema definition.We design a JSON schema (Table 1) that
+contains essential information from a bug, such asExplanation
+(summary of the bug),Paths,Filenames,Identifiers(list of identifiers
+mentioned in the bug, such as class, method and variable names),
+Code snippet,Stack traceandError message. We evaluate the impact
+of using only the extracted information by running a BM25 search
+on the combined fields of the JSON schema, removing the field
+names, commas and double quotes. We exemplify this process in
+Table 1.
+Ablation study.We examine how each component of the schema
+contributes to the accuracy of BM25 by forming the following
+groups: 1 All schema information; 2 Explanation field only; 3 All
+code signals, including identifiers, code snippets, stack trace and
+error message; 4 Only code identifiers and code snippets; 5 Only
+explanation, identifiers and code snippets. We create the groups
+based on these assumptions: for group 2 , we aim to test the in-
+clusion of relevant code signals in the summary; for 3 , all fields
+that contain code-related signals are included; for 4 we exclude
+stack traces and error messages as they may consist of extra tokens
+not found in source files; for 5 : in addition to 4 , we include a
+summary of the bug to provide any extra signals that did not fit
+any of our categories. We assume that files and paths are primarily
+helpful for LLM-based evaluation, as they might give insights into
+which files to inspect. Thus, we do not include them in our groups
+for this experiment.
+Statistical analysis.We apply Mann–Whitney U [ 18] and McNe-
+mar [19] tests to assess significance [20].
+
+--- PAGE 3 ---
+Reformulate, Retrieve, Localize: Agents for Repository-Level Bug Localization BoatSE ’26, April 13, 2026, Rio de Janeiro, Brazil
+Table 1: Example of JSON fields extracted from a bug report.
+Original Bug##### Expected result
+‘pipenv clean‘ exits successfully. Virtualenv is created.
+##### Actual result
+$ pipenv clean
+Creating a virtualenv for this project. . . [...]
+Traceback (most recent call last):
+in do_clean [...]
+IndexError: list index out of range
+JSON Field Value
+Explanation The bug occurs when running ’pipenv clean’ after removing the
+virtual environment. The function get_requirement in utils.py tries
+to parse dependencies from an empty list, leading to an IndexError.
+Path —
+Filename —
+Identifiers[get_requirement, IndexError]
+Code snippet req = [r for r in requirements.parse(dep)][0]
+Stacktrace Traceback (most recent call last): in do_clean [...]
+Error message IndexError: list index out of range
+BM25 queryThe bug occurs when running ’pipenv clean’ after removing the
+virtual environment. The function get_requirement in utils.py tries
+to parse dependencies from an empty list, leading to an IndexError.
+[get_requirement, IndexError], Traceback (most recent call last): in
+do_clean [...], IndexError: list index out of range
+ForRQ2, we propose automating bug localization and query
+reformulation using a lightweight agent-based workflow. Existing
+frameworks require a particular format for tool calling, which our
+models do not uniformly support. Thus, we implement our own
+agentic loop with tool-calling capabilities.
+Agentic Workflow.We design an agent that can effectively use
+available tools to extract the relevant context and localize suspicious
+files. This agent is guided through the localization process, as shown
+by our workflow in Figure 1. It is divided into steps: (1) Extract
+relevant information from the bug; (2) Retrieve relevant files using
+BM25 search; (3) View individual files; (4) Final answer: a ranked
+list of 𝑛 candidate files in JSON format. At step 3), the agent is also
+given the option to exit tool calling and provide its final answer as
+described in 4). Prompts are provided in our replication package [1].
+Tools.Our open-sourced models do not support out-of-the-box tool
+calling. Thus, we design simple functions and instruct the models
+to return a tool call with parameters in JSON format. We make the
+following tools available to our agent: (1) Extract relevant informa-
+tion from a bug description (extract_relevant), returning relevant
+information from the bug description; (2) Retrieve 𝑘-best results
+with BM25, with options 𝑘={ 10, 20, 30} (bm25_topk); (3) View
+a particular file given its path (view_file); (4) View the top-level
+readme file (view_readme).
+Input.We initialize the prompt with the complete bug description
+and repository name, and instruct the model to retrieve the top-
+𝑘 candidate files ranked by their likelihood of containing the fix
+(𝑘={ 1, 5, 10}). During the conversation, the agent has access to
+the full conversation context: complete bug description, extracted
+information, and history of tool calls with their results. To manage
+context size, file views are truncated to 512 tokens. In preliminary
+experiments, extending views to 1024 tokens yielded only mar-
+ginal MAP improvements, so we adopt the shorter, more resource-
+efficient option.
+Query reformulation.We design two experiments to assess the
+benefit of upstream query reformulation for LLMs.
+For our first experiment, the bug description and extracted infor-
+mation always appear at the top of the conversation, and the BM25
+query will include all fields; we name this experimentAll-at-top.
+With this experiment, we aim to investigate how much the agent
+can improve on the BM25 results (variation 1 ), given the same list
+of candidate files.
+For our second experiment, we replicate a similar setup but re-
+strict the extracted information to the best BM25 result (variation
+5 ). With this setting, BM25 is called with fewer fields. This exper-
+iment aims to demonstrate the improvement our agent achieves
+using the best-performing BM25 setting. We name this experiment
+Best-at-top.
+Space reduction.To propose candidate files, the models need to
+review related files from the project. However, viewing all files
+is impractical and resource-intensive; context window limitations
+prohibit processing an entire codebase at once [4]. We apply a space
+reduction step, building on prior works [10, 37] prior to LLM-based
+file localization using BM25. The models are asked to select between
+three top-𝑘settings for retrieval: {10, 20, 30}.
+Refinement.Once a list of candidate files is retrieved, the models
+are given the option to explore individual files. To limit token usage,
+we provide a partial view of the file, up to 512 tokens, by chunk-
+ing it from the top. Before chunking, we remove any copyright
+headers and imports, leaving only the relevant context. Models can
+view multiple files until they are ready to provide a ranked list of
+candidate files.
+Self-correction.Initial observations with our tested models in-
+dicate that they occasionally return invalid JSON and incorrect
+file paths. To mitigate these issues, we implement a simple self-
+correction mechanism with prompting [11]: the model’s outputs
+are evaluated for conformity with the JSON format using regular
+expressions, and file paths are combined with the canonical drive
+path to confirm their existence. When validation fails, the model
+is prompted to correct its response given the error. We grant the
+model three tries to correct its output.
+Self-evaluation.After a model outputs a response, it is prompted
+again to validate its answer against all the information it gathered.
+We start from a fresh context and include information to help the
+model assess the response: bug description, BM25 results, files
+viewed and final ranking. The model is asked to review the final
+ranking and return the list of files with a revised ranking order.
+Baselines.First, we evaluate the relative accuracy of our agent-
+based approach against our best BM25 approach from Section 3/RQ1
+on both LCA and SWE. Then, we evaluate our agentic approach
+on SWE against prior state-of-the-art approaches: Agentless [35],
+LocAgent [4] and SWE-agent [39]. SWE-agent does not report file-
+level localization in their study; thus, we use the results reported
+by LocAgent. We note that the results reported for Agentless, SWE-
+agent and LocAgent use Accuracy@K (the fraction of bugs for
+which the correct file appears within the top-𝑘 retrieved results).
+Because each bug in SWE has a single relevant file, Accuracy@k is
+equivalent to Hit@K in our setup.
+
+--- PAGE 4 ---
+BoatSE ’26, April 13, 2026, Rio de Janeiro, Brazil Geneviève Caumartin and Glaucia Melo
+Figure 1: Our Agentic Workflow. At every step, the outputs are validated, and the model is asked to correct invalid outputs.
+Table 2: Summary statistics for theLong Code
+ArenaandSWE-bench-Litedatasets.
+Dataset # Tasks Total files Buggy files
+per task per task
+Mean Max Mean Max
+Long Code Arena*
+- Bug Localization 150 559 7,917 2 21
+SWE-bench Lite†300 664 895 1 1
+* Source files include only ‘.py‘, ‘.java‘ and ‘.kt‘ files w/o test files.
+† Source files include only ‘.py‘ files w/o test files.
+4 Experiment Settings
+4.1 Datasets
+We leverage two datasets that contain real-world SE tasks: SWE-
+bench-Lite [10], widely used in SE research [35, 39, 40] and Long
+Code Arena [2], whose Bug Localization subset contains 50% multi-
+file tasks.
+Long Code Arena (LCA) [2]contains six repository-level bench-
+marks. We focus on the Bug Localization dataset which spans mul-
+tiple programming languages, including Python, Java, and Kotlin.
+Our experiments use the test set consisting of 150 manually veri-
+fied data points — 50 from each language subset. Among these 150
+tasks, half involve modifications across two or more files, while the
+remaining 50% are single-file tasks.
+SWE-bench (SWE) [ 10]tests models’ ability to resolve real-
+world GitHub issues and is exclusively focused on Python. There
+are three variations of the dataset; we select the SWE-bench Lite
+variation due to time and resource limitations. This dataset con-
+tains 300 tasks that span 11 GitHub repositories, selected from the
+larger SWE-bench dataset to preserve the distribution and difficulty
+spectrum of the original benchmark. It contains only single-file
+tasks.
+4.2 Models
+Many previous works focus on proprietary, larger models [35, 40];
+however, results of proprietary models are harder to reproduce,
+pose serious privacy concerns and may incur significant costs in
+a typical development pipeline. We pick two models based on our
+constraints: 1) Ability to run on higher-end consumer hardware; 2)
+Good instruction following abilities (for structured outputs); and 3)
+coding abilities.
+Qwen2.5-32B: Code-specific model in its 32B parameters vari-
+ant [8]. Qwen2.5-32B was trained on code-specific datasets and
+scores 83.46% on the instruction following benchmark IFEval [7]
+and 92.1% on MBPP EvalPlus Base 1.
+Qwen3-30B: Code-specific model in its 30.5B parameters vari-
+ant [38]. This model has a Mixture-of-Experts (MoE) architecture,
+where only 3.3B parameters are activated at a given time. It scores
+51.6% on SWE-Bench Verified [10] when combined with the Open-
+Hands [34] scaffold. As it is a relatively new model at the time of
+writing, results on other benchmarks are not yet available.
+Environment.We use Ollama, version 0.11.10, to host our models
+locally. All experiments are run on a Mac Studio M4 Max with
+64GB of RAM. We limit all models to a 16k context window due to
+resource constraints, and use greedy decoding (temperature=0) and
+a fixed seed to minimize variability. However, LLMs are inherently
+non-deterministic, even in this setting [ 32]. To mitigate this, we
+repeat each run three times and report the average. To minimize the
+variability introduced by LLM-based information extraction during
+query reformulation, we reuse the best results from Section 3/RQ1
+in our agent workflow.
+4.3 Metrics
+We use two widely known metrics from information retrieval: Mean
+Average Precision (MAP) and Hit@K [2, 5, 37].MAPrepresents
+the quality of the ranking in retrieval tasks. It measures the average
+position of all relevant files found by retrieval [ 5, 37].Hit@K
+represents the proportion of rankings that contain at least one
+valid candidate [5]. Both metrics are complementary; the former
+evaluates the ranking quality (i.e. order of retrieved files), the latter
+informs about the proportion of tasks that include at least one
+relevant file.
+5 Results
+Table 3 shows the results ofRQ1for both datasets. The first row
+shows the baseline, which includes the full bug description. The
+next rows show results for each group, defined in Section 3. Indi-
+cators show significant differences with the baseline ( †) and the
+explanation-only(‡) variation.
+Performance on LCA. All schema-based variations outper-
+form the BM25 baseline except when usingexplanationonly ( 2 )
+for top-1 retrieval. Thefull schema( 1 ) performs well overall but is
+surpassed byidentifiers + snippets( 4 ) andexplanation + identifiers
++ snippets( 5 ) on most metrics except Hit@1. While explanations
+alone do not provide enough lexical overlap with code,all code
+( 3 ) adds noise, reducing performance at higher 𝑘. The best over-
+all results are obtained withexplanation + identifiers + snippets
+1https://evalplus.github.io/leaderboard.html
+
+--- PAGE 5 ---
+Reformulate, Retrieve, Localize: Agents for Repository-Level Bug Localization BoatSE ’26, April 13, 2026, Rio de Janeiro, Brazil
+Table 3: BM25 Baseline vs Extracted Information.
+Data BM25 Query MAP Hit@k
+1 5 10 1 5 10
+LCA Baseline 0.158 0.250 0.266 0.320 0.653 0.713
+1 Full 0.229†‡ 0.337† 0.357† 0.447†‡ 0.720 0.807 †
+2 Explanation 0.154 0.267 0.288 0.300 0.667 0.767
+3 All code 0.233†‡ 0.318 0.332 0.440†‡ 0.653 0.720
+4 Id + snippets 0.247†‡ 0.336 0.349 0.447†‡ 0.640 0.687
+5 2 and 4 0.230†‡ 0.339† 0.359† 0.440†‡ 0.733†‡ 0.813†‡
+SWE Baseline 0.400 0.488 0.503 0.400 0.640 0.753
+1 Full Schema 0.473‡ 0.576†‡ 0.592†‡ 0.473†‡ 0.740†‡ 0.853†‡
+2 Explanation 0.370 0.434 0.446 0.370 0.653 0.753
+3 All code 0.473‡ 0.554‡ 0.565‡ 0.473†‡ 0.673 0.753
+4 Id + snippets 0.470‡ 0.538‡ 0.551‡ 0.470†‡ 0.640 0.733
+5 2 and 4 0.476‡ 0.584†‡ 0.597†‡ 0.476†‡ 0.757†‡ 0.853†‡
+Bold = highest mean in column, shaded = best configuration.
+Superscripts indicate significant improvement at p<0.05:†over Baseline,‡over
+Explanation.
+( 5 ), achieving +31% MAP@1, +11% Hit@5, and +12% Hit@10. For
+smaller 𝑘,identifiers + snippets( 4 ) achieves the highest MAP@1
+(+36%) and Hit@1 (+28%). In terms of statistical significance, among
+top schema variants, 1 and 5 are not significantly different at
+Hit@5/10 and are tied with other variants, except 2 at 𝑘=1. Effect
+size for significant differences between the best performing vari-
+ation 5 and the baseline and explanation variations is small on
+MAP@1, and negligible on Hit@K.
+Performance on SWE. Overall ranking quality and Hit@K
+scores are higher than on LCA-baseline. MAP@1 is 60% higher and
+Hit@1 is 20% higher, likely due to richer, better-aligned bug reports.
+As with LCA, all schema-based variations exceptexplanation 2
+outperform the baseline, achieving up to +16% MAP and +12%
+Hit@10. Differences among schema variations are minor for Hit@K:
+explanation( 2 ),all code( 3 ) andidentifiers + snippets( 4 ) have a
+Hit@10 equivalent to the baseline, suggesting that the benefits are
+limited to lower 𝑘 with these variations. Overall, 5 performs best
+in terms of ranking quality and finding relevant files, although it
+is equivalent to 1 on Hit@10. In terms of statistical significance,
+the top variants are tied on MAP and Hit@1, while 1 and 5 are
+tied on Hit@5 and Hit@10. The best performing variation 5 is
+significantly different from the baseline and 2 (except on MAP@1)
+with a small effect size.
+We show our results for RQ2 in Table 4.As a baseline, we
+use the best-performing variation (explanation, identifiers and snip-
+pets( 5 )) query reformulation technique from RQ1 for both LCA
+and SWE. For SWE, we also compare our results with three prior
+techniques: SWE-agent [39], Agentless [35], and LocAgent [4].
+Consistent with RQ1 findings, we observe a significant gap
+between LCA and SWE, both in terms of ranking quality and
+Hit@K, with SWE reaching 0.928 Hit@10 against 0.880 for LCA,
+and MAP@10 reaching 0.790 on SWE while LCA maxes at 0.490, a
+38% difference in ranking quality.
+Performance on LCA. Both models outperform the baseline
+in theAll-at-topexperiment. Qwen2.5-32B achieves up to +28%
+Table 4: File-level localization agent results showing averages
+over three runs.
+Dataset / Model MAP Hit@K
+Setting 1 5 10 1 5 10
+LCA BM25 + 5 0.230 0.339 0.359 0.440 0.733 0.813
+All-at-topQwen2.5-32B 0.317 0.453 0.474 0.595 0.8530.878
+Qwen3-30B 0.2630.472 0.490 0.513 0.831 0.867
+Best-at-topQwen2.5-32B 0.324▲ 0.449▼ 0.467▼ 0.600▲ 0.860▲ 0.860▼
+Qwen3-30B 0.336▲ 0.465▼ 0.478▼ 0.627▲ 0.853▲ 0.867
+SWE BM25 + 5 0.476 0.584 0.597 0.476 0.757 0.853
+All-at-topQwen2.5-32B 0.648 0.746 0.753 0.648 0.8880.928
+Qwen3-30B 0.6740.784 0.790 0.674 0.888 0.915
+Best-at-topQwen2.5-32B 0.657▲ 0.758▲ 0.761▲ 0.657▲ 0.890▲ 0.927▼
+Qwen3-30B 0.727▲ 0.779▼ 0.783▼ 0.727▲ 0.887▼ 0.910▼
+SWE-agent†GPT-4 0.573 — — 0.573 0.690 —
+Agentless† GPT-4o 0.697 — — 0.697 0.745 —
+LocAgent†‡ Qwen2.5-32B 0.759 — — 0.759 0.927 —
+‡ Fine-tuned model.
+— Not reported by the source.
+MAP@1 and +27% Hit@1, while Qwen3-30B reaches +28% MAP@5
+and +27% MAP@10, with Hit@5/10 improving by up to 14%. We
+observe that gains decline as 𝑘 increases. Qwen3-30B underper-
+forms on MAP@1, despite leading at higher 𝑘 values; we analyzed
+BM25 tool-call patterns across Top-1, Top-5, and Top-10 retrievals
+but found no clear explanation for this case. The issue likely stems
+from how Qwen3-30B performs semantic matching based on avail-
+able signals, as it does not appear in theBest-at-topsetting or with
+Qwen2.5-32B. A detailed BM25 tool call analysis can be found in
+our replication package [1].
+Looking intoBest-at-top, we observe that it yields further im-
+provements at small 𝑘, reaching +32% MAP@1 and +30% Hit@1,
+but when compared withAll-at-top, MAP@5 and MAP@10 drop
+slightly (–1.5% amd -2%, respectively) for Qwen3-30B. Qwen2.5-32B
+only show marginal drop on MAP@5 (-0.8%) and increase on Hit@5
+(+0.8%). Both models perform better on MAP@1 and Hit@1/5 but
+see drops in ranking quality on higher MAP.
+Performance on SWE.Both experiments show consistent gains
+over the baseline, withAll-at-topreaching a near-perfect Hit@10
+of 0.928 (+9.5%). The largest improvements occur at Top-1, where
+Best-at-topincreases MAP@1 and Hit@1 by 35%. For this dataset,
+however,Best-at-topoffers limited additional benefit for larger 𝑘.
+Comparing best performances: MAP@5 drops slightly (0.784 vs.
+0.779), Hit@5 slightly increases, and Hit@10 is almost equal. In
+terms of model-specific performance, Qwen2.5-32B performs better
+overall except on Hit@10 where it sees a marginal drop, while
+Qwen3-30B only performs better on first file retrieval and sees
+minor drops on other values of𝑘.
+Variability.For both datasets, we report low variability across
+our three runs, with standard deviations between±0.000 and±0.0075.
+Prior works.Comparing with prior works on SWE, LocAgent
+attains the highest accuracy, about 4% above our best model on first-
+file retrieval and Hit@5-but relies on a fine-tuned Qwen2.5-32B.
+Our approach surpasses SWE-Agent by 21% on MAP/Hit@1 and
+
+--- PAGE 6 ---
+BoatSE ’26, April 13, 2026, Rio de Janeiro, Brazil Geneviève Caumartin and Glaucia Melo
+22% on Hit@5, and exceeds Agentless, achieving +16% on Hit@5.
+Notably, our non-fine-tuned models rival or outperform these larger
+baselines despite being orders of magnitude smaller.
+Our results show that lightweight query reformulation is benefi-
+cial to first-file retrieval, highlighting the value of upstream query
+refinement. However, the effect tends to taper at higher𝑘. A pos-
+sible explanation is that paths/filenames are not included in the
+Best-at-topconfiguration: they may be useful to the agent to better
+rank files. We leave it for future work to evaluate their impact.
+6 Discussion
+Integration in Development Workflows.Debugging remains
+one of the most time-consuming and costly SE activities, account-
+ing for 35–50% of developers’ time [21]. Localizing files relevant
+to a bug is one of the first steps in a bug-fixing workflow: our ap-
+proach proposes to assist with that task. One key advantage of our
+approach is its usability for real-world software development envi-
+ronments: we rely on smaller, open-source LLMs and a lightweight
+lexical retriever (BM25), which can be deployed without specialized
+hardware or costly API access.
+The information extraction step is both fast and efficient, com-
+pleting in an average of 5.125 seconds per task on LCA and 4.445
+seconds on SWE with Qwen3-30B. The average localization task
+execution time on LCA lies between ≈23-50 seconds and ≈18-78
+seconds on SWE with Qwen3-30B, the top-10 variations being the
+most time-intensive. From a practical use standpoint, these results
+indicate that query reformulation and retrieval can be performed on
+the fly within a developer’s workflow. This approach is well-suited
+for integration into IDE assistants where fast, low-cost retrieval is
+essential.
+Tool Usage and Error Analysis.Tool-calling preferences vary
+across models and datasets. To better understand tool usage fre-
+quency, we collect detailed statistics, summarized in Table 5.
+Tool call averages.We note that bm25_topk and extract_relevant
+are invoked multiple times per repository. Models have access to
+prior conversation turns and may choose to re-invoke a previously
+available tool, which explains this behaviour.
+We also observe a high average number of file-view requests
+per repository. These include: 1) valid file views, where the same
+file may be opened repeatedly, and 2) invalid paths. To mitigate
+1), we warn the model after duplicate views and block repeated
+access after five occurrences. To address 2), we apply self-correction
+(Section 3/RQ2). After removing duplicate and erroneous calls, file
+views drop by up to 95%, highlighting the models’ difficulty in 1)
+reproducing file paths accurately and 2) following the instruction
+to view each file only once. Calls to the view_readme tool are rare
+and have a negligible impact on results.
+Errors.Self-correction covers tool-call validity (correct tool and
+parameters), file-path verification, and JSON formatting. When an
+error occurs, the model is warned and given up to three retries. Any
+model call exceeding ten minutes (600 sec) is cancelled. Table 5 re-
+ports the corresponding error counts. We observe more aborted file
+views with Qwen2.5-32B, whereas Qwen3-30B exhibits repetitive
+behavior leading to timeouts. JSON formatting errors are corrected
+more reliably by Qwen2.5-32B, while Qwen3-30B shows a slightly
+higher number of cases where it was unable to correct its output.
+Table 5: Average tool calls per repository (top) and error
+counts (bottom) by dataset and model, computed on one run.
+SWE LCA
+Qwen2 Qwen3 Qwen2 Qwen3
+Tool call averages / repo
+bm25_top_k 6.0 5.4 6.7 7.2
+extract_relevant 6.0 4.8 6.0 6.0
+view_file 40.2 20.1 36.8 22.2
+view_file unique 2.0 1.6 5.3 4.0
+view_readme 0.0 0.0 0.0 0.0
+Error counts
+Aborted file views (%) 12.6 6.4 10.0 3.8
+Model timeouts 0 18 0 11
+Aborted - invalid JSON 2 12 4 9
+* Qwen2 = Qwen2.5-32B, Qwen3 = Qwen3-30B
+7 Threats to Validity
+Output variability.LLMs remain non-deterministic, even at tem-
+perature 0. To mitigate this threat, we run agent-based experiments
+three times and report the average of the runs.
+Bug information extraction.The quality of extracted information
+can affect retrieval quality; thus, the model used to extract the
+information and summarize the bug can significantly impact the
+results. We use Qwen3-30B due to resource constraints.
+Metrics.This threat concerns whether our chosen metrics accu-
+rately capture retrieval performance for bug localization. We use
+widely accepted metrics (MAP and Hit@K), commonly used in
+previous studies.
+Dataset contamination.The LLMs we evaluate are pretrained on
+web-scale code corpora that may include the projects used in LCA
+and SWE-bench. Observed gains could stem from memorization
+rather than effective retrieval, and should be interpreted as an upper
+bound of real-world performance.
+Generalizability.We run with two different models on two large
+datasets spanning three programming languages: Java, Python and
+Kotlin. We expect that the results may not hold for commercial code,
+models of different sizes or bug reports with a different structure.
+Repository-Level Tasks.Although SWE-bench Lite contains single-
+file tasks, they often require searching the entire repository to locate
+the relevant file, making the problem comparable in complexity to
+repository-level localization.
+8 Conclusion
+This study investigates the impact of query reformulation on agent-
+based workflows for file-level bug localization. Query reformula-
+tion, which adds a summary and code signals (identifiers, snippets),
+consistently strengthens lexical retrieval: with BM25, it boosts first-
+file localization by 36% over our baseline. When an LLM-based
+agent uses the best combination, we achieve an improvement over
+our best BM25 baseline of 35%. Our open-sourced, non-fine-tuned
+LLM agent further advances file-level localization, outperforming
+SWE-Agent and Agentless by up to 22%. Future work will explore
+method-level code chunking for finer retrieval granularity and an
+IDE plugin to assist in file-level bug localization.
+
+--- PAGE 7 ---
+Reformulate, Retrieve, Localize: Agents for Repository-Level Bug Localization BoatSE ’26, April 13, 2026, Rio de Janeiro, Brazil
+References
+[1] 2025. Replication package. https://doi.org/10.5281/zenodo.17386405
+[2] Egor Bogomolov, Aleksandra Eliseeva, Timur Galimzyanov, Evgeniy Glukhov,
+Anton Shapkin, and Tigina Maria et al. 2024. Long Code Arena: a Set of
+Benchmarks for Long-Context Code Models. arXiv:2406.11612 (June 2024).
+http://arxiv.org/abs/2406.11612 arXiv:2406.11612 [cs].
+[3] Biyu Cai, Weiqin Zou, Qianshuang Meng, Hui Xu, and Jingxuan Zhang. 2025.
+KBL: a golden keywords-based query reformulation approach for bug localization.
+Empirical Softw. Engg.30, 5 (July 2025), 61 pages. doi:10.1007/s10664-025-10694-2
+[4] Zhaoling Chen, Xiangru Tang, Gangda Deng, Fang Wu, Jialong Wu, and Jiang Zhi-
+wei et al. 2025. LocAgent: Graph-Guided LLM Agents for Code Localization.
+arXiv:2503.09089 (April 2025). doi:10.48550/arXiv.2503.09089 arXiv:2503.09089
+[cs].
+[5] Thomas Hirsch and Birgit Hofer. 2025. Best practices for evaluating IRFL ap-
+proaches.Journal of Systems and Software222 (April 2025), 112342. doi:10.1016/j.
+jss.2025.112342
+[6] Dong Huang, Jie M. Zhang, Michael Luck, Qingwen Bu, Yuhao Qing, and Hem-
+ing Cui. 2024. AgentCoder: Multi-Agent-based Code Generation with Iterative
+Testing and Optimisation. arXiv:2312.13010 (May 2024). doi:10.48550/arXiv.2312.
+13010 arXiv:2312.13010 [cs].
+[7] HuggingFace. [n. d.]. Open LLM Leaderboard. https://huggingface.co/spaces/
+open-llm-leaderboard/open_llm_leaderboard#/?official=true Accessed on Sep-
+tember 4, 2025.
+[8] Binyuan Hui, Jian Yang, Zeyu Cui, Jiaxi Yang, Dayiheng Liu, and Lei et al Zhang.
+2024. Qwen2.5-Coder Technical Report. arXiv:2409.12186 (Nov. 2024). doi:10.
+48550/arXiv.2409.12186 arXiv:2409.12186 [cs].
+[9] Sarthak Jain, Aditya Dora, Ka Seng Sam, and Prabhat Singh. 2024. LLM Agents
+Improve Semantic Code Search. arXiv:2408.11058 (Aug. 2024). doi:10.48550/arXiv.
+2408.11058 arXiv:2408.11058 [cs].
+[10] Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press,
+and Karthik Narasimhan. 2024. SWE-bench: Can Language Models Resolve Real-
+World GitHub Issues? arXiv. http://arxiv.org/abs/2310.06770 arXiv:2310.06770
+[cs].
+[11] Ryo Kamoi, Yusen Zhang, Nan Zhang, Jiawei Han, and Rui Zhang. 2024. When
+Can LLMs Actually Correct Their Own Mistakes? A Critical Survey of Self-
+Correction of LLMs.Transactions of the Association for Computational Linguistics
+12 (Nov. 2024), 1417–1440. doi:10.1162/tacl_a_00713
+[12] Misoo Kim and Eunseok Lee. 2019. A novel approach to automatic query re-
+formulation for IR-based bug localization. InProceedings of the 34th ACM/SI-
+GAPP Symposium on Applied Computing. ACM, Limassol Cyprus, 1752–1759.
+doi:10.1145/3297280.3297451
+[13] An Ngoc Lam, Anh Tuan Nguyen, Hoan Anh Nguyen, and Tien N. Nguyen. 2017.
+Bug Localization with Combination of Deep Learning and Information Retrieval.
+In2017 IEEE/ACM 25th International Conference on Program Comprehension (ICPC).
+218–229. doi:10.1109/ICPC.2017.24
+[14] Jimmy Lin, Xueguang Ma, Sheng-Chieh Lin, Jheng-Hong Yang, Ronak Pradeep,
+and Rodrigo Nogueira. 2021. Pyserini: A Python Toolkit for Reproducible Informa-
+tion Retrieval Research with Sparse and Dense Representations. InProceedings of
+the 44th Annual International ACM SIGIR Conference on Research and Development
+in Information Retrieval (SIGIR 2021). 2356–2362.
+[15] Xiangzheng Liu, Jianxun Liu, Guosheng Kang, Min Shi, Yi Liu, and Yiming Yin.
+2025. On the effectiveness of large language models for query expansion in code
+search.Journal of Systems and Software230 (Dec. 2025), 112582. doi:10.1016/j.jss.
+2025.112582
+[16] Stacy K. Lukins, Nicholas A. Kraft, and Letha H. Etzkorn. 2010. Bug localization
+using latent Dirichlet allocation.Inf. Softw. Technol.52, 9 (Sept. 2010), 972–990.
+doi:10.1016/j.infsof.2010.04.002
+[17] Junayed Mahmud. 2024. Toward Rapid Bug Resolution for Android Apps.
+InProceedings of the 2024 IEEE/ACM 46th International Conference on Soft-
+ware Engineering: Companion Proceedings. ACM, Lisbon Portugal, 237–241.
+doi:10.1145/3639478.3639812
+[18] H. B. Mann and D. R. Whitney. 1947. On a Test of Whether one of Two Random
+Variables is Stochastically Larger than the Other.The Annals of Mathematical
+Statistics18, 1 (1947), 50–60. doi:10.1214/aoms/1177730491
+[19] Quinn McNemar. 1947. Note on the sampling error of the difference between
+correlated proportions or percentages.Psychometrika12, 2 (June 1947), 153–157.
+doi:10.1007/bf02295996
+[20] K. Meissel and E. S. Yao. 2024. Using Cliff’s Delta as a Non-Parametric Effect Size
+Measure: An Accessible Web App and R Tutorial.Practical Assessment, Research,
+and Evaluation(2024). doi:10.7275/pare.1977
+[21] Devon H. O’Dell. 2017. The Debugging Mindset: Understanding the psychology
+of learning strategies leads to effective problem-solving skills.Queue15, 1 (Feb.
+2017), 71–90. doi:10.1145/3055301.3068754
+[22] D. Poshyvanyk, A. Marcus, V. Rajlich, Y.-G. Gueheneuc, and G. Antoniol. 2006.
+Combining Probabilistic Ranking and Latent Semantic Indexing for Feature
+Identification. In14th IEEE International Conference on Program Comprehension
+(ICPC’06). 137–148. doi:10.1109/ICPC.2006.17
+[23] Md Nakhla Rafi, Dong Jae Kim, Tse-Hsun Chen, and Shaowei Wang. 2024. En-
+hancing Fault Localization Through Ordered Code Analysis with LLM Agents
+and Self-Reflection.CoRRabs/2409.13642 (2024).
+[24] Md Nakhla Rafi, Dong Jae Kim, Tse-Hsun Chen, and Shaowei Wang. 2025. A Multi-
+Agent Approach to Fault Localization via Graph-Based Retrieval and Reflexion.
+arXiv:2409.13642 (March 2025). doi:10.48550/arXiv.2409.13642 arXiv:2409.13642
+[cs].
+[25] Mohammad Masudur Rahman, Foutse Khomh, Shamima Yeasmin, and Chan-
+chal K. Roy. 2021. The Forgotten Role of Search Queries in IR-based Bug Local-
+ization: An Empirical Study. arXiv:2108.05341 (Aug. 2021). doi:10.48550/arXiv.
+2108.05341 arXiv:2108.05341 [cs].
+[26] Mohammad Masudur Rahman and Chanchal K. Roy. 2018. Improving IR-based
+bug localization with context-aware query reformulation. InProceedings of the
+2018 26th ACM Joint Meeting on European Software Engineering Conference and
+Symposium on the Foundations of Software Engineering. ACM, Lake Buena Vista
+FL USA, 621–632. doi:10.1145/3236024.3236065
+[27] Mohammad Masudur Rahman and Chanchal K. Roy. 2023. A Systematic Review
+of Automated Query Reformulations in Source Code Search. arXiv:2108.09646
+(2023). doi:10.48550/arXiv.2108.09646 arXiv:2108.09646 [cs].
+[28] Shivani Rao and Avinash Kak. 2011. Retrieval from software libraries for bug
+localization: a comparative study of generic and composite text models. InPro-
+ceedings of the 8th Working Conference on Mining Software Repositories(Waikiki,
+Honolulu, HI, USA)(MSR ’11). Association for Computing Machinery, New York,
+NY, USA, 43–52. doi:10.1145/1985441.1985451
+[29] Shivani Rao and Avinash Kak. 2011. Retrieval from software libraries for bug
+localization: a comparative study of generic and composite text models. InPro-
+ceedings of the 8th Working Conference on Mining Software Repositories(Waikiki,
+Honolulu, HI, USA)(MSR ’11). Association for Computing Machinery, New York,
+NY, USA, 43–52. doi:10.1145/1985441.1985451
+[30] Stephen Robertson and Hugo Zaragoza. 2009. The Probabilistic Relevance Frame-
+work: BM25 and Beyond.Found. Trends Inf. Retr.3, 4 (April 2009), 333–389.
+doi:10.1561/1500000019
+[31] Ripon K. Saha, Matthew Lease, Sarfraz Khurshid, and Dewayne E. Perry. 2013.
+Improving bug localization using structured information retrieval. In2013 28th
+IEEE/ACM International Conference on Automated Software Engineering (ASE).
+345–355. doi:10.1109/ASE.2013.6693093
+[32] Yifan Song, Guoyin Wang, Sujian Li, and Bill Yuchen Lin. 2024. The Good, The
+Bad, and The Greedy: Evaluation of LLMs Should Not Ignore Non-Determinism.
+arXiv:2407.10457 [cs.CL] https://arxiv.org/abs/2407.10457
+[33] Xunzhu Tang, Kisub Kim, Yewei Song, Cedric Lothritz, Bei Li, and Ezzini Saad et
+al. 2024. CodeAgent: Autonomous Communicative Agents for Code Review. In
+Proc. of the 2024 Conference on Empirical Methods in Natural Language Processing,
+Yaser Al-Onaizan, Mohit Bansal, and Yun-Nung Chen (Eds.). Association for
+Computational Linguistics, Miami, Florida, USA, 11279–11313.
+[34] Xingyao Wang, Boxuan Li, Yufan Song, Frank F. Xu, Xiangru Tang, and
+Mingchen Zhuge et al. 2025. OpenHands: An Open Platform for AI Software
+Developers as Generalist Agents. arXiv:2407.16741 [cs.SE] https://arxiv.org/abs/
+2407.16741
+[35] Chunqiu Steven Xia, Yinlin Deng, Soren Dunn, and Lingming Zhang. 2025. De-
+mystifying LLM-Based Software Engineering Agents.Proc. ACM Softw. Eng.2,
+FSE, Article FSE037 (June 2025), 24 pages. doi:10.1145/3715754
+[36] Chengxing Xie, Bowen Li, Chang Gao, He Du, Wai Lam, Difan Zou, and Kai Chen.
+2025. SWE-Fixer: Training Open-Source LLMs for Effective and Efficient GitHub
+Issue Resolution. InFindings of the Association for Computational Linguistics: ACL
+2025, Wanxiang Che, Joyce Nabende, Ekaterina Shutova, and Mohammad Taher
+Pilehvar (Eds.). Association for Computational Linguistics, Vienna, Austria, 1123–
+1139. doi:10.18653/v1/2025.findings-acl.62
+[37] Chuyang Xu, Zhongxin Liu, Xiaoxue Ren, Gehao Zhang, Ming Liang, and David
+Lo. 2024. FlexFL: Flexible and Effective Fault Localization with Open-Source Large
+Language Models. arXiv:2411.10714 (Nov. 2024). doi:10.48550/arXiv.2411.10714
+arXiv:2411.10714 [cs].
+[38] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, and Bo Zheng
+et al. 2025. Qwen3 Technical Report. arXiv:2505.09388 [cs.CL] https://arxiv.org/
+abs/2505.09388
+[39] John Yang, Carlos E. Jimenez, Alexander Wettig, Kilian Lieret, Shunyu Yao,
+Karthik Narasimhan, and Ofir Press. 2024. SWE-agent: Agent-Computer In-
+terfaces Enable Automated Software Engineering. arXiv:2405.15793 (May 2024).
+http://arxiv.org/abs/2405.15793 arXiv:2405.15793 [cs].
+[40] Yuntong Zhang, Haifeng Ruan, Zhiyu Fan, and Abhik Roychoudhury. 2024. Au-
+toCodeRover: Autonomous Program Improvement. InProceedings of the 33rd
+ACM SIGSOFT International Symposium on Software Testing and Analysis(Vienna,
+Austria)(ISSTA 2024). Association for Computing Machinery, New York, NY, USA,
+1592–1604. doi:10.1145/3650212.3680384
+[41] Jian Zhou, Hongyu Zhang, and David Lo. 2012. Where should the bugs be
+fixed? More accurate information retrieval-based bug localization based on bug
+reports. In2012 34th International Conference on Software Engineering (ICSE).
+14–24. doi:10.1109/ICSE.2012.6227210

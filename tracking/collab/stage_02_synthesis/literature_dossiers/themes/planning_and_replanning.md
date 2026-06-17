@@ -1,0 +1,134 @@
+LITERATURE_DOSSIER
+- dossier_type: theme
+- topic: planning_and_replanning
+- wave: `wave_06_planning_orchestration_and_interactions`
+- role: `literature/papers/docs analyst`
+- scope:
+  - Formal-source synthesis for planning and replanning doctrine.
+  - Restricted to papers/docs lane evidence; does not promote claims beyond direct formal coverage.
+- coverage_used:
+  - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+  - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+  - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+  - `research/sources/papers/papers_text/Arxiv_2512.16970.txt`
+  - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+  - `research/sources/docs/src_doc_80ed3749e2fb/artifact.txt`
+  - `research/sources/docs/src_doc_5268d48ca5c2/artifact.txt`
+  - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/literature_papers_docs_analyst.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/papers_text/src_pap_1e7552c63cbe.txt`
+  - `research/sources/papers/papers_text/src_pap_2126cf579e39.txt`
+  - `research/sources/papers/papers_text/src_pap_ac7924226b83.txt`
+  - `research/sources/papers/papers_text/src_pap_f6dbaefea5eb.txt`
+- evidence_classes_touched:
+  - papers
+  - docs
+  - wave_output_crosslink
+- formal_claims:
+  - claim_id: `plan_loop_is_first_class`
+    - observation: Formal sources repeatedly frame planning as an explicit control loop (decompose, execute, verify, replan, terminate) instead of one-shot generation.
+    - inference: Wave 06 mechanism cards should keep planning/replanning as a separate control surface from generic reasoning quality.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+      - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+      - `research/sources/docs/bigai/translated/architecture_plan_execute.md`
+  - claim_id: `replan_trigger_contracts_matter`
+    - observation: Formal material ties replanning to explicit trigger conditions (verification failure, uncertainty, budget boundary), not open-ended retries.
+    - inference: Replanning trigger semantics should be explicit in orchestration contracts and failure taxonomy.
+    - confidence: `high`
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+      - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+      - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+  - claim_id: `stop_conditions_are_part_of_planning`
+    - observation: Planning benchmarks and docs model stop/continue decisions as part of planning policy.
+    - inference: Non-termination/stall should be treated as planning-policy failures, not only tool/runtime failures.
+    - confidence: `medium`
+    - weakener: Cross-benchmark implementations encode stop policies differently.
+    - evidence:
+      - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+      - `research/sources/docs/src_doc_80ed3749e2fb/artifact.txt`
+      - `research/sources/docs/src_doc_5268d48ca5c2/artifact.txt`
+- benchmark_definition_notes:
+  - `DeepPlanning` pressure: long-horizon global consistency and dependency-aware updates (`src_pap_8c2cb08d2c57`).
+  - `VMAO` pressure: explicit plan-execute-verify-replan DAG orchestration (`src_pap_9a7e75663b9d`).
+  - utility-guided orchestration pressure: policy-level tradeoff between quality and cost (`src_pap_813c57bcaf19`).
+- conflicts_or_limits:
+  - Formal planning doctrine is stronger than current direct trajectory saturation in this project; do not promote robust planning behavior without trajectory corroboration.
+  - Keep Wave 05 terminal-first baseline visible when interpreting formal planning complexity.
+- confidence_notes:
+  - High confidence on existence of explicit planning/replanning doctrine.
+  - Medium confidence on which exact trigger policy generalizes best to local harness tasks.
+- open_questions:
+  - Which trigger policy best distinguishes valid replanning from unproductive retry loops in local trajectories?
+  - Which minimal planning loop fields are required for reproducible postmortem analysis?
+- downstream_use:
+  - Feed Wave 06 mechanism map cards for planning/replanning and orchestration drift.
+  - Feed failure taxonomy families for replanning trigger miss and non-termination.
+- wave_06_codebase_source_recon_pressure_update:
+  - source_reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/outputs/codebase_support_planner_runtime_map.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+    - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - observations:
+    - source-backed families implement different planning loci: deepagents (middleware-composed loop), KIRA (tool-schema + lane lifecycle), a-evolve (explicit evolution-cycle orchestrator).
+    - behaviorally strongest role-separated planner contract remains BigAI, but it is still no-source reconstruction.
+  - inference:
+    - planning/replanning theme should preserve at least three mechanism families (`terminal-loop planning`, `role-separated planner packetization`, `evolution-cycle replanning`) instead of flattening to one canonical planner pattern.
+  - confidence:
+    - medium
+  - limitation:
+    - this update is reconciliation pressure only; it does not replace the formal-paper extraction obligations for this dossier.
+- wave_04_failure_taxonomy_formal_pressure_update_2026_04_11:
+  - context: Wave 04 failure attribution refresh for tools/environment/coordination/long-horizon failures.
+  - observations:
+    - DeepPlanning reports long-horizon fragility where global-constraint misses invalidate otherwise strong local execution.
+    - VMAO formalizes verifier-triggered replanning, explicit timeout caps, and configurable stop conditions to prevent endless loops.
+    - Utility-guided orchestration frames over-execution and redundant tool use as orchestration-policy failure modes with explicit quality-cost tradeoffs.
+  - inferences:
+    - Failure taxonomy should preserve `replanning stall` as a policy/contract failure surface, not collapse it into model weakness.
+    - `timeout-heavy long-horizon degradation` belongs in Wave 04 as a separate family from tool-permission mismatch.
+    - coordination cost growth should be treated as a failure precursor when stop conditions are weak or absent.
+  - confidence:
+    - high for formal pattern existence
+    - medium for transfer to all in-corpus systems without trajectory corroboration
+  - evidence_paths:
+    - `research/sources/papers/papers_text/src_pap_8c2cb08d2c57.txt`
+    - `research/sources/papers/papers_text/src_pap_9a7e75663b9d.txt`
+    - `research/sources/papers/papers_text/src_pap_813c57bcaf19.txt`
+    - `research/sources/papers/papers_text/2603.00495.txt`
+    - `research/sources/papers/papers_text/Arxiv_2512.16970.txt`
+    - `research/sources/docs/src_doc_80ed3749e2fb/artifact.txt`
+    - `research/sources/docs/src_doc_5268d48ca5c2/artifact.txt`
+    - `research/sources/docs/src_doc_776484f287d8/artifact.txt`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/literature_papers_docs_analyst.md`
+- wave_04_trajectory_lane_reconciliation_2026_04_11:
+  - trajectory_alignment:
+    - required BigAI run summaries show explicit replan recovery (`prove-plus-comm a3dd...`) and mixed governance regimes (`cobol 23f3...` no visible verifier path despite pass).
+  - inference:
+    - Wave 04 should preserve replanning quality and handoff governance as distinct failure surfaces, not binary presence/absence of planning.
+  - evidence_paths:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+  - confidence: medium-high
+- wave_04_codebase_source_reconstruction_reconciliation_2026_04_11:
+  - source_reconciliation_inputs:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_source_reconstruction_analyst.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/codebase_support_orchestration_failure_map.md`
+  - observations:
+    - source-backed replanning/loop contracts are explicit in a-evolve (`Solve -> Observe -> Snapshot -> EngineStep -> Snapshot -> Reload`) and KIRA runtime surfaces (marker-based command completion, scheduler reload/execution).
+    - source-backed timeout and stop-condition surfaces are heterogeneous and directly encode long-horizon coordination budgets.
+  - inference:
+    - formal planning/replanning claims remain source-consistent for Wave 04, especially the need to keep replanning stall and timeout-heavy degradation as separate failure classes.
+  - confidence:
+    - high
+  - evidence_paths:
+    - `research/sources/codebases/a-evolve/agent_evolve/engine/loop.py`
+    - `research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py`
+    - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+    - `research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py`

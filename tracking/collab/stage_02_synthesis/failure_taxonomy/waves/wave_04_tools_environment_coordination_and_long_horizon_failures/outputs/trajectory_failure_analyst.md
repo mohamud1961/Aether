@@ -1,0 +1,247 @@
+TRAJECTORY_FAILURE_OUTPUT
+- artifact: `failure_taxonomy/wave_04_tools_environment_coordination_and_long_horizon_failures`
+- role: `trajectory/failure analyst`
+- preflight_scope_confirmed:
+  - Wave 04 is treated as a vertical failure-taxonomy wave on `tools_environment_coordination_and_long_horizon_failures`, not as a generic mechanism recap.
+  - Failure attribution is explicitly split across tool-gateway mismatch, cwd/path/workspace contract failure, permission-policy/runtime mismatch, process-lifecycle and cancellation breakdown, delegation/handoff mismatch with replanning stall, and timeout-heavy long-horizon degradation.
+  - BigAI claims remain `behavioral reconstruction` only.
+- preflight_planned_read_order:
+  - Wave packet controls and closure criteria:
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/brief.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/inputs/support_subagent_rules.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/README.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+    - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+    - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/adjudication/checklist_adjudicator.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+    - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - Required trajectory slices:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/*.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/*.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/*.txt`
+    - `research/sources/trajectories/BigAI/headless-terminal/*.txt`
+    - `research/sources/trajectories/deepagents/headless-terminal/*.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/*.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/*.txt`
+  - BigAI orchestration pressure and timeout-heavy summaries:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- preflight_critical_sources_selected:
+  - Cancellation and process-lifecycle pressure:
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+    - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - Tool/path/runtime mismatch pressure:
+    - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+    - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+    - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - Role-handoff/replan and timeout-heavy task pressure:
+    - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/*.json`
+    - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/*.json`
+    - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- preflight_coverage_risks:
+  - Required BigAI trajectory directories include `*.tar.gz` artifacts with potentially richer verifier and controller context than surfaced in plain `*-traj.txt` extracts; this lane used path-bounded text-first extraction and selective run metadata.
+  - `extract-moves-from-video` remains high-noise/high-duration and partially truncation-prone; there is persistent risk of under-attributing mixed-cause failures.
+  - Terminus-KIRA and deepagents required slices are mostly single-run per task family, limiting prevalence confidence.
+- preflight_likely_blind_spots:
+  - Hidden controller policy for verifier optionality and replan routing in BigAI.
+  - Exact separation of harness-level timeout policy vs benchmark-level budget pressure when only trajectory outputs are visible.
+  - Direct code-level enforcement paths for tool-gateway and permission behavior in non-BigAI families (owned by codebase lane).
+- preflight_blockers: []
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/brief.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/inputs/support_subagent_rules.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/README.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/decision.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_PHASE_AND_WAVE_OPERATING_PLAN.md`
+  - `tracking/collab/stage_02_synthesis/DEEP_SYNTHESIS_LANE_CLOSURE_CRITERIA.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_03_context_state_memory_workspace_failures/adjudication/checklist_adjudicator.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_05_tools_environment_permissions/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_06_planning_orchestration_and_interactions/synthesis/principal_synthesis.md`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/d7992f9a-d71d-4513-b06d-2d0a38757603-traj.txt`
+  - `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+  - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+  - `research/sources/trajectories/BigAI/headless-terminal/cec71502-c287-4257-9aba-4e33b3668881-traj.txt`
+  - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/9d65fa58-b782-4b19-8cd2-f68bbc5e4604.json`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/cd0d69dd-3cac-47e0-9777-51327561ff6d.json`
+  - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/e2156559-1778-4aeb-93d5-3d627dc5896a.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/1478ab91-572c-445e-ba77-807d2cd03d4c.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/5bcfcd9d-0551-4227-9e9a-26d104728d76.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/b131ce4a-2242-4467-ad17-acbcd3b2abd6.json`
+  - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/d7f5f2b6-aede-4480-9cbe-ce5a89ab0342.json`
+  - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/ede4695e-37a5-4e1b-b1ac-187903ef0e29.json`
+  - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- coverage_not_yet_used:
+  - `research/sources/trajectories/BigAI/cancel-async-tasks/*.tar.gz`
+  - `research/sources/trajectories/BigAI/headless-terminal/*.tar.gz` (non-`cec7` ids)
+  - `research/sources/trajectories/BigAI/extract-moves-from-video/*.tar.gz` (non-`953d` ids)
+  - `research/sources/trajectories/terminus-kira/extract-moves-from-video/*.tar.gz`
+  - Optional eval fifth-lane artifacts (not activated in this wave packet).
+- evidence_classes_touched:
+  - trajectory
+  - benchmark/run-summary reconstruction (`BigAI` behavior metadata)
+  - prior mechanism-map synthesis for carry-forward constraint handling
+- priority_sources_not_yet_read:
+  - Trajectory-level tar payload internals for additional long-horizon failure disambiguation in required BigAI slices.
+  - Codebase-level enforcement surfaces for tool gateway and permission routing in `research/sources/codebases/deepagents/`, `research/sources/codebases/KIRA/`, `research/sources/codebases/a-evolve/`, and `research/sources/codebases/quarantine/claw-code/` (owned by codebase lane).
+- support_artifacts_used:
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/trajectory_support_tool_coordination_failure_matrix.md`
+  - `tracking/collab/stage_02_synthesis/failure_taxonomy/waves/wave_04_tools_environment_coordination_and_long_horizon_failures/outputs/trajectory_support_long_horizon_failure_timeline.md`
+- support_artifacts_requested_or_deferred:
+  - requested-and-produced in-lane: both allowed trajectory support artifacts listed above.
+  - deferred: none for this pass.
+- coverage_register_updates_needed:
+  - add explicit Wave 04 trajectory-lane in-progress status and unresolved coverage debt into `tracking/collab/stage_02_synthesis/coverage_register/current_status.md`.
+- required_dossier_updates:
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/deepagents.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/KIRA.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/BigAI_behavioral.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/a-evolve.md`
+  - `tracking/collab/stage_02_synthesis/source_system_dossiers/claw-code.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/environment_and_permissions.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/planning_and_replanning.md`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/themes/delegation_and_role_separation.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/tools_environment_permissions.md`
+  - `tracking/collab/stage_02_synthesis/informal_cluster_dossiers/planning_orchestration_and_interactions.md`
+- direct_behavior_observations:
+  - observation: BigAI `cancel-async-tasks` shows both failure and repair slices for cancellation cleanup: early failed checks (`FAILED: Not all started tasks began cleanup`) and later successful cleanup under `SIGINT`/`KeyboardInterrupt` pressure.
+    - evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+    - confidence: high
+  - observation: The same BigAI task family also contains path/workspace contract slips in verifier handoff (`ModuleNotFoundError: No module named 'run'`) before corrected execution.
+    - evidence: `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`, `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+    - confidence: medium-high
+  - observation: Terminus-KIRA `cancel-async-tasks` explicitly exhibits process-lifecycle cleanup fragility before repair (`Cleanups executed: 0` in stronger scenario), then reports stabilized pass after redesign.
+    - evidence: `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+    - confidence: high
+  - observation: Deepagents `cancel-async-tasks` demonstrates successful bounded cancellation semantics in single-agent loop (`caught cancel ...`, `cleaned [0, 1]`) without visible multi-role orchestration.
+    - evidence: `research/sources/trajectories/deepagents/cancel-async-tasks/ca5a6b83-cd19-46da-8a12-1070b4f476bf-traj.txt`
+    - confidence: medium-high
+  - observation: Deepagents `headless-terminal` surfaces hard process-lifecycle failure at teardown (`Fatal Python error ... daemon threads`, exit code `134`), then later recovers.
+    - evidence: `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+    - confidence: high
+  - observation: BigAI `extract-moves-from-video` repeatedly enters long-running command cycles (`process has not exited yet and is still running`) with explicit kill signals after ~300 seconds in at least two phases.
+    - evidence: `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+    - confidence: high
+  - observation: Terminus-KIRA `extract-moves-from-video` shows tool-gateway and command-contract mismatch bursts (command concatenation and parse errors, bash syntax errors, missing script files, OCR run interrupted with `KeyboardInterrupt`).
+    - evidence: `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+    - confidence: high
+  - observation: BigAI run summaries for required `prove-plus-comm`, `cobol-modernization`, and `openssl-selfsigned-cert` show role-handoff variability under pass outcomes: one explicit fail->replan->pass (`a3dd...`), one no-verifier pass in cobol (`23f3...`), and elevated error counts in longer cobol runs.
+    - evidence:
+      - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+      - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+      - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/b131ce4a-2242-4467-ad17-acbcd3b2abd6.json`
+      - `research/analysis/bigai_trace_layer/output/runs/openssl-selfsigned-cert/ede4695e-37a5-4e1b-b1ac-187903ef0e29.json`
+    - confidence: medium-high
+  - observation: Timeout concentration evidence in answered_questions remains skewed to hard systems tasks (`torch-pipeline-parallelism`, `train-fasttext`, `caffe-cifar-10`, `qemu-startup`) and ties failure pressure to long-run noncompletion.
+    - evidence: `research/analysis/bigai_trace_layer/output/answered_questions.md`
+    - confidence: high
+- workflow_patterns:
+  - Planner-executor-verifier packetization is strongest in BigAI required slices, with robust pass outcomes but visible optionality and variability in verifier presence across runs.
+  - Deepagents and Terminus-KIRA required slices remain predominantly terminal-first single-agent loops in these task families, with fewer explicit multi-role handoffs.
+  - Long-horizon multimedia/system tasks trigger repeated poll/wait cycles and expensive setup loops before quality closure.
+- verification_and_recovery_patterns:
+  - Recovery often succeeds when runs shift from generic checks to explicit cleanup assertions under cancellation pressure.
+  - Verifier-mediated recovery appears in BigAI (`FAILED -> PASSED`) but is not uniform across all passing runs.
+  - There is recurrent distinction between local pass narratives and stronger downstream adjudication contracts.
+- failure_candidates:
+  - family: `tool-gateway mismatch`
+    - observation: Terminus-KIRA extract run demonstrates malformed command batching and parser/tool contract violations (`parse error`, shell syntax bursts, missing expected script targets).
+    - inference: Gateway/interaction protocol mismatches can become first-order failure sources before model-level reasoning quality is even tested.
+    - confidence: high
+    - evidence: `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - family: `cwd/path/workspace contract failure`
+    - observation: BigAI cancel and verifier slices include wrong-import path states (`ModuleNotFoundError: No module named 'run'`) and workspace handoff fragility.
+    - inference: Path/cwd contract breaks are distinct from logic failure; they can invalidate verifier handoffs and completion claims.
+    - confidence: medium-high
+    - evidence:
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/98b7cac5-17d9-401f-83aa-d65c59f4cdee-traj.txt`
+  - family: `permission-policy/runtime mismatch`
+    - observation: BigAI extract and Terminus-KIRA extract surfaces show environment-policy friction (`externally-managed-environment`, root install warnings, `/etc/resolv.conf` busy), while work continues through ad hoc runtime adaptations.
+    - inference: Runtime capability and policy doctrine diverge in ways that increase coordination cost and extend long-horizon loops.
+    - confidence: medium
+    - weakener: evidence is task-specific and mixed with setup complexity.
+    - evidence:
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+      - `research/sources/trajectories/terminus-kira/extract-moves-from-video/3df89e49-6187-4805-a273-641b4d82c5cd-traj.txt`
+  - family: `process-lifecycle and cancellation breakdown`
+    - observation: All required cancellation/headless slices show lifecycle pressure (double-cancel cleanup loss, teardown crashes, still-running process loops, delayed signal effect).
+    - inference: Cancellation and lifecycle management are independent failure families, not a subset of generic orchestration noise.
+    - confidence: high
+    - evidence:
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+      - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+      - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - family: `role-handoff/delegation mismatch and replanning stall`
+    - observation: BigAI required run summaries show both beneficial replan/delegation recovery and governance variability (including no-verifier pass path in cobol).
+    - inference: Role handoff and delegation quality are mixed-cause surfaces; successful outcomes can still carry unresolved governance risk.
+    - confidence: medium-high
+    - weakener: BigAI is behavioral reconstruction only.
+    - evidence:
+      - `research/analysis/bigai_trace_layer/output/runs/prove-plus-comm/a3dd0499-b4fd-47bc-8fde-189e4d7093a9.json`
+      - `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+  - family: `timeout-heavy long-horizon degradation`
+    - observation: Required extract slices plus answered_questions show repeated long-run polling, signal intervention, and concentration of timeout failures in hard systems tasks.
+    - inference: Long-horizon degradation is a first-class failure family with observable concentration by task regime, not random noise.
+    - confidence: high
+    - evidence:
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+      - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- cross_family_comparisons:
+  - Deepagents:
+    - strongest evidence in this wave is compact cancellation correctness and a visible teardown failure-repair arc in headless-terminal.
+    - weaker evidence for explicit multi-role delegation/handoff in required slices.
+  - Terminus-KIRA:
+    - strongest evidence is tool-gateway mismatch and command-channel fragility in extract-moves plus explicit cancellation-cleanup redesign in cancel-async.
+    - role-splitting claims are weaker in these required slices than in prior mechanism-map synthesis.
+  - BigAI (`behavioral reconstruction`):
+    - strongest evidence is role-handoff variability plus long-horizon timeout pressure under richer orchestration packets.
+    - contains both successful recovery loops and governance ambiguity (optional verifier path, path-handoff mismatch episodes).
+- contradiction_notes:
+  - contradiction: verifier-mediated orchestration is a visible strength in BigAI, but one required cobol pass has no visible verifier role.
+    - evidence: `research/analysis/bigai_trace_layer/output/runs/cobol-modernization/23f367d2-84b1-4834-9cb9-43823ca4a2e0.json`
+  - contradiction: cancellation-cleanup success is demonstrated in all families, but each family also shows concrete lifecycle fragility under stronger pressure (cleanup misses, teardown crash, prolonged still-running phases).
+    - evidence:
+      - `research/sources/trajectories/BigAI/cancel-async-tasks/17f3a357-c55a-4171-af6a-510581362baa-traj.txt`
+      - `research/sources/trajectories/terminus-kira/cancel-async-tasks/8d55545f-8ce2-49b7-9fc1-231635fc6a2d-traj.txt`
+      - `research/sources/trajectories/deepagents/headless-terminal/8359bd4b-bdf5-4c33-b511-869e048e9f6f-traj.txt`
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+  - contradiction: strong orchestration structure does not prevent long-horizon timeout degradation in heavy multimedia/system tasks.
+    - evidence:
+      - `research/sources/trajectories/BigAI/extract-moves-from-video/953d42f6-a999-4f95-bc53-79cc2952688d-traj.txt`
+      - `research/analysis/bigai_trace_layer/output/answered_questions.md`
+- confidence_notes:
+  - high confidence claims:
+    - lifecycle/cancellation breakdown is a distinct failure family.
+    - timeout-heavy degradation is concentrated and recurrent in hard long-run tasks.
+    - tool-gateway mismatch is a distinct family in Terminus-KIRA extract slice.
+  - medium confidence claims:
+    - permission-policy/runtime mismatch prevalence across families (evidence is mixed and partly setup-noise-heavy).
+    - degree of cross-family generalization for delegation mismatch from required slices.
+  - low confidence claims:
+    - hidden controller causes for verifier optionality and exact timeout cancellation heuristics.
+- open_questions:
+  - What minimum verifier visibility contract should be required before a run can be treated as failure-attribution complete in long-horizon tasks?
+  - Which path/cwd integrity checks should execute at each planner->executor->verifier handoff boundary to prevent recoverable but costly import/workdir mismatches?
+  - Which cancellation semantics should be standardized for second-order cancellation (cleanup cancellation during cancellation) across frameworks?
+  - How much of timeout-heavy failure concentration is benchmark-budget contract versus harness interaction overhead?
+- next_hand_off_target:
+  - `failure_taxonomy/wave_04 contradiction analyst` for contradiction pressure on mixed-cause separation and over-claim control.

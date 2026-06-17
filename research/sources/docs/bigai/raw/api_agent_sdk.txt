@@ -1,0 +1,564 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/agent/sdk/?q=
+================================================================================
+
+TongAgents SDK 文档¶
+概述¶
+
+TongAgents SDK 提供了一系列用于与 TongAgents 平台进行交互的接口，包括 Agent 管理和对话管理等功能。本文档将详细介绍 SDK 的使用方法和相关接口。
+
+Agent 管理¶
+
+AgentClient 类¶
+
+AgentClient 类用于管理 Agent 的创建、更新、获取和绑定等操作。
+
+初始化¶
+from tongagents.platform.agent_mgr.agent_manager import AgentClient
+
+
+
+client = AgentClient(base_url="http://your-agent-manager-url", timeout=5)
+
+方法¶
+create_agent
+
+创建一个新的 Agent。
+
+from tongagents.platform.agent_mgr.agent_manager import CreateAgentRequest, MemoryInfo, BindAgentConfig
+
+
+
+memory_info = MemoryInfo(name="Memory Name", description="Memory Description", default="Default Value")
+
+bind_config = BindAgentConfig(
+
+    prologue="Prologue here",
+
+    recommendation_question=["Question1", "Question2"],
+
+    voice="Voice Type",
+
+    figure="Figure Type",
+
+    tools={},
+
+    workflow_id="Workflow ID",
+
+    character_profile="Character Profile",
+
+)
+
+request = CreateAgentRequest(
+
+    name="AgentName",
+
+    intro="Agent Introduction",
+
+    memory={"memory_key": memory_info},
+
+    learn={"learn_key": {}},
+
+    config=bind_config,
+
+)
+
+response = client.create_agent(request)
+
+print(response)
+
+"""
+
+{'code': 0, 'message': 'agent_1903747460111544320'}
+
+"""
+
+update_agent
+
+更新一个已存在的 Agent。
+
+from tongagents.platform.agent_mgr.agent_manager import UpdateAgentRequest, MemoryInfo, BindAgentConfig
+
+
+
+memory_info = MemoryInfo(name="Updated Memory", description="Updated Description", default="Updated Value")
+
+bind_config = BindAgentConfig(prologue="New Prologue")
+
+request = UpdateAgentRequest(
+
+    id="agent_id",
+
+    name="Updated AgentName",
+
+    intro="Updated Introduction",
+
+    memory={"memory_key": memory_info},
+
+    learn={"learn_key": {}},
+
+    config=bind_config,
+
+)
+
+response = client.update_agent(request)
+
+print(response)
+
+"""
+
+{'code': 0, 'message': 'OK'}
+
+"""
+
+get_agent
+
+获取一个 Agent 的详细信息。
+
+from tongagents.platform.agent_mgr.agent_manager import GetAgentRequest
+
+
+
+request = GetAgentRequest(id=["agent_id"])
+
+response = client.get_agent(request)
+
+print(response)
+
+"""
+
+{'agents': {'agent_1903747460111544320': {'exist': True, 'data': {'desc': {'basics': None, 'sensory': None, 'cognitive': None, 'interaction': None}, 'bind_data': None, 'is_joined': False, 'join_world': ''}}}}
+
+"""
+
+对话管理¶
+
+ConversationClient 类¶
+
+ConversationClient 类用于处理与机器人的对话，包括创建会话、发送聊天请求、检索会话消息等。
+
+初始化¶
+from tongagents.platform.conversation.client import ConversationClient
+
+
+
+client = ConversationClient(base_url="http://your-conversation-url", timeout=40)
+
+方法¶
+create_conversation
+
+创建一个新的会话。
+
+from tongagents.platform.conversation.models import CreateConversationRequest
+
+
+
+request = CreateConversationRequest(agent_id="agent_id", env_type="open_platform")
+
+response = client.create_conversation(request)
+
+print(response)
+
+"""
+
+{"code": 0, "msg": "", "conversation_id": "c123"}
+
+"""
+
+chat
+
+发送聊天请求并获取响应。
+
+from tongagents.platform.conversation.models import ChatRequest
+
+
+
+request = ChatRequest(
+
+    agent_id="agent_id",
+
+    user_id="user_id",
+
+    conversation_id="conversation_id",
+
+    data_type="text",
+
+    role=0,
+
+    content="Hello, how are you?",
+
+    file_list=[],
+
+    timestamp=int(time.time() * 1000),
+
+    chat_id="chat_id",
+
+    message_id="",
+
+    stream=0,
+
+)
+
+response = client.chat(request)
+
+print(response)
+
+"""
+
+{
+
+  "code": 0,
+
+  "msg": "",
+
+  "chat_id": "",
+
+  "conversation_id": "c123",
+
+  "feedback": [
+
+    "data_type": "text",
+
+    "content": "hello",
+
+    "file_list": [],
+
+    "role": 1,
+
+    "message_id": "",
+
+    "timestamp": 11223344
+
+  ]
+
+}
+
+"""
+
+async_stream_chat
+
+以异步流式方式处理与Agent的对话。
+
+import asyncio
+
+from tongagents.platform.conversation.models import ChatRequest
+
+
+
+async def run_stream(client):
+
+    request = ChatRequest(
+
+        agent_id="agent_id",
+
+        user_id="user_id",
+
+        conversation_id="conversation_id",
+
+        data_type="text",
+
+        role=0,
+
+        content="Hello, how are you?",
+
+        file_list=[],
+
+        timestamp=int(time.time() * 1000),
+
+        chat_id="chat_id",
+
+        message_id="",
+
+        stream=1,
+
+    )
+
+    async for msg in client.async_stream_chat(request):
+
+        print(msg)
+
+
+
+asyncio.run(run_stream(client))
+
+retrieve
+
+检索会话消息。
+
+from tongagents.platform.conversation.models import RetrieveConversationRequest
+
+
+
+request = RetrieveConversationRequest(
+
+    agent_id="agent_id",
+
+    conversation_id="conversation_id",
+
+    limit=100,
+
+    offset=0,
+
+)
+
+response = client.retrieve(request)
+
+print(response)
+
+"""
+
+{
+
+  "code": 0,
+
+  "msg": "",
+
+  "conversation_id": "c123",
+
+  "retrieve_data": [
+
+    "data_type": "text",
+
+    "content": "hello",
+
+    "file_list": [],
+
+    "role": 1,
+
+    "message_id": "",
+
+    "chat_id": "",
+
+    "timestamp": 11223344
+
+  ]
+
+}
+
+"""
+
+close
+
+关闭客户端连接。
+
+client.close()
+
+模型定义¶
+
+SDK 中使用 Pydantic 模型来定义请求和响应的数据结构。
+
+示例代码¶
+
+以下是一个完整的示例代码，展示了如何使用 AgentClient 和 ConversationClient 类进行 Agent 管理和对话管理。
+
+from tongagents.platform.agent_mgr.agent_manager import AgentClient, CreateAgentRequest, MemoryInfo, BindAgentConfig
+
+from tongagents.platform.conversation.client import ConversationClient, ChatRequest, CreateConversationRequest
+
+import time
+
+
+
+# 初始化 AgentClient
+
+agent_client = AgentClient(base_url="http://your-agent-manager-url", timeout=5)
+
+
+
+ # 创建 Agent 示例
+
+
+
+memory_info = MemoryInfo(
+
+    name="Memory1", description="Memory Description", default="Default Value")
+
+bind_config = BindAgentConfig(
+
+    prologue="Prologue here",
+
+    recommendation_question=["Question1", "Question2"],
+
+    voice="Voice Type",
+
+    figure="Figure Type",
+
+    tools={},
+
+    workflow_id="Workflow ID",
+
+    character_profile="Character Profile",
+
+    model="Model Type",
+
+    type="independent_planning",
+
+)
+
+create_agent_request = CreateAgentRequest(
+
+    name="TestAgent",
+
+    intro="This is a test agent.",
+
+    memory={"mem1": memory_info},
+
+    learn={"learn_key": {}},
+
+    config=bind_config,
+
+)
+
+create_agent_response = agent_client.create_agent(create_agent_request)
+
+agent_id = create_agent_response["message"] if create_agent_response["code"] == 0 else None
+
+logging.info("Create Agent Response:", create_agent_response)  # ...
+
+# Create Agent Response:{'code': 0, 'message': 'agent_1902679289849974784'}
+
+
+
+if agent_id:
+
+    # 创建 UpdateAgentRequest 对象，模拟全部更新
+
+    memory_info = MemoryInfo(
+
+        name="New Memory Name", description="New Memory Description", default="New Default Value")
+
+    bind_config = BindAgentConfig(prologue="New Prologue", recommendation_question=[
+
+                                  "New Question1", "New Question2"])
+
+    update_request = UpdateAgentRequest(
+
+        id=agent_id,  # 替换为实际的 Agent ID
+
+        name="New AgentName",
+
+        intro="New Agent Introduction",
+
+        memory={"memory_key": memory_info},
+
+        learn={"learn_key": {}},
+
+        config=bind_config,
+
+    )
+
+
+
+    # 执行更新操作
+
+    update_response = agent_client.update_agent(update_request)
+
+
+
+    # 打印更新结果
+
+    print("Update Response:", update_response)
+
+    # Update Agent Response: {'code': 0, 'message': 'OK'}
+
+    # 创建 UpdateAgentRequest 对象，模拟部分更新
+
+    bind_config = BindAgentConfig(prologue="Updated Prologue")
+
+    update_request = UpdateAgentRequest(
+
+        id=agent_id,  # 替换为实际的 Agent ID
+
+        config=bind_config,  # 只更新 config 属性
+
+    )
+
+
+
+    # 执行更新操作
+
+    update_response = agent_client.update_agent(update_request)
+
+
+
+    # 打印更新结果
+
+    print("Update Response:", update_response)
+
+    # Update Agent Response: {'code': 0, 'message': 'OK'}
+
+    # 获取 Agent 示例
+
+    get_request = GetAgentRequest(id=[agent_id])
+
+    get_response = agent_client.get_agent(get_request)
+
+    print("Get Agent Response:", get_response)
+
+    # Get Agent Response: {'agents': {'agent_1902679289849974784': {'exist': True, 'data': {'name': 'New AgentName', 'intro': 'New Agent Introduction', 'memory': {'memory_key': {'name': 'New Memory Name', 'description': 'New Memory Description', 'default': 'New Default Value'}}, 'learn': {'learn_key': {}}, 'config': {'prologue': 'Updated Prologue', 'recommendation_question': ['New Question1', 'New Question2'], 'figure': 'Figure Type', 'voice': 'Voice Type', 'tools': {}, 'workflow_id': 'Workflow ID', 'character_profile': 'Character Profile', 'type': None, 'model': None}}}}}
+
+
+
+# 初始化 ConversationClient
+
+conversation_client = ConversationClient(base_url="http://your-conversation-url", timeout=40)
+
+
+
+# 创建会话
+
+if agent_id:
+
+    create_conversation_request = CreateConversationRequest(agent_id=agent_id, env_type="open_platform")
+
+    create_conversation_response = conversation_client.create_conversation(create_conversation_request)
+
+    conversation_id = create_conversation_response.conversation_id
+
+
+
+    # 发送聊天请求
+
+    chat_request = ChatRequest(
+
+        agent_id=agent_id,
+
+        user_id="user_123",
+
+        conversation_id=conversation_id,
+
+        data_type="text",
+
+        role=0,
+
+        content="Hello, agent!",
+
+        file_list=[],
+
+        timestamp=int(time.time() * 1000),
+
+        chat_id=conversation_id,
+
+        message_id="",
+
+        stream=0,
+
+    )
+
+    chat_response = conversation_client.chat(chat_request)
+
+    print(chat_response)
+
+
+
+    # 关闭客户端连接
+
+    conversation_client.close()
+
+else:
+
+    print("Failed to create agent.")
+
+    agent_client.close()
+
+
+通过以上文档和示例代码，您可以快速上手使用 TongAgents SDK 进行 Agent 管理和对话管理。如有更多问题，请参考相关 API 文档或联系技术支持。 通过以上文档和示例代码，您可以快速上手使用 TongAgents SDK 进行 Agent 管理和对话管理。如有更多问题，请参考相关 API 文档或联系技术支持。

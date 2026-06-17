@@ -1,0 +1,124 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/features/agents/executor/?q=
+================================================================================
+
+Judy Executor¶
+
+Judy 的 Executor 负责执行 Planner 生成的计划，调用各种工具完成具体任务。
+
+概述¶
+
+Executor 是 Judy 多智能体系统的执行引擎，负责协调各个子任务的执行。
+
+位置¶
+tong-cell/judy/packages/judy-core/src/judy_core/agents/executor.py
+
+功能¶
+任务执行：按计划执行各个子任务
+工具调用：调用内置和自定义工具
+状态管理：管理执行状态和中间结果
+错误处理：处理执行过程中的错误
+结果汇总：汇总各子任务结果
+类定义¶
+from judy_core.agents import ExecutorAgent, ExecutionPlan
+
+
+
+class ExecutorAgent:
+
+    def __init__(self, config: ExecutorConfig):
+
+        self.tools = config.tools
+
+        self.max_concurrent = config.max_concurrent
+
+
+
+    async def execute(self, plan: ExecutionPlan) -> ExecutionResult:
+
+        """执行计划"""
+
+        results = []
+
+
+
+        for subtask in plan.subtasks:
+
+            # 选择合适的工具
+
+            tool = self.select_tool(subtask)
+
+
+
+            # 执行子任务
+
+            result = await tool.run(subtask)
+
+
+
+            # 检查是否需要验证
+
+            if subtask.needs_verification:
+
+                verified = await self.verify(result)
+
+                if not verified:
+
+                    # 重试或调整
+
+                    result = await self.retry(subtask)
+
+
+
+            results.append(result)
+
+
+
+        return ExecutionResult(results=results)
+
+
+
+    def select_tool(self, subtask):
+
+        """选择执行工具"""
+
+        pass
+
+执行模式¶
+模式	说明
+sequential	顺序执行
+parallel	并行执行
+pipeline	流水线执行
+配置参数¶
+参数	说明	默认值
+max_concurrent	最大并发数	5
+timeout	单任务超时	30s
+retry_count	重试次数	2
+工具集成¶
+
+Executor 可以调用多种工具：
+
+config = ExecutorConfig(
+
+    tools=[
+
+        LLMCallTool(),
+
+        CodeExecutionTool(),
+
+        SearchTool(),
+
+        WebFetchTool(),
+
+        FileTool(),
+
+        CustomTool()
+
+    ]
+
+)
+
+与 Planner/Verifier 协作¶
+Planner → 生成计划 → Executor → 执行子任务 → Verifier → 验证结果
+
+下一步¶
+Verifier →

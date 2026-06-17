@@ -1,0 +1,1006 @@
+--- PAGE 1 ---
+OpenMOSS
+AgentLongBench: A Controllable Long Benchmark For
+Long-Contexts Agents via Environment Rollouts
+Shicheng Fang1,2 Yuxin Wang1 Xiaoran Liu1,2 Jiahao Lu1,2
+Chuanyuan Tan3 Xinchi Chen1 Yining Zheng1,† Xuanjing Huang1
+Xipeng Qiu1,2,†
+1Fudan University 2Shanghai Innovation Institute 3Soochow University
+Abstract
+The evolution of Large Language Models (LLMs) into autonomous agents necessitates the manage-
+ment of extensive, dynamic contexts. Current benchmarks, however, remain largely static, relying on
+passive retrieval tasks that fail to simulate the complexities of agent-environment interaction, such as
+non-linear reasoning and iterative feedback. T o address this, we introduce AgentLongBench, which
+evaluates agents through simulated environment rollouts based on Lateral Thinking Puzzles. This
+framework generates rigorous interaction trajectories across knowledge-intensive and knowledge-
+free scenarios. Experiments with state-of-the-art models and memory systems (32K to 4M tokens)
+expose a critical weakness: while adept at static retrieval, agents struggle with the dynamic infor-
+mation synthesis essential for workflows. Our analysis indicates that this degradation is driven by
+the minimum number of tokens required to resolve a query. This factor explains why the high in-
+formation density inherent in massive tool responses poses a significantly greater challenge than the
+memory fragmentation typical of long-turn dialogues.
+Correspondence: scfang25@m.fudan.edu.cn, ynzheng@fudan.edu.cn, xpqiu@fudan.edu.cn
+Repository: https://github.com/euReKa025/AgentLongBench
+Benchmark: https://huggingface.co/datasets/ign1s/AgentLongBench
+1 Introduction
+The rapid evolution of Large Language Models (LLMs) from static chatbots to autonomous agents demands
+capabilities that extend far beyond simple conversation. Agents must synthesize vast amounts of histori-
+cal information to execute complex workflows; failure to do so leads to fragmented reasoning, hallucina-
+tions, and planning errors. Although the community has actively expanded context windows and devel-
+oped retrieval-augmented architectures, evaluation frameworks remain disproportionately focused on pas-
+sive reading comprehension.
+Prevalent benchmarks still prioritize static retrieval, often asking models to locate isolated facts within arti-
+ficially concatenated documents. This paradigm misses the core of agentic behavior. Real-world problem
+solving involves dynamic tool usage and non-linear reasoning, creating a context that evolves based on the
+agent’s own decisions. Unlike the static User-AI dialogues found in current datasets, autonomous opera-
+1
+arXiv:2601.20730v3  [cs.CL]  30 Jan 2026
+
+--- PAGE 2 ---
+Figure 1 The distribution of distinct question types under the Knowledge-Intensive setting with Concise-Response format-
+ting in our dataset.
+tions generate unique AI-Environment trajectories. These scenarios demand active state tracking through
+iterative feedback loops, a challenge that fixed, human-authored texts fail to capture.
+Max LengthEvolving ContextKnowledge-FreeDet. Ground TruthState TrackingT ool Use LogsControllability
+NeedleBench[37] 128K 8 4 4 8 8 8
+BABILong[34] 10M 8 8 4 8 8 8
+L V-Eval[77] 256K 8 8 8 8 8 8
+RULER[25] 128K 8 4 4 4 8 4
+L-Eval[4] 200K 8 8 8 8 8 8
+Michelangelo[58] 128K 4 4 4 4 8 4
+Loong[63] 250K 8 8 8 8 8 8
+BAMBOO[15] 16K 8 8 4 8 8 8
+∞-Bench[78] 200K 8 8 4 4 8 8
+LooGLE[36] 80K 8 8 8 8 8 8
+NoCha[31] 336K 8 8 4 8 8 8
+LongBenchV2[7] 128K 8 8 4 8 8 8
+MRCR(OpenAI)[49] 1M 8 8 4 8 8 8
+NoLiMa[48] 32K 8 8 4 8 8 8
+HELMET[74] 128K 8 8 8 8 8 8
+LIFBENCH[65] 128K 8 4 4 8 8 8
+LongBioBench[72] 128K 8 8 4 8 8 4
+LooGLE V2[23] 2M 4 8 4 4 8 8
+LocoMo[47] 16K 4 8 4 4 8 8
+LongMemEval[24] 2M 8 8 8 4 8 8
+MemoryAgentBench[26] 2M 8 8 4 4 8 8
+AgentLongBench (ours)∞(4M) 4 4 4 4 4 4
+Table 1 Comparison of long-context benchmarks. Our published dataset ends at 4M.
+We introduce AgentLongBench to evaluate agents through rigorous environment rollouts. True agentic ca-
+pabilities emerge within evolving contexts that mirror the causality of real-world workflows, rather than in
+static reading comprehension tasks. Consequently , our setting forces agents to parse high-density , machine-
+generated tool logs instead of natural text distractors, requiring precise state tracking to manage dynamic
+information updates. T o guarantee validity , we rely on deterministic ground truth derived from the environ-
+mentns logic and incorporate a Knowledge-Free setting to eliminate parametric memory bias. Furthermore,
+the framework emphasizes controllability and extensibility [ 72] to facilitate fine-grained diagnosis of failure
+modes. The benchmark comprises 8 tasks in each setting. Figure 1 illustrates the representative task dis-
+tribution, and we provide full statistics for all settings in Appendix B. Table 1 contrasts our approach with
+prior benchmarks, highlighting how AgentLongBench uniquely targets the requirements of autonomous
+operation. A comprehensive review of these related works is available in Appendix 5.
+In summary , the main contributions of our work are as follows:
+• We introduce AgentLongBench, a controllable benchmark built on simulated environment rollouts
+2
+
+--- PAGE 3 ---
+Figure 2 Overview of the Data Construction Pipeline for AgentLongBench. The dataset is constructed by simulating
+Environment Rollouts (T op), which capture the iterative interaction logs between an LLM agent, tools, and environmen-
+tal feedback. These trajectories are then used to derive three categories of QA tasks (Left): QA in T ool Response, QA in
+Environment Response, and Final Guess. The construction process incorporates two data settings (Right T op) to distin-
+guish between Knowledge-Intensive and Knowledge-Free scenarios, and two tool response formats (Right Bottom)iConcise
+vs. V erboseito simulate different context densities and noise levels.
+that generates dynamic interaction trajectories for evaluating long-horizon consistency and planning.
+• We propose a comprehensive evaluation taxonomy with32 distinct question types, spanning 2 settings,
+2 interaction formats, and 8 tasks, and covering context lengths from 32K to 4M tokens , with 800
+samples in each length.
+• Through extensive evaluations on state-of-the-art LLMs and memory frameworks, we reveal funda-
+mental failure modes in long-horizon agentic reasoning: (i) a strong reliance on parametric knowledge
+in Knowledge-Free settings; (ii) a trade-off between long-turn interaction trajectories and dense single-
+turn outputs; and (iii) a substantially higher reasoning burden for high-density tool logs, captured by
+the notion of a minimum token requirement.
+3
+
+--- PAGE 4 ---
+2 AgentLongBench
+AgentLongBench shifts the evaluation paradigm from static text processing to dynamic interaction through
+simulated environment rollouts, with an overview shown in Figure 2. Instead of relying on concatenated
+documents, this framework captures the continuous exchange between an agent and a reactive system. By
+simulating the temporal evolution of context, we preserve the causal dependencies inherent in real-world
+applications, which are often lost in static reading comprehension tasks.
+The foundation of this framework is a Lateral Thinking Puzzle environment [ 2], selected for its rigorous
+demands on iterative inquiry and logical deduction. As the agent hypothesizes and receives feedback, the
+context expands procedurally based on the environment’s deterministic rules. This generation mechanism
+ensures that the resulting long-context trajectories are verifiable and logically consistent, avoiding the arti-
+facts common in benchmarks constructed via arbitrary document insertion.
+We structure the benchmark around two orthogonal dimensions, creating four distinct experimental config-
+urations. T o decouple reasoning skills from parametric memory , the first dimension contrasts Knowledge-
+Intensive with Knowledge-Free scenarios. Simultaneously , we examine the trade-off between temporal span
+and information density by varying the interaction format between Concise responses and Verbose responses.
+This cross-dimensional design ensures that performance degradation can be traced directly to either memory
+retention failures or information overload.
+2.1 Lateral Thinking Puzzle Environment
+The core testbed utilizes Lateral Thinking Puzzles, where agents must reconstruct a hidden state by satisfying
+a series of logical constraints. This iterative inquiry process contrasts sharply with static QA, serving as a
+rigorous proxy for the complex, investigative workflows typical of autonomous agents.
+2.1.1 Puzzle Formulation
+We formulate the puzzle as a target identification process under a closed-world assumption. The environ-
+ment initializes a finite set of items, each defined by a unique vector of attributes ranging from categorical
+properties (e.g., T ype, Abilities) to numerical statistics. One item is designated as the hidden target. In the
+Knowledge-Intensive setting, we instantiate this item set using the Pokémon[ 1] dataset (pre-July 2025), en-
+suring that no two items share identical attribute profiles. The agent operates as an investigator, engaging in
+a goal-oriented dialogue to bridge the information gap between its current belief state and the ground truth.
+The puzzle unfolds as the agent continuously queries the environment to isolate the target.
+2.1.2 Environment Response
+The environment functions as a deterministic oracle that holds the ground truth. T o simulate rigorous agen-
+tic constraints, it parses natural language inquiries and returns precise feedback rather than open-ended
+narrative descriptions. Responses are typically limited to binary validation (Yes/No) or relational opera-
+tors for numeric values. Crucially , upon an incorrect guess, the environment generates a comprehensive
+attribute-wise evaluation. It returns the full profile of the hypothesized item, explicitly annotating the re-
+lationship between each attribute and the ground truth iconfirming categorical matches while providing
+directional constraints for numerical discrepancies. This feedback mechanism enforces strict state tracking,
+as the agent must update its history of valid constraints to iteratively narrow the search space.
+2.1.3 Tool Response
+Beyond direct interaction with the environment, the agent is equipped with auxiliary tools to aid in state
+refinement. The T ool Response represents the output from these external function calls. We provide two
+search tools corresponding to the two formatting strategies described in Section 2.3.2. The context generated
+here differs from the Environment Response; it often contains structured, noisy , or verbose text that the agent
+must parse, filter, and integrate into its working memory.
+4
+
+--- PAGE 5 ---
+2.2 Data Construction
+The dataset is constructed through automated environment rollouts governed by a rule-based simulation.
+The generation process begins with the random selection of an initial item to trigger the feedback loop. For
+subsequent rounds, we generate a sequence of [T ool use, T ool Response, Guess, Environment Response] for
+each interaction step. T o achieve scalable context lengths, we parametrically adjust the granularity of puzzle
+constraints or sequentially chain related interaction sessions. This methodology ensures that the expanded
+context remains causally linked and logically coherent, avoiding the disjointed nature of random document
+concatenation.
+2.3 Task Description
+We decompose the evaluation into specific cognitive dimensions to pinpoint the mechanisms of agentic fail-
+ure.
+2.3.1 Two Settings
+We differentiate the evaluation based on the semantic nature of the information processed. The Knowledge-
+Intensive setting constructs trajectories using real-world entities, instantiated here with the Pokémon dataset.
+Although the evaluation answers are theoretically derivable solely from the context history , the presence of
+familiar entities triggers the model’s parametric memory. This design mimics realistic domain-specific tasks
+where models may hallucinate based on prior knowledgeisuch as predicting a type based on a name rather
+than tool output ior conversely , benefit from domain familiarity.
+T o rigorously evaluate pure in-context reasoning, we employ a Knowledge-Free setting via fully symbolic
+masking. Unlike previous benchmarks that merely perform entity substitution (e.g., changing ”Newton” to
+”John”) while retaining semantic structures, we map all entities and attributes to abstract tokens. Specifically ,
+item names are mapped to IDs (e.g., Item_84), and attributes are mapped to abstract codes (e.g., Attr_1 with
+value A1V1). This approach eliminates semantic cues, forcing the model to rely exclusively on the logical
+constraints defined within the interaction history. This provides an unbiased measurement of state tracking
+and memory retention, free from the interference of pre-trained knowledge.
+2.3.2 Two Formats
+T o investigate how information distribution impacts performance, we apply two distinct interaction formats.
+While both are controlled to maintain comparable total context lengths, they present fundamentally different
+challenges regarding information density.
+The Concise-Response format prioritizes turns extension. Here, the tool returns only the pre-calculated
+intersection of candidate items that satisfy the queried attributes.T o accumulate a total context length com-
+parable to the Verbose format, this setting involves a massive number of interaction turns (e.g., hundreds
+of rounds). This design evaluates whether agents can maintain consistent state tracking over hundreds of
+rounds without losing early constraints.
+Conversely , theVerbose-Response format tests the capacity to handle information overload. In this setting,
+tools return full, unfiltered candidate lists for each queried attribute. A query for three attributes results in
+three extensive lists, creating a trajectory with fewer turns but high-density blocks of structured text. The
+agent is thus forced to perform logical intersections internally and extract key information from massive,
+noisy inputs within a single step.
+2.3.3 Task Taxonomy
+T o pinpoint the specific cognitive mechanisms behind agentic failures, we classify the eight tasks into three
+dimensions (visualized in Figure 2; see Appendix D for detailed definitions).
+5
+
+--- PAGE 6 ---
+Figure 3 Main Results on Knowledge-Intensive & Concise-Response Setting. The heatmap visualizes model performance
+across varying context lengths (32K to 2M). Green indicates higher accuracy.
+QA in Tool Response evaluates the robustness of parsing machine-generated logs. Tasks such as Find Dupli-
+cates measure the ability to extract precise details from structured noise, explicitly testing resilience against
+information overload.
+QA in Environment Response targets the capacity to track evolving states and interpret historical feedback
+constraints, exemplified by the Weighted Summation task. This dimension assesses how well an agent main-
+tains a coherent belief state across long, iterative interactions, isolating the impact of memory fragmentation.
+Final Guess (Intersection) serves as the ultimate test of global understanding. It requires the agent to per-
+form logical set operations across the entire context trajectory to deduce the target, thereby integrating re-
+trieval with deductive reasoning.
+This dimensional breakdown allows us to distinguish whether performance degradation stems from local
+retrieval errors, calculation deficits, or a fundamental breakdown in logical consistency.
+3 Experiments
+3.1 Implementations
+We evaluate a diverse array of state-of-the-art Large Language Models (LLMs), encompassing both propri-
+etary and open-weight systems. On the proprietary front, our analysis includes GPT-4.1 [ 49], Gemini-2.5-
+6
+
+--- PAGE 7 ---
+Figure 4 Main Results on Knowledge-Free & Concise-Response Setting.
+Flash [12], Claude-Sonnet-4.5 [ 5], and Grok-4.1 [ 66]. These models are generally assessed at context lengths
+up to 1M tokens, with the exception of Grok-4.1, which is evaluated up to 2M tokens. For open-source
+models, we select representative long-context checkpoints, including DeepSeek-V3.2 [ 42], the Qwen series
+(specifically Qwen2.5-7/14B [71] and Qwen3-30B-A3B [ 70]), QwenLong-L1.5-30B-A3B [55], and GLM-4-9B-
+Chat-1M [18].
+Beyond native long-context models, we also benchmark external memory architectures. We implement stan-
+dard RAG [ 35] alongside specialized agentic memory systems such as A-Mem [ 68], Mem0 [ 11], and Mem-
+oryOS [ 30]. T o control for reasoning variance and isolate the contribution of the memory mechanism, all
+such frameworks employ Qwen3-30B-A3B-Instruct-2507 as a unified backbone.For reproducibility , we ad-
+here to standard public configurations for these frameworks, with full implementation details provided in
+Appendix E.
+3.2 Main Evaluation Results
+Here, we present the performance heatmaps for all settings from Figures 3 to 6.
+Model Performance across Context Lengths. Figure 7 reveals a distinct performance gap between propri-
+etary frontiers and open-weight models (see Figures 3 and 4 for detailed heatmaps). Grok-4.1 demonstrates
+remarkable resilience, maintaining scores above 50.0 even as the context extends to 2M tokens. Conversely ,
+while Gemini-2.5-Flash and GPT-4.1 display strong initial reasoning, their performance decays significantly
+beyond the 256k token threshold, dropping below 40.0 and 30.0 respectively at 1M tokens. Open-source
+7
+
+--- PAGE 8 ---
+Figure 5 Main Results on Knowledge-Intensive & Verbose-Response Setting.
+models face an even steeper challenge: despite architectural improvements in DeepSeek-V3.2 and the Qwen3
+series, aggregated performance starts at a lower baseline and degrades to negligible levels by 1M tokens.
+High-Precision Task Constraints. This degradation is particularly acute in tasks requiring strict positional
+awareness, such as Find Target Offsets. Unlike semantic retrieval questions where approximate matches often
+suffice, these tasks demand that the agent precisely locate specific indices within dense, machine-generated
+logs. A single hallucinated offset or a missed entry in the history breaks the necessary logical chain. This
+zero-tolerance for errors explains why this task performs poorly.
+Inefficacy of Memory Augmentation. T urning to external memory mechanisms (Figure 8), the results are
+counter-intuitive: specialized frameworks fail to improve upon the standalone Qwen3-30B-A3B-Instruct
+backbone. The base model consistently outperforms memory-augmented variants across most context lengths.
+Although MemoryOS achieves a marginal lead at short contexts (32k), it succumbs to rapid degradation as
+the interaction history grows, eventually falling behind the native context window. Standard RAG remains
+stable but plateaus at a significantly lower performance level.
+These shortcomings likely stem from a misalignment between agentic data and retrieval logic. Agentic work-
+flows generate highly structured tool outputs (e.g., JSON arrays) that confound generic extractors, which
+frequently introduce bias or fail to retrieve the complete set of constraints. Moreover, the process of com-
+pressing history into summaries or vector indices is fundamentally at odds with the requirements of lateral
+8
+
+--- PAGE 9 ---
+Figure 6 Main Results on Knowledge-Free & Verbose-Response Setting.
+thinking puzzles. Since every historical constraint acts as a necessary premise for deduction, the ”lossy”
+retrieval typical of RAG and memory agents severs the logical dependencies required to solve the puzzle,
+resulting in the observed deficit compared to full-context processing.
+4 Analysis
+This section analyzes the experimental results with an eye toward concrete failure modes. We organize the
+discussion around the three research questions in Section 2.3.
+4.1 Knowledge-Intensive vs. Knowledge-Free
+We first contrast the Knowledge-Intensive and Knowledge-Free settings (Figure 3 and Figure 4). A clear example
+is the Intersection task. In the Knowledge-Intensive setting, models achieve non-trivial accuracy at shorter
+contexts (e.g., GPT-4.1 reaches roughly 30–40%). In the Knowledge-Free setting, the same task drops to near-
+zero performance for nearly all models, including the strongest ones.
+This gap suggests that the Knowledge-Intensive setting allows models to lean on parametric associations
+between familiar entities and attributes, which can partially substitute for the explicit set operations re-
+quired by the context. When those semantic cues are removed, models must rely almost entirely on sym-
+bolic state tracking over the interaction history , where performance deteriorates sharply. In other words,
+the Knowledge-Free setting exposes a weakness in maintaining and updating discrete logical states under
+9
+
+--- PAGE 10 ---
+Figure 7 Average score trends across context lengths. Per-
+formance comparison of Proprietary models, aggregated
+Open-Source models, and Memory Frameworks.
+Figure 8 Comparison of Memory Frameworks vs. Base
+Model. Evaluation of RAG and specialized memory
+agents on the Qwen3-30B backbone.
+long-horizon interaction.
+4.2 Concise-Response vs. Verbose-Response
+We analyze how the response format reshapes difficulty by comparing theConcise-Response setting (Figure 3)
+with the V erbose-Responsesetting (Figure 5). The key difference is not simply whether responses are “more
+informative,” but how information that is irrelevant to the queried target is distributed across an episode.
+For tasks that query Environment Response (e.g., Count Frequency (Env) ), the Verbose format often yields
+higher accuracy. This improvement does not come from richer tool outputs—the tool content is largely in-
+cidental for these queries. Instead, verbose responses reduce the number of interaction turns. Under the
+concise format, episodes become much longer, and the model must maintain the evolving state across many
+steps even though most tool-return tokens are not needed for answering. This makes long-horizon state
+tracking the dominant bottleneck, and performance degrades accordingly.
+The trend reverses for tasks that query T ool Response(e.g., Find Duplicates). Here the tool-return content is
+the evidence. The Verbose format concentrates a large amount of machine-generated text into fewer turns,
+which increases the density of distractors and the cost of locating the relevant fields within a single response.
+In contrast, the Concise format spreads tool outputs across more turns, but each turn is smaller and easier
+to scan, which can make evidence localization and comparison more manageable for these tasks.
+Overall, the two formats trade off where the difficulty lies: Concise increases episode length and long-range
+state maintenance, while Verbose increases within-turn density when the answer must be extracted from
+tool logs.
+4.3 Environment Response vs. Tool Response and Adequate Context Length
+Across all four settings, we observe a consistent gap between tasks that query T ool Response and those
+that query Environment Response. In Figure 3, tool-response tasks (top row) are uniformly harder than
+environment-response tasks (bottom row), even when the total context length is matched.
+T o account for this gap, we introduce Adequate Context Length (ACL) . ACL is a property of the input
+trajectory: it measures how many tokens a model must traverse to locate and assemble the evidence needed
+for a single query. Importantly , ACL is computed from the episode text alone and does not depend on model
+outputs or prediction correctness.
+10
+
+--- PAGE 11 ---
+For environment-response tasks such as Count Frequency (Env), models generally favor the Verbose format.
+This advantage stems from the experimental design rather than the content itself: Verbose trajectories in-
+herently comprise significantly fewer interaction steps than their Concise counterparts. Crucially , since the
+answers to these tasks are derived solely from environmental feedback, the voluminous tool outputs in the
+Verbose format serve merely as distractors which do not aid reasoning. The results suggest that models find
+it easier to bypass this dense, irrelevant noise within a single turn than to maintain a coherent state across
+the hundreds of fragmented turns characteristic of the Concise format.
+The pattern reverses for tasks that query tool logs, such as QA in T ool Response (e.g., Find Duplicates). Here,
+Verbose responses often hurt. Consolidating tool outputs into a single turn yields long, dense, machine-
+generated text where relevant fields are mixed with large amounts of irrelevant structure. This creates infor-
+mation overload: the model must extract and align specific values from the verbose block.
+Table 2 quantifies this difference. Even with identical total context lengths, tool-response tasks impose a
+much larger ACL, which increases the difficulty of evidence localization and aggregation and is associated
+with substantially lower accuracy.
+Format Query target ACL (tokens) Acc.(128k)
+Concise Env response 2044.1 47.3%
+T ool response 3040.8 36.0%
+Verbose Env response 535.8 68.2%
+T ool response 11439.6 25.3%
+Table 2 Performance and adequate context length. We report GPT-4.1 accuracy at a 128k context window. ACL is
+measured in tokens and computed from the input trajectory only , independent of model outputs. Within each format,
+tool-response queries have substantially larger ACL and lower accuracy than environment-response queries, consistent
+with the intuition that evidence localization becomes harder as the required span grows.
+5 Related works
+Benchmarks for Long Contexts. The evaluation of long-context LLMs has evolved from adapting traditional
+NLP tasks to designing complex, synthetic reasoning scenarios. However, the majority of these efforts focus
+on the static context with no close relation with one target, showing less reality in agent scenerios..
+General Understanding and Retrieval. Initial benchmarks, such as [53, 54] and [6], established the foundation by
+aggregating datasets like NarrativeQA [ 33] and GovReport [ 27]. These were further standardized by suites
+like L-Eval [ 4] and LongBenchV2 [ 7] to assess general capabilities across varying lengths. A major focus
+has been strictly testing retrieval limits, popularized by the ”Needle-In-A-Haystack” paradigm [ 29]. This
+approach has expanded into comprehensive suites like RULER [ 25] and NeedleBench [ 37], covering multi-
+needle retrieval [ 49, 52], citation evaluation [ 40, 74], and instruction following stability [ 65]. Recent studies
+have also utilized these setups to investigate phenomena like ”Lost-In-the-Middle” [ 19, 44] and the impact
+of demonstration quality in long in-context learning [ 3, 8, 28, 38, 61].
+Reasoning, Logic, and Domain Specifics. T o evaluate deeper cognitive functions beyond passive retrieval, re-
+cent works have introduced tasks requiring logic, mathematics, and code understanding. ∞-Bench [ 78]
+and BAMBOO [15] target complex reasoning across diverse domains, while others focus on repository-level
+code [43] and mathematical noise filtering [62]. A critical direction involves testing long-range dependencies
+and robustness. Benchmarks like LooGLE [23, 36] and BABILong [34] challenge models to trace multi-hop ev-
+idence or comprehend native long texts such as novels [60, 69, 73]. Concurrently , works like L V-Eval [77] and
+NoCha [31] probe model robustness against confounding facts. Other efforts emphasize data synthesis and
+controllability: Michelangelo [ 58] and HoloBench [ 46] test structure discernment, while Ada-LEval [ 59] and
+LongBioBench [ 72] utilize generated content to decouple reasoning from parametric memory. Loong [ 63]
+further pushes density by ensuring every document is crucial.
+11
+
+--- PAGE 12 ---
+Agentic and Memory Evaluations. As LLMs evolve into agents, evaluating their ability to maintain history is
+critical. LocoMo [ 47] and LongMemEval [ 24] assess memory retention across long conversational histories,
+while MemoryAgentBench [26] reconstructs long benches and focuses on memory recall accuracy.
+Long LLMs. Recent advancements in large language models have substantially extended their context win-
+dow , with state-of-the-art models claiming to support up to 128K or even 2M tokens [ 5, 12, 20, 41, 49,
+66]. Meanwhile, various efforts have been made to extend models’ context length and enhance their long-
+dependency capabilities. These include more efficient attention mechanisms [ 13, 67, 76], scalable training
+strategies such as test-time training and parameter-efficient fine-tuning [ 10, 57], and length-extrapolatable
+positional encodings [14, 51, 56]. T ogether, these innovations reduce computational overhead while preserv-
+ing the modelns ability to retain distant information, thus enabling more effective reasoning over extended
+contexts.
+RAG and Memory Systems. The concept of augmenting language models with external knowledge retrieval
+has gained significant traction. Early work on Dense Passage Retrieval (DPR) [32] demonstrated the effective-
+ness of dense vector representations, leading to the proposal of Retrieval-Augmented Generation (RAG) [35]
+and subsequent developments [17, 39]. T o enhance retrieval quality , LightRAG [21] employs a dual-level sys-
+tem, while structure-based methods like GraphRAG [ 16] and others [ 9, 22, 45] utilize fine-grained entities
+or links. Agentic Memory Agents introduce an iterative, decision-driven framework. Unlike single-pass
+retrieval, these agents dynamically process queries through multiple reasoning cycles. Examples include
+MemGPT [50] and other recent systems [ 11, 30, 64, 68, 75, 79].
+6 Conclusion
+We introduced AgentLongBench, a long-context benchmark built around agent–environment interaction
+rather than static document retrieval. Using automated rollouts, AgentLongBench generates verifiable tra-
+jectories at scale and supports evaluation over extended horizons.
+Experiments on frontier LLMs and memory-augmented agents reveal a sharp drop in accuracy as episodes
+grow longer and tool use becomes more involved. The failures are not explained by context length alone.
+Models often rely on parametric shortcuts when semantic cues are available, but struggle when they must
+track and update discrete states over many steps. They also degrade when the answer is embedded in dense
+tool logs, where extracting and aligning the relevant fields becomes difficult even at the same total context
+length. Overall, current RAG and memory mechanisms do not reliably support long-horizon state track-
+ing and high-ACL evidence localization, suggesting that robust tool-grounded reasoning remains an open
+bottleneck for long-context agents.
+12
+
+--- PAGE 13 ---
+References
+[1] Pokemon wikipedia. URL https://en.wikipedia.org/wiki/Pok%C3%A9mon.
+[2] Oxford english dictionary: Lateral thinking, 2016.
+[3] Rishabh Agarwal, Avi Singh, Lei M Zhang, Bernd Bohnet, Luis Rosias, Stephanie CY Chan, Biao Zhang, Aleksandra
+Faust, and Hugo Larochelle. Many-shot in-context learning. In ICML 2024 Workshop on In-Context Learning, 2024.
+[4] Chenxin An, Shansan Gong, Ming Zhong, Xingjian Zhao, Mukai Li, Jun Zhang, Lingpeng Kong, and Xipeng Qiu.
+L-eval: Instituting standardized evaluation for long context language models. In Proceedings of the 62nd Annual
+Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 14388–14411, 2024.
+[5] Anthropic. Introducing claude sonnet 4.5, 2025. URL https://www.anthropic.com/news/claude-sonnet-4-5l .
+[6] Yushi Bai, Xin Lv , Jiajie Zhang, Hongchang Lyu, Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan
+Zeng, Lei Hou, et al. Longbench: A bilingual, multitask benchmark for long context understanding. arXiv preprint
+arXiv:2308.14508, 2023.
+[7] Yushi Bai, Shangqing T u, Jiajie Zhang, Hao Peng, Xiaozhi Wang, Xin Lv , Shulin Cao, Jiazheng Xu, Lei Hou, Yuxiao
+Dong, Jie Tang, and Juanzi Li. Longbench v2: T owards deeper understanding and reasoning on realistic long-
+context multitasks. arXiv preprint arXiv:2412.15204, 2024. URL https://arxiv.org/abs/2412.15204.
+[8] Amanda Bertsch, Maor Ivgi, Uri Alon, Jonathan Berant, Matthew R Gormley , and Graham Neubig. In-context
+learning with long-context models: An in-depth exploration. arXiv preprint arXiv:2405.00200, 2024.
+[9] Boyu Chen, Zirui Guo, Zidan Yang, Yuluo Chen, Junze Chen, Zhenghao Liu, Chuan Shi, and Cheng Yang. Pathrag:
+Pruning graph-based retrieval augmented generation with relational paths, 2025. URL https://arxiv.org/abs/
+2502.14902.
+[10] Yukang Chen, Shengju Qian, Haotian Tang, Xin Lai, Zhĳian Liu, Song Han, and Jiaya Jia. Longlora: Efficient fine-
+tuning of long-context large language models. arXiv preprint arXiv:2309.12307, 2023.
+[11] Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav . Mem0: Building production-ready
+ai agents with scalable long-term memory , 2025. URL https://arxiv.org/abs/2504.19413.
+[12] Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit Dhillon, Marcel Blis-
+tein, Ori Ram, Dan Zhang, Evan Rosen, et al. Gemini 2.5: Pushing the frontier with advanced reasoning, multi-
+modality , long context, and next generation agentic capabilities. arXiv preprint arXiv:2507.06261, 2025.
+[13] Tri Dao. Flashattention-2: Faster attention with better parallelism and work partitioning. arXiv preprint
+arXiv:2307.08691, 2023.
+[14] Yiran Ding, Li Lyna Zhang, Chengruidong Zhang, Yuanyuan Xu, Ning Shang, Jiahang Xu, Fan Yang, and Mao Yang.
+Longrope: Extending llm context window beyond 2 million tokens. arXiv preprint arXiv:2402.13753, 2024.
+[15] Zican Dong, Tianyi Tang, Junyi Li, Wayne Xin Zhao, and Ji-Rong Wen. Bamboo: A comprehensive benchmark for
+evaluating long text modeling capacities of large language models. In Proceedings of the 2024 Joint International
+Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024), pages 2086–
+2099, 2024.
+[16] Darren Edge, Ha Trinh, Newman Cheng, Joshua Bradley , Alex Chao, Apurva Mody , Steven Truitt, Dasha Metropoli-
+tansky , Robert Osazuwa Ness, and Jonathan Larson. From local to global: A graph rag approach to query-focused
+summarization, 2025. URL https://arxiv.org/abs/2404.16130.
+[17] Tianyu Gao, Howard Yen, Jiatong Yu, and Danqi Chen. Enabling large language models to generate text with
+citations. In Empirical Methods in Natural Language Processing (EMNLP), 2023.
+[18] Team GLM, Aohan Zeng, Bin Xu, Bowen Wang, Chenhui Zhang, Da Yin, Dan Zhang, Diego Rojas, Guanyu Feng,
+Hanlin Zhao, et al. Chatglm: A family of large language models from glm-130b to glm-4 all tools. arXiv preprint
+arXiv:2406.12793, 2024.
+13
+
+--- PAGE 14 ---
+[19] Omer Goldman, Alon Jacovi, Aviv Slobodkin, Aviya Maimon, Ido Dagan, and Reut Tsarfaty. Is it really long context
+if all you need is retrieval? towards genuinely difficult long context nlp. In Proceedings of the 2024 Conference on
+Empirical Methods in Natural Language Processing, pages 16576–16586, 2024.
+[20] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi
+Wang, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv
+preprint arXiv:2501.12948, 2025.
+[21] Zirui Guo, Lianghao Xia, Yanhua Yu, T u Ao, and Chao Huang. Lightrag: Simple and fast retrieval-augmented
+generation, 2025. URL https://arxiv.org/abs/2410.05779.
+[22] Bernal Jiménez Gutiérrez, Yiheng Shu, Weĳian Qi, Sizhe Zhou, and Yu Su. From rag to memory: Non-parametric
+continual learning for large language models, 2025. URL https://arxiv.org/abs/2502.14802.
+[23] Ziyuan He, Yuxuan Wang, Jiaqi Li, Kexin Liang, and Muhan Zhang. Loogle v2: Are llms ready for real world long
+dependency challenges? arXiv preprint arXiv:2510.22548, 2025.
+[24] Pedram Hosseini, Jessica M Sin, Bing Ren, Bryceton G Thomas, Elnaz Nouri, Ali Farahanchi, and Saeed Hassan-
+pour. A benchmark for long-form medical question answering. In Advancements In Medical Foundation Models:
+Explainability ,Robustness, Security ,and Beyond, 2024.
+[25] Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shantanu Acharya, Dima Rekesh, Fei Jia, and Boris Ginsburg.
+Ruler: What ns the real context size of your long-context language models? In First Conference on Language
+Modeling. URL https://openreview.net/forum?id=kIoBbc76Sy#discussion.
+[26] Yuanzhe Hu, Yu Wang, and Julian McAuley. Evaluating memory in llm agents via incremental multi-turn interac-
+tions. arXiv preprint arXiv:2507.05257, 2025.
+[27] Luyang Huang, Shuyang Cao, Nikolaus Parulian, Heng Ji, and Lu Wang. Efficient attentions for long document
+summarization. In Proceedings of the 2021 Conference of the North American Chapter of the Association for
+Computational Linguistics: Human Language Technologies, pages 1419–1436, 2021.
+[28] Yan Kai, Ling Zhan, Liu Kang, Yang Yifan, Fan Ting-Han, Shen Lingfeng, Du Zhengyin, and Chen Jiecao. Mir-
+bench: Benchmarking llmns long-context intelligence via many-shot in-context inductive reasoning. arXiv preprint
+arXiv:2502.09933, 2025.
+[29] Greg Kamradt. Needle in a haystack - pressure testing llms. https://github.com/gkamradt/LLMTest_
+NeedleInAHaystack, 2023.
+[30] Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting Bai. Memory os of ai agent, 2025. URL https://arxiv.org/abs/
+2506.06326.
+[31] Marzena Karpinska, Katherine Thai, Kyle Lo, Tanya Goyal, and Mohit Iyyer. One thousand and one pairs: Aonovelp
+challenge for long-context language models. ArXiv, abs/2406.16264, 2024. URL https://arxiv.org/html/2406.
+16264v1.
+[32] Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick SH Lewis, Ledell Wu, Sergey Edunov , Danqi Chen, and
+Wen-tau Yih. Dense passage retrieval for open-domain question answering. In EMNLP (1), pages 6769–6781, 2020.
+[33] T omáš Kočiskỳ, Jonathan Schwarz, Phil Blunsom, Chris Dyer, Karl Moritz Hermann, Gábor Melis, and Edward
+Grefenstette. The narrativeqa reading comprehension challenge. Transactions of the Association for Computational
+Linguistics, 6:317–328, 2018.
+[34] Yuri Kuratov , Aydar Bulatov , Petr Anokhin, Ivan Rodkin, Dmitry Sorokin, Artyom Sorokin, and Mikhail Burtsev .
+Babilong: Testing the limits of llms with long context reasoning-in-a-haystack. In A. Globerson, L. Mackey , D. Bel-
+grave, A. Fan, U. Paquet, J. T omczak, and C. Zhang, editors, Advances in Neural Information Processing Systems,
+volume 37, pages 106519–106554. Curran Associates, Inc., 2024. URL https://proceedings.neurips.cc/paper_
+files/paper/2024/file/c0d62e70dbc659cc9bd44cbcf1cb652f-Paper-Datasets_and_Benchmarks_Track.pdf .
+[35] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler,
+Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. Retrieval-augmented generation for knowledge-intensive nlp tasks.
+Advances in neural information processing systems, 33:9459–9474, 2020.
+14
+
+--- PAGE 15 ---
+[36] Jiaqi Li, Mengmeng Wang, Zilong Zheng, and Muhan Zhang. Loogle: Can long-context language models under-
+stand long contexts? In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics
+(Volume 1: Long Papers), pages 16304–16333, 2024.
+[37] Mo Li, Songyang Zhang, Yunxin Liu, and Kai Chen. Needlebench: Can llms do retrieval and reasoning in 1 million
+context window? arXiv preprint arXiv:2407.11963, 2024.
+[38] Tianle Li, Ge Zhang, Quy Duc Do, Xiang Yue, and Wenhu Chen. Long-context llms struggle with long in-context
+learning. arXiv preprint arXiv:2404.02060, 2024.
+[39] Xiaonan Li, Kai Lv , Hang Yan, Tianyang Lin, Wei Zhu, Yuan Ni, Guotong Xie, Xiaoling Wang, and Xipeng Qiu.
+Unified demonstration retriever for in-context learning. In Anna Rogers, Jordan Boyd-Graber, and Naoaki Okazaki,
+editors, Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long
+Papers), pages 4644–4668, T oronto, Canada, July 2023. Association for Computational Linguistics. doi: 10.18653/
+v1/2023.acl-long.256. URL https://aclanthology.org/2023.acl-long.256/.
+[40] Yucheng Li, Huiqiang Jiang, Qianhui Wu, Xufang Luo, Surin Ahn, Chengruidong Zhang, Amir H Abdi, Dongsheng
+Li, Jianfeng Gao, Yuqing Yang, et al. Scbench: A kv cache-centric analysis of long-context methods. arXiv preprint
+arXiv:2412.10319, 2024.
+[41] Aixin Liu, Bei Feng, Bin Wang, Bingxuan Wang, Bo Liu, Chenggang Zhao, Chengqi Dengr, Chong Ruan, Damai
+Dai, Daya Guo, et al. Deepseek-v2: A strong, economical, and efficient mixture-of-experts language model. arXiv
+preprint arXiv:2405.04434, 2024.
+[42] Aixin Liu, Aoxue Mei, Bangcai Lin, Bing Xue, Bingxuan Wang, Bingzheng Xu, Bochao Wu, Bowei Zhang, Chao-
+fan Lin, Chen Dong, et al. Deepseek-v3. 2: Pushing the frontier of open large language models. arXiv preprint
+arXiv:2512.02556, 2025.
+[43] Jiawei Liu, Jia Le Tian, Vĳay Daita, Yuxiang Wei, Yifeng Ding, Yuhan Katherine Wang, Jun Yang, and Lingming
+Zhang. Repoqa: Evaluating long context code understanding. arXiv preprint arXiv:2406.06025, 2024.
+[44] Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy Liang.
+Lost in the middle: How language models use long contexts. Transactions of the Association for Computational
+Linguistics, 11:157–173, 2024.
+[45] Haoran Luo, Haihong E, Guanting Chen, Yandan Zheng, Xiaobao Wu, Yikai Guo, Qika Lin, Yu Feng, Zemin Kuang,
+Meina Song, Yifan Zhu, and Luu Anh T uan. Hypergraphrag: Retrieval-augmented generation via hypergraph-
+structured knowledge representation, 2025. URL https://arxiv.org/abs/2503.21322.
+[46] Seĳi Maekawa, Hayate Iso, and Nikita Bhutani. Holistic reasoning with long-context lms: A benchmark for database
+operations on massive textual data. arXiv preprint arXiv:2410.11996, 2024.
+[47] Adyasha Maharana, Dong-Ho Lee, Sergey T ulyakov , Mohit Bansal, Francesco Barbieri, and Yuwei Fang. Evaluating
+very long-term conversational memory of llm agents. arXiv preprint arXiv:2402.17753, 2024.
+[48] Ali Modarressi, Hanieh Deilamsalehy , Franck Dernoncourt, Trung Bui, Ryan A. Rossi, Seunghyun Yoon, and Hin-
+rich Schütze. Nolima: Long-context evaluation beyond literal matching. In Forty-second International Conference
+on Machine Learning, 2025. URL https://arxiv.org/abs/2502.05167.
+[49] OpenAI. Introducing gpt-4.1 in the api. https://openai.com/index/gpt-4-1/ , 2025.
+[50] Charles Packer, Vivian Fang, Shishir_G Patil, Kevin Lin, Sarah Wooders, and Joseph_E Gonzalez. Memgpt: T owards
+llms as operating systems. 2023.
+[51] Bowen Peng, Jeffrey Quesnelle, Honglu Fan, and Enrico Shippole. Yarn: Efficient context window extension of large
+language models. In The T welfthInternational Conference on Learning Representations, 2024.
+[52] Machel Reid, Nikolay Savinov , Denis Teplyashin, Dmitry Lepikhin, Timothy Lillicrap, Jean-baptiste Alayrac, Radu
+Soricut, Angeliki Lazaridou, Orhan Firat, Julian Schrittwieser, et al. Gemini 1.5: Unlocking multimodal understand-
+ing across millions of tokens of context. arXiv preprint arXiv:2403.05530, 2024.
+[53] Uri Shaham, Elad Segal, Maor Ivgi, Avia Efrat, Ori Yoran, Adi Haviv , Ankit Gupta, Wenhan Xiong, Mor Geva,
+Jonathan Berant, et al. Scrolls: Standardized comparison over long language sequences. In Proceedings of the 2022
+Conference on Empirical Methods in Natural Language Processing, pages 12007–12021, 2022.
+15
+
+--- PAGE 16 ---
+[54] Uri Shaham, Maor Ivgi, Avia Efrat, Jonathan Berant, and Omer Levy. Zeroscrolls: A zero-shot benchmark for long
+text understanding. In Findings of the Association for Computational Linguistics: EMNLP 2023, pages 7977–7989,
+2023.
+[55] Weizhou Shen, Ziyi Yang, Chenliang Li, Zhiyuan Lu, Miao Peng, Huashan Sun, Yingcheng Shi, Shengyi Liao,
+Shaopeng Lai, Bo Zhang, et al. Qwenlong-l1. 5: Post-training recipe for long-context reasoning and memory man-
+agement. arXiv preprint arXiv:2512.12967, 2025.
+[56] Jianlin Su, Murtadha Ahmed, Yu Lu, Shengfeng Pan, Wen Bo, and Yunfeng Liu. Roformer: Enhanced transformer
+with rotary position embedding. Neurocomputing, 568:127063, 2024.
+[57] Yu Sun, Xiaolong Wang, Zhuang Liu, John Miller, Alexei Efros, and Moritz Hardt. Test-time training with self-
+supervision for generalization under distribution shifts. In International conference on machine learning, pages
+9229–9248. PMLR, 2020.
+[58] Kiran Vodrahalli, Santiago Ontannon, Nilesh Tripuraneni, Kelvin Xu, Sanil Jain, Rakesh Shivanna, Jeffrey Hui, Nis-
+hanth Dikkala, Mehran Kazemi, Bahare Fatemi, Rohan Anil, Ethan Dyer, Siamak Shakeri, Roopali Vĳ, Harsh Mehta,
+Vinay Venkatesh Ramasesh, Quoc Le, Ed Huai hsin Chi, Yifeng Lu, Orhan Firat, Angeliki Lazaridou, Jean-Baptiste
+Lespiau, Nithya Attaluri, and Kate Olszewska. Michelangelo: Long context evaluations beyond haystacks via latent
+structure queries. ArXiv, abs/2409.12640, 2024. URL https://arxiv.org/abs/2409.12640.
+[59] Chonghua Wang, Haodong Duan, Songyang Zhang, Dahua Lin, and Kai Chen. Ada-leval: Evaluating long-context
+llms with length-adaptable benchmarks. arXiv preprint arXiv:2404.06480, 2024.
+[60] Cunxiang Wang, Ruoxi Ning, Boqi Pan, T onghui Wu, Qipeng Guo, Cheng Deng, Guangsheng Bao, Qian Wang,
+and Yue Zhang. Novelqa: A benchmark for long-range novel question answering. arXiv preprint arXiv:2403.12766,
+2024.
+[61] Haonan Wang, Qian Liu, Chao Du, T ongyao Zhu, Cunxiao Du, Kenji Kawaguchi, and Tianyu Pang. When precision
+meets position: Bfloat16 breaks down rope in long-context training. arXiv preprint arXiv:2411.13476, 2024.
+[62] Lei Wang, Shan Dong, Yuhui Xu, Hanze Dong, Yalu Wang, Amrita Saha, Ee-Peng Lim, Caiming Xiong, and Doyen
+Sahoo. Mathhay: An automated benchmark for long-context mathematical reasoning in llms. arXiv preprint
+arXiv:2410.04698, 2024.
+[63] Minzheng Wang, Longze Chen, Fu Cheng, Shengyi Liao, Xinghua Zhang, Bingli Wu, Haiyang Yu, Nan Xu, Lei
+Zhang, Run Luo, et al. Leave no document behind: Benchmarking long-context llms with extended multi-doc qa.
+In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing, pages 5627–5646,
+2024.
+[64] Yu Wang and Xi Chen. Mirix: Multi-agent memory system for llm-based agents. arXiv preprint arXiv:2507.07957,
+2025.
+[65] Xiaodong Wu, Minhao Wang, Yichen Liu, Xiaoming Shi, He Yan, Lu Xiangju, Junmin Zhu, and Wei Zhang. Lifbench:
+Evaluating the instruction following performance and stability of large language models in long-context scenarios.
+In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long
+Papers), pages 16445–16468, 2025.
+[66] xAI. Grok 4.1 model card, 2025. URL https://data.x.ai/2025-11-17-grok-4-1-model-card.pdf .
+[67] Guangxuan Xiao, Jiaming Tang, Jingwei Zuo, Junxian Guo, Shang Yang, Haotian Tang, Yao Fu, and Song
+Han. Duoattention: Efficient long-context llm inference with retrieval and streaming heads. arXiv preprint
+arXiv:2410.10819, 2024.
+[68] Wujiang Xu, Kai Mei, Hang Gao, Juntao Tan, Zujie Liang, and Yongfeng Zhang. A-mem: Agentic memory for llm
+agents. arXiv preprint arXiv:2502.12110, 2025.
+[69] Zhe Xu, Jiasheng Ye, Xiangyang Liu, Tianxiang Sun, Xiaoran Liu, Qipeng Guo, Linlin Li, Qun Liu, Xuanjing
+Huang, and Xipeng Qiu. Detectiveqa: Evaluating long-context reasoning on detective novels. arXiv preprint
+arXiv:2409.02465, 2024.
+[70] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen
+Huang, Chenxu Lv , et al. Qwen3 technical report. arXiv preprint arXiv:2505.09388, 2025.
+16
+
+--- PAGE 17 ---
+[71] An Yang, Bowen Yu, Chengyuan Li, Dayiheng Liu, Fei Huang, Haoyan Huang, Jiandong Jiang, Jianhong T u, Jianwei
+Zhang, Jingren Zhou, et al. Qwen2. 5-1m technical report. arXiv preprint arXiv:2501.15383, 2025.
+[72] Yĳun Yang, Zeyu Huang, Wenhao Zhu, Zihan Qiu, Fei Yuan, Jeff Z Pan, and Ivan Titov . A controllable examination
+for long-context language models. arXiv preprint arXiv:2506.02921, 2025.
+[73] Xi Ye, Fangcong Yin, Yinghui He, Joie Zhang, Howard Yen, Tianyu Gao, Greg Durrett, and Danqi Chen. Longproc:
+Benchmarking long-context language models on long procedural generation. arXiv preprint arXiv:2501.05414, 2025.
+[74] Howard Yen, Tianyu Gao, Minmin Hou, Ke Ding, Daniel Fleischer, Peter Izsak, Moshe Wasserblat, and Danqi Chen.
+Helmet: How to evaluate long-context language models effectively and thoroughly. In International Conference on
+Learning Representations (ICLR), 2025. URL https://arxiv.org/abs/2410.02694.
+[75] Hongli Yu, Tinghong Chen, Jiangtao Feng, Jiangjie Chen, Weinan Dai, Qiying Yu, Ya-Qin Zhang, Wei- Ying Ma,
+Jingjing Liu, Mingxuan Wang, et al. Memagent: Reshaping long-context llm with multi-conv rl-based memory
+agent. arXiv preprint arXiv:2507.02259, 2025.
+[76] Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y . X. Wei, Lean
+Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, and Wangding Zeng. Native sparse
+attention: Hardware-aligned and natively trainable sparse attention. arXiv preprint arXiv:2502.11089, 2025.
+[77] Tao Yuan, Xuefei Ning, Dong Zhou, Zhĳie Yang, Shiyao Li, Minghui Zhuang, Zheyue Tan, Zhuyu Yao, Dahua
+Lin, Boxun Li, et al. Lv-eval: A balanced long-context benchmark with 5 length levels up to 256k. arXiv preprint
+arXiv:2402.05136, 2024.
+[78] Xinrong Zhang, Yingfa Chen, Shengding Hu, Zihang Xu, Junhao Chen, Moo Hao, Xu Han, Zhen Thai, Shuo Wang,
+Zhiyuan Liu, et al. ∞ bench: Extending long context evaluation beyond 100k tokens. In Proceedings of the 62nd
+Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 15262–15277,
+2024.
+[79] Zĳian Zhou, Ao Qu, Zhaoxuan Wu, Sunghwan Kim, Alok Prakash, Daniela Rus, Jinhua Zhao, Bryan Kian Hsiang
+Low , and Paul Pu Liang. Mem1: Learning to synergize memory and reasoning for efficient long-horizon agents.
+arXiv preprint arXiv:2506.15841, 2025.
+17
+
+--- PAGE 18 ---
+Appendix
+Appendix Contents
+A Ethics Statement . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+A.1 Scientific Artifacts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+A.2 Budget . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+B Dataset Distributions and Statistics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+B.1 Knowledge-Intensive Setting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+B.2 Knowledge-Free Setting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+C Trajectory Generation Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+C.1 Base Engine and Simulation Logic . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+C.2 Trajectory Variants: Concise vs. Verbose . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+C.3 Behavioral Control Parameters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+C.4 Post-Processing and Task Construction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+C.5 Knowledge-Free Adaptation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+D Detailed Tasks Taxonomy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+D.1 QA in T ool Response . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+D.2 QA in Environment Response . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+D.3 Final Guess . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+E Baselines and Implementation Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+18
+
+--- PAGE 19 ---
+A Ethics Statement
+A.1 Scientific Artifacts
+License: The following are the names of the licenses corresponding to the scientific artifacts we use.
+• MIT : DeepSeek-V3.2, A-Mem
+• Apache-2.0: LLMs from the Qwen series (Qwen2.5-7/14B-Instruct-1M, Qwen3-30B-A3B-Instruct-2507,
+QwenLong), Mem0, MemoryOS
+• glm-4: GLM-4-9B-Chat-1M
+Intention of Usage: Our use of existing artifacts is consistent with their intended use. As for the artifact we
+create (AgentLong), it is intended solely for research purposes such as the development of Long-Contexts
+Agents, and shall not be used for any other purposes, including commercial profit-making activities.
+Documentation: For all LLMs we used, please refer to the corresponding model cards or technical reports.
+For all memory frameworks we used, they are desinged for long-contexts agents and are theoretically appli-
+cable to any language.
+A.2 Budget
+In the experiment, the total cost incurred from API calls is about 15632.96 USD.
+B Dataset Distributions and Statistics
+In this section, we provide a detailed breakdown of the dataset distribution across different settings. We
+ensure a balanced evaluation by maintaining a consistent number of samples across varying context lengths.
+The following tables and figures illustrate the distribution of distinct question types for each of the four ex-
+perimental configurations: Knowledge-Intensive vs. Knowledge-Free, and Concise-Response vs. V erbose-Response.
+B.1 Knowledge-Intensive Setting
+In the Knowledge-Intensive setting, tasks involve real-world entities (Pokémon). We visualize the proportion
+of question types for both formatting strategies in Figure 9 and Figure 10, allowing for a direct comparison
+between the two structures. Table 3 and Table 4 provide the exact sample counts per context length.
+B.2 Knowledge-Free Setting
+In the Knowledge-Free setting, all entities are masked with abstract tokens to eliminate parametric bias. Fig-
+ure 11 and Figure 12 show the task proportions, while Table 5 and Table 6 detail the sample counts across
+varying context lengths.
+19
+
+--- PAGE 20 ---
+Question Type 32K 64K 128K 256K 512K 1M 2M 4M Total
+Count Frequency (T ool) 25 25 25 25 25 25 25 25 200
+Find Duplicates 25 25 25 25 25 25 25 25 200
+Find Target Offsets 25 25 25 25 25 25 25 25 200
+Count Correctness 25 25 25 25 25 25 25 25 200
+Count Frequency (Env) 16 12 18 17 23 21 16 17 140
+Find Round with Largest Value 20 23 20 19 12 17 18 19 148
+Weighted Summation 14 15 12 14 15 12 16 14 112
+Intersection 50 50 50 50 50 50 50 50 400
+Total 200 200 200 200 200 200 200 200 1600
+Table 3 Dataset distribution for Knowledge-Intensive & Concise-Response. Values represent sample counts.
+Question Type 32K 64K 128K 256K 512K 1M 2M 4M Total
+Count Frequency (T ool) 25 25 25 25 25 25 25 25 200
+Find Duplicates 24 25 25 25 25 25 25 25 199
+Find Target Offsets 26 25 25 25 25 25 25 25 201
+Count Correctness 25 25 25 25 25 25 25 25 200
+Count Frequency (Env) 21 24 20 21 13 17 20 21 157
+Find Round with Largest Value 13 13 16 15 20 18 24 17 136
+Weighted Summation 16 13 14 14 17 15 6 12 107
+Intersection 50 50 50 50 50 50 50 50 400
+Total 200 200 200 200 200 200 200 200 1600
+Table 4 Dataset distribution for Knowledge-Intensive & Verbose-Response. Values represent sample counts.
+Figure 9 Distribution for Knowledge-Intensive & Concise-
+Response.
+Figure 10 Distribution for Knowledge-Intensive & V erbose-
+Response.
+20
+
+--- PAGE 21 ---
+Figure 11 Distribution for Knowledge-Free & Concise-
+Response.
+Figure 12 Distribution for Knowledge-Free & V erbose-
+Response.
+Question Type 32K 64K 128K 256K 512K 1M 2M 4M Total
+Count Frequency (T ool) 25 25 25 25 25 25 25 25 200
+Find Duplicates 25 25 25 25 25 25 25 25 200
+Find Target Offsets 25 25 25 25 25 25 25 25 200
+Count Correctness 25 25 25 25 25 25 25 25 200
+Count Frequency (Env) 16 12 18 17 23 21 16 17 140
+Find Round with Largest Value 20 23 20 19 12 17 18 19 148
+Weighted Summation 14 15 12 14 15 12 16 14 112
+Intersection 50 50 50 50 50 50 50 50 400
+Total 200 200 200 200 200 200 200 200 1600
+Table 5 Dataset distribution for Knowledge-Free & Concise-Response.
+Question Type 32K 64K 128K 256K 512K 1M 2M 4M Total
+Count Frequency (T ool) 25 25 25 25 25 25 25 25 200
+Find Duplicates 24 25 25 25 25 25 25 25 199
+Find Target Offsets 26 25 25 25 25 25 25 25 201
+Count Correctness 25 25 25 25 25 25 25 25 200
+Count Frequency (Env) 21 24 20 21 13 17 20 21 157
+Find Round with Largest Value 13 13 16 15 20 18 24 17 136
+Weighted Summation 16 13 14 14 17 15 6 12 107
+Intersection 50 50 50 50 50 50 50 50 400
+Total 200 200 200 200 200 200 200 200 1600
+Table 6 Dataset distribution for Knowledge-Free & Verbose-Response.
+21
+
+--- PAGE 22 ---
+C Trajectory Generation Details
+The data construction pipeline of AgentLongBench is designed to generate scalable, controllable, and logi-
+cally rigorous interaction logs. The pipeline transforms raw game logic into structured datasets suitable for
+LLM evaluation. The process consists of four main stages:
+C.1 Base Engine and Simulation Logic
+The core of the generation is a deterministic game engine that manages the ground-truth state. The simula-
+tion follows an iterative loop:
+1. Tool Call: The agent queries specific attributes via the tool API.
+2. Tool Result: The tool returns data based on the formatting strategy (see Section C.2).
+3. Model Guess: The simulated agent proposes a candidate item.
+4. Engine Feedback: The environment compares the guess with the hidden target and provides differen-
+tial feedback.
+C.2 Trajectory Variants: Concise vs. Verbose
+We generate two distinct interaction histories from the same underlying game engine to isolate the effects of
+memory fragmentation versus information density. Figures 13 and 14 provide side-by-side examples of the
+raw JSON logs used in these configurations.
+Concise-Response. As illustrated in Figure 13, the tool in this setting functions as a logic filter, returning
+only the intersection of items that satisfy all queried attributes. By abstracting away per-section candidate
+lists, this format maintains a low token density per turn. Consequently , interaction histories can extend
+to hundreds of rounds, shifting the cognitive burden to long-term state tracking and testing the model’s
+resilience against memory fragmentation.
+Verbose-Response. Conversely , the Verbose format (Figure14) mimics raw database outputs where the tool
+returns independent, unfiltered candidate lists for each queried condition. This approach preserves all raw
+evidence but floods the context window with high-density structured noise. Although this results in fewer
+interaction rounds for a given token budget, it compels the agent to perform logical intersections internally ,
+thereby strictly testing its capacity to handle information overload within a single reasoning step.
+C.3 Behavioral Control Parameters
+T o ensure the generated trajectories mimic realistic and imperfect agent behaviors rather than optimal searches,
+we introduce several control parameters into the simulator:
+history_window: Defines a rolling window size representing the agent’s active working memory. Condi-
+tions outside this window may be dropped.
+forget_history_prob: The probability that older conditions outside the current batch are ”forgotten” by
+the simulated agent. Higher values simulate an agent with poorer long-term retention, necessitating
+redundant queries.
+mask_prob & max_mask_sections: Parameters that randomly hide specific sections or conditions in the tool
+query , simulating partial attention or incomplete information gathering.
+epsilon (Exploration Rate): The probability of ”relaxing” constraints. Instead of strictly querying the in-
+tersection, the agent may explore broader attributes. This prevents the trajectory from converging too
+quickly , allowing for longer contexts.
+22
+
+--- PAGE 23 ---
+C.4 Post-Processing and Task Construction
+T oken-Length T runcation Raw histories are essentially infinite. We truncate and bucket these trajectories into
+fixed context lengths (32K, 64K, ..., 4M). Crucially , this process preserveswhole rounds only to ensure logical
+integrity.
+Final Guess Specialization For the Intersection task in concise-response scene, simple truncation is insufficient
+because the final answer must be logically deducible from the remaining context. We employ a strict filtering
+process for this task:
+• Ensure the intersection of all tool responses in the history yields exactly the unique target item.
+• Verify that every round’s intersection list is sufficiently large to maintain task difficulty before the final
+convergence.
+QA Dataset Generation The final benchmark samples are created by selecting specific target rounds from
+the processed histories. For each sample, we assemble the full ‘messages‘ list (System, User, Assistant, T ool)
+up to the target point and attach the corresponding question (e.g., ”Find Duplicates”) and the deterministic
+ground-truth answer.
+C.5 Knowledge-Free Adaptation
+The Knowledge-Free setting is derived directly from the pipeline above. We apply a symbolic mapping layer
+where all semantic entities (e.g., Pokémon names, types, ability names) are replaced with abstract tokens
+(e.g., Item_29A, Attr_B). This ensures that the structural complexity and logical dependencies of the dataset
+remain identical to the Knowledge-Intensive version, while strictly isolating the model’s reasoning capabilities
+from its parametric knowledge.
+D Detailed Tasks Taxonomy
+We design three categories of tasks comprising eight distinct question types. These tasks allow us to isolate
+specific cognitive failures in long-context agents.
+D.1 QA in Tool Response
+This category evaluates the agent’s ability to recall specific details from tool execution outputs, testing ro-
+bustness in parsing machine-generated data.
+• Count Frequency: Count the frequency of a specific item appearing in the tool return values for a
+specific round. Unlike simple retrieval, the “needle” here is embedded in structured tool noise.
+• Find Duplicates: Determine whether a specific item appears in the tool return values of both Round
+i and Round j. This evaluates retrieval across temporal distances.
+• Find Target Offsets: Identify the two items immediately following the first occurrence of a specific
+item in the tool return list for Round i. This tests positional matching ability.
+D.2 QA in Environment Response
+This category focuses on the interaction history with the Host, testing the agent’s ability to track the State
+and “Yes/No” constraints.
+• Count Correctness: Determine how many attribute sections were guessed correctly in a specific round
+based on feedback.
+• Count Frequency: Count how many times a specific attribute value has appeared across the feedback
+of all rounds.
+23
+
+--- PAGE 24 ---
+• Find Round with Largest Value: Identify which round’s feedback contained the highest specific nu-
+meric attribute value.
+• Weighted Summation: Calculate the absolute difference between the weighted scores of Round i and
+Round j. The score is calculated based on a weighted scheme assigning points to different attribute
+categories (e.g., T ype: 6, Ability: 5, Base Stats: 4, etc.), testing both retrieval and computational reason-
+ing.
+D.3 Final Guess
+This predictive category requires the agent to generate the final answer based on the global understanding
+of the context.
+• Intersection: The agent must compute the intersection of candidate items based on the provided tool
+responses.
+– In the Concise-Response format, since the tool returns pre-filtered results, this effectively requires
+intersecting constraints across the entire history to deduce the final target.
+– In the Verbose-Response format, this requires identifying the intersection of attribute lists within
+a specific round’s tool response.
+This task evaluates the agent’s ability to perform logical set operations and synthesize information, deter-
+mining whether it understands the evolving state rather than merely retrieving facts.
+E Baselines and Implementation Details
+Our experimental evaluation covers a comprehensive spectrum of proprietary frontiers, open-weight models,
+and specialized memory architectures. All inference tasks were executed using the VLLM framework to
+ensure high-throughput processing. We maintained a consistent sampling temperature of 0.7 across all runs
+to balance generation diversity with instruction adherence.
+Proprietary Models We accessed proprietary systems via their official APIs. T o ensure fair comparison, we
+utilized the standard chat templates and default system prompts recommended by the respective vendors,
+without specific prompt engineering for context compression.
+Open-Source Models For open-weight baselines, we deployed the official Instruct versions of the Qwen series
+(Qwen2.5, Qwen3) and GLM-4 on a cluster of NVIDIA H200 GPUs. In cases where models support multiple
+system prompt configurations, we unified the evaluation under a standardized prompt to isolate the model’s
+intrinsic context processing capabilities.
+Memory and RAG Frameworks For Retrieval-Augmented Generation (RAG) and dedicated agentic memory
+systems (A-Mem, Mem0, MemoryOS), we adhered strictly to their public default configurations to reflect
+standard usage patterns. We standardized the retrieval hyperparameter across all memory-augmented base-
+lines, setting the top- k retrieved chunks to 5 ( k = 5). This setting provides a consistent context window for
+the backbone model (Qwen3-30B-A3B) to synthesize the final response.
+24
+
+--- PAGE 25 ---
+Trajectory Variant A: Concise-Response (Intersection Only)
+{
+"messages ": [
+{
+"role ": "system ",
+"content ": "You are playing a guess -the -Pokemon game ... [System prompt truncated] ... "
+},
+{
+"role ": "user ",
+"content ": "Round 1: Guess Kakuna (#0014) \nSections :\ n - Type : Bug (wrong ); Poison (wrong )... [Attributes
+Omitted]... \nResult : wrong \nRemaining rounds : 2009 "
+},
+{
+"role ": "assistant ",
+"content ": "<think >Thinking and calling query_pokemon .</ think >",
+"tool_calls ": [
+{
+"id ": "call_3 ",
+"type ": "function ",
+"function ": {
+"name ": "query_pokemon ",
+"arguments ": "{\" conditions \": [{\" type \": \" value \", \" section \": \" Abilities \", \" values \": [\"
+Shed Skin \"], \" exclude \": true }, {\" type \": \" value \", \" section \": \" Type \", \" values \": [\" Bug \", \"
+Poison \"], \" exclude \": true }]} "
+}
+}
+]
+},
+{
+"role ": "tool ",
+"tool_call_id ": "call_3 ",
+"name ": "query_pokemon ",
+"content ": "{\" intersection \": [\" Abomasnow \", \" Abra \", ..., \" Zygarde \"]} "
+// Concise: The tool executes the logic and returns ONLY the intersection list.
+},
+{
+"role ": "assistant ",
+"content ": "<answer >Thwackey </ answer >"
+},
+... [Rounds 2-10 omitted for brevity] ...
+{
+"role ": "user ",
+"content ": "Round 11: Guess Kirlia (#0281) \nSections :\ n - Type : Psychic (wrong ); Fairy (wrong )\n - Base
+Stats : 278 (wrong , too low )...\ nResult : wrong \nRemaining rounds : 1999 "
+},
+{
+"role ": "assistant ",
+"content ": "<think >Filtering based on new constraints ... </ think >",
+"tool_calls ": [
+{
+"id ": "call_43 ",
+"type ": "function ",
+"function ": {
+"name ": "query_pokemon ",
+"arguments ": "{\" conditions \": [{\" type \": \" value \", \" section \": \" Type \", \" values \": [\" Psychic
+\", \" Fairy \"], \" exclude \": true }, {\" type \": \" numeric \", \" section \": \" Base Stats \", \" comparator \":
+\">\", \" threshold \": 278}]} "
+}
+}
+]
+},
+{
+"role ": "tool ",
+"tool_call_id ": "call_43 ",
+"name ": "query_pokemon ",
+"content ": "{\" intersection \": [\" Abomasnow \", \" Absol \", ..., \" Zweilous \"]} "
+},
+{
+"role ": "assistant ",
+"content ": "<answer >Darkrai </ answer >"
+}
+]
+}
+Figure 13 Concise-Response Trajectory Example.
+25
+
+--- PAGE 26 ---
+Trajectory Variant B: Verbose-Response (Full Candidate Lists)
+{
+"messages ": [
+{
+"role ": "system ",
+"content ": "You are playing a guess -the -Pokemon game ... [System prompt truncated] ... "
+},
+{
+"role ": "assistant ",
+"content ": "<answer >Seedot </ answer >"
+},
+{
+"role ": "user ",
+"content ": "Round 1: Guess Seedot (#0273) \nSections :\ n - Type : Grass (correct )\n ... [Attributes
+Omitted]...\ nResult : wrong \nRemaining rounds : 259 "
+},
+{
+"role ": "assistant ",
+"content ": "<think >Thinking and calling query_pokemon .</ think >",
+"tool_calls ": [
+{
+"id ": "call_3 ",
+"type ": "function ",
+"function ": {
+"name ": "query_pokemon ",
+"arguments ": "{\" conditions \": [{\" type \": \" value \", \" section \": \" Type \", \" values \": [\" Grass
+\"]} , {\" type \": \" numeric \", \" section \": \" Base Stats \", \" comparator \": \">\", \" threshold \": 220} , {\"
+type \": \" numeric \", \" section \": \" Generation \", \" comparator \": \"==\" , \" threshold \": 3}, ...]} "
+}
+}
+]
+},
+{
+"role ": "tool ",
+"tool_call_id ": "call_3 ",
+"name ": "query_pokemon ",
+"content ": {
+"per_section ": [
+{
+"section ": "Type ",
+"conditions ": [{ "type ": "value ", "values ": [ "Grass "]}],
+"candidates ": [
+"Abomasnow ", "Amoonguss ", "Appletun ", "Applin ", "Arboliva ",... [138 items omitted] ... ,"Zarude "
+]
+},
+{
+"section ": "Base Stats ",
+"conditions ": [{ "type ": "numeric ", "comparator ": ">", "threshold ": 220}] ,
+"candidates ": [
+"Abomasnow ", "Abra ", "Absol ", "Accelgor ", "Aegislash ",... [850 items omitted] ... ,"Zygarde "
+]
+},
+{
+"section ": "Generation ",
+"conditions ": [{ "type ": "numeric ", "comparator ": "== ", "threshold ": 3}],
+"candidates ": [ ... [135 items omitted] ... ]
+},
+{
+"section ": "Abilities ",
+"candidates ": [ ... [Huge list omitted] ... ]
+}
+]
+}
+// Verbose: The tool returns SEPARATE lists for each condition. The agent must mentally intersect these hundreds of
+items to find the target.
+},
+{
+"role ": "assistant ",
+"content ": "<answer >Lileep </ answer >"
+},
+... [Rounds 2-3 omitted] ...
+{
+"role ": "user ",
+"content ": "Round 4: Guess Palossand (#0770) \nSections :\ n - Type : Ghost (wrong ); Ground (wrong )\n - Base
+Stats : 480 (wrong , too high )...\ nResult : wrong \nRemaining rounds : 256 "
+}
+]
+}
+Figure 14 Verbose-Response Trajectory Example.
+26

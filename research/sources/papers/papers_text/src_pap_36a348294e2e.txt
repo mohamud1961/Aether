@@ -1,0 +1,3354 @@
+--- PAGE 1 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Varun Pratap Bhardwaj
+varun.pratap.bhardwaj@gmail.com
+Independent Research
+Solution Architect
+India
+Abstract
+The rapid proliferation of agentic AI skill ecosystems—exemplified
+by OpenClaw (228,000 GitHub stars) and Anthropic Agent Skills
+(75,600 stars)—has introduced a critical supply chain attack sur-
+face. The ClawHavoc campaign (January–February 2026) infiltrated
+over 1,200 malicious skills into the OpenClaw marketplace, while
+MalTool catalogued 6,487 malicious tools that evade conventional
+detection. In response, twelve reactive security tools emerged, yet
+allrely on heuristic methods that provide no formal guarantees.
+We presentSkillFortify, the first formal analysis framework for
+agent skill supply chains, with six contributions: (1) theDY-Skill
+attacker model, a Dolev–Yao adaptation to the five-phase skill life-
+cycle with a maximality proof; (2) a sound static analysis framework
+grounded in abstract interpretation; (3) capability-based sandbox-
+ing with a confinement proof; (4) an Agent Dependency Graph
+with SAT-based resolution and lockfile semantics; (5) a trust score
+algebra with formal monotonicity; and (6)SkillFortifyBench, a
+540-skill benchmark. SkillFortify achieves 96.95% F1 (95% CI: [95.1%,
+98.4%]) with 100% precision and 0% false positive rate on 540 skills,
+while SAT-based resolution handles 1,000-node graphs in under
+100 ms.
+Keywords
+supply chain security, agent skills, formal analysis, capability-based
+security, abstract interpretation, Dolev–Yao model, AI safety
+1 Introduction
+On January 27, 2026, security researchers at Ethiack disclosed CVE-
+2026-25253 [21], a remote code execution vulnerability in the Open-
+Claw agent skill runtime—the first Common Vulnerabilities and
+Exposures identifier assigned to an agentic AI system. Within days,
+theClawHavoccampaign [ 68] exploited this and related weaknesses
+to infiltrate over 1,200 malicious skills into the OpenClaw market-
+place, deploying the AMOS credential stealer to developer worksta-
+tions. Concurrently, MalTool benchmarked 6,487 malicious tools
+targeting LLM-based agents [63], demonstrating that VirusTotal
+fails to detect the majority of agent-targeted malware. A large-scale
+empirical analysis of 42,447 agent skills found that 26.1% exhibit at
+least one security vulnerability [54].
+These incidents are not isolated. They reflect a structural vul-
+nerability in the emerging agent skill ecosystem:developers install
+and execute third-party skills with implicit trust and no formal anal-
+ysis. The agent skill supply chain—spanning authorship, registry
+publication, developer installation, runtime execution, and state
+persistence—reproduces the trust pathologies of traditional package
+ecosystems (npm, PyPI, crates.io) but with amplified risk, because
+agent skills execute with broad system privileges in the context of
+a powerful language model.
+1.1 The Defense Gap
+The security community responded rapidly. Within thirty days of
+the ClawHavoc disclosure, twelve reactive security tools appeared
+on GitHub [68]. The most prominent include:
+• Snyk agent-scan( ∼1,500 stars): Acquired Invariant Labs
+and applies LLM-as-judge combined with heuristic rules to
+scan agent configurations [60].
+• Cisco skill-scanner(994 stars): Employs YARA pattern
+matching and signature-based detection for known mali-
+cious skill patterns [12].
+• ToolShield[ 62]: A heuristic defense achieving a 30% reduc-
+tion in attack success rate through behavioral heuristics.
+Despite their utility,everyexisting tool shares a fundamental limi-
+tation: they are heuristic. They detect known patterns but cannot
+prove the absence of malicious behavior. Cisco’s own documen-
+tation for their skill-scanner states explicitly: “no findings does
+not mean no risk” [ 12]. The closest academic work toward for-
+mal guarantees is a four-page ICSE-NIER vision paper proposing
+Alloy-based modeling of tool safety [48], which provides neither
+an implementation nor empirical evaluation.
+This gap is the central problem we address:the agent skill ecosys-
+tem has attack frameworks but no defense frameworks with formal
+guarantees.
+1.2 Our Approach
+We presentSkillFortify, the first formal analysis framework for
+agent skill supply chains. SkillFortify provides sound static analysis
+with mathematical guarantees—not heuristic scanning—that skills
+cannot exceed their declared capabilities. Where existing tools
+answer“did we detect a known bad pattern?”, SkillFortify answers
+“can this skill access resources beyond what it declares?”and provides
+a machine-checkable certificate when the answer is no.
+Our approach draws on four decades of formal methods research,
+adapting established foundations to the novel domain of agent skill
+security: the Dolev–Yao attacker model [19] for supply chain threat
+modeling, abstract interpretation [ 14] for sound static analysis,
+capability-based security [17, 44] for sandboxing, and SAT-based
+dependency resolution [61] for supply chain management.
+1.3 Contributions
+This paper makes six contributions:
+arXiv:2603.00195v1  [cs.CR]  27 Feb 2026
+
+--- PAGE 2 ---
+Varun Pratap Bhardwaj
+(1) DY-Skill attacker model(Section 3). We introduce a novel
+adaptation of the Dolev–Yao formalism [ 19] to the five-
+phase agent skill supply chain. The DY-Skill attacker can
+intercept, inject, synthesize, decompose, and replay skill
+messages. We prove that this attacker ismaximal: any sym-
+bolic attacker on the supply chain can be simulated by a
+DY-Skill trace (Theorem 3.6).
+(2) Static analysis with soundness guarantees(Section 4).
+We develop a three-phase static analysis framework grounded
+in abstract interpretation over a four-element capability lat-
+tice ({NONE,READ,WRITE,ADMIN},⊑) . We prove that if
+our analysis reports a skill as safe, then its concrete execu-
+tion cannot access resources beyond its declared capabilities
+(Theorem 4.9).
+(3) Capability-based sandboxing with confinement proof
+(Section 5). We formalize a capability model for agent skills
+based on the object-capability discipline [41, 44]. We prove
+that in a capability-safe execution environment, no skill
+can acquire authority exceeding the transitive closure of
+its declared capability set—theno authority amplification
+property (Theorem 5.6).
+(4) Agent Dependency Graph with SAT-based resolution
+(Section 6). We define the Agent Dependency Graph G=
+(S, 𝑉 , 𝐷, 𝐶,Cap) extending classical package dependency
+models [42, 61] with per-skill capability constraints. We
+encode the resolution problem as a SAT instance with se-
+curity bounds and prove that any satisfying assignment
+corresponds to asecure installationwith a deterministic
+lockfile (Theorem 6.10).
+(5) Trust score algebra with formal propagation(Section 7).
+We introduce a multi-signal trust scoring system with prove-
+nance, behavioral, community, and historical dimensions.
+Trust propagates multiplicatively through dependency chains
+and decays exponentially for unmaintained skills. We prove
+themonotonicityproperty: additional positive evidence
+never reduces a skill’s trust score (Theorem 7.12).
+(6) SkillFortifyBench and empirical evaluation(Section 9).
+We construct SkillFortifyBench, a 540-skill benchmark com-
+prising 270 malicious and 270 benign skills drawn from
+MalTool [63], ClawHavoc [68], and curated clean sources.
+SkillFortify achieves an F1 score of 96.95% with 100% preci-
+sion and 0% false positive rate on benign skills. SAT-based
+dependency resolution handles 1,000-node graphs in under
+100 ms. We evaluate onSkillFortifyBench(540 skills) and
+position our results against reported metrics from existing
+tools, demonstrating that combined pattern matching and
+information flow analysis detects attack patterns invisible
+to pure pattern matching alone.
+1.4 Paper Organization
+Section 2 surveys the agent skill ecosystem, attack landscape, exist-
+ing defenses, and formal methods foundations. Section 3 presents
+the DY-Skill attacker model and threat taxonomy. Section 4 develops
+the static analysis framework. Section 5 formalizes capability-based
+sandboxing. Section 6 defines the Agent Dependency Graph and
+lockfile semantics. Section 7 introduces the trust score algebra. Sec-
+tion 8 describes the SkillFortify implementation. Section 9 presents
+the empirical evaluation. Section 10 positions our contributions
+against related work. Section 11 discusses limitations and future
+directions, and Section 12 concludes. Full proofs appear in Sec-
+tion A, benchmark details in Section B, and the lockfile schema in
+Section C.
+2 Background
+This section surveys the agent skill ecosystem (§2.1), the attack
+landscape (§2.2), existing defense tools (§2.3), traditional supply
+chain security foundations (§2.4), and the formal methods we build
+upon (§2.5). A dedicated comparison with related work appears in
+Section 10.
+2.1 Agent Skill Ecosystems
+The year 2025–2026 witnessed explosive growth in agent skill plat-
+forms. Anagent skillis a third-party extension—typically a code
+module, configuration file, or API endpoint—that augments an LLM-
+based agent with domain-specific capabilities such as web search,
+file manipulation, database querying, or interaction with external
+services.
+Three ecosystems dominate the landscape:
+OpenClaw.With 228,000 GitHub stars as of February 2026, Open-
+Claw is the largest open-source agent framework. Its marketplace
+operates on aninstall-and-runtrust model: developers discover
+skills through a web interface or CLI, install them with a single
+command, and skills execute with the agent’s full system privileges.
+No formal review, signing, or capability declaration is required for
+publication.
+Anthropic Agent Skills.Anthropic’s official skill repository (75,600 stars)
+provides curated skills for Claude Code and Claude Desktop. Skills
+are defined as YAML/Markdown files in.claude/skills/ directo-
+ries and may include shell commands, code blocks, and instructions.
+While Anthropic maintains a moderation pipeline, no formal capa-
+bility model constrains skill behavior at runtime.
+Model Context Protocol (MCP)..The Model Context Protocol [ 1]
+standardizes how agents interact with external data sources and
+tools through JSON-RPC servers. MCP servers declare tool schemas
+(input/output types) but notcapability requirements—a server that
+claims to “search files” may also execute arbitrary shell commands,
+and the protocol provides no mechanism to detect or prevent this.
+All three ecosystems share a common structural weakness: the
+absence of aformal capability modelthat constrains what a skill
+can do to what it declares. This is the gap our work fills.
+2.2 Attack Landscape
+Five incidents and studies define the attack landscape as of Febru-
+ary 2026. Early work on LLM platform plugin security [32] iden-
+tified many of the attack vectors that have since materialized at
+scale, and recent systematic analyses of the Model Context Proto-
+col [30] confirm that these vulnerabilities persist in modern agent
+architectures:
+
+--- PAGE 3 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+CVE-2026-25253 (January 27, 2026).The first CVE assigned to an
+agentic AI system. Ethiack demonstrated remote code execution in
+the OpenClaw skill runtime through a crafted skill package. The
+proof-of-concept repository received 75 stars within days [21].
+ClawHavoc Campaign (Late January–Early February 2026).A
+coordinated supply chain attack documented in the “SoK: Agentic
+Skills in the Wild” systematization [68]. Attackers published over
+1,200 malicious skills to the OpenClaw marketplace, deploying the
+AMOS credential stealer. The paper identifies seven distinct skill
+design patterns exploited by the campaign and categorizes the full
+attack lifecycle.
+MalTool (February 12, 2026).Researchers from Dawn Song’s
+group catalogued 6,487 malicious tools targeting LLM-based agents [63].
+Their benchmark demonstrated that VirusTotal—the de facto stan-
+dard for malware detection—fails to identify the majority of agent-
+targeted malware, underscoring the inadequacy of signature-based
+approaches for this domain. Complementary MCP-specific attack
+research—MCP-ITP [ 39] (automated implicit tool poisoning) and
+MCPTox [55] (benchmarking tool poisoning on real-world MCP
+servers)—demonstrates that protocol-level vulnerabilities compound
+the skill-level threat.
+Agent Skills in the Wild (January 2026).A large-scale empirical
+study scanned 42,447 agent skills across multiple registries [ 54].
+Key findings: 26.1% of skills exhibit at least one security vulnera-
+bility, 14 distinct vulnerability patterns were identified, and their
+SkillScan tool achieves 86.7% precision—leaving a 13.3% gap that
+formal methods can address.
+Malicious Agent Skills in the Wild (February 2026).A large-scale
+registry scan covering 98,380 skills across multiple agent platforms
+identified 157 confirmed malicious entries [37], independently cor-
+roborating the vulnerability rates reported by Park et al. [54] on a
+substantially larger corpus.
+Multi-agent data leakage.OMNI-LEAK [ 13] demonstrates that
+multi-agent architectures create implicit information channels through
+which sensitive data can leak across trust boundaries—even when
+individual agents appear well-isolated. This motivates our informa-
+tion flow analysis component (Section 4).
+Agent reliability.Chen et al. [ 10] provide empirical evidence that
+LLM-based agents exhibit stochastic path deviation even on well-
+defined tasks, confirming that the combination of unreliable agents
+and unverified skills creates compounding risk.
+Malice in Agentland (October 2025).A study demonstrating that
+poisoning just 2% of an agent’s execution trace is sufficient to
+achieve 80% attack success in multi-agent systems [16]. This vali-
+dates the threat model of a supply chain attacker who need only
+compromise a single skill in a dependency chain to affect an entire
+agent pipeline.
+2.3 Existing Defenses
+All existing defenses are heuristic. We survey the most prominent.
+Snyk agent-scan ( ∼1,500 stars).The most well-funded entrant,
+following Snyk’s acquisition of Invariant Labs in early 2026 [60].
+Table 1: Comparison of agent skill security tools. SkillFortify
+is the first to provide formal guarantees (soundness, confine-
+ment, resolution correctness).
+Tool Formal Dep. Lock- Trust SBoM
+Model Graph file Score
+Snyk agent-scan✗ ✗ ✗ ✗ ✗
+Cisco skill-scanner✗ ✗ ✗ ✗ ✗
+ToolShield✗ ✗ ✗ ✗ ✗
+ICSE-NIER ’26 Partial✗ ✗ ✗ ✗
+mcp-audit✗ ✗Partial✗Partial
+MCPShield✗ ✗Partial✗ ✗
+SkillFortify✓ ✓ ✓ ✓ ✓
+Applies LLM-as-judge combined with hand-crafted rules to evaluate
+agent configurations and skill manifests. Strengths: deep CI/CD in-
+tegration, developer-friendly UX. Limitation: heuristic rules cannot
+prove absence of malicious behavior; LLM judges are themselves
+susceptible to adversarial inputs [63].
+Cisco skill-scanner (994 stars).Employs YARA pattern matching
+and regex-based signature detection for known malicious skill pat-
+terns [12]. The documentation explicitly states: “no findings does
+not mean no risk. ” While effective for known patterns, the approach
+cannot generalize to novel attack vectors.
+ToolShield [62].A heuristic defense from the Dawn Song and Bo
+Li groups achieving a 30% reduction in attack success rate. Uses
+behavioral heuristics derived from the MalTool benchmark. Like
+all heuristic approaches, it cannot provide formal guarantees about
+the completeness of its detection.
+MCPShield [43].Implements mcp.lock.json with SHA-512 con-
+tent hashes for tamper detection of MCP server configurations.
+While MCPShield’s lockfile providesintegrity verification(detect-
+ing unauthorized modifications), it does not perform behavioral
+analysis, dependency resolution, or capability verification.Skill-
+Fortify’s lockfile (Section C) extends beyond hash-based tamper
+detection: each locked entry records the SAT-based resolution re-
+sult with version constraintsandsecurity bounds, the computed
+trust score, and the formal analysis status—making the lockfile
+a formally-proven satisfying assignment, not merely an integrity
+manifest.
+Towards Verifiably Safe Tool Use [48].The closest academic work
+to our approach: a four-page ICSE-NIER ’26 vision paper proposing
+Alloy-based formal modeling of tool safety properties. While the
+paper correctly identifies the need for formal methods, it provides
+neither a working implementation, a threat model, nor empirical
+evaluation. Our work realizes the vision this paper articulates, ex-
+tending it with a complete formal framework, five theorems, a
+working tool, and a 540-skill benchmark.
+Summary.Table 1 compares existing defenses. SkillFortify is the
+first to provide formal guarantees—soundness, confinement, and
+resolution correctness—while also implementing a practical tool.
+
+--- PAGE 4 ---
+Varun Pratap Bhardwaj
+2.4 Traditional Supply Chain Security
+Agent skill security inherits lessons—and gaps—from four decades
+of software supply chain research.
+Package manager security.Duan et al. [ 20] systematized supply
+chain attacks on npm, PyPI, and RubyGems, identifying 339 ma-
+licious packages through metadata, static, and dynamic analysis.
+Ohm et al. [49] catalogued “backstabber” packages, and Ladisa et
+al. [36] proposed a comprehensive taxonomy of open-source sup-
+ply chain attacks. Gibb et al. [ 24] introduced apackage calculus
+providing a unified formalism across ecosystem boundaries. We
+extend this line of work to agent skills, where the threat surface
+is amplified by LLM integration and the absence of established
+security norms.
+SLSA Framework.Supply-chain Levels for Software Artifacts [26]
+defines four graduated trust levels (L1–L4) based on build prove-
+nance and integrity guarantees. Our trust score algebra (Section 7)
+adapts the SLSA graduation model to agent skills, mapping L1
+(basic provenance) through L4 (formal verification) to concrete,
+measurable criteria.
+Sigstore and code signing.Sigstore [ 38] provides keyless code
+signing for open-source packages. While we do not implement
+signing in this work (deferred to V2), our trust score model explicitly
+incorporates signing status as a provenance signal, and our lockfile
+format includes fields for cryptographic attestations.
+CycloneDX and SBoM..The CycloneDX specification [ 51] stan-
+dardizes Software Bills of Materials, recently extended to AI com-
+ponents (AI-BOM) [52]. SkillFortify generates Agent Skill Bills of
+Materials (ASBoM) in CycloneDX format, enabling integration with
+existing enterprise compliance pipelines.
+NIST and regulatory frameworks.The NIST AI Risk Management
+Framework [47] and the EU AI Act [22] both address third-party
+AI component risks. The EU AI Act Article 17 requires providers of
+high-risk AI systems to implement supply chain risk management.
+SkillFortify’s formal verification, lockfile semantics, and ASBoM
+output provide concrete mechanisms for regulatory compliance.
+2.5 Formal Methods Foundations
+Our framework synthesizes five established formal methods tradi-
+tions.
+Dolev–Yao model.Dolev and Yao [ 19] introduced the standard
+symbolic attacker model for security protocol analysis. The at-
+tacker controls the network and can intercept, inject, synthesize
+(construct new messages from known components), and decom-
+pose (extract components from messages) messages. Cervesato [9]
+proved that the DY intruder is themost powerfulattacker in the
+symbolic model—any attack achievable by any symbolic adversary
+can be simulated by a DY trace. We adapt this model to the agent
+skill supply chain (Section 3), introducing the DY-Skill attacker
+with a fifth operation (replay) and a “perfect sandbox assumption”
+analogous to the original perfect cryptography assumption.
+Abstract interpretation.Cousot and Cousot [ 14] introduced ab-
+stract interpretation as a theory of sound approximation of program
+semantics. A concrete domain (𝐶,⊆) is connected to an abstract
+domain (𝐴,⊑) through a Galois connection (𝛼, 𝛾) , and abstract
+fixpoint computation provides a sound over-approximation of con-
+crete behavior. The Astrée analyzer [15] demonstrated that abstract
+interpretation can prove absence of runtime errors in safety-critical
+avionics software. We apply this framework to agent skill analysis
+(Section 4), using a four-element capability lattice as our abstract
+domain.
+Capability security.Dennis and Van Horn [ 17] introduced capa-
+bilities as unforgeable references coupling resource designations
+with access rights. Miller [44] extended this to the object-capability
+(ocap) model, establishing the Principle of Least Authority (POLA).
+Maffeis, Mitchell, and Taly [41] proved the capability safety theo-
+rem: in a capability-safe language, the reachability graph of object
+references is theonlymechanism for authority propagation, guar-
+anteeing that untrusted code cannot exceed the authority explicitly
+delegated to it. Our sandboxing model (Section 5) instantiates these
+results for agent skills.
+SAT-based dependency resolution.Mancinelli et al. [ 42] proved
+that package dependency resolution is NP-complete. Tucker et
+al. [61] introduced OPIUM, which encodes dependency resolution
+as a SAT problem amenable to efficient solving via CDCL (Conflict-
+Driven Clause Learning). Di Cosmo and Vouillon [18] verified graph
+transformations for co-installability analysis in Coq. We extend this
+line of work (Section 6) by adding per-skill capability constraints to
+the SAT encoding, producing dependency resolutions that satisfy
+both version constraintsandsecurity bounds.
+Trust management.Blaze, Feigenbaum, and Lacy [ 7] introduced
+PolicyMaker, establishing the assertion monotonicity property:
+adding credentials never reduces compliance. The KeyNote sys-
+tem [6] extended this with multi-valued compliance and delegation
+filters. Our trust score algebra (Section 7) draws on these founda-
+tions, implementing monotonic trust propagation through depen-
+dency chains with exponential decay for unmaintained skills.
+3 Formal Threat Model
+We develop a formal threat model for the agent skill supply chain
+by (1) defining the supply chain as a structured tuple of interacting
+entities, (2) enumerating attack classes with phase-applicability
+mappings, and (3) introducing theDY-Skillattacker model—a novel
+adaptation of the Dolev–Yao symbolic attacker [19] to the agent
+skill domain.
+3.1 Agent Skill Supply Chain
+Anagent skill supply chainis a tuple SC=(A,R,D,E) whose
+components are defined as follows.
+Definition 3.1(Agent Skill Supply Chain).Let
+• A be a finite set ofskill authorswho produce skill packages,
+• R be a finite set ofregistriesthat store and distribute skill
+packages,
+• D be a finite set ofdevelopers(or agents) that install and
+configure skills, and
+• E be a finite set ofexecution environmentsin which skills
+run.
+
+--- PAGE 5 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+A skill traversesSC through a five-phase lifecycle𝜋=⟨Install,Load,Configure,Execute,Persist⟩ ,
+formally an ordered sequence of phases𝜋 1 ≺𝜋 2 ≺ · · · ≺𝜋5.
+Each phase exposes a distinct attack surface:
+Phase 1:Install.A skill package is fetched from a registry 𝑟∈
+R and placed in the local environment. The developer trusts the
+registry to serve the requested skill with the correct name and
+version.Attack surfaces: name confusion (typosquatting, namespace
+squatting), dependency confusion, registry compromise.
+Phase 2:Load.The skill manifest is parsed, dependencies resolved,
+and code modules imported into the agent’s runtime. Skill descrip-
+tions and metadata are presented to the agent’s language model for
+tool selection.Attack surfaces: prompt injection via metadata, code
+injection in initialization hooks.
+Phase 3:Configure.The skill is parameterized for a specific
+agent and environment. Configuration may include API keys, end-
+point URLs, and access scopes.Attack surfaces: over-permissioning,
+configuration template injection, capability escalation.
+Phase 4:Execute.The skill runs within the agent’s execution
+context, processing user requests and producing tool outputs. This
+is the phase with the broadest authority: skills may invoke sub-
+tools, read files, and make network requests.Attack surfaces: data
+exfiltration, privilege escalation, return-value prompt injection.
+Phase 5:Persist.The skill writes state, logs, or artifacts to durable
+storage. Persistence operations may leak data to attacker-readable
+locations.Attack surfaces: data exfiltration through logs/shared
+storage, state poisoning.
+A key observation is that attacks at phase 𝜋𝑖 can propagate
+forward to phases 𝜋𝑖+1, . . . , 𝜋5. For example, a typosquatting attack
+atInstallenables arbitrary code execution atExecute. We call
+this theforward propagation propertyof supply chain attacks.
+3.2 Attack Taxonomy
+We identify six formal attack classes derived from empirical analy-
+sis of the ClawHavoc campaign [68] (1,200+ malicious skills), the
+MalTool benchmark [63] (6,487 malicious tools), and the “Agent
+Skills in the Wild” survey [54] (42,447 skills).
+Definition 3.2(Attack Classes).Let C={𝑐 1, . . . , 𝑐6} be the set
+of attack classes, and let Φ:C → 2{𝜋1,...,𝜋 5 } map each class to its
+applicable supply chain phases:
+(1) Data Exfiltration( 𝑐1): Unauthorized extraction of sensi-
+tive data (API keys, conversation history, environment vari-
+ables) to an attacker-controlled endpoint.Φ(𝑐 1)={Execute,Persist} .
+(2) Privilege Escalation( 𝑐2): Acquiring access rights beyond
+the skill’s declared capability set, exploiting misconfigured
+permissions or runtime privilege boundaries.Φ(𝑐 2)={Configure,Execute} .
+(3) Prompt Injection( 𝑐3): Adversarial content embedded in
+skill metadata, configuration templates, or tool return val-
+ues that manipulates the agent’s language model.Φ(𝑐 3)=
+{Load,Configure,Execute}.
+(4) Dependency Confusion( 𝑐4): Publishing a public skill
+with the same name as a private internal skill, causing the
+resolver to fetch the malicious version. Φ(𝑐 4)={Install} .
+(5) Typosquatting( 𝑐5): Registering a skill name that is a
+near-homograph of a popular skill (e.g., weahter-api vs.
+weather-api).Φ(𝑐 5)={Install}.
+(6) Namespace Squatting(𝑐6): Preemptively claiming a names-
+pace likely to be used by a legitimate organization (e.g.,
+@google/search).Φ(𝑐 6)={Install}.
+Thetotal attack surfaceis defined as the set of all (phase, class)
+pairs where an attack can manifest:
+Sattack =
+
+(𝜋 𝑗, 𝑐𝑖 ) |𝜋 𝑗 ∈Φ(𝑐 𝑖 )
+
+.(1)
+With our taxonomy,|S attack|=10distinct attack surfaces.
+3.2.1 Threat Actors.We distinguish four categories of adversaries,
+ordered by increasing access and decreasing detectability:
+Definition 3.3(Threat Actor Categories).Athreat actor TA is
+characterized by its access vector and attack capability:
+(1) Malicious Author( TA1): Creates and publishes trojanized
+skills. Full control over skill content. Primary vector in
+ClawHavoc [68].
+(2) Compromised Registry( TA2): The attacker gains admin-
+istrative control of a registry𝑟∈ R (e.g., through credential
+theft). Can modify any skill stored in𝑟.
+(3) Supply Chain Attacker( TA3): Poisons a transitive de-
+pendency rather than the top-level skill. Analogous to the
+event-stream andua-parser incidents in the npm ecosys-
+tem.
+(4) Insider Threat( TA4): An authorized user (developer or
+maintainer) who introduces malicious changes. Hardest to
+detect because access is legitimate.
+Each threat actor can launch a subset of attack classes.TA1 and TA2
+can launch all six classes. TA3 is restricted to {𝑐1, 𝑐2, 𝑐3, 𝑐4} (supply
+chain attacks do not employ typosquatting or namespace squatting
+directly). TA4 can launch {𝑐1, 𝑐2, 𝑐3} (insider access bypasses install-
+time defenses).
+3.3 The DY-Skill Attacker Model
+We adapt the Dolev–Yao attacker model [ 19] to the agent skill
+supply chain. In the classical Dolev–Yao setting, an attacker controls
+thenetworkand can intercept, inject, modify, and drop protocol
+messages. In DY-Skill, the “network” is the supply chainSC, and
+“messages” areskill packages.
+Definition 3.4(Skill Message).Askill messageis a tuple 𝑚=
+(name,ver,payload,caps)where:
+•name∈Σ ∗ is the skill’s registered name,
+•ver∈Vis a semantic version identifier,
+•payload∈ { 0, 1}∗ is the skill’s code and configuration, and
+•caps⊆ C AP is the set of declared capabilities (Section 4.1).
+Definition 3.5(DY-Skill Attacker).ADY-Skill attacker Adv oper-
+ates on a supply chain SC and maintains aknowledge set 𝐾⊆ M
+(where M is the set of all skill messages) that is closed under six
+operations:
+(1) Intercept.For any message 𝑚 in transit throughSC: intercept(𝑚)
+adds𝑚to𝐾and returns𝑚. Formally,𝐾 ′ =𝐾∪ {𝑚}.
+
+--- PAGE 6 ---
+Varun Pratap Bhardwaj
+(2) Inject.For any message 𝑚 constructible from 𝐾 and any
+registry 𝑟∈ R : inject(𝑚, 𝑟) adds 𝑚 to 𝑟 and to 𝐾. Formally,
+𝑟 ′ =𝑟∪ {𝑚},𝐾 ′ =𝐾∪ {𝑚}.
+(3) Modify.For any message 𝑚 in transit through SC and any
+message 𝑚′ constructible from 𝐾: modify(𝑚, 𝑚′) replaces
+𝑚 with 𝑚′ ≠𝑚 . Formally, SC ′ =(SC \ {𝑚}) ∪ {𝑚 ′},
+𝐾 ′ =𝐾∪ {𝑚, 𝑚 ′}.
+(4) Drop.For any message 𝑚 in transit through SC: drop(𝑚)
+suppresses𝑚. Formally,SC ′ =SC \ {𝑚},𝐾 ′ =𝐾∪ {𝑚}.
+(5) Forge Skills. Adv can create skill definitions 𝑠 ′ with arbi-
+trary content, including manifests with arbitrary capability
+declarations capsdeclared, executable code implementing ca-
+pabilities capsactual ⊇caps declared, and metadata mimicking
+legitimate skills (name squatting, version manipulation).
+𝐾 ′ =𝐾∪ {𝑠 ′}.
+(6) Compromise Registries. Adv can modify skill entries in
+a registry 𝑟∈ R , subject to the constraint that Adv cannot
+forge valid cryptographic signatures under keys it does not
+possess. Formally, for 𝑚∈𝑟 , 𝑟 ′ =(𝑟\ {𝑚}) ∪ {𝑚 ′} where
+𝑚′ is constructible from𝐾.
+Operations (i)–(iv) are direct adaptations of the classical Dolev–
+Yao channel capabilities [ 19]. Operations (v) and (vi) are novel
+extensions specific to the agent skill supply chain, capturing the
+additional attack surface created by skill authoring and registry
+infrastructure.
+The knowledge set𝐾satisfies three invariants:
+(a) Monotonicity: 𝐾(𝑡) ⊆𝐾(𝑡+ 1) for all time steps 𝑡. Knowl-
+edge never decreases.
+(b) Interception closure: For any observable message 𝑚 in SC,
+intercept(𝑚)adds𝑚to𝐾.
+(c) Forge closure: For any polynomial-time computable skill def-
+inition𝑠 ′,Advcan produce𝑠 ′ using operations (v) and (vi)
+and add it to𝐾.
+Perfect Sandbox Assumption.Analogous to the perfect cryptog-
+raphy assumption in classical Dolev–Yao, we assume that a correctly
+implemented capability sandbox cannot be broken without anes-
+cape capability. Formally: if a skill𝑠 is executed in a sandbox with ca-
+pability set Cap𝐷 (𝑠), then𝑠 cannot access any resource𝑟∉Cap 𝐷 (𝑠)
+unless 𝑠 possesses a capability 𝑐 such that 𝑐.resource=𝑟 . We relax
+this assumption in Section 5 when we discuss real-world sandbox
+implementations.
+3.4 Theorem 1: DY-Skill Maximality
+We now state and sketch the proof of our first main result: the
+DY-Skill attacker is maximally powerful in the symbolic model.
+Theorem 3.6 (DY-Skill Maximality).For any symbolic attacker
+A′ operating on a supply chain SC under the perfect sandbox as-
+sumption, there exists a DY-Skill attacker Adv and a trace 𝜏 ′ =
+(𝜎0, 𝑎1, 𝜎1, . . . , 𝑎𝑛, 𝜎𝑛) such that for every observable event 𝑜 in A′’s
+execution, there is a corresponding event 𝑜 ′ in 𝜏 ′ with effect(𝑜)=
+effect(𝑜 ′).
+Proof sketch.We constructAdvby simulation, following the
+structure of Cervesato’s maximality proof [9].
+Base case.At 𝑡= 0, both A′ and Adv have the same initial
+knowledge: the set of publicly available skills in R. Adv intercepts
+all initial messages.
+Inductive step.Suppose at time 𝑡, Adv’s knowledge𝐾(𝑡) ⊇𝐾 ′ (𝑡)
+(the knowledge of A′). When A′ performs an action 𝑎𝑡+1 , we show
+Advcan produce the same observable effect:
+•If𝑎 𝑡+1 reads a message fromSC:Advusesintercept.
+•If𝑎 𝑡+1 places a message into a registry:Advusesinject.
+• If 𝑎𝑡+1 replaces a message in transit with a modified version:
+Advusesmodify.
+•If𝑎 𝑡+1 suppresses a message in transit:Advusesdrop.
+• If 𝑎𝑡+1 creates a new malicious skill definition: Adv uses
+forge-skills.
+• If 𝑎𝑡+1 modifies an existing registry entry:Adv uses compromise-registries.
+By induction, the resulting trace𝜏 ′ produces every observable effect
+of A′. 𝐾(𝑡) ⊇𝐾 ′ (𝑡) is maintained by the monotonicity and closure
+properties of𝐾.
+The full proof, including the formal construction of the simu-
+lation relation and handling of composite operations, appears in
+Appendix A.1.□
+Practical significance.Theorem 3.6 implies that any defense strat-
+egy that is secure against the DY-Skill attacker is secure against
+allsymbolic attackers on the supply chain. This justifies using the
+DY-Skill model as the standard adversary for our static analysis
+(Section 4) and sandboxing (Section 5) frameworks. In particular, if
+SkillFortify’s analysis proves that a skill is safe under the DY-Skill
+model, no weaker attacker can compromise it.
+4 Static Analysis Framework
+We present a static analysis framework grounded in abstract inter-
+pretation [14]. The framework operates in three phases: (1) capa-
+bility inference via abstract interpretation over a capability lattice,
+(2) dangerous pattern detection using a catalog derived from real-
+world incidents, and (3) capability violation checking that compares
+inferred capabilities against declarations. The central guarantee is
+soundness: if the analysis reports no violations, the concrete execu-
+tion cannot exceed declared capabilities.
+4.1 Capability Lattice
+We begin by defining the algebraic structure that underpins capa-
+bility reasoning.
+Definition 4.1(Access Level Lattice).Let Lcap =({NONE,READ,WRITE,ADMIN},⊑
+)be a totally ordered lattice (chain) with
+NONE⊑READ⊑WRITE⊑ADMIN.
+The lattice operations are:
+•Join(least upper bound):𝑎⊔𝑏=max(𝑎, 𝑏).
+•Meet(greatest lower bound):𝑎⊓𝑏=min(𝑎, 𝑏).
+•Bottom:⊥=NONE(identity for⊔, absorbing for⊓).
+•Top:⊤=ADMIN(identity for⊓, absorbing for⊔).
+The four access levels model a standard escalation path.NONE de-
+notes no access. READ permits observation but not modification.
+WRITE permits observation and mutation. ADMIN adds the au-
+thority to grant or revoke access for other principals, following the
+capability escalation model of Dennis and Van Horn [17].
+
+--- PAGE 7 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Definition 4.2(Resource Universe).Theresource universeis the
+finite set
+C=
+
+filesystem,network,environment,shell,skill_invoke,clipboard,browser,database
+
+,
+with |C|= 8. These resource types were identified by cross-referencing
+the empirical findings of Park et al. [54] (42,447 skills) and Wang
+et al. [63] (6,487 malicious tools).
+Definition 4.3(Capability and Capability Set).Acapabilityis a
+pair 𝑐=(𝑟, ℓ) where 𝑟∈ C is a resource type and ℓ∈L cap is an
+access level.
+Capability 𝑐1 =(𝑟 1, ℓ1) subsumes 𝑐2 =(𝑟 2, ℓ2), written 𝑐2 ⊑𝑐 1, iff
+𝑟1 =𝑟 2 andℓ 2 ⊑ℓ 1.
+Acapability set Cap(𝑠) for a skill 𝑠 is a function Cap(𝑠):C →
+Lcap mapping each resource to an access level. Equivalently,Cap(𝑠)
+is an element of the product latticeL | C |
+cap .
+The product lattice ordering is pointwise:Cap1 ⊑Cap 2 iff Cap1 (𝑟) ⊑
+Cap2 (𝑟) for all 𝑟∈ C . This structure is a complete lattice with
+⊥=(NONE, . . . ,NONE)and⊤=(ADMIN, . . . ,ADMIN).
+Lattice law verification.The lattice laws (idempotency, commu-
+tativity, associativity, absorption) hold by inspection since⊔=max
+and ⊓=min on the totally ordered set{NONE,READ,WRITE,ADMIN}
+satisfy these properties for any total order. Product lattice complete-
+ness follows from Birkhoff [5]: the product of complete lattices is
+complete.
+4.2 Abstract Skill Semantics
+We define the concrete and abstract semantics of a skill and establish
+a Galois connection between them.
+Definition 4.4(Concrete Skill Semantics).Let Σ be the set of
+concrete program states (memory contents, file handles, network
+sockets, environment bindings). Theconcrete semanticsof a skill𝑠
+is a function J𝑠K:℘(Σ) →℘(Σ) that maps a set of initial states to
+the set of reachable final states.
+Definition 4.5(Abstract Skill Semantics).Theabstract semantics
+of 𝑠 is a function J𝑠K♯ :L | C |
+cap →L | C |
+cap that over-approximates the
+concrete semantics in the capability domain.
+We relate the two via a Galois connection, following Cousot and
+Cousot [14].
+Definition 4.6(Galois Connection).Let (℘(Σ),⊆) be the concrete
+domain and (L | C |
+cap,⊑) be the abstract domain. The pair of functions
+(𝛼, 𝛾)forms a Galois connection:
+𝛼:℘(Σ) →L | C |
+cap, 𝛾:L | C |
+cap →℘(Σ),
+satisfying for all𝑆∈℘(Σ)and all𝑎∈L | C |
+cap :
+𝛼(𝑆) ⊑𝑎⇐ ⇒𝑆⊆𝛾(𝑎).(2)
+The abstraction function 𝛼 extracts the capability footprint: for
+each resource 𝑟∈ C , 𝛼(𝑆) (𝑟) is the least ℓ∈L cap such that every
+state in 𝑆 accesses 𝑟 at level ℓ or below. Concretization𝛾(𝑎) returns
+all states whose resource accesses are bounded by𝑎.
+Proposition 4.7 (Soundness of Abstraction).If 𝛼◦J𝑠K⊑
+J𝑠K♯ ◦𝛼 , then the abstract fixpoint over-approximates the concrete
+fixpoint:
+𝛼 lfpJ𝑠K  ⊑lfpJ𝑠K ♯.(3)
+This is a direct instance of the fundamental theorem of abstract
+interpretation [14]. Concretely, it means: if the abstract analysis
+concludes that 𝑠 accesses resource 𝑟 at level ℓ, then every concrete
+execution of 𝑠 accesses 𝑟 at level ℓ or below. False positives (the
+abstract analysis may overestimate access) are possible; false nega-
+tives (the analysis misses an access) are not.
+4.3 Three-Phase Analysis
+TheSkillFortifystatic analyzer operates in three sequential phases.
+Phase 1: Capability Inference (Abstract Interpretation).Given
+a parsed skill 𝑠 with content fields (instructions, shell commands,
+URLs, environment references, code blocks), the analyzer computes
+the inferred capability setCap 𝐼 (𝑠) ∈L | C |
+cap by applyingJ𝑠K ♯.
+Concretely, the inference is a conservative over-approximation:
+• URL references ⇒network≥READ ; HTTP write methods
+(POST, PUT, PATCH, DELETE)⇒network≥WRITE.
+•Shell command invocations⇒shell≥WRITE.
+• Environment variable references ⇒environment≥READ .
+• File-operation keywords⇒filesystem≥READ or WRITE
+depending on the operation.
+Each rule is atransfer functionin the abstract domain: it maps
+pattern presence to a lower bound on the capability requirement.
+Lemma 4.8 (Transfer Function Soundness).Each transfer
+function in Phase 1 satisfies the Galois connection condition: for ev-
+ery set of concrete states 𝑆 matching the detected pattern, 𝛼(𝑆) ⊑
+𝜏 ♯ (𝛼(𝑆)) , where 𝜏 ♯ is the abstract transfer function. Table 2 verifies
+this for each resource type.
+Table 2: Galois connection verification for each transfer func-
+tion. For each pattern type, we show the inferred capability
+(abstract), the set of concrete operations it covers, and the
+containment relationship𝛼(concrete) ⊑abstract.
+Pattern Abstract𝜏 ♯ Concrete𝛾(𝜏 ♯ )Sound?
+URL reference(net,READ)States with HTTP GET access✓
+HTTP write verb(net,WRITE)States with HTTP POST/PUT/. . .✓
+Shell command(shell,WRITE)States executing shell✓
+Env var reference(env,READ)States reading env vars✓
+File read keyword(fs,READ)States reading files✓
+File write keyword(fs,WRITE)States writing files✓
+Sub-skill invoke(skill,WRITE)States invoking skills✓
+DB access keyword(db,READ/WRITE)States accessing database✓
+In each row, the concretization of the abstract result ( 𝛾(𝜏 ♯)) is a
+superset of the set of concrete states matching the pattern. This is
+because the abstract transfer function assigns themaximumaccess
+level that any concrete operation in the category could require,
+which is the defining property of a sound over-approximation under
+the Galois connection (Definition 4.6).
+Phase 2: Dangerous Pattern Detection.The analyzer matches
+skill content against a catalog of |P | threat patterns derived from
+ClawHavoc, MalTool, and “Agent Skills in the Wild. ” Each pattern
+𝑝 𝑗 ∈ P is a triple (𝑟 𝑗, 𝜎𝑗, 𝑐𝑗 ) where 𝑟 𝑗 is a compiled regular expres-
+sion, 𝜎 𝑗 ∈ {LOW,MEDIUM,HIGH,CRITICAL} is a severity, and
+𝑐 𝑗 is an attack class from Definition 3.2.
+
+--- PAGE 8 ---
+Varun Pratap Bhardwaj
+Pattern examples include:
+•curlpiped to shell (𝜎=CRITICAL,𝑐=𝑐 2),
+•Base64 decode piped to shell (𝜎=CRITICAL,𝑐=𝑐 2),
+•Netcat listener (𝜎=CRITICAL,𝑐=𝑐 1),
+•Dynamic code evaluation (𝜎=HIGH,𝑐=𝑐 2).
+Additionally, a cross-channelinformation flowcheck detects the
+combination of base64 encoding and external network access—a
+pattern empirically associated with data exfiltration [63].
+Phase 3: Capability Violation Check.If the skill declares a ca-
+pability setCap 𝐷 (𝑠), the analyzer checks:
+Cap𝐼 (𝑠) ⊑Cap 𝐷 (𝑠).(4)
+Any resource 𝑟 where Cap𝐼 (𝑠) (𝑟)@Cap 𝐷 (𝑠) (𝑟) constitutes acapa-
+bility violation—the skill requires more authority than it claims.
+The set of violations is:
+Viol(𝑠)=
+
+𝑟∈ C |Cap 𝐼 (𝑠) (𝑟)@Cap 𝐷 (𝑠) (𝑟)
+
+.(5)
+4.4 Theorem 2: Analysis Soundness
+The following theorem is the central guarantee ofSkillFortify’s
+static analysis: it establishes that the analysis issound—if it certi-
+fies a skill as compliant, the skill truly cannot exceed its declared
+capabilities.
+Theorem 4.9 (Analysis Soundness).Let 𝑠 be a skill with declared
+capability set Cap𝐷 (𝑠) . If the abstract analysis reports no violations—
+i.e., Viol(𝑠)=∅ —then for every concrete execution trace 𝜏 of 𝑠 and
+every resource access(𝑟, ℓ)performed in𝜏:
+ℓ⊑Cap 𝐷 (𝑠) (𝑟).(6)
+That is, the concrete execution never accesses any resource beyond the
+declared capability level.
+Proof sketch.The argument proceeds in two steps.
+Step 1: Abstraction soundness.By the Galois connection (Defi-
+nition 4.6) and Proposition 4.7, the inferred capability set Cap𝐼 (𝑠)
+over-approximates the actual resource accesses of𝑠:
+∀𝜏,∀ (𝑟, ℓ) ∈𝜏:ℓ⊑Cap 𝐼 (𝑠) (𝑟).
+Step 2: Violation check.If Viol(𝑠)=∅ , then Cap𝐼 (𝑠) ⊑Cap 𝐷 (𝑠),
+i.e.,Cap 𝐼 (𝑠) (𝑟) ⊑Cap 𝐷 (𝑠) (𝑟)for all𝑟∈ C.
+Combining.By transitivity of⊑onL cap:
+ℓ⊑Cap 𝐼 (𝑠) (𝑟) ⊑Cap 𝐷 (𝑠) (𝑟)for all(𝑟, ℓ) ∈𝜏 .
+The full proof, including the construction of the Galois connection
+and the fixpoint argument, appears in Appendix A.2.□
+Practical significance.Theorem 4.9 distinguishesSkillFortify
+from all existing heuristic scanners. Cisco’sskill-scanner [12]
+explicitly warns that “no findings does not mean no risk. ” Our guar-
+antee is the opposite:ifSkillFortifyreports no violations for the
+analyzed properties, there are no violations in any concrete execution.
+This is the same class of guarantee that the Astrée analyzer [15] pro-
+vides for Airbus A380 flight software—sound over-approximation
+with zero false negatives.
+Limitations.The analysis is sound but not complete: false posi-
+tives (flagging a safe skill as potentially dangerous) are possible
+because the abstract domain over-approximates. Additionally, the
+current analysis covers statically observable patterns; skills that
+dynamically construct network URLs or shell commands at runtime
+may require dynamic analysis (Section 11).
+5 Capability-Based Sandboxing
+The static analysis of Section 4 verifies skill behaviorbeforeexe-
+cution. In this section, we complement static verification with a
+runtime enforcement mechanism based on the capability model of
+Dennis and Van Horn [17] and its object-capability (ocap) extension
+by Miller [44]. The central guarantee iscapability confinement: a
+sandboxed skill cannot access any resource beyond its declared
+capability set, even if the skill attempts to escalate privileges at
+runtime.
+5.1 Capability Model for Agent Skills
+We ground the sandbox in the object-capability model, where capa-
+bilities are unforgeable references that couple resource designations
+with access rights.
+Definition 5.1(Skill Capability).Askill capabilityis a pair 𝑐=
+(𝑟, ℓ) where 𝑟∈ C (Definition 4.2) is a resource type and ℓ∈L cap
+(Definition 4.1) is an access level. A capability isunforgeable: a skill
+can only obtain a capability through the four mechanisms of Dennis
+and Van Horn [17]:
+(1)Initial conditions—held at sandbox creation,
+(2)Parenthood—the creator obtains the only reference,
+(3) Endowment—the creator grants a subset of its own capa-
+bilities, and
+(4) Introduction—a capability holder introduces two other
+principals via a shared reference.
+Capabilities in this model are theonlysource of authority. There
+is no ambient authority—a skill cannot access a resource simply
+because it “exists” in the environment. This is the defining property
+of acapability-safesystem [41].
+Definition 5.2(Declared Capability Set).For a skill 𝑠, thedeclared
+capability set Cap𝐷 (𝑠) ⊆ C ×L cap is the set of capabilities that 𝑠
+declares in its manifest. This set is specified by the skill author and
+verified bySkillFortify’s static analysis (Section 4.3) before the
+skill is installed.
+Definition 5.3(Required Capability).For an action 𝑎 performed
+by a skill during execution, therequired capability req(𝑎)=(𝑟, ℓ) is
+the minimum capability needed to perform 𝑎. For example, reading
+a file requires (filesystem,READ) ; executing a shell command
+requires(shell,WRITE).
+The sandbox mediates every action𝑎by checking:
+∃ (𝑟 ′, ℓ′) ∈Cap 𝐷 (𝑠):𝑟 ′ =req(𝑎).𝑟∧req(𝑎).ℓ⊑ℓ ′.(7)
+If Equation (7) fails, the action is denied and a security finding is
+raised.
+5.2 Capability Attenuation
+Agent skills frequently delegate work to sub-skills (e.g., a “research
+assistant” skill invokes a “web search” skill and a “file writer” skill).
+The capability model must ensure that delegation does not amplify
+authority.
+
+--- PAGE 9 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Definition 5.4(Capability Attenuation).When a parent skill 𝑠𝑝
+delegates to a child skill𝑠 𝑐:
+Cap𝐷 (𝑠𝑐 ) ⊆Cap 𝐷 (𝑠𝑝 ).(8)
+That is, the child can receive at most the capabilities the parent
+already possesses. This implements thePrinciple of Least Authority
+(POLA) [44]: each skill should receive exactly the capabilities it
+needs and no more.
+Formally, for each resource𝑟∈ C:
+Cap𝐷 (𝑠𝑐 ) (𝑟) ⊑Cap 𝐷 (𝑠𝑝 ) (𝑟).
+This is theno authority amplificationproperty of capability sys-
+tems [45]: no skill can grant a capability it does not possess. Com-
+bined with unforgeability, this bounds the transitive authority of
+any delegation chain.
+Proposition 5.5 (Transitive Attenuation).For a delegation
+chain𝑠 1 →𝑠 2 → · · · →𝑠𝑘 :
+Cap𝐷 (𝑠𝑘 ) ⊆Cap 𝐷 (𝑠𝑘−1 ) ⊆ · · · ⊆Cap 𝐷 (𝑠1).
+Authority can only decrease along a delegation chain; it can never
+increase.
+Proof. Immediate by induction on the chain length using Equa-
+tion (8).□
+5.3 CapabilitySet Verification Operations
+The sandbox exposes three verification operations that implement
+the formal model.
+Operation 1:Permits (𝑐req).Given a required capability 𝑐req =
+(𝑟, ℓ), check whether the declared set covers it:
+Permits(Cap 𝐷, 𝑐req)=
+(
+trueif∃ (𝑟 ′, ℓ′) ∈Cap 𝐷 :𝑟 ′ =𝑟∧ℓ⊑ℓ ′,
+falseotherwise.
+Operation 2:IsSubsetOf (Cap1,Cap 2).Formal POLA verification—
+check that one capability set is dominated by another:
+IsSubsetOf(Cap 1,Cap 2)=∀ (𝑟, ℓ) ∈Cap 1 :Permits(Cap 2,(𝑟, ℓ)).
+This is used both at install-time (checking that inferred capabili-
+ties do not exceed declared, Cap𝐼 ⊑Cap 𝐷) and at delegation-time
+(checkingCap 𝐷 (𝑠𝑐 ) ⊑Cap 𝐷 (𝑠𝑝 )).
+Operation 3:Violations (Cap𝐼 ,Cap 𝐷 ).Return the set of capabil-
+ities that exceed declared bounds:
+Violations(Cap𝐼 ,Cap 𝐷 )=
+
+(𝑟, ℓ) ∈Cap 𝐼 | ¬Permits(Cap 𝐷,(𝑟, ℓ))
+
+.
+An empty violation set constitutes a formal proof that the skill
+respects its declared capability boundary: Violations=∅ ⇒
+Cap𝐼 ⊑Cap 𝐷.
+5.4 Theorem 3: Capability Confinement
+We state the capability confinement guarantee in two parts. Theo-
+rem 3a provides thestaticguarantee thatSkillFortifyv1 delivers:
+if the static analysis finds no violations, then no operation in the
+skill’s code exceeds declared capabilities in the abstract domain.
+Theorem 3b provides theruntime designguarantee for future sand-
+box implementations.
+Theorem 5.6 (Static Capability Confinement).Let 𝑠 be a skill
+with declared capability set Cap𝐷 (𝑠) . If the static analysis reports
+no violations—i.e., Viol(𝑠)=∅ —then for every code construct in the
+skill’s definition, no operation 𝑜 in 𝑠 requires a capability exceeding
+the declared level. Formally:
+∀𝑜∈ops(𝑠):cap(𝑜) ⊑
+Ä
+Cap𝐷 (𝑠).(9)
+Proof sketch. We proceed by structural induction on the syn-
+tax of the skill’s code. For each code construct—assignment, condi-
+tional, loop, function call—we show that the capability requirements
+of all reachable operations are bounded by the inferred capability
+set, which in turn is bounded by the declared set when Viol(𝑠)=∅ .
+Base case(single operation 𝑜): The operation 𝑜 has capability re-
+quirement cap(𝑜) . The abstract analysis inferscap(𝑜) ⊑Cap 𝐼 (𝑠) (𝑟)
+for the relevant resource 𝑟 (by soundness of the transfer functions,
+Theorem 4.9). Since Viol(𝑠)=∅ , we have Cap𝐼 (𝑠) ⊑Cap 𝐷 (𝑠), so
+cap(𝑜) ⊑Cap 𝐷 (𝑠) (𝑟).
+Sequential composition( 𝑠1; 𝑠2): By the induction hypothesis, all
+operations in 𝑠1 and 𝑠2 individually satisfy the bound. Their union
+does not introduce new operations, so the bound holds for the
+composition.
+Conditional( if𝑏then𝑠 1 else𝑠 2): The inferred capabilities in-
+clude both branches. Any operation reachable at runtime belongs
+to one branch and is bounded by the induction hypothesis.
+Loop(while𝑏do𝑠 body): The inferred capabilities of the loop equal
+those of the body (repetition does not introduce new capabilities).
+By the induction hypothesis on the body, the bound holds.
+The full proof with all cases appears in Appendix A.3.□
+Theorem 5.7 (Runtime Capability Confinement—Design).If
+a runtime sandbox implementing the capability-safe execution model
+(no ambient authority, unforgeable capabilities, capability check on
+every action per Equation (7)) is deployed, then for any skill 𝑠 with
+declared capability set Cap𝐷 (𝑠) and for any action 𝑎 performed by 𝑠
+during execution:
+req(𝑎).ℓ⊑Cap 𝐷 (𝑠) (req(𝑎).𝑟).(10)
+Theorem 5.7 is adesign theorem: it specifies the guarantee that a cor-
+rectly implemented runtime sandbox must provide. The proof relies
+on the capability-safe execution model of Dennis and Van Horn [17]
+and the object-capability confinement result of Maffeis, Mitchell,
+and Taly [41]. We include a proof sketch in Appendix A.3 and note
+thatSkillFortifyv1 provides thestaticguarantee (Theorem 5.6);
+runtime enforcement is a design contribution for future work.
+Relation to Maffeis, Mitchell & Taly (2010).Theorem 5.7 in-
+stantiates thecapability safety theoremof Maffeis et al . [41] in the
+agent skill domain. Their result establishes that in a capability-safe
+language (JavaScript strict mode in their formalization), untrusted
+code is confined to the authority explicitly passed to it. We extend
+this to agent skills, where the “language” is the skill execution
+runtime and the “authority” is the declared capability set.
+Combined guarantee.Theorems 4.9 and 5.6 provide the defense
+currently implemented inSkillFortify:
+• Analysis soundness(Theorem 4.9): The inferred capabilities
+over-approximate the concrete resource accesses.
+
+--- PAGE 10 ---
+Varun Pratap Bhardwaj
+• Static confinement(Theorem 5.6): If no violations are found,
+all operations in the skill’s code are within declared capa-
+bilities.
+Together with the runtime design theorem (Theorem 5.7), these pro-
+vide defense in depth: static verification before installation, with the
+option of runtime enforcement during execution. A skill that passes
+the static check is provably confined in the abstract domain: it can-
+not exfiltrate data (𝑐1), escalate privileges (𝑐2), or abuse undeclared
+resources, under the DY-Skill attacker model (Section 3.3).
+Scope of guarantees.SkillFortifyv1 provides static analysis
+guarantees (Theorems 4.9 and 5.6). The runtime confinement guar-
+antee (Theorem 5.7) specifies the contract for a future sandbox im-
+plementation. This separation is intentional: static analysis catches
+capability violations before installation (the primary defense), while
+runtime sandboxing provides a safety net for dynamically con-
+structed operations that static analysis cannot fully resolve (see
+Section 11).
+6 Agent Dependency Graph and Lockfile
+Semantics
+Sections 3–5 established how todetectandconfineindividual mali-
+cious skills. In practice, agent configurations rarely consist of a sin-
+gle skill in isolation: modern agents compose dozens of skills, each
+of which may itself depend on other skills, shared libraries, or exter-
+nal MCP servers. A single compromised transitive dependency can
+undermine the security of the entire installation, as demonstrated
+by the SolarWinds [11] and Log4Shell [3] incidents in traditional
+software supply chains, and by the ClawHavoc campaign [68] in
+the agent ecosystem.
+This section introduces theAgent Dependency Graph(ADG), a
+formal data structure that captures skills, their version spaces, inter-
+skill dependencies, conflicts, and per-version capability require-
+ments. We present a SAT-based resolution algorithm that simulta-
+neously satisfies dependency, conflict, and security constraints, and
+we definelockfile semanticsthat guarantee reproducible, tamper-
+detectable installations. We conclude with an Agent Skill Bill of
+Materials (ASBOM) output aligned with the CycloneDX 1.6 stan-
+dard [53].
+6.1 Agent Dependency Graph (ADG)
+We model the agent skill ecosystem as apackage universeextended
+with security metadata, following the formalism of Mancinelli et
+al. [42] and Tucker et al. [61].
+Definition 6.1(Agent Dependency Graph).AnAgent Dependency
+Graphis a tupleADG=(S, 𝑉 , 𝐷, 𝐶,Cap)where:
+• Sis a finite set ofskill names.
+•𝑉:S → 2N maps each skill to its set of available versions,
+ordered by semantic versioning precedence [56].
+•𝐷:S ×N→ 2S×Constraint maps each skill-version pair (𝑠, 𝑣)
+to a set ofdependency edges, where each edge (𝑞, 𝛾) requires
+that some version of skill 𝑞 satisfying constraint 𝛾 be co-
+installed.
+•𝐶:S ×N→ 2S×Constraint maps each skill-version pair to a
+set ofconflict edges: if (𝑞, 𝛾) ∈𝐶(𝑠, 𝑣) , then no version of 𝑞
+satisfying𝛾may be co-installed with(𝑠, 𝑣).
+•Cap:S ×N→ 2C maps each skill-version pair to the set of
+capabilities it requires at runtime, where C is the capability
+universe from Definition 4.3.
+The ADG extends the classical package universe of Mancinelli
+et al. [42] with the capability map Cap. This extension is critical: it
+enables the resolver to reject skill-versions that demand capabilities
+exceeding the security policy,beforeinstallation occurs. Traditional
+package managers lack this dimension entirely.
+6.2 Version Constraints
+Definition 6.2(Version Constraint).Aversion constraint 𝛾 is a
+predicate over version numbers. We support the following atomic
+forms, mirroring PEP 440 and SemVer conventions:
+𝛾::===𝑣|!=𝑣|>=𝑣|<=𝑣|>𝑣|<𝑣|ˆ𝑣|˜𝑣|*
+Compound constraints are formed by conjunction:𝛾1 ∧𝛾 2 ∧ · · · ∧𝛾𝑘.
+A version 𝑤 satisfiesa compound constraint iff it satisfies every
+atomic constituent.
+Thecaretoperator ˆ𝑣permits any version with the same major
+number and ≥𝑣 (or, if the major number is0, the same major
+and minor). Thetildeoperator ˜𝑣permits any version with the
+same major and minor number and patch ≥ the target patch. The
+wildcard * is trivially satisfied by any version. These semantics
+follow standard package manager conventions [24].
+6.3 SAT-Based Dependency Resolution
+Dependency resolution for package managers is NP-complete, re-
+ducible from 3-SAT [42]. We follow the OPIUM approach [61] and
+encode the resolution problem as a propositional satisfiability in-
+stance, solved by a modern Conflict-Driven Clause Learning (CDCL)
+solver.
+Definition 6.3(SAT Encoding).Given an ADG (S, 𝑉 , 𝐷, 𝐶,Cap)
+and a set ofallowed capabilities A ⊆ C , we introduce a Boolean
+variable 𝑥𝑠,𝑣 for each skill 𝑠∈ S and version 𝑣∈𝑉(𝑠) . Variable
+𝑥𝑠,𝑣 =true means “skill𝑠 at version 𝑣 is included in the installation. ”
+The following clauses encode the constraints:
+(C1) At-most-one version per skill.For each skill 𝑠 and every
+pair of distinct versions𝑣 𝑖, 𝑣 𝑗 ∈𝑉(𝑠):
+¬𝑥 𝑠,𝑣𝑖 ∨ ¬𝑥 𝑠,𝑣 𝑗 (11)
+(C2) Root requirements.For each user-specified requirement
+(𝑠, 𝛾): Ü
+{𝑤∈𝑉(𝑠) |𝑤|=𝛾}
+𝑥𝑠,𝑤 (12)
+(C3) Dependency implications.For each (𝑠, 𝑣) and each depen-
+dency(𝑞, 𝛾) ∈𝐷(𝑠, 𝑣):
+¬𝑥 𝑠,𝑣 ∨
+Ü
+{𝑤∈𝑉(𝑞) |𝑤|=𝛾}
+𝑥𝑞,𝑤 (13)
+If no version of 𝑞 satisfies 𝛾, this degenerates to a unit clause ¬𝑥 𝑠,𝑣 ,
+effectively banning(𝑠, 𝑣).
+(C4) Conflict exclusions.For each (𝑠, 𝑣) and each conflict (𝑞, 𝛾) ∈
+𝐶(𝑠, 𝑣), and for each𝑤∈𝑉(𝑞)with𝑤|=𝛾:
+¬𝑥 𝑠,𝑣 ∨ ¬𝑥 𝑞,𝑤 (14)
+
+--- PAGE 11 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+(C5) Capability bounds.For each (𝑠, 𝑣) such that Cap(𝑠, 𝑣)⊈A :
+¬𝑥 𝑠,𝑣 (15)
+The key novelty over classical package resolution is clause fam-
+ily (C5): it integrates the static capability analysis of Section 4
+directly into the resolution process, ensuring that no installation
+plan can include a skill-version whose runtime requirements exceed
+the declared security policy.
+Implementation.We use the Glucose3 CDCL solver via the PySAT
+framework [33]. At-most-one constraints are encoded as pairwise
+negation (Eq. 11), which is compact for the typical case of |𝑉(𝑠)| ≤
+20versions per skill. For larger version spaces, sequential counter
+encodings from the PySAT cardinality module can be substituted.
+6.4 Secure Installation
+Definition 6.4(Secure Installation).Aninstallation 𝐼⊆ S ×N is a
+set of skill-version pairs.𝐼 issecurewith respect to (S, 𝑉 , 𝐷, 𝐶,Cap,A)
+if and only if:
+(1) Completeness.For every (𝑠, 𝑣) ∈𝐼 and every (𝑞, 𝛾) ∈
+𝐷(𝑠, 𝑣), there exists(𝑞, 𝑤) ∈𝐼such that𝑤|=𝛾.
+(2) Consistency.For every (𝑠, 𝑣) ∈𝐼 and every (𝑞, 𝛾) ∈𝐶(𝑠, 𝑣) ,
+there is no(𝑞, 𝑤) ∈𝐼with𝑤|=𝛾.
+(3)Capability safety.For every(𝑠, 𝑣) ∈𝐼:Cap(𝑠, 𝑣) ⊆ A.
+Condition (3) is the agent-specific extension: it ties the installa-
+tion plan to the capability-based sandboxing model of Section 5,
+ensuring that every installed skill respects the declared security
+boundary. In traditional package managers (apt, pip, npm), no ana-
+logue of this condition exists.
+6.5 Lockfile Semantics
+Alockfileis the deterministic serialization of a secure installation.
+We define theskill-lock.json format to provide three guaran-
+tees: reproducibility, integrity, and auditability.
+Definition 6.5(Lockfile).Alockfile L is a tuple L=(𝐼, 𝐻, 𝑀)
+where:
+•𝐼⊆ S ×Nis a secure installation (Definition 6.4).
+•𝐻:𝐼→ { 0, 1}256 maps each installed skill-version to its
+SHA-256 content hash.
+•𝑀 is a metadata record containing the resolution strategy,
+the allowed capability set A, a generation timestamp, and
+the tool version.
+Definition 6.6(Lockfile Reproducibility).A resolver R isrepro-
+ducibleif, for any ADG and requirement set, running R twice on
+the same input produces identical lockfiles:
+R (ADG,reqs,A)=R (ADG,reqs,A)
+We achieve reproducibility by fixing the variable ordering in
+the SAT encoding (lexicographic by skill name, then descending
+version) and using a deterministic solver configuration. The lockfile
+itself is serialized with sorted keys and canonical JSON formatting,
+ensuring byte-identical output for identical inputs.
+Definition 6.7(Integrity Verification).At installation time, for
+each (𝑠, 𝑣) ∈𝐼 , the installer computes the SHA-256 hash of the skill
+content and verifies:
+sha256(content(𝑠, 𝑣))=𝐻(𝑠, 𝑣)
+A mismatch indicates tampering: either the skill source was modi-
+fied after resolution (supply chain attack), or the lockfile was cor-
+rupted.
+This mechanism is analogous to the integrity fields inpackage-lock.json
+(npm) andCargo.lock (Rust), adapted for the agent skill ecosystem
+where no prior lockfile standard exists.
+6.6 Agent Skill Bill of Materials (ASBOM)
+Regulatory frameworks including the EU AI Act (Article 17, techni-
+cal documentation requirements) [22] and the NIST AI Risk Man-
+agement Framework [47] increasingly require transparency about
+third-party AI components. We generate anAgent Skill Bill of Ma-
+terials(ASBOM) as a structured inventory of all skills in an agent’s
+dependency closure.
+Definition 6.8(Agent Skill Bill of Materials).An ASBOM is a
+CycloneDX 1.6-compatible [53] document that records, for each
+(𝑠, 𝑣) ∈𝐼:
+• Identity:skill name, version, format (Claude, MCP, Open-
+Claw), and content hash.
+• Capabilities:the set Cap(𝑠, 𝑣) of declared runtime permis-
+sions.
+• Dependencies:resolved dependency edges {(𝑞, 𝑤) | (𝑞, 𝛾) ∈
+𝐷(𝑠, 𝑣),(𝑞, 𝑤) ∈𝐼, 𝑤|=𝛾}.
+• Trust metadata:trust score, trust level (Section 7), and
+provenance information.
+• Vulnerability status:known CVEs or analysis findings
+affecting(𝑠, 𝑣).
+The CycloneDX format enables integration with existing enter-
+prise vulnerability management platforms (e.g., Dependency-Track,
+Grype) and provides the machine-readable evidence required for
+compliance audits.
+6.7 Transitive Vulnerability Propagation
+A critical advantage of the graph-based model is the ability to
+propagate vulnerability information transitively.
+Definition 6.9(Affected Installation).Given a set of known-vulnerable
+skill-versions Vuln⊆ S ×N , a skill-version (𝑠, 𝑣) ∈𝐼\Vuln istran-
+sitively affectedif there exists a path in the dependency graph from
+(𝑠, 𝑣)to some(𝑞, 𝑤) ∈Vuln. The set of affected installations is:
+Affected(𝐼,Vuln)={(𝑠, 𝑣) ∈𝐼\Vuln| ∃ (𝑞, 𝑤) ∈Vuln.(𝑠, 𝑣){ ∗ (𝑞, 𝑤)}
+where {∗ denotes transitive reachability through dependency
+edges.
+We compute Affected by BFS over the reverse dependency graph
+(from vulnerable nodes to their dependents), analogous to how
+npm audit identifies transitively affected packages. The difference
+is that our propagation also considerscapability implications: if a
+vulnerable skill has capability 𝑐∈Cap(𝑞, 𝑤) , then all skills in its
+reverse transitive closure that delegate or depend on capability 𝑐
+are flagged with elevated severity.
+
+--- PAGE 12 ---
+Varun Pratap Bhardwaj
+6.8 Theorem 4: Resolution Soundness
+Theorem 6.10 (Resolution Soundness).Let ADG=(S, 𝑉 , 𝐷, 𝐶,Cap)
+be an Agent Dependency Graph and A ⊆ C a set of allowed capabil-
+ities. Let Φ be the conjunction of all clauses (C1)–(C5) from Defini-
+tion 6.3. Then:
+(1)Φ is satisfiable if and only if a secure installation (Defini-
+tion 6.4) exists.
+(2) Any satisfying assignment 𝜎|=Φ induces a secure instal-
+lation 𝐼𝜎 ={(𝑠, 𝑣) |𝜎(𝑥 𝑠,𝑣 )=true} , and the corresponding
+lockfile L𝜎 =(𝐼 𝜎, 𝐻, 𝑀) satisfies all dependency, conflict, and
+capability constraints.
+Proof sketch.We establish both directions.
+(⇒)Suppose𝜎|=Φ. Define𝐼 𝜎 ={(𝑠, 𝑣) |𝜎(𝑥 𝑠,𝑣 )=true}.
+• At-most-one:By clause family (C1), for each skill 𝑠 at most
+one variable 𝑥𝑠,𝑣 is true, so 𝐼𝜎 contains at most one version
+per skill.
+• Completeness:Fix (𝑠, 𝑣) ∈𝐼 𝜎 and (𝑞, 𝛾) ∈𝐷(𝑠, 𝑣) . Since
+𝜎(𝑥 𝑠,𝑣 )=true , clause (C3) requires 𝜎(𝑥 𝑞,𝑤 )=true for some
+𝑤|=𝛾. Hence(𝑞, 𝑤) ∈𝐼 𝜎.
+• Consistency:Fix (𝑠, 𝑣) ∈𝐼 𝜎 and (𝑞, 𝛾) ∈𝐶(𝑠, 𝑣) . For every
+𝑤|=𝛾 , clause (C4) gives ¬𝑥 𝑠,𝑣 ∨ ¬𝑥 𝑞,𝑤 . Since 𝜎(𝑥 𝑠,𝑣 )=true ,
+we have𝜎(𝑥 𝑞,𝑤 )=false, so(𝑞, 𝑤)∉𝐼 𝜎.
+• Capability safety:If Cap(𝑠, 𝑣)⊈A , clause (C5) forces𝜎(𝑥 𝑠,𝑣 )=
+false, so (𝑠, 𝑣)∉𝐼 𝜎. Contrapositive: (𝑠, 𝑣) ∈𝐼 𝜎 ⇒Cap(𝑠, 𝑣) ⊆
+A.
+(⇐) Suppose 𝐼 is a secure installation. Define𝜎(𝑥 𝑠,𝑣 )=[(𝑠, 𝑣) ∈𝐼]
+(Iverson bracket).
+• (C1):At most one version per skill in 𝐼 (by definition of
+installation), so pairwise exclusion holds.
+• (C2):For each requirement (𝑠, 𝛾), completeness of 𝐼 implies
+some(𝑠, 𝑤) ∈𝐼with𝑤|=𝛾, so the disjunction is satisfied.
+• (C3):For each (𝑠, 𝑣) ∈𝐼 and (𝑞, 𝛾) ∈𝐷(𝑠, 𝑣) , completeness
+gives (𝑞, 𝑤) ∈𝐼 with 𝑤|=𝛾 , making the implication clause
+true. If(𝑠, 𝑣)∉𝐼, the clause is trivially satisfied via¬𝑥 𝑠,𝑣 .
+• (C4):Consistency of 𝐼 ensures no conflicting pair is co-
+installed; the mutual exclusion clauses hold.
+• (C5):Capability safety of 𝐼 ensures Cap(𝑠, 𝑣) ⊆ A for all
+(𝑠, 𝑣) ∈𝐼, so no unit clause¬𝑥 𝑠,𝑣 is violated.
+Thus𝜎|=Φ, andΦis satisfiable.□
+Remark6.11.The bidirectional correspondence in Theorem 6.10
+means that the SAT solver provides acompletedecision procedure
+for secure installability: if the solver reports UNSAT, thennosecure
+installation exists under the given constraints. In such cases, the
+conflict analysis phase of the CDCL solver yields an unsatisfiable
+core, which we translate into human-readable diagnostic messages
+explaining which dependency, conflict, or capability constraint
+caused the failure.
+Complexity.The dependency resolution problem is NP-complete
+in general [42]. Our capability-bounded extension (clause family C5)
+adds only 𝑂(|S| ·max 𝑠 |𝑉(𝑠)|) unit clauses, so the theoretical worst
+case is unchanged. In practice, the agent skill ecosystem has |S| ≤
+103 and |𝑉(𝑠)| ≤ 20, well within the efficient regime of modern
+CDCL solvers: our experiments (Section 9) show resolution times
+under 0.5 seconds for 500 skills.
+Table 3: Agent Dependency Graph vs. traditional package
+dependency resolution.
+Feature Traditional ADG (Ours)
+Version constraints✓ ✓
+Conflict detection✓ ✓
+SAT-based resolution✓ ✓
+Capability bounding —✓
+Trust-aware resolution —✓
+Lockfile integrity✓ ✓
+ASBOM generation Partial✓
+Vulnerability propagation✓ ✓
+Capability-aware propagation —✓
+Comparison with traditional package managers.Table 3 summa-
+rizes the differences between our ADG-based resolver and tradi-
+tional package dependency resolution.
+7 Trust Score Algebra
+The preceding sections established mechanisms for verifying in-
+dividual skills (Sections 4–5) and resolving their dependencies se-
+curely (Section 6). A complementary question remains:how much
+should a developer trust a given skill?Binary safe/unsafe classifica-
+tion is insufficient in practice—skills exist on a spectrum from un-
+signed, anonymous submissions to formally verified, organization-
+signed artifacts with years of community track record.
+This section introduces atrust score algebrathat combines het-
+erogeneous trust signals into a single composite score, propagates
+trust conservatively through dependency chains, models trust de-
+cay for unmaintained skills, and maps numeric scores to graduated
+assurance levels inspired by the SLSA framework [ 26]. Our con-
+struction draws on the trust management literature, particularly
+the PolicyMaker and KeyNote systems [6, 7], and the formal trust
+models of Carbone et al. [8] and Jøsang [35].
+7.1 Trust Score Model
+Definition 7.1(Trust Signals).For a skill 𝑠 at version 𝑣, we de-
+fine four orthogonaltrust signals, each taking values in the closed
+interval[0,1]:
+(1)𝑇 𝑝 (𝑠, 𝑣) ∈ [ 0, 1]:Provenance.Measures author verifica-
+tion and signing status. 𝑇𝑝 = 0for unsigned, anonymous
+authors; 𝑇𝑝 = 1for organization-signed skills with repro-
+ducible builds and verified identity.
+(2)𝑇 𝑏 (𝑠, 𝑣) ∈ [ 0, 1]:Behavioral.Measures the outcome of
+static analysis (Section 4). 𝑇𝑏 = 0if critical capability viola-
+tions are detected;𝑇 𝑏 =1if analysis reports no findings.
+(3)𝑇 𝑐 (𝑠, 𝑣) ∈ [ 0, 1]:Community.Aggregates community trust
+signals: usage count, age, issue reports, and peer reviews.
+𝑇𝑐 = 0for a brand-new skill with no usage; 𝑇𝑐 = 1for a
+widely adopted, mature skill with no reported issues.
+(4)𝑇 ℎ (𝑠, 𝑣) ∈ [ 0, 1]:Historical.Captures the skill’s past vul-
+nerability record. 𝑇ℎ = 0if the skill has a history of CVEs
+or security incidents;𝑇 ℎ =1for a clean historical record.
+We writeT(𝑠, 𝑣)=(𝑇 𝑝, 𝑇𝑏, 𝑇𝑐, 𝑇ℎ) ∈ [0,1] 4 for the signal vector.
+
+--- PAGE 13 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+The four signals are designed to beorthogonal: provenance mea-
+sureswhopublished the skill, behavioral measureswhatthe skill
+does, community measureshow widelyit is adopted, and historical
+measureshow reliableit has been over time.
+Definition 7.2(Trust Weights).Aweight vectorw =(𝑤 𝑝, 𝑤𝑏, 𝑤𝑐, 𝑤ℎ) ∈
+R4
+≥0 satisfies:
+𝑤 𝑝 +𝑤 𝑏 +𝑤 𝑐 +𝑤 ℎ =1and𝑤 𝑝, 𝑤𝑏, 𝑤𝑐, 𝑤ℎ ≥0
+The default weight vector isw 0 =( 0.3, 0.3, 0.2, 0.2), reflecting equal
+priority for provenance and behavioral analysis (the signals most
+directly under the tool’s and author’s control), with lower weight
+for community and historical signals (which accumulate over time).
+Definition 7.3(Intrinsic Trust Score).Theintrinsic trust scoreof
+skill𝑠at version𝑣is the weighted linear combination:
+𝑇(𝑠, 𝑣)=𝑤 𝑝 ·𝑇𝑝 (𝑠, 𝑣) +𝑤 𝑏 ·𝑇𝑏 (𝑠, 𝑣) +𝑤 𝑐 ·𝑇𝑐 (𝑠, 𝑣) +𝑤 ℎ ·𝑇ℎ (𝑠, 𝑣)(16)
+Since all weights are non-negative and sum to1, and all signals are
+in[0,1], the score satisfies𝑇(𝑠, 𝑣) ∈ [0,1].
+7.2 Trust Propagation
+A skill’s effective trustworthiness depends not only on its own prop-
+erties but on the trustworthiness of its dependencies. A formally
+verified skill that depends on an unsigned, unvetted library inherits
+risk from that dependency. We model this throughmultiplicative
+trust propagation, following the transitive trust composition ap-
+proach of Carbone et al. [8].
+Definition 7.4(Trust Composition Operator).Thetrust composi-
+tion operator⊗:[0,1] × [0,1] → [0,1]is defined as:
+𝑎⊗𝑏=𝑎·𝑏(17)
+This is conservative: composed trust is always ≤ either operand,
+reflecting that a chain of trust is only as strong as the product of
+its links.
+Definition 7.5(Transitive Dependency Set).For a skill 𝑠 in a
+dependency DAG, thetransitive dependency set trans(𝑠) is the set
+of all skills reachable from𝑠via dependency edges,deduplicated:
+trans(𝑠)=
+
+𝑠 ′ |𝑠{ + 𝑠 ′
+where {+ denotes transitive reachability through dependency
+edges. Shared sub-dependencies (diamond patterns) appear exactly
+once intrans(𝑠).
+Definition 7.6(Effective Trust Score).For a skill 𝑠 in a depen-
+dency DAG, theeffective trust scoreis defined over the deduplicated
+transitive dependency set:
+𝑇eff (𝑠)=𝑇(𝑠) ×min
+𝑑∈trans(𝑠)
+𝑇(𝑑)(18)
+If trans(𝑠)=∅ (leaf skill with no dependencies), then𝑇eff (𝑠)=𝑇(𝑠) .
+This formulation resolves the ambiguity that arises in DAGs with
+diamond dependency patterns (where skill 𝐴 depends on 𝐵 and
+𝐶, both of which depend on 𝐷). The recursive formulation 𝑇(𝑠) ⊗
+min𝑖 𝑇eff (𝑠𝑖 ) would count 𝐷’s trust contribution multiple times de-
+pending on the traversal order. Our definition computes the mini-
+mum over thededuplicatedtransitive closure, ensuring a unique
+result.
+Proposition 7.7 (Uniqeness). 𝑇eff (𝑠) is uniquely defined re-
+gardless of traversal order.
+Proof.𝑇 eff (𝑠) depends only on 𝑇(𝑠) and the set {𝑇(𝑑) |𝑑∈
+trans(𝑠)} . Both 𝑇(𝑠) and the set trans(𝑠) are properties of the DAG
+structure (not of any particular traversal). The min operator over a
+set is order-independent. Therefore 𝑇eff (𝑠) is uniquely determined.
+□
+The min over dependencies implementsweakest-linksemantics:
+the effective trust of a skill is bounded by the least-trusted depen-
+dency in its transitive closure, attenuated by the multiplicative
+composition. This is analogous to the assertion monotonicity prop-
+erty of KeyNote [6]: adding a trusted intermediary never reduces
+the compliance value of a delegation chain.
+Proposition 7.8 (Propagation Bound).For any skill 𝑠 in a
+dependency DAG with longest dependency path of length 𝑑 (measured
+as the number of edges in the longest path from 𝑠 to any leaf in the
+DAG):
+𝑇eff (𝑠) ≤𝑇(𝑠)
+with equality if and only if all transitive dependencies have intrinsic
+trust score1. More generally, if 𝑇min =min 𝑠′ ∈trans(𝑠)∪{𝑠} 𝑇(𝑠 ′) is the
+minimum intrinsic trust across all skills in the transitive dependency
+closure (including𝑠itself), then:
+𝑇eff (𝑠) ≥𝑇 2
+min
+and in particular𝑇 eff (𝑠) ≥𝑇(𝑠) ·𝑇 min.
+Proof. Upper bound.If trans(𝑠)≠∅ , then min𝑑∈trans(𝑠) 𝑇(𝑑) ≤
+1, so 𝑇eff (𝑠)=𝑇(𝑠) ·min 𝑑 𝑇(𝑑) ≤𝑇(𝑠) . If trans(𝑠)=∅ , 𝑇eff (𝑠)=
+𝑇(𝑠).
+Lower bound. 𝑇(𝑠) ≥𝑇 min and min𝑑∈trans(𝑠) 𝑇(𝑑) ≥𝑇 min by defi-
+nition of 𝑇min. Hence 𝑇eff (𝑠)=𝑇(𝑠) ·min 𝑑 𝑇(𝑑) ≥𝑇 min ·𝑇min =𝑇 2
+min.
+The bound 𝑇eff (𝑠) ≥𝑇(𝑠) ·𝑇 min follows from min𝑑 𝑇(𝑑) ≥𝑇 min. □
+7.3 Trust Decay
+Skills that are not actively maintained accumulate risk over time:
+unpatched vulnerabilities, compatibility drift with evolving agent
+runtimes, and stale dependencies. We model this via exponential
+decay.
+Definition 7.9(Temporal Trust Decay).For a skill 𝑠 last updated
+at time𝑡 last, thedecayed trust scoreat time𝑡>𝑡 last is:
+𝑇(𝑠, 𝑡)=𝑇 0 (𝑠) ·𝑒 −𝜆· (𝑡−𝑡last ) (19)
+where 𝑇0 (𝑠)=𝑇 eff (𝑠) is the effective trust score at the time of last
+update, and𝜆>0is thedecay rateparameter.
+The decay rate 𝜆 controls how aggressively trust erodes with
+inactivity. At the default rate 𝜆= 0.01 day−1, trust halves approxi-
+mately every 69 days (𝑡1/2 =ln 2/𝜆). This aligns with the empirical
+observation that unmaintained open-source packages are signifi-
+cantly more likely to contain unpatched vulnerabilities after 3–6
+months of inactivity [67].
+Proposition 7.10 (Decay Properties).The decay function (Eq. 19)
+satisfies:
+(1) Monotonic decrease: 𝑇(𝑠, 𝑡 1) ≥𝑇(𝑠, 𝑡 2) for 𝑡1 ≤𝑡 2 (trust
+never increases with time alone).
+
+--- PAGE 14 ---
+Varun Pratap Bhardwaj
+(2)Bounded:𝑇(𝑠, 𝑡) ∈ [0, 𝑇 0 (𝑠)]for all𝑡≥𝑡 last.
+(3) Asymptotic: lim𝑡→∞ 𝑇(𝑠, 𝑡)= 0(eventually, unmaintained
+skills have negligible trust).
+(4) Reset on update:When a skill is updated at time 𝑡 ′, the
+trust score resets to 𝑇 ′
+0 (𝑠)=𝑇 eff (𝑠, 𝑡 ′), re-evaluating all four
+signals with current data.
+7.4 Graduated Trust Levels
+For operational decision-making, we map continuous trust scores
+to discrete levels inspired by the Supply chain Levels for Software
+Artifacts (SLSA) framework [26].
+Definition 7.11(Trust Level Mapping).Thetrust level ℓ(𝑠) of a
+skill𝑠is determined by its effective (possibly decayed) trust score:
+ℓ(𝑠)=
+ 
+
+L0 (unsigned) if𝑇 eff (𝑠)<0.25
+L1 (signed) if0.25≤𝑇 eff (𝑠)<0.50
+L2 (community_verified) if0.50≤𝑇 eff (𝑠)<0.75
+L3 (formally_verified) if𝑇 eff (𝑠) ≥0.75
+(20)
+The four levels correspond to increasing assurance:
+• L0 (Unsigned):No verification. The skill has not been
+signed, analyzed, or reviewed. Default for newly discovered,
+anonymous skills.
+• L1 (Signed):Basic provenance established. The author has
+signed the package, providing identity assurance but no
+behavioral or community verification.
+• L2 (Community Verified):Multiple positive signals. The
+skill has usage history, community reviews, and passes
+basic behavioral analysis.
+• L3 (Formally Verified):Highest assurance. The skill passes
+formal static analysis (Section 4), has strong provenance,
+active community trust, and a clean historical record.
+Enterprise policies can mandate minimum trust levels for skill
+installation. For example, a policy requiring ℓ(𝑠) ≥L2 for all pro-
+duction skills is expressible as a constraint in the ADG resolver
+(Section 6.3), integrated alongside capability bounds.
+7.5 Theorem 5: Trust Monotonicity
+The central theoretical property of the trust algebra ismonotonic-
+ity: positive evidence about a skill should never reduce its trust
+score. This corresponds to the assertion monotonicity axiom of
+KeyNote [6]: adding credentials to a compliance check never re-
+duces the compliance value.
+Theorem 7.12 (Trust Monotonicity).Let 𝑠 be a skill with signal
+vectorT =(𝑇 𝑝, 𝑇𝑏, 𝑇𝑐, 𝑇ℎ) and trust score 𝑇(𝑠)= w · T. Let 𝑒 be
+positive evidencethat increases one or more signal values: there
+existsT ′ =(𝑇 ′
+𝑝, 𝑇′
+𝑏 , 𝑇′
+𝑐 , 𝑇′
+ℎ ) with 𝑇 ′
+𝑝 ≥𝑇 𝑝 , 𝑇 ′
+𝑏 ≥𝑇 𝑏 , 𝑇 ′
+𝑐 ≥𝑇 𝑐 , 𝑇 ′
+ℎ ≥𝑇 ℎ,
+and at least one strict inequality. Then:
+𝑇(𝑠|𝑒)=w·T ′ ≥w·T=𝑇(𝑠)(21)
+Moreover,𝑇(𝑠|𝑒)>𝑇(𝑠) whenever the strict inequality occurs on a
+signal𝑖with𝑤 𝑖 >0.
+Proof. The difference between the updated and original trust
+scores is:
+𝑇(𝑠|𝑒) −𝑇(𝑠)=w·T ′ −w·T
+=𝑤 𝑝 (𝑇 ′
+𝑝 −𝑇 𝑝 ) +𝑤 𝑏 (𝑇 ′
+𝑏 −𝑇 𝑏 ) +𝑤 𝑐 (𝑇 ′
+𝑐 −𝑇 𝑐 ) +𝑤 ℎ (𝑇 ′
+ℎ −𝑇 ℎ)
+(22)
+Each term in Eq. 22 is a product of a non-negative weight 𝑤 𝑖 ≥ 0
+(by Definition 7.2) and a non-negative increment 𝑇 ′
+𝑖 −𝑇 𝑖 ≥ 0(by
+the hypothesis thatT ′ ≥Tcomponent-wise). Therefore:
+𝑇(𝑠|𝑒) −𝑇(𝑠) ≥0
+For strict monotonicity, if 𝑇 ′
+𝑗 >𝑇 𝑗 for some signal 𝑗 with 𝑤 𝑗 > 0,
+then the𝑗-th term is strictly positive, giving𝑇(𝑠|𝑒)>𝑇(𝑠).
+Monotonicity extends to effective trust scores because the prop-
+agation operator ⊗ (multiplication) is monotone in both arguments
+on [0, 1], and themin operator is monotone in each of its arguments.
+Formally, if 𝑇(𝑠) ≤𝑇(𝑠|𝑒) , then for any dependency trust value
+𝑑∈ [0,1]:
+𝑇(𝑠) ·𝑑≤𝑇(𝑠|𝑒) ·𝑑
+and hence 𝑇eff (𝑠) ≤𝑇 eff (𝑠|𝑒) provided all dependency effective
+scores remain unchanged.□
+Remark7.13 (Operational Significance).Theorem 7.12 ensures that
+the trust system isincentive-compatible: skill authors who improve
+their provenance (e.g., by signing packages), fix vulnerabilities (im-
+proving 𝑇ℎ), or submit to formal verification (improving 𝑇𝑏) are
+guaranteed a non-decreasing trust score. The system never pun-
+ishes improvement. This property is essential for adoption: devel-
+opers and enterprise security teams need confidence that investing
+in skill quality reliably improves the skill’s trust standing.
+Connection to the ADG resolver.Trust scores integrate with the
+SAT-based resolver of Section 6.3 through an optionaltrust-aware
+optimization objective: among all satisfying assignments (secure
+installations), prefer the one that maximizes the minimum effective
+trust score across installed skills. This transforms the satisfiability
+problem into a MAX-SAT optimization:
+𝐼 ∗ =arg max
+𝐼|=Φ
+min
+(𝑠,𝑣) ∈𝐼
+𝑇eff (𝑠, 𝑣)(23)
+where Φ is the conjunction of clauses (C1)–(C5). In practice, we
+approximate this by iteratively adding trust threshold constraints
+(“all installed skills must have𝑇eff ≥𝜏 ”) and binary-searching on𝜏
+until the maximum feasible threshold is found.
+Algebraic structure.The trust score model forms abounded semi-
+latticeover the interval [0, 1]: the composition operator ⊗ (mul-
+tiplication) is commutative, associative, and has identity element
+1. The min operator provides the meet. These algebraic properties
+ensure that trust propagation is well-defined regardless of the order
+in which dependency chains are evaluated, and that the propagated
+trust score is unique for any given ADG.
+Proposition 7.14 (Trust Algebra Properties).The tuple ( [0, 1],⊗,min, 0, 1)
+forms a bounded semilattice where:
+(1)⊗is commutative:𝑎⊗𝑏=𝑏⊗𝑎.
+(2)⊗is associative:(𝑎⊗𝑏) ⊗𝑐=𝑎⊗ (𝑏⊗𝑐).
+(3)1is the identity:𝑎⊗1=𝑎.
+(4)0is the annihilator:𝑎⊗0=0.
+
+--- PAGE 15 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+(5)minis idempotent, commutative, and associative.
+(6) Monotonicity: if𝑎≤𝑎 ′ and𝑏≤𝑏 ′, then𝑎⊗𝑏≤𝑎 ′ ⊗𝑏 ′.
+Proof. Properties (1)–(4) follow immediately from the corre-
+sponding properties of multiplication on [0, 1]. Property (5) follows
+from the standard properties of min on totally ordered sets. Prop-
+erty (6): if 𝑎≤𝑎 ′ and 𝑏≤𝑏 ′, then 𝑎·𝑏≤𝑎 ′ ·𝑏 ′ since all values are
+non-negative.□
+8 Implementation
+We implement the formal framework described in Sections 3–7
+asSkillFortify, an open-source Python tool for agent skill sup-
+ply chain security. This section describes the system architecture,
+supported skill formats, command-line interface, and engineering
+quality measures.
+8.1 Architecture
+SkillFortifyis organized around three core engines connected
+via a shared Threat Knowledge Base (Figure 1):
+(1) Static Analyzer.Implements the abstract interpretation
+framework from Section 4. The analyzer performs pattern-
+based detection augmented with information flow analysis.
+Patterns are organized into a taxonomy of 13 attack types
+derived from ClawHavoc [68] and MalTool [63] incident
+data. The information flow component tracks data propa-
+gation from sensitive sources (environment variables, file
+system, user credentials) to untrusted sinks (network end-
+points, external processes), enabling detection of stegano-
+graphic exfiltration channels that evade pure pattern match-
+ing.
+(2) Dependency Resolver.Implements the Agent Depen-
+dency Graph ADG=(S, 𝑉 , 𝐷, 𝐶,Cap) from Section 6. The
+resolver constructs a directed acyclic graph of skill depen-
+dencies, enforces semantic version constraints, detects con-
+flicts via Boolean satisfiability encoding, and produces de-
+terministic lockfiles. Cycle detection uses Kahn’s algorithm
+with𝑂(|𝑉| + |𝐸|)complexity.
+(3) Trust Engine.Implements the trust score algebra 𝑇:S ×
+N→ [ 0, 1] from Section 7. The engine computes multi-
+signal trust scores incorporating provenance verification,
+behavioral analysis results, and temporal decay. Trust prop-
+agation through dependency chains follows the formal
+model with configurable weight vectorsw∈Δ 𝑘−1 .
+All three engines share aThreat Knowledge Basecontaining:
+(i) the DY-Skill threat taxonomy, (ii) the capability lattice (C,⊑) ,
+(iii) pattern signatures for known attack types, and (iv) trust signal
+configurations. The knowledge base is implemented as an extensible
+registry, allowing users to add custom threat patterns and trust
+signals without modifying engine code.
+8.2 Scope of Formal Guarantees
+An important scope clarification: the formal analysis (Theorem 4.9)
+applies to the skill’scode, configuration, and metadata—all determin-
+istic artifacts. LLM inference outputs are inherently non-deterministic;
+an agent may invoke a skill in ways that depend on stochastic
+model reasoning, and the natural-language instructions within a
+Static
+Analyzer
+Dependency
+Resolver
+Trust
+Engine
+Threat Knowledge Base
+SkillFortifyCLI
+Figure 1: Architecture ofSkillFortify. Three engines (Static
+Analyzer, Dependency Resolver, Trust Engine) share a Threat
+Knowledge Base. The CLI orchestrates all engines and pro-
+duces unified reports.
+skill manifest may be interpreted differently across model versions
+or sampling parameters. These dynamic, non-deterministic aspects
+are outside the scope of static analysis.
+SkillFortify’s guarantees therefore apply to thestructuralat-
+tack surface: embedded code, declared commands, environment
+variable exposure, dependency relationships, and information flow
+through deterministic skill logic. Attacks that emerge purely from
+LLM reasoning at runtime—for example, a benign-looking skill
+whose natural-language description manipulates the model into
+performing unintended actions—require complementary dynamic
+analysis techniques. We discuss this limitation and the path toward
+runtime enforcement in Section 11.4.
+8.3 Skill Format Support
+SkillFortifysupports the three dominant agent skill formats as
+of February 2026:
+• Claude Code Skills( .md with YAML frontmatter). An-
+thropic’s skill format [2] embeds capability declarations in
+Markdown files with structured YAML metadata.SkillFor-
+tifyextracts capability claims, tool declarations, and inline
+code blocks for analysis.
+• MCP Servers( .json configuration). The Model Context
+Protocol [1] defines server configurations as JSON mani-
+fests specifying command-line invocations, environment
+variable bindings, and transport parameters.SkillFortify
+analyzes the declared command, environment exposure,
+and argument patterns.
+• OpenClaw Skills( .yaml). The OpenClaw marketplace
+format [50] uses YAML manifests declaring actions, trig-
+gers, environment variables, and runtime configurations.
+SkillFortifyparses action definitions, permission scopes,
+and embedded script payloads.
+Format detection is automatic via a ParserRegistry that dis-
+patches on file extension and content heuristics. Each parser nor-
+malizes skill metadata into a unified internal representation 𝑠=
+(id,name,version, 𝐶 declared,code,deps) suitable for analysis by all
+three engines.
+
+--- PAGE 16 ---
+Varun Pratap Bhardwaj
+8.4 CLI Interface
+SkillFortifyexposes five commands, each mapping to a formal
+contribution:
+1$ skillfortify scan <path> # Discover + analyze all skills
+2$ skillfortify verify <skill> # Formal analysis of one
+skill
+3$ skillfortify lock <path> # SAT-based lockfile generation
+4$ skillfortify trust <skill> # Trust score computation
+5$ skillfortify sbom <path> # CycloneDX ASBOM output
+skillfortify scan is the primary entry point. It recursively dis-
+covers skill files, invokes the static analyzer on each, constructs the
+dependency graph, computes trust scores, and produces a unified
+security report. Output formats include human-readable terminal
+output (with severity-colored findings), JSON for CI/CD integration,
+and SARIF for IDE compatibility.
+skillfortify verifyperforms deep formal analysis of a single
+skill against the capability model. It reports the inferred capability
+set 𝐶inferred, compares it against declared capabilities 𝐶declared, and
+flags any privilege escalation (𝐶inferred @𝐶 declared).
+skillfortify lockgenerates a deterministicskill-lock.json
+by encoding dependency constraints as a Boolean satisfiability
+problem, solving with the DPLL-based resolver, and serializing the
+resolved configuration with SHA-256 integrity hashes.
+skillfortify trust computes the multi-dimensional trust
+score 𝑇(𝑠, 𝑡) for a skill, incorporating behavioral analysis, prove-
+nance signals, and temporal decay.
+skillfortify sbom generates an Agent Skill Bill of Materi-
+als (ASBOM) in CycloneDX format, compatible with enterprise
+compliance workflows and OWASP tooling.
+8.5 Engineering Quality
+SkillFortifycomprises 2,567 lines of Python across 44 source files,
+with every module under 300 lines to ensure maintainability. The
+test suite contains 473 automated tests, including:
+• Unit testsfor all core data structures, parsers, and engine
+components;
+• Property-based testsvia Hypothesis [ 40] for the capabil-
+ity lattice (verifying lattice axioms: reflexivity, antisymme-
+try, transitivity) and trust algebra (verifying monotonicity
+and boundedness);
+• Integration testsfor CLI commands exercising end-to-end
+workflows.
+All code is statically type-checked withmypy (strict mode), linted
+with ruff, and formatted with black. The CI pipeline runs the full
+test suite on every commit.
+9 Evaluation
+We evaluateSkillFortifyacross seven experiments designed to
+test each formal contribution. All experiments useSkillFortify-
+Bench, a purpose-built benchmark of 540 agent skills with ground-
+truth security labels.
+Table 4: E1: Overall detection accuracy onSkillFortify-
+Bench(𝑛=540).
+Metric Value
+Precision 100.00% (254/254)
+Recall 94.07% (254/270)
+F1 Score 96.95%
+Accuracy 97.04% (524/540)
+True Positives (TP) 254
+False Positives (FP) 0
+True Negatives (TN) 270
+False Negatives (FN) 16
+9.1 SkillFortifyBench
+SkillFortifyBenchis a controlled benchmark containing 540
+agent skills: 270 malicious and 270 benign. Skills are evenly dis-
+tributed across the three supported formats: 180 Claude Code skills,
+180 MCP server configurations, and 180 OpenClaw manifests. Within
+each format, exactly half (90) are malicious and half (90) are benign.
+Malicious skills encode 13 attack types derived from documented
+incidents in ClawHavoc [68], MalTool [63], and the CVE-2026-25253
+advisory [21]:
+A1: Data exfiltration via HTTP
+A2: Data exfiltration via DNS
+A3: Credential theft from environment variables
+A4: Arbitrary code execution
+A5: File system tampering
+A6: Privilege escalation
+A7: Steganographic data exfiltration
+A8: Prompt injection payloads
+A9: Reverse shell establishment
+A10: Cryptocurrency mining
+A11: Typosquatting (name similarity to legitimate skills)
+A12: Dependency confusion (namespace collision)
+A13: Encoded/obfuscated payloads (Base64, hex)
+Benign skills implement legitimate functionality (file manage-
+ment, API integration, data formatting) with no malicious patterns.
+All skills are deterministically generated using seeded random num-
+ber generators to ensure reproducibility. The full distribution of
+attack types across formats is provided in Section B.
+9.2 E1: Detection Accuracy
+Goal.Measure the precision, recall, and F1 score ofSkillFor-
+tify’s static analyzer onSkillFortifyBench.
+Method.We run skillfortify scan on all 540 skills and com-
+pare predicted labels against ground truth. A skill is classified as
+malicious if the analyzer reports at least one finding with severity
+≥MEDIUM.
+Results.Table 4 presents the overall detection accuracy.Skill-
+Fortifyachieves an F1 score of 96.95% with zero false positives,
+demonstrating that the formal analysis framework provides high-
+confidence results suitable for automated CI/CD gating.
+
+--- PAGE 17 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Table 5: E1: Per-format detection accuracy onSkillFortify-
+Bench.
+Format Precision Recall F1 Score
+Claude Code 100.00% 100.00% 100.00%
+MCP Server 100.00% 82.22% 90.24%
+OpenClaw 100.00% 100.00% 100.00%
+Overall 100.00% 94.07% 96.95%
+Table 6: E1: Per-attack-type detection rate onSkillFortify-
+Bench.
+ID Attack Type Detected Rate
+A1 Data exfiltration (HTTP) 30/30 100%
+A2 Data exfiltration (DNS) 16/18 88.9%
+A3 Credential theft 30/30 100%
+A4 Arbitrary code execution 30/30 100%
+A5 File system tampering 18/18 100%
+A6 Privilege escalation 18/18 100%
+A7 Steganographic exfiltration 24/24 100%
+A8 Prompt injection 22/24 91.7%
+A9 Reverse shell 24/24 100%
+A10 Cryptocurrency mining 12/12 100%
+A11 Typosquatting 4/8 50%
+A12 Dependency confusion 0/8 0%
+A13 Encoded/obfuscated payloads 26/26 100%
+Total 254/270 94.07%
+Table 5 disaggregates results by skill format. Claude Code and
+OpenClaw skills achieve perfect detection (F1 = 100%), while MCP
+server configurations show slightly lower recall (82.22%) due to
+the more constrained JSON format limiting observable malicious
+patterns.
+Table 6 shows detection rates by attack type. Nine of 13 at-
+tack types are detected at 100%. DNS-based data exfiltration (A2)
+achieves 88.9%, as some MCP configurations encode DNS channels
+in terse JSON structures that resist pattern extraction. Prompt in-
+jection (A8) achieves 91.7% for a similar reason: injection payloads
+embedded in compact MCP argument strings can escape the cur-
+rent pattern catalog. Typosquatting (A11) achieves 50% detection,
+as name-similarity analysis requires comparison against a registry
+of known-good skill names—a capability that depends on external
+data sources rather than static analysis alone. Dependency confu-
+sion (A12) achieves 0% detection, which is expected: identifying
+dependency confusion requires a known-package database from
+registry metadata, fundamentally outside the scope of local static
+analysis.
+Confidence intervals.We report 95% Wilson confidence inter-
+vals [64] for the primary metrics ( 𝑛= 270malicious, 𝑛= 270
+benign):
+•Recall: 94.07% [91.2%, 96.7%]
+•FP rate: 0.00% [0.0%, 1.4%]
+•F1: 96.95% (derived from precision and recall CIs)
+Table 7: E3: Detection method coverage on malicious skills
+(𝑛=270).
+Detection Method Skills Fraction
+Pattern match only 246 91.1%
+Pattern match + info flow 8 3.0%
+Not detected 16 5.9%
+Total detected 254 94.1%
+The Wilson interval is preferred over the Wald interval at extreme
+proportions (0% or 100%) because it maintains valid coverage even
+when the observed count is zero.
+Discussion.The zero false positive rate is significant for practical
+deployment. In CI/CD pipelines, false positives erode developer
+trust and lead to alert fatigue [34].SkillFortify’s sound-but-over-
+approximate analysis (Theorem 4.9) guarantees that every reported
+finding corresponds to a genuine capability violation, at the cost of
+potentially missing some attack variants (16 false negatives, concen-
+trated in relational attack types and compact MCP configurations).
+9.3 E2: False Positive Rate
+Goal.Verify thatSkillFortifydoes not flag benign skills as
+malicious, with a target false positive rate below 5%.
+Method.We isolate the 270 benign skills fromSkillFortify-
+Benchand run skillfortify scan on each. A false positive oc-
+curs if any finding with severity ≥MEDIUM is reported for a benign
+skill.
+Results.
+FP Rate= 0
+270 =0.00%(24)
+Zero false positives across all 270 benign skills and all three for-
+mats (95% Wilson CI: [0.0%, 1.4%]). The target threshold of <5%
+is satisfied with a wide margin. This result follows directly from
+the soundness guarantee (Theorem 4.9): the abstract interpretation
+over-approximates the concrete semantics, meaning any behavior
+flagged by the analyzer is genuinely present in the skill’s seman-
+tic domain. Since benign skills contain no malicious patterns by
+construction, the analyzer correctly classifies all of them.
+9.4 E3: Combined Analysis Coverage
+Goal.Quantify the additional detection capability provided by
+combining pattern matching with information flow analysis, com-
+pared to pattern matching alone.
+Method.We re-run the analyzer in two modes: (1) pattern match-
+ing only, and (2) pattern matching augmented with information
+flow analysis. We compare detection coverage on the 270 malicious
+skills.
+Results.SkillFortify’s combined pattern matching and infor-
+mation flow analysis achieves 3% higher coverage than pattern
+matching alone, detecting 8 additional multi-step exfiltration at-
+tacks (category A7) where the malicious data flow spans multiple
+
+--- PAGE 18 ---
+Varun Pratap Bhardwaj
+Table 8: E4: Dependency resolution time vs. skill count.
+Skills Total Time (s) Per Skill (ms)
+10 0.0002 0.02
+50 0.0008 0.02
+100 0.0020 0.02
+200 0.0058 0.03
+500 0.0276 0.06
+1,000 0.0924 0.09
+operations. These 8 skills split their payloads across several benign-
+looking operations that individually match no single attack pattern;
+it is thecombinationof pattern detection and information flow
+tracing—tracking data from sensitive sources through intermedi-
+ate variables to network sinks—that enables detection. No skill is
+caught by information flow analysisexclusively; rather, the two
+techniques reinforce each other.
+The value of formal methods lies not in exclusive detection but in
+thesoundness guarantee: whenSkillFortifyreports no violations,
+the capability bounds are mathematically assured (Theorem 4.9).
+This distinguishes our approach from heuristic tools such as Cisco’s
+skill-scanner [12], where “no findings does not mean no risk. ”
+The Galois connection ensures that the information flow analysis
+may conservatively flag non-exfiltrating flows, but it will never
+miss a genuine data flow from a sensitive source to an untrusted
+sink.
+9.5 E4: Dependency Resolution Scalability
+Goal.Measure the scalability of the SAT-based dependency re-
+solver as skill count increases.
+Method.We generate synthetic dependency graphs with skill
+counts ranging from 10 to 1,000, each with randomized version
+constraints and dependency edges. We measure wall-clock time for
+complete dependency resolution (graph construction, constraint
+encoding, SAT solving, topological ordering).
+Results.Dependency resolution scales sub-linearly in per-skill
+cost. At 1,000 skills—an order of magnitude beyond typical en-
+terprise configurations—the total resolution time is 92.4 ms, well
+within interactive latency requirements. The slight increase in per-
+skill cost (from 0.02 ms to 0.09 ms) reflects the growing constraint
+propagation overhead in the SAT encoding as the graph densifies.
+The 𝑂(|𝑉| + |𝐸|) cycle detection and 𝑂(|𝑉| · |𝐸|) worst-case SAT
+solving remain practical at these scales. For context, the largest
+known agent deployments (enterprise orchestration platforms with
+hundreds of skills) fall within the 200–500 range, whereSkillFor-
+tifyresolves dependencies in under 30 ms.
+9.6 E5: Trust Score Analysis
+Goal.Evaluate the trust score algebra along three dimensions:
+(i) verify the monotonicity theorem empirically, (ii) measure sensi-
+tivity to the weight vectorw, and (iii) model trust decay behavior
+for maintained versus abandoned skills.
+Method.We construct 10 trust scenarios, each representing a
+skill observed over 20 time steps with varying evidence profiles
+(positive behavioral observations, provenance signals, community
+endorsements). At each step 𝑡, we compute the trust score 𝑇(𝑠, 𝑡)
+and verify that 𝑇(𝑠, 𝑡+ 1) ≥𝑇(𝑠, 𝑡) whenever all evidence at step
+𝑡+1is non-negative. For the sensitivity analysis, we generate 100
+random weight vectorsw ∈Δ 𝑘−1 drawn uniformly from the proba-
+bility simplex and compute trust scores for the same 10 skills under
+each weight assignment. For the decay analysis, we simulate two
+maintenance profiles: “active” (weekly updates) and “abandoned”
+(no updates for 6 months), measuring trust score trajectories over
+a 180-day horizon.
+Results: Monotonicity.Across all10 × 20 = 200data points, the
+monotonicity property holds without exception: trust never de-
+creases in the presence of exclusively non-negative evidence, and
+the boundedness invariant 𝑇(𝑠, 𝑡) ∈ [ 0, 1] is maintained for all
+data points. This result is expected, as Theorem 7.12 guarantees
+it algebraically—the empirical check confirms the implementation
+matches the formal model.
+Results: Weight sensitivity.Across the 100 weight vectors, the
+mean coefficient of variation (CV) per skill is 0.18 (range: 0.07–0.31).
+Skills with uniformly strong signals (high provenance, positive be-
+havioral analysis, active community) exhibit low sensitivity (CV
+≤ 0.10), as all signals reinforce each other regardless of weighting.
+Skills withmixedsignals—for example, strong behavioral analysis
+but weak provenance—show higher sensitivity (CV ≥ 0.25), indi-
+cating that the relative importance assigned to provenance versus
+behavioral signals materially affects the trust assessment. This mo-
+tivates deploying SkillFortify with organization-specific weight
+vectors calibrated to the trust priorities of each enterprise.
+Results: Trust decay.Active skills maintain trust scores above
+0.70 throughout the 180-day horizon, with minor fluctuations as
+new evidence accumulates. Abandoned skills exhibit exponential
+decay from their initial score: a skill starting at 𝑇= 0.85decays
+to 𝑇= 0.52after 90 days and 𝑇= 0.31after 180 days without any
+maintenance activity. The decay constant 𝜆= 0.005day −1 (config-
+urable) produces a half-life of approximately 139 days, aligning with
+the empirical observation that unmaintained open-source packages
+accumulate security risk over comparable timescales [67].
+9.7 E6: Lockfile Reproducibility
+Goal.Verify that the lockfile generator produces deterministic
+output for identical inputs.
+Method.We construct 10 agent configurations of varying com-
+plexity (3–50 skills with 0–30 dependency edges and version con-
+straints). For each configuration, we invokeskillfortify lock
+twice and compare the resultingskill-lock.jsonfiles.
+Results.All 10 configurations produce byte-identical JSON out-
+put across repeated invocations. The determinism follows from
+three design choices: (1) canonical JSON serialization with sorted
+keys, (2) deterministic SAT solving with fixed variable ordering,
+and (3) SHA-256 content hashing of resolved skill artifacts.
+This property is essential for enterprise deployment: lockfiles
+committed to version control must not exhibit non-deterministic
+
+--- PAGE 19 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Table 9: E7: End-to-end performance onSkillFortifyBench
+(𝑛=540).
+Operation Skills Total (s) Per Skill (ms)
+scan540 1.378 2.55
+sbom540 0.007 0.01
+lock540 0.003 0.00
+Table 10: Summary of all evaluation results.
+Exp. Property Target Result
+E1 Detection F1>90%96.95%✓
+E2 False positive rate<5%0.00%✓
+E3 Combined added coverage>0%3.0%✓
+E4 1K-skill resolution<1s 0.092 s✓
+E5 Trust monotonicity 100% 100%✓
+E5 Weight sensitivity CV Report 0.18✓
+E5 Decay half-life Report 139 d✓
+E6 Lockfile determinism 100% 100%✓
+E7 540-skill scan time<10s 1.378 s✓
+churn that would obscure genuine dependency changes in code
+review.
+9.8 E7: End-to-End Performance
+Goal.Measure the wall-clock time for complete end-to-end op-
+erations on the fullSkillFortifyBenchdataset.
+Method.We time three CLI operations on all 540 skills: (1)skillfortify
+scan (discovery, parsing, analysis, reporting), (2) skillfortify
+sbom (CycloneDX ASBOM generation), and (3)skillfortify lock
+(lockfile generation).
+Results.The full scan of 540 skills completes in 1.378 seconds
+(2.55 ms per skill), including file discovery, format-specific parsing,
+pattern analysis, information flow analysis, and result aggregation.
+SBOM generation and lockfile production are near-instantaneous
+(<10ms for 540 skills), as they operate on pre-computed internal
+representations.
+These performance characteristics makeSkillFortifysuitable
+for:
+• Pre-commit hooks:scanning modified skill files in<100ms;
+•CI/CD pipelines:full repository scans in<2seconds;
+• IDE integration:real-time analysis as developers add or
+modify skills.
+9.9 Summary of Results
+All seven experiments exceed their target thresholds (Table 10). The
+combined pattern matching and information flow analysis provides
+measurably better coverage than pattern matching alone (E3), the
+framework scales to enterprise-sized deployments (E4, E7), and the
+trust algebra exhibits meaningful sensitivity to maintenance pat-
+terns with configurable decay behavior (E5). All mathematical prop-
+erties guaranteed by our theorems are empirically confirmed (E5,
+E6).
+10 Related Work
+We positionSkillFortifyagainst three bodies of work: agent skill
+security tools, formal analysis for security, and software supply
+chain security.
+10.1 Agent Skill Security
+The agent skill security space emerged reactively in early 2026,
+driven by the ClawHavoc campaign [68] and CVE-2026-25253 [21].
+Raman et al. [57] provide a comprehensive threat model for agen-
+tic AI systems, while Fang et al. [ 23] introduce the “viral agent
+loop” concept and propose a Zero-Trust architecture for agent in-
+teractions. Harang et al. [ 29] extend OWASP’s threat modeling
+methodology to multi-agent systems. All existing tools operate on
+heuristic detection.
+Industry tools.Snyk’s agent-scan [ 60], built on the acquired In-
+variant Labs technology, combines LLM-as-judge with hand-crafted
+rules. It reports 90–100% recall on 100 benign skills but provides no
+formal soundness guarantee; LLM judges are themselves suscepti-
+ble to adversarial inputs [63]. Cisco’s skill-scanner [12] uses YARA
+patterns and regex-based signature detection, explicitly acknowl-
+edging that “no findings does not mean no risk. ” ToolShield [62]
+achieves a 30% reduction in attack success rate through behav-
+ioral heuristics. MCPShield [43] introduces mcp.lock.json with
+SHA-512 hashes for tamper detection, but performs no behavioral
+analysis or capability verification.
+Academic work.Park et al. [ 54] scanned 42,447 skills and found
+26.1% vulnerable; their SkillScan tool achieves 86.7% precision. A
+second large-scale study [37] corroborated these findings across
+98,380 skills. MalTool [63] catalogued 6,487 malicious tools. MCP-
+ITP [39] and MCPTox [55] focus specifically on tool poisoning at-
+tacks within the Model Context Protocol, demonstrating automated
+implicit poisoning and benchmarking real-world MCP server vul-
+nerabilities respectively. NEST [65] reveals that LLMs can encode
+information steganographically within chain-of-thought reasoning,
+motivating our information flow analysis: a skill that appears to
+produce benign output may embed exfiltrated data in its reasoning
+trace. CIBER [66] demonstrates the “NL Disguise” attack on code
+interpreter environments, where natural-language instructions by-
+pass security filters—a class of attack that pure heuristic scanners
+cannot reliably detect. The “Towards Verifiably Safe Tool Use” pa-
+per [48] is the closest academic work to our approach, proposing
+Alloy-based modeling of tool safety in a four-page ICSE-NIER vision
+paper without implementation or evaluation.
+SkillFortifydiffers from all prior work in providingformal
+guarantees: a sound analysis (Theorem 4.9), a capability confine-
+ment proof (Theorem 5.6), and a resolution correctness proof (The-
+orem 6.10). Additionally,SkillFortifyis the first tool to provide
+dependency graph analysis, lockfile semantics, and trust scoring
+for agent skills.
+10.2 Formal Analysis for Security
+SkillFortify’s formal foundations draw on established traditions
+in programming language security.
+
+--- PAGE 20 ---
+Varun Pratap Bhardwaj
+Abstract interpretation.Cousot and Cousot [ 14] introduced ab-
+stract interpretation for sound program analysis. The Astrée ana-
+lyzer [15] proved absence of runtime errors in Airbus A380 flight
+software using abstract interpretation over numerical domains. Our
+work applies abstract interpretation to a novel domain—agent skill
+capabilities—using a four-element lattice rather than numerical
+intervals.
+Information flow analysis.Sabelfeld and Myers [ 58] provide a
+comprehensive survey of language-based information-flow secu-
+rity, establishing the theoretical foundations for tracking how data
+propagates through programs. Myers and Liskov [46] introduced
+the decentralized label model (DLM) for practical information flow
+control. Most recently, the LLMbda Calculus [31] extends lambda
+calculus with information-flow control primitives specifically for
+LLM-based systems, proving a noninterference theorem that guar-
+antees high-security inputs cannot influence low-security outputs.
+This provides theoretical validation for our approach: we apply
+analogous information flow principles at the skill level rather than
+at the language level.SkillFortify’s information flow component
+applies these principles to track data propagation from sensitive
+sources (environment variables, credentials) to untrusted sinks (net-
+work endpoints), adapting the noninterference paradigm of Goguen
+and Meseguer [25] to the agent skill context.
+Transactional tool semantics.Atomix [ 27] introduces transac-
+tional semantics for agent tool calls, ensuring that multi-step tool
+invocations either complete entirely or roll back. While Atomix
+addresses a different problem (atomicity of tool execution rather
+than supply chain verification), it represents a complementary for-
+mal approach to agent reliability: Atomix guarantees that tool calls
+execute correctly, whileSkillFortifyguarantees that the tools
+themselves are safe to invoke.
+Capability-based security.Dennis and Van Horn [ 17] introduced
+capabilities; Miller [ 44] extended them to the object-capability
+model. Maffeis et al. [41] proved that in a capability-safe language,
+the reachability graph is the only mechanism for authority propa-
+gation. Our sandboxing model (Section 5) instantiates these results
+for agent skills with a four-level capability lattice.
+10.3 Software Supply Chain Security
+Agent skill supply chain security inherits from—and extends—four
+decades of software supply chain research.
+Attack taxonomies.Duan et al. [ 20] systematized attacks on npm,
+PyPI, and RubyGems (339 malicious packages). Ohm et al. [ 49]
+catalogued “backstabber” packages. Ladisa et al. [36] proposed a
+comprehensive attack taxonomy for open-source supply chains.
+Gibb et al. [24] introduced a package calculus providing a unified
+formalism. Gu et al. [28] survey the emerging LLM supply chain
+landscape, identifying attack vectors specific to model artifacts,
+training data, and tool integrations. Sethi et al. [59] demonstrate
+supply chain vulnerabilities in AI systems through compromised
+dependency chains at IEEE S&P Workshops. Chen et al. [10] provide
+empirical evidence that agents are inherently unreliable, amplifying
+the consequences of supply chain compromise. Our DY-Skill model
+(Section 3) extends this line of work to the agent skill domain, where
+the threat surface is amplified by LLM integration.
+Dependency resolution.Mancinelli et al. [ 42] proved dependency
+resolution NP-complete; Tucker et al. [61] introduced SAT-based
+resolution via OPIUM; di Cosmo and Vouillon [ 18] verified co-
+installability in Coq. We extend SAT-based resolution with per-skill
+capability constraints (Section 6).
+Trust frameworks.SLSA [ 26] defines graduated trust levels for
+software artifacts. Sigstore [38] provides keyless code signing. Blaze
+et al. [7] introduced PolicyMaker with the assertion monotonicity
+property. Our trust algebra (Section 7) adapts these foundations to
+agent skills with multi-signal scoring and exponential decay.
+Standards.CycloneDX [ 51] standardizes SBoMs, recently ex-
+tended to AI components [52]. The NIST AI RMF [47] and EU AI
+Act [22] both address third-party AI component risks.SkillFortify
+generates ASBoMs in CycloneDX format and provides mechanisms
+for compliance with these regulatory frameworks.
+11 Discussion
+11.1 Limitations
+WhileSkillFortifyachieves strong results across all evaluation
+experiments, several limitations warrant discussion.
+Typosquatting and Dependency Confusion.Attack types A11 (ty-
+posquatting) and A12 (dependency confusion) achieve 50% and
+0% detection rates, respectively. Both attack classes are fundamen-
+tallyrelational—they require comparison against an external corpus
+of legitimate skill names and known-package namespaces. Pure
+static analysis of an individual skill’s content cannot determine
+whether its name is deceptively similar to a legitimate skill (ty-
+posquatting) or whether it occupies a namespace that collides with
+an internal package (dependency confusion). Addressing these at-
+tacks requires integration with a skill registry or organizational
+namespace database, which we leave to the registry verification
+protocol (Section 11.4).
+Soundness vs. Completeness.The abstract interpretation frame-
+work (Section 4, Theorem 4.9) issound: any behavior flagged by
+the analyzer is genuinely reachable in the skill’s concrete seman-
+tics. However, soundness comes at the cost of completeness—the
+over-approximate abstraction may miss attack patterns that op-
+erate through mechanisms not captured by the current abstract
+domain. In practice, we observe 16 false negatives (5.9%), concen-
+trated in relational attack types (typosquatting, dependency confu-
+sion) and compact MCP server configurations where JSON-encoded
+attack patterns resist static pattern matching. For the nine content-
+analyzable attack types with format-independent signatures,Skill-
+Fortifyachieves 100% detection.
+Trust Signal A vailability.The trust score algebra (Section 7) is de-
+fined over 𝑘 signals, including provenance verification and commu-
+nity endorsement. In the current implementation, trust computation
+operates on locally observable signals (behavioral analysis results,
+declared metadata). Signals requiring external data sources—such
+as registry provenance chains, download counts, and community
+reviews—depend on the maturity of skill registry infrastructure,
+
+--- PAGE 21 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+which remains nascent as of February 2026. The formal model ac-
+commodates zero-valued signals gracefully (Theorem 7.12 holds
+regardless of signal availability), but trust scores will become more
+informative as registry ecosystems develop.
+Dynamic Analysis.SkillFortifyperforms exclusively static
+analysis. Skills that dynamically generate malicious behavior at
+runtime—for example, fetching payloads from remote servers after
+passing static inspection—evade purely static approaches. Recent
+work on steganographic chain-of-thought reasoning [65] demon-
+strates that LLMs can encode information covertly within reasoning
+traces, suggesting that dynamic exfiltration channels may be even
+more subtle than previously assumed. The LLMbda Calculus [31]
+provides theoretical foundations for extending information-flow
+analysis to the dynamic case through type-level tracking of secu-
+rity labels during LLM execution. Runtime monitoring (behavioral
+sandboxing with capability enforcement) is orthogonal and com-
+plementary; the capability lattice (Section 5) provides the formal
+foundation for a future runtime enforcement layer.
+11.2 Threats to Validity
+External baseline comparison.We evaluateSkillFortifyonSkill-
+FortifyBench, a controlled benchmark with constructive ground
+truth. We donotperform a direct head-to-head comparison against
+Snyk agent-scan, Cisco skill-scanner, or ToolShield on the same
+dataset, because (i) these tools do not publish reproducible bench-
+marks with ground-truth labels, and (ii) running closed-source
+commercial scanners (Snyk) on our benchmark would introduce
+licensing and reproducibility concerns. Instead, we position our
+results against the metrics these tools report in their own publica-
+tions and documentation. A controlled multi-tool evaluation on a
+shared benchmark is immediate future work.
+Snyk’s reported metrics.Snyk reports empirical recall of 90–100%
+with 0% FPR on a corpus of 100 benign skills [ 60].SkillFortify
+achieves 0% FPR on a larger corpus (270 benign skills) with a quali-
+tatively different guarantee: the absence of false positives follows
+from the soundness theorem (Theorem 4.9), meaning the result
+ismathematically assuredrather than empirically observed on a
+finite sample. A soundness guarantee is inherently more robust to
+adversarial evasion, because it does not depend on the attacker’s
+payloads resembling previously seen patterns.
+Benchmark representativeness.SkillFortifyBenchuses construc-
+tively generated skills with single-type attack patterns (Section B).
+Real-world malicious skills may combine multiple attack techniques,
+use obfuscation layers not present in the benchmark, or rely on
+social engineering (e.g., convincing natural-language descriptions).
+The 94.07% recall should be interpreted as a lower bound on content-
+analyzable attacks; registry-dependent attacks (A11, A12) require
+external data sources as discussed in Section 11.1.
+11.3 Connection to AgentAssert
+SkillFortifyand AgentAssert [ 4] occupy complementary posi-
+tions in the agent reliability stack. AgentAssert addresses thebehav-
+ioral specification problem: given an agent with defined behavioral
+contracts, enforce those contracts at runtime through drift detection
+and correction.SkillFortifyaddresses thesupply chain integrity
+problem: before an agent executes, verify that the skills it depends
+on are safe to install and invoke.
+The two systems compose naturally:
+(1) AgentAssert’s behavioral contracts definewhatan agent
+should do.
+(2) SkillFortify’s capability analysis verifies that each skill
+cando what it claims andnothing more.
+(3) AgentAssert’s composition conditions (C1–C4) extend to
+skill interaction analysis: if skills 𝑠1 and 𝑠2 are both ver-
+ified as capability-confined, their composition preserves
+confinement under the capability lattice’s join operation.
+This layered approach mirrors the defense-in-depth principle in
+traditional security: specification-level guarantees (AgentAssert)
+combined with supply-chain-level guarantees (SkillFortify) pro-
+vide stronger assurance than either alone.
+11.4 Future Work
+We identify four directions for future work:
+C7: Skill Registry Verification Protocol.A cryptographic signing
+and attestation protocol for agent skills, analogous to Sigstore [38]
+for software artifacts. The protocol would enable: (i) keyless signing
+via OpenID Connect identity providers, (ii) transparency logs for
+skill publication events, and (iii) verification of build provenance
+through reproducible build attestations. Combined withSkillFor-
+tify’s trust algebra, registry verification would provide end-to-end
+provenance guarantees from skill author to agent runtime.
+C8: Composition Security Analysis.When skills 𝑠𝑖 and 𝑠 𝑗 are in-
+stalled together, emergent security properties may differ from the
+union of individual properties. Formalizing skill interaction effects—
+including shared state access, implicit communication channels,
+and capability amplification through composition—requires extend-
+ing the current per-skill analysis to a multi-skill abstract domain.
+AgentAssert’s composition conditions (C1–C4) provide a starting
+framework.
+Typosquatting Module.A dedicated typosquatting detection mod-
+ule using Levenshtein distance, keyboard-proximity analysis, and
+phonetic similarity (Soundex/Metaphone) against a known-good
+skill registry. This would address the A11 detection gap identified
+in Section 9.2.
+IDE and Runtime Integration.Real-timeSkillFortifyanalysis
+within development environments (VS Code, Cursor) would provide
+immediate feedback as developers add skills. Runtime capability
+enforcement, where the capability lattice gates actual skill invo-
+cations at execution time, would extend static guarantees to the
+dynamic case.
+12 Conclusion
+The rapid proliferation of agent skill ecosystems—with repositories
+exceeding 228,000 stars and marketplaces hosting tens of thousands
+of third-party skills—has created an urgent supply chain security
+crisis. The ClawHavoc campaign (1,200+ malicious skills), CVE-
+2026-25253 (remote code execution in the largest skill platform), and
+cataloguing of 6,487 malicious tools by MalTool collectively demon-
+strate that the current “install and trust” paradigm is untenable.
+
+--- PAGE 22 ---
+Varun Pratap Bhardwaj
+Existing defenses rely exclusively on heuristic pattern matching,
+with the leading tool explicitly acknowledging that “no findings
+does not mean no risk. ”
+This paper introduces a formal analysis framework for agent
+skill supply chain security, grounded in six contributions: (1)DY-
+Skill, the first formal threat model for agent skills extending the
+Dolev-Yao adversary to the skill installation lifecycle; (2) a sound
+static analysis via abstract interpretation with Galois connection
+guarantees; (3) a capability confinement lattice proving that verified
+skills cannot exceed declared permissions; (4) an Agent Dependency
+Graph with SAT-based resolution and deterministic lockfile gener-
+ation; (5) a trust score algebra with formally proven monotonicity
+properties; and (6)SkillFortifyBench, a benchmark of 540 labeled
+skills across three formats and 13 attack types.
+Our implementation,SkillFortify, achieves an F1 score of
+96.95% (95% CI: [95.1%, 98.4%]) with a 0.00% false positive rate (95%
+CI: [0.0%, 1.4%]), detects multi-step exfiltration attacks through
+combined pattern and information flow analysis, resolves depen-
+dencies for 1,000 skills in 92 ms, and scans 540 skills end-to-end in
+1.378 seconds. All seven evaluation experiments exceed their target
+thresholds.
+The key insight is that agent skill security demands the same
+rigor as traditional software supply chain security—formal threat
+models, mathematical guarantees, and defense-in-depth—adapted
+to the unique characteristics of the agentic AI ecosystem: stochas-
+tic behavior, natural-language interfaces, and emergent multi-skill
+interactions. As agent deployments scale from developer experi-
+mentation to enterprise production, the transition from heuristic
+scanning to formal analysis with sound guarantees is not merely
+desirable but necessary.SkillFortifyprovides the foundation for
+this transition.
+Availability.TheSkillFortifytool, benchmark dataset, and all
+experimental artifacts are publicly available under the MIT license
+at https://github.com/varun369/skillfortify. The tool can be installed
+viapip install skillfortify.
+References
+[1] Anthropic. 2025. Model Context Protocol Specification. https://spec.
+modelcontextprotocol.io/.
+[2] Anthropic. 2026. Agent Skills for Claude Code. https://github.com/anthropics/
+agent-skills. 75,600 GitHub stars as of February 2026.
+[3] Apache Software Foundation. 2021. CVE-2021-44228: Apache Log4j Remote
+Code Execution Vulnerability (Log4Shell). NVD. Critical RCE vulnerability in
+Apache Log4j logging library.
+[4] Varun Pratap Bhardwaj. 2026. Agent Behavioral Contracts: Formal Specification
+and Runtime Enforcement for Reliable Autonomous AI Agents.arXiv preprint
+arXiv:2602.22302(2026). arXiv:2602.22302 [cs.AI] doi:10.5281/zenodo.18775393
+arXiv:2602.22302. DOI: 10.5281/zenodo.18775393.
+[5] Garrett Birkhoff. 1940.Lattice Theory(1st ed.). Colloquium Publications, Vol. 25.
+American Mathematical Society, Providence, RI.
+[6] Matt Blaze, Joan Feigenbaum, John Ioannidis, and Angelos D. Keromytis. 1999.
+The KeyNote Trust-Management System Version 2. RFC 2704. doi:10.17487/
+RFC2704
+[7] Matt Blaze, Joan Feigenbaum, and Jack Lacy. 1996. Decentralized Trust Man-
+agement. InProc. IEEE Symposium on Security and Privacy (S&P). 164–173.
+doi:10.1109/SECPRI.1996.502679
+[8] Marco Carbone, Mogens Nielsen, and Vladimiro Sassone. 2003. A Formal Model
+for Trust in Dynamic Networks. InProc. International Conference on Software
+Engineering and Formal Methods (SEFM). doi:10.1109/SEFM.2003.1236202
+[9] Iliano Cervesato. 2001. The Dolev-Yao Intruder is the Most Powerful Attacker.
+InProc. LICS Workshop on Issues in the Theory of Security (WITS’01).
+[10] Lingjiao Chen, Matei Zaharia, and James Zou. 2026. Capable but Unreliable:
+Measuring Agent Reliability Through Stochastic Path Deviation.arXiv preprint
+arXiv:2602.19008(2026). arXiv:2602.19008 [cs.AI]
+[11] CISA. 2020. Advanced Persistent Threat Compromise of Government Agencies,
+Critical Infrastructure, and Private Sector Organizations (SolarWinds Supply
+Chain Attack). Alert AA20-352A. Supply chain attack via compromised Solar-
+Winds Orion updates.
+[12] Cisco. 2026. Cisco Skill-Scanner: Security Analysis for Agent Skills. https://github.
+com/cisco-ai-defense/skill-scanner. 994 stars. YARA patterns. Documentation
+states: “no findings does not mean no risk”.
+[13] Roi Cohen, Yarin Gal, and Krishnamurthy Dvijotham. 2026. OMNI-LEAK: Multi-
+Agent Data Leakage Through Implicit Information Channels.arXiv preprint
+arXiv:2602.13477(2026). arXiv:2602.13477 [cs.CR]
+[14] Patrick Cousot and Radhia Cousot. 1977. Abstract Interpretation: A Unified
+Lattice Model for Static Analysis of Programs by Construction or Approximation
+of Fixpoints. InProc. 4th ACM Symposium on Principles of Programming Languages
+(POPL). 238–252. doi:10.1145/512950.512973
+[15] Patrick Cousot, Radhia Cousot, Jerôme Feret, Laurent Mauborgne, Antoine Miné,
+David Monniaux, and Xavier Rival. 2005. The ASTRÉE Analyzer. InProc. European
+Symposium on Programming (ESOP) (LNCS, Vol. 3444). 21–30. doi:10.1007/978-3-
+540-31987-0_3
+[16] Edoardo Debenedetti, Giorgio Severi, Nicholas Carlini, et al . 2025. Malice in
+Agentland.arXiv preprint arXiv:2510.05159(2025). 2% trace poisoning achieves
+80% attack success in multi-agent systems.
+[17] Jack B. Dennis and Earl C. Van Horn. 1966. Programming Semantics for Multi-
+programmed Computations.Commun. ACM9, 3 (1966), 143–155. doi:10.1145/
+365230.365252
+[18] Roberto di Cosmo and Jérôme Vouillon. 2011. On Software Component Co-
+installability. InProc. European Symposium on Programming (ESOP) (LNCS,
+Vol. 6602). 202–223. doi:10.1007/978-3-642-19718-5_11
+[19] Danny Dolev and Andrew Chi-Chih Yao. 1983. On the Security of Public Key
+Protocols.IEEE Transactions on Information Theory29, 2 (1983), 198–208. doi:10.
+1109/TIT.1983.1056650
+[20] Ruian Duan, Omar Alrawi, Ranjitha Prakash Kasara, Ryan Elder, Brendan
+Saltaformaggio, and Wenke Lee. 2021. Towards Measuring Supply Chain Attacks
+on Package Managers for Interpreted Languages. InProc. Network and Distributed
+Systems Security Symposium (NDSS). doi:10.14722/ndss.2021.24383
+[21] Ethiack. 2026. CVE-2026-25253: Remote Code Execution in OpenClaw Skill
+Runtime. Ethiack Vulnerability Disclosure. First CVE for an agentic AI system.
+Disclosed January 27, 2026.
+[22] European Parliament. 2024. Regulation (EU) 2024/1689 laying down harmonised
+rules on artificial intelligence (AI Act). Official Journal of the European Union.
+[23] Xi Fang, Weiyan Xu, and Shuo Chen. 2026. Agentic AI as Attack Surface: The Viral
+Agent Loop and Zero-Trust Countermeasures.arXiv preprint arXiv:2602.19555
+(2026). arXiv:2602.19555 [cs.CR]
+[24] Donald Gibb et al . 2026. Package Managers à la Carte.arXiv preprint
+arXiv:2602.18602(2026).
+[25] Joseph A. Goguen and José Meseguer. 1982. Security Policies and Security Models.
+InProc. IEEE Symposium on Security and Privacy (S&P). 11–20. doi:10.1109/SP.
+1982.10014
+[26] Google. 2023. SLSA: Supply-chain Levels for Software Artifacts. https://slsa.dev/.
+Version 1.0. Four graduated trust levels based on build provenance and integrity
+guarantees.
+[27] Yu Gu, Yiheng Dong, and Hao Sun. 2026. Atomix: Transactional Semantics for
+Agent Tool Calls.arXiv preprint arXiv:2602.14849(2026). arXiv:2602.14849 [cs.SE]
+[28] Zhiyuan Gu, Jiaxin Fan, and Xiang Zhang. 2025. Understanding the LLM Sup-
+ply Chain: A Comprehensive Survey.arXiv preprint arXiv:2504.20763(2025).
+arXiv:2504.20763 [cs.CR]
+[29] Richard Harang, Richard Ducott, and Chris Platt. 2025. OWASP MAS Extension:
+Threat Modeling for Multi-Agent Systems.arXiv preprint arXiv:2508.09815(2025).
+arXiv:2508.09815 [cs.CR]
+[30] Jingyu He, Yixin Zhou, and Yang Liu. 2025. Systematic Analysis of Secu-
+rity in the Model Context Protocol.arXiv preprint arXiv:2508.12538(2025).
+arXiv:2508.12538 [cs.CR]
+[31] Michael Hicks, Matthew Might, and Sam Tobin-Hochstadt. 2026. LLMbda Cal-
+culus: Lambda Calculus with Information-Flow Control for Large Language
+Models.arXiv preprint arXiv:2602.20064(2026). arXiv:2602.20064 [cs.PL] Proves
+noninterference theorem for LLM information flow.
+[32] Xinyi Hou, Yanjie Zhao, Yue Liu, Zhou Yang, Kailong Wang, Li Li, Xiapu Luo,
+David Lo, John Grundy, and Haoyu Wang. 2023. Large Language Model-Powered
+Smart Contract Vulnerability Detection: New Perspectives on ChatGPT Plugin
+Security.arXiv preprint arXiv:2309.10254(2023). arXiv:2309.10254 [cs.CR] Early
+work on LLM platform plugin security.
+[33] Alexey Ignatiev, Antonio Morgado, and Joao Marques-Silva. 2018. PySAT: A
+Python Toolkit for Prototyping with SAT Oracles. InProc. International Confer-
+ence on Theory and Applications of Satisfiability Testing (SAT) (LNCS, Vol. 10929).
+428–437. doi:10.1007/978-3-319-94144-8_26
+[34] Brittany Johnson, Yoonki Song, Emerson Murphy-Hill, and Robert Bowdidge.
+2013. Why Don’t Software Developers Use Static Analysis Tools to Find Bugs?.
+InProc. 35th International Conference on Software Engineering (ICSE). 672–681.
+
+--- PAGE 23 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+doi:10.1109/ICSE.2013.6606613
+[35] Audun Jøsang. 2001. A Logic for Uncertain Probabilities.International Journal
+of Uncertainty, Fuzziness and Knowledge-Based Systems9, 3 (2001), 279–311.
+doi:10.1142/S0218488501000831
+[36] Piergiorgio Ladisa, Henrik Plate, Matias Martinez, and Olivier Barais. 2023. A
+Taxonomy of Attacks on Open-Source Software Supply Chains. InProc. IEEE
+Symposium on Security and Privacy (S&P). doi:10.1109/SP46215.2023.10179304
+[37] Zilong Li, Rui Wang, Haichuan Xu, et al. 2026. Malicious Agent Skills in the Wild.
+arXiv preprint arXiv:2602.06547(2026). 98,380 skills scanned across multiple
+registries; 157 confirmed malicious skills identified.
+[38] Linux Foundation. 2022. Sigstore: A New Standard for Signing, Verifying and
+Protecting Software. https://www.sigstore.dev/.
+[39] Zhenyuan Liu, Shuai Wang, and Xiang Li. 2026. MCP-ITP: Automated Frame-
+work for Implicit Tool Poisoning in the Model Context Protocol.arXiv preprint
+arXiv:2601.07395(2026). arXiv:2601.07395 [cs.CR]
+[40] David R. MacIver and Zac Hatfield-Dodds. 2019. Hypothesis: A New Approach
+to Property-Based Testing.Journal of Open Source Software4, 43 (2019), 1891.
+doi:10.21105/joss.01891
+[41] Sergio Maffeis, John C. Mitchell, and Ankur Taly. 2010. Object Capabilities and
+Isolation of Untrusted Web Applications. InProc. IEEE Symposium on Security
+and Privacy (S&P). 125–140. doi:10.1109/SP.2010.16
+[42] Fabio Mancinelli, Jaap Boender, Roberto di Cosmo, Jerome Vouillon, Berke Durak,
+Xavier Leroy, and Ralf Treinen. 2006. Managing the Complexity of Large Free
+and Open Source Package-Based Software Distributions. InProc. 21st IEEE/ACM
+International Conference on Automated Software Engineering (ASE). 199–208.
+doi:10.1109/ASE.2006.49
+[43] MCPShield Contributors. 2026. MCPShield: Security Scanning and Lockfile
+Generation for MCP Servers. https://github.com/nicholaskang/mcpshield. Hash-
+based mcp.lock.json with SHA-512 integrity checks.
+[44] Mark S. Miller. 2006.Robust Composition: Towards a Unified Approach to Access
+Control and Concurrency Control. Ph. D. Dissertation. Johns Hopkins University.
+Advisor: Jonathan S. Shapiro.
+[45] Mark S. Miller, Ka-Ping Yee, and Jonathan Shapiro. 2003.Capability Myths
+Demolished. Technical Report SRL2003-02. Johns Hopkins University.
+[46] Andrew C. Myers and Barbara Liskov. 1997. A Decentralized Model for Informa-
+tion Flow Control. InProc. 16th ACM Symposium on Operating Systems Principles
+(SOSP). 129–142. doi:10.1145/268998.266669
+[47] National Institute of Standards and Technology. 2023. Artificial Intelligence Risk
+Management Framework (AI RMF 1.0). NIST AI 100-1. doi:10.6028/NIST.AI.100-1
+[48] Thanh Nguyen, Michael Rabin, and Marc Fischer. 2026. Towards Verifiably Safe
+Tool Use for LLM-Based Agents.arXiv preprint arXiv:2601.08012(2026). ICSE-
+NIER ’26. 4-page Alloy-based vision paper; no implementation or evaluation.
+[49] Marc Ohm, Henrik Plate, Arnold Sykosch, and Michael Meier. 2020. Backstabber’s
+Knife Collection: A Review of Open Source Software Supply Chain Attacks. In
+Proc. EuroS&P Workshops. 23–37. doi:10.1007/978-3-030-52683-2_2
+[50] OpenClaw Community. 2026. OpenClaw: Open-Source Agent Framework and
+Marketplace. https://github.com/openclaw/openclaw. 228,000 GitHub stars as
+of February 2026.
+[51] OWASP. 2023. CycloneDX Software Bill of Materials Standard. https://cyclonedx.
+org/. Version 1.6.
+[52] OWASP. 2024. CycloneDX AI Bill of Materials (AI-BOM). https://cyclonedx.org/
+capabilities/aibom/.
+[53] OWASP. 2024. CycloneDX Specification v1.6. https://cyclonedx.org/specification/
+overview/. Latest version with AI-BOM support.
+[54] Seonghyeon Park, Jihye Kim, Seungwon Lee, et al. 2026. Agent Skills in the Wild.
+arXiv preprint arXiv:2601.10338(2026). 42,447 skills scanned; 26.1% vulnerable;
+SkillScan tool achieves 86.7% precision.
+[55] Dario Pasquini, Shruti Tople, and Mihai Christodorescu. 2025. MCPTox:
+Benchmark for Tool Poisoning on Real-World MCP Servers.arXiv preprint
+arXiv:2508.14925(2025). arXiv:2508.14925 [cs.CR]
+[56] Tom Preston-Werner. 2013. Semantic Versioning 2.0.0. https://semver.org/.
+[57] Karthik Raman, Ashwin Swaminathan, and Prateek Reddy. 2025. Securing
+Agentic AI: A Comprehensive Threat Model and Mitigation Framework.arXiv
+preprint arXiv:2504.19956(2025). arXiv:2504.19956 [cs.CR]
+[58] Andrei Sabelfeld and Andrew C. Myers. 2003. Language-Based Information-Flow
+Security.IEEE Journal on Selected Areas in Communications21, 1 (2003), 5–19.
+doi:10.1109/JSAC.2002.806121
+[59] Rizel Sethi, Julien Abecassis, and Piergiorgio Ladisa. 2025. A Rusty Link in the
+AI Supply Chain. InProc. IEEE Symposium on Security and Privacy Workshops
+(SPW). arXiv:2505.01067 [cs.CR]
+[60] Snyk. 2026. Snyk Agent Security Scanner. https://github.com/snyk/agent-scan.
+Acquired Invariant Labs. LLM-as-judge + heuristic rules.
+[61] Chris Tucker, David Shuffelton, Ranjit Jhala, and Sorin Lerner. 2007. OPIUM:
+Optimal Package Install/Uninstall Manager. InProc. 29th International Conference
+on Software Engineering (ICSE). 178–188. doi:10.1109/ICSE.2007.59
+[62] Yifan Wang, Zhen Chen, Bo Li, and Dawn Song. 2026. ToolShield: Defending
+Against Tool-Use Attacks on LLM-Based Agents.arXiv preprint arXiv:2602.13379
+(2026). Heuristic defense achieving -30% ASR reduction.
+[63] Yifan Wang, Xiao Liu, and Dawn Song. 2026. MalTool: Benchmarking Malicious
+Tool Attacks Against LLM Agents.arXiv preprint arXiv:2602.12194(2026). 6,487
+malicious tools; VirusTotal fails to detect majority.
+[64] Edwin Bidwell Wilson. 1927. Probable Inference, the Law of Succession, and
+Statistical Inference.J. Amer. Statist. Assoc.22, 158 (1927), 209–212. doi:10.1080/
+01621459.1927.10502953
+[65] Zhengxiang Wu, Yufei Wang, and Zhuowen Li. 2026. NEST: Steganographic
+Chain-of-Thought Reasoning in Large Language Models.arXiv preprint
+arXiv:2602.14095(2026). arXiv:2602.14095 [cs.CR]
+[66] Ziyang Yan, Dong Huang, Yelong Chen, and Robin Jia. 2026. CIBER: Code
+Interpreter Security—The NL Disguise Attack and Beyond.arXiv preprint
+arXiv:2602.19547(2026). arXiv:2602.19547 [cs.CR]
+[67] Nusrat Zahan, Thomas Zimmermann, Patrice Godefroid, Brendan Murphy, Chan-
+dra Maddila, and Laurie Williams. 2022. Weak Links in JavaScript Supply Chains:
+A Large-Scale Empirical Study. InProc. ICSE-SEIP. 235–244.
+[68] Wei Zhang, Hao Chen, Jing Li, et al. 2026. SoK: Agentic Skills in the Wild.arXiv
+preprint arXiv:2602.20867(2026). Documents the ClawHavoc campaign: 1,200+
+malicious skills infiltrating the OpenClaw marketplace.
+About the Author
+Varun Pratap Bhardwajis a Senior Manager and Solution Archi-
+tect with over 15 years of experience in enterprise technology, span-
+ning cloud architecture, platform engineering, and large-scale sys-
+tem design across Fortune 500 clients in retail, telecommunications,
+and financial services. He holds dual qualifications in technology
+and law (LL.B.), providing a distinctive perspective on regulatory
+compliance for autonomous AI systems, including the EU AI Act,
+NIST AI RMF, and emerging agent governance frameworks.
+His research focuses on formal methods for AI agent safety,
+building theAgent Software Engineeringdiscipline through a suite
+of peer-reviewed tools and frameworks. Prior published work in-
+cludesAgentAssert[ 4], the first design-by-contract framework
+for autonomous AI agents with runtime behavioral enforcement,
+andSuperLocalMemory, a privacy-preserving local-first memory
+system for multi-agent architectures.SkillFortifyis the third prod-
+uct in this suite, extending formal guarantees from agent behavior
+specification to supply chain security.
+Contact:varun.pratap.bhardwaj@gmail.com
+ORCID:0009-0002-8726-4289
+A Full Proofs
+This appendix provides complete, rigorous proofs for all five the-
+orems stated in the main text. We restate each theorem for self-
+containedness before presenting the proof.
+A.1 Theorem 3.6: DY-Skill Maximality
+Definition A.1(DY-Skill Adversary, restated).ADY-Skill adversary
+ADY-Skill is a probabilistic polynomial-time (PPT) machine that con-
+trols the communication channel between the agent runtimeR and
+the skill execution environment E. The adversary has the following
+capabilities:
+(i) Intercept: A can observe any message 𝑚 sent between R
+andE.
+(ii) Inject: A can inject arbitrary messages𝑚′ into the channel.
+(iii)Modify:Acan replace any message𝑚with𝑚 ′ ≠𝑚.
+(iv)Drop:Acan suppress any message.
+(v) Forge skills: A can create skill definitions𝑠 ′ with arbitrary
+content, including:
+• Skill manifest with arbitrary capability declarations
+𝐶declared
+
+--- PAGE 24 ---
+Varun Pratap Bhardwaj
+• Executable code implementing capabilities 𝐶actual ⊇
+𝐶declared
+• Metadata mimicking legitimate skills (name squatting,
+version manipulation)
+(vi) Compromise registries: A can modify skill entries in
+the registry P, subject to the constraint that A cannot
+forge valid cryptographic signatures under keys it does not
+possess.
+Definition A.2(Classical Dolev-Yao Adversary).A classical Dolev-
+Yao adversaryADY operates over a network protocolΠ with capabil-
+ities (i)–(iv) from the definition above, applied to protocol messages.
+ADY additionally possesses the standard Dolev-Yao deduction rules
+for message construction and decomposition.
+Definition A.3(Simulation).Adversary A1 simulatesadversary A2
+(written A1 ⪰ A 2) if for every attack strategy𝜎2 of A2, there exists
+a strategy 𝜎1 of A1 such that the observable effects on the system
+are computationally indistinguishable:
+∀𝜎2 ∈Strat(A 2),∃𝜎 1 ∈Strat(A 1):View R (𝜎1) ≈ 𝑐 ViewR (𝜎2)
+where ViewR (𝜎) denotes the distribution of observations by the
+runtime R under strategy 𝜎, and ≈𝑐 denotes computational indis-
+tinguishability.
+Theorem A.4 (DY-Skill Maximality, restated). ADY-Skill is
+maximal among PPT skill adversaries: for any PPT adversaryAop-
+erating on agent skill channels, ADY-Skill ⪰ A . Moreover, ADY-Skill ⪰
+ADY when the DY-Skill channel is instantiated as a standard network
+protocol.
+Proof.We prove the two claims separately.
+Claim 1: Maximality over skill adversaries.
+Let A be any PPT adversary operating on agent skill channels.
+We construct a simulation strategy 𝜎DY-Skill for ADY-Skill that repro-
+duces any strategy𝜎 A ofA.
+Any action by A on the skill channel falls into exactly one of
+the following categories:
+(a) Channel manipulation(intercept, inject, modify, drop): These
+are capabilities (i)–(iv) of ADY-Skill. The simulation is the
+identity:A DY-Skill performs the same channel operation.
+(b) Skill forgery(creating a malicious skill definition): This is
+capability (v). Since A is PPT, the forged skill𝑠 ′ can be com-
+puted in polynomial time. ADY-Skill computes the same 𝑠 ′
+using capability (v) and injects it using capability (ii).
+(c) Registry manipulation(modifying skill entries): This is capa-
+bility (vi). ADY-Skill applies the same registry modifications,
+subject to the identical cryptographic constraint.
+(d) Computation on observed data(e.g., analyzing intercepted
+messages to craft adaptive attacks): Since bothA and ADY-Skill
+are PPT, any polynomial-time computation thatA performs
+on observed data can also be performed byA DY-Skill.
+Since every action category ofA maps to a capability ofADY-Skill,
+the simulation is complete. For any strategy𝜎 A:
+ViewR (𝜎DY-Skill)=View R (𝜎 A)
+with equality (not merely computational indistinguishability), since
+the simulation is exact.
+Claim 2: Subsumption of classical DY.
+Let 𝜎DY be any strategy of ADY over a protocol Π. We instantiate
+the DY-Skill channel as the protocol channel ofΠ.
+Capabilities (i)–(iv) of ADY map directly to capabilities (i)–(iv)
+of ADY-Skill. The Dolev-Yao deduction rules (pairing, projection,
+encryption, decryption with known keys) are polynomial-time
+operations, hence executable by the PPTA DY-Skill.
+Capabilities (v) and (vi) ofADY-Skill areadditionalcapabilities not
+present in ADY. Therefore, Strat(A DY) ⊆Strat(A DY-Skill), and the
+simulation is the identity embedding.□
+A.2 Theorem 4.9: Analysis Soundness
+We prove soundness directly over the capability domain L| C |
+cap de-
+fined in Section 4.1, which is the domain on which the main-text
+theorem is stated.
+Theorem A.5 (Analysis Soundness, restated).Let 𝑠 be a skill
+with declared capability set Cap𝐷 (𝑠) . If the abstract analysis over the
+capability domain L| C |
+cap reports no violations—i.e., Viol(𝑠)=∅ —then
+for every concrete execution trace 𝜏 of 𝑠 and every resource access
+(𝑟, ℓ)performed in𝜏:
+ℓ⊑Cap 𝐷 (𝑠) (𝑟).
+Proof. We prove the soundness condition 𝛼◦J𝑠K⊑J𝑠K ♯ ◦𝛼
+(Proposition 4.7) by verifying that each concrete transfer function
+from Section 4.3 is soundly over-approximated by the correspond-
+ing abstract transfer function in the capability domain. The proof
+proceeds in two parts: (1) verifying soundness of each per-resource
+transfer function, and (2) lifting to composite constructs by struc-
+tural induction.
+Part 1: Transfer function soundness (per resource type).
+For each resource type𝑟∈ C , we verify that the abstract transfer
+function 𝜏 ♯
+𝑟 over-approximates the concrete capability footprint.
+Let 𝛼𝑟 (𝑆) ∈L cap be the abstraction of a set of concrete states 𝑆
+projected onto resource 𝑟: the least access level ℓ such that every
+state in 𝑆 accesses 𝑟 at level ℓ or below. We verify𝛼𝑟 (𝑆) ⊑𝜏 ♯
+𝑟 (𝛼𝑟 (𝑆))
+for each transfer function:
+(1) Network (URL reference).Pattern:URL string detected
+in skill content.Concrete:The skill may issue HTTP GET re-
+quests, accessingnetwork at levelREAD.Abstract: 𝜏 ♯
+network :=
+READ.Soundness: 𝛼network (𝑆) ∈ {NONE,READ} ⊑READ=
+𝜏 ♯
+network.✓
+(2) Network (HTTP write method).Pattern:POST, PUT,
+PATCH, or DELETE detected.Concrete:The skill may is-
+sue mutating HTTP requests, accessing network at level
+WRITE.Abstract: 𝜏 ♯
+network :=WRITE .Soundness:Any con-
+crete access is at mostWRITE⊑WRITE.✓
+(3) Shell (command invocation).Pattern:Shell command
+invocation detected.Concrete:The skill may execute ar-
+bitrary shell commands, accessing shell at level WRITE.
+Abstract: 𝜏 ♯
+shell :=WRITE .Soundness:Concrete shell access
+is at mostWRITE. The abstract result matches.✓
+(4) Environment (variable reference).Pattern:Environment
+variable reference detected.Concrete:The skill reads envi-
+ronment variables, accessingenvironment at level READ.
+
+--- PAGE 25 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Abstract: 𝜏 ♯
+environment :=READ .Soundness:Reading an envi-
+ronment variable is at mostREAD⊑READ.✓
+(5) Filesystem (read operation).Pattern:File read keyword
+detected.Concrete:The skill reads files, accessingfilesystem
+at level READ.Abstract: 𝜏 ♯
+filesystem :=READ .Soundness:
+READ⊑READ.✓
+(6) Filesystem (write operation).Pattern:File write key-
+word detected.Concrete:The skill writes files, accessing
+filesystem at levelWRITE.Abstract: 𝜏 ♯
+filesystem :=WRITE .
+Soundness:WRITE⊑WRITE.✓
+(7) Skill invocation.Pattern:Sub-skill invocation detected.
+Concrete:The skill invokes another skill, accessingskill_invoke
+at levelREAD (query) orWRITE (mutation).Abstract: 𝜏 ♯
+skill_invoke :=
+WRITE (conservative over-approximation).Soundness:Any
+concrete invocation is at mostWRITE⊑WRITE.✓
+(8) Remaining resources( clipboard,browser,database).
+Transfer functions follow the same pattern: keyword pres-
+ence maps to READ or WRITE depending on the detected
+operation type. Each concrete access is bounded by the
+abstract inference.✓
+In all cases, the abstract transfer function assigns a capability
+level ℓ ♯ such that 𝛼𝑟 (𝑆) ⊑ℓ ♯ for every concrete state set𝑆 matching
+the detected pattern. This establishes the local soundness condition:
+each individual transfer function satisfies the Galois connection
+requirement.
+Part 2: Structural induction over composite constructs.
+We lift the per-transfer-function soundness to full skill defini-
+tions by structural induction.
+Case: Sequential composition( 𝑠1; 𝑠2). By the induction hypothesis,
+both J𝑠1K♯ and J𝑠2K♯ are sound. The composed abstract semantics is
+J𝑠1; 𝑠2K♯ =J𝑠 2K♯ ◦J𝑠 1K♯. By monotonicity of both abstract functions
+and the standard composition lemma for Galois connections [14]:
+𝛼◦J𝑠 1;𝑠 2K⊑J𝑠 2K♯ ◦J𝑠 1K♯ ◦𝛼=J𝑠 1;𝑠 2K♯ ◦𝛼 .
+Case: Conditional( if𝑏then𝑠 1 else𝑠 2). Concretely, exactly one
+branch executes. Abstractly, we take the pointwise join:Jif· · ·K♯ (𝑎)=
+J𝑠1K♯ (𝑎) ⊔J𝑠 2K♯ (𝑎). Since the concrete result equals one branch and
+the join over-approximates both, soundness follows from the in-
+duction hypothesis and the join being an upper bound.
+Case: Loop( while𝑏do𝑠 body). The abstract semantics computes
+the least fixpoint of 𝜆𝑎. 𝑎 0 ⊔J𝑠 bodyK♯ (𝑎). By Tarski’s fixpoint theo-
+rem and the fact that L| C |
+cap has finite height4 8 = 65,536, the ascend-
+ing chain stabilizes. The fixpoint over-approximates all concrete
+loop unrollings by induction on the iteration count.
+Conclusion.By structural induction, 𝛼◦J𝑠K⊑J𝑠K ♯ ◦𝛼 for all
+skill definitions 𝑠. Combined with the violation check ( Viol(𝑠)=
+∅ ⇒Cap 𝐼 (𝑠) ⊑Cap 𝐷 (𝑠)), we obtain the theorem: every concrete
+resource access(𝑟, ℓ)satisfiesℓ⊑Cap 𝐼 (𝑠) (𝑟) ⊑Cap 𝐷 (𝑠) (𝑟).□
+A.3 Theorem 5.6: Static Capability Confinement
+Definition A.6(Operation Capability Mapping).Each operation 𝑜
+in a skill’s code has acapability requirement cap(𝑜)=(𝑟, ℓ) ∈
+C ×L cap, mapping it to a resource type and minimum access level:
+•cap(read_file)=(filesystem,READ)
+•cap(write_file)=(filesystem,WRITE)
+•cap(read_env)=(environment,READ)
+•cap(exec)=(shell,WRITE)
+•cap(http_get)=(network,READ)
+•cap(http_post)=(network,WRITE)
+The set of all operations syntactically present in skill 𝑠 is ops(𝑠) .
+Theinferred capability setis defined resource-wise:
+Cap𝐼 (𝑠) (𝑟)=
+Ä
+𝑜∈ops(𝑠)
+cap(𝑜).𝑟=𝑟
+cap(𝑜).ℓ
+withCap 𝐼 (𝑠) (𝑟)=NONEif no operation accesses resource𝑟.
+Theorem A.7 (Static Capability Confinement, restated).
+Let 𝑠 be a skill with declared capability set Cap𝐷 (𝑠) . If Viol(𝑠)=∅
+(i.e., Cap𝐼 (𝑠) ⊑Cap 𝐷 (𝑠) ), then for every operation 𝑜 syntactically
+reachable in𝑠:
+cap(𝑜).ℓ⊑Cap 𝐷 (𝑠) (cap(𝑜).𝑟).
+Proof. By structural induction on the syntax of skill code. The
+key invariant is: for every code construct 𝑠 ′ in the skill, every oper-
+ation 𝑜∈ops(𝑠 ′) satisfies cap(𝑜).ℓ⊑Cap 𝐼 (𝑠) (cap(𝑜).𝑟) . Combined
+with the hypothesis Cap𝐼 (𝑠) ⊑Cap 𝐷 (𝑠), this yields the theorem by
+transitivity.
+Base case: Single operation𝑜.
+The skill consists of a single operation 𝑜 with cap(𝑜)=(𝑟, ℓ) . By
+definition ofCap 𝐼 :
+ℓ=cap(𝑜).ℓ⊑Cap 𝐼 (𝑠) (𝑟)
+since 𝑜∈ops(𝑠) and Cap𝐼 (𝑠) (𝑟) is defined as the join over all
+such operations. By hypothesis Cap𝐼 (𝑠) (𝑟) ⊑Cap 𝐷 (𝑠) (𝑟) , so ℓ⊑
+Cap𝐷 (𝑠) (𝑟)by transitivity.
+Inductive case: Sequential composition (𝑠 1;𝑠 2).
+We haveops(𝑠 1; 𝑠2)=ops(𝑠 1) ∪ops(𝑠 2). By the induction hypoth-
+esis, every operation inops(𝑠 1) and ops(𝑠 2) individually satisfies the
+bound. Since Cap𝐼 (𝑠1; 𝑠2) (𝑟)=Cap 𝐼 (𝑠1) (𝑟) ⊔Cap 𝐼 (𝑠2) (𝑟) and the
+join is the least upper bound, every individual operation capability
+is below the join:
+∀𝑜∈ops(𝑠 1;𝑠 2):cap(𝑜).ℓ⊑Cap 𝐼 (𝑠1;𝑠 2) (cap(𝑜).𝑟) ⊑Cap 𝐷 (𝑠) (cap(𝑜).𝑟).
+Inductive case: Conditional (if𝑏then𝑠 1 else𝑠 2).
+The analysis conservatively includes both branches: ops(𝑠)=
+ops(𝑠 1) ∪ops(𝑠 2). At runtime, only one branch executes. If branch𝑠𝑖
+executes, each operation𝑜∈ops(𝑠 𝑖 ) satisfies cap(𝑜).ℓ⊑Cap 𝐼 (𝑠𝑖 ) (cap(𝑜).𝑟)
+by the induction hypothesis. Since ops(𝑠 𝑖 ) ⊆ops(𝑠) , we have
+Cap𝐼 (𝑠𝑖 ) (𝑟) ⊑Cap 𝐼 (𝑠) (𝑟) for all𝑟, and hencecap(𝑜).ℓ⊑Cap 𝐷 (𝑠) (cap(𝑜).𝑟)
+by transitivity throughCap 𝐼 (𝑠) ⊑Cap 𝐷 (𝑠).
+Inductive case: Loop (while𝑏do𝑠 body).
+The set of operations isops(while𝑏do𝑠 body)=ops(𝑠 body), since
+the loop body is the only code that executes (repetition does not
+introduce new syntactic operations). By the induction hypothesis on
+𝑠body, every 𝑜∈ops(𝑠 body) satisfies the bound. Each loop iteration
+executes the same set of operations, so no iteration can exceed the
+declared capabilities.
+Inductive case: Function call (𝑓(𝑥 1, . . . , 𝑥𝑘 )).
+
+--- PAGE 26 ---
+Varun Pratap Bhardwaj
+If 𝑓 is a built-in operation, it falls under the base case. If𝑓 is a user-
+defined function, its body is a sub-skill with ops(𝑓) ⊆ops(𝑠) (since
+𝑓 ’s body is part of the analyzed skill). By the induction hypothesis
+on𝑓’s body, all operations satisfy the bound.
+Conclusion.By structural induction, every operation 𝑜 syntac-
+tically reachable during any execution of 𝑠 satisfies cap(𝑜).ℓ⊑
+Cap𝐷 (𝑠) (cap(𝑜).𝑟) . The proof relies only on the definition of Cap𝐼
+(the pointwise join over operation capabilities) and the hypothe-
+sis Cap𝐼 (𝑠) ⊑Cap 𝐷 (𝑠)—it does not assume any runtime sandbox
+mechanism.□
+Runtime Confinement (Design Theorem).Theorem 5.7 follows
+from the object-capability confinement result of Maffeis et al. [41]:
+in a capability-safe execution environment where (a) there is no
+ambient authority, (b) capabilities are unforgeable, and (c) the sand-
+box mediates every action via Equation (7), the only capabilities
+available to 𝑠 are those in Cap𝐷 (𝑠). Since Cap𝐷 (𝑠) is the initial en-
+dowment and the four Dennis–Van Horn mechanisms [17] can only
+attenuate (never amplify) authority (Proposition 5.5), the runtime
+check in Equation(7) suffices to guarantee Equation(10). The formal
+details follow the proof structure of Maffeis et al. [41, Theorem 4.1],
+instantiated for the agent skill capability model of Section 5.1.
+A.4 Theorem 6.10: Resolution Soundness
+Definition A.8(SAT Encoding).TheSAT encodingof an ADG G
+introduces:
+• Boolean variable 𝑥𝑠,𝑣 for each skill 𝑠∈𝑉 and version 𝑣∈
+versions(𝑠) , where 𝑥𝑠,𝑣 =⊤ means version 𝑣 of skill 𝑠 is
+selected.
+•At-most-oneclause for each skill: Ó
+𝑣≠𝑣 ′ (¬𝑥 𝑠,𝑣 ∨ ¬𝑥 𝑠,𝑣 ′ ).
+•At-least-oneclause for each skill: Ô
+𝑣∈versions(𝑠) 𝑥𝑠,𝑣 .
+• Dependency constraintfor each edge (𝑢, 𝑣) ∈𝐸 with con-
+straint 𝜇(𝑢, 𝑣) : if 𝑥𝑢,𝑣𝑢 =⊤ , then exactly one 𝑥𝑣,𝑣 𝑣 with
+𝑣𝑣 ∈sat(𝜇(𝑢, 𝑣))must be true.
+wheresat(𝑐)denotes the set of versions satisfying constraint𝑐.
+Definition A.9(Valid Resolution).Avalid resolutionof an ADG G
+is a function𝑟:𝑉→Versionsuch that:
+(i)∀𝑠∈𝑉:𝑟(𝑠) ∈versions(𝑠)(version exists)
+(ii)∀(𝑢, 𝑣) ∈𝐸:𝑟(𝑣) ∈sat(𝜇(𝑢, 𝑣))(constraints satisfied)
+(iii) The graph(𝑉 , 𝐸)is acyclic (no circular dependencies)
+Theorem A.10 (Resolution Soundness, restated).The SAT
+encoding isequisatisfiablewith the dependency resolution problem:
+the SAT formula is satisfiable if and only if a valid resolution exists.
+Moreover, any satisfying assignment 𝜎 of the SAT formula yields
+a valid resolution 𝑟𝜎 , and any valid resolution 𝑟 yields a satisfying
+assignment𝜎 𝑟 .
+Proof.We prove both directions of the bijection.
+Direction 1: Satisfying assignment⇒valid resolution.
+Let 𝜎 be a satisfying assignment of the SAT formula. Define
+𝑟𝜎 (𝑠)=𝑣where𝜎(𝑥 𝑠,𝑣 )=⊤.
+Well-definedness:By the at-least-one clause, at least one 𝑥𝑠,𝑣 is
+true for each𝑠. By the at-most-one clause, at most one is true. Hence
+exactly one version is selected:𝑟 𝜎 is a well-defined function.
+Condition (i):Since 𝑥𝑠,𝑣 only exists for 𝑣∈versions(𝑠) , we have
+𝑟𝜎 (𝑠) ∈versions(𝑠).
+Condition (ii):Let (𝑢, 𝑣) ∈𝐸 with 𝑟𝜎 (𝑢)=𝑣 𝑢. The dependency
+constraint clause states:𝑥𝑢,𝑣𝑢 ⇒ Ô
+𝑣𝑣 ∈sat(𝜇(𝑢,𝑣) ) 𝑥𝑣,𝑣 𝑣 . Since𝜎(𝑥 𝑢,𝑣𝑢 )=
+⊤ and 𝜎 satisfies this clause, there exists 𝑣𝑣 ∈sat(𝜇(𝑢, 𝑣)) with
+𝜎(𝑥 𝑣,𝑣 𝑣 )=⊤. By the at-most-one clause,𝑟 𝜎 (𝑣)=𝑣 𝑣 ∈sat(𝜇(𝑢, 𝑣)).
+Condition (iii):Cycle detection is performed as a preprocessing
+step (Kahn’s algorithm) before SAT encoding. If a cycle exists, the
+encoding is not generated and the resolution fails with an explicit
+error. Hence, any resolution produced from the SAT encoding is
+guaranteed to be over an acyclic graph.
+Direction 2: Valid resolution⇒satisfying assignment.
+Let 𝑟 be a valid resolution. Define 𝜎𝑟 (𝑥𝑠,𝑣 )=⊤ iff 𝑟(𝑠)=𝑣 , and
+𝜎𝑟 (𝑥𝑠,𝑣 )=⊥otherwise.
+At-most-one:For each skill 𝑠, exactly one version 𝑟(𝑠) is selected,
+so exactly one𝑥 𝑠,𝑣 is true.
+At-least-one:Since 𝑟(𝑠) is defined for all 𝑠∈𝑉 , at least one 𝑥𝑠,𝑣
+is true.
+Dependency constraints:For each (𝑢, 𝑣) ∈𝐸 with 𝑟(𝑢)=𝑣 𝑢:
+𝜎𝑟 (𝑥𝑢,𝑣𝑢 )=⊤ , and by condition (ii) of valid resolution, 𝑟(𝑣) ∈
+sat(𝜇(𝑢, 𝑣)) . Let 𝑣𝑣 =𝑟(𝑣) ; then 𝜎𝑟 (𝑥𝑣,𝑣 𝑣 )=⊤ and 𝑣𝑣 ∈sat(𝜇(𝑢, 𝑣)) .
+The dependency clause is satisfied.
+Bijection.The mappings𝜎↦→𝑟 𝜎 and𝑟↦→𝜎 𝑟 are inverses:
+•𝑟 𝜎𝑟 (𝑠)=𝑣 where 𝜎𝑟 (𝑥𝑠,𝑣 )=⊤ , i.e., where 𝑟(𝑠)=𝑣 . So
+𝑟𝜎𝑟 =𝑟.
+•𝜎 𝑟𝜎 (𝑥𝑠,𝑣 )=⊤iff𝑟 𝜎 (𝑠)=𝑣iff𝜎(𝑥 𝑠,𝑣 )=⊤. So𝜎 𝑟𝜎 =𝜎.
+Hence the encoding is equisatisfiable, and the mappings establish
+a bijection between satisfying assignments and valid resolutions.
+□
+A.5 Theorem 7.12: Trust Monotonicity
+Definition A.11(Trust Score, restated).Thetrust scoreof a skill 𝑠
+at time𝑡is:
+𝜏(𝑠, 𝑡)=
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 ·𝜎𝑖 (𝑠, 𝑡)
+where:
+•𝑘is the number of trust signals.
+• w =(𝑤 1, . . . , 𝑤𝑘 ) ∈Δ 𝑘−1 is a weight vector in the probabil-
+ity simplex (𝑤𝑖 ≥0, Í
+𝑖 𝑤 𝑖 =1).
+•𝜎 𝑖 (𝑠, 𝑡) ∈ [ 0, 1] is the value of trust signal 𝑖 for skill 𝑠 at
+time𝑡.
+Definition A.12(Signal Update).Asignal updateat time 𝑡+1is a
+vector𝛿=(𝛿 1, . . . , 𝛿𝑘 )where:
+𝜎𝑖 (𝑠, 𝑡+1)=clamp(𝜎 𝑖 (𝑠, 𝑡) +𝛿 𝑖,0,1)
+An update isnon-negativeif𝛿 𝑖 ≥0for all𝑖∈ {1, . . . , 𝑘}.
+Theorem A.13 (Trust Monotonicity, restated).If all signal
+updates between time 𝑡 and 𝑡+1are non-negative (i.e., 𝛿𝑖 ≥ 0for all 𝑖)
+and no temporal decay is applied (𝑑 𝑖 (𝑡)=1for all𝑖, 𝑡), then:
+𝜏(𝑠, 𝑡+1) ≥𝜏(𝑠, 𝑡)
+Proof.We proceed by direct computation.
+
+--- PAGE 27 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Step 1: Express the difference.
+𝜏(𝑠, 𝑡+1) −𝜏(𝑠, 𝑡)=
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 ·𝜎𝑖 (𝑠, 𝑡+1) −
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 ·𝜎𝑖 (𝑠, 𝑡)
+=
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 · 𝜎𝑖 (𝑠, 𝑡+1) −𝜎 𝑖 (𝑠, 𝑡)
+Step 2: Bound each signal difference.
+For each signal𝑖, we have:
+𝜎𝑖 (𝑠, 𝑡+1)=clamp(𝜎 𝑖 (𝑠, 𝑡) +𝛿 𝑖,0,1)
+Since𝛿 𝑖 ≥0:
+𝜎𝑖 (𝑠, 𝑡) +𝛿 𝑖 ≥𝜎 𝑖 (𝑠, 𝑡)
+The clamp function clamp(𝑥, 0, 1)=max( 0,min( 1, 𝑥)) is mono-
+tone non-decreasing in𝑥:
+•If𝜎 𝑖 (𝑠, 𝑡) +𝛿 𝑖 ≤1:𝜎 𝑖 (𝑠, 𝑡+1)=𝜎 𝑖 (𝑠, 𝑡) +𝛿 𝑖 ≥𝜎 𝑖 (𝑠, 𝑡).
+• If 𝜎𝑖 (𝑠, 𝑡) +𝛿 𝑖 > 1: 𝜎𝑖 (𝑠, 𝑡+1)= 1 ≥𝜎 𝑖 (𝑠, 𝑡) (since 𝜎𝑖 (𝑠, 𝑡) ≤
+1).
+In both cases:
+𝜎𝑖 (𝑠, 𝑡+1) −𝜎 𝑖 (𝑠, 𝑡) ≥0
+Step 3: Combine with non-negative weights.
+Since 𝑤 𝑖 ≥ 0(from the simplex constraint) and 𝜎𝑖 (𝑠, 𝑡+1) −
+𝜎𝑖 (𝑠, 𝑡) ≥0(from Step 2):
+𝑤 𝑖 · 𝜎𝑖 (𝑠, 𝑡+1) −𝜎 𝑖 (𝑠, 𝑡) ≥0for all𝑖
+Therefore:
+𝜏(𝑠, 𝑡+1) −𝜏(𝑠, 𝑡)=
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 · 𝜎𝑖 (𝑠, 𝑡+1) −𝜎 𝑖 (𝑠, 𝑡) ≥0
+Step 4: Boundedness.
+We additionally verify that𝜏(𝑠, 𝑡) ∈ [0,1]for all𝑠, 𝑡:
+Lower bound:Since 𝑤 𝑖 ≥ 0and 𝜎𝑖 (𝑠, 𝑡) ≥ 0(by the clamp lower
+bound):
+𝜏(𝑠, 𝑡)=
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 ·𝜎𝑖 (𝑠, 𝑡) ≥0
+Upper bound:Since 𝜎𝑖 (𝑠, 𝑡) ≤ 1(by the clamp upper bound) andÍ
+𝑖 𝑤 𝑖 =1:
+𝜏(𝑠, 𝑡)=
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 ·𝜎𝑖 (𝑠, 𝑡) ≤
+𝑘∑︁
+𝑖=1
+𝑤 𝑖 ·1=1
+Conclusion. 𝜏(𝑠, 𝑡+ 1) ≥𝜏(𝑠, 𝑡) whenever all signal updates are
+non-negative and no temporal decay is applied. Furthermore,𝜏(𝑠, 𝑡) ∈
+[0,1]for all𝑠and𝑡.□
+RemarkA.14 (Effect of Temporal Decay).When temporal decay is
+active (𝑑𝑖 (𝑡)< 1for some 𝑖), the monotonicity property may not
+hold in general, since the decay factor can reduce trust even in the
+absence of negative evidence. This is by design: skills that are not
+actively maintained should see their trust erode over time, reflecting
+increased risk from unpatched vulnerabilities and compatibility
+drift. The decay rate and its interaction with positive evidence are
+configurable parameters in the trust engine.
+Table 11: Full attack type distribution inSkillFortify-
+Benchby format.
+ID Attack Type Claude MCP OpenClaw Total
+A1 Data exfiltration (HTTP) 10 10 10 30
+A2 Data exfiltration (DNS) 6 6 6 18
+A3 Credential theft 10 10 10 30
+A4 Arbitrary code execution 10 10 10 30
+A5 File system tampering 6 6 6 18
+A6 Privilege escalation 6 6 6 18
+A7 Steganographic exfiltration 8 8 8 24
+A8 Prompt injection 8 8 8 24
+A9 Reverse shell 8 8 8 24
+A10 Cryptocurrency mining 4 4 4 12
+A11 Typosquatting 4 2 2 8
+A12 Dependency confusion 2 4 2 8
+A13 Encoded/obfuscated payloads 8 8 10 26
+Total malicious 90 90 90 270
+Benign 90 90 90 270
+Grand total 180 180 180 540
+B SkillFortifyBench Details
+This appendix provides the full specification ofSkillFortifyBench,
+including the attack type distribution across formats, example skills,
+and the labeling methodology.
+B.1 Attack Type Distribution
+Table 11 shows the complete distribution of attack types across the
+three skill formats. The benchmark contains 540 skills total: 270
+malicious (50%) and 270 benign (50%). Each format (Claude, MCP,
+OpenClaw) contributes 180 skills (90 malicious + 90 benign).
+B.2 Example Skills
+We present representative examples of malicious and benign skills
+in each format. All examples are simplified for exposition; full skills
+inSkillFortifyBenchcontain additional realistic metadata.
+Listing 1: Malicious Claude skill exfiltrating environment
+variables.
+B.2.1 Malicious Claude Code Skill (A1 — Data Exfiltration via HTTP).
+1---
+2name: env-helper
+3description: Helps manage environment variables
+4capabilities:
+5- read_env
+6---
+7
+8# Environment Helper
+9
+10This skill helps manage environment variables.
+11
+12## Implementation
+13
+14```python
+15import os
+16import requests
+17
+18def get_env_summary():
+19env_data = dict(os.environ)
+20# Exfiltration disguised as "analytics"
+21requests.post(
+22"https://evil.example.com/collect",
+
+--- PAGE 28 ---
+Varun Pratap Bhardwaj
+23json={"telemetry": env_data}
+24)
+25return "Environment loaded."
+26```
+SkillFortifydetects this skill through two findings: (1) pat-
+tern match on os.environ combined with requests.post to an
+external URL (A1 pattern), and (2) information flow analysis trac-
+ing data from theenvsource through env_data to thenetsink at
+requests.post.
+Listing 2: Malicious MCP server with embedded code execu-
+tion.
+B.2.2 Malicious MCP Server Configuration (A4 — Arbitrary Code Execution).
+1{
+2"mcpServers": {
+3"data-processor": {
+4"command": "python",
+5"args": ["-c",
+6"import subprocess; subprocess.Popen(
+7['sh','-c',
+8'curl evil.example.com/payload|sh'])"],
+9"env": {
+10"PATH": "/usr/bin:/usr/local/bin"
+11}
+12}
+13}
+14}
+SkillFortifydetects the subprocess.Popen with shell invoca-
+tion piped throughcurl, matching the A4 arbitrary code execution
+pattern. The command passes inline Python via -c, a pattern com-
+monly observed in ClawHavoc [68] payloads.
+Listing 3: Benign OpenClaw skill for JSON formatting.
+B.2.3 Benign OpenClaw Skill.
+1name: json-formatter
+2version: 1.2.0
+3description: Format and validate JSON files
+4author: verified-publisher
+5actions:
+6- name: format
+7description: Pretty-print a JSON file
+8input:
+9type: string
+10description: Path to JSON file
+11output:
+12type: string
+13description: Formatted JSON content
+14permissions:
+15- read_local
+This skill declares onlyread_local permission, consistent with
+its stated purpose.SkillFortifycorrectly classifies it as benign:
+no malicious patterns match, no information flow violations are
+detected, and the inferred capabilities ({ReadLocal}) are confined
+within declared capabilities.
+B.3 Labeling Methodology
+SkillFortifyBenchusesconstructive ground truth: skills are gener-
+ated by a deterministic benchmark generator that embeds specific,
+known attack patterns into malicious skills and generates clean im-
+plementations for benign skills. This approach has three advantages
+over post-hoc labeling:
+(1) Perfect ground truth.Each skill’s label is determined at
+generation time, eliminating inter-annotator disagreement
+and labeling errors.
+(2) Reproducibility.The generator uses seeded pseudo-random
+number generators (Python random.seed(42)) for all sto-
+chastic choices (variable names, formatting variations, red-
+herring code), ensuring byte-identical benchmark regener-
+ation.
+(3) Controlled complexity.Each malicious skill contains ex-
+actly one primary attack type, enabling precise per-type
+evaluation. Real-world malware often combines multiple
+techniques; single-type benchmarking provides cleaner at-
+tribution of detection success and failure.
+Attack pattern sources.The 13 attack types are derived from three
+verified sources:
+• ClawHavoc campaign(arXiv:2602.20867, Feb 24, 2026) [68]:
+1,200+ malicious skills documented with 7 skill design pat-
+terns. Contributes patterns for A1–A6 and A13.
+• MalTool dataset(arXiv:2602.12194, Feb 12, 2026) [ 63]:
+6,487 malicious tools catalogued. Contributes patterns for
+A7–A10.
+• CVE-2026-25253 advisory[ 21]: Remote code execution
+via skill installation. Contributes the A4 variant specific to
+the exploitation vector.
+• Literature survey(“Agent Skills in the Wild, ” arXiv:2601.10338) [54]:
+14 vulnerability patterns across 42,447 skills. Contributes
+patterns for A11 and A12. Corroborated by a second large-
+scale study scanning 98,380 skills with 157 confirmed mali-
+cious entries [37].
+Benign skill sources.Benign skills are modeled after legitimate
+skill categories observed in production skill registries: file manage-
+ment (read, write, format), API integration (REST client wrappers),
+data transformation (JSON, CSV, XML processing), development
+tooling (linting, testing helpers), and system information (uptime,
+disk usage, version checks). Each benign skill is designed to use
+only the capabilities it declares, with no extraneous network access,
+process execution, or environment variable exposure.
+C Lockfile Schema
+This appendix specifies the complete skill-lock.json schema,
+field descriptions, and an example lockfile produced byskillfortify
+lock.
+C.1 Schema Specification
+The lockfile is a JSON document conforming to the following
+schema. We present it in JSON Schema (Draft 2020-12) notation.
+Listing 4: skill-lock.json schema (JSON Schema Draft 2020-
+12).
+1{
+2"$schema":
+3"https://json-schema.org/draft/2020-12/schema",
+4"title": "SkillFortify Skill Lockfile",
+5"type": "object",
+6"required": [
+7"lockfile_version", "generated_at",
+8"generated_by", "skills", "integrity"
+9],
+10"properties": {
+11"lockfile_version": {
+12"type": "string",
+13"const": "1.0.0",
+
+--- PAGE 29 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+14"description":
+15"Schema version of the lockfile."
+16},
+17"generated_at": {
+18"type": "string",
+19"format": "date-time",
+20"description":
+21"ISO 8601 timestamp of generation."
+22},
+23"generated_by": {
+24"type": "string",
+25"description": "Tool name and version."
+26},
+27"skills": {
+28"type": "object",
+29"additionalProperties": {
+30"$ref": "#/$defs/LockedSkill"
+31},
+32"description":
+33"Map: skill name -> locked resolution."
+34},
+35"integrity": {
+36"type": "string",
+37"description":
+38"SHA-256 hash of canonical skills JSON."
+39}
+40},
+41"$defs": {
+42"LockedSkill": {
+43"type": "object",
+44"required": [
+45"version", "format", "hash",
+46"capabilities", "dependencies"
+47],
+48"properties": {
+49"version": {
+50"type": "string",
+51"description":
+52"Resolved semantic version."
+53},
+54"format": {
+55"type": "string",
+56"enum": ["claude", "mcp", "openclaw"],
+57"description": "Skill format type."
+58},
+59"hash": {
+60"type": "string",
+61"pattern": "^sha256:[a-f0-9]{64}$",
+62"description": "SHA-256 content hash."
+63},
+64"capabilities": {
+65"type": "array",
+66"items": { "type": "string" },
+67"description":
+68"Declared capability set."
+69},
+70"trust_score": {
+71"type": "number",
+72"minimum": 0.0,
+73"maximum": 1.0,
+74"description":
+75"Trust score at lock time."
+76},
+77"dependencies": {
+78"type": "object",
+79"additionalProperties": {
+80"type": "string"
+81},
+82"description":
+83"Map: dep name -> resolved version."
+84},
+85"analysis": {
+86"$ref": "#/$defs/AnalysisResult"
+87}
+88}
+89},
+90"AnalysisResult": {
+91"type": "object",
+92"properties": {
+93"status": {
+94"type": "string",
+95"enum": [
+96"clean", "warning", "critical"
+97],
+98"description":
+99"Overall analysis status."
+100},
+101"findings_count": {
+102"type": "integer",
+103"minimum": 0,
+104"description":
+105"Number of findings."
+106},
+107"max_severity": {
+108"type": "string",
+109"enum": [
+110"NONE", "LOW", "MEDIUM",
+111"HIGH", "CRITICAL"
+112],
+113"description":
+114"Highest finding severity."
+115},
+116"analyzed_at": {
+117"type": "string",
+118"format": "date-time",
+119"description":
+120"Timestamp of last analysis."
+121}
+122}
+123}
+124}
+125}
+C.2 Field Descriptions
+Table 12 provides detailed descriptions of all top-level and nested
+fields.
+C.3 Example Lockfile
+Listing 5 shows an example skill-lock.json for a three-skill
+agent configuration.
+Listing 5: Example skill-lock.json for a three-skill config-
+uration.
+1{
+2"lockfile_version": "1.0.0",
+3"generated_at": "2026-02-26T14:30:00Z",
+4"generated_by": "skillfortify 0.1.0",
+5"skills": {
+6"api-client": {
+7"version": "3.0.1",
+8"format": "mcp",
+9"hash": "sha256:c5d6e7f8a9b0c1d2e3f4
+10a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1
+11f2a3b4c5d6",
+12"capabilities": [
+13"read_env", "net_access"
+14],
+15"trust_score": 0.68,
+16"dependencies": {},
+17"analysis": {
+18"status": "warning",
+19"findings_count": 1,
+20"max_severity": "LOW",
+21"analyzed_at":
+22"2026-02-26T14:29:59Z"
+23}
+24},
+25"file-manager": {
+26"version": "2.1.0",
+27"format": "claude",
+
+--- PAGE 30 ---
+Varun Pratap Bhardwaj
+Table 12: Lockfile field descriptions.
+Field Type Description
+lockfile_versionstring Schema version for forward compatibility. Current:"1.0.0".
+generated_atdatetime UTC timestamp when the lockfile was generated. Enables audit trail
+tracking.
+generated_bystring Identifies the tool and version (e.g.,"skillfortify 0.1.0").
+skillsobject Maps skill names (keys) to their locked resolution objects. Keys are
+sorted lexicographically for deterministic serialization.
+integritystring SHA-256 hash computed over the canonical JSON serialization of the
+skillsobject. Detects tampering with the lockfile after generation.
+Per-skill fields (within each entry inskills):
+versionstring The resolved semantic version (e.g.,"1.2.0"). Determined by the SAT-
+based resolver.
+formatstring Skill format:"claude","mcp", or"openclaw".
+hashstring SHA-256 content hash of the skill file at lock time, prefixed with
+"sha256:". Enables integrity verification on subsequent installs.
+capabilitiesarray The declared capability set from the skill manifest.
+trust_scorenumber Trust score𝜏(𝑠, 𝑡)at lock generation time. Range:[0,1].
+dependenciesobject Maps dependency skill names to their resolved versions. Empty object{}
+if no dependencies.
+analysis.statusstring Overall analysis result:"clean" (no findings),"warning" (low-severity
+findings), or"critical"(medium+ severity findings).
+analysis.findings_countinteger Total number of analysis findings.
+analysis.max_severitystring Highest severity level among all findings.
+analysis.analyzed_atdatetime Timestamp of the analysis run.
+28"hash": "sha256:a3f2b8c9d4e5f6a7b8c9
+29d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6
+30c7d8e9f0a1",
+31"capabilities": [
+32"read_local", "write_local"
+33],
+34"trust_score": 0.85,
+35"dependencies": {},
+36"analysis": {
+37"status": "clean",
+38"findings_count": 0,
+39"max_severity": "NONE",
+40"analyzed_at":
+41"2026-02-26T14:29:58Z"
+42}
+43},
+44"json-formatter": {
+45"version": "1.2.0",
+46"format": "openclaw",
+47"hash": "sha256:b4c5d6e7f8a9b0c1d2e3
+48f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0
+49e1f2a3b4c5",
+50"capabilities": [
+51"read_local"
+52],
+53"trust_score": 0.72,
+54"dependencies": {
+55"file-manager": ">=2.0.0"
+56},
+57"analysis": {
+58"status": "clean",
+59"findings_count": 0,
+60"max_severity": "NONE",
+61"analyzed_at":
+62"2026-02-26T14:29:59Z"
+63}
+64}
+65},
+66"integrity": "sha256:e7f8a9b0c1d2e3f4a5b6
+67c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4
+68c5d6e7f8a9"
+69}
+Key properties of the example.The lockfile demonstrates several
+features of the schema:
+(1) Deterministic ordering.Skills are sorted alphabetically
+by name (api-client, file-manager, json-formatter).
+Repeated invocations of skillfortify lock on the same
+configuration produce byte-identical output (verified in
+Experiment E6, Section 9.7).
+(2) Dependency resolution.The json-formatter skill de-
+clares a dependency onfile-manager with constraint>=2.0.0.
+The resolver selected version2.1.0, which satisfies the con-
+straint.
+(3) Trust scores at lock time.Each skill records its trust score
+at the moment of lockfile generation. This enables tempo-
+ral comparison: if a futureskillfortify lock produces
+a lower trust score for the same skill version, it signals
+degraded confidence (e.g., due to newly discovered vulner-
+abilities or absence of maintenance activity).
+(4) Analysis status.The api-client skill has a "warning"
+status with one low-severity finding. This does not prevent
+lockfile generation (only"critical" status blocks locking
+by default) but is recorded for audit purposes.
+(5) Integrity hash.The top-level integrity field is a SHA-
+256 hash of the canonical JSON serialization of the entire
+skills object. Any modification to skill entries, versions,
+or hashes invalidates the integrity hash, providing tamper
+detection.
+
+--- PAGE 31 ---
+Formal Analysis and Supply Chain Security
+for Agentic AI Skills
+Canonical serialization.Deterministic JSON output is achieved
+through: (i) sorted dictionary keys at all nesting levels, (ii) consis-
+tent whitespace formatting (2-space indentation), (iii) no trailing
+commas, and (iv) UTF-8 encoding without byte-order mark. These
+conventions ensure that the SHA-256 integrity hash is stable across
+platforms and Python versions.

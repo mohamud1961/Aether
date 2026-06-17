@@ -1,0 +1,235 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/api/workflow/update/?q=
+================================================================================
+
+更新工作流
+
+更新Workflow接口¶
+请求URL¶
+POST /api/v1/workflow/update
+
+请求参数¶
+Header¶
+参数	取值	说明
+Content-Type	application/json	指定请求正文的数据格式。当值为 application/json 时，表明请求体（Body）内容以 JSON 格式组织，服务端将按 JSON 规范解析请求参数。
+X-TraceId	string	traceId
+Authorization	Bearer $AccessToken	用于验证客户端身份的访问令牌
+Body¶
+参数	类型	是否必填	参数说明	备注
+id	string	是	要更新的工作流ID	
+workflow	object	是	工作流配置对象	
+workflow.nodes	array	是	节点列表	
+workflow.nodes[].id	string	是	节点唯一标识	
+workflow.nodes[].type	string	是	节点类型	如"base"、"embody"等
+workflow.nodes[].data	object	是	节点的具体配置	根据节点类型不同，配置内容不同
+workflow.edges	array	是	边列表（节点间的连接关系）	
+workflow.edges[].source	object	是	源节点信息	
+workflow.edges[].source.cell	string	是	源节点ID	
+workflow.edges[].source.port	string	是	源节点端口	格式为"out.{节点ID}"
+workflow.edges[].target	object	是	目标节点信息	
+workflow.edges[].target.cell	string	是	目标节点ID	
+workflow.edges[].target.port	string	是	目标节点端口	格式为"in.{节点ID}"
+请求示例¶
+{
+
+    "id": "687865202956247040",
+
+    "workflow": {
+
+        "nodes": [
+
+            {
+
+                "id": "input",
+
+                "type": "base",
+
+                "data": {
+
+                    "type": "input",
+
+                    "title": "输入节点",
+
+                    "desc": "input desc"
+
+                }
+
+            },
+
+            {
+
+                "id": "extractor_1",
+
+                "type": "embody",
+
+                "data": {
+
+                    "type": "multimodal_dialogue_and_information_extractor",
+
+                    "title": "多模态信息提取",
+
+                    "desc": "",
+
+                    "id": "extractor_1",
+
+                    "parameters": [
+
+                        {
+
+                            "name": "beverage",
+
+                            "type": "select",
+
+                            "description": "咖啡口味选择",
+
+                            "options": {
+
+                                "美式": "Americano",
+
+                                "意式": "Espresso",
+
+                                "卡布奇诺": "Cappuccino",
+
+                                "拿铁": "Latte"
+
+                            }
+
+                        },
+
+                        {
+
+                            "name": "sugar",
+
+                            "type": "select",
+
+                            "description": "加糖量",
+
+                            "options": {
+
+                                "无糖": "sugar_free",
+
+                                "半糖": "half_sugar",
+
+                                "全糖": "normal_sugar"
+
+                            }
+
+                        },
+
+                        {
+
+                            "name": "ice",
+
+                            "type": "select",
+
+                            "description": "加冰",
+
+                            "options": {
+
+                                "不加冰": "ice_free",
+
+                                "少冰": "less_ice",
+
+                                "正常冰": "normal_ice"
+
+                            }
+
+                        }
+
+                    ],
+
+                    "instruction": "从对话历史中提取出beverage、sugar、ice这三个参数。",
+
+                    "role": "制作咖啡的机器人"
+
+                }
+
+            },
+
+            // 更多节点...
+
+            {
+
+                "id": "end",
+
+                "type": "base",
+
+                "data": {
+
+                    "type": "end",
+
+                    "title": "结束节点",
+
+                    "desc": ""
+
+                }
+
+            }
+
+        ],
+
+        "edges": [
+
+            {
+
+                "source": {
+
+                    "cell": "input",
+
+                    "port": "out.input"
+
+                },
+
+                "target": {
+
+                    "cell": "extractor_1",
+
+                    "port": "in.extractor_1"
+
+                }
+
+            },
+
+            // 更多边...
+
+            {
+
+                "source": {
+
+                    "cell": "xxx-end",
+
+                    "port": "out.xxx-end"
+
+                },
+
+                "target": {
+
+                    "cell": "end",
+
+                    "port": "in.end"
+
+                }
+
+            }
+
+        ]
+
+    }
+
+}
+
+响应参数¶
+参数	类型	描述	备注
+code	int	状态码	0代表成功
+message	string	响应消息	
+data	object	响应数据	
+data.message	string	操作结果消息	
+响应示例¶
+{
+
+    "code": 0,
+
+    "message": "success",
+
+    "data": {}
+
+}

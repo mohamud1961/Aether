@@ -1,0 +1,88 @@
+DEEP_SYNTHESIS_SUPPORT_OUTPUT
+- artifact: mechanism_map
+- wave: wave_04_context_state_memory_workspace
+- calling_lane: codebase/source-reconstruction analyst
+- support_task_type: workspace_artifact_discipline_map
+- bounded_scope_confirmed: yes - analysis stayed inside the exact path scope provided by the calling lane
+- files_or_paths_read:
+  - research/sources/codebases/a-evolve/DESIGN.md
+  - research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py
+  - research/sources/codebases/a-evolve/agent_evolve/contract/manifest.py
+  - research/sources/codebases/a-evolve/agent_evolve/contract/schema.py
+  - research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py
+  - research/sources/codebases/a-evolve/agent_evolve/engine/history.py
+  - research/sources/codebases/a-evolve/agent_evolve/engine/trial.py
+  - research/sources/codebases/a-evolve/agent_evolve/engine/observer.py
+  - research/sources/codebases/a-evolve/seed_workspaces/terminal/manifest.yaml
+  - research/sources/codebases/a-evolve/seed_workspaces/swe/manifest.yaml
+  - research/sources/codebases/a-evolve/seed_workspaces/mcp/manifest.yaml
+  - research/sources/codebases/a-evolve/seed_workspaces/skillbench/manifest.yaml
+  - research/sources/codebases/a-evolve/seed_workspaces/terminal/memory/memories.jsonl
+  - research/sources/codebases/a-evolve/seed_workspaces/mcp/memory/memories.jsonl
+  - research/sources/codebases/a-evolve/seed_workspaces/skillbench/memory/memories.jsonl
+  - research/sources/codebases/a-evolve/examples/configs/terminal.yaml
+  - research/sources/codebases/a-evolve/examples/configs/swe.yaml
+  - research/sources/codebases/a-evolve/examples/configs/mcp.yaml
+  - research/sources/codebases/a-evolve/examples/configs/hle.yaml
+  - research/sources/codebases/a-evolve/examples/configs/skillbench.yaml
+  - research/sources/codebases/quarantine/claw-code/src/session_store.py
+  - research/sources/codebases/quarantine/claw-code/src/transcript.py
+  - research/sources/codebases/quarantine/claw-code/src/history.py
+  - research/sources/codebases/quarantine/claw-code/src/context.py
+  - research/sources/codebases/quarantine/claw-code/src/runtime.py
+  - research/sources/codebases/quarantine/claw-code/src/remote_runtime.py
+  - research/sources/codebases/quarantine/claw-code/src/query_engine.py
+  - research/sources/codebases/quarantine/claw-code/src/bootstrap_graph.py
+  - research/sources/codebases/quarantine/claw-code/src/main.py
+  - research/sources/codebases/quarantine/claw-code/src/state/__init__.py
+  - research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt
+  - blocks/verification/checkpoint_verify.py
+  - blocks/recovery/rollback.py
+- structured_findings:
+  - a-evolve workspace root is first-class persistent substrate.
+  - evidence: `AgentWorkspace` binds typed read/write access to `prompts/`, `skills/`, `tools/`, `memory/`, and `evolution/`, with direct filesystem mutation methods for prompt fragments, skills, tool registry/files, and memory JSONL append/read (`research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`).
+  - a-evolve manifest and schema make workspace shape explicit.
+  - evidence: `manifest.yaml` includes `agent.entrypoint`, `evolvable_layers`, and `reload_strategy`; schema validation requires `manifest.yaml` and `prompts/system.md` and ensures layer directories exist (`research/sources/codebases/a-evolve/agent_evolve/contract/manifest.py`, `research/sources/codebases/a-evolve/agent_evolve/contract/schema.py`).
+  - a-evolve memory is file-backed and append-oriented by default.
+  - evidence: memory writes are `memory/<category>.jsonl` append operations; reads are line-oriented JSON parsing across one or many JSONL files (`research/sources/codebases/a-evolve/agent_evolve/contract/workspace.py`).
+  - a-evolve run artifacts are persisted under `evolution/observations`.
+  - evidence: observer writes per-batch JSONL files `evolution/observations/batch_XXXX.jsonl` containing task, trajectory, feedback, and nested claim-level feedback payloads (`research/sources/codebases/a-evolve/agent_evolve/engine/observer.py`).
+  - a-evolve versioning/rollback surfaces are git-backed and workspace-scoped.
+  - evidence: `VersionControl` initializes workspace git repos, commits with tags (`evo-*`), supports rollback by checkout+new commit, and supports worktree copies for ref snapshots (`research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py`).
+  - a-evolve history links observation artifacts to version-control artifacts.
+  - evidence: `EvolutionHistory` exposes observation queries and git diff/log/tag/file-at-ref methods (`research/sources/codebases/a-evolve/agent_evolve/engine/history.py`).
+  - a-evolve seed workspace files show baseline contract but empty initial memory in sampled seeds.
+  - evidence: terminal/swe/mcp/skillbench manifests define contract version and evolvable layers; sampled `memory/memories.jsonl` files are empty at seed (`research/sources/codebases/a-evolve/seed_workspaces/*/manifest.yaml`, `research/sources/codebases/a-evolve/seed_workspaces/*/memory/memories.jsonl`).
+  - a-evolve configs expose policy-level toggles for what can mutate.
+  - evidence: `evolve_memory` is enabled in terminal/swe/mcp/hle configs and disabled in skillbench config (`research/sources/codebases/a-evolve/examples/configs/*.yaml`).
+  - claw-code quarantine surfaces persist sessions as local JSON files.
+  - evidence: `save_session` writes `.port_sessions/<session_id>.json` with `messages`, `input_tokens`, and `output_tokens`; `load_session` restores the same fields (`research/sources/codebases/quarantine/claw-code/src/session_store.py`).
+  - claw-code transcript persistence is two-stage (in-memory then file flush).
+  - evidence: `TranscriptStore` appends/compacts entries in memory; `QueryEnginePort.persist_session()` flushes transcript state and serializes session via `save_session` (`research/sources/codebases/quarantine/claw-code/src/transcript.py`, `research/sources/codebases/quarantine/claw-code/src/query_engine.py`).
+  - claw-code context and runtime report workspace/file inventory metadata as state.
+  - evidence: context builder computes roots, file counts, and archive availability; runtime session report includes persisted session path and history log entries (`research/sources/codebases/quarantine/claw-code/src/context.py`, `research/sources/codebases/quarantine/claw-code/src/runtime.py`).
+  - claw-code has mode-routing state labels, but remote/resume branches are placeholders in this scope.
+  - evidence: `run_remote_mode`, `run_ssh_mode`, `run_teleport_mode` return static connection reports, including `Teleport resume/create placeholder...` text (`research/sources/codebases/quarantine/claw-code/src/remote_runtime.py`).
+  - claw-code state package in this scope is archival metadata, not live state engine code.
+  - evidence: `state/__init__.py` exposes archive snapshot metadata loaded from `reference_data/subsystems/state.json` (`research/sources/codebases/quarantine/claw-code/src/state/__init__.py`).
+  - KIRA prompt template encodes strict workspace-diff discipline as an instruction-level contract.
+  - evidence: task completion text requires minimal file-change set and no extra side effects (`research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`).
+  - local harness rollback/checkpoint blocks are interface stubs only in current scope.
+  - evidence: both files are docstring-only interface declarations without implementation logic (`blocks/verification/checkpoint_verify.py`, `blocks/recovery/rollback.py`).
+- unresolved_gaps:
+  - no deeper KIRA runtime/session persistence implementation was inspected beyond the prompt template path in this bounded task
+  - claw-code source family is quarantined porting material, and many runtime/state surfaces here are scaffold or placeholder representations
+  - local harness `checkpoint_verify` and `rollback` files contain no executable policy, so behavior cannot be inferred from these files alone
+  - branch hygiene enforcement beyond a-evolve git repo/worktree operations is not visible in this scope
+  - no trajectory reconciliation was run in this bounded support task, so source-to-behavior alignment remains for the main lane
+- handoff_notes_for_calling_lane:
+  - treat a-evolve as the strongest explicit file-backed workspace-state family in this scope: contract object + observer artifacts + git version tags/worktree
+  - keep claw-code explicitly labeled as quarantine/porting pressure rather than equal-status first-class implementation evidence
+  - use KIRA template finding as doctrine-level workspace hygiene signal, not as implementation proof
+  - when synthesizing cross-family mechanisms, keep separate: instruction-level state discipline, file-persisted session stores, and git-versioned workspace rollback
+  - if strong claims about checkpoint/reset in local harness are needed, additional source beyond stub interface files is required
+- not_promoted_claims:
+  - no final mechanism-family promotion
+  - no cross-system ranking
+  - no decision-ready judgment
+- output_path: tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_04_context_state_memory_workspace/outputs/codebase_support_workspace_artifact_map.md

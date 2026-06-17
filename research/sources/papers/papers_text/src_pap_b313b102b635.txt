@@ -1,0 +1,2652 @@
+--- PAGE 1 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+A Survey of Data Agents:
+Emerging Paradigm or Overstated Hype?
+Yizhang Zhu, Liangwei Wang, Chenyu Yang, Xiaotian Lin, Boyan Li, Wei Zhou, Xinyu Liu, Zhangyang Peng,
+Tianqi Luo, Yu Li, Chengliang Chai, Chong Chen, Shimin Di, Ju Fan, Ji Sun, Nan Tang, Fugee Tsung,
+Jiannan Wang, Chenglin Wu, Yanwei Xu, Shaolei Zhang, Yong Zhang, Xuanhe Zhou,
+Guoliang Li ∗ and Yuyu Luo ∗
+Awesome Data Agents:https://github.com/HKUSTDial/awesome-data-agents
+LLM Hub
+Data Agent
+Structured Data Semi-structured Data
+……
+ …
+ …
+DocumentsImages Videos
+…
+ …
+Unstructured Data
+Data Lake
+Level 0 Level 1 Level 2 Level 3 Level 4 Level 5
+No Autonomy Assistance Partial AutonomyConditional Autonomy High Autonomy Full Autonomy
+Human in charge Data Agent in charge
+Dominator
+Solo
+N/A
+Dominator
+Integrating
+Assistant
+Dominator
+Orchestrating
+Executor
+Supervisor
+Overseeing
+Dominator
+Onlooker
+Delegating
+Dominator
+N/A
+None
+Dominator
+None Responder Procedural Autonomous Proactive Generative
+Application
+Data Analysis
+Structured Data Analysis Unstructured Data Analysis
+Report GenerationNL2SQL NL2VIS TableQA…
+Agentic Data Systems
+Conﬁg Tuning
+Data Management
+…
+Data Cleaning
+Data Preparation
+Data Discovery
+Data Integ.
+……
+Query Opt.
+System Diagnosis
+Fig. 1: An Overview of Data Agents.
+Abstract—The rapid advancement of large language models
+(LLMs) has spurred the emergence of data agents, autonomous
+systems designed to orchestrate Data + AI ecosystems for tackling
+complex data-related tasks. However, the term “data agent”
+currently suffers from terminological ambiguity and inconsistent
+adoption, conflating simple query responders with sophisticated
+autonomous architectures. This terminological ambiguity fosters
+mismatched user expectations, accountability challenges, and
+barriers to industry growth. Inspired by the SAE J3016 standard
+for driving automation, this survey introduces the first systematic
+hierarchical taxonomy for data agents, comprising six levels that
+delineate and trace progressive shifts in autonomy, from manual
+operations (L0) to a vision of generative, fully autonomous
+data agents (L5), thereby clarifying capability boundaries and
+∗Corresponding authors: Guoliang Li (liguoliang@tsinghua.edu.cn) and
+Yuyu Luo (yuyuluo@hkust-gz.edu.cn).
+Yizhang Zhu, Liangwei Wang, Chenyu Yang, Xiaotian Lin, Boyan Li,
+Xinyu Liu, Zhangyang Peng, Tianqi Luo, Nan Tang, Fugee Tsung, and
+Yuyu Luo are with The Hong Kong University of Science and Technology
+(Guangzhou), China. Wei Zhou and Xuanhe Zhou are with Shanghai Jiao
+Tong University, Shanghai, China. Yu Li, Ju Fan, and Shaolei Zhang are with
+Renmin University of China, Beijing, China. Chengliang Chai is with Beijing
+Institute of Technology, Beijing, China. Shimin Di is with Southeast Univer-
+sity, Nanjing, China. Ji Sun, Jiannan Wang, Yong Zhang, and Guoliang Li are
+with Tsinghua University, Beijing, China. Chong Chen and Yanwei Xu are
+with Huawei. Chenglin Wu is with DeepWisdom.
+responsibility allocation. Through this lens, we offer a structured
+review of existing research arranged by increasing autonomy,
+encompassing specialized data agents for data management,
+preparation, and analysis, alongside emerging efforts toward
+versatile, comprehensive systems with enhanced autonomy. We
+further analyze critical evolutionary leaps and technical gaps
+for advancing data agents, especially the ongoing L2-to-L3
+transition, where data agents evolve from procedural execution to
+autonomous orchestration. Finally, we conclude with a forward-
+looking roadmap, envisioning proactive, generative data agents.
+Index Terms—Data Agents, Autonomy, Data Management,
+Data Preparation, Data Analysis, Data Lake
+I. INTRODUCTION
+T
+HE way humans interact with data is undergoing a rev-
+olutionary transformation. Traditionally, handling data-
+related tasks has been a demanding endeavor, requiring spe-
+cialized expertise, extensive manual effort, and solid technical
+proficiency [1]–[6], fueling a long-standing aspiration in data
+science and analytics to develop an intelligent agent capable of
+autonomously managing, preparing, and analyzing data to de-
+liver trustworthy insights with minimal human intervention [7].
+The advent of large language models (LLMs) and LLM
+agents is bringing us closer to this vision [8]–[10]. Leveraging
+arXiv:2510.23587v2  [cs.DB]  24 Feb 2026
+
+--- PAGE 2 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2
+TABLE I: Comparison between General LLM Agents and Data Agents
+Aspect General LLM Agents Data Agents
+Primary
+Focus
+Task and Content Centric:
+Completing defined tasks or generating content.
+Data-Lifecycle Centric:
+Data management, preparation, and analysis.
+Problem
+Scope
+Self-contained and Static:
+Acts on explicit instructions and a finite prompt.
+Exploratory and Dynamic:
+Actively explores and navigates vast, dynamic data lakes.
+Input
+Data
+Small-Scale and Ready-to-Use:
+Typically receives manageable, clean inputs.
+Large-Scale and “Raw”:
+Designed to handle heterogeneous, dynamic, and noisy raw data.
+Tool
+Invocation
+General-Purpose Toolkit:
+Web search, calculators, OCR, image generators, etc.
+Specialized Data Toolkit:
+DB loaders, SQL equivalence checker, visualization libraries, etc.
+Primary
+Output
+Generative Artifacts:
+Human-consumable product: dialogues, reasoning, images, etc.
+Data Products and Insights:
+Config, processed data, insights, visualizations, analytical report, etc.
+Error
+Consequence
+Localized:
+Typically affects limited to only the direct output.
+Cascading:
+Errors can cascade, affecting downstream insights.
+their remarkable capabilities in comprehension and reason-
+ing [11]–[13], LLM agents have evolved beyond simple ques-
+tion answering [14]. Recent advances in LLM-based agents
+demonstrate not only enhanced reasoning ability but also
+emerging capacities for environmental perception and interac-
+tion [15], [16], memory retention [17], strategic planning [18],
+and external tool invocation [19], [20].
+A. The Dawn of Data Agents
+Within this trend,Data Agentsare introduced to address
+the distinctive challenges of data-intensive environments. A
+data agent is defined as a comprehensive, LLM-powered
+architecture that orchestrates the Data + AI ecosystem to
+autonomously perform a wide range of data-related tasks [21],
+[22]. As illustrated in Figure 1, the data agents serve as a
+central intelligence layer that bridges user-facing applications
+with the underlying data infrastructure by producing output
+such as optimized database configurations, prepared data, data
+insights, visualization charts, or analytical reports. Formally,
+we can define a data agentAthat operates on raw dataD
+within an environmentE(e.g.,DBMS, code interpreters, APIs,
+etc.), utilizing LLMsM, ultimately producing an outputOto
+tackle the data-related taskT, abstractly represented as:
+A: (T,D,E,M)→ O.
+Different from general LLM agents such as those designed
+for mathematical reasoning or open-ended conversation, data
+agents are built to navigate vast, heterogeneous data lakes
+that are too large and complex for holistic processing. Table I
+compares data agents with general LLM agents. Unlike general
+reasoning or generation tasks, where problems are well-defined
+and self-contained in finite prompts, data lakes comprise
+large-scale, heterogeneous sources that vary in format and
+structure, making it infeasible to ingest all data into a con-
+text window. Consequently, data agents must actively explore
+and interact with the data environment by sampling subsets,
+probing schemas, and refining queries to uncover insights on
+demand without exhaustive data consumption. Furthermore,
+instead of working with static, readily available inputs, data
+agents constantly handle dynamic and potentially noisy data,
+presenting challenges in properly managing and preparing data
+to support efficient and effective data-related tasks.
+Addressing these challenges demands specialized capabil-
+ities, including: (i) interactive perception and exploration of
+data lakes via environmental feedback; (ii) robust invocation
+of specialized data toolkit, such as SQL equivalence checker,
+DBMS utilities, code interpreters, or visualization libraries;
+(iii) adaptive resolution and specialized knowledge to dynam-
+ically handle noise, inconsistencies, scalability constraints, and
+real-time updates, preventing errors from cascading.
+The emergence of data agents marks a critical step toward
+realizing the aspiration of democratizing data-related tasks [8],
+[23], [24]. This progress is evident across the data lifecycle
+which outlines three interconnected phases: (1) Data Manage-
+ment, encompassing (i) Configuration Tuning for optimizing
+system parameters (e.g.,database knobs) to boost perfor-
+mance; (ii) Query Optimization involving SQL rewriting and
+efficient execution plan selection; and (iii) System Diagnosis
+for detecting, analyzing, and resolving anomalies or faults. (2)
+Data Preparation, involving (i) Data Cleaning to detect and fix
+errors, inconsistencies, or missing values in raw data; (ii) Data
+Integration to merge heterogeneous sources; and (iii) Data
+Discovery to identify relevant datasets, metadata, or patterns.
+(3) Data Analysis, covering (i) Structured Data Analysis
+for reasoning over tabular/relational data (e.g.,via TableQA,
+NL2SQL, or NL2VIS); (ii) Unstructured Data Analysis to
+extract insights from documents, images, etc.; and (iii) Report
+Generation to compile findings into coherent narratives.
+Recent studies seek to alleviate the expertise and labor-
+intensive nature of these tasks with advanced data agents.
+Systems like GaussMaster [25] and AutoPrep [26] are being
+developed to assist database maintenance and data preparation.
+Alpha-SQL [27] and nvAgent [28] facilitate seamless interac-
+tion with databases and the curation of visualizations through
+natural language interfaces. More comprehensive frameworks
+like iDataLake [29] even start to support versatile data opera-
+tions across heterogeneous data lakes.
+B. The Terminological Ambiguity of Data Agents
+Despite significant advancements and promise, the term
+“Data Agent” is applied inconsistently across research and
+industry, resulting in considerable terminological ambiguity.
+This ambiguity conflates systems of profoundly different au-
+tonomy, reliability, and complexity under a single, imprecisely
+defined umbrella term. For instance, some studies focus on
+developing sophisticated agentic data systems to autonomously
+interact with data lakes, invoke external tools, orchestrate
+and optimize tailored pipelines for highly comprehensive and
+complex data-related tasks with minimal human intervention.
+In contrast, the “data agent” term is also applied to more rudi-
+mentary, narrowly scoped systems, often limited to providing
+atomic task assistance on a “prompt-response” basis.
+Such terminological ambiguity introduces challenges for
+user trust, governance, and the healthy progression of this field.
+
+--- PAGE 3 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3
+LLMT une
+arXiv’24
+E2ET une
+ VLDB’25
+LLM-QO
+arXiv’25
+DBG-PT
+ VLDB’24
+FM
+VLDB’22
+T able-GPT
+SIGMOD’24
+BA TCHER
+ ICDE’24
+Jellyfish
+ EMNLP’24
+AutoDDG
+ arXiv’25
+LLMCT A
+ ADBIS’24
+ArcheT ype
+VLDB’24
+Pneuma
+SIGMOD’25
+DIN-SQL
+NIPS’23 Step-T ext2V is
+ NIPS’25
+LongRAG
+ EMNLP’24
+ReportGPT
+EMNLP’25 Industry
+DataT ales
+VIS’23 Short Paper
+ChartLens
+ACL ’25
+PDFT riage
+ EMNLP’24
+V isDoM
+ NAACL ’25
+Docopilot
+ CVPR’25
+Prompt4V is
+ VLDB’25
+BINDER
+ ICLR’23
+RetClean
+VLDB’24 demo
+LakeFill
+ VLDB’25 LLMClean
+ADBIS’24
+Andromeda
+ SIGMOD’25
+DB-GPT
+ DSE’24
+E3-Rewite
+ arXiv’25
+LLM-R 2
+VLDB’24GPT une r
+VLDB’24
+RABBIT
+ICDE’25
+MCT une r
+arXiv’25
+LLMIdxAd v is
+arXiv’25
+Q U IT E
+arXiv’25
+DeepAnaly z e
+arXiv’25
+Data Interprete r
+ACL ’25 F indin g s
+SiriusB I
+VLDB’25
+BigQuer y
+Goo gl e
+JoyAgent
+J DC H O
+A OP
+CIDR’25
+AgenticData
+arXiv’25
+Assist .  DS Agent
+Data b ri ck s
+R-Bot
+VLDB’25
+DBAI O ps
+arXiv’25
+SERAG
+SIGMOD’25 w or k shop
+Panda
+VLDB’24
+D-Bot
+VLDB’24
+AutoPre p
+VLDB’25
+CleanAgent
+VLDB’25 w or k shop
+MegaT ran
+VLDB’25
+MILA
+ I F ’25
+Agent- O M
+VLDB’24
+C O MEM
+COLING’25
+ LED D
+arXiv’25
+DBDescGen
+ arXiv’25
+ Chorus
+VLDB’24
+DataV oyage r
+arXiv’24
+MatPlotAgent
+ACL ’24
+Alpha-SQL
+ ICML ’25
+DeepEye-SQL
+arXiv’25 n v Agent
+ACL ’25
+Doctopus
+ VLDB’25
+MACT
+ arXiv’25
+GraphReade r
+EMNLP’24DataPu zz le
+arXiv’25
+DAgent
+ arXiv’25
+DataNarrati v e
+EMNLP’24
+Multimodal
+DeepResearcher
+arXiv’25
+AutoDC W orkflo w
+EMNLP’25 F indin g s
+λ -T une
+SIGMOD’25
+L1
+L0
+Autonomy Levels of Data Agents
+ L2
+L3
+L4
+L5
+D a t a M a n a g e m e n t
+D a t a P r e p a r a t i o n
+D a t a A n a lysis
+D a t a C l e a n i n g
+D a t a I n t e g r a t i o n
+D a t a D i s c o v e r y
+D a t a A n a l y s i s
+S t r u c t u r e d
+U n s t r u ctured
+D a t a A nalysi s
+Report
+Generation
+C o n f i g u r a t i o n
+T u n i n g
+Q u e r y
+O p t i m i z a t i o n
+S y s t e m
+D i a g n o s i s
+P r o t o - L 3
+Fig. 2: Representative Data Agents Across Different Levels.
+•User-Side Risk.The ambiguity creates expectation mis-
+matches. When users are unable to clearly aware the scope
+and limitations of data agents’ capabilities, they can form
+a flawed understanding of their functionality, leading to a
+gap between users’ expectations and the system’s actual
+performance. Consequently, users may either reject valid
+outputs or place undue reliance on erroneous ones.
+•Governance Risk.It further exposes accountability chal-
+lenges. If a data agent is operated beyond its capabilities
+and results in negative consequences (e.g.,data leakage,
+misleading analysis, regulatory non-compliance), the re-
+sponsibility becomes unclear. Whether the human operator
+or system vendor is liable creates complex legal and ethical
+issues, complicating effective governance.
+•Industry-Side Risk.User misunderstanding and ambigu-
+ous accountability create barriers to industry development.
+Lacking a shared taxonomy hinders objective comparison
+and fosters blurring even overstated claims, exacerbating
+the aforementioned risks. Unclear accountability for failures
+can erode market confidence and slow technology adoption.
+Addressing these challenges requires establishing a clear,
+common language for classifying data agents.
+C. A Hierarchical Taxonomy for Data Agents
+The challenges currently facing data agents are not un-
+precedented. The driving-automation community had faced
+a similar issue with the term “self-driving”, which conflated
+capabilities ranging from driver assistance to high autonomy.
+To resolve this, the Society of Automotive Engineers (SAE)
+introduced the J3016 standard [30], a six-level taxonomy.
+By explicitly allocating responsibility between human and
+machine, SAE J3016 has established a common language
+for users, manufacturers, engineers, regulators, and insurers
+to assess capabilities, limitations, and liability [31], which
+has proven effective in grounding public discourse, clarifying
+accountability, and guiding engineering roadmaps.
+The precedent offers an illuminative path forward. Inspired
+by this, we propose the hierarchical taxonomy for data agents,
+analogous to J3016. This framework maps the progressive
+transitions of dominance and responsibility in data-related
+tasks from human to data agent as autonomy increases from
+L0 to L5, reflecting how the human shifts from a hands-on
+operator to a supervisor and eventually disengagement, while
+the data agent evolves from an auxiliary responder into a
+fully autonomous and accountable data scientist (Figure 1).
+A detailed elaboration of each level is provided in Section II.
+Through this taxonomy, we examine existing data agents to
+structure this survey (Figure 2), aiming to clarify capability
+boundaries and accountability at each level, helping manage
+expectations, support governance, and steer future research.
+D. Comparison and Our Contributions
+Differences from Existing Surveys.Our survey distinguishes
+itself from existing surveys [7], [23], [24], [32]–[37] and
+tutorials [8]–[10], [38] in following aspects. Primarily, we
+propose a novel hierarchical taxonomy for data agents based
+on progressive autonomy, providing a unified framework that
+contrasts with prior surveys focused on agentic architecture or
+scenarios. Through this lens, we conduct a structured review
+across the full data lifecycle, highlighting cutting-edge data
+agents underrepresented in other surveys. We also analyze
+evolutionary leaps and technical gaps between levels to iden-
+tify research bottlenecks that previous works have overlooked.
+Finally, we present a forward-looking roadmap envisioning the
+path toward truly proactive and generative data agents.
+Contributions.We make the following contributions.
+•Novel Hierarchical Taxonomy:Establishing the first sys-
+tematic hierarchical taxonomy for data agents to compare
+existing works, delineate capability boundaries, and clarify
+accountability, enabling practitioners to align expectations
+and intervention with autonomy levels.
+•Structured and Systematic Review:A structured review of
+data agents tracing autonomy progression in data-related
+tasks, mapping the state-of-the-art, and identifying gaps.
+
+--- PAGE 4 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4
+•Analysis of Evolutionary Leaps and Gaps:In-depth analysis
+of evolutionary leaps and current challenges hindering the
+development of autonomous data agents.
+•Forward-Looking Roadmap and Vision:Detailing promis-
+ing future directions and visions toward proactive and
+ultimately generative, fully autonomous data agents.
+II. LEVELS OFDATAAGENTS
+A. The Overview of Hierarchical Taxonomy
+To address the terminological ambiguity surrounding “data
+agent”, as discussed in Section I-B and I-C, we propose a hier-
+archical taxonomy from L0 to L5 inspired by SAE J3016 [30],
+categorizing data agents based on degree of autonomy.
+As shown in Figure 1, the introduced taxonomy is structured
+around the progressive transfer of dominance and responsibil-
+ity in data-related tasks from the human to the data agent.
+When the data agent’s autonomy level increases, the human’s
+role transfers from a hands-on dominator to a supervisor,
+ultimately disengagement, while the data agent evolves from
+an auxiliary query responder to a fully autonomous, generative
+data scientist. Below, we define and elaborate on each level.
+•L0: No Autonomy.All data management, preparation, and
+analysis tasks are entirely human-driven. Humans are solo
+practitioners, while data agents are uninvolved yet.
+•L1: Assistance.Emerging from the initial wave of LLMs,
+L1 data agents act primarily as nascent, stateless query-
+responsive assistants, offering basic support for data-related
+tasks by responding to users’ queries, while humans retain
+task dominance and responsibility for interacting with the
+environment, integrating, and verifying data agents’ outputs.
+•L2: Partial Autonomy.At L2, data agents gain the ability
+to perceive and interact with their environment (e.g.,data
+lakes, code interpreters, APIs, etc.). L2 data agents evolve
+into procedural executors, utilizing memory, external tools,
+and environmental feedback to adaptively optimize their ac-
+tions, enabling partial autonomy in task-specific procedures.
+However, they operate within human-orchestrated pipelines,
+where humans remain responsible for managing the overall
+workflow and still retain dominance over data-related tasks.
+•L3: Conditional Autonomy.L3 data agents are expected to
+autonomously orchestrate tailored data pipelines for a wide
+range of diverse and comprehensive data-related tasks under
+supervision, extending beyond human-defined workflows
+or specific tasks. This marks a critical transition where
+data agents assume dominance in data-related tasks, while
+humans act as supervisors overseeing the process.
+•L4: High Autonomy.Human supervision is eliminated.
+Data agents proactively identify issues worthy of investi-
+gation through continuous monitoring and exploration of
+data lakes, and selectively and reliably orchestrate pipelines
+to tackle self-discovered problems. Humans delegate full
+responsibility and become onlookers.
+•L5: Full Autonomy.The ultimate level where data agents
+go beyond applying existing methods, inventing novel so-
+lutions and pioneering new paradigms to advance the state-
+of-the-art in data management, preparation, and analysis,
+making any form of human involvement unnecessary.
+Level 0
+ Level 1
+ Level 2
+ Level 5
+Introducing Assistance
+Gaining Perception
+Transfer of Task Dominance
+Removing Supervision
+Innovating & Pioneering
+Level 3
+ Level 4
+Fig. 3: Evolutionary Leaps Between Data Agent Levels.
+We organize the literature review according to the increasing
+levels of data agent autonomy in the following sections. More
+detailed explanations, examples and illustrations are provided
+in the corresponding sections (Sections III, IV, V, and VI).
+B. The Evolutionary Leaps Between Levels
+The leaps across levels mark data agents’ progression in
+intelligence and autonomy, alongside shifting human–agent
+roles. Understanding these transitions is key to recognizing
+the technical and conceptual challenges.
+As summarized in Figure 3, the initial L0→L1 leap intro-
+duces assisted intelligence, shifting humans from solo prac-
+titioners to users of query-responsive assistants. The L1→L2
+leap gains data agents with perception, evolving from stateless
+responders to procedural executors that can perceive data envi-
+ronments and adapt to feedback. Following this, the L2→L3
+leap marks the critical transfer of task dominance, moving
+data agents from executing human-defined pipelines to au-
+tonomous orchestration for versatile and comprehensive data-
+related tasks. Next, the L3→L4 leap eliminates supervision,
+shifting humans to onlookers. The final L4→L5 leap envisions
+generative data agents inventing methodologies beyond merely
+applying existing ones to advance data science and analytics.
+This taxonomy offers a unified lens for analyzing the current
+landscape of data agents and identifying critical challenges.
+Building on this foundation, we next review the literature,
+organized and guided by this hierarchical taxonomy.
+III. L0–L1: FROMMANUALLABOR TOPRELIMINARY
+ASSISTANCE
+In this section, we first review manual processes involved
+in data-related tasks (L0), followed by the initial advancement
+represented by the introduction of L1 data agents.
+A. L0: Manual Labor in Early Ages
+Conventionally, all data management, preparation, and anal-
+ysis tasks are performed entirely by humans without intelligent
+assistance. Formally, the humanHis responsible for the entire
+process, orchestrating (π H) pipelinePand executing (ϵ H),
+while the data agentAis uninvolved yet:
+H:π H(T,D,E)→P;ϵ H(P,D,E)→ O
+A:∅
+For instance, in data management, humans need to closely
+monitor databases and manually tune configurable knobs
+in DBMS (e.g.,shared buffers and maximum connections),
+diagnose and resolve issues based on their expertise [39],
+[40]. Similarly, data preparation typically involves writing
+scripts for data cleaning, addressing numerous minor issues
+during data transformation, and integrating heterogeneous data
+to support downstream analysis [4]. During data analysis,
+
+--- PAGE 5 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+Query
+ResponseUserL1 Data Agent
+Environment
+Data Lake
+…
+I need to analyze this CSV table.
+First, I hope to convert Fahrenheit
+degrees to Celsius…
+Tools
+OK, let me write a python script to
+read CSV and convert Fahrenheit
+degrees to Celsius. ```python…```
+Fig. 4: L1 Data Agents (Assistance).
+TABLE II:Comparison of Representative L1 Data Agents. ICL:
+In-Context Learning (ZSL: zero-shot learning, FSL: few-shot learn-
+ing); RAG: Retrieval-Augmented Generation; SFT: Supervised Fine-
+Tuning; RL: Reinforcement Learning. Data complexity: Multi-source
+(Multis.), Heterogeneous (Hete.), and Multimodal (Multim.).
+Task Data Agent Years ICL RAG SFT RL Data ComplexityMultisHete Multim
+Data Management
+Config.Tuning
+LLMTune [44]2024 ZSL - ✓ - - ✓ -GPTuner [45]2024 ZSL - - - ✓ ✓ -λ-Tune [46] 2025 ZSL ✓ - - - - -E2ETune [47]2025 FSL - ✓ - - - -
+QueryOpt.
+DB-GPT [48]2024 FSL ✓ ✓ - ✓ ✓ -LLM-R2[49] 2024 FSL ✓ - - - ✓ -LLM-QO [50]2025 FSL - ✓ - - - -E3-Rewite [51]2025 FSL ✓ ✓ ✓ - ✓ -SystemDiag. DBG-PT [52]2024 ZSL - - - - ✓ -Andromeda [53]2025 FSL ✓ - - ✓ ✓ -
+Data Preparation
+DataClean.
+FM [54] 2022 ZSL - - - - - -RetClean [55]2024 ZSL ✓ ✓ - ✓ ✓ -LakeFill [56]2025 ZSL ✓ ✓ - ✓ ✓ -LLMClean [57]2024 FSL - - - ✓ ✓ -
+DataInteg.
+Table-GPT [58]2024 CoT - ✓ - - - -BATCHER [59]2024 Batch - - - - - -Jellyfish [60]2024 FSL/CoT - ✓ - - - -
+DataDisc.
+ArcheType [61]2024 ZSL - ✓ - ✓ ✓ -AutoDDG [62]2025 ZSL - - - ✓ ✓ -Pneuma [63] 2025 ZSL ✓ - - ✓ ✓ -LLMCTA [64]2025 FSL/CoT - ✓ - ✓ ✓ -
+Data Analysis
+Struct.DataAnalysis
+BINDER [65]2023 FSL - - - - ✓ ✓DIN-SQL [66]2023 FSL - - - - - -Prompt4Vis [67]2025 FSL - - - ✓ ✓ -Step-Text2Vis [68]2025 FSL - ✓ ✓ - - -
+Unstruct.DataAnalysis
+LongRAG [69]2024 ZSL ✓ ✓ - - - -PDFTriage [70]2024 ZSL ✓ - - - ✓ -VisDoM [71]2025 ZSL ✓ - - ✓ ✓ ✓Docopilot [72]2025 ZSL - ✓ - ✓ ✓ ✓
+ReportGen.
+Datatales [73]2023 FSL - - - - - -ReportGPT [74]2025 FSL - - - - - -ChartLens [75]2025 FSL - - - - ✓ ✓
+analysts often spend considerable time and effort writing SQL
+queries to extract and analyze relevant data [41], curating
+visualizations via Vega-Lite or other tools, and meticulously
+producing insightful interpretations [42], [43].
+Such a traditional mode is labor-intensive and time-
+consuming, requiring extensive domain knowledge and strong
+technical skills, which creates high barriers for non-experts.
+Efforts have consistently been made to alleviate these chal-
+lenges, and this field has changed significantly with the advent
+of LLMs with powerful reasoning and comprehension abilities,
+starting to provide preliminary assistance in data-related tasks.
+B. L1: Preliminary Assistance
+Aligning with the early wave of LLM assistants, L1 data
+agents operate on a prompt-response basis, assisting with data-
+related tasks by providing organized answers or generating
+code snippets in response to user queries, as in Figure 4.
+In this survey, we consider them nascent and underdevel-
+oped data agents, which are yet stateless and lack environmen-
+tal perception. Formally, the humanHremains responsible for
+both pipeline orchestrationπ H and executionϵ H, while data
+agentAcan respondrupon human queryqfor assistance:
+H:π H(T,D,E)→P;ϵ H(P,D,E, r)→ O
+A: (q,M)→r
+While L1 data agents enhance efficiency on routine tasks,
+their stateless nature limits them to generating immediate
+outputs without adaptive optimization based on environmental
+feedback, and humans still integrate, execute, and validate their
+output. This absence of environmental perception confines L1
+data agents to isolated, one-off interactions, leaving end-to-
+end execution and verification under human control. Next, we
+discuss L1 data agents for data management, preparation, and
+analysis, with representative ones compared in Table II.
+C. L1 Assistance in Data Management
+Data management involves monitoring and optimizing
+database systems to ensure efficient and reliable operation.
+This section discusses L1 data agents in data management
+across three key tasks: (1) Configuration Tuning, (2) Query
+Optimization, and (3) System Diagnosis.
+Configuration Tuning.Configuration tuning aims to select
+and adjust database system settings like knobs and indexes to
+improve performance and efficiency [7]. In the initial surge of
+LLMs, L1 data agents are developed to assist this by deploying
+LLMs to generate tuning recommendations from prompts
+customized with system information and domain knowledge.
+Guiding Traditional Optimizers with LLMs. Earlier prac-
+tices guide traditional optimization modules with LLMs. LLM-
+Tune [44] fine-tunes and prompts LLMs with workload infor-
+mation to generate a high-quality initial configuration, which a
+Bayesian Optimization (BO) optimizer then refines. Similarly,
+GPTuner [45] refines domain knowledge via an LLM-driven
+pipeline and prompt ensembling to guide a coarse-to-fine BO
+framework. LATuner [76] constructs structured prompts for
+zero-shot warm-starting, using a hybrid LLM and Gaussian
+Process (GP) sampler with a multi-armed bandits-based adap-
+tive surrogate model to select optimal configuration.
+End-to-End LLM-Based Tuning. Some studies eliminate tra-
+ditional optimizers, relying directly on LLM reasoning to
+overcome lengthy iterations, reconfiguration overhead, and
+transferability to unseen workloads. For example,λ-Tune [46]
+and E2ETune [47] generate multiple configuration candidates
+based on workload features and use performance prediction
+guided by cost models to select the best option.
+Query Optimization.Query optimization seeks to improve
+the efficiency of SQL execution through logical and physical
+optimization. While traditional methods often neglect external
+SQL optimization knowledge, limiting their generalizabil-
+ity, L1 data agents leverage LLMs’ encoded knowledge to
+determine rule sequences for logical optimization or select
+execution plans for physical optimization.
+•Logical Query Optimization. DB-GPT [48] incorporates an
+automatic prompt generation with adaptive demonstrations
+based on computed semantic similarity to enhance query
+rewriting. GenRewrite [77] introduces natural language rewrite
+rules as hints and a counterexample-guided CoT mechanism
+to self-correct rewritten queries. LLM-R 2 [49] recommends
+rewrite rules with a contrastive model trained via curricu-
+lum learning deployed as a few-shot demonstration manager.
+LITHE [78] combines a prompt ensemble with database-
+sensitive rules. E3-Rewrite [51] advances by incorporating
+execution hints into prompts using parsed query plans and fine-
+tunes an LLM with a two-stage GRPO, prioritizing rewards of
+executability and semantic equivalence, leveraging execution
+plans to retrieve hybrid demonstrations during rewriting.
+
+--- PAGE 6 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6
+•Physical Query Optimization. LLMOpt [79] employs a fine-
+tuned LLM to generate multiple plan candidates and a separate
+LLM-based list-wise cost model to select the optimal query
+plan. LLM-QO [50] constructs the QInstruct dataset, which
+sequentializes query plans, and applies DPO to train a policy
+model for generating more efficient execution plans.
+System Diagnosis.System diagnosis focuses on analyzing
+root causes and identifying recovery solutions for runtime
+anomalies in databases. L1 data agents start to demonstrate
+promising potential to pinpoint causes and generate diagnoses
+with recovery recommendations.
+Comparative Diagnosis with LLMs. DBG-PT [52] tackles
+unexpected slowdowns in query execution by enabling LLMs
+to compare regressed query plans with stored efficient in-
+stances, accordingly responding with configuration recommen-
+dations to resolve plan regressions.
+Augmenting Diagnosis with RAG. To avoid overly generic
+responses, Andromeda [53] incorporates a RAG mechanism
+to supply matched domain-specific context from historical
+queries, troubleshooting manuals, and DBMS telemetries, en-
+hancing diagnostic suggestions for configuration debugging.
+Despite advances, they rely on static inputs and lack real-
+time monitoring and interaction with databases, which limits
+their ability to provide adaptive diagnosis and recovery.
+D. L1 Assistance in Data Preparation
+Data preparation involves cleaning, integration, and discov-
+ery to ensure its quality and completeness for downstream
+tasks. This section reviews L1 data agents for this field.
+Data Cleaning.Data cleaning focuses on handling missing
+values, constraint violations, and inconsistencies within a
+dataset. With the emergence of LLMs, data agents at L1 are
+primarily employed in two modes for data cleaning:
+Generating Direct Answers via Prompting. A straightfor-
+ward way is to directly prompt LLMs to infer and generate
+an answer (e.g.,filling a missing value) [80]. For example,
+a data record can be serialized into text and fed to them
+to fill in a missing value with minimal examples [80]. To
+improve quality, RetClean [55] and LakeFill [56] utilize an
+RAG approach, retrieving relevant tuples from the data lake to
+ground their response, which is crucial for private or domain-
+specific data. UniDM [81] employs a multi-stage prompting
+pipeline to guide the LLMs, identifying relevant metadata and
+instances, then parsing to construct targeted prompts.
+Generating Intermediate Artifacts. Alternatively, some sys-
+tems generate intermediate artifacts like code or rules for the
+user to execute and validate. For instance, LLMClean [57] au-
+tomates knowledge engineering by analyzing the given dataset
+to generate formal data quality rules, such as Ontological
+Functional Dependencies (OFDs), which are then passed to
+the user or a traditional cleaning system for implementation.
+Data Integration.Data integration refers to combining
+multi-source, heterogeneous data into a unified, coherent
+dataset [82], challenged by semantic heterogeneity, incomplete
+metadata, and entity ambiguity [33]. Data integration involves
+two key tasks: schema matching and entity resolution. Schema
+matching aligns data structures across different sources, while
+entity resolution builds on this alignment to resolve entity-level
+ambiguities, collectively achieve unification.
+•Schema Matching. The adoption of L1 data agents for
+schema matching has progressed from in-context learning
+to task-specific fine-tuning and integration into multi-stage
+pipelines, operating on a prompt-response basis essentially.
+In-Context Learning and Fine-tuning. Some studies deploy
+off-the-shelf LLMs directly through zero-shot or few-shot
+learning. Narayan et al. [54] serialize attribute values as input
+and showcase the effectiveness of few-shot learning in schema
+matching. To improve adaptability, task-specific fine-tuning
+has been employed. Table-GPT [58] performs multi-task fine-
+tuning, while Jellyfish [60] focuses on meticulous prompt
+design and output reasoning.
+Hybrid and Multi-Stage Systems. To address more complex
+matching scenarios, some approaches embed LLMs within
+multi-stage systems, which typically use pretrained embed-
+dings to filter candidates, after which LLMs determine the final
+correspondences [83], [84]. Magneto [85] exemplifies this by
+using a smaller language model (SLM) trained on synthesized
+data for initial ranking, followed by LLM re-ranking.
+•Entity Resolution. Narayan et al. [54] and Peeters et al. [86]
+use off-the-shelf LLMs with carefully designed prompts to
+produce entity matching decisions, presenting early explo-
+ration. Steiner et al. [87] optimize example selection and fine-
+tune LLMs with synthesized explanations on training data, im-
+proving in-domain generalization. Additionally, BatchER [59]
+focuses on enhancing cost efficiency in in-context learning for
+entity resolution via a batch prompting with a covering-based
+demonstration selection strategy.
+Data Discovery.Data discovery involves identifying, inter-
+preting, and contextualizing datasets within large and hetero-
+geneous repositories such as data lakes [33]. L1 data agents
+act as query responders, generating descriptive or structural
+artifacts (e.g.,summaries, annotations, profiles) upon human
+queries without altering the data.
+•Descriptive Profiling. A central role of these data agents is to
+act as descriptive interpreters that generate metadata or dataset
+profiles to facilitate accessibility. Within this role, existing
+approaches can be broadly divided into two categories:
+Prompt-Based Profiling. Representative work such as Au-
+toDDG [62] integrates statistical and semantic information
+in prompts to create informative dataset summaries. This
+paradigm is extended by others using domain-specific prompts
+for ecological metadata harvesting [88] or scientific paper val-
+idation [89]. More advanced prompting strategies are used for
+semantic profiling, such as generating interpretable semantic
+views [90] or customizable profiling for code data [91].
+Hybrid Retrieval Integration. The hybrid approach inte-
+grates retrieval to ground LLM outputs in repository-level
+signals, improving robustness and relevance. For example,
+Pneuma [63] combines LLM-based tabular representation with
+retrieval mechanisms for retrieval-aware profiling.
+•Semantic Annotation for Schema. Data agents are also de-
+ployed to serve as annotators, assigning semantic types, roles,
+or labels to schema elements.
+
+--- PAGE 7 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7
+Prompt-Based Annotation. Task-specific instructions within
+carefully crafted prompt templates are widely adopted at L1,
+and data agents directly infer semantics from column names
+or sampled values. ArcheType [61] uses structured prompting
+and contextual sampling to guide LLMs in inferring column
+types. LLMCTA [64] extends to column property assign-
+ment, introducing knowledge-generation prompting to refine
+property definitions and assess annotation reliability across
+models. Moving further, Columbo [92] expands abbreviated
+or underspecified column names into semantically meaningful
+expressions, thereby enhancing schema interpretability.
+Semantic Grounding. To address inconsistency and robust-
+ness issues in prompt-based annotation, RACOON [93] lever-
+ages knowledge graphs to provide richer semantic grounding,
+while AutoMetaSQL [94] mitigates context deficiency by
+extracting schema metadata directly from user queries.
+E. L1 Assistance in Data Analysis
+Data analysis involves processing and interpreting data to
+derive insights and support informed decision-making. This
+section reviews the application of L1 data agents across three
+areas: (1) Structured Data Analysis, (2) Unstructured Data
+Analysis, and (3) Report Generation.
+Structured Data Analysis.Structured data analysis centers
+on extracting insights from schema-organized data, such as
+tables or relational databases. In the following, we focus on
+three key tasks: TableQA, NL2SQL, and NL2VIS.
+a) TableQA:Table Question Answering (TableQA) en-
+ables interpreting natural language queries and extracting
+answers from structured or semi-structured tables [95]–[97]. It
+demands both semantic understanding of queries and parsing
+of the table’s two-dimensional layout (i.e.,headers, rows, cells,
+and their relationships) to locate and infer responses. Data
+agents for TableQA at L1 typically generate answers or code
+in a single-pass, static process, using various strategies.
+Prompt Engineering. Prompt engineering improves reason-
+ing capabilities in TableQA, especially by mitigating the
+challenge of limited context windows for large tables via
+decomposition. For instance, the Dater [98] uses an LLM
+to pre-process large tables into smaller, relevant ones and
+simplify questions. Similarly, self-augmented prompting [99]
+issues the first LLM call to extract structural insights that
+enrich the prompt for a second call to derive the final answer.
+Fine-tuning. Instruction fine-tuning enhances LLMs’ intrin-
+sic reasoning capabilities for TableQA. TableLlama [100] is
+fine-tuned on TableInstruct, a large-scale and diverse dataset
+of table-based instructions, enabling it to handle various table
+tasks directly without complex inference-time prompting.
+Neuro-Symbolic Program Synthesis. A distinct methodol-
+ogy involves neuro-symbolic systems, which integrate LLMs’
+reasoning with the precision of formal code. Binder [65]
+exemplifies this by parsing natural language questions into
+hybrid programs that mix standard code (e.g.,SQL) with LLM
+API calls for common-sense reasoning, operating in a static
+“parse-then-execute” workflow.
+b) NL2SQL:Natural Language to SQL (NL2SQL) con-
+verts a natural language query (NL) into a SQL query (SQL)
+to be executed on a relational database [37], [38], [101], [102],
+bridging non-technical users and databases. Earlier efforts
+concentrated on the L1 autonomy primarily operating in a
+single-turn prompting paradigm [66], [103], [104].
+Prompt Engineering. DAIL-SQL [103] systematically in-
+vestigates prompt engineering for LLM-based NL2SQL, cov-
+ering five forms of question representation, two prompt com-
+ponents, four example selection strategies, and three example
+organization schemes, with comprehensive evaluations con-
+ducted on four different LLMs. It also explores the effective-
+ness of supervised fine-tuning, extending the understanding of
+open-source models’ applicability in NL2SQL.
+Task Decomposition. DIN-SQL [66] introduces a task
+decomposition-based prompting framework to address the
+limitations of single-turn zero/few-shot prompting. It splits
+SQL generation into sub-tasks (e.g.,schema linking, query
+sketching, clause completion), tackles step by step with crafted
+prompts, and progressively combines the results into a com-
+plete SQL, thereby improving performance on complex cases.
+Self-Guided SQL Reasoning. ACT-SQL [104] focuses on
+enhancing the reasoning capability of LLMs in NL2SQL
+through automatic CoT prompting. Unlike approaches that rely
+on manually constructed exemplars, ACT-SQL automatically
+generates CoT sequences from the database schema, natural
+language queries, and corresponding SQL queries, effectively
+improving the accuracy of complex SQL generation.
+c) NL2VIS:Natural Language to Visualization (NL2VIS)
+aims to enable users to create visualizations and derive ana-
+lytical insights with natural language interfaces [105]–[111].
+Leveraging LLMs’ marked capabilities of understanding and
+reasoning, systems at L1 are prompted to provide on-demand
+assistance by translating users’ intents in natural language into
+visualization specifications [112], [113].
+Direct Prompting. Amid the rapid advancement of LLMs,
+Chat2VIS [112] is among the first to explore off-the-shelf
+LLMs to generate visualizations directly from natural lan-
+guage text. Prompt4Vis [67] further enhances by employing
+automated prompt optimization, introducing a multi-objective
+example mining module to select the most effective examples
+for in-context learning. To address the “black-box” nature
+of LLMs, NL4DV-LLM [114] focuses on explainability by
+generating a structured analytic specification, which details
+inferred data attributes, tasks, and design rationale, making
+the process more transparent and easier to debug.
+Step-Wise Reasoning. To address the persistent challenge of
+ambiguity of natural language queries in NL2VIS, nvBench
+2.0 [68] introduces a benchmark with controlled ambiguity
+specifications using an ambiguity-injection pipeline and step-
+wise reasoning. It also presents Step-Text2Vis, which is trained
+to trace how each ambiguous query can result in multiple valid
+visualizations, setting a new state-of-the-art for ambiguity
+resolution in NL2VIS.
+Unstructured Data Analysis.Unstructured data analysis ex-
+tracts insights from data lacking a predefined schema (e.g.,
+documents, images, etc.). Data agents at L1 have advanced this
+field through advanced semantic understanding and reasoning.
+•Textual Documents. A primary challenge is comprehending
+
+--- PAGE 8 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8
+vast and complex document corpora. Existing research has
+followed complementary paths to address this.
+Intrinsic Context Expansion. One direction focuses on en-
+hancing its intrinsic capacity to process vast, contiguous
+contexts [115]. As models with ever-larger context windows
+become available, techniques like R&R [116] have been de-
+veloped to optimize how information is retrieved and utilized
+within these ultra-long inputs, significantly boosting accuracy.
+Structure-Aware Information Filtering. Concurrently, an-
+other strategy intelligently selects relevant information from
+the document, evolving beyond keyword retrieval to under-
+stand global document structure. RAPTOR [117] recursively
+clusters for hierarchical understanding, while LongRAG [69]
+uses a dual-strategy for high-level summaries and fine-grained
+details. To handle complex layouts, PDFTriage [70] restruc-
+tures documents into semantically coherent blocks.
+•Multimodal Documents. Unstructured data analysis is broad-
+ening to complex multimodal formats integrating text, tables,
+and visuals, spurring relevant benchmarks like MMVQA [118]
+and VisDoMBench [71] for evaluation in visual-rich scenarios.
+Multimodal RAG Adaptations. To tackle this, some studies
+adapt RAG. MMRAG-DocQA [119] deploys hierarchical in-
+dexing and multi-granularity retrieval. A different paradigm,
+Document Screenshot Embedding [120], bypasses traditional
+and error-prone content extraction but utilizing a vision-
+language model to directly encode visual appearance.
+Multimodal Reasoning. Multimodal reasoning architectures
+also advance. VisDoM [71] employs and fuses parallel textual
+and visual RAG pipelines by analyzing reasoning chain con-
+sistency. MDocAgent [121] utilizes a multi-agent framework
+for collaboratively synthesizing cross-modal insights. Beyond
+RAG, end-to-end models like Docopilot [72] perform multi-
+modal understanding without an explicit retrieval component.
+Report Generation.Report generation combines visualiza-
+tions and narrative text to make analytical insights inter-
+pretable and actionable. Within the early exploration of LLMs,
+data agents primarily act as interpreters and assistants by
+generating charts, summaries, or explanations in response to
+user queries, concentrating on the L1 autonomy.
+Several representative works illustrate this pattern. Re-
+portGPT [74] introduces a verifiable table-to-text generation
+pipeline to derive human-readable narratives, which employs a
+DSL for explicit table operations and user feedback for factual
+verification. Datatales [73] investigates LLMs for authoring
+data-driven articles. Similarly, InterChat [122], VizTA [123],
+and Choe et al. [124] explore agentic frameworks for mul-
+timodal interaction, using combined direct manipulation and
+natural language to disambiguate queries and enrich textual
+narratives with visually grounded evidence. Extending this,
+ChartLens [75] introduces a multi-agent framework to ground
+narrative text with fine-grained visual attributes, providing
+bounding box citations as evidence within charts.
+F . Progress and Limitations of L1 Data Agents
+L1 data agents have introduced prompt-based query-
+responsive assistance for discrete data-related tasks. By inter-
+preting and responding to users’ queries on demand, this initial
+User
+ L2 Data Agent
+Environment
+Data Lake
+…
+Tools
+My NL2SQL system should interpret query, explore
+databases and make a plan, then generate SQL and
+reﬂect based on execution results…
+User
+I wanna convert users’ natural
+language queries into SQLs!
+Design &
+Orchestrate
+Perception Planning
+Memory Tool Calling
+Multi-agents ……
+Key Factors
+Pipeline
+Answer
+Execution
+Task
+Fig. 5: L2 Data Agents (Partial Autonomy).
+form of intelligent assistance also significantly improves de-
+veloper efficiency by offloading trivial and routine operations.
+Despite these advances, L1 data agents operate in a state-
+less, prompt–response paradigm and lack the capabilities to
+perceive and interact with their environment, which limits
+their ability to perform adaptive optimization. They can not
+perceive or interact with external environments or data systems
+autonomously, necessitating manual execution, integration,
+verification, and optimization of generated outputs by human
+analysts. Consequently, L1 data agents remain reliant on user
+oversight to ensure correctness and to manage the entire pro-
+cedure, limiting their autonomy to atomic and static subtasks.
+IV. L2: PERCEIVE THEENVIRONMENT
+A. Partial Automation: From Responder to Executor
+As outlined in Section II, L2 data agents gain the ability to
+perceive and interact with their environment, evolving from
+query-responsive assistance to procedural executors within
+human-designed workflows. As illustrated in Figure 5, unlike
+L1 where humans are responsible to interact with the envi-
+ronment, L2 data agents connect to real-world data systems
+such as DBMS, files, and APIs, enabling them to perceive
+and explore these sources, execute operations, invoke external
+tools (e.g.,SQL equivalence checker, code sandboxes, visual-
+ization libraries etc.), and adaptively optimize outputs based
+on environmental feedback (e.g.,query results or execution
+outcomes). This grants L2 data agents partial autonomy to per-
+form task-specific procedures independently. Formally, at L2,
+data agentAgains environmental perception and interaction
+capabilities (D,E), capable of handling specific data-related
+tasks by executing (ϵ A) pipelinePorchestrated by humanH:
+H:π H(T,D,E)→P
+A:ϵ A(P,D,E,M)→ O
+This represents a significant advancement beyond the state-
+less prompt-response paradigm at L1, alleviating users from
+the repetitive cycle of integrating data agents’ outputs and
+interacting with the environment manually. In practice, many
+recent developments fall within the L2. For instance, Re-
+FoRCE [161] actively explores database columns and trans-
+lates and optimizes natural language queries into SQL through
+interaction with the database. However, the autonomy of
+
+--- PAGE 9 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9
+TABLE III:Comparison of Representative L2 Data Agents. RAG: Retrieval-Augmented Generation; Percept: Environmental Perception;
+Plan: Planning; Mem: Memory; Tool: Tool Invocation; Reflect: Self-reflection mechanism; MAS: Multi-agent system; SFT: Supervised Fine-
+Tuning; RL: Reinforcement Learning. Data complexity: Multi-source (Multis.), Heterogeneous (Hete.), and Multimodal (Multim.).
+Task Data Agent Years RAG Percept Plan Mem Tool Reflect MAS SFT RL Data Complexity
+Multis. Hete. Multim.
+Data Management
+Configuration
+Tuning
+Li et al. [125] 2024 - ✓ - ✓ - - - - - - - -
+LLMIdxAdvis [126] 2025 ✓ ✓ - ✓ - ✓ ✓ - - - ✓ -
+RABBIT [127] 2025 ✓ ✓ - - - ✓ ✓ - - ✓ ✓ -
+MCTuner [128] 2025 ✓ ✓ - ✓ ✓ - ✓ - - ✓ ✓ -
+Query
+Optimization
+SERAG [129] 2025 ✓ ✓ - ✓ - - - - - - - -
+QUITE [130] 2025 ✓ ✓ ✓ ✓ ✓ ✓ ✓ - - ✓ - -
+R-Bot [131] 2025 ✓ ✓ - - ✓ ✓ - - - ✓ ✓ -
+CrackSQL [132] 2025 ✓ ✓ - - - ✓ - ✓ - ✓ ✓ -
+System
+Diagnosis
+Panda [133] 2024 ✓ ✓ - ✓ - - - - - ✓ ✓ ✓
+D-Bot [134] 2024 ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ - ✓ ✓ -
+DBAIOps [135] 2025 ✓ ✓ - - ✓ - - - - ✓ ✓ -
+Data Preparation
+Data
+Cleaning
+SketchFill [136] 2024 - ✓ - - ✓ ✓ ✓ - - - - -
+IterClean [137] 2024 - ✓ - - ✓ ✓ ✓ - - - - -
+AutoPrep [26] 2025 - ✓ ✓ - ✓ - ✓ - - - ✓ -
+AutoDCWorkflow [138] 2025 - ✓ ✓ - ✓ ✓ - - - ✓ ✓ -
+CleanAgent [139] 2025 - ✓ ✓ ✓ ✓ - ✓ - - - ✓ -
+Bendinelli et al. [140] 2025 - ✓ ✓ - ✓ - - - - - - -
+MegaTran [141] 2025 ✓ ✓ - - ✓ ✓ - ✓ - ✓ ✓ -
+Data
+Integration
+Agent-OM [142] 2024 ✓ ✓ ✓ - ✓ ✓ ✓ - - ✓ - -
+MILA [143] 2025 ✓ ✓ ✓ - - - - - - ✓ - -
+COMEM [144] 2025 - ✓ ✓ - - - - - - ✓ - -
+Data
+Discovery
+Chorus [145] 2024 - ✓ - - - - ✓ - - - ✓ -
+DataV oyager [146] 2024 - ✓ ✓ ✓ ✓ ✓ ✓ - - ✓ ✓ ✓
+DATALORE [147] 2024 - ✓ ✓ - ✓ ✓ - - - ✓ - -
+LEDD [148] 2025 - ✓ ✓ - ✓ ✓ - - - ✓ - -
+MetaGen [149] 2025 - ✓ - - - - - - - ✓ - -
+DBDescGen [150] 2025 - ✓ ✓ ✓ ✓ ✓ ✓ - - ✓ ✓ -
+Wang et al. [151] 2025 - ✓ ✓ - ✓ ✓ ✓ - - ✓ ✓ ✓
+Data Analysis
+Structured
+Data
+Analysis
+StructGPT [152] 2023 - ✓ ✓ - ✓ - - - - ✓ ✓ -
+ReAcTable [153] 2024 - ✓ ✓ - ✓ - - - - - - -
+Chain-of-Table [154] 2024 - ✓ ✓ - ✓ - - - - - - -
+AutoTQA [155] 2024 - ✓ ✓ - ✓ ✓ ✓ - - ✓ ✓ -
+Table-Critic [156] 2025 - ✓ - ✓ - ✓ ✓ - - - - -
+ST-Raptor [97] 2025 - ✓ ✓ ✓ - - ✓ - - - - -
+MAC-SQL [157] 2023 - ✓ ✓ - ✓ ✓ ✓ - - - - -
+ChatBI [158] 2024 - ✓ ✓ ✓ ✓ ✓ - - - ✓ ✓ -
+Chase-SQL [159] 2024 - ✓ ✓ - ✓ ✓ ✓ ✓ - ✓ ✓ -
+Alpha-SQL [27] 2025 - ✓ - - ✓ ✓ ✓ - - - - -
+OpenSearch-SQL [160] 2025 ✓ ✓ - - ✓ ✓ ✓ - - ✓ ✓ -
+ReFoRCE [161] 2025 - ✓ - ✓ ✓ ✓ ✓ - - - ✓ -
+DeepEye-SQL [162] 2025 ✓ ✓ - - ✓ ✓ ✓ - - ✓ ✓ -
+MatPlotAgent [163] 2024 - ✓ - - ✓ ✓ ✓ - - - - -
+Text2Chart31 [164] 2024 - ✓ - - ✓ ✓ - ✓ - ✓ ✓ -
+nvAgent [28] 2025 - ✓ ✓ - ✓ ✓ ✓ - - ✓ ✓ -
+DeepVIS [165] 2025 - ✓ ✓ - ✓ ✓ - ✓ - - - -
+Unstructured
+Data
+Analysis
+FLARE [166] 2023 ✓ ✓ ✓ - ✓ - - - - ✓ - -
+ReadAgent [167] 2024 - ✓ ✓ ✓ - - - - - - - -
+GraphReader [168] 2024 - ✓ ✓ ✓ ✓ ✓ - - - - - -
+Self-RAG [169] 2024 ✓ ✓ ✓ - ✓ ✓ - ✓ - ✓ ✓ -
+REAR [170] 2024 ✓ ✓ - - - - - ✓ - - - -
+QUEST [171] 2025 ✓ ✓ ✓ - ✓ - - - - ✓ ✓ -
+Doctopus [172] 2025 ✓ ✓ ✓ - ✓ - - ✓ - ✓ ✓ -
+MACT [173] 2025 - ✓ ✓ ✓ - ✓ ✓ ✓ ✓ ✓ ✓ ✓
+DataPuzzle [174] 2025 ✓ ✓ ✓ - - ✓ ✓ - - ✓ ✓ ✓
+Report
+Generation
+DataNarrative [175] 2024 - ✓ - - ✓ ✓ ✓ - - - ✓ -
+Data Director [176] 2024 - ✓ ✓ - ✓ - ✓ - - - - -
+LightV A [177] 2024 - ✓ ✓ ✓ ✓ ✓ ✓ - - ✓ ✓ -
+MultimodalDeepResearcher [178] 2025 ✓ ✓ - - ✓ ✓ ✓ - - ✓ ✓ ✓
+DAgent [179] 2025 ✓ ✓ ✓ ✓ ✓ - - ✓ - - ✓ -
+Chart Insighter [180] 2025 - ✓ ✓ - ✓ ✓ ✓ - - - ✓ -
+ProactiveV A [181] 2025 - ✓ ✓ ✓ ✓ ✓ ✓ - - ✓ ✓ ✓
+VOICE [182] 2025 - ✓ ✓ ✓ ✓ ✓ ✓ ✓ - ✓ ✓ ✓
+NLI4V olVis [183] 2025 - ✓ ✓ ✓ ✓ ✓ ✓ - - ✓ ✓ ✓
+L2 data agents remains limited: they operate within human-
+orchestrated pipelines and are not yet capable of independently
+devising workflows tailored to diverse, comprehensive tasks.
+Next, we review L2 data agents for various data-related
+tasks with Table III outlining a summary and comparison.
+B. L2 Data Agents in Data Management
+Configuration Tuning.L2 data agents not only generate
+configuration recommendations but also monitor system states
+to dynamically refine tuning strategies based on real-time
+performance feedback. They continuously adjust parameters
+such as database knobs, using either direct system feedback
+or structured knowledge sources to improve effectiveness.
+Iterative Tuning via Feedback. A typical approach is direct
+feedback-driven interaction, where data agents evaluate and re-
+fine tuning suggestions using execution metrics from database
+systems. Li et al. [125] introduce a feedback loop for LLMs
+to iteratively manage knob selection, initialization, and recom-
+mendation based on performance metric outcomes. LLMIdx-
+Advis [126] employs a similar self-optimization mechanism
+for iterative index tuning, using feedback from estimated
+storage and cost reduction to guide refinements.
+
+--- PAGE 10 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10
+Knowledge-Guided Tuning. Other studies further use struc-
+tured domain knowledge from knowledge bases (e.g.,knowl-
+edge graphs or expert repositories) to guide and validate tuning
+actions. Rabbit [127] retrieves knowledge from a knob-centric
+knowledge graph that encodes static database manuals, knob
+dependencies, and historical tuning experiences, accordingly
+adjusting search strategy using similarity-based feedback from
+past tasks. MCTuner [128] employs a Mixture-of-Experts
+(MoE) mechanism to identify performance-critical knobs and
+validating multi-source knowledge to guide selection under
+multi-objective constraints.
+Limitations. L2 data agents can perceive system states and
+invoke tools to recommend configurations, but remain confined
+to pre-defined knob sets and procedures within a guided
+pipeline, lacking autonomy to self-initiate tuning processes or
+adapt settings dynamically without human intervention.
+Query Optimization.L2 data agents for query optimization
+employ LLMs as reasoning engines to iteratively explore al-
+ternative query formulations or execution plans, incorporating
+database feedback or external tools to enhance efficiency.
+Execution Feedback-Driven Refinement. Direct approaches
+focus on leveraging real query execution feedback for it-
+erative refinement of optimization strategies. SERAG [129]
+retrieves past examples in a vector database to generate and
+execute optimized query plans, dynamically interacting with
+the execution engine to incorporate performance feedback for
+continuous improvement. Beyond optimizing query execution,
+CrackSQL [132], [184] employs a local-to-global strategy for
+SQL dialect translation, iteratively guiding the LLM to fix
+failing sub-queries and progressively expanding to broader
+query segments until the entire query executes correctly.
+Tool-Assisted Validation. Some systems further incorporate
+external tools, such as query rewrite engines or equivalence
+verifiers, to evaluate and validate optimized queries, providing
+a reward signal for iterative improvement. R-Bot [131] guides
+an LLM to select and sequence transformation rules for
+query rewriting, which are applied by an external engine
+and then evaluated for quality to guide refinement. Similarly,
+QUITE [130] uses an external verifier (i.e.,SQLSolver [185])
+to check query equivalence and defines a reward function
+based on execution metrics for progressive improvement.
+Limitations. Despite leveraging environmental feedback or
+external verifiers to iteratively optimize query plans, these
+systems adhere to pipelines, transformation rules, and rewards
+meticulously designed by humans to ensure robust perfor-
+mance, incapable of autonomously exploring beyond proce-
+dural optimizations or adopting new optimization strategies.
+System Diagnosis.L2 data agents for system diagnosis are
+designed to actively perceive, localize, and resolve database
+performance issues through continuous monitoring and inter-
+action, collecting evidence and reasoning over system states
+to generate actionable diagnoses. Their employed feedback
+mechanisms are twofold, including direct execution feedback
+and further leveraging structured knowledge from graph-based
+repositories encoding prior diagnostic experiences.
+Interactive Evidence Collection and Diagnosis. Interacting
+with database systems provides performance metrics (e.g.,
+estimated cost and storage impact) for reflection and iterative
+refinement. DBdoctor [186] monitors SQL execution and
+collects resource usage data to identify the root causes of
+performance issues, pinpoint problematic queries, and provide
+improvement suggestions. More advanced agentic frameworks
+enhance this process: D-Bot [134] introduces a multi-agent
+system for database anomaly diagnosis, with a chief agent
+coordinating specialized agents, each aligned with a specific
+cluster of diagnostic knowledge extracted from documents.
+They collectively perform multi-step root cause analysis
+through a tree-search algorithm, continuously interacting with
+the database state to localize issues. Similarly, Panda [133]
+simulates database engineers’ workflows, interacting with
+the database using four mechanisms: grounding to supply
+query context, verification with troubleshooting documents
+and tickets, affordance to estimate the performance impact,
+and feedback for continuous improvement.
+Contextualized Diagnosis Knowledge. Some approaches
+further integrate evolving structured diagnosis knowledge
+graphs to accumulate experiences and memory over time.
+Data agents retrieve relevant subgraphs or identify missing
+connections to provide concrete, contextualized knowledge,
+enabling more informed diagnosis. DBAIOps [135] builds a
+heterogeneous graph of diagnostic experience and employs
+an automatic graph evolution mechanism to explore relevant
+paths and detect potential gaps (i.e.,missing connections). This
+structured knowledge supports root cause identification and the
+generation of comprehensive diagnostic reports.
+Limitations. While collecting evidence and localizing is-
+sues through database interactions and knowledge graphs
+significantly enhance performance and autonomy in anomaly
+diagnosis and resolution, these methods remain constrained
+by their reliance on structured diagnostic paths, human-defined
+worker agents, and predefined collaboration mechanisms. Con-
+sequently, they are unable to autonomously design diagnostic
+mechanisms to proactively address emerging anomalies and
+coordinate with tasks such as configuration tuning and query
+optimization, hindering the achievement of more efficient and
+robust data management.
+C. L2 Data Agents in Data Preparation
+Data Cleaning.At L2, data agents can leverage their percep-
+tion and interaction with environments to iteratively optimize
+cleaning strategies and output, therefore enabling partial au-
+tonomy. Relevant research can be distinguished by specific
+environments involved and feedback mechanisms.
+Execution and Assessment Environments. One pattern at L2
+involves treating code interpreters or data processing tools as
+environments for operational feedback. For instance, Auto-
+Prep [26] and CleanAgent [139] interact with execution en-
+gines (like Python or Docker) to receive feedback for refining
+generated code, with CleanAgent [139] further introducing
+a memory module to maintain historical conversation con-
+text. AutoDCWorkflow [138] executes cleaning operations on
+OpenRefine [187] and subsequently uses the resulting internal
+data quality report as feedback for its iterative workflow.
+Internal Self-Correction and Verification. Building on inter-
+action with the execution environment, some L2 data agents
+
+--- PAGE 11 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11
+further incorporate internal feedback loops for self-assessment
+and refinement. SketchFill [136] and IterClean [137] exem-
+plify this. SketchFill [136] includes an Evaluator and Reflector
+for its imputation formulas, while IterClean [137] introduces
+a Repairer-Detector cycle where remaining errors trigger new
+repairs. MegaTran [141] interacts with a Python executor
+and uses its feedback to trigger a “Sanity-check Reflection”
+module or a Lazy-RAG mechanism to improve its generated
+transformation code iteratively.
+Downstream Task Performance as Feedback. A more ad-
+vanced form uses the performance of a downstream task as the
+ultimate environmental feedback. The framework proposed by
+Bendinelli et al. [140] allows data agents to clean a dataset
+and submit it to a machine learning evaluation pipeline. The
+resulting model performance score serves as feedback, directly
+guiding subsequent cleaning actions to optimize the data for
+the specific downstream task.
+Limitations. L2 data agents are still considered partially
+autonomous, as their actions are confined within human-
+designed workflows or pre-defined strategic pipelines. For
+instance, CleanAgent [139] and SketchFill [136] execute and
+optimize within human-designed frameworks, not to devise
+pipelines. Moreover, their system architectures are closely
+coupled with specific data cleaning tasks (e.g.,CleanAgent’s
+tailored column-type annotator [139]), resulting in limited
+capability to handle diverse and comprehensive tasks.
+Data Integration.Recent studies have introduced data agents
+with environmental perception and interaction to dynamically
+resolve ambiguities in resolution, optimize alignment strate-
+gies, and validate intermediate results during data integration.
+Execution-Driven Iterative Refinement. SEED [188] gen-
+erates and validates code within sandboxed environments,
+reusing cached intermediate results for entity resolution. It also
+incorporates an optimizer that selectively deploys and config-
+ures LLM-assisted modules to reduce costs, and invokes data
+access tools based on observations on data retrieval outcomes
+to improve response accuracy. COMEM [144] follows a “fil-
+ter–refine” workflow where mid-sized LLMs screen candidates
+before stronger LLMs finalize matches, with positional-bias
+feedback dynamically refining the ranking process.
+Retrieval-Driven Iterative Refinement. TaDA [189] simi-
+larly employs tabular databases and vector indices to optimize
+table alignment strategies based on environmental feedback.
+Agent-OM [142] improves by employing retrieval and match-
+ing agents that interact with hybrid databases and invoke
+alignment tools, enhanced by CoT planning and shared mem-
+ory. MILA [143] integrates SBERT-based ontology retrieval
+with iterative LLM prompting, autonomously confirming high-
+confidence matches while adaptively handling ambiguous
+cases. Likewise, KG-RAG4SM [190] and KCMF [191] lever-
+age external knowledge graphs to retrieve domain-specific sub-
+graphs, refine semantic alignment, and mitigate hallucinations.
+Limitaitons. Overall, L2 data agents represent a shift to-
+ward adaptive and self-improving data integration systems.
+However, their autonomy is limited within human-designed
+components, workflows, and task boundaries.
+Data Discovery.At L2, data agents actively engage with data
+systems to enable adaptive discovery in dynamic data lakes.
+Below, we present representative advances.
+Direct Interaction with Data Repositories. Some L2 agents
+directly interact with repositories via exploratory queries and
+schema traversal to dynamically uncover structural and seman-
+tic characteristics. LEDD [148] actively queries large-scale
+data lakes via a federated access layer, querying metadata
+and analyzing content patterns in real-time to derive seman-
+tic representations, which are iteratively refined through a
+feedback loop that updates hierarchical catalogs and relation
+graphs. DataV oyager [146] interacts with live repositories
+by ingesting data, parsing schemas, and sampling content
+to perceive statistical patterns, which guide its autonomous
+analytical queries to explore latent structures.
+Interaction via Execution Feedback. Another approach em-
+phasizes execution outcomes as feedback for refinement,
+where profiling quality or code execution results serve as
+environmental signals. MetaGen [149] establishes validation
+feedback, such as hallucination detection and consistency
+checks, to reconstruct prompts and enhance metadata quality.
+DBDescGen [150] proposes automatic database description
+generation for NL2SQL, in which execution results such as
+query success rate or accuracy serve as feedback to refine
+schema-level descriptions. DATALORE [147] extends this
+feedback paradigm to data lineage reconstruction; it generates
+and executes transformation scripts, validates outputs, and
+iteratively adjusts logic based on success or mismatch signals.
+Multimodal Data Discovery. Studies also extend data dis-
+covery to heterogeneous and multimodal environments. Cho-
+rus [145] utilizes foundation model embeddings to map
+schemas, documents, and ontological entities from structured,
+semi-structured, and unstructured sources into a shared repre-
+sentation space, enabling cross-source semantic alignment and
+bidirectional exchange of discovery signals across modalities.
+Wang et al. [151] advance this by operationalizing cross-
+modal interaction via declarative query interfaces, multimodal
+operators, and data-driven query planning, enabling dispatch
+of sub-queries across modalities and aggregation of results.
+Limitations. Despite these advances, L2 data agents remain
+bounded by human-defined workflows and coarse-grained
+feedback mechanisms. For instance, LEDD [148] uses heuris-
+tic exploration without adaptive planning. Metadata and de-
+scription generation frameworks [149], [150] rely on coarse-
+grained success signals, resulting in unstable quality. These
+limitations highlight that L2 data agents operate within pre-
+defined frameworks, constrained in their ability to integrate
+fine-grained environmental feedback and lacking the capacity
+to autonomously orchestrate adaptive discovery pipelines.
+D. L2 Data Agents in Data Analysis
+Structured Data Analysis.L2 data agents in structured
+data analysis enhance efficiency and insight extraction by
+autonomously interacting with tables or relational databases,
+executing code, and refining analyses through iterative feed-
+back loops. They move beyond static querying to dynamically
+engage with, verify, and refine multi-step analytical processes,
+enabling more effective and complex data analysis, marking
+partial autonomy with limited strategic flexibility.
+
+--- PAGE 12 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 12
+a) TableQA:In TableQA, data agents at L2 evolve from
+static responders to dynamic, adaptive problem-solvers.
+Stateful and Adaptive TableQA. ReAcTable [153] and
+Chain-of-Table [154] leverage external execution for iterative
+reasoning, materializing the process into a series of observable
+state transitions where intermediate tables serve as feedback.
+ReAcTable [153] employs a flexible ReAct [15]-inspired
+“thought-action-observation” cycle to generate and execute
+general-purpose code (e.g.,SQL or Python), using the
+observation to guide the next step. Chain-of-Table [154] uses
+a structured “plan-execute” cycle with predefined atomic
+operations, where the transformed table itself is the stateful
+feedback. In contrast, StructGPT [152] iteratively calls
+specialized APIs, using the returned data to extract evidence
+and plan further actions. TableMaster [192] combines
+semantic verbalization with an adaptive reasoning strategy
+that integrates textual and symbolic approaches to improve
+table understanding. ST-Raptor [97] further proposes a tree-
+based QA framework for semi-structured tables, constructing
+a Hierarchical Orthogonal Tree to encode structure and using
+a two-stage validation strategy for robust answers.
+Multi-Agent TableQA. Multi-agent collaboration is also
+used to enhance TableQA. AutoTQA [155] delineates roles
+such as Planner, Engineer, and Critic to manage planning, ex-
+ecution, evaluation, and revision, enabling strategic replanning.
+Likewise, Table-Critic [156] employs a cooperative framework
+including Judge, Critic, and Refiner modules for multi-round
+error correction. It uniquely features a self-evolving template
+tree managed by a Curator, allowing the system to learn
+from experience by distilling correction patterns into reusable
+critique templates for continuous refinement.
+Limitations. These studies represent a more advanced form
+of adaptive adjustment for tailored for TableQA. However,
+these data agents at L2 exhibit several limitations. Their
+feedback is often superficial (e.g.,raw outputs or errors) rather
+than reflective, leading to tactical, symptomatic refinements
+that can result in unproductive loops without addressing root-
+cause strategic errors [156], [193]. Furthermore, they depend
+heavily on predefined tools and APIs, limiting their ability
+to handle unforeseen problems [194]. For example, Table-
+Critic [156] operates within rigid, human-designed architec-
+tures, restricting flexibility and versatility.
+b) NL2SQL:L2 data agents exhibit partial autonomy in
+NL2SQL, characterized by their ability to perceive and interact
+with databases [161], leverage SQL execution feedback [157],
+[195], and decompose complex SQL reasoning [27], [159].
+Execution Feedback-Driven SQL Refinement. Earlier efforts
+have explored utilizing execution feedback. MAC-SQL [157]
+introduces a multi-agent framework with a refiner using
+SQL execution feedback to iteratively refine faulty queries.
+OpenSearch-SQL [160] employs a consistency alignment
+module to reduce instruction-following failures and halluci-
+nations. ReFoRCE [161] extends this by actively interacting
+with databases through iterative column exploration guided by
+execution feedback, enabling progressive self-improvement.
+Planning and Decomposition. Some studies further incor-
+porate meticulously designed reasoning pipelines for plan-
+ning and decomposition to improve performance on complex
+queries. Chase-SQL [159] proposes a query plan CoT and
+a divide-and-conquer strategy to decompose SQL generation
+into subtasks, subsequently refined via database interaction.
+ChatBI [158] decomposes schema linking into a view selec-
+tion problem to handle large schemas. DeepEye-SQL [162]
+implements an orchestrated pipeline inspired by the software
+development life cycle, decomposing SQL generation and
+deploying a toolchain of checkers with interactive feedback.
+Improvement and Limitations. More advanced studies have
+moved toward more flexible approaches. For example, Alpha-
+SQL [27] employs Monte Carlo Tree Search to explore effec-
+tive action combinations during NL2SQL translation. While
+this reduces reliance on human orchestration, it essentially
+depends on search heuristics rather than deliberate pipeline or-
+chestration. Furthermore, its manually designed, task-specific
+actions tailored for NL2SQL limit applicability to a broader
+range of data-related tasks, bounding its autonomy.
+c) NL2VIS:To better manage NL2VIS tasks, data agents
+at L2 can execute code, assess the visual output, and use the
+feedback to debug, self-correct, and improve the final visu-
+alization within structured, carefully orchestrated workflows,
+such as multi-agent systems or iterative refinement cycles, to
+handle the complexities of visualization generation.
+Iterative and Collaborative Refinement. For example, Mat-
+PlotAgent [163] utilizes iterative refinement with a dual-
+feedback mechanism: iterative code debugging and a visual
+feedback loop incorporating a multimodal “visual agent” that
+inspects charts to suggest corrections for non-code errors.
+nvAgent [28] also employs a multi-agent “divide-and-conquer”
+workflow to handle complex queries, using specialized agents
+to interact with the database to filter schemas, plan the
+visualization step-by-step, and validate code.
+Self-Improvement. Some systems leverage automated mech-
+anisms for continuous learning. Text2Chart31 [164] introduces
+reinforcement learning-based instruction tuning with automat-
+ically generated reward signals, enabling scalable, closed-
+loop improvement without constant human feedback. It also
+presents a dataset with a wider range of chart types, covering
+3D and volumetric plots, to train more versatile agents.
+Explainability. DeepVIS [165] integrates CoT reasoning
+into the NL2VIS pipeline and features an interactive visual
+interface, allowing users to inspect the step-by-step reasoning
+and provide targeted feedback.
+Limitations. Despite these advances, these systems primarily
+operate within predefined procedural workflows tailored for
+NL2VIS tasks. They excel at refining and validating visualiza-
+tions within a defined scope but lack the autonomous, high-
+level reasoning to interpret complex user goals and design
+comprehensive strategies that span the full data lifecycle.
+Unstructured Data Analysis.In unstructured data analysis,
+L2 data agents evolve from passive processing to active,
+strategic information handling. They dynamically interact with
+complex documents, addressing core challenges like extreme
+length, factual grounding, multimodality, and high analysis
+cost through intelligent navigation [196], dynamic information
+seeking, and resource-aware optimization.
+•Textual Documents. A primary challenge is managing vast,
+
+--- PAGE 13 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 13
+noisy textual documents that exceed typical context windows.
+Structured Representation for Navigation. Some studies re-
+place linear processing with intelligent navigation. For exam-
+ple, WebGPT [197] demonstrates training LLMs to operate
+a browsing environment, autonomously search, select, and
+cite sources to produce more faithful long-form answers.
+Subsequent systems create structured internal representations:
+ReadAgent [167] uses a gist-based memory for text compres-
+sion and selective inspection, while GraphReader [168] models
+documents as graphs for targeted traversal by a planning agent.
+Uncertainty-Driven Verification. Beyond navigation, other
+approaches introduce dynamic, self-driven verification. Sys-
+tems like Self-RAG [169] and FLARE [166] assess uncer-
+tainty, allowing them to pause, trigger retrievals of additional
+information, and critique their own outputs. REAR [170]
+further ensures robustness by incorporating explicit assessment
+modules to evaluate the relevance of retrieved documents.
+•Multimodal Documents. L2 agents also advance the analysis
+of multimodal documents integrating text, visual layouts,
+tables, and images. MACT [173] uses a multi-agent framework
+with a specialized judgment agent for verification and revision.
+Complementing this, DataPuzzle [174] proposes a structure-
+first approach, transforming unstructured multimodal inputs
+into interpretable representations (e.g.,tables or graphs). This
+enables exploration, extraction, and reasoning over structured
+data, overseen by a meta-agent that coordinates the process and
+triggers revisions, enhancing transparency and verifiability.
+•DocumentDB. To address the high cost and latency of LLM-
+based extraction, database-inspired systems (DocumentDB)
+are developed to treat unstructured data analysis as a query
+optimization problem. QUEST [171] introduces an “optimize
+at execution time” architecture to create tailored query plans at
+execution time, ordering filters based on cost and selectivity.
+Similarly, Doctopus [172] provides a budget-aware framework
+that dynamically selects the most cost-effective extraction
+strategy based on user constraints and quality estimates.
+Limitations. Collectively, L2 data agents for unstructured
+data analysis are more strategic, robust, and efficient, man-
+aging longer and more complex data, verifying information,
+and optimizing for cost. However, their autonomy remains
+limited as they typically rely on predefined tools, operators,
+and manually curated data pipelines, which sets the stage for
+future advancements toward more comprehensive autonomy.
+Report Generation.In report and data narrative generation,
+L2 data agents complete a “generate-visualize-detect-refine”
+cycle through perceiving and interacting with databases, tools,
+visual interfaces, etc.
+Narrative Generation and Verification. One research direc-
+tion focuses on autonomous report generation and data story-
+telling via multimodal agentic architectures. Multimodal Deep-
+Researcher [178] adopts a four-stage pipeline: researching,
+exemplar textualization, planning, and multimodal synthesis,
+grounded in a Formal Description of Visualization (FDV)
+to produce interleaved text–chart reports. DAgent [179] de-
+composes relational database queries to synthesize reports
+from execution results, while Data Director [176] extends
+storytelling to data video creation. To improve factual ac-
+curacy, systems emphasize verification. DataNarrative [175]
+employs a generator-evaluator pair to iteratively validate chart-
+text narratives, and ChartInsighter [180] combines multi-agent
+tool use with self-consistency to reduce hallucination.
+Interactive Visual Analytics. Another direction is to reshape
+user interaction with visualization systems. LightV A [177]
+assists users with a lightweight “planner-executor-controller”
+loop for task decomposition, execution, and refinement. Proac-
+tiveV A [181] employs a UI agent to monitor interactions and
+proactively offer context-aware analytic suggestions. Others
+act as mediators: NLI4V olVis [183] enables conversational
+exploration of volumetric data, and VOICE [182] coordinates
+“pack of bots” to interpret queries, assign subtasks, and
+generate synchronized visual explanations.
+Limitations. Collectively, these efforts advance beyond
+the “prompt-response” paradigm, achieving partial autonomy
+through “generate-visualize-detect-refine” cycles. However,
+their autonomy remains bounded by predefined pipelines and
+agentic modules, narrow task scopes, and a lack of compre-
+hensive orchestration capabilities.
+E. The Glass Ceiling of L2 Data Agents
+L2 data agents integrate environmental perception with
+autonomous procedural execution to achieve partial autonomy
+in data-related tasks. However, as discussed, they face a glass
+ceiling marked by critical limitations as follows.
+Dependence on human-defined pipelines. L2 data agents
+execute and optimize outputs within pre-established workflows
+but lack the ability to independently orchestrate pipelines
+tailored to high-level or evolving task goals. For example,
+CleanAgent [139] follows a human-crafted architecture with
+four specified components and workflows for data cleaning
+rather than autonomously orchestrating the entire process.
+Task-specific rigidity. At L2, data agents are closely tied
+to specific domains, restricting generalizability. For instance,
+Chase-SQL [159] designs a pipeline specialized for NL2SQL
+translation and query-fixing and fine-tunes an LLM solely for
+SQL candidate selection. This approach can not be adopted for
+a broader range of data-related tasks, such as data integration
+or more comprehensive tasks spanning data management,
+preparation, and analysis. Such narrow task specialization
+limits their effectiveness in addressing the diverse and compre-
+hensive challenges common in real-world data-related tasks.
+Together, the constraints of pipeline dependence and task
+specificity highlight that although L2 data agents represent
+a notable advancement towards partial autonomy, they remain
+primarily reactive executors rather than self-directed orchestra-
+tors of comprehensive and flexible data solutions that can take
+over the dominance and responsibility in data-related tasks.
+V. L3: STRIVING FORAUTONOMOUSDATAAGENT
+A. The Critical Leap: From “Executor” to “Dominator”
+In this section, we elaborate on the transformative advance-
+ment of data agents to the L3, where the leap to L3 represents
+a critical transfer of dominance in data-related tasks, achieving
+conditional autonomy under supervision and signaling the
+emergence of true autonomy.
+
+--- PAGE 14 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 14
+TABLE IV:Comparison of Representative Proto-L3 Data Agents from Academia Research and Industry Products. Compares Open-source:
+availability; Undef Ops.: capabilities in utilizing unpredefined operators; data-related task coverage across data management, preparation,
+analysis; data complexity dimensions: Multi-source (Multis.), Heterogeneous (Hete.), and Multimodal (Multim.)
+Years Data Agent Open-
+source
+Undef
+Ops.
+Data Complexity Data Management Data Preparation Data Analysis
+Multis. Hete. Multim. ConfigTun. QueryOpt. Sys.Diag. DataClean. DataInteg. DataDisc. Struct. Unstruct. ReportGen.
+2025 AgenticData [198] - ✓ ✗ ✓ ✓ - - ✓ ✓ ✓ ✓ ✓ ✓ ✓ -
+2025 DeepAnalyze [199] ✓ - ✓ ✓ - - - - ✓ ✓ ✓ ✓ ✓ ✓
+2025 AOP [200] - - ✓ ✓ ✓ - ✓ ✓ ✓ ✓ ✓ ✓ ✓ -
+2025 iDataLake [29] - - ✓ ✓ ✓ - ✓ - ✓ ✓ ✓ ✓ ✓ ✓
+2024 Data Interpreter [201] ✓ - - ✓ ✓ - - - ✓ - ✓ ✓ ✓ ✓
+2025 JoyAgent [202] ✓ ✗ ✓ ✗ ✓ ✓ - - - ✓ ✓ ✓ ✓ ✓ ✓ ✓
+2025 Assist. DS Agent [203] - - ✓ ✓ - - ✓ - ✓ ✓ ✓ ✓ ✓ ✓
+2025 TabTab [204] - - ✓ ✓ - - - - ✓ ✓ - ✓ ✓ ✓
+2025 ByteDance Data Agent [205] - - ✓ ✓ - - - - - ✓ - ✓ ✓ ✓
+2025 BigQuery [206] - - ✓ ✓ - - ✓ - ✓ ✓ ✓ ✓ - -
+2025 Cortex [207] - - ✓ ✓ ✓ - - - ✓ ✓ ✓ ✓ ✓ -
+2025 Xata Agent [208] - - ✓ ✓ - ✓ ✓ ✓ - - ✓ - - -
+2025 SiriusBI [209] - - - - - - - - ✓ - ✓ ✓ - ✓
+L3 Data Agent
+Environment
+Data Lake
+…
+Tools
+User
+This time, help me analyze
+customer churn!
+Perception Planning
+Memory Tool Calling
+Multi-agents ……
+Key Factors
+Pipeline
+Answer
+Execution
+Orchestrate
+Optimize
+Supervise
+I’ll orchestrate a tailored pipeline to manage,
+prepare, and analyze relavent data. Firstly, …
+Task
+Fig. 6: L3 Data Agents (Conditional Autonomy).
+As illustrated in Figure 6, L3 data agents are expected to
+autonomously orchestrate and optimize pipelines rather than
+following human-defined ones; managing diverse and com-
+prehensive tasks that potentially span the entire data lifecycle
+from data management and preparation to analysis, rather
+than isolated and task-specific procedures. Formally, at L3,
+data agentAautonomously manage the entire pipeline from
+orchestrationπ A to executionϵ A, tackling versatile and com-
+prehensive data-related tasksTunder humanHsupervision:
+A:π A(T,D,E,M)→P;ϵ A(P,D,E,M)→ O
+H:Supervise(π A, ϵA)
+Given a high-level goal such as “analyze customer churn”,
+L3 data agents are expected to orchestrate and coordinate
+an effective pipeline from data management and preparation
+to analysis to achieve it. However, this autonomy remains
+conditional, as humans retain a supervisory role.
+Developing L3 data agents remains an ongoing research
+frontier. To date, no existing system has fully realized such
+versatile, self-directed orchestration capabilities that define
+a complete L3 data agent. However, emerging efforts from
+both academia and industry are beginning to address these
+challenges, giving rise to what we term “Proto-L3” data
+agents. While they do not yet achieve the full spectrum of L3,
+they exhibit exploratory steps and promising potential toward
+this goal. The following section analyzes these pioneering
+efforts, which are summarized in Table IV.
+B. Emerging Efforts and Proto-L3 Systems
+Emerging efforts on Proto-L3 data agents aim to transform
+manually designed components and processing procedures into
+autonomously orchestrated and optimized pipelines for diverse
+and complex data-related tasks, as illustrated in Figure 6.
+Orchestring Pipeline. Data Interpreter [201] recasts orches-
+tration as Hierarchical Graph Modeling. It autonomously de-
+composes high-level tasks into a structured Task Graph and an
+executable Action Graph, which is dynamically modified via
+Iterative Graph Refinement based on graph executor feedback.
+Broadening Task Scope. However, these systems are limited
+in task scope, primarily concentrating on data analysis and
+relying heavily on preprocessed data. SiriusBI [209] incorpo-
+rates Data Insight and Knowledge Management modules, au-
+tomating basic data preparation and metadata management to
+orchestration of multi-agent workflows for complex analytical
+queries. iDataLake [29] and AOP [200] further extend to het-
+erogeneous data lakes. iDataLake [29] orchestrates pipelines
+from semantic operators and uses a unified embedding space
+for multimodal data linking. Similarly, AOP [200] utilizes
+predefined semantic operators for data preparation and seman-
+tic analytics across heterogeneous data, featuring a pipeline
+optimizer that enables real-time, reflective adjustments to en-
+hance efficiency. DeepAnalyze [199] introduces a curriculum-
+based agentic reinforcement learning to progressively train
+data agents to adaptively orchestrate data preparation and
+analysis through five predefined actions.
+Industrial Practice. Recently, this field has also attracted
+significant attention from the industry. Snowflake Cortex [207]
+orchestrates over structured and unstructured data sources
+through a specialized Cortex search service to deliver insights.
+Google’s BigQuery [206] focuses on structured data, providing
+query optimization to enhance performance and facilitate data
+preparation and analysis. The ByteDance Data Agent [205]
+and TabTab [204] support heterogeneous data integration, anal-
+ysis, and reporting. Xata Agent [208] offers comprehensive
+data management by orchestrating configuration tuning, query
+optimization, and system diagnosis to support data discovery.
+The Databricks Assistance Data Science Agent [203] uses a
+planner to orchestrate a broader range of data-related tasks
+from query optimization to data preparation and analysis,
+including generating reports in dashboards.
+Overcoming Predefined Toolsets and Operators. Despite
+advances in pipeline orchestration, a key limitation is the
+reliance on pre-defined agentic components [203], [205],
+collaboration mechanisms [209], or tools and operators [201],
+[206], [207]. JoyAgent [202] begins to overcome this
+
+--- PAGE 15 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 15
+via “Tool Evolution”, dynamically creating new tools by
+recombining atomic ones, and uses a multi-level thinking
+framework to decompose queries into executable Directed
+Acyclic Graphs. AgenticData [198] supports both predefined
+operators and non-predefined ones curated via LLM-based
+code generation. It broadens task scope to data management,
+preparation, and analysis across heterogeneous sources via
+customized Model-Context Protocol (MCP) servers and
+employs a feedback-driven, multi-agent planner to create
+tree-structured semantic pipelines.
+Limitations. Collectively, these developments signal a sig-
+nificant shift in the paradigm, showing the potential to gain
+dominance in data-related tasks. However, they have not
+yet achieved true L3 autonomy. Current Proto-L3 systems
+typically depend on predefined operators, exhibit constrained
+task scope (e.g.,limited data management capabilities), focus
+on tactical rather than strategic reasoning, and lack genuine
+self-evolution capabilities. Bridging these gaps represents a
+critical challenge for realizing L3 data agents.
+C. Challenges and Research Opportunities Towards True L3
+Despite promising Proto-L3 advancements, significant gaps
+remain toward true L3 autonomy, highlighting fundamental
+challenges and research opportunities.
+1) Limited Autonomy in Pipeline Orchestration. A primary
+limitation of current Proto-L3 data agents is reliance on
+predefined operations or tools. For instance, AOP [200],
+BigQuery [206], and Cortex [207] orchestrate pipelines with
+predefined semantic operators, which restricts their autonomy.
+While JoyAgent [202] features “Tool Evolution” to reassemble
+tools, such recombination is still limited within the atomic tool
+pool. AgenticData [198] generates non-predefined operations
+via LLM-based code generation, but lacks validation regarding
+the effectiveness and robustness. Sun et al. [21] discuss the
+feasibility of automatic data-skill discovery to create a dy-
+namic toolkit beyond fixed operator sets. Future work should
+integrate continuous skill discovery with orchestration to gen-
+erate, evaluate, and deploy emergent skills, further advancing
+autonomy toward true L3.
+2) Incomplete Coverage of the Data Lifecycle. Current
+Proto-L3 systems are significantly constrained by relatively
+narrow scope in data-related tasks, primarily centered on data
+analysis [201] or very limited data preparation [200], [202],
+[209]. AgenticData [198] attempts to support management
+across heterogeneous sources through customized MCP
+servers, but its capabilities remain confined to basic
+monitoring and manipulation. However, a true L3 data agent
+must be a versatile “data expert” spanning the entire lifecycle.
+Exsiting systems largely neglect crucial data management
+tasks such as configuration tuning, query optimization, and
+system diagnosis, limiting them to downstream analytical
+processes on ready-to-use data. The key research opportunity
+is enhancing versatility to cover the full data lifecycle, from
+system management to data preparation and insight extraction.
+3) Deficiencies in Advanced Reasoning. Current Proto-L3
+data agents exhibit strong tactical capabilities, effectively ad-
+dressing immediate errors and refining recent steps. However,
+they lack advanced reasoning to reassess and adapt their
+L4 Data Agent
+Environment
+Data Lake
+…
+Tools
+User
+Just let the data agent run…
+Perception Planning
+Memory Tool Calling
+Multi-agents ……
+Key Factors
+Pipeline
+Orchestrate
+Optimize
+Ah! I’ve noticed buyout users are increasing while
+monthly subscriber are decreasing. Let’s investigate it!
+Got some fun insights,
+take a look?
+Answer
+Execution
+Fig. 7: L4 Data Agents (High Autonomy).
+overarching analysis strategy. By focusing narrowly on the
+symptom of a failed step, current systems are easily trapped
+in unproductive loops rather than diagnosing and resolving
+root causes. Advancing requires research into causal reasoning,
+meta-reasoning for cross-process optimization, and sophisti-
+cated memory architectures for abstract strategic knowledge.
+4) Inadequate Adaptation to Dynamic Environment. Real-
+world data ecosystems are dynamic, shaped by data drift and
+shifting schemas, yet current Proto-L3 systems are operated
+and evaluated against static data without self-evolution as en-
+vironments evolve. While most existing works rely on inherent
+reasoning, DeepAnalyze [199] employs agentic reinforcement
+learning to enhance adaptivity, though requiring substantial hu-
+man effort. Therefore, developing more effective and human-
+free methods to enable data agents’ adaptation to evolving
+environments, together with robust evaluation under dynamic
+conditions, represents an important research direction.
+VI. L4–L5: VISION OFPROACTIVE ANDGENERATIVE
+DATAAGENT
+While current research explores the L2-to-L3 transition, L4
+and L5 represent vision for data agents, marking a profound
+shift from conditional, task-driven autonomy to proactive self-
+governance and ultimately generative innovation. Looking
+forward, it is crucial to envision not only the capabilities these
+agents are expected to achieve but also essential advancements
+that enable their evolution.
+A. L4: High Automation
+At L4, data agents are envisioned to achieve a high degree
+of autonomy, being fully delegated the responsibility for data-
+related tasks. Operating independently of human supervision
+or explicit instructions, they autonomously monitor and ex-
+plore data lakes to proactively identify valuable and emerging
+tasks, rather than simply responding to given goals, shifting
+the user’s role from active supervisor to passive onlooker and
+recipient of insights, as shown by Figure 7. For instance,
+it can detect an emerging trend in user behavior, like the
+increase in buyout subscriptions and the decrease in monthly
+subscriptions, then initiate a root-cause analysis for data drift,
+or re-optimize an indexing strategy as needed.
+Formally, the data agentAtakes full initiative, not only
+orchestratesπ A and executesϵ A pipelinePbut also au-
+tonomously discovers taskT ′ to begin with. The humanH
+transitions to a passive recipient of the output:
+
+--- PAGE 16 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 16
+A:Discover A(D,E,M)→ T ′;
+πA(T ′,D,E,M)→P;ϵ A(P,D,E,M)→ O
+H:Receive(O)
+This leap is associated with three core advancements: the
+capacity for autonomous problem discovery, the establishment
+of trustworthy self-governance, and long-horizon views.
+Autonomous Problem Discovery. To achieve autonomous
+problem discovery, L4 data agents are expected to demonstrate
+critical reasoning, task-oriented awareness, and curiosity to
+investigate data throughout its lifecycle. Beyond execution,
+they must critically evaluate data to identify gaps, anomalies,
+and latent issues worthy of investigation, such as detecting a
+recurring drop in transactions while cleaning sales data. This
+transforms the data pipeline from a passive flow into an active
+source of analytical hypotheses.
+Trustworthy Self-governance. To effectively address the di-
+verse and unforeseen challenges, L4 data agents must operate
+as reliable generalists, fully entrusted with data-related re-
+sponsibilities beyond L3’s supervised scope, which demands a
+comprehensive mastery of data lifecycle. Their ability to self-
+manage resources and ensure operational accuracy and security
+is foundational to trust, making human oversight unnecessary.
+Long-Horizon and Holistic Views. High autonomy requires
+L4 data agents to possess long-term planning and decision-
+making capabilities. They must optimize across processes
+and make strategic trade-offs, such as balancing immediate
+data cleaning costs against long-term analytical benefits. This
+foresight prioritizes holistic benefits and long-term objectives
+over short-term gains, enabling the management of goals and
+resources over extended periods. Thus, L4 data agents are
+expected to adopt a long-horizon and holistic perspective that
+goes beyond tactical operations and local optimizations.
+B. L5: The Ultimate Vision of Ubiquitous and Generative
+Data Agents
+L5 represents the ultimate vision: a fully autonomous data
+agent functioning as a ubiquitous and generative data scientist.
+Beyond merely applying existing methods, it actively creates
+new knowledge by identifying when conventional approaches
+are insufficient and pioneering novel solutions, as illustrated in
+Figure 8. For example, an L5 agent might develop new sam-
+pling theories, design federated data preparation frameworks,
+or invent original visualization grammars.
+Formally, the data agentAnot only autonomously identifies
+the promising taskT ′ but also invents a new, innovative
+processΦ(e.g.,a new theory, algorithm, or paradigm) rather
+than relying on existing methods, while humanHdisengages:
+A:Discover A(D,E,M)→ T ′;
+InnovateA(T ′,D,E,M)→Φ; Φ(T ′,D,E,M)→ O
+H:∅
+This final stage transcends technical proficiency to embrace
+innovation, where data agents establish state-of-the-art algo-
+rithms and models, pioneer new analytical paradigms, even
+formulate groundbreaking theories. At this visionary stage, hu-
+man engagement becomes unnecessary and potentially detri-
+mental, as L5 data agents are envisioned as a fully autonomous
+and generative intellects with unparalleled expertise, pushing
+the frontiers of data management, preparation, and analysis.
+L5 Data Agent
+Environment
+Data Lake
+…
+Tools
+Perception Planning
+Memory Tool Calling
+Multi-agents ……
+Key Factors
+Bayesian Optimization is slow and costly, its variants and other
+methods are still limited. I’ll develop new method to tackle it.
+Current database knobs need to
+be tuned to improve performance.
+Innovating
+Answer
+Execution
+New Method
+Fig. 8: L5 Data Agents (Full Autonomy).
+C. The Research Odyssey Ahead
+The progression from Proto-L3 data agents to L3, L4, and
+L5 is an odyssey, requiring fundamental breakthroughs rather
+than incremental improvements. As discussed, key challenges
+include developing agents with autonomous orchestration,
+versatility, critical reasoning, intrinsic motivation for indepen-
+dent task discovery, long-horizon planning, and robust safety
+guarantees. While realizing L4 and L5 remain a long-term
+vision, we believe exploratory efforts, such as developing data
+agents that can autonomously manage diverse tasks within data
+lakes over extended periods with progressively reduced human
+intervention, constitute essential and achievable steps toward
+the eventual goal of fully autonomous data agents.
+VII. CONCLUSION
+In this survey, we introduce the first systematic hierarchical
+taxonomy for data agents, comprising six levels that delineate
+progressive shifts in autonomy from manual operations to fully
+autonomous systems. We conduct a structured literature review
+through this taxonomy, and further analyze evolutionary leaps
+and technical gaps between levels, with emphasis on the
+ongoing L2-to-L3 transition. Finally, we provide a roadmap
+for future research, outlining opportunities to bridge gaps and
+envision higher autonomy towards proactive and generative
+data agents (L4–L5).
+REFERENCES
+[1] L. Cao, “Data science: A comprehensive overview,”ACM Comput.
+Surv., 2017.
+[2] F. Cady,The data science handbook. John Wiley & Sons, 2024.
+[3] C. Chai, J. Wang, Y . Luo, Z. Niu, and G. Li, “Data management for
+machine learning: A survey,”IEEE Transactions on Knowledge and
+Data Engineering, 2023.
+[4] A. A. Fernandes, M. Koehler, and et al., “Data preparation: A techno-
+logical perspective and review,”SN Computer Science, 2023.
+[5] C. Chai, N. Tang, J. Fan, and Y . Luo, “Demystifying artificial intelli-
+gence for data preparation,” inCompanion of the 2023 International
+Conference on Management of Data.
+[6] X. Qin, Y . Luo, N. Tang, and G. Li, “Making data visualization more
+efficient and effective: a survey,”VLDB J., 2020.
+[7] X. Zhou, J. He, W. Zhou, H. Chen, Z. Tang, H. Zhao, X. Tong, G. Li,
+Y . Chen, J. Zhouet al., “A survey of llm×data,”arXiv preprint
+arXiv:2505.18458, 2025.
+[8] G. Li, X. Zhou, and X. Zhao, “LLM for data management,”Proceed-
+ings of the VLDB Endowment, 2024.
+[9] X. Zhou, G. Li, and Z. Liu, “LLM as DBA,”arXiv preprint
+arXiv:2308.05481, 2023.
+[10] G. Li, J. Wang, C. Zhang, and J. Wang, “Data+AI: Llm4data and
+data4llm,” inCompanion of the 2025 International Conference on
+Management of Data, 2025.
+
+--- PAGE 17 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 17
+[11] S. Minaee, T. Mikolov, N. Nikzad, M. Chenaghlu, R. Socher, X. Ama-
+triain, and J. Gao, “Large language models: A survey,”arXiv preprint
+arXiv:2402.06196, 2024.
+[12] X. Lin, Y . Qi, Y . Zhu, T. Palpanas, C. Chai, N. Tang, and Y . Luo,
+“LEAD: iterative data selection for efficient LLM instruction tuning,”
+CoRR, 2025.
+[13] F. Teng, Z. Yu, Q. Shi, J. Zhang, C. Wu, and Y . Luo, “Atom of thoughts
+for markov LLM test-time scaling,”CoRR, 2025.
+[14] B. Liu, X. Li, J. Zhang, J. Wang, T. He, S. Hong, H. Liu, S. Zhang,
+K. Song, K. Zhuet al., “Advances and challenges in foundation agents:
+From brain-inspired intelligence to evolutionary, collaborative, and safe
+systems,”arXiv preprint arXiv:2504.01990, 2025.
+[15] S. Yao, J. Zhao, D. Yu, N. Du, I. Shafran, K. Narasimhan, and Y . Cao,
+“React: Synergizing reasoning and acting in language models,” in
+International Conference on Learning Representations (ICLR), 2023.
+[16] S. Yao, “Language agents: From next-token prediction to digital
+automation,” Ph.D. dissertation, Princeton University, 2024.
+[17] T. Sumers, S. Yao, K. Narasimhan, and T. Griffiths, “Cognitive ar-
+chitectures for language agents,”Transactions on Machine Learning
+Research, 2023.
+[18] J. Zhang, J. Xiang, Z. Yu, F. Teng, X. Chen, J. Chen, M. Zhuge,
+X. Cheng, S. Hong, J. Wanget al., “Aflow: Automating agentic
+workflow generation,”arXiv preprint arXiv:2410.10762, 2024.
+[19] Y . Zhuang, Y . Yu, K. Wang, H. Sun, and C. Zhang, “Toolqa: A dataset
+for llm question answering with external tools,”Advances in Neural
+Information Processing Systems, 2023.
+[20] J. Feng, S. Huang, X. Qu, G. Zhang, Y . Qin, B. Zhong, C. Jiang, J. Chi,
+and W. Zhong, “Retool: Reinforcement learning for strategic tool use
+in llms,”arXiv preprint arXiv:2504.11536, 2025.
+[21] Z. Sun, J. Wang, X. Zhao, J. Wang, and G. Li, “Data Agent: A holistic
+architecture for orchestrating data+ ai ecosystems,”arXiv preprint
+arXiv:2507.01599, 2025.
+[22] Y . Fu, D. Wang, W. Ying, X. Zhang, H. Liu, and J. Pei, “Autonomous
+data agents: A new opportunity for smart data,”arXiv preprint
+arXiv:2509.18710, 2025.
+[23] Z. Tang, W. Wang, Z. Zhou, Y . Jiao, B. Xu, B. Niu, X. Zhou, G. Li,
+Y . He, W. Zhouet al., “Llm/agent-as-data-analyst: A survey,”arXiv
+preprint arXiv:2509.23988, 2025.
+[24] P. Wang, Y . Yu, K. Chen, X. Zhan, and H. Wang, “Large lan-
+guage model-based data science agent: A survey,”arXiv preprint
+arXiv:2508.02744, 2025.
+[25] W. Zhou, J. Sun, X. Zhou, G. Li, L. Liu, H. Wu, and T. Wang,
+“Gaussmaster: An llm-based database copilot system,”arXiv preprint
+arXiv:2506.23322, 2025.
+[26] M. Fan, J. Fan, N. Tang, L. Cao, G. Li, and X. Du, “Autoprep:
+Natural language question-aware data preparation with a multi-agent
+framework,”Proc. VLDB Endow., 2025.
+[27] B. Li, J. Zhang, J. Fan, Y . Xu, C. Chen, N. Tang, and Y . Luo, “Alpha-
+SQL: Zero-shot text-to-SQL using monte carlo tree search,” inForty-
+second International Conference on Machine Learning, 2025.
+[28] G. Ouyang, J. Chen, Z. Nie, Y . Gui, Y . Wan, H. Zhang, and D. Chen,
+“nvAgent: Automated data visualization from natural language via
+collaborative agent workflow,” inProceedings of the 63rd Annual
+Meeting of the Association for Computational Linguistics, 2025.
+[29] J. Wang, G. Li, and J. Feng, “iDataLake: An llm-powered analytics
+system on data lakes,”Data Engineering, 2025.
+[30] E. Shi, T. M. Gasser, A. Seeck, and R. Auerswald, “The Principles of
+Operation Framework: A Comprehensive Classification Concept for
+Automated Driving Functions,”SAE International Journal of Con-
+nected and Automated Vehicles, 2020.
+[31] M. A. Ramos, C. C. Jullian, J. McCullough, J. Ma, and A. Mosleh,
+“Automated driving systems operating as mobility as a service: oper-
+ational risks and sae j3016 standard,” in2023 Annual reliability and
+maintainability symposium (RAMS). IEEE, 2023.
+[32] Z. Tan, D. Li, S. Wang, A. Beigi, B. Jiang, A. Bhattacharjee,
+M. Karami, J. Li, L. Cheng, and H. Liu, “Large language models for
+data annotation and synthesis: A survey,” inProceedings of the 2024
+Conference on Empirical Methods in Natural Language Processing.
+[33] J. Freire, G. Fan, B. Feuer, C. Koutras, Y . Liu, E. Pe ˜na, A. S. Santos,
+C. T. Silva, and E. Wu, “Large language models for data discovery
+and integration: Challenges and opportunities,”IEEE Data Eng. Bull.,
+2025.
+[34] S. Maojun, R. Han, B. Jiang, H. Qi, D. Sun, Y . Yuan, and J. Huang,
+“A survey on large language model-based agents for statistics and data
+science,”The American Statistician, 2025.
+[35] M. Rahman, A. Bhuiyan, M. S. Islam, M. T. R. Laskar, R. Mahbub,
+A. Masry, S. Joty, and E. Hoque, “Llm-based data science agents: A
+survey of capabilities, challenges, and future directions,”arXiv preprint
+arXiv:2510.04023, 2025.
+[36] S. Wang, Z. Tan, Z. Chen, D. Li, Y . Zhu, B. Jiang, Y . He, C. Zhao,
+Z. Lei, P. Sheth, L. Li, L. P. Y . Ting, J. Li, and H. Liu, “Large language
+models for data science: A survey,” 2025.
+[37] X. Liu, S. Shen, B. Li, P. Ma, R. Jiang, Y . Zhang, J. Fan, G. Li, N. Tang,
+and Y . Luo, “A survey of text-to-sql in the era of llms: Where are we,
+and where are we going?”IEEE Transactions on Knowledge and Data
+Engineering, 2025.
+[38] Y . Luo, G. Li, J. Fan, C. Chai, and N. Tang, “Natural language to
+sql: State of the art and open problems,”Proceedings of the VLDB
+Endowment, 2025.
+[39] S. Duan, V . Thummala, and S. Babu, “Tuning database configuration
+parameters with ituned,”Proc. VLDB Endow., 2009.
+[40] X. Zhao, X. Zhou, and G. Li, “Automatic database knob tuning:
+A survey,”IEEE Transactions on Knowledge and Data Engineering,
+2023.
+[41] C. Tanimura,SQL for Data Analysis: Advanced Techniques for Trans-
+forming Data Into Insights. ” O’Reilly Media, Inc.”, 2021.
+[42] A. Satyanarayan, D. Moritz, K. Wongsuphasawat, and J. Heer, “Vega-
+lite: A grammar of interactive graphics,”IEEE Transactions on Visu-
+alization and Computer Graphics, 2016.
+[43] L. Grammel, M. Tory, and M.-A. Storey, “How information visualiza-
+tion novices construct visualizations,”IEEE Transactions on Visualiza-
+tion and Computer Graphics, 2010.
+[44] X. Huang, H. Li, J. Zhang, X. Zhao, Z. Yao, Y . Li, Z. Yu, T. Zhang,
+H. Chen, and C. Li, “LLMTune: Accelerate database knob tuning with
+large language models,”CoRR, 2024.
+[45] J. Lao, Y . Wang, Y . Li, J. Wang, Y . Zhang, Z. Cheng, W. Chen, M. Tang,
+and J. Wang, “GPTuner: A manual-reading database tuning system via
+gpt-guided bayesian optimization,”Proc. VLDB Endow., 2024.
+[46] V . Giannakouris and I. Trummer, “λ-tune: Harnessing large language
+models for automated database system tuning,”Proceedings of the
+ACM on Management of Data, 2025.
+[47] X. Huang, H. Li, J. Zhang, X. Zhao, Z. Yao, Y . Li, T. Zhang, J. Chen,
+H. Chen, and C. Li, “E2Etune: End-to-end knob tuning via fine-tuned
+generative language model,”Proceedings of the VLDB Endowment,
+2025.
+[48] X. Zhou, Z. Sun, and G. Li, “Db-gpt: Large language model meets
+database,”Data Science and Engineering, 2024.
+[49] Z. Li, H. Yuan, H. Wang, G. Cong, and L. Bing, “Llm-r2: A large
+language model enhanced rule-based rewrite system for boosting query
+efficiency,”Proceedings of the VLDB Endowment, 2024.
+[50] J. Tan, K. Zhao, R. Li, J. X. Yu, C. Piao, H. Cheng, H. Meng, D. Zhao,
+and Y . Rong, “Can large language models be query optimizer for
+relational databases?”arXiv preprint arXiv:2502.05562, 2025.
+[51] D. Xu, Y . Cui, W. Shi, Q. Ma, H. Guo, J. Li, Y . Zhao, R. Zhang, S. Di,
+J. Zhuet al., “E3-rewrite: Learning to rewrite sql for executability,
+equivalence, and efficiency,”arXiv preprint arXiv:2508.09023, 2025.
+[52] V . Giannakouris and I. Trummer, “Dbg-pt: A large language model
+assisted query performance regression debugger,”Proceedings of the
+VLDB Endowment, 2024.
+[53] S. Chen, J. Fan, B. Wu, N. Tang, C. Deng, P. Wang, Y . Li, J. Tan,
+F. Li, J. Zhouet al., “Automatic database configuration debugging
+using retrieval-augmented language models,”Proceedings of the ACM
+on Management of Data, 2025.
+[54] A. Narayan, I. Chami, L. Orr, and C. R ´e, “Can foundation models
+wrangle your data?”Proceedings of the VLDB Endowment, 2022.
+[55] Z. A. Naeem, M. S. Ahmad, M. Eltabakh, M. Ouzzani, and N. Tang,
+“Retclean: Retrieval-based data cleaning using llms and data lakes,”
+Proc. VLDB Endow., 2024.
+[56] C. Yang, Y . Luo, C. Cui, J. Fan, C. Chai, and N. Tang, “Data imputation
+with limited data redundancy using data lakes,”Proc. VLDB Endow.,
+2025.
+[57] F. Biester, M. Abdelaal, and D. D. Gaudio, “Llmclean: Context-aware
+tabular data cleaning via llm-generated ofds,” 2024.
+[58] P. Li, Y . He, D. Yashar, W. Cui, S. Ge, H. Zhang, D. Rifinski Fainman,
+D. Zhang, and S. Chaudhuri, “Table-gpt: Table fine-tuned gpt for
+diverse table tasks,”Proceedings of the ACM on Management of Data,
+2024.
+[59] M. Fan, X. Han, J. Fan, C. Chai, N. Tang, G. Li, and X. Du, “Cost-
+effective in-context learning for entity resolution: A design space
+exploration,” in2024 IEEE 40th International Conference on Data
+Engineering (ICDE). IEEE, 2024.
+
+--- PAGE 18 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 18
+[60] H. Zhang, Y . Dong, C. Xiao, and M. Oyamada, “Jellyfish: Instruction-
+tuning local large language models for data preprocessing,” inPro-
+ceedings of the 2024 Conference on Empirical Methods in Natural
+Language Processing, 2024.
+[61] B. Feuer, Y . Liu, C. Hegde, and J. Freire, “Archetype: A novel frame-
+work for open-source column type annotation using large language
+models,”Proceedings of the VLDB Endowment, 2024.
+[62] H. Zhang, Y . Liu, A. Santos, J. Freireet al., “Autoddg: Automated
+dataset description generation using large language models,”arXiv
+preprint arXiv:2502.01050, 2025.
+[63] M. I. L. Balaka, D. Alexander, Q. Wang, Y . Gong, A. Krisnadhi,
+and R. Castro Fernandez, “Pneuma: Leveraging llms for tabular data
+representation and retrieval in an end-to-end system,”Proceedings of
+the ACM on Management of Data, 2025.
+[64] K. Korini and C. Bizer, “Evaluating knowledge generation and self-
+refinement strategies for llm-based column type annotation,”arXiv
+preprint arXiv:2503.02718, 2025.
+[65] Z. Cheng, T. Xie, P. Shi, C. Li, R. Nadkarni, Y . Hu, C. Xiong, D. Radev,
+M. Ostendorf, L. Zettlemoyer, N. A. Smith, and T. Yu, “Binding
+Language Models in Symbolic Languages,” Mar. 2023.
+[66] M. Pourreza and D. Rafiei, “DIN-SQL: decomposed in-context learning
+of text-to-sql with self-correction,” inAdvances in Neural Information
+Processing Systems 36, A. Oh, T. Naumann, A. Globerson, K. Saenko,
+M. Hardt, and S. Levine, Eds., 2023.
+[67] S. Li, X. Chen, Y . Song, Y . Song, C. J. Zhang, F. Hao, and L. Chen,
+“prompt4vis: prompting large language models with example mining
+for tabular data visualization,”The VLDB Journal, 2025.
+[68] T. Luo, C. Huang, L. Shen, B. Li, S. Shen, W. Zeng, N. Tang, and
+Y . Luo, “nvbench 2.0: Resolving ambiguity in text-to-visualization
+through stepwise reasoning,” 2025.
+[69] Q. Zhao, R. Wang, Y . Cen, D. Zha, S. Tan, Y . Dong, and J. Tang, “Lon-
+gRAG: A dual-perspective retrieval-augmented generation paradigm
+for long-context question answering,” inProceedings of the 2024
+Conference on Empirical Methods in Natural Language Processing.
+[70] J. Saad-Falcon, J. Barrow, A. Siu, A. Nenkova, S. Yoon, R. A.
+Rossi, and F. Dernoncourt, “PDFTriage: Question answering over long,
+structured documents,” inProceedings of the 2024 Conference on
+Empirical Methods in Natural Language Processing: Industry Track.
+[71] M. Suri, P. Mathur, F. Dernoncourt, K. Goswami, R. A. Rossi, and
+D. Manocha, “VisDoM: Multi-document QA with visually rich ele-
+ments using multimodal retrieval-augmented generation,” inProceed-
+ings of the 2025 Conference of the Nations of the Americas Chapter
+of the Association for Computational Linguistics: Human Language
+Technologies.
+[72] Y . Duan, Z. Chen, Y . Hu, W. Wang, S. Ye, B. Shi, L. Lu, Q. Hou, T. Lu,
+H. Li, J. Dai, and W. Wang, “Docopilot: Improving multimodal models
+for document-level understanding,” inProceedings of the IEEE/CVF
+Conference on Computer Vision and Pattern Recognition, 2025.
+[73] N. Sultanum and A. Srinivasan, “Datatales: Investigating the use of
+large language models for authoring data-driven articles,” in2023 IEEE
+Visualization and Visual Analytics (VIS), 2023.
+[74] L. Cecchi and P. Babkin, “ReportGPT: Human-in-the-loop verifiable
+table-to-text generation,” inProceedings of the 2024 Conference on
+Empirical Methods in Natural Language Processing: Industry Track,
+F. Dernoncourt, D. Preot ¸iuc-Pietro, and A. Shimorina, Eds.
+[75] M. Suri, P. Mathur, N. Lipka, F. Dernoncourt, R. A. Rossi, and
+D. Manocha, “ChartLens: Fine-grained visual attribution in charts,”
+inProceedings of the 63rd Annual Meeting of the Association for
+Computational Linguistics, 2025.
+[76] C. Fan, Z. Pan, W. Sun, C. Yang, and W.-N. Chen, “Latuner: An llm-
+enhanced database tuning system based on adaptive surrogate model,”
+inJoint European Conference on Machine Learning and Knowledge
+Discovery in Databases. Springer, 2024.
+[77] J. Liu and B. Mozafari, “Query rewriting via large language models,”
+arXiv preprint arXiv:2403.09060, 2024.
+[78] S. Dharwada, H. Devrani, J. Haritsa, and H. Doraiswamy, “Query
+rewriting via llms,”arXiv preprint arXiv:2502.12918, 2025.
+[79] Z. Yao, H. Li, J. Zhang, C. Li, and H. Chen, “A query opti-
+mization method utilizing large language models,”arXiv preprint
+arXiv:2503.06902, 2025.
+[80] A. Narayan, I. Chami, L. Orr, and C. R ´e, “Can foundation models
+wrangle your data?”Proc. VLDB Endow., 2022.
+[81] Y . Qian, Y . He, R. Zhu, J. Huang, Z. Ma, H. Wang, Y . Wang,
+X. Sun, D. Lian, B. Dinget al., “Unidm: A unified framework for data
+manipulation with large language models,”Proceedings of Machine
+Learning and Systems, 2024.
+[82] A. Doan, A. Halevy, and Z. Ives,Principles of data integration.
+Elsevier, 2012.
+[83] N. Seedat and M. van der Schaar, “Matchmaker: Self-improving
+large language model programs for schema matching,”arXiv preprint
+arXiv:2410.24105, 2024.
+[84] E. Sheetrit, M. Brief, M. Mishaeli, and O. Elisha, “Rematch:
+Retrieval enhanced schema matching with llms,”arXiv preprint
+arXiv:2403.01567, 2024.
+[85] Y . Liu, E. Pena, A. Santos, E. Wu, and J. Freire, “Magneto: Combining
+small and large language models for schema matching,”arXiv preprint
+arXiv:2412.08194, 2024.
+[86] R. Peeters, A. Steiner, and C. Bizer, “Entity matching using large
+language models,” 2025.
+[87] A. Steiner, R. Peeters, and C. Bizer, “Fine-tuning large language models
+for entity matching,” in2025 IEEE 41st International Conference on
+Data Engineering Workshops (ICDEW). IEEE, 2025.
+[88] Z. Lu, T. L. van der Plas, P. Rashidi, W. D. Kissling, and I. N.
+Athanasiadis, “Flexible metadata harvesting for ecology using large
+language models,”arXiv preprint arXiv:2508.20115, 2025.
+[89] Z. Alyafeai, M. S. Al-Shaibani, and B. Ghanem, “Mole: Metadata
+extraction and validation in scientific papers using llms,”arXiv preprint
+arXiv:2505.19800, 2025.
+[90] Z. Huang and E. Wu, “Cocoon: Semantic table profiling using large
+language models,” inProceedings of the 2024 Workshop on Human-
+In-the-Loop Data Analytics, 2024.
+[91] P. Thorat, A. Qidwai, A. Dhar, A. Chakraborty, A. Eswaran, H. Pa-
+tel, and P. Jayachandran, “Llm-aided customizable profiling of code
+data based on programming language concepts,”arXiv preprint
+arXiv:2503.15571, 2025.
+[92] T. Cai, S. Sheen, and A. Doan, “Columbo: Expanding abbreviated
+column names for tabular data using large language models,”arXiv
+preprint arXiv:2508.09403, 2025.
+[93] L. L. Wei, G. Xiao, and M. Balazinska, “Racoon: an llm-based
+framework for retrieval-augmented column type annotation with a
+knowledge graph,”arXiv preprint arXiv:2409.14556, 2024.
+[94] V . Shkapenyuk, D. Srivastava, T. Johnson, and P. Ghane, “Automatic
+metadata extraction for text-to-sql,”arXiv preprint arXiv:2505.19988.
+[95] W. Chen, H. Zha, Z. Chen, W. Xiong, H. Wang, and W. Y . Wang,
+“HybridQA: A dataset of multi-hop question answering over tabular
+and textual data,” inFindings of the Association for Computational
+Linguistics: EMNLP 2020, T. Cohn, Y . He, and Y . Liu, Eds.
+[96] Y . Zhu, S. Du, B. Li, Y . Luo, and N. Tang, “Are large language
+models good statisticians?”Advances in Neural Information Processing
+Systems, 2024.
+[97] Z. Tang, B. Niu, X. Zhou, B. Li, W. Zhou, J. Wang, G. Li, X. Zhang,
+and F. Wu, “St-raptor: Llm-powered semi-structured table question
+answering,”Proc. ACM Manag. Data, 2026.
+[98] Y . Ye, B. Hui, M. Yang, B. Li, F. Huang, and Y . Li, “Large Lan-
+guage Models are Versatile Decomposers: Decomposing Evidence
+and Questions for Table-based Reasoning,” inProceedings of the 46th
+International ACM SIGIR Conference on Research and Development
+in Information Retrieval, 2023.
+[99] Y . Sui, M. Zhou, M. Zhou, S. Han, and D. Zhang, “Table Meets LLM:
+Can Large Language Models Understand Structured Table Data? A
+Benchmark and Empirical Study,” Jul. 2024.
+[100] T. Zhang, X. Yue, Y . Li, and H. Sun, “TableLlama: Towards Open
+Large Generalist Models for Tables ,” 2024.
+[101] X. Liu, S. Shen, B. Li, N. Tang, and Y . Luo, “Nl2sql-bugs: A
+benchmark for detecting semantic errors in nl2sql translation,” in
+Proceedings of the 31st ACM SIGKDD Conference on Knowledge
+Discovery and Data Mining V . 2, 2025.
+[102] B. Li, Y . Luo, C. Chai, G. Li, and N. Tang, “The dawn of natural
+language to SQL: are we fully ready?”Proc. VLDB Endow., 2024.
+[103] D. Gao, H. Wang, Y . Li, X. Sun, Y . Qian, B. Ding, and J. Zhou, “Text-
+to-sql empowered by large language models: A benchmark evaluation,”
+Proc. VLDB Endow., 2024.
+[104] H. Zhang, R. Cao, L. Chen, H. Xu, and K. Yu, “ACT-SQL: in-context
+learning for text-to-sql with automatically-generated chain-of-thought,”
+inFindings of the Association for Computational Linguistics: EMNLP
+2023, H. Bouamor, J. Pino, and K. Bali, Eds.
+[105] L. Shen, E. Shen, Y . Luo, X. Yang, X. Hu, X. Zhang, Z. Tai, and
+J. Wang, “Towards Natural Language Interfaces for Data Visualiza-
+tion: A Survey,”IEEE Transactions on Visualization and Computer
+Graphics, 2023.
+[106] Y . Luo, N. Tang, G. Li, C. Chai, W. Li, and X. Qin, “Synthesizing
+natural language to visualization (nl2vis) benchmarks from nl2sql
+benchmarks,” inProceedings of the 2021 International Conference on
+Management of Data, ser. SIGMOD ’21, 2021.
+
+--- PAGE 19 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 19
+[107] Y . Luo, N. Tang, G. Li, J. Tang, C. Chai, and X. Qin, “Natural language
+to visualization by neural machine translation,”IEEE Transactions on
+Visualization and Computer Graphics, 2022.
+[108] Y . Luo, C. Chai, X. Qin, N. Tang, and G. Li, “Visclean: Interactive
+cleaning for progressive visualization,”Proc. VLDB Endow., 2020.
+[109] Y . Luo, Y . Zhou, N. Tang, G. Li, C. Chai, and L. Shen, “Learned data-
+aware image representations of line charts for similarity search,”Proc.
+ACM Manag. Data, 2023.
+[110] Y . Luo, W. Li, T. Zhao, X. Yu, L. Zhang, G. Li, and N. Tang,
+“Deeptrack: Monitoring and exploring spatio-temporal data - A case
+of tracking COVID-19 -,”Proc. VLDB Endow., 2020.
+[111] Y . Luo, X. Qin, N. Tang, and G. Li, “Deepeye: Towards automatic data
+visualization,” inICDE. IEEE Computer Society, 2018.
+[112] P. Maddigan and T. Susnjak, “Chat2VIS: Generating Data Visualiza-
+tions via Natural Language Using ChatGPT, Codex and GPT-3 Large
+Language Models,”IEEE Access, oct 2023.
+[113] Y . Xie, Z. Zhang, Y . Wu, S. Lu, J. Zhang, Z. Yu, J. Wang, S. Hong,
+B. Liu, C. Wu, and Y . Luo, “Visjudge-bench: Aesthetics and quality
+assessment of visualizations,” 2025.
+[114] S. Sah, R. Mitra, A. Narechania, A. Endert, J. Stasko, and W. Dou,
+“Generating analytic specifications for data visualization from natural
+language queries using large language models,” 2024.
+[115] “A comprehensive survey on long context language modeling,” 2025.
+[116] D. Agrawal, S. Gao, and M. Gajek, “Can’t remember details in long
+documents? you need some r&r,”arXiv preprint arXiv:2403.05004.
+[117] P. Sarthi, S. Abdullah, A. Tuli, S. Khanna, A. Goldie, and C. D.
+Manning, “Raptor: Recursive abstractive processing for tree-organized
+retrieval,” inInternational Conference on Learning Representations
+(ICLR), 2024.
+[118] Y . Ding, K. Ren, J. Huang, S. Luo, and S. C. Han, “Pdf-mvqa:
+A dataset for multimodal information retrieval in pdf-based visual
+question answering,” 2024.
+[119] Z. Gong, Y . Huang, and C. Mai, “Mmrag-docqa: A multi-
+modal retrieval-augmented generation method for document question-
+answering with hierarchical index and multi-granularity retrieval,”
+arXiv preprint arXiv:2508.00579, 2025.
+[120] X. Ma, S.-C. Lin, M. Li, W. Chen, and J. Lin, “Unifying multimodal
+retrieval via document screenshot embedding,” inProceedings of the
+2024 Conference on Empirical Methods in Natural Language Process-
+ing.
+[121] S. Han, P. Xia, R. Zhang, T. Sun, Y . Li, H. Zhu, and H. Yao,
+“Mdocagent: A multi-modal multi-agent framework for document
+understanding,”arXiv preprint arXiv:2503.13964, 2025.
+[122] J. Chen, J. Wu, J. Guo, V . Mohanty, X. Li, J. P. Ono, W. He, L. Ren,
+and D. Liu, “Interchat: Enhancing generative visual analytics using
+multimodal interactions,”Computer Graphics Forum, 2025.
+[123] L. Wang, Z. Wang, S. Xiao, L. Liu, F. Tsung, and W. Zeng, “Vizta:
+Enhancing comprehension of distributional visualization with visual-
+lexical fused conversational interface,”Computer Graphics Forum,
+2025.
+[124] K. Choe, C. Lee, S. Lee, J. Song, A. Cho, N. W. Kim, and J. Seo,
+“Enhancing data literacy on-demand: Llms as guides for novices in
+chart interpretation,”IEEE Transactions on Visualization and Computer
+Graphics, 2025.
+[125] Y . Li, H. Li, Z. Pu, J. Zhang, X. Zhang, T. Ji, L. Sun, C. Li,
+and H. Chen, “Is large language model good at database knob
+tuning? a comprehensive experimental evaluation,”arXiv preprint
+arXiv:2408.02213, 2024.
+[126] X. Zhao, H. Li, J. Zhang, X. Huang, T. Zhang, J. Chen, R. Shi, C. Li,
+and H. Chen, “Llmidxadvis: Resource-efficient index advisor utilizing
+large language model,”arXiv preprint arXiv:2503.07884, 2025.
+[127] W. Sun, Z. Pan, Z. Hu, Y . Liu, C. Yang, R. Zhang, and X. Zhou, “Rab-
+bit: Retrieval-augmented generation enables better automatic database
+knob tuning,” in2025 IEEE 41st International Conference on Data
+Engineering (ICDE). IEEE.
+[128] Z. Yan, R. Xi, and M. Hou, “Mctuner: Spatial decomposition-
+enhanced database tuning via llm-guided exploration,”arXiv preprint
+arXiv:2509.06298, 2025.
+[129] H. Liu, Q. Zhang, R. Marcus, and I. Sabek, “Serag: Self-evolving rag
+system for query optimization,” 2025.
+[130] Y . Song, H. Yan, J. Lao, Y . Wang, Y . Li, Y . Zhou, J. Wang, and M. Tang,
+“Quite: A query rewrite system beyond rules with llm agents,”arXiv
+preprint arXiv:2506.07675, 2025.
+[131] Z. Sun, X. Zhou, G. Li, X. Yu, J. Feng, and Z. Yong, “R-bot: An llm-
+based query rewrite system,”Proceedings of the VLDB Endowment,
+2025.
+[132] W. Zhou, Y . Gao, X. Zhou, and G. Li, “Cracking SQL barriers: An
+llm-based dialect translation system,”Proc. ACM Manag. Data, 2025.
+[133] V . Y . Singh, K. Vaidya, V . B. Kumar, S. Khosla, B. Narayanaswamy,
+R. Gangadharaiah, and T. Kraska, “Panda: Performance debugging for
+databases using llm agents,” inCIDR, 2024.
+[134] X. Zhou, G. Li, Z. Sun, Z. Liu, W. Chen, J. Wu, J. Liu, R. Feng,
+and G. Zeng, “D-bot: Database diagnosis system using large language
+models,”Proceedings of the VLDB Endowment, 2024.
+[135] W. Zhou, P. Sun, X. Zhou, Q. Zang, J. Xu, T. Zhang, G. Li,
+and F. Wu, “Dbaiops: A reasoning llm-enhanced database operation
+and maintenance system using knowledge graphs,”arXiv preprint
+arXiv:2508.01136, 2025.
+[136] Y . Zhang, C. Li, Y . Luo, and N. Tang, “Sketchfill: Sketch-guided
+code generation for imputing derived missing values,”arXiv preprint
+arXiv:2412.19113, 2024.
+[137] W. Ni, K. Zhang, X. Miao, X. Zhao, Y . Wu, and J. Yin, “Iterclean:
+An iterative data cleaning framework with large language models,” in
+Proceedings of the ACM Turing Award Celebration Conference - China
+2024, ser. ACM-TURC ’24, 2024.
+[138] L. Li, L. Fang, B. Lud ¨ascher, and V . I. Torvik, “Autodcworkflow:
+Llm-based data cleaning workflow auto-generation and benchmark,” in
+Proceedings of the 2025 Conference on Empirical Methods in Natural
+Language Processing.
+[139] D. Qi, Z. Miao, and J. Wang, “Cleanagent: Automating data standard-
+ization with llm-based agents,” 2025.
+[140] T. Bendinelli, A. Dox, and C. Holz, “Exploring LLM agents for
+cleaning tabular machine learning datasets,” inICLR 2025 Workshop
+on Foundation Models in the Wild, 2025.
+[141] C. Li, C. Yang, Y . Luo, J. Fan, and N. Tang, “Weak-to-strong prompts
+with lightweight-to-powerful llms for high-accuracy, low-cost, and ex-
+plainable data transformation,”Proceedings of the VLDB Endowment,
+2025.
+[142] Z. Qiang, W. Wang, and K. Taylor, “Agent-om: Leveraging llm agents
+for ontology matching,”Proceedings of the VLDB Endowment, 2024.
+[143] M. Taboada, D. Martinez, M. Arideh, and R. Mosquera, “Ontol-
+ogy matching with large language models and prioritized depth-first
+search,”Information Fusion, 2025.
+[144] T. Wang, X. Chen, H. Lin, X. Chen, X. Han, L. Sun, H. Wang, and
+Z. Zeng, “Match, compare, or select? an investigation of large language
+models for entity matching,” inProceedings of the 31st International
+Conference on Computational Linguistics, 2025.
+[145] M. Kayali, A. Lykov, I. Fountalis, N. Vasiloglou, D. Olteanu, and
+D. Suciu, “Chorus: Foundation models for unified data discovery and
+exploration,”Proceedings of the VLDB Endowment, 2024.
+[146] B. P. Majumder, H. Surana, D. Agarwal, S. Hazra, A. Sabharwal, and
+P. Clark, “Data-driven discovery with large generative models,”arXiv
+preprint arXiv:2402.13610, 2024.
+[147] Y . Lou, C. Lei, X. Qin, Z. Wang, C. Faloutsos, R. Anubhai, and
+H. Rangwala, “Datalore: Can a large language model find all lost scrolls
+in a data repository?” in2024 IEEE 40th International Conference on
+Data Engineering (ICDE). IEEE, 2024.
+[148] Q. An, C. Ying, Y . Zhu, Y . Xu, M. Zhang, and J. Wang, “Ledd:
+large language model-empowered data discovery in data lakes,”arXiv
+preprint arXiv:2502.15182, 2025.
+[149] S. Al-Rubaye and A. Al-Khafaji, “Automated metadata generation
+using large language models: A gpt-4 case study for enterprise data
+profiling,”Scientific Journal for Engineering and Computer Science,
+2025.
+[150] Y . Li, K. Wang, Z. Sunet al., “Automatic database description
+generation for text-to-sql,”arXiv preprint arXiv:2502.20657, 2025.
+[151] J. Wang, Y . Feng, C. Shen, S. Rahman, and E. Kandogan, “To-
+wards operationalizing heterogeneous data discovery,”arXiv preprint
+arXiv:2504.02059, 2025.
+[152] J. Jiang, K. Zhou, Z. Dong, K. Ye, W. X. Zhao, and J.-R. Wen,
+“StructGPT: A General Framework for Large Language Model to
+Reason over Structured Data,” 2023.
+[153] Y . Zhang, J. Henkel, A. Floratou, J. Cahoon, S. Deep, and J. M.
+Patel, “ReAcTable: Enhancing ReAct for Table Question Answering,”
+Proceedings of the VLDB Endowment, 2024.
+[154] Z. Wang, H. Zhang, C.-L. Li, J. M. Eisenschlos, V . Perot, Z. Wang,
+L. Miculicich, Y . Fujii, J. Shang, C.-Y . Lee, and T. Pfister, “Chain-of-
+Table: Evolving tables in the reasoning chain for table understanding,”
+inThe Twelfth International Conference on Learning Representations.
+[155] J.-P. Zhu, P. Cai, K. Xu, L. Li, Y . Sun, S. Zhou, H. Su, L. Tang, and
+Q. Liu, “AutoTQA: Towards Autonomous Tabular Question Answering
+through Multi-Agent Large Language Models,”Proceedings of the
+VLDB Endowment, 2024.
+
+--- PAGE 20 ---
+JOURNAL OF LATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 20
+[156] P. Yu, G. Chen, and J. Wang, “Table-Critic: A Multi-Agent Framework
+for Collaborative Criticism and Refinement in Table Reasoning,” in
+Proceedings of the 63rd Annual Meeting of the Association for Com-
+putational Linguistics, 2025.
+[157] B. Wang, C. Ren, J. Yang, X. Liang, J. Bai, L. Chai, Z. Yan, Q.-
+W. Zhang, D. Yin, X. Sun, and Z. Li, “MAC-SQL: A multi-agent
+collaborative framework for text-to-SQL,” inProceedings of the 31st
+International Conference on Computational Linguistics, 2025.
+[158] J. Lian, X. Liu, Y . Shao, Y . Dong, M. Wang, Z. Wei, T. Wan, M. Dong,
+and H. Yan, “Chatbi: Towards natural language to complex business
+intelligence sql,”arXiv preprint arXiv:2405.00527, 2024.
+[159] M. Pourreza, H. Li, R. Sun, Y . Chung, S. Talaei, G. T. Kakkar,
+Y . Gan, A. Saberi, F. Ozcan, and S. O. Arik, “CHASE-SQL: Multi-
+path reasoning and preference optimized candidate selection in text-
+to-SQL,” inThe Thirteenth International Conference on Learning
+Representations, 2025.
+[160] X. Xie, G. Xu, L. Zhao, and R. Guo, “Opensearch-sql: Enhancing text-
+to-sql with dynamic few-shot and consistency alignment,”Proc. ACM
+Manag. Data, 2025.
+[161] M. Deng, A. Ramachandran, C. Xu, L. Hu, Z. Yao, A. Datta, and
+H. Zhang, “ReFoRCE: A text-to-sql agent with self-refinement, format
+restriction, and column exploration,”arXiv preprint arXiv:2502.00675.
+[162] B. Li, C. Chen, Z. Xue, Y . Mei, and Y . Luo, “DeepEye-SQL: A
+software-engineering-inspired text-to-sql framework,”arXiv preprint
+arXiv:2510.17586, 2025.
+[163] Z. Yang, Z. Zhou, S. Wang, X. Cong, X. Han, Y . Yan, Z. Liu, Z. Tan,
+P. Liu, D. Yu, Z. Liu, X. Shi, and M. Sun, “MatPlotAgent: Method
+and Evaluation for LLM-Based Agentic Scientific Data Visualization,”
+inFindings of the Association for Computational Linguistics 2024.
+[164] F. Pesaran Zadeh, J. Kim, J.-H. Kim, and G. Kim, “Text2Chart31:
+Instruction tuning for chart generation with automatic feedback,” in
+Proceedings of the 2024 Conference on Empirical Methods in Natural
+Language Processing.
+[165] Z. Shuai, B. Li, S. Yan, Y . Luo, and W. Yang, “Deepvis: Bridging
+natural language and data visualization through step-wise reasoning,”
+arXiv preprint arXiv:2508.01700, 2025.
+[166] Z. Jiang, F. Xu, L. Gao, Z. Sun, Q. Liu, J. Dwivedi-Yu, Y . Yang,
+J. Callan, and G. Neubig, “Active retrieval augmented generation,” in
+Proceedings of the 2023 Conference on Empirical Methods in Natural
+Language Processing.
+[167] K.-H. Lee, X. Chen, H. Furuta, J. Canny, and I. Fischer, “A human-
+inspired reading agent with gist memory of very long contexts,”arXiv
+preprint arXiv:2402.09727, 2024.
+[168] S. Li, Y . He, H. Guo, X. Bu, G. Bai, J. Liu, J. Liu, X. Qu, Y . Li,
+W. Ouyanget al., “Graphreader: Building graph-based agent to en-
+hance long-context abilities of large language models,”arXiv preprint
+arXiv:2406.14550, 2024.
+[169] A. Asai, Z. Wu, Y . Wang, A. Sil, and H. Hajishirzi, “Self-rag: Self-
+reflective retrieval augmented generation,” inNeurIPS 2023 workshop
+on instruction tuning and instruction following, 2023.
+[170] Y . Wang, R. Ren, J. Li, X. Zhao, J. Liu, and J.-R. Wen, “REAR: A
+relevance-aware retrieval-augmented framework for open-domain ques-
+tion answering,” inProceedings of the 2024 Conference on Empirical
+Methods in Natural Language Processing.
+[171] Z. Sun, C. Chai, Q. Deng, K. Jin, X. Guo, H. Han, Y . Yuan, G. Wang,
+and L. Cao, “Quest: Query optimization in unstructured document
+analysis,”Proc. VLDB Endow., 2025.
+[172] C. Chai, J. Li, Y . Deng, Y . Zhong, Y . Yuan, G. Wang, and L. Cao,
+“Doctopus: Budget-aware structural table extraction from unstructured
+documents,”Proceedings of the VLDB Endowment, 2025.
+[173] X. Yu, Z. Chen, Y . Zhang, S. Lu, R. Shen, J. Zhang, X. Hu, Y . Fu,
+and S. Yan, “Visual document understanding and question answering:
+A multi-agent collaboration framework with test-time scaling,”arXiv
+preprint arXiv:2508.03404, 2025.
+[174] Z. Zhang, Z. Liang, Y . Wu, T. Lin, Y . Luo, and N. Tang, “Datapuzzle:
+Breaking free from the hallucinated promise of llms in data analysis,”
+arXiv preprint arXiv:2504.10036, 2025.
+[175] M. S. Islam, M. T. R. Laskar, M. R. Parvez, E. Hoque, and S. Joty,
+“DataNarrative: Automated data-driven storytelling with visualizations
+and texts,” inProceedings of the 2024 Conference on Empirical
+Methods in Natural Language Processing, 2024.
+[176] L. Shen, H. Li, Y . Wang, and H. Qu, “From data to story: Towards
+automatic animated data video creation with llm-based multi-agent
+systems,” 2024.
+[177] Y . Zhao, J. Wang, L. Xiang, X. Zhang, Z. Guo, C. Turkay, Y . Zhang,
+and S. Chen, “Lightva: Lightweight visual analytics with llm agent-
+based task planning and execution,”IEEE Transactions on Visualization
+and Computer Graphics, 2025.
+[178] Z. Yang, B. Pan, H. Wang, Y . Wang, X. Liu, M. Zhu, B. Zhang,
+and W. Chen, “Multimodal deepresearcher: Generating text-chart in-
+terleaved reports from scratch with agentic framework,” 2025.
+[179] W. Xu, Y . Mao, X. Zhang, C. Zhang, X. Dong, M. Zhang, and Y . Gao,
+“Dagent: A relational database-driven data analysis report generation
+agent,” 2025.
+[180] F. Wang, B. Wang, X. Shu, Z. Liu, Z. Shao, C. Liu, and S. Chen,
+“Chartinsighter: An approach for mitigating hallucination in time-series
+chart summary generation with a benchmark dataset,” 2025.
+[181] Y . Zhao, X. Shu, L. Fan, L. Gao, Y . Zhang, and S. Chen, “Proactiveva:
+Proactive visual analytics with llm-based ui agent,” 2025.
+[182] D. Jia, A. Irger, L. Besancon, O. Strnad, D. Luo, J. Bjorklund,
+A. Ynnerman, and I. Viola, “V oice: Visual oracle for interaction,
+conversation, and explanation,” 2024.
+[183] K. Ai, K. Tang, and C. Wang, “Nli4volvis: Natural language interaction
+for volume visualization via llm multi-agents and editable 3d gaussian
+splatting,” 2025.
+[184] W. Zhou, G. Li, H. Wang, Y . Han, X. Wu, F. Wu, and X. Zhou, “Parrot:
+A benchmark for evaluating llms in cross-system sql translation,” in
+NeurIPS, 2025.
+[185] H. Ding, Z. Wang, Y . Yang, D. Zhang, Z. Xu, H. Chen, R. Piskac,
+and J. Li, “Proving query equivalence using linear integer arithmetic,”
+Proc. ACM Manag. Data, 2023.
+[186] “DBdoctor,” https://www.dbdoctor.cn/.
+[187] “OpenRefine,” https://openrefine.org/.
+[188] Z. Chen, L. Cao, S. Madden, T. Kraska, Z. Shang, J. Fan, N. Tang,
+Z. Gu, C. Liu, and M. Cafarella, “Seed: Domain-specific data curation
+with large language models,”arXiv preprint arXiv:2310.00749, 2023.
+[189] Z. Huang, J. Guo, and E. Wu, “Transform table to database using large
+language models,”Proceedings of the VLDB Endowment. ISSN, 2024.
+[190] C. Ma, S. Chakrabarti, A. Khan, and B. Moln ´ar, “Knowledge graph-
+based retrieval-augmented generation for schema matching,”arXiv
+preprint arXiv:2501.08686, 2025.
+[191] Y . Xu, H. Li, K. Chen, and L. Shou, “Kcmf: A knowledge-compliant
+framework for schema and entity matching with fine-tuning-free llms,”
+arXiv preprint arXiv:2410.12480, 2024.
+[192] L. Cao and H. Liu, “Tablemaster: A recipe to advance table understand-
+ing with language models,”arXiv preprint arXiv:2501.19378, 2025.
+[193] H. Sun, Y . Zhuang, L. Kong, B. Dai, and C. Zhang, “Adaplanner:
+Adaptive planning from feedback with language models,” 2023.
+[194] T. Masterman, S. Besen, M. Sawtell, and A. Chao, “The landscape
+of emerging ai agent architectures for reasoning, planning, and tool
+calling: A survey,” 2024.
+[195] Y . Zhu, R. JIANG, B. Li, N. Tang, and Y . Luo, “EllieSQL: Cost-
+efficient text-to-SQL with complexity-aware routing,” inSecond Con-
+ference on Language Modeling, 2025.
+[196] X. Yang, K. Sun, H. Xin, Y . Sun, N. Bhalla, X. Chen, S. Choudhary,
+R. Gui, Z. Jiang, Z. Jianget al., “Crag-comprehensive rag benchmark,”
+Advances in Neural Information Processing Systems, 2024.
+[197] R. Nakano, J. Hilton, S. Balaji, J. Wu, L. Ouyang, C. Kim,
+C. Hesse, S. Jain, V . Kosaraju, W. Saunderset al., “Webgpt: Browser-
+assisted question-answering with human feedback,”arXiv preprint
+arXiv:2112.09332, 2021.
+[198] J. Sun, G. Li, P. Zhou, Y . Ma, J. Xu, and Y . Li, “Agenticdata: An
+agentic data analytics system for heterogeneous data,”CoRR, 2025.
+[199] S. Zhang, J. Fan, M. Fan, G. Li, and X. Du, “Deepanalyze: Agentic
+large language models for autonomous data science,” 2025.
+[200] J. Wang and G. Li, “AOP: Automated and interactive llm pipeline
+orchestration for answering complex queries.” CIDR, 2025.
+[201] S. Hong, Y . Lin, and e. a. Bang Liu, “Data interpreter: An LLM agent
+for data science,” inFindings of the Association for Computational
+Linguistics, 2025.
+[202] Agent Team at JDCHO, “Joyagent-jdgenie,” https://github.com/
+jd-opensource/joyagent-jdgenie.
+[203] Databricks, “Assistant data science agent,” https://www.databricks.com/
+product/databricks-assistant.
+[204] TabTab AI, “Tabtab,” https://tabtabai.com/.
+[205] ByteDance V olcengine, “Data agent,” https://www.volcengine.com/
+product/DataAgent.
+[206] Google Cloud, “Bigquery,” https://cloud.google.com/bigquery.
+[207] Snowflake, “Cortex agents,” https://docs.snowflake.com/en/user-guide/
+snowflake-cortex/cortex-agents.
+[208] “Xata agent,” https://xata.io/blog/dba-to-db-agent.
+[209] J. Jiang, H. Xie, S. Shen, Y . Shen, and et al., “Siriusbi: A comprehen-
+sive llm-powered solution for data analytics in business intelligence,”
+Proc. VLDB Endow., 2025.

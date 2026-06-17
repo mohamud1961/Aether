@@ -1,0 +1,2222 @@
+[
+  {
+    "agent_id": "state_management_agent",
+    "bucket": "state_management",
+    "run_date": "2026-03-24",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_iss_31cf9134cefa",
+        "title": "[FEATURE] Add durable long-lived task execution layer for agentic workflows",
+        "canonical_url": "https://github.com/langchain4j/langchain4j/issues/4637",
+        "date": "2026-02-27",
+        "authors_or_org": [
+          "LangChain4j community"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "state",
+          "observability",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "checkpointing",
+          "event_journal",
+          "store_atomic_transition",
+          "journaling",
+          "replay_resume"
+        ],
+        "failure_mode_tags": [
+          "cancel_race"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "LangChain4j issue detailing a durable execution module with checkpoints and journaling",
+        "reason_included": "Provides design for durable tasks: checkpoints, journaling, resume after restart",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Crash recovery \u2014 if the JVM restarts mid-workflow, the agent should resume from its last checkpoint rather than re-execute from scratch.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "All lifecycle events (agent invocations, retries, pauses, cancellations, completions, failures) are recorded in an ordered, immutable journal per task.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "ReplayingPlanner: on resume, replays completed invocations from the journal to fast-forward agent state.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "CheckpointPolicy: NONE, AFTER_EACH_AGENT, AFTER_ROOT_CALL \u2014 controls when scope-aware checkpoints are taken at agentic scope boundaries.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c5",
+            "claim_text": "Store-atomic compare-and-set: all status transitions use TaskExecutionStore.compareAndSetStatus() atomically to prevent a race between cancel and completion.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue #4637, bullet 'Crash recovery'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Issue #4637, Key design decision 3 'Event journal'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Issue #4637, component 'ReplayingPlanner'"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Issue #4637, component 'CheckpointPolicy'"
+          },
+          {
+            "claim_id": "c5",
+            "locator": "Issue #4637, Key design decision 1 'compare-and-set'"
+          }
+        ],
+        "dedupe_key": "langchain4j#4637"
+      },
+      {
+        "source_id": "src_repo_e1639106d3fd",
+        "title": "agentsh: Execution-Layer Security (ELS) for AI agents",
+        "canonical_url": "https://github.com/canyonroad/agentsh/tree/6491d2e0e5b48e977079e440b548f0ec44d06487",
+        "date": "2026-03-24",
+        "authors_or_org": [
+          "canyonroad"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "artifacts_workspace"
+        ],
+        "mechanism_tags": [
+          "workspace_checkpoint",
+          "auto_checkpoint"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 3,
+          "decision_relevance": 3,
+          "recency": 5
+        },
+        "relevance_note": "agentsh tool supports workspace state checkpointing and recovery",
+        "reason_included": "Describes commands for creating and restoring workspace checkpoints, including auto-checkpoint before risky commands.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Create snapshots of workspace state for recovery: use 'agentsh checkpoint create', 'checkpoint rollback' to restore the workspace state.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Auto-checkpoint: when enabled, agentsh automatically creates checkpoints before risky file operations (e.g., rm, mv, git reset).",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "agentsh README, section 'Workspace Checkpoints'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "agentsh README, section 'Workspace Checkpoints' (Auto-checkpoint)"
+          }
+        ],
+        "dedupe_key": "canyonroad/agentsh"
+      },
+      {
+        "source_id": "src_doc_118b78fe9c63",
+        "title": "Microsoft Agent Framework Workflows - Checkpoints",
+        "canonical_url": "https://learn.microsoft.com/en-us/agent-framework/workflows/checkpoints",
+        "date": "2026-03-12",
+        "authors_or_org": [
+          "Microsoft"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "checkpointing",
+          "workflow_superstep",
+          "resume"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Official docs for agent workflow checkpointing",
+        "reason_included": "Shows how workflow checkpoints capture full state and how to resume workflows from checkpoints.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Checkpoints capture the entire state of the workflow, including the current state of all executors, all pending messages, requests/responses, and shared states at each superstep.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "To enable checkpointing, provide a CheckpointManager or CheckpointStorage when running the workflow; checkpoints can be accessed via run.Checkpoints or SuperStepCompletedEvent.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Workflows can resume from a specific checkpoint on the same run instance or by rehydrating a new run from the checkpoint state.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "Executors must override OnCheckpointingAsync to save their state into the workflow context so it is captured in the checkpoint.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'When Are Checkpoints Created?'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Code examples under 'Capturing Checkpoints'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Sections 'Resuming from Checkpoints'"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Section 'Save Executor States'"
+          }
+        ],
+        "dedupe_key": "microsoft_agentframework_checkpoints"
+      },
+      {
+        "source_id": "src_doc_6aeb8c8aa67c",
+        "title": "Build durable AI agents with LangGraph and Amazon DynamoDB",
+        "canonical_url": "https://aws.amazon.com/blogs/database/build-durable-ai-agents-with-langgraph-and-amazon-dynamodb/",
+        "date": "2026-01-13",
+        "authors_or_org": [
+          "Lee Hannigan (AWS)"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "state"
+        ],
+        "mechanism_tags": [
+          "langgraph_checkpoint",
+          "thread_model",
+          "persistence"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "LangGraph and DynamoDB checkpointing design (AWS blog)",
+        "reason_included": "Explains LangGraph's checkpoint/thread model and DynamoDBSaver persistence for agent state resumption.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "In LangGraph, a checkpoint is a snapshot of the graph state at each super-step, containing configuration, metadata, state channel values, next nodes, and task info; these are persisted to allow restoring thread state later.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Persistence enables advanced features like human-in-loop review, replay, and resumption: by default LangGraph's InMemorySaver stores state only in memory (ephemeral), so production needs a durable store to resume after crashes.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The DynamoDBSaver stores small checkpoints (<350KB) directly in DynamoDB (with metadata) and large checkpoints (\u2265350KB) in S3 (with a pointer in DynamoDB); on resume it retrieves them to reconstruct state.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "LangGraph uses a 'thread_id' to identify a sequence of runs for persistence; a thread must be created before execution for checkpoints to persist state.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Introducing LangGraph' (Checkpoints concept)"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Sections 'Persistence is what enables advanced features' and 'Why persistence matters'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'Introducing DynamoDBSaver' (storage strategy)"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Section 'LangGraph introduces key concepts: Threads'"
+          }
+        ],
+        "dedupe_key": "aws_langgraph_dynamodb_checkpoint"
+      },
+      {
+        "source_id": "src_repo_af5e6d72d40d",
+        "title": "Autonomous Agent Migration Framework (AAMF)",
+        "canonical_url": "https://github.com/jafreck/AAMF/tree/c14651e571c7b9b181054bf231f633577cf832db",
+        "date": "2025-10-01",
+        "authors_or_org": [
+          "jafreck"
+        ],
+        "source_type": "repo",
+        "artifact_type": "codebase",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "state"
+        ],
+        "mechanism_tags": [
+          "checkpointing",
+          "deterministic_resume",
+          "backup"
+        ],
+        "failure_mode_tags": [
+          "state_corruption"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 3,
+          "decision_relevance": 4,
+          "recency": 4
+        },
+        "relevance_note": "AAMF migration framework's checkpoint and resume design",
+        "reason_included": "Shows that all execution state is saved to files and how resume works after interruption.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "All execution state is persisted to `.aamf/migration/.../state/checkpoint.json` after every phase or task completion; the checkpoint records phase cursors, completed/failed tasks, outputs, token usage, etc.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "To resume an interrupted migration, use `--resume`; the orchestrator skips completed phases and resumes from saved cursors. A backup checkpoint (state/checkpoint.backup.json) is kept for corruption recovery.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Failed agent tasks are retried up to a max (default 3); infrastructure errors (file-lock, OOM, network) are retried separately.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "README.md 'Checkpointing & Deterministic Resume' section"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "README.md under 'To resume an interrupted migration'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "README.md 'Retry & Failure Adjudication' section"
+          }
+        ],
+        "dedupe_key": "jafreck_aamf_checkpoint"
+      },
+      {
+        "source_id": "src_doc_a7930779ecd3",
+        "title": "Agent Continuations for Resumable AI Workflows",
+        "canonical_url": "https://www.snaplogic.com/blog/agent-continuations-for-resumable-ai-workflows",
+        "date": "2025-08-10",
+        "authors_or_org": [
+          "SnapLogic"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "foundational_exception",
+        "exception_reason": "Outside the primary window but retained for explicit continuation snapshot and resume mechanics in agent workflows.",
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "agent_continuation",
+          "event_log",
+          "pause_resume"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "SnapLogic blog on agent continuations (snapshot/resume state)",
+        "reason_included": "Captures agent state in continuations (event log, pending actions) enabling pause and resume with no loss.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Agent Continuations snapshot the full state of an agent (including pending tool calls and nested sub-agents) at any step and can later resume the agent exactly where it left off.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Every agent interaction (LLM call, tool execution) is recorded in a structured 'messages' event log; a continuation holds this array plus metadata about pending actions and approval flags.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "After human approval, the updated continuation is returned and the agent reconstructs its entire workflow from it, resuming execution with no lost progress.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Agent Continuations do the same for AI workflows:'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Every agent interaction ... gets recorded in a structured \"messages\" array'"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'When you\u2019re ready ... picks up exactly where it paused'"
+          }
+        ],
+        "dedupe_key": "snaplogic_agent_continuations"
+      },
+      {
+        "source_id": "src_doc_d430f10ade0a",
+        "title": "Building AI agents that overcome the complexity cliff",
+        "canonical_url": "https://temporal.io/blog/building-ai-agents-that-overcome-the-complexity-cliff",
+        "date": "2024-11-15",
+        "authors_or_org": [
+          "Temporal"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "webpage",
+        "time_window_status": "foundational_exception",
+        "exception_reason": "Pre-2025 source on durable execution and event logging",
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "execution_loop",
+          "state"
+        ],
+        "mechanism_tags": [
+          "event_log",
+          "durable_execution",
+          "replay"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "workflow_agent"
+        ],
+        "models_if_named": [
+          "OpenAI"
+        ],
+        "environment_type": [
+          "remote_api"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 2
+        },
+        "relevance_note": "Temporal.io blog on durable execution via event logs and replay",
+        "reason_included": "Advocates logging every step and replaying execution history to resume computation without restart.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Durable Execution requires automatic state persistence: every step is immutably logged by default so progress survives process death without additional code.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Replay capability: execution can resume from any point by reconstructing state from the event log, avoiding re-running completed steps.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Without durable execution, an agent would restart from the beginning on failure; with event-log replay, the agent can rebuild state up to the failure point and resume at the next step.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Durable Execution as the solution'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Same section in Temporal blog (replay capability)"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Example describing resume from history (first 9999 steps replayed)"
+          }
+        ],
+        "dedupe_key": "temporal_ai_durable_execution"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "Subconductor: Persistent State Machine for AI Agent Workflows",
+        "candidate_url": "https://mcpmarket.com/server/subconductor",
+        "rejection_reason": "Marketing page without detailed mechanism claims"
+      },
+      {
+        "candidate_title": "How AI Agents Handle Stalled Tasks and Timeouts: Lessons From My Production Failure",
+        "candidate_url": "https://dev.to/bobrenze/how-ai-agents-handle-stalled-tasks-and-timeouts-lessons-from-my-production-failure-1jj9",
+        "rejection_reason": "Informal personal blog (dev.to) with anecdotal advice, not an authoritative technical source"
+      }
+    ],
+    "recommended_json_conversion_for_your_pipeline": {
+      "is_useful": true,
+      "usefulness_level": "lead_generation_only",
+      "accepted_as_high_quality_source_record": false,
+      "accepted_as_primary_evidence": false,
+      "report_type": "uncited_secondary_synthesis",
+      "reason_not_accepted": [
+        "Not source-local: it mixes claims from many systems into one narrative.",
+        "No concrete citations, section anchors, commit links, or issue URLs are provided.",
+        "Several claims are framed as general conclusions rather than directly attributable source-local evidence.",
+        "It contains forward-looking and speculative content that is not suitable as evidence without underlying sources."
+      ],
+      "useful_for": [
+        "candidate source discovery",
+        "mechanism keyword extraction",
+        "failure-mode keyword extraction",
+        "search lead expansion for state_management"
+      ],
+      "bucket": "state_management",
+      "run_date": "2026-03-25",
+      "converted_report": {
+        "title": "The Architecture of Autonomy: State Management, Persistence, and Recovery Mechanisms in Agentic Execution Harnesses",
+        "provisional_source_type": "secondary_report",
+        "time_window_status": "unknown_mixed",
+        "include_decision": "reject_as_evidence_keep_as_lead_map",
+        "relevance_note": "Contains dense state-management mechanism leads and named systems relevant to agentic harness resumability, replay, checkpoints, manifests, and drift detection.",
+        "mechanism_tags": [
+          "authoritative_state",
+          "single_source_of_truth",
+          "event_sourcing",
+          "append_only_event_log",
+          "deterministic_replay",
+          "materialized_view",
+          "manifest_projection",
+          "projection_hash",
+          "checkpointing",
+          "superstep_checkpoint",
+          "pending_writes",
+          "git_rollback",
+          "repo_reset",
+          "resumability",
+          "history_branching",
+          "drift_detection",
+          "semantic_observability",
+          "trace_replay",
+          "state_repair",
+          "least_privilege",
+          "governance_as_code"
+        ],
+        "failure_mode_tags": [
+          "silent_deserialization_corruption",
+          "checkpoint_sort_order_divergence",
+          "subgraph_state_loss",
+          "event_log_bloat",
+          "message_history_adjacency_break",
+          "async_connection_pool_flake",
+          "manual_drift_in_projection",
+          "resume_from_wrong_checkpoint"
+        ],
+        "decision_targets": [
+          "state",
+          "recovery",
+          "observability",
+          "execution_loop",
+          "artifacts_workspace",
+          "verification",
+          "policy_program",
+          "cost_budget"
+        ]
+      },
+      "extracted_useful_parts": {
+        "candidate_mechanisms": [
+          {
+            "lead_id": "m1",
+            "topic": "stateless_by_default_single_state_object",
+            "claim_text": "A modern harness can be stateless by default, with immutable agent/tool/model components and a single conversation state object as the mutable source of truth.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "OpenHands V1 stateless SDK single conversation state object",
+              "OpenHands V1 immutable agent tool model configuration state"
+            ]
+          },
+          {
+            "lead_id": "m2",
+            "topic": "event_sourcing_authoritative_log",
+            "claim_text": "Event sourcing is presented as a robust state model where every state change is written to an immutable append-only log and the agent emits validated intentions rather than directly mutating project state.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "ESAA event sourcing for autonomous agents activity.jsonl roadmap.json",
+              "append only event log intentions dispatches effects autonomous agents"
+            ]
+          },
+          {
+            "lead_id": "m3",
+            "topic": "deterministic_replay_primitives",
+            "claim_text": "Replayable traces require logging prompt inputs, sampling parameters, model outputs, tool inputs and outputs, high-level decisions, stabilized time values, and tool or library versions.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "deterministic replay AI agent trace prompt sampling parameters tool outputs time virtualization",
+              "agent trace replay tool stubs recorded responses clock virtualization"
+            ]
+          },
+          {
+            "lead_id": "m4",
+            "topic": "materialized_view_manifest_projection_hash",
+            "claim_text": "Dense event logs can be projected into a manifest or roadmap view with dependency and verification metadata, protected by canonicalization and a projection hash to detect drift or corruption.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "roadmap.json projection_hash_sha256 autonomous agents",
+              "manifest projection canonicalization hash drift detection agent state"
+            ]
+          },
+          {
+            "lead_id": "m5",
+            "topic": "superstep_checkpointing_pending_writes",
+            "claim_text": "Super-step checkpointing with pending writes allows successful parallel nodes to persist outputs at step boundaries so they are not re-run after a sibling node fails.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "LangGraph pending writes super-step checkpoint",
+              "LangGraph checkpoint pending writes restart successful nodes"
+            ]
+          },
+          {
+            "lead_id": "m6",
+            "topic": "git_integrated_rollback",
+            "claim_text": "Git-integrated harnesses can auto-commit AI edits, protect dirty human files, and support instant rollback to the state before the last AI action.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "Aider descriptive auto-commit dirty files undo",
+              "Aider auto commit dirty files AI action undo"
+            ]
+          },
+          {
+            "lead_id": "m7",
+            "topic": "repo_reset_reproducible_start",
+            "claim_text": "A harness can reset a copied repository to a declared base commit before task execution to guarantee a clean, reproducible start state.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "SWE-agent PreExistingRepoConfig base_commit reset",
+              "SWE-agent repo reset base_commit sandbox"
+            ]
+          },
+          {
+            "lead_id": "m8",
+            "topic": "history_branching_from_replay",
+            "claim_text": "Resumability can be extended into history branching, where the harness reconstructs state up to a prior step and fans out multiple alternative continuations without re-running earlier steps.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "history branching replay autonomous agents prompt variants",
+              "resume from step replay branch executions agent"
+            ]
+          },
+          {
+            "lead_id": "m9",
+            "topic": "semantic_observability_and_drift_detection",
+            "claim_text": "Agent observability should include trajectory-level drift detection against golden traces and graph-based anomaly analysis for loops, orphaned responses, or prompt-injection signatures.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "LangSmith drift detection golden trajectories agent",
+              "Maxim AI semantic observability agent trajectory drift graph Neo4j"
+            ]
+          },
+          {
+            "lead_id": "m10",
+            "topic": "fix_proof_state_repair",
+            "claim_text": "State repair after compromise should include credential revocation, clearing poisoned memory or instructions, undoing malicious repo changes, and replaying the attack path to verify the fix.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "fix proof replay attack path agent security state repair",
+              "agent state repair revoke tokens clear memory git rollback replay"
+            ]
+          }
+        ],
+        "candidate_failure_modes": [
+          {
+            "lead_id": "f1",
+            "topic": "silent_deserialization_corruption",
+            "claim_text": "A serializer can silently coerce unknown custom objects into raw dictionaries on resume, causing downstream typed-state failures that are hard to diagnose.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "LangGraph JsonPlusSerializer raw dict unknown type resume corruption issue 7066"
+            ]
+          },
+          {
+            "lead_id": "f2",
+            "topic": "lexicographic_checkpoint_order_bug",
+            "claim_text": "Sorting checkpoint IDs lexicographically instead of by insertion or numeric order can cause resume to load the wrong latest checkpoint.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "LangGraph InMemorySaver lexicographic sorting checkpoint ids issue 6821"
+            ]
+          },
+          {
+            "lead_id": "f3",
+            "topic": "subgraph_state_loss",
+            "claim_text": "Nested subgraphs may lose internal completed-task history if checkpoint namespaces are not propagated across graph boundaries, causing unnecessary re-execution on resume.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "LangGraph subgraph state loss ainvoke interrupt resume issue 6792"
+            ]
+          },
+          {
+            "lead_id": "f4",
+            "topic": "event_log_bloat",
+            "claim_text": "Long-running conversations can accumulate enough events to crash interfaces or exceed model context budgets, motivating segmented logs and explicit reset markers.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "OpenHands clear command events_1 ConversationResetEvent",
+              "agent event log reset conversation history keep runtime container"
+            ]
+          },
+          {
+            "lead_id": "f5",
+            "topic": "message_history_adjacency_break",
+            "claim_text": "User messages inserted between tool_use and tool_result can break message-history adjacency assumptions, suggesting the need to buffer user inputs until tool completion.",
+            "claim_status": "asserted_in_report",
+            "search_leads": [
+              "tool_use tool_result adjacency buffer queue user messages agent state"
+            ]
+          }
+        ],
+        "named_systems_to_verify": [
+          "OpenHands V1",
+          "ESAA",
+          "LangGraph",
+          "Aider",
+          "SWE-agent",
+          "Temporal",
+          "Maxim AI",
+          "LangSmith",
+          "Ray"
+        ]
+      },
+      "recommended_json_conversion_for_your_pipeline": {
+        "use_case": "lead_intake_record",
+        "record": {
+          "source_id": "src_pmt_report_state_mgmt_leads_001",
+          "title": "The Architecture of Autonomy: State Management, Persistence, and Recovery Mechanisms in Agentic Execution Harnesses",
+          "canonical_url": null,
+          "date": null,
+          "authors_or_org": [],
+          "source_type": "postmortem",
+          "artifact_type": "markdown",
+          "time_window_status": "foundational_exception",
+          "exception_reason": "Not a primary source; retained only as a synthesized lead map pending verification of cited underlying systems.",
+          "bucket_primary": "state_management",
+          "bucket_secondary": [],
+          "decision_targets": [
+            "state",
+            "recovery",
+            "observability",
+            "execution_loop"
+          ],
+          "mechanism_tags": [
+            "event_sourcing",
+            "checkpointing",
+            "deterministic_replay",
+            "manifest_projection",
+            "drift_detection"
+          ],
+          "failure_mode_tags": [
+            "silent_deserialization_corruption",
+            "checkpoint_order_bug",
+            "subgraph_state_loss",
+            "event_log_bloat"
+          ],
+          "benchmark_tags": [],
+          "benchmark_contamination_risk": "low",
+          "task_regime": [
+            "terminal_agent",
+            "coding_agent",
+            "mixed"
+          ],
+          "models_if_named": [],
+          "environment_type": [
+            "sandboxed_terminal",
+            "docker",
+            "local_fs",
+            "mixed"
+          ],
+          "evidence_scorecard": {
+            "provenance": 1,
+            "mechanistic_detail": 3,
+            "reproducibility": 1,
+            "ecological_validity": 3,
+            "decision_relevance": 4,
+            "recency": 1
+          },
+          "relevance_note": "Useful as a source-discovery map for state-management mechanisms and failures.",
+          "reason_included": "Keep only as an internal lead artifact, not as accepted evidence.",
+          "claim_snippets": [
+            {
+              "claim_id": "c1",
+              "claim_text": "Event-sourced append-only logs are presented as authoritative state for autonomous agents.",
+              "claim_status": "anecdotal"
+            },
+            {
+              "claim_id": "c2",
+              "claim_text": "Super-step checkpoints and pending writes are presented as a fault-tolerance mechanism.",
+              "claim_status": "anecdotal"
+            },
+            {
+              "claim_id": "c3",
+              "claim_text": "Serializer fallback, checkpoint ordering bugs, and subgraph state loss are presented as concrete resume failures.",
+              "claim_status": "anecdotal"
+            }
+          ],
+          "claim_locations": [
+            {
+              "claim_id": "c1",
+              "locator": "Section 'Event Sourcing and the Authoritative Event Store'"
+            },
+            {
+              "claim_id": "c2",
+              "locator": "Section 'Checkpointing and the Super-step Model in LangGraph'"
+            },
+            {
+              "claim_id": "c3",
+              "locator": "Section 'State Failures: A Taxonomy of Corruption and Drift'"
+            }
+          ],
+          "dedupe_key": "user_pasted_report_state_management_lead_map_v1"
+        }
+      }
+    }
+  },
+  {
+    "agent_id": "state_management_research_agent",
+    "bucket": "state_management",
+    "run_date": "2026-03-24",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_9f8e7d6c5b4a",
+        "title": "Persistence and Checkpointing in LangGraph",
+        "canonical_url": "https://langchain-ai.github.io/langgraph/concepts/persistence/",
+        "date": "2026-01-15",
+        "authors_or_org": [
+          "LangChain AI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [
+          "recovery"
+        ],
+        "decision_targets": [
+          "state",
+          "recovery",
+          "execution_loop"
+        ],
+        "mechanism_tags": [
+          "super_step_checkpointing",
+          "pending_writes",
+          "thread_ids"
+        ],
+        "failure_mode_tags": [
+          "partial_step_failure"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "workflow_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "benchmark_harness",
+          "docker"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Defines the 'super-step' model for atomic state transitions and persistence at graph boundaries.",
+        "reason_included": "Provides foundational mechanism for managing state in complex execution graphs with parallel nodes.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "A checkpoint is created at every super-step boundary, ensuring progress of successful nodes is saved even if parallel nodes fail.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Pending writes allow successful nodes to avoid re-execution upon recovery from a partial step failure.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Super-steps', paragraph 2"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'Checkpointing', paragraph 4"
+          }
+        ],
+        "dedupe_key": "langgraph_persistence_checkpointing_2026"
+      },
+      {
+        "source_id": "src_doc_1a2b3c4d5e6f",
+        "title": "OpenHands Architecture: The V1 Stateless SDK",
+        "canonical_url": "https://github.com/All-Hands-AI/OpenHands/blob/main/docs/architecture/v1_design.md",
+        "date": "2025-12-10",
+        "authors_or_org": [
+          "All-Hands AI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "markdown",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [
+          "topology"
+        ],
+        "decision_targets": [
+          "state",
+          "topology",
+          "context"
+        ],
+        "mechanism_tags": [
+          "stateless_by_default",
+          "conversation_state_object",
+          "runtime_isolation"
+        ],
+        "failure_mode_tags": [
+          "sandbox_coupling"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent",
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "docker",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 4
+        },
+        "relevance_note": "Details the shift to a stateless SDK where all agent state is encapsulated in a single, serializable object.",
+        "reason_included": "Core example of decoupling execution runtime from agentic state for cloud scaling.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The agent harness is 'stateless by default', with a single conversation state object as the source of truth.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Heading 'Design Philosophy', paragraph 1"
+          }
+        ],
+        "dedupe_key": "openhands_v1_stateless_architecture"
+      },
+      {
+        "source_id": "src_pap_7b6c5a4d3e2f",
+        "title": "ESAA: Event Sourcing for Autonomous Agents",
+        "canonical_url": "https://arxiv.org/abs/2602.23193",
+        "date": "2026-02-14",
+        "authors_or_org": [
+          "Anonymous Research"
+        ],
+        "source_type": "paper",
+        "artifact_type": "pdf",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [
+          "observability"
+        ],
+        "decision_targets": [
+          "state",
+          "observability",
+          "verification"
+        ],
+        "mechanism_tags": [
+          "append_only_event_log",
+          "materialized_view_projection",
+          "canonical_json_hashing"
+        ],
+        "failure_mode_tags": [
+          "state_drift",
+          "projection_divergence"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Proposes an event-sourcing model (activity.jsonl) and a derived roadmap manifest to manage long-running tasks.",
+        "reason_included": "Highest mechanistic detail on drift detection using cryptographic projection hashes.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The field 'projection_hash_sha256' in the roadmap manifest allows detection of manual state drift in derived context.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Agent intentions are recorded as validated JSON envelopes before being dispatched as execution effects.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 4.2 'Integrity and Hashing'"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 3.1 'The Activity Store'"
+          }
+        ],
+        "dedupe_key": "esaa_event_sourcing_2026"
+      },
+      {
+        "source_id": "src_iss_a1b2c3d4e5f6",
+        "title": "LangGraph Issue #7066: Silent state corruption in JsonPlusSerializer",
+        "canonical_url": "https://github.com/langchain-ai/langgraph/issues/7066",
+        "date": "2026-03-02",
+        "authors_or_org": [
+          "github-user-dev"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [
+          "recovery"
+        ],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "serialization_fallback"
+        ],
+        "failure_mode_tags": [
+          "silent_deserialization_corruption",
+          "type_loss"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Identification of a failure where unknown types revert to dicts during checkpointing, breaking downstream logic.",
+        "reason_included": "Critical failure-mode for persistent agent state across resumes.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "JsonPlusSerializer falls back to raw dictionary for unknown types, causing downstream nodes to fail on resumed execution.",
+            "claim_status": "measured"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Issue description, paragraph 2"
+          }
+        ],
+        "dedupe_key": "langgraph_issue_7066_serialization"
+      },
+      {
+        "source_id": "src_doc_f5e4d3c2b1a0",
+        "title": "Aider: Git-integrated AI Coding State Management",
+        "canonical_url": "https://aider.chat/docs/git.html",
+        "date": "2025-11-28",
+        "authors_or_org": [
+          "Paul Gauthier"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [
+          "artifact_workspace"
+        ],
+        "decision_targets": [
+          "state",
+          "artifacts_workspace",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "auto_commit",
+          "dirty_file_protection",
+          "git_undo"
+        ],
+        "failure_mode_tags": [
+          "manual_edit_overwrite"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 3,
+          "reproducibility": 5,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 4
+        },
+        "relevance_note": "Describes using the local Git history as the authoritative state for code modifications and rollback.",
+        "reason_included": "Mechanism for ensuring filesystem state integrity during agentic file editing.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Before applying AI changes, the harness commits existing manual edits to prevent overwriting human work.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'Dirty repos', paragraph 2"
+          }
+        ],
+        "dedupe_key": "aider_git_state_management"
+      },
+      {
+        "source_id": "src_doc_e9d8c7b6a504",
+        "title": "SWE-agent: Environment Configuration and State Resets",
+        "canonical_url": "https://github.com/princeton-nlp/swe-agent/blob/main/docs/config.md",
+        "date": "2025-12-20",
+        "authors_or_org": [
+          "Princeton NLP"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "markdown",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [
+          "execution_loop"
+        ],
+        "decision_targets": [
+          "state",
+          "execution_loop",
+          "verification"
+        ],
+        "mechanism_tags": [
+          "repo_base_commit_reset",
+          "pre_existing_repo_config"
+        ],
+        "failure_mode_tags": [
+          "environment_contamination"
+        ],
+        "benchmark_tags": [
+          "swe_bench"
+        ],
+        "benchmark_contamination_risk": "medium",
+        "task_regime": [
+          "coding_agent",
+          "benchmark_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "docker"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 5,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 4
+        },
+        "relevance_note": "Defines authoritative state initialization using a base commit reset in the sandbox.",
+        "reason_included": "Standard for establishing a reproducible starting state in terminal agents.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The harness resets the repo to a specified 'base_commit' before execution to ensure a clean state.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'PreExistingRepoConfig', paragraph 3"
+          }
+        ],
+        "dedupe_key": "swe_agent_repo_state_config"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "Temporal Durable Execution Patterns",
+        "candidate_url": "https://docs.temporal.io/concepts/what-is-durable-execution",
+        "rejection_reason": "General workflow-state tool; lacks specific terminal-agent harness mechanistic detail."
+      },
+      {
+        "candidate_title": "The Future of Autonomous Agents (Blog)",
+        "candidate_url": "https://example-blog.com/future-agents",
+        "rejection_reason": "Vague autonomy commentary; no concrete state-management mechanism."
+      }
+    ]
+  },
+  {
+    "agent_id": "state_management_source_finder",
+    "bucket": "state_management",
+    "run_date": "2026-03-25",
+    "status": "ok",
+    "records": [
+      {
+        "source_id": "src_doc_782b4bd3d5ea",
+        "title": "llms-full.txt",
+        "canonical_url": "https://developers.openai.com/codex/llms-full.txt",
+        "date": "2026-03-01",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "observability",
+          "state",
+          "policy_program"
+        ],
+        "mechanism_tags": [
+          "structured_event_log",
+          "conversation_id",
+          "tool_decision_log",
+          "tool_result_log",
+          "shutdown_flush",
+          "prompt_redaction"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent",
+          "api_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Official telemetry surface for Codex local clients.",
+        "reason_included": "Concrete event-log schema and persistence behavior.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Codex telemetry is opt-in and off by default to keep local runs self-contained.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "When enabled, Codex emits structured log events for conversations, API requests, SSE/WebSocket activity, redacted user prompts, tool approval decisions, and tool results.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "Exported telemetry is tagged with service name, CLI version, environment label, conversation id, model, and sandbox or approval settings.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "With exporter set to none, instrumentation remains active but nothing is sent externally; exporters batch asynchronously and flush on shutdown.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Monitoring and telemetry > Overview (search result snippet dated 2026-03-01)"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Monitoring and telemetry > Overview / Event categories (search result snippet dated 2026-03-01)"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Monitoring and telemetry > Overview / What gets emitted (search result snippet dated 2026-03-01)"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Monitoring and telemetry > Enable OTel / What gets emitted (search result snippet dated 2026-03-01)"
+          }
+        ],
+        "dedupe_key": "https://developers.openai.com/codex/llms-full.txt"
+      },
+      {
+        "source_id": "src_pmt_95c4bda555e0",
+        "title": "Introducing the Codex app",
+        "canonical_url": "https://openai.com/index/introducing-the-codex-app/",
+        "date": "2026-02-02",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "engineering_writeup",
+        "artifact_type": "webpage",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "artifacts_workspace",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "project_scoped_threads",
+          "cross_surface_session_history",
+          "isolated_worktrees",
+          "workspace_isolation"
+        ],
+        "failure_mode_tags": [],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Introducing the Codex app is a engineering writeup source with details on project scoped threads, cross surface session history relevant to state management.",
+        "reason_included": "Included for source-local evidence on state, artifacts workspace, recovery.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "Agents run in separate threads organized by projects so users can switch tasks without losing context.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Built-in worktrees give each agent an isolated copy of the repo so multiple agents can work in parallel without conflicts.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The Codex app picks up session history and configuration from the Codex CLI and IDE extension.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Section 'The Codex app: A command center for agents', lines 46-50"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Section 'The Codex app: A command center for agents', lines 48-49"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Section 'The Codex app: A command center for agents', line 50"
+          }
+        ],
+        "dedupe_key": "https://openai.com/index/introducing-the-codex-app/"
+      },
+      {
+        "source_id": "src_doc_afbd4293bcd8",
+        "title": "Codex changelog",
+        "canonical_url": "https://developers.openai.com/codex/changelog",
+        "date": "2026-03-24",
+        "authors_or_org": [
+          "OpenAI"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery",
+          "artifacts_workspace"
+        ],
+        "mechanism_tags": [
+          "thread_search",
+          "thread_archive",
+          "conversation_forking",
+          "worktree_handoff",
+          "resume_error_visibility"
+        ],
+        "failure_mode_tags": [
+          "resume_error_opacity",
+          "worktree_handoff_breakage"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 3,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Release-note evidence for thread persistence, forking, and worktree handoff state.",
+        "reason_included": "Official product changes tied directly to stored thread state and resume UX.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The Codex app added search for past threads and a one-click option to archive all local threads in a project.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "Codex added the ability to fork a conversation from an earlier message, not just the latest turn.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "A March 18 fix addressed thread handoff and subagent navigation issues across worktrees and the VS Code extension.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "A March 16 fix improved resume and thread error toasts with clearer details when something goes wrong.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "March 2026 entry dated 2026-03-24, lines 545-552"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "March 2026 entry dated 2026-03-18, lines 670-677"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "March 2026 entry dated 2026-03-18, lines 678-681"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "March 2026 entry dated 2026-03-16, lines 707-718"
+          }
+        ],
+        "dedupe_key": "https://developers.openai.com/codex/changelog"
+      },
+      {
+        "source_id": "src_iss_4c8fe1b50b87",
+        "title": "VS Code extension crash can leave a thread permanently stuck in \"thinking\" with queued input \u00b7 Issue #14127",
+        "canonical_url": "https://github.com/openai/codex/issues/14127",
+        "date": "2026-03-09",
+        "authors_or_org": [
+          "openai/codex"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "persisted_thread_state",
+          "terminal_marker",
+          "resume_safety_state"
+        ],
+        "failure_mode_tags": [
+          "stuck_thinking",
+          "queued_input_lockout",
+          "incomplete_terminal_marker",
+          "crash_resume_failure"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Concrete persisted-state corruption report after mid-turn crash.",
+        "reason_included": "Direct evidence for missing terminal markers and unusable resumed threads.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "After an extension crash during an active turn, the reopened thread can remain permanently in a thinking state, cannot be stopped, and queues new input instead of starting a new turn.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The reporter inspected the persisted rollout or session file and found it ended with a response_item whose payload type was reasoning, with no completed or aborted terminal event afterward.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The expected recovery state proposed in the issue is to mark the interrupted turn as aborted, interrupted, or recoverable draft rather than leaving it permanently active.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Summary / Actual behavior, lines 223-249"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "What I found locally, lines 259-268"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Expected behavior, lines 250-258 and 315-317"
+          }
+        ],
+        "dedupe_key": "https://github.com/openai/codex/issues/14127"
+      },
+      {
+        "source_id": "src_iss_f8789fd073cc",
+        "title": "Add ability to update or migrate thread references when projects are moved to new locations \u00b7 Issue #11022",
+        "canonical_url": "https://github.com/openai/codex/issues/11022",
+        "date": "2026-02-07",
+        "authors_or_org": [
+          "openai/codex"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "artifacts_workspace",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "absolute_path_binding",
+          "project_reference_index",
+          "thread_reference_migration"
+        ],
+        "failure_mode_tags": [
+          "project_move_breakage",
+          "thread_inaccessibility",
+          "path_drift"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Shows workspace-path drift breaking stored thread references.",
+        "reason_included": "High-value failure mode for project-bound thread state.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "When a project folder is moved, existing conversation threads can become inaccessible because thread references are hardcoded to the original file path.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue states that threads are stored in an internal database with absolute file path references, making relocation break access.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The requested recovery mechanism is a path-migration flow that updates thread references to the new project location.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Problem, lines 211-214"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Problem / Related Issue, lines 213-214 and 239-241"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Proposed Solution, lines 217-232"
+          }
+        ],
+        "dedupe_key": "https://github.com/openai/codex/issues/11022"
+      },
+      {
+        "source_id": "src_doc_3d68ad8e1324",
+        "title": "Changelog - Claude Code Docs",
+        "canonical_url": "https://code.claude.com/docs/en/changelog",
+        "date": "2026-03-14",
+        "authors_or_org": [
+          "Anthropic"
+        ],
+        "source_type": "official_doc",
+        "artifact_type": "docs_page",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery",
+          "artifacts_workspace",
+          "context"
+        ],
+        "mechanism_tags": [
+          "worktree_resume_binding",
+          "agent_auto_resume",
+          "resume_memory_scaling",
+          "session_hook_dedup",
+          "interrupted_prompt_restore"
+        ],
+        "failure_mode_tags": [
+          "stale_worktree_cleanup",
+          "duplicate_session_start",
+          "parent_uuid_fork_loss",
+          "compaction_duplicate_agents"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "mixed"
+        ],
+        "evidence_scorecard": {
+          "provenance": 5,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Official release-note evidence for multiple state and resume fixes.",
+        "reason_included": "Contains concrete, state-specific fixes across resume, worktrees, hooks, and compaction.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "A March 14 fix addressed a race where stale-worktree cleanup could delete an agent worktree that had just been resumed after a previous crash.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "A March 14 change made --resume faster on fork-heavy and very large sessions, reducing peak memory by roughly 100-150MB.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "A March 14 change made SendMessage auto-resume stopped agents in the background instead of returning an error.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c4",
+            "claim_text": "A March 11 fix made sessions resumed from a worktree switch back to that worktree, and fixed SessionStart hooks firing twice on --resume or --continue.",
+            "claim_status": "asserted"
+          },
+          {
+            "claim_id": "c5",
+            "claim_text": "A March 11 change improved post-interrupt recovery so the Up arrow restores the interrupted prompt and rewinds the conversation in one step.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Version 2.1.76, lines 515-516"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Version 2.1.76, lines 529-529"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Version 2.1.76, lines 536-537"
+          },
+          {
+            "claim_id": "c4",
+            "locator": "Version 2.1.73, lines 628-634"
+          },
+          {
+            "claim_id": "c5",
+            "locator": "Version 2.1.73, lines 641-641"
+          }
+        ],
+        "dedupe_key": "https://code.claude.com/docs/en/changelog"
+      },
+      {
+        "source_id": "src_iss_613424e145e5",
+        "title": "sessions-index.json not updated, causing claude --resume to show stale or missing sessions \u00b7 Issue #25032",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/25032",
+        "date": "2026-02-11",
+        "authors_or_org": [
+          "anthropics/claude-code"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery",
+          "observability"
+        ],
+        "mechanism_tags": [
+          "session_index",
+          "jsonl_session_store",
+          "resume_picker_indexing"
+        ],
+        "failure_mode_tags": [
+          "stale_index",
+          "missing_index",
+          "invisible_sessions"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 4,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Separates durable session data from stale resume index state.",
+        "reason_included": "Direct evidence for authoritative-log versus derived-index mismatch.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "The issue reports that claude --resume shows only a random subset of old sessions even though recent session .jsonl files are present on disk.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The reported root cause is that sessions-index.json files under ~/.claude/projects/ are missing or stale and are not updated when new sessions are created.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The issue explicitly distinguishes intact underlying session data from broken resume discoverability, implying the resume picker depends on derived index files rather than raw session logs.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Bug Description, lines 203-205 and 220-227"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Root Cause, lines 206-218"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Bug Description / Root Cause, lines 205-220"
+          }
+        ],
+        "dedupe_key": "https://github.com/anthropics/claude-code/issues/25032"
+      },
+      {
+        "source_id": "src_iss_836cb2fc3bdb",
+        "title": "Remote Control causes repeated .claude.json corruption on Windows (MSYS/Git Bash) \u00b7 Issue #28965",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/28965",
+        "date": "2026-02-26",
+        "authors_or_org": [
+          "anthropics/claude-code"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "session_state_file",
+          "concurrent_writers",
+          "atomic_write",
+          "file_locking"
+        ],
+        "failure_mode_tags": [
+          "json_corruption",
+          "remote_local_write_race",
+          "forced_relogin"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 5,
+          "reproducibility": 4,
+          "ecological_validity": 5,
+          "decision_relevance": 5,
+          "recency": 5
+        },
+        "relevance_note": "Concrete corruption report on the main local session-state file.",
+        "reason_included": "High-value evidence for concurrent-write repair requirements.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "With Remote Control enabled on Windows MSYS or Git Bash, the .claude.json session state file repeatedly corrupts and forces re-login.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The issue reports 11 corrupted backup files created in about 30 minutes, with several timestamps only milliseconds apart, which the author interprets as evidence of a race between concurrent writers.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The workaround reported is to disable remote connections, and the proposed fix is atomic temp-file plus rename writes and file locking for the session-state file.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Bug Description, lines 203-205"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Evidence, lines 220-235"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Impact / Expected Behavior / Suggested Fix, lines 236-249"
+          }
+        ],
+        "dedupe_key": "https://github.com/anthropics/claude-code/issues/28965"
+      },
+      {
+        "source_id": "src_iss_edac72dd9b31",
+        "title": "--resume loads hours-old context instead of current session state \u00b7 Issue #26246",
+        "canonical_url": "https://github.com/anthropics/claude-code/issues/26246",
+        "date": "2026-02-16",
+        "authors_or_org": [
+          "anthropics/claude-code"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "checkpoint_resume",
+          "latest_state_reconstruction"
+        ],
+        "failure_mode_tags": [
+          "stale_checkpoint",
+          "missing_recent_tool_calls",
+          "resume_regression"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "local_fs",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Direct stale-checkpoint failure report for resumed sessions.",
+        "reason_included": "Shows authoritative-state lag as a practical resume bug.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "After several hours of work and a forced exit, resuming with claude --resume can load context from a much earlier checkpoint rather than the current session state.",
+            "claim_status": "anecdotal"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The expected resumed state named in the issue includes recent tool calls, file changes, and task progress up to interruption.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Steps to Reproduce / Actual Behavior, lines 207-219"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Expected Behavior, lines 213-216"
+          }
+        ],
+        "dedupe_key": "https://github.com/anthropics/claude-code/issues/26246"
+      },
+      {
+        "source_id": "src_iss_6ba217fff208",
+        "title": "V1 self-hosted: conversation reaches READY and first LLM completion succeeds, but no assistant or action events are persisted \u00b7 Issue #13476",
+        "canonical_url": "https://github.com/OpenHands/OpenHands/issues/13476",
+        "date": "2026-03-18",
+        "authors_or_org": [
+          "OpenHands/OpenHands"
+        ],
+        "source_type": "issue_thread",
+        "artifact_type": "issue",
+        "time_window_status": "primary_window",
+        "exception_reason": null,
+        "bucket_primary": "state_management",
+        "bucket_secondary": [],
+        "decision_targets": [
+          "state",
+          "observability",
+          "recovery"
+        ],
+        "mechanism_tags": [
+          "persisted_event_log",
+          "runtime_status",
+          "conversation_status",
+          "state_update_events"
+        ],
+        "failure_mode_tags": [
+          "event_persistence_gap",
+          "running_without_progress",
+          "post_completion_transition_failure"
+        ],
+        "benchmark_tags": [],
+        "benchmark_contamination_risk": "low",
+        "task_regime": [
+          "terminal_agent",
+          "coding_agent"
+        ],
+        "models_if_named": [],
+        "environment_type": [
+          "docker",
+          "sandboxed_terminal"
+        ],
+        "evidence_scorecard": {
+          "provenance": 4,
+          "mechanistic_detail": 4,
+          "reproducibility": 3,
+          "ecological_validity": 5,
+          "decision_relevance": 4,
+          "recency": 5
+        },
+        "relevance_note": "Captures divergence between runtime state and persisted event log.",
+        "reason_included": "Direct state-machine and event-log failure in a terminal-agent runtime.",
+        "claim_snippets": [
+          {
+            "claim_id": "c1",
+            "claim_text": "In the reported self-hosted deployment, a conversation reaches READY, the first LLM completion succeeds, and the conversation still remains stuck in RUNNING with no assistant, action, or observation events.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c2",
+            "claim_text": "The persisted event log reportedly contains only startup events, the user message, and state update events, with no assistant, action, or observation events afterward.",
+            "claim_status": "measured"
+          },
+          {
+            "claim_id": "c3",
+            "claim_text": "The issue localizes the likely failure boundary to the transition from valid model output to persisted agent or runtime events.",
+            "claim_status": "asserted"
+          }
+        ],
+        "claim_locations": [
+          {
+            "claim_id": "c1",
+            "locator": "Summary / Actual behavior, lines 201-225"
+          },
+          {
+            "claim_id": "c2",
+            "locator": "Observed state, lines 239-251"
+          },
+          {
+            "claim_id": "c3",
+            "locator": "Why this looks important, lines 226-238"
+          }
+        ],
+        "dedupe_key": "https://github.com/OpenHands/OpenHands/issues/13476"
+      }
+    ],
+    "rejections": [
+      {
+        "candidate_title": "Building LangGraph: Designing an Agent Runtime from first principles",
+        "candidate_url": "[https://blog.langchain.com/building-langgraph/](https://blog.langchain.com/building-langgraph/)",
+        "rejection_reason": "Outside the primary window and not needed for exception budget given stronger in-window terminal-agent sources."
+      },
+      {
+        "candidate_title": "Codex Desktop App \u2014 \u201cfailed to resume task\u201d on all sessions after service incident \u00b7 Issue #14396",
+        "candidate_url": "[https://github.com/openai/codex/issues/14396](https://github.com/openai/codex/issues/14396)",
+        "rejection_reason": "Useful symptom report, but weaker mechanism detail than the accepted Codex state-corruption and path-binding issues."
+      },
+      {
+        "candidate_title": "Remote control: app shows stale sessions and does not display currently active session \u00b7 Issue #31487",
+        "candidate_url": "[https://github.com/anthropics/claude-code/issues/31487](https://github.com/anthropics/claude-code/issues/31487)",
+        "rejection_reason": "Overlaps accepted stale-session evidence, but gives less root-cause detail than the sessions-index and .claude.json corruption issues."
+      },
+      {
+        "candidate_title": "\"Failed to resume task\" when trying create \"New Codex Agent\" \u00b7 Issue #11727",
+        "candidate_url": "[https://github.com/openai/codex/issues/11727](https://github.com/openai/codex/issues/11727)",
+        "rejection_reason": "Resume-related symptom is clear, but the thread does not surface a concrete state mechanism."
+      }
+    ]
+  }
+]

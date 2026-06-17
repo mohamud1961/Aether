@@ -1,0 +1,79 @@
+# Mechanism Map Wave 01 Exploratory Anchor: Contradiction Review
+
+CONTRADICTION_REVIEW
+- artifact: `mechanism_map`
+- wave: `wave_01_exploratory_anchor`
+- verdict: `pass_with_warnings`
+- review_scope:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/codebase_source_reconstruction_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/informal_issues_postmortems_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/eval_benchmark_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/trajectory_failure_analyst__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/codebase_source_reconstruction_analyst__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/literature_papers_docs_analyst__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/informal_issues_postmortems_analyst__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/eval_benchmark_analyst__gemini.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md`
+- coverage_used:
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/*.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/outputs/*__gemini.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/inputs/wave_01_launch.md`
+  - `tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md`
+  - `tracking/collab/stage_02_synthesis/adjudication/DEEP_SYNTHESIS_WAVE_AUDIT_CHECKLIST.md`
+- coverage_not_yet_used:
+  - `research/sources/papers/*.pdf`
+  - `research/sources/papers/papers_text/` (not yet populated)
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/codebases/src_cod_*/artifact.zip` full traversal
+  - `research/sources/trajectories/*/extract-moves-from-video/*`
+  - `research/sources/trajectories/*/gpt2-codegolf/*`
+  - `research/sources/informal/*.md` (most)
+  - `research/sources/issues/src_iss_*/` (most)
+  - `research/sources/postmortems/src_pmt_*/` (most)
+  - `research/sources/benchmarks/src_bnm_*/artifact.html`
+- evidence_classes_touched:
+  - trajectories
+  - mirrored codebases
+  - benchmark captures
+  - docs
+  - papers
+  - informal sources
+  - issues
+  - postmortems
+  - relevant local analysis
+  - relevant local harness code
+- priority_sources_not_yet_read:
+  - `research/sources/papers/src_pap_f6aa42bfdc1a/artifact.pdf`
+  - `research/sources/papers/src_pap_c5f42ff16ea3/artifact.pdf`
+  - `research/sources/codebases/quarantine/claw-code/`
+  - `research/sources/trajectories/{BigAI,deepagents,terminus-kira}/extract-moves-from-video/*`
+  - `research/sources/trajectories/{BigAI,deepagents,terminus-kira}/gpt2-codegolf/*`
+  - `research/sources/issues/src_iss_*/`
+- convergences:
+  - `[high]` Wave 01 consistently surfaced terminal realism and explicit interrupt handling as a real mechanism family in the source-backed systems. The strongest evidence is in DeepAgents and KIRA trajectory slices for `headless-terminal`, with Gemini and GPT lanes converging on PTY-backed control, interrupt recovery, and shell hygiene.
+  - `[high]` Verification and completion are not a single mechanism. Across the trajectory and eval lanes, internal verifier-role behavior, external grader artifacts, and final reward/test state are separate layers that must be reconciled before claiming success.
+  - `[high]` Cleanup, restore, and repo-state hygiene behave like first-class completion mechanisms rather than cosmetic polish. The BigAI and DeepAgents slices repeatedly treat cleanup and state preservation as part of task completion.
+  - `[medium]` BigAI shows a planner-executor-verifier family strongly enough at the behavior level to keep as an exploratory anchor, but not strongly enough to promote to source-backed implementation fact.
+  - `[medium]` Formal and informal lanes both reinforce context-management and tool-governance pressure, but this wave did not yet connect those claims to enough paper content or enough source excavation to close the mechanism family cleanly.
+- contradictions_and_pressures:
+  - `[high]` BigAI role separation is behaviorally strong but source-opaque. The docs and trajectories point in the same direction, but the lack of mirrored source means the claim must remain `behavioral reconstruction`.
+  - `[high]` DeepAgents prompt and filesystem-language imply sandboxed execution, but the mirrored source also exposes an unsandboxed `LocalShellBackend`. This is a real policy/implementation tension, not a cosmetic mismatch.
+  - `[high]` Internal verifier success is not equivalent to task success. The eval lane shows cases where an in-trajectory verifier event says `PASSED` while the external grader still assigns `reward=0` and failed tests.
+  - `[medium]` KIRA looks weaker than BigAI on visibly separate verifier structure in this slice, but the evidence does not cleanly separate actual harness weakness from trace rendering style.
+  - `[medium]` Formal literature is overrepresented by docs and underrepresented by actual paper content because the PDF access surface does not exist yet.
+- warnings:
+  - Wave 01 is a strong exploratory anchor, but it is not close to full artifact coverage.
+  - `claw-code` is now first-class source scope but was not excavated in this legacy wave.
+  - The long-tail trajectory families and the bulk informal/issues lanes remain mostly unread.
+  - The paper lane cannot honestly claim substantive paper-content coverage yet.
+  - The wave should update cumulative state and remain visible as legacy anchor history, but it must not be used to declare `mechanism_map` complete.
+- downstream_rule:
+  - Accept this wave as `wave_01_exploratory_anchor`.
+  - Preserve its surviving claims in cumulative artifact state with clear confidence and contradiction labels.
+  - Open `coverage_access` next.
+  - Do not open new `mechanism_map` waves until `coverage_access` Wave 01 and Wave 02 complete.

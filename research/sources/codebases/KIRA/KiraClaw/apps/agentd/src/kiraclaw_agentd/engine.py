@@ -1,0 +1,311 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable
+
+from krim_sdk import Agent, AgentOptions, NullEventHandler
+from krim_sdk.events import Event, EventType
+from krim_sdk.models import ClaudeModel, OpenAIModel, VertexModel
+from krim_sdk.skills import Skill, discover_skills
+from krim_sdk.tools import BashTool, SkillTool, default_tools, default_tools_with_skills
+
+from kiraclaw_agentd.mcp_runtime import McpRuntime
+from kiraclaw_agentd.memory_tools import build_memory_tools
+from kiraclaw_agentd.discord_tools import build_discord_tools
+from kiraclaw_agentd.process_manager import BackgroundProcessManager
+from kiraclaw_agentd.process_tools import build_process_tools
+from kiraclaw_agentd.settings import KiraClawSettings
+from kiraclaw_agentd.slack_tools import build_slack_tools
+from kiraclaw_agentd.speak_tools import build_speak_tools
+from kiraclaw_agentd.system_prompt import build_system_prompt
+from kiraclaw_agentd.telegram_tools import build_telegram_tools
+
+
+@dataclass
+class RunResult:
+    final_response: str
+    streamed_text: str
+    tool_events: list[dict] = field(default_factory=list)
+    spoken_messages: list[str] = field(default_factory=list)
+    trace_events: list[dict] = field(default_factory=list)
+
+    @property
+    def internal_summary(self) -> str:
+        return self.final_response
+
+    @property
+    def public_response_text(self) -> str:
+        spoken = [text.strip() for text in self.spoken_messages if str(text).strip()]
+        if spoken:
+            return "\n\n".join(spoken)
+        return ""
+
+
+class CapturingEventHandler(NullEventHandler):
+    def __init__(self, live_result: RunResult | None = None) -> None:
+        self.stream_chunks: list[str] = []
+        self.tool_events: list[dict] = live_result.tool_events if live_result is not None else []
+        self.trace_events: list[dict] = live_result.trace_events if live_result is not None else []
+        self.summary: str = ""
+        self.model_errors: list[str] = []
+        self.live_result = live_result
+
+    def on_stream(self, text: str) -> None:
+        self.stream_chunks.append(text)
+        if self.live_result is not None:
+            self.live_result.streamed_text += text
+        if self.trace_events and self.trace_events[-1].get("type") == "stream":
+            self.trace_events[-1]["text"] = str(self.trace_events[-1].get("text") or "") + text
+            self.trace_events[-1]["at"] = _event_timestamp()
+        else:
+            self.trace_events.append({"type": "stream", "text": text, "at": _event_timestamp()})
+
+    def on_event(self, event: Event) -> None:
+        if event.type == EventType.MODEL_ERROR:
+            error = event.data.get("error", "unknown model error")
+            self.model_errors.append(error)
+            if self.live_result is not None:
+                self.live_result.final_response = str(error)
+            self.trace_events.append({"type": "error", "error": str(error), "at": _event_timestamp()})
+
+    def on_tool_start(self, name: str, args: dict) -> None:
+        self.tool_events.append({"phase": "start", "name": name, "args": args})
+        self.trace_events.append({"type": "tool_start", "name": name, "args": args, "at": _event_timestamp()})
+
+    def on_tool_end(self, name: str, result: str) -> None:
+        self.tool_events.append({"phase": "end", "name": name, "result": result})
+        self.trace_events.append({"type": "tool_end", "name": name, "result": result, "at": _event_timestamp()})
+
+    def on_submit(self, summary: str) -> None:
+        self.summary = summary
+        if self.live_result is not None:
+            self.live_result.final_response = summary
+        self.trace_events.append({"type": "submit", "text": summary, "at": _event_timestamp()})
+
+
+def create_model(provider: str, model: str | None, max_tokens: int):
+    if provider == "claude":
+        return ClaudeModel(model or "claude-opus-4-6", max_tokens=max_tokens)
+    if provider == "openai":
+        return OpenAIModel(model or "gpt-5.2", max_tokens=max_tokens)
+    if provider == "vertex_ai":
+        return VertexModel(model or "claude-opus-4-6", max_tokens=max_tokens)
+    raise ValueError(f"unknown provider: {provider}")
+
+
+def discover_available_skills(settings: KiraClawSettings) -> dict[str, Skill]:
+    if not settings.skills_enabled:
+        return {}
+
+    return discover_skills(global_dir=settings.workspace_dir, project_dir=None)
+
+
+def list_available_skills(settings: KiraClawSettings) -> list[dict[str, str]]:
+    skills = discover_available_skills(settings)
+    rows: list[dict[str, str]] = []
+    workspace_root = settings.workspace_dir / "skills"
+
+    for key in sorted(skills.keys()):
+        skill = skills[key]
+        skill_path = Path(skill.path)
+        source = "unknown"
+        if skill_path.is_relative_to(workspace_root):
+            source = "workspace"
+        rows.append(
+            {
+                "id": key,
+                "name": skill.name,
+                "description": skill.description,
+                "path": str(skill_path),
+                "source": source,
+            }
+        )
+    return rows
+
+
+def _configure_tools(
+    settings: KiraClawSettings,
+    tool_context: dict[str, object] | None = None,
+):
+    skills = discover_available_skills(settings)
+    skill_rows = list_available_skills(settings)
+    if skills:
+        tools, skill_tool = default_tools_with_skills()
+    else:
+        tools = default_tools()
+        skill_tool = None
+
+    for tool in tools:
+        if isinstance(tool, BashTool):
+            tool.configure(
+                deny_patterns=settings.deny_patterns,
+                allow_commands=settings.allow_commands,
+                ask_by_default=settings.ask_by_default,
+                max_output_chars=settings.max_output_chars,
+                cwd=str(settings.workspace_dir),
+                default_timeout=settings.bash_timeout,
+            )
+
+    if isinstance(skill_tool, SkillTool):
+        skill_tool.configure(skills)
+
+    tools.extend(build_speak_tools(settings, tool_context=tool_context))
+    tools.extend(build_memory_tools(settings, tool_context=tool_context))
+    tools.extend(build_process_tools(settings, tool_context=tool_context))
+    tools.extend(build_slack_tools(settings))
+    tools.extend(build_telegram_tools(settings))
+    tools.extend(build_discord_tools(settings))
+    return tools, skill_rows
+
+
+def _ensure_provider_credentials(settings: KiraClawSettings, provider: str) -> None:
+    if provider == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RuntimeError(
+            "Claude provider is selected but ANTHROPIC_API_KEY is not configured. "
+            "Set it in the environment or ~/.kira/config.env."
+        )
+
+    if provider == "openai" and not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError(
+            "OpenAI provider is selected but OPENAI_API_KEY is not configured. "
+            "Set it in the environment or ~/.kira/config.env."
+        )
+
+    if provider == "vertex_ai":
+        has_credential_file = settings.credential_file is not None and settings.credential_file.exists()
+        has_env_credential = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+        if not has_credential_file and not has_env_credential:
+            raise RuntimeError(
+                "Vertex AI provider is selected but no Google credentials are configured. "
+                "Provide GOOGLE_APPLICATION_CREDENTIALS or ~/.kira/credential.json."
+            )
+
+
+class KiraClawEngine:
+    def __init__(
+        self,
+        settings: KiraClawSettings,
+        *,
+        process_observer: Callable[[str, dict[str, object]], None] | None = None,
+        mcp_observer: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> None:
+        self.settings = settings
+        self.mcp_runtime = McpRuntime(settings, observer=mcp_observer)
+        self.process_manager = BackgroundProcessManager(
+            workspace_dir=settings.workspace_dir,
+            deny_patterns=settings.deny_patterns,
+            allow_commands=settings.allow_commands,
+            ask_by_default=settings.ask_by_default,
+            max_output_chars=settings.max_output_chars,
+            observer=process_observer,
+        )
+
+    async def start(self) -> None:
+        await self.mcp_runtime.start()
+
+    async def stop(self) -> None:
+        self.process_manager.stop_all()
+        await self.mcp_runtime.stop()
+
+    def run(
+        self,
+        prompt: str,
+        provider: str | None = None,
+        model: str | None = None,
+        conversation_context: str | None = None,
+        memory_context: str | None = None,
+        tool_context: dict[str, object] | None = None,
+        live_result: RunResult | None = None,
+    ) -> RunResult:
+        selected_provider = provider or self.settings.provider
+        selected_model = model or self.settings.model
+        _ensure_provider_credentials(self.settings, selected_provider)
+        run_tool_context = dict(tool_context or {})
+        run_tool_context["__process_manager__"] = self.process_manager
+        spoken_messages: list[str] = []
+        run_tool_context["__spoken_messages__"] = spoken_messages
+        if live_result is None:
+            live_result = RunResult(final_response="", streamed_text="", tool_events=[], spoken_messages=spoken_messages)
+        else:
+            live_result.final_response = ""
+            live_result.streamed_text = ""
+            live_result.tool_events.clear()
+            live_result.spoken_messages = spoken_messages
+            live_result.trace_events.clear()
+        tools, skill_rows = _configure_tools(self.settings, tool_context=run_tool_context)
+        tool_names = [tool.name for tool in tools]
+        mcp_tools = list(self.mcp_runtime.tools)
+        mcp_tool_names = [tool.name for tool in mcp_tools]
+        handler = CapturingEventHandler(live_result)
+
+        agent = Agent(
+            model=create_model(
+                selected_provider,
+                selected_model,
+                max_tokens=self.settings.max_tokens,
+            ),
+            provider=selected_provider,
+            system_prompt=build_system_prompt(
+                self.settings.agent_name,
+                tool_names,
+                skill_rows,
+                mcp_tool_names,
+                agent_persona=self.settings.agent_persona,
+            ),
+            tools=tools,
+            mcp_tools=mcp_tools,
+            options=AgentOptions(
+                max_turns=self.settings.max_turns,
+                token_limit=self.settings.token_limit,
+            ),
+            event_handler=handler,
+        )
+        agent.run(_compose_prompt(prompt, conversation_context, memory_context))
+
+        if agent.last_error is not None:
+            raise RuntimeError(str(agent.last_error))
+        if handler.model_errors:
+            raise RuntimeError(handler.model_errors[-1])
+
+        internal_summary = handler.summary or (agent.last_response or "")
+        if not internal_summary and not handler.stream_chunks and not handler.tool_events and not spoken_messages:
+            raise RuntimeError(
+                "Agent run completed without a final response. "
+                "Check provider credentials and model configuration."
+            )
+        live_result.final_response = internal_summary
+        live_result.streamed_text = "".join(handler.stream_chunks)
+        return live_result
+
+
+def _compose_prompt(
+    prompt: str,
+    conversation_context: str | None,
+    memory_context: str | None = None,
+) -> str:
+    if not conversation_context and not memory_context:
+        return prompt
+
+    parts = []
+    if memory_context:
+        parts.append(
+            "You also have relevant long-term memory from local files. "
+            "Use it only when it helps answer the current request."
+        )
+        parts.append(f"<retrieved_memory>\n{memory_context}\n</retrieved_memory>")
+    if conversation_context:
+        parts.append(
+            "You are continuing the same conversation session.\n"
+            "Use the recent conversation transcript below as authoritative context for follow-up questions.\n"
+            "If the answer is present in the transcript, answer from it instead of saying you do not remember."
+        )
+        parts.append(f"<recent_conversation>\n{conversation_context}\n</recent_conversation>")
+    parts.append(f"<current_user_request>\n{prompt}\n</current_user_request>")
+    return "\n\n".join(parts)
+
+
+def _event_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()

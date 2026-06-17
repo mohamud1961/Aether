@@ -1,0 +1,40 @@
+SYNTHESIS_PREP_OUTPUT
+
+- repaired_record_paths:
+  - `research/intake/records/src_pap_173a16ea3283.json`
+  - `research/intake/records/src_pap_23ca74cc215f.json`
+  - `research/intake/records/src_pap_2531fb990b03.json`
+  - `research/intake/records/src_pap_41dd6013eb25.json`
+  - `research/intake/records/src_pap_4c58a9fc09b8.json`
+  - `research/intake/records/src_pap_8c2cb08d2c57.json`
+  - `research/intake/records/src_pap_8ffcaa41e955.json`
+  - `research/intake/records/src_pap_97367f29ebbd.json`
+  - `research/intake/records/src_pap_d4370863a7e0.json`
+- newly_backfilled_source_ids:
+  - `src_pap_173a16ea3283` from `research/sources/papers/src_pap_173a16ea3283/capture.json` for CUBE.
+  - `src_pap_23ca74cc215f` from `research/sources/papers/src_pap_23ca74cc215f/capture.json` for SkillsBench.
+  - `src_pap_2531fb990b03` from `research/sources/papers/src_pap_2531fb990b03/capture.json` for VeRO.
+  - `src_pap_41dd6013eb25` from `research/sources/papers/src_pap_41dd6013eb25/capture.json` for Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions.
+  - `src_pap_4c58a9fc09b8` from `research/sources/papers/src_pap_4c58a9fc09b8/capture.json` for MemoryArena.
+  - `src_pap_8c2cb08d2c57` from `research/sources/papers/src_pap_8c2cb08d2c57/capture.json` for DeepPlanning, backed by the repo-local `2601.18137.pdf`.
+  - `src_pap_97367f29ebbd` from `research/sources/papers/src_pap_97367f29ebbd/capture.json` for AgentLongBench, backed by the repo-local `2601.20730.pdf`.
+  - `src_pap_d4370863a7e0` from `research/sources/papers/src_pap_d4370863a7e0/capture.json` for MCPAgentBench.
+- unchanged_but_reviewed_source_ids:
+  - `src_pap_f6aa42bfdc1a` reviewed as the canonical Terminal-Bench capture via `research/sources/papers/src_pap_f6aa42bfdc1a/capture.json`.
+  - `src_pap_dd4ca3841fb4` reviewed as the duplicate Terminal-Bench capture via `research/sources/papers/src_pap_dd4ca3841fb4/capture.json`.
+- terminal_bench_canonical_choice:
+  - Keep `src_pap_f6aa42bfdc1a` as canonical for synthesis.
+  - Evidence: `research/sources/papers/src_pap_f6aa42bfdc1a/capture.json` and `research/sources/papers/src_pap_dd4ca3841fb4/capture.json` share the same canonical URL (`https://arxiv.org/abs/2601.11868`) and the same `artifact.pdf` hash (`4430e04a507b2442bb7b24a88899b750948fa0a6b3bbc33a8d541d6d4debcc1e`), but `src_pap_f6aa42bfdc1a` already anchors `research/intake/records/src_pap_f6aa42bfdc1a.json` and records `capture_quality: full_pdf`.
+- terminal_bench_duplicate_handling:
+  - Quarantined `src_pap_dd4ca3841fb4` for synthesis-only duplicate handling in `research/intake/rejected/2026-04-01__synthesis_duplicate_quarantine.json`.
+  - No accepted blocked-exception promotion was needed and no accepted-source membership change was made for the duplicate id.
+- manifest_changes:
+  - `research/intake/normalized/manifests/evals_benchmarking__accepted.json`: run date advanced to `2026-04-01`; accepted ids increased from 29 to 37 by adding `src_pap_173a16ea3283`, `src_pap_23ca74cc215f`, `src_pap_2531fb990b03`, `src_pap_41dd6013eb25`, `src_pap_4c58a9fc09b8`, `src_pap_8c2cb08d2c57`, `src_pap_97367f29ebbd`, and `src_pap_d4370863a7e0`.
+  - `research/intake/normalized/manifests/corpus__deduped.json`: run date advanced to `2026-04-01`; accepted ids increased from 280 to 288 with the same eight source ids.
+  - `research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json`: counts updated from `accepted_source_count: 280` / `captured_source_count: 239` to `288` / `247`, and the same eight source ids were added to `captured_source_ids`.
+- unresolved_eval_metadata_gaps:
+  - No blocking gaps remain for the explicit target families in this repair pass.
+  - `src_pap_8c2cb08d2c57` and `src_pap_97367f29ebbd` were backfilled conservatively from repo-local PDFs plus embedded metadata only, so their intake records intentionally avoid unsupported abstract-level claims beyond title, date, authors, and linked project provenance.
+  - `src_pap_8ffcaa41e955` is now corrected to LOCA-bench, but any deeper mechanism tagging beyond the local capture title and embedded repository link should wait for a later evidence expansion pass rather than being inferred here.
+- recommended_next_hand_off_target:
+  - Hand off to the Stage 2A eval synthesis lead or principal project steward to start first-wave synthesis against the repaired eval intake layer and the frozen local corpus.

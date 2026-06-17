@@ -1,0 +1,1634 @@
+--- PAGE 1 ---
+Enhancing Rotation-Invariant 3D Learning with Global Pose Awareness and
+Attention Mechanisms
+Jiaxun Guo1, Manar Amayri1, Nizar Bouguila1, Xin Liu2, Wentao Fan3 *
+1CIISE, Concordia University, Montreal, Canada
+2Department of Computer Science and Technology, Huaqiao University, Xiamen, China
+3Guangdong Provincial/Zhuhai Key Laboratory IRADS and Department of Computer Science, Beijing Normal-Hong Kong
+Baptist University, Zhuhai, China
+jiaxun.guo@mail.concordia.ca,{manar.amayri, nizar.bouguila}@concordia.ca, xliu@hqu.edu.cn, wentaofan@bnbu.edu.cn
+Abstract
+Recent advances in rotation-invariant (RI) learning for 3D
+point clouds typically replace raw coordinates with hand-
+crafted RI features to ensure robustness under arbitrary ro-
+tations. However, these approaches often suffer from the loss
+of global pose information, making them incapable of dis-
+tinguishing geometrically similar but spatially distinct struc-
+tures. We identify that this limitation stems from the restricted
+receptive field in existing RI methods, leading toWing–tip
+feature collapse, a failure to differentiate symmetric com-
+ponents (e.g., left and right airplane wings) due to indistin-
+guishable local geometries. To overcome this challenge, we
+introduce the Shadow-informed Pose Feature (SiPF), which
+augments local RI descriptors with a globally consistent ref-
+erence point (referred to as the “shadow”) derived from a
+learned shared rotation. This mechanism enables the model
+to preserve global pose awareness while maintaining rotation
+invariance. We further propose Rotation-invariant Attention
+Convolution (RIAttnConv), an attention-based operator that
+integrates SiPFs into the feature aggregation process, thereby
+enhancing the model’s capacity to distinguish structurally
+similar components. Additionally, we design a task-adaptive
+shadow locating module based on the Bingham distribution
+over unit quaternions, which dynamically learns the optimal
+global rotation for constructing consistent shadows. Exten-
+sive experiments on 3D classification and part segmentation
+benchmarks demonstrate that our approach substantially out-
+performs existing RI methods, particularly in tasks requiring
+fine-grained spatial discrimination under arbitrary rotations.
+Code— https://github.com/jiaxunguo/EnRI-GAM
+Introduction
+The rapid advancement of 3D sensing technologies has led
+to the widespread adoption of point cloud data in various
+3D computer vision tasks, including shape classification,
+part segmentation, and object recognition (Guo et al. 2020;
+Afham et al. 2022; Duan et al. 2023; Jin et al. 2023). While
+recent learning-based models (Qi et al. 2017b; Wang et al.
+2019; Liu et al. 2019) have achieved notable success on pre-
+aligned datasets, their generalization to real-world scenar-
+ios remains limited. A common and often unrealistic as-
+*Corresponding author.
+Copyright © 2026, Association for the Advancement of Artificial
+Intelligence (www.aaai.org). All rights reserved.
+Figure 1: Illustration of pose ambiguity caused by symmet-
+ric local structures. Traditional Point Pair Features (PPF)
+capture only local geometric relationships and thus yield
+identical representations for symmetric regions with similar
+local geometry (e.g., left and right wing tips). In contrast, the
+proposed SiPF incorporates global pose awareness by intro-
+ducing a ‘shadow’ reference point derived from a shared ro-
+tation matrixR g to incorporate pose-aware context, enabling
+consistent and discriminative RI representations across arbi-
+trary orientations.
+sumption in these models is that input objects are consis-
+tently aligned in a canonical orientation. However, in prac-
+tical applications such as autonomous driving, robotics, and
+augmented reality, 3D objects naturally appear under arbi-
+trary rotations. Models that lack truerotation-invariant(RI)
+capabilities experience substantial performance degrada-
+tion when confronted with such orientation variations, even
+when extensively trained with rotation-augmented data. This
+limitation fundamentally restricts the deployment of point
+cloud models in unconstrained environments.
+To overcome this issue, a growing body of research has
+focused on designing RI models by replacing raw 3D coor-
+dinates with handcrafted or learned geometric features that
+are invariant to global rotations (Xu et al. 2021; Gu et al.
+2022; Li et al. 2021b). These approaches demonstrate im-
+proved robustness to orientation changes by leveraging local
+descriptors such as point pair features or RI tensors. How-
+ever, a critical drawback remains: by discarding absolute co-
+ordinate information, these methods also lose global pose
+context, which is essential for differentiating spatially dis-
+tinct but geometrically similar regions. For instance, in the
+arXiv:2511.08833v1  [cs.CV]  11 Nov 2025
+
+--- PAGE 2 ---
+case of an airplane model, symmetric components such as
+the left and right wings may be indistinguishable when only
+local geometry is considered—regardless of rotation invari-
+ance. This leads to what we refer to as thewing-tip feature
+collapsephenomenon. Recent attempts to mitigate this is-
+sue involve expanding the receptive field and incorporating
+pairwise relationships within local neighbourhoods to cap-
+ture broader context while maintaining RI properties (Chen
+and Cong 2022; Zhang, Yang, and Xiang 2024). Despite
+these advances, existing methods still struggle with struc-
+tural ambiguity in repetitive or symmetric components, pri-
+marily due to their limited capacity to encode spatial distinc-
+tiveness without access to a consistent global reference.
+We argue that the inherent limitation of the receptive field
+in current RI methods is a fundamental bottleneck. Specif-
+ically, for geometrically similar regions, such as opposing
+airplane wings, the local features (even aggregated from
+larger neighbourhoods) lack the discriminative information
+necessary to encode their distinct global poses. As shown in
+Figure 1, conventional RI descriptors fail to preserve relative
+global positioning, resulting in ambiguous representations
+that impede fine-grained recognition tasks like part segmen-
+tation. Furthermore, these limitations explain the suboptimal
+performance of many RI pipelines, which focus on preserv-
+ing local geometric consistency but neglect global relational
+cues critical for downstream tasks.
+To address these challenges, in this work we propose a
+novel feature representation termedShadow-informed Pose
+Feature(SiPF) that augments local RI features with global
+pose cues while preserving rotation invariance. Inspired by
+the classical point pair feature (PPF) (Drost et al. 2010),
+SiPF introduces a globally consistent shadow reference
+for each point, derived via a learned shared rotation. This
+“shadow” serves as an anchor point for encoding relative
+position in a globally consistent manner. Specifically, we in-
+troduce a task-adaptive shadow locating module that esti-
+mates a shared optimal rotation via the Bingham distribution
+over unit quaternions. Using the learned rotation, each point
+is paired with its shadow to construct SiPF descriptors that
+retain local geometric relations while incorporating global
+spatial awareness. We further design a novel attention-based
+operator, termedRotation-invariant Attention Convolution
+(RIAttnConv), that integrates SiPF into a cross-attention
+mechanism fused with convolutional operations. This de-
+sign enables dynamic aggregation of spatially-aware fea-
+tures, thereby improving the model’s ability to distinguish
+structurally similar but spatially distinct components. We
+validate our method on multiple benchmark datasets across
+classification and part segmentation tasks. Experimental re-
+sults demonstrate that our framework consistently outper-
+forms state-of-the-art RI methods, particularly in challeng-
+ing settings that require fine-grained spatial discrimination
+under arbitrary orientations.
+Our main contributions are summarized as follows:
+• We identify the restricted receptive field as a key limita-
+tion in current RI methods and address it by introducing
+the SiPF, which incorporates global pose context while
+maintaining rotation invariance.
+• We develop RIAttnConv, a novel convolutional module
+that integrates SiPF through an attention-augmented fea-
+ture aggregation strategy, significantly enhancing the dis-
+criminative capacity of RI representations.
+• We design a task-adaptive shadow locating module that
+learns a globally consistent reference rotation using the
+Bingham distribution over unit quaternions, enabling dy-
+namic and robust shadow construction.
+Related Works
+Rotation-Sensitive 3D Point Cloud Analysis
+PointNet (Qi et al. 2017a) is a pioneering work in point
+cloud analysis, introducing a straightforward yet effective
+framework for directly processing raw 3D point sets in tasks
+such as classification and segmentation. To address its limi-
+tations in capturing local geometric structures, PointNet++
+(Qi et al. 2017b) extends this architecture with hierarchi-
+cal feature learning over local neighbourhoods. Subsequent
+works, such as PointCNN (Li et al. 2018) and DGCNN
+(Wang et al. 2019), further enhance local context modeling
+through specialized convolutional and dynamic graph-based
+operations, respectively. Despite these advances, a shared
+limitation among these approaches is their sensitivity to in-
+put orientation. Because they operate directly on absolute
+coordinates, their performance tends to degrade significantly
+when encountering arbitrarily rotated inputs, which limits
+their applicability in real-world scenarios.
+Rotation-Robust Methods
+To mitigate the sensitivity to rotations, early approaches
+utilize principal component analysis (PCA) to align input
+point clouds to a canonical orientation. For instance, Li et
+al. (Li et al. 2021a) address pose ambiguity through hybrid
+canonicalization strategies. However, such methods often
+rely heavily on data augmentation or heuristic approxima-
+tions, failing to achieve true rotation invariance. An alterna-
+tive direction involves equivariant neural networks that en-
+code predictable transformations of features under rotations
+via structured linear mappings (Deng et al. 2021; Poule-
+nard and Guibas 2021; Fuchs et al. 2020). These models
+preserve pose information while improving rotation robust-
+ness. Nonetheless, maintaining equivariance typically im-
+poses strict architectural constraints, such as enforcing lin-
+ear compositions in encoders (Deng et al. 2021; Jing et al.
+2020), which can limit model expressiveness and hinder
+learning capacity. Recently, constructing RI features within
+local neighbourhoods has emerged as a prevalent strategy.
+Most of these methods employ handcrafted features derived
+from geometric priors such as pairwise distances and inter-
+point angles (Li et al. 2021b; Xu et al. 2021). For instance,
+RI-CNN (Zhang et al. 2019) and PaRI-Conv (Chen and
+Cong 2022) design 4D and 8D local descriptors, respec-
+tively, to enhance geometric encoding. However, these de-
+signs often sacrifice global contextual information, thereby
+constraining their ability to capture complex spatial seman-
+tics (Zhang et al. 2019). To alleviate this drawback, sev-
+eral methods have attempted to expand the receptive field
+or increase connectivity. ClusterNet (Chen et al. 2019), for
+
+--- PAGE 3 ---
+example, constructs a densely connectedkNN graph (with
+k= 80) to retain richer relational information. LocoTrans
+(Chen et al. 2024) enhances local RI features by leveraging
+representations derived from an equivariant backbone.
+Recent advances such as RIGA (Yu et al. 2024), and
+rotation-invariant transformers (Yu et al. 2023) show that
+incorporating global context or attention is beneficial for
+rotation-robust point matching. Attention-based sampling
+strategies (Wu et al. 2023, 2025) further highlight the impor-
+tance of globally informed feature construction. Building on
+these insights, our approach explicitly integrates global pose
+information with local geometric encoding, yielding more
+expressive RI representations and consistently strong perfor-
+mance across rotation-robust benchmarks.
+Problem Definition and Background
+Rotation-Invariant Functions.Let a point cloud be de-
+noted byP={p 1, . . . , pN } ∈R N×3 and letR∈SO(3)
+represents an arbitrary 3D rotation matrix. The rotated point
+cloud is thusP R =P R. A functionΦis RI if and only if:
+Φ(PR) = Φ(P),∀R∈SO(3).(1)
+Receptive Field in 3D Point Cloud Convolutions.Given
+a point cloudP= [p 1, . . . , pN]∈R N×3 with associated
+input featuresX= [x 1, . . . , xN]∈R N×c in, consider a ref-
+erence pointp r with its local neighbourhood denoted by
+N(p r). The output feature atp r, written as part ofX ′ =
+[x′
+1, . . . , x′
+N]∈R N×c out, is typically obtained by aggregating
+transformed features of its neighbours:
+f(p r) =
+^
+j∈N(p r)
+W r
+j ·h
+ 
+pj
+
+.(2)
+whereh:R 3 →R c is a nonlinear point-encoding function,
+W r
+j denotes the learnable dynamic kernel weight associated
+with the pair(p r, pj), andV represents an aggregation op-
+erator such as MAX, SUM, or A VG.
+Let the local patch around pointp j be defined asΩ(p j) =
+{pk |k∈ N(p j)}. Sincehmay also depend on the neigh-
+bourhood ofp j, the effective receptive field atp r becomes
+the union of its neighbours’ patches:
+Γ(pr) =
+[
+j∈N(p r)
+Ω(pj).(3)
+To make the dependence on the receptive field explicit,
+Equation 2 can be reformulated as:
+f(p r|Γ(pr)) =
+^
+j∈N(p r)
+W r
+j ·h
+ 
+pj|Ω(pj)
+
+.(4)
+Limitations of the Receptive Field in Existing RI Meth-
+ods.Consider an airplane point cloud and letp left, pright ∈
+Pbe the two wing-tip points. Due to their geometric sym-
+metry, there exists a rotationR sym ∈SO(3)such that:
+Ω(pright) = Ω(pleft)R sym.(5)
+Patch–Swapping Transformation.For any reference point
+pr with neighbourhoodN(p r), we define a transformation
+on the receptive field as:
+T
+ 
+Γ(pr)
+
+=
+[
+j∈N(p r)
+Ω(pj)R j,(6)
+where eachR j ∈SO(3)maps the local patchΩ(p j)to its
+geometrically equivalent counterpart (e.g.R sym swaps the
+left and right wing-tip patches). Applying Equation 4 to the
+transformed data yields:
+f
+ 
+pr
+ T(Γ(p r))
+
+=
+^
+j∈N(p r)
+W r
+j ·h
+ 
+pj
+ Ω(pj)Rj
+
+.(7)
+Sincehis rotation-invariant by definition (Equation 1), we
+haveh(p j |Ω(p j)Rj) =h(p j |Ω(p j)). Therefore, Equa-
+tions 4 and 7 are equivalent, leading to:
+f
+ 
+pr
+ Γ(pr)
+
+=f
+ 
+pr
+ T(Γ(p r))
+
+.(8)
+Wing-Tip Feature Collapse.By settingp r =p left and
+choosingTto swap the left and right wing-tip patches,
+Equation (8) simplifies to:f(p left) =f(p right). This result
+implies that the network assigns identical features to sym-
+metric yet globally opposite regions. As a consequence, cru-
+cial pose information (e.g. distinction between left and right)
+is lost, introducing ambiguity in downstream tasks and lim-
+iting the discriminative power of the learned representations.
+The Proposed Method
+To address the global pose ambiguity that arises among ge-
+ometrically equivalent local patches, we propose a novel RI
+point descriptor, termed SiPF. It augments each point with
+a global pose-aware reference, known as theshadow, ob-
+tained by applying a shared rotation to the entire point cloud.
+This augmentation allows local patches to encode relative
+pose information without compromising rotation invariance,
+thereby enabling the network to distinguish globally distinct
+yet locally similar structures.
+Building upon SiPF, we further introduce RIAttnConv,
+a rotation-invariant convolutional operator that incorporates
+shadow-informed relative pose information into the feature
+aggregation process. Specifically, for a given reference point
+pr, the output feature is computed as:
+x′
+r =
+^
+j∈N(p r)
+Attn
+ 
+{W(P j
+r)·x j}k
+j=1
+
+,(9)
+whereP j
+r encodes the relative pose among the reference
+pointp r, its shadowp ′
+r, and neighbourp j. The kernel weight
+W r
+j adapts dynamically to the global context introduced by
+p′
+r, allowing the model to distinguish symmetric structures
+based on their global orientation. As a result,W r
+j in Equa-
+tions (4) and (7) varies under local patch rotations, enabling
+the attention moduleAttn(·)to differentiate identical local
+geometries in distinct global poses while preserving over-
+all rotation invariance. The full architectural pipeline of our
+method is illustrated in Figure 2.
+Shadow-Informed Pose Feature
+LRF Construction.Local Reference Frame (LRF) is a
+fundamental component for constructing RI representations.
+While the encoding on the relative poseP j
+r between point
+pairs, the LRFL r serves as a local coordinate system in-
+dependently constructed at each pointp r ∈P. Formally,
+Lr = [∂ 1
+r , ∂2
+r , ∂3
+r]∈R 3×3 consisting of three orthonormal
+
+--- PAGE 4 ---
+Figure 2: Overview of the proposed SiPF and RIAttnConv pipeline. Our framework consists of three main components: (1) Task-
+adaptive Shadow Locating estimates a globally consistent reference rotationR g by modeling unit quaternions with a Bingham
+distribution, generating ‘shadow’ points for each input; (2) SiPF and Input Feature Extraction constructs LRFs{L j}k
+j=1 and
+computes SiPFsP r by combining local geometric descriptors with global shadow-based pose differences; (3) RIAttnConv
+embeds SiPFs to produce adaptive kernel weightsW r, which are used in a RI attention block to guide feature aggregation. A
+reversed EdgeConv module then fuses neighbourhood and center featuresx r to produce the final outputx ′
+r.
+basis vectors, typically derived from two direction vectors
+e1
+r, e2
+r via Gram–Schmidt orthonormalization:
+∂1
+r =e 1
+r, ∂ 3
+r = ∂1
+r ×e 2
+r
+∥∂1r ×e 2r∥ , ∂ 2
+r =∂ 3
+r ×∂ 1
+r .(10)
+Recent works (Chen and Cong 2022; Zhang, Yang, and
+Xiang 2024) adopted a robust and purely local LRF con-
+struction strategy, wherein the vector from the barycenter of
+point neighbours to the point itself defines one axis. Specif-
+ically, the barycenter is computed asm r = 1
+k
+Pk
+j=1 pr
+j,
+wherep r
+j are thek-nearest neighbours ofp r, and the axise 2
+r
+is defined as − − − →prmr =m r −p r. In this work, we adopt this
+LRF construction strategy based on local geometry (e 1
+r =
+nr, e2
+r = − − − →prmr) as input featuresXto ensure essential ro-
+bustness and consistency in real-world point clouds.
+SiPF Extraction.To describe the relative pose between the
+LRFs of a reference pointpr and its neighbourp j, we design
+our RI feature based on the standard Point Pair Feature (PPF)
+(Drost et al. 2010), a 4D vector constructed from the relative
+position and the primary LRF axes∂ 1
+r ,∂ 1
+j of the two points:
+PPF(pr, pj) = (∥d∥2,cos(α 1),cos(α 2),cos(α 3)),
+α1 =∠(∂ 1
+r ,d), α 2 =∠(∂ 1
+j , d), α 3 =∠(∂ 1
+r , ∂1
+j ),
+(11)
+whered=p j −p r and∠(·,·)denotes the angle between
+two vectors. While PPF is sufficient to represent the pair-
+wise pose, it becomes ambiguous in the context of multiple
+neighbours. As shown in prior works (Deng, Birdal, and Ilic
+2018; Chen and Cong 2022), for two neighboursp j andp ′
+j
+with identical normals and equal distances top r, if both lie
+on a circle around the axis∂ 1
+r , their PPF values with respect
+top r will be identical, i.e., PPF(p r, pj) =PPF(p r, p′
+j), de-
+spite having distinct spatial arrangements.
+To resolve this ambiguity and incorporate global pose
+awareness, we introduce theshadowpointp ′
+r ofp r, derived
+from a shared global rotation. We then define theShadow-
+informed Point Pair Feature(SiPPF) as:
+SiPPF(pr, p′
+r, pj) = PPF(pr, p′
+r)−PPF(p j, p′
+r)
+∥PPF(pr, p′r)−PPF(p j, p′r)∥2
+,(12)
+where PPF(pr, p′
+r)and PPF(p j, p′
+r)encode the relative ge-
+ometry between each point and the shadow. We normalize
+the difference using theℓ 2-norm to emphasize the pose dif-
+ference ofp j under the shared global reference.
+Finally, we concatenate the local geometric encoding
+with the global-aware difference to obtain our 8DShadow-
+informed Pose Feature(SiPF):
+P j
+r = (PPF(pr, pj),SiPPF(p r, p′
+r, pj))∈R 8.(13)
+Task-Adaptive Shadow Locating.As previously dis-
+cussed, a shared global rotation is applied to generate the
+shadow pointp ′
+r, which serves as a consistent reference for
+global-relative feature extraction. However, in certain geo-
+metric configurations, the shadow may fail to enhance the
+discriminability of local features due to inherent ambigui-
+ties. Two representative failure cases are outlined below:
+(1) When the shadowp ′
+r lies along the primary LRF axis∂ 1
+r ,
+and the primary axes∂ 1
+r and∂ 1
+r′ coincide, the SiPF de-
+generates to standard PPF due to unresolved degrees of
+freedom ofp j.
+
+--- PAGE 5 ---
+(2) If the global rotation coincides with the local rotation
+pathR j used in Equation 6, the resulting SiPF only can-
+cels the internal degrees of freedom ofpj, but fails to dis-
+tinguish the receptive fieldΩ(p j)from its rotated variant
+Ω(pj)Rj.
+These cases highlight the necessity of a task-adaptive,
+ambiguity-resilient global rotation strategy. To account for
+the ambiguity in selectingR g over the entire dataset, we
+model the uncertainty using aBingham distributionon the
+hypersphereS 3 of unit quaternions (Bingham 1974). Letq
+represent candidate quaternions corresponding to potential
+global rotations. The Bingham probability density function
+is defined as:
+B(q|V,Λ) = 1
+F(Λ) exp
+ 
+q⊤VΛV⊤q
+
+,(14)
+whereV∈R 4×4 is an orthogonal matrix, andΛ=
+diag(λ1, λ2, λ3,0)is a diagonal matrix withλ 1 ≤λ 2 ≤
+λ3 <0. The matrixVdefines the mode and dispersion axes,
+whileΛcontrols the strength of dispersion along these axes.
+F(Λ)is the normalization constant. To connectR g with the
+learned mode of the Bingham distribution, we extract the
+mode vector inVas the optimal global rotation candidate
+for generatingp ′
+r =p rRg at each iteration.
+To ensure that the selected global rotation aligns with the
+task-specific objectives, we embed the optimization ofR g
+into the end-to-end training. Specifically, we jointly opti-
+mize the rotation with network parameters by minimizing
+a composite loss that integrates both the task objective and
+the probabilistic alignment with the Bingham distribution:
+Ltotal =L task +δ·
+q
+(Lbingham −0.1· L task)2,(15)
+whereL bingham denotes the negative log-likelihood of the
+Bingham distribution evaluated at the quaternionq=
+Quat(Rg), andδis a balancing hyperparameter, empirically
+set to 0.8. The subtraction term encourages to maintain con-
+sistency between the uncertainty captured by the Bingham
+model and the alignment needs of the downstream task.
+The RIAttnConv Operator
+To enhance RI feature learning, we propose the RIAttnConv
+operator. Unlike prior approaches that rely only on relative
+pose for determining kernel weights, RIAttnConv employs
+an attention mechanism that adaptively weights neighbour
+features based on both geometric cues and feature similarity.
+This design enables the model to capture broader contextual
+dependencies while facilitating effective aggregation.
+RI Attention.Given a reference featurex r ∈R cin and
+itsk-nearest neighbouring features{x j}k
+j=1, we define the
+stacked neighbour feature matrix asX r = [x1, . . . , xk]⊤ ∈
+Rk×cin. Similarly, the corresponding SiPF descriptors are
+stacked asP r = [P 1
+r , . . . ,P k
+r ]⊤ ∈R k×8. RIAttnConv con-
+structs a scaled dot-product attention mechanism using both
+Xr andP r:
+Attention(Q, K, V) =Softmax
+ QK ⊤
+√cin
+
+V,
+Q=W r, K=X r, V=W r ·X r,
+(16)
+whereW r = [W r
+1 , . . . , Wr
+k ]⊤ ∈R k×cin, andW r
+j =
+M(P j
+r)asW(P j
+r)in Equation (9).Mis a Multi-layer Per-
+ceptron (MLP) that maps the relative poseP j
+r into the re-
+spective dimension.
+This design enables the Softmax(·)in Equation (16) to
+produce ak×kattention matrix over thek-nearest neigh-
+bours, enhancing contextual sensitivity. Compared to prior
+methods (Chen and Cong 2022; Zhou et al. 2021), this
+formulation offers a favourable trade-off between compu-
+tational complexity and expressive power. A detailed effi-
+ciency analysis is provided in ablation study (see Table 5).
+Reversed EdgeConv.To retain the feature information of
+the reference pointx r, we propose a reversed variant of
+EdgeConv (Wang et al. 2019), where neighbour features are
+first aggregated and then fused with the reference feature.
+Specifically, given the attention mechanism, we compute:
+Attn
+ 
+{W(P j
+r)·x j}k
+j=1
+
+=Attention(Q, K, V),
+ˆxr =MAX j∈N(p r)Attn
+ 
+{W(P j
+r)·x j}k
+j=1
+
+,
+(17)
+whereAttnis the output from the RI attention module de-
+fined in Equation (16). Then, the updated featurex ′
+r is ob-
+tained by fusingˆxr and the original reference featurex r as:
+x′
+r =g((ˆxr −x r)⊕x r),(18)
+whereg(·)denotes a one-layer MLP and⊕represents fea-
+ture concatenation.
+Network Architecture
+To validate the generalizability and effectiveness of the pro-
+posed RIAttnConv operator, we integrate it into two rep-
+resentative backbone architectures widely adopted in point
+cloud learning: DGCNN (Wang et al. 2019) for classifica-
+tion, and AdaptConv (Zhou et al. 2021) for segmentation.
+Shape Classification.We adopt the DGCNN backbone and
+replace all EdgeConv layers with RIAttnConv. Thek-nearest
+neighbour graph is constructed in Euclidean space at each
+feature layer, withk= 20as the neighbourhood size.
+Shape Part Segmentation.For part segmentation, we fol-
+low the AdaptConv-based design. Specifically, we stack four
+RIAttnConv layers followed by a graph convolution layer.
+Three intermediate pooling stages are inserted to progres-
+sively enlarge the receptive field. Thek-nearest neighbour
+graph is constructed withk= 40for all layers, using Eu-
+clidean distance in feature space.
+Experiments
+We evaluate our method on three benchmarks: ModelNet40
+(Wu et al. 2015) for shape classification, ShapeNetPart (Yi
+et al. 2016) for part segmentation, and ScanObjectNN (Uy
+et al. 2019) for real-world classification. To assess rotation
+invariance, we adopt three standard train/test protocols: z/z,
+z/SO(3), and SO(3)/SO(3), where z and SO(3) represent
+vertical and arbitrary rotations. For fair comparison, RIAt-
+tnConv is integrated into standard backbones without addi-
+tional modifications. Extensive ablation studies further vali-
+date the contribution of each component, with more results
+provided in the supplementary material.
+
+--- PAGE 6 ---
+Methods Inputs z/z z/SO(3) SO(3)/SO(3)
+Rotation-sensitive
+PointNet (Qi et al. 2017a) pc 89.2 16.2 75.5
+PointNet++ (Qi et al. 2017b) pc+n 89.3 28.6 85.0
+PointCNN (Li et al. 2018) pc 92.2 41.2 84.5
+DGCNN (Wang et al. 2019) pc 92.2 20.6 81.1
+Rotation-robust
+RIConv (Zhang et al. 2019) pc 86.5 86.4 86.4
+ClusterNet (Chen et al. 2019) pc 87.1 87.1 87.1
+RI-GCN (Kim, Park, and Han 2020) pc+n 91.0 91.0 91.0
+VN-DGCNN (Deng et al. 2021) pc 89.5 89.5 90.2
+SGMNet (Xu et al. 2021) pc 90.0 90.0 90.0
+OrientedMP (Luo et al. 2022) pc+n 88.4 88.4 88.4
+ELGANet (Gu et al. 2022) pc 90.3 90.3 90.3
+PaRot (Zhang et al. 2023) pc 90.9 91.0 90.8
+TetraSphere (Melnyk et al. 2024) pc 90.5 90.5 90.3
+Ours pc91.8 91.8 91.8
+Ours pc+n92.6 92.6 92.6
+Table 1: Shape classification accuracy (%) on ModelNet40
+dataset. ’pc’ and ’n’ represent the 3D coordinates and nor-
+mal vectors of input data, respectively.
+Methods z/SO(3) SO(3)/SO(3)
+Input pc only
+PointNet (Qi et al. 2017a) 16.7 54.7
+PointNet++ (Qi et al. 2017b) 15.0 47.4
+PointCNN (Li et al. 2018) 14.6 63.7
+DGCNN (Wang et al. 2019) 17.7 71.8
+RIConv (Zhang et al. 2019) 75.3 75.5
+RI-GCN (Kim, Park, and Han 2020) 80.5 80.6
+VN-DGCNN (Deng et al. 2021) 79.8 80.3
+OrientedMP (Luo et al. 2022) 76.7 77.2
+LGR-Net (Zhao et al. 2022) 81.2 81.4
+PaRI-Conv (Chen and Cong 2022) 83.3 83.3
+PaRot (Zhang et al. 2023) 82.1 82.6
+Ours84.0 84.0
+Table 2: Real-world classification accuracy (%) on ScanOb-
+jectNN OBJ BG dataset.
+Implementation Details
+We use stochastic gradient descent (SGD) with an initial
+learning rate of 0.1, decayed to 0.001 via cosine annealing
+(Loshchilov and Hutter 2016). Models are trained for 300
+epochs with a batch size of 32 for classification and 16 for
+segmentation. A dropout rate of 0.5 is applied to fully con-
+nected layers.
+To ensure rotation-invariant input representations, we ini-
+tialize a point-wise descriptor for each pointp i based on its
+relative position to the global centroidO(Cohen et al. 2018),
+including∥ − − →Opi∥2,sin(∠(∂ 1
+i , − − →Opi)), andcos(∠(∂ 1
+i , − − →Opi)),
+where∂ 1
+i is the local reference axis. By default, we use sur-
+face normals as∂ 1
+i (denoted as pc+normal). For methods
+using only coordinates, we replace∂ 1
+i with the vector − − − →prmr,
+from the barycenter to the point.
+3D Shape Classification
+Dataset.We evaluate our method on the widely used Mod-
+elNet40 (Wu et al. 2015) benchmark, which contains 12,311
+CAD models from 40 categories, with 9,843 samples for
+training and 2,468 for testing. Following (Qi et al. 2017a),
+we randomly sample 1,024 points for each object and aug-
+ment the training data with random scaling and translation.
+Results.Table 1 reports classification accuracy under three
+Method Input
+z/SO(3) SO(3)/SO(3)
+C. mIoU I. mIoU C. mIoU I. mIoU
+PointNet (Qi et al. 2017a) pc 37.8 - 74.4 -
+PointNet++ (Qi et al. 2017b) pc 48.2 - 76.7 -
+DGCNN (Wang et al. 2019) pc 37.4 - 73.3 -
+RI-CNN (Zhang et al. 2019) pc 75.3 - 75.5 -
+RI-GCN (Kim, Park, and Han 2020) pc+n 77.2 - 77.3 -
+VN-DGCNN (Deng et al. 2021) pc - 81.4 - 81.4
+LGR-Net (Zhao et al. 2022) pc+n - - - 82.8
+PaRI-Conv (Chen and Cong 2022) pc+n - 84.6 - 84.6
+CRIN (Lou et al. 2023) pc 80.5 - 80.5 -
+PaRot (Zhang et al. 2023) pc 79.2 - 79.5 -
+RI-PCR (Yu, Zhang, and Cai 2023) pc - 80.3 - 80.4
+LocoTrans (Chen et al. 2024) pc 80.1 84.0 80.0 83.8
+TetraSphere (Melnyk et al. 2024) pc - 82.3 - 82.3
+RISurConv (Zhang, Yang, and Xiang 2024) pc+n 81.5 - 81.5 -
+Ourspc81.7 84.4 82.4 85.1
+Ourspc+n82.9 85.0 83.8 85.5
+Table 3: Part segmentation results on ShapeNetPart dataset.
+‘C. mIoU’ stands for mIoU (%) over all classes while ‘I.
+mIoU’ denotes mIoU over all instances.
+rotation protocols: z/z, z/SO(3), and SO(3)/SO(3). While
+rotation-sensitive methods (e.g., PointCNN, DGCNN) per-
+form well under aligned conditions, their accuracy drops
+sharply (up to 70%) under unseen rotations. In contrast, RI
+methods exhibit stable performance across settings but of-
+ten suffer from limited expressiveness without normals; for
+instance, RIConv and ClusterNet achieve only 86–87% ac-
+curacy in such cases.
+Our proposed RIAttnConv achieves 91.8% accuracy us-
+ing only point coordinates, surpassing several normal-
+dependent methods such as OrientedMP (88.4%) and RI-
+GCN (91.0%). With surface normals, performance further
+improves to 92.6%, yielding a 1.6% gain over RI-GCN
+and outperforming recent approaches including TetraSphere
+and PaRot. These results highlight the effectiveness of our
+attention-based design in learning pose-aware yet rotation-
+invariant features.
+Real-World Shape Classification
+Dataset.We further evaluate our method on the ScanOb-
+jectNN dataset (Uy et al. 2019), a real-world benchmark
+comprising 2,902 objects from 15 categories captured in
+cluttered and noisy environments. Following standard proto-
+col, we use the OBJ BG subset, consisting of 2,890 samples
+with 2,312 for training and 578 for testing. As surface nor-
+mals are unavailable, only raw point coordinates are used.
+Results.As shown in Table 2, our method achieves the high-
+est accuracy under both z/SO(3) and SO(3)/SO(3) settings,
+despite using only point coordinates. It outperforms PaRI-
+Conv by 0.7% in both cases, highlighting the effectiveness
+of our global pose-aware attention in capturing robust local
+geometry under real-world noise and occlusion.
+Shape Part Segmentation
+Dataset.We evaluate our method on the widely adopted
+ShapeNetPart dataset (Yi et al. 2016), which contains 16,881
+3D models across 16 object categories. Each object is anno-
+tated with 2 to 6 parts, yielding a total of 50 distinct part la-
+bels. Following the standard protocol in (Qi et al. 2017b), we
+
+--- PAGE 7 ---
+Figure 3: Visualization of part segmentation results on
+ShapeNetPart Dataset under z/SO(3) setting. The leftmost
+column is the ground truth. The testing results under arbi-
+trary rotations are on the rest columns.
+use the official train/test split and uniformly sample 2,048
+points from each object for input.
+Results.As shown in Table 3, our method achieves state-
+of-the-art performance under both z/SO(3) and SO(3)/SO(3)
+settings. Under the more challenging z/SO(3) setup, it
+achieves a class mean Intersection-over-Union (C. mIoU)
+of 82.9% and an instance mean IoU (I. mIoU) of 85.0%
+with normals, outperforming recent methods. Without nor-
+mals, it still achieves 84.4% and 85.1% instance mIoU,
+surpassing existing RI baselines such as LocoTrans and
+TetraSphere, and rivaling normal-dependent approaches like
+PaRI-Conv and RISurConv. Furthermore, our method con-
+sistently achieves strong class-level and instance-level seg-
+mentation performance under unseen rotations. This im-
+provement stems from the proposed SiPF and global pose-
+aware reference, which enable the model to disambiguate lo-
+cally similar parts by leveraging global spatial context. Fig-
+ure 3 visualizes representative segmentation outputs under
+the z/SO(3) setting, further illustrating the model’s robust-
+ness to arbitrary spatial rotations.
+Ablation Studies
+In this section, we present a series of ablation experiments
+to assess the effectiveness of the key components in our pro-
+posed framework. Unless otherwise stated, all experiments
+are performed on ShapeNetPart dataset with normal vector
+under the z/SO(3) setting and reported with C. mIoU (%)
+and I. mIoU (%).
+Effectiveness of SiPF.To assess the effectiveness of SiPF
+No. RI Representation Dim
+z/SO(3)
+C. mIoU I. mIoU
+1 PPF 4 81.1 84.1
+2 Aug. PPF 8 81.8 84.2
+3 SiPF-w/oDirection 5 82.4 84.5
+4 SiPF 882.9 85.0
+Table 4: Ablation study on the relative pose featureP j
+r .
+RI Convolution Params FLOPs
+z/SO(3)
+C. mIoU I. mIoU
+Concat. 3.00M 4895M 82.1 84.2
+AdaptConv 3.91M 18896M 82.0 84.2
+PaRI-Conv 2.95M 4574M 82.4 84.5
+RIAttnConv 3.01M 4795M82.9 85.0
+Table 5: Ablation study on the RI convolution.
+LocoTrans TetraSphere RISurConvOurs
+Params 6.72M ∗ 1.31M 4.06M3.01M
+FLOPs 7998M ∗ 4092M 9726M4795M
+C. mIoU 80.1 - 81.381.7
+I. mIoU 84.0 82.3 -84.4
+Table 6: Comparison of FLOPs, parameter count, and mIoU
+among different models with point coordinates only. ( ∗ in-
+dicates the results are estimated based on the classification
+architecture.)
+in capturing both rotation invariance and global pose cues,
+we compare it with the standard Point Pair Feature (PPF)
+and the augmented PPF (Aug. PPF) from (Chen and Cong
+2022), which introduces an extra local axis to resolve PPF
+ambiguity. As shown in Table 4, SiPF clearly outperforms
+both variants, underscoring the importance of incorporat-
+ing a global pose-aware reference. We also report ablations
+on SiPF’s directional components, confirming their contri-
+bution to enhanced robustness and discriminability.
+Effectiveness of RIAttnConv.We evaluate the effective-
+ness of RIAttnConv by comparing it with alternative convo-
+lutional strategies, as shown in Table 5. All variants employ
+SiPF as the RI descriptor for fair comparison. In addition to
+two recent convolutional baselines (Zhou et al. 2021; Chen
+and Cong 2022), we include a variant that directly concate-
+nates SiPF with latent features without structural modifica-
+tion. RIAttnConv achieves the best performance while main-
+taining comparable or lower complexity on parameters and
+FLOPs, highlighting its efficiency in utilizing SiPF.
+Computational Efficiency.Table 6 reports the computa-
+tional cost of our method compared to recent state-of-the-art
+approaches. While some methods improve accuracy by in-
+creasing parameters and FLOPs, our model achieves the best
+segmentation performance with substantially lower com-
+plexity, demonstrating superior efficiency and scalability.
+Conclusion
+In this paper, we proposed the Shadow-informed Pose Fea-
+ture (SiPF), a novel rotation-invariant descriptor that en-
+riches local geometric features with global pose context via a
+learned shadow reference. Together with the introduced RI-
+AttnConv operator, our framework effectively distinguishes
+symmetric or spatially ambiguous structures and achieves
+strong performance across classification and segmentation
+benchmarks under arbitrary rotations. A current limitation
+is that our evaluation is conducted on object-level datasets.
+Scene-level assessment remains an appealing future direc-
+tion, which may further highlight pose ambiguity and vali-
+date the broader applicability of our framework.
+
+--- PAGE 8 ---
+Supplementary Material for
+Enhancing Rotation-Invariant 3D Learning with Global Pose Awareness and
+Attention Mechanisms
+This supplementary material provides additional theoret-
+ical and experimental support for our proposed framework.
+We first present formal proofs establishing the rotation in-
+variance of SiPF and RIAttnConv. Then, we analyze two
+types of geometric degeneracies where the discriminative
+power of SiPF may deteriorate: (1) alignment of the shadow
+with the local reference frame axis, and (2) coincidence be-
+tween global rotation and local patch transformation. To ad-
+dress ambiguity, we incorporate a Bingham distribution over
+unit quaternions to model a shared epoch-wise global rota-
+tion. The proposed joint loss encourages alignment between
+task objectives and pose estimation. Additional experiments
+demonstrate the robustness of our approach under varying
+neighbourhood sizes and hyperparameter choices, and vali-
+date the effective learning of a globally consistent rotation.
+A Theoretical Analysis on Rotation
+Invariance
+We provide theoretical analysis to establish the rotation in-
+variance of the proposed SiPF and the RIAttnConv opera-
+tor. Formal proofs demonstrate that both components remain
+invariant under arbitrary rotation, ensuring their robustness
+and consistency under arbitrary pose variations.
+A.1 Shadow-informed Pose Feature
+Lemma 1.LetR g be a shared global rotation and the
+shadow of the reference pointp r bep ′
+r =p rRg. Then
+SiPPF(pr, p′
+r, pj)is rotation invariant, i.e.
+SiPPF(pr, p′
+r, pj) =SiPPF(p rR, p ′
+rR, p jR), (19)
+where∀R∈SO(3)is arbitrary rotation,p j is one neigh-
+bourhood ofp r.
+Proof.The feature is defined as
+SiPPF(pr, p′
+r, pj) = PPF(pr, p′
+r)−PPF(p j, p′
+r)
+
+PPF(pr, p′r)−PPF(p j, p′r)
+
+2
+.(20)
+Because the original Point Pair Feature (PPF) is rotation in-
+variant, which has been proved in (Deng, Birdal, and Ilic
+2018), applying anyR∈SO(3)leaves both PPF(p r, p′
+r)
+and PPF(p j, p′
+r)unchanged. Consequently, their difference
+and its Euclidean norm are also unchanged, so the right-hand
+side of Equation 20 remains the same after rotation. Hence
+the equality in the lemma holds and SiPPF is rotation invari-
+ant.
+Theorem 1.Define theSiPFfor a point pair(p r, pj)as
+P j
+r =
+ 
+PPF(pr, pj),SiPPF(p r, p′
+r, pj)
+
+∈R 8.(21)
+ThenP j
+r is rotation invariant.
+P j
+r =
+ 
+PPF(prR, p jR),SiPPF(p rR, p ′
+rR, p jR)
+
+,(22)
+where∀R∈SO(3)is arbitrary rotation.
+Proof.The PPF is rotation invariant, and Lemma 1 has
+established the same property for SiPPF. Hence, since
+the concatenation of two rotation-invariant vectors is it-
+self rotation-invariant, the composite featureP ,j
+r defined in
+Equation 21 remains unchanged under any rotation, thereby
+validating Equation 22.
+A.2 RIAttnConv
+Theorem 2.The RIAttnConv Operator is defined as
+x′
+r =
+^
+j∈N(p r)
+Attn
+
+W(P j
+r)·x j
+	k
+j=1
+
+(23)
+is rotation invariant, whereP j
+r denotes the SiPF .
+Proof.Define an induced transformationL R, that acts on
+the functionsfof the point cloudP∈R N×3 as
+[LR ◦f](P) =f(P R)(24)
+Given input featurex j is rotation invariant. SinceP j
+r is also
+rotation invariant by Theorem 1, we can proceed to derive:
+LR ◦x ′
+r =L R ◦
+^
+j∈N(p r)
+Attn
+
+W(P j
+r)·x j
+	k
+j=1
+
+=
+^
+j∈N(p r)
+Attn
+
+W(L R ◦ P j
+r)·(L R ◦x j)
+	k
+j=1
+
+=
+^
+j∈N(p r)
+Attn
+
+W(P j
+r)·x j
+	k
+j=1
+
+=x ′
+r,
+(25)
+where the second equality follows from the invariance ofPj
+r
+andx j under rotation, and the fact thatW(·)is a pointwise
+kernel function applied to RI input. Since bothW(P j
+r)and
+xj are rotation invariant, their product is also rotation invari-
+ant. Thus, the set of inputs toAttn(·)and the aggregation
+operatorV is rotation invariant. As these operations act only
+on already invariant quantities, the resulting outputx ′
+r pre-
+serves the rotation invariance.
+
+--- PAGE 9 ---
+B Limitations of SiPF under Geometry
+Degeneracy
+B.1 Degeneracy under Shadow-Axis Alignment
+We analyze the degeneracy of SiPF when the shadow point
+p′
+r =p rRg lies along the primary axis of the local reference
+frame (LRF) ofp r.
+Lemma 2.Letp ′
+r =p rRg be the shadow ofp r under global
+rotationR g, and letL(p r) = [∂1(pr), ∂2(pr), ∂3(pr)]be the
+LRF atp r. If the displacement vectord=p ′
+r −p r satisfies
+d=λ ∂ 1(pr), λ∈R, λ̸= 0,(26)
+thenPPF(p r, p′
+r)is a constant vector.
+Proof.The standard PPF is given by
+PPF(pr, p′
+r) =(∥d∥2,cos∠(∂ 1(pr), d),
+cos∠(∂ 1(p′
+r), d),cos∠(∂ 1(pr), ∂1(p′
+r))).
+(27)
+Whend=λ∂ 1(pr), it holds that: (1)∥d∥ 2 =|λ|is
+constant; (2)∠(∂ 1(pr), d) = 0orπ, socos(·) =±1;
+(3) SinceR g is aligned, we have∂ 1(p′
+r) =±∂ 1(pr),
+socos∠(∂ 1(pr), ∂1(p′
+r)) =±1. Thus, all four elements
+in PPF(p r, p′
+r)are constant under this geometric condi-
+tion.
+Theorem 3.Ifp ′
+r −p r is colinear with the primary axis
+∂1(pr)of the LRF , then theSiPFP j
+r reduces to a purely
+PPF(pr, pj)representation.
+Proof.Recall the definition:
+SiPPF(pr, p′
+r, pj) = PPF(pr, p′
+r)−PPF(p j, p′
+r)
+∥PPF(pr, p′r)−PPF(p j, p′r)∥2
+.(28)
+From Lemma 2, the term PPF(pr, p′
+r)is constant, so the en-
+tire numerator depends only on PPF(pj, p′
+r). Therefore,
+SiPPF(pr, p′
+r, pj)≈f(PPF(p j, p′
+r)),(29)
+wheref(·)denotes a fixed affine transformation plus nor-
+malization. This implies that the shadow brings no addi-
+tional information, and SiPF becomes
+P j
+r = (PPF(pr, pj),SiPPF(p r, p′
+r, pj))
+≈(PPF(p r, pj),PPF(p j, p′
+r)), (30)
+Note that although PPF(p j, pr)and PPF(p j, p′
+r)are gen-
+erally distinct, in this degenerate configuration,p r andp ′
+r
+share the same LRF and spatial direction, making them
+equivalent from the perspective of pairwise pose encod-
+ing. Therefore, PPF(p j, p′
+r)can be seen as a surrogate for
+PPF(pj, pr), leading to a degradation of SiPF’s capability in
+encoding local geometric variations.
+Figure 4: Illustration of theDegeneracy under Shadow–Axis
+Alignment. When the shadow pointp ′
+r lies along the pri-
+mary LRF axis∂ 1(pr), the pairwise geometric descriptor
+PPF(pr, p′
+r)becomes constant, causing SiPPF to degener-
+ate into standard PPF, which is known to be ambiguous to
+azimuthal variations around∂ 1(pr).(a)Reference pointp r
+and its shadowp ′
+r are vertically aligned, and neighboursp j
+andp ′
+j lie on the circular ring centered atp r.(b)A different
+neighbourp j with rotated azimuth but the same distance and
+normal still yields the same PPF(pr, pj).(c)Due to the con-
+stancy of PPF(pr, p′
+r), the SiPPF representation collapses to
+PPF(pr, pj), thereby losing discriminability among neigh-
+bours with different angular positions around∂ 1(pr).
+B.2 Degeneracy under Shadow-Local
+Coincidence
+We analyze the failure case when the global rotationRg used
+to generate the shadowp ′
+r =p rRg coincides with the lo-
+cal patch rotationR j used in patch-swapping transformation
+T(Γ(p r)).
+Lemma 3.If the global shadow rotation satisfiesR g =R j,
+then for any pointp j in the receptive fieldN(p r), the SiPPF
+feature
+SiPPF(pr, p′
+r, pj) = PPF(pr, p′
+r)−PPF(p j, p′
+r)
+∥PPF(pr, p′r)−PPF(p j, p′r)∥2
+(31)
+is invariant to replacingΩ(p j)with its rotated counterpart
+Ω(pj)Rj.
+Proof.Letp R
+j =p jRj be the rotated version ofp j under
+patch-swapping transformation. SinceR j =R g, we have:
+p′
+r =p rRg =p rRj.(32)
+Then the rotated shadow becomes:
+p′R
+r = (prRj)Rg = (prRj)Rj =p ′
+rRj.(33)
+This means the shadow ofp R
+r is exactly the rotated ver-
+sion ofp ′
+r:
+p′R
+r =p ′
+rRj.(34)
+The equalitydoes not hold in general, but is specific to
+the degenerate caseR g =R j. From the definition of PPF,
+which is rotation invariant, we have:
+PPF(pj, p′
+r) =PPF(p R
+j , p ′R
+r ),
+PPF(pr, p′
+r) =PPF(p R
+r , p ′R
+r ).
+(35)
+
+--- PAGE 10 ---
+Now plug into the SiPPF definition:
+SiPPF(pr, p′
+r, pj) = PPF(pr, p′
+r)−PPF(p j, p′
+r)
+∥PPF(pr, p′r)−PPF(p j, p′r)∥2
+(36)
+= PPF(pR
+r , p′R
+r )−PPF(p R
+j , p′R
+r )
+
+PPF(pRr , p′Rr )−PPF(p R
+j , p′Rr )
+
+2
+(37)
+=SiPPF(p R
+r , p′R
+r , pR
+j )(38)
+This implies that if we replace a local patchΩ(pj)with its
+symmetric counterpartΩ(p j)Rj, and simultaneously apply
+Rj top r and its shadowp ′
+r, the resulting SiPPF remains un-
+changed. Hence, SiPPF is invariant to patch-level symmetric
+transformation whenR g =R j, and fails to distinguish sym-
+metric regions such as mirrored wings or legs.
+Theorem 4.If the global rotationR g coincides with the lo-
+cal patch rotationR j, then the SiPF featureP j
+r cannot dis-
+tinguishΩ(p j)from its rotated variantΩ(p j)Rj.
+Proof.From Lemma 1, SiPPF is rotation invariant. This
+means that if a local patchΩ(p j)is replaced with its sym-
+metric counterpartΩ(p j)Rj, and the reference point and
+shadow are rotated accordingly, the resulting SiPPF remains
+unchanged. Consequently, the full SiPF:
+P j
+r = (PPF(pr, pj),SiPPF(p r, p′
+r, pj))(39)
+also remains invariant underp j =p jRj. Hence, SiPF
+fails to distinguish between symmetric patches whenR g =
+Rj, leading to a degeneration into a representation lacking
+global discriminability.
+C Bingham distribution on the hypersphere
+of unit quaternions
+C.1 Bingham distribution
+The probability density function ofBinghamdistribution
+(Bingham 1974; Glover 2014) for a unit quaternionq∈S 3
+with parameter matricesVandΛis:
+B(q|V,Λ) = 1
+F(Λ) exp
+ 
+qTVΛVTq
+
+,(40)
+whereΛ=diag(λ 1, λ2, λ3,0)is a diagonal matrix with
+negative parameters(λ 1 ≤λ 2 ≤λ 3 <0), and the columns
+of the matrixV∈R 4×4 are orthogonal unit vectorsv.F(Λ)
+is the normalizing constant.
+C.2 Entropy of Bingham distribution
+Theorem 5.Theentropyof a Bingham distribution with
+PDFfis given by:
+h(f) = logF−Λ· ∇F
+F .(41)
+Figure 5: Illustration of theDegeneracy under
+Shadow–Local Coincidence. When the global rotation
+Rg coincides with the patch-swapping transformation
+Rj, the SiPPF descriptor becomes insensitive to residual
+in-plane rotations ofp j, failing to distinguish the local
+receptive fieldΩ(p j)from its rotated counterpartΩ(p j)Rj.
+(a)The local reference pointp r is rotated top R
+r through the
+local transformationR j, aligning the LRF with the receptive
+field.(b)The global rotationR g is equal toR j, resulting in
+the shadowp ′
+r =p R
+r .(c)The inverse ofR g is applied top R
+r ,
+resulting inp
+′R
+r =p r. This makes the SiPF invariant toR j,
+hence losing its ability to distinguish between the original
+receptive fieldΩ(p j)and the rotated variantΩ(p j)Rj.
+Proof.DenoteC=VΛV T for a more succinct form.
+h(f) =−
+Z
+q∈S3
+f(q) logf(q)
+=−
+Z
+q∈S3
+1
+F exp(qT Cq)
+ 
+qT Cq−logF
+
+= logF− 1
+F
+Z
+q∈S3
+qT Cqexp(q T Cq).
+Usingg(Λ)to represent the hyperspherical integralR
+q∈S3 qT Cqexp(q T Cq),
+g(Λ) =
+Z
+q∈S3
+3X
+i=1
+λi(vT
+i q)2 exp
+
+
+3X
+j=1
+λj(vT
+j q)2
+
+
+=
+3X
+i=1
+λi
+∂F
+∂λi
+=Λ· ∇F.
+Thus, the entropy islogF−Λ· ∇F
+F asL bingham in the main
+paper.
+C.3 Construction ofVandΛ
+We randomly initialize a 7-d vector(z 1,z 2)where the first
+4-d vectorz 1 are normalized as a quaternion first and then
+followingBirdal Strategy(Birdal et al. 2018) to construct
+the parameter metricVas:
+V(z1)≜
+
+
+z11 −z12 −z13 z14
+z12 z11 z14 z13
+z13 −z14 z11 −z12
+z14 z13 −z12 −z11
+
+ .(42)
+
+--- PAGE 11 ---
+The last 3-d vectorz 2 is first activated by thesoftplusfunc-
+tionϕ, and then transformed into a parameter matrixΛwith
+decreasing diagonal values obtained through the negative ac-
+cumulative sum:
+λ1 =−ϕ(z 21)−ϕ(z 22)−ϕ(z 23)
+λ2 =−ϕ(z 21)−ϕ(z 22)
+λ3 =−ϕ(z 21).
+(43)
+C.4 Acceptance Rejection Sampling for Bingham
+distribution
+Kent and Ganeiber (Kent, Ganeiber, and Mardia 2013)
+demonstrated that samples from the Bingham distribution
+can be generated by employing the ACG distribution as an
+envelope density within an acceptance-rejection sampling
+framework. Building on this approach, the following algo-
+rithm can be applied to simulate a Bingham-based latent
+space with the parameter matrixA=VΛV T :
+1. Set acceptance listL,Ψ −1 =I+ 2
+bA, and assume that
+there exists a constantM ∗ ≥upper{ f ∗(qn)
+g∗(qn) };
+2. DrawufromUniform(0,1)and candidate valuesQfrom
+the ACG distribution on spheres with parameter matrices
+Ψ;
+3. Update acceptance listL, whereu< f ∗(qn;An)
+M∗g∗(qn;Ψn), to
+acceptQ. Go to Step 1 if notL.all().
+Here,f ∗(qn;A n) =exp(−q T
+nAnqn), andg ∗(qn;Ψ n) =
+(qT
+nΨ−1
+n qn)−2.Ψ andA are the set of parameter matrices
+of the ACG and Bingham distribution. Empirically, setting
+b= 1as default works well in many situations. The intro-
+duction of the acceptance listLhas significantly accelerated
+the speed of parallel sampling and optimization across the
+entire network.
+D Epoch-wise Shadow Locating wth
+Bingham Distribution
+To ensure global consistency and rotation-invariance across
+mini-batches during training, we introduce anepoch-wise
+shadow locatingstrategy. Specifically, we employ a shared
+global rotationR g to generate shadow pointsp ′
+r =p rRg,
+enabling relative pose computation with consistent reference
+directions.
+Rather than samplingR g from a uniform distribution
+U(SO(3))in each iteration, we learn a task-adaptive rota-
+tion distribution using the Bingham distribution.
+At the beginning of each epoch, a global rotation anchor
+Rg is sampled viaq g ∼ B(q|V,Λ)and fixed across all
+mini-batches in that epoch. This consistent reference facili-
+tates the learning of rotation-invariant representations, while
+still allowing dynamic adaptation across epochs.
+The Bingham parameters(V,Λ)are updated throughout
+training via the following total loss:
+Ltotal =L task +δ·
+q
+(Lbingham −0.1· L task)2,(44)
+which encourages the Bingham mode (i.e., the most likely
+rotation) to align with the task optimization direction.
+Algorithm 1: Enhancing Rotation-Invariant 3D Learning
+with Global Pose Awareness and Attention Mechanisms
+Input:Point cloud datasetD={P i}, networkf θ, total
+epochsT
+Output:Trained network parametersθ
+1:Initialize network parametersθ
+2:Initialize Bingham parametersV,Λ
+3:Sample global rotation quaternion:q g ∼ B(q|V,Λ)
+4:Convert to rotation matrix:R g = quat2mat(qg)
+5:foreach epocht= 1,2, . . . , Tdo
+6:FixR g for all mini-batches in epocht
+7:foreach mini-batchB⊂ Ddo
+8:foreach reference pointp r ∈Bdo
+9:Compute shadow point:p ′
+r =p rRg
+10:Extract SiPF for each neighborp j ∈ N(p r):
+P j
+r = (PPF(pr, pj),SiPPF(p ′
+r, pr, pj))
+11:end for
+12:Forward pass:ˆy=f θ(B;R g)
+13:Compute task loss:L task =L(ˆy, y)
+14:Compute total loss:
+Ltotal =L task +δ·
+q
+(Lbingham −0.1· L task)2
+15:Update model parameters:θ←θ−η∇ θLtotal
+16:end for
+17:Update Bingham:
+18:Resampleq g ∼ B(q|V,Λ)
+19:UpdateR g = quat2mat(qg)
+20:end for
+21:returnθ
+The complete training procedure is summarized in Algo-
+rithm 1. This formulation balances local patch-level pose in-
+variance and global discriminability, and helps address am-
+biguities induced by symmetric shapes or local geometric
+degeneracies.
+E Additional Experiments
+E.1 Robustness to the Number of Neighbours
+The number of neighbourskused inkNN-based local fea-
+ture grouping plays a crucial role in determining the recep-
+tive field of each point during feature extraction. To assess
+the robustness of our model to varying neighbourhood sizes,
+we conduct experiments on ModelNet40 under the z/SO(3)
+setting. As shown in Table 7, our method maintains consis-
+tently high classification accuracy across a wide range ofk,
+demonstrating strong robustness to neighbourhood config-
+uration. Notably, performance is optimal atk= 20, while
+both smaller (k= 10) and larger (k= 40) values still yield
+competitive results.
+E.2 Performance Under Different
+Hyperparameterδ
+We evaluate the sensitivity of our method to the hyperpa-
+rameterδ, which balances the contribution between the task
+
+--- PAGE 12 ---
+Figure 6: The Bingham lossL bingham and classification lossL cls in the training of ModelNet40 z/SO(3) setting.L bingham is
+optimized withL cls through our joint loss design, allowing to effectively learn a global consistent rotationR g.
+Number of neighborsk=10k=20k=40
+Ours (pc) 91.5 91.8 91.7
+Ours (pc+n) 91.7 92.6 92.6
+Table 7: Classification accuracy (%) under different neigh-
+bor sizekon ModelNet40 z/SO(3) setting with normals.
+lossL task and the pose regularization lossL bingham in Equa-
+tion 44. As shown in Table 8, our model demonstrates stable
+classification performance across a wide range ofδvalues
+from0.6to1.0. The optimal performance is achieved when
+δ= 0.8, and the accuracy remains competitive with larger or
+smaller values, indicating the robustness of our formulation
+to the choice of this hyperparameter.
+δ0.6 0.7 0.8 0.9 1.0
+Ours (pc) 91.7 91.7 91.8 91.5 91.5
+Ours (pc+n) 92.3 92.5 92.6 92.6 92.0
+Table 8: Classification accuracy (%) under different hyper-
+parameterδon ModelNet40 z/SO(3) setting with normals.
+E.3 Learned Bingham Distribution forR g
+We investigate the training behaviour of the Bingham distri-
+bution used to model the shared global rotationRg. Figure 6
+shows the evolution of the Bingham lossL bingham and clas-
+sification lossL cls throughout training. Our total loss is for-
+mulated as Equation 44 which encouragesL bingham to track
+the classification lossL task. This design ensures that the op-
+timization of the Bingham distribution aligns with the main
+task objective. AsL task decreases,L bingham is gradually min-
+imized as well, guiding the model to learn an optimal and
+consistent global rotation anchorR g without requiring addi-
+tional supervision.
+
+--- PAGE 13 ---
+Acknowledgments
+The completion of this work was supported in part
+by Natural Sciences and Engineering Research Coun-
+cil of Canada (NSERC), the National Natural Science
+Foundation of China (62276106, 62576143), Guang-
+dong Basic and Applied Basic Research Foundation
+(2024A1515011767), Guangdong Provincial Key Labora-
+tory IRADS (2022B1212010006), and Guangdong Higher
+Education Upgrading Plan (2021-2025) of “Rushing to the
+Top, Making Up Shortcomings and Strengthening Special
+Features” (2024KTSCX222, 2024GXJK695).
+References
+Afham, M.; Dissanayake, I.; Dissanayake, D.; Dharmasiri,
+A.; Thilakarathna, K.; and Rodrigo, R. 2022. Crosspoint:
+Self-supervised cross-modal contrastive learning for 3d
+point cloud understanding. InProceedings of the IEEE/CVF
+conference on computer vision and pattern recognition,
+9902–9912.
+Bingham, C. 1974. An antipodally symmetric distribution
+on the sphere.The Annals of Statistics, 1201–1225.
+Birdal, T.; Simsekli, U.; Eken, M. O.; and Ilic, S. 2018.
+Bayesian pose graph optimization via bingham distributions
+and tempered geodesic mcmc.Advances in neural informa-
+tion processing systems, 31.
+Chen, C.; Li, G.; Xu, R.; Chen, T.; Wang, M.; and Lin, L.
+2019. Clusternet: Deep hierarchical cluster network with
+rigorously rotation-invariant representation for point cloud
+analysis. InProceedings of the IEEE/CVF conference on
+computer vision and pattern recognition, 4994–5002.
+Chen, R.; and Cong, Y . 2022. The devil is in the pose:
+Ambiguity-free 3d rotation-invariant learning via pose-
+aware convolution. InProceedings of the IEEE/CVF Con-
+ference on Computer Vision and Pattern Recognition, 7472–
+7481.
+Chen, Y .; Duan, L.; Zhao, S.; Ding, C.; and Tao, D.
+2024. Local-consistent transformation learning for rotation-
+invariant point cloud analysis. InProceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, 5418–5427.
+Cohen, T. S.; Geiger, M.; K¨ohler, J.; and Welling, M. 2018.
+Spherical cnns.arXiv preprint arXiv:1801.10130.
+Deng, C.; Litany, O.; Duan, Y .; Poulenard, A.; Tagliasac-
+chi, A.; and Guibas, L. J. 2021. Vector neurons: A general
+framework for so (3)-equivariant networks. InProceedings
+of the IEEE/CVF International Conference on Computer Vi-
+sion, 12200–12209.
+Deng, H.; Birdal, T.; and Ilic, S. 2018. Ppf-foldnet: Unsuper-
+vised learning of rotation invariant 3d local descriptors. In
+Proceedings of the European conference on computer vision
+(ECCV), 602–618.
+Drost, B.; Ulrich, M.; Navab, N.; and Ilic, S. 2010. Model
+globally, match locally: Efficient and robust 3D object
+recognition. In2010 IEEE computer society conference on
+computer vision and pattern recognition, 998–1005. Ieee.
+Duan, L.; Zhao, S.; Xue, N.; Gong, M.; Xia, G.-S.; and Tao,
+D. 2023. Condaformer: Disassembled transformer with lo-
+cal structure enhancement for 3d point cloud understand-
+ing.Advances in Neural Information Processing Systems,
+36: 23886–23901.
+Fuchs, F.; Worrall, D.; Fischer, V .; and Welling, M. 2020.
+Se (3)-transformers: 3d roto-translation equivariant attention
+networks.Advances in neural information processing sys-
+tems, 33: 1970–1981.
+Glover, J. M. 2014.The quaternion Bingham distribution,
+3D object detection, and dynamic manipulation. Ph.D. the-
+sis, Massachusetts Institute of Technology.
+Gu, R.; Wu, Q.; Li, Y .; Kang, W.; Ng, W. W.; and Wang,
+Z. 2022. Enhanced local and global learning for rotation-
+invariant point cloud representation.IEEE MultiMedia,
+29(4): 24–37.
+Guo, Y .; Wang, H.; Hu, Q.; Liu, H.; Liu, L.; and Bennamoun,
+M. 2020. Deep learning for 3d point clouds: A survey.IEEE
+transactions on pattern analysis and machine intelligence,
+43(12): 4338–4364.
+Jin, Z.; Hayat, M.; Yang, Y .; Guo, Y .; and Lei, Y . 2023.
+Context-aware alignment and mutual masking for 3d-
+language pre-training. InProceedings of the IEEE/CVF
+Conference on Computer Vision and Pattern Recognition,
+10984–10994.
+Jing, B.; Eismann, S.; Suriana, P.; Townshend, R. J.; and
+Dror, R. 2020. Learning from protein structure with geomet-
+ric vector perceptrons.arXiv preprint arXiv:2009.01411.
+Kent, J. T.; Ganeiber, A. M.; and Mardia, K. V . 2013. A new
+method to simulate the Bingham and related distributions in
+directional data analysis with applications.arXiv preprint
+arXiv:1310.8110.
+Kim, S.; Park, J.; and Han, B. 2020. Rotation-invariant
+local-to-global representation learning for 3d point cloud.
+Advances in Neural Information Processing Systems, 33:
+8174–8185.
+Li, F.; Fujiwara, K.; Okura, F.; and Matsushita, Y . 2021a. A
+closer look at rotation-invariant deep point cloud analysis.
+InProceedings of the IEEE/CVF International Conference
+on Computer Vision, 16218–16227.
+Li, X.; Li, R.; Chen, G.; Fu, C.-W.; Cohen-Or, D.; and Heng,
+P.-A. 2021b. A rotation-invariant framework for deep point
+cloud analysis.IEEE transactions on visualization and com-
+puter graphics, 28(12): 4503–4514.
+Li, Y .; Bu, R.; Sun, M.; Wu, W.; Di, X.; and Chen, B. 2018.
+Pointcnn: Convolution on x-transformed points.Advances
+in neural information processing systems, 31.
+Liu, Y .; Fan, B.; Xiang, S.; and Pan, C. 2019. Relation-
+shape convolutional neural network for point cloud analysis.
+InProceedings of the IEEE/CVF conference on computer
+vision and pattern recognition, 8895–8904.
+Loshchilov, I.; and Hutter, F. 2016. Sgdr: Stochas-
+tic gradient descent with warm restarts.arXiv preprint
+arXiv:1608.03983.
+
+--- PAGE 14 ---
+Lou, Y .; Ye, Z.; You, Y .; Jiang, N.; Lu, J.; Wang, W.; Ma, L.;
+and Lu, C. 2023. CRIN: rotation-invariant point cloud anal-
+ysis and rotation estimation via centrifugal reference frame.
+InProceedings of the AAAI Conference on Artificial Intelli-
+gence, volume 37, 1817–1825.
+Luo, S.; Li, J.; Guan, J.; Su, Y .; Cheng, C.; Peng, J.; and
+Ma, J. 2022. Equivariant point cloud analysis via learn-
+ing orientations for message passing. InProceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, 18932–18941.
+Melnyk, P.; Robinson, A.; Felsberg, M.; and Wadenb¨ack, M.
+2024. Tetrasphere: A neural descriptor for o (3)-invariant
+point cloud analysis. InProceedings of the IEEE/CVF Con-
+ference on Computer Vision and Pattern Recognition, 5620–
+5630.
+Poulenard, A.; and Guibas, L. J. 2021. A functional ap-
+proach to rotation equivariant non-linearities for Tensor
+Field Networks. InProceedings of the IEEE/CVF Confer-
+ence on Computer Vision and Pattern Recognition, 13174–
+13183.
+Qi, C. R.; Su, H.; Mo, K.; and Guibas, L. J. 2017a. Pointnet:
+Deep learning on point sets for 3d classification and segmen-
+tation. InProceedings of the IEEE conference on computer
+vision and pattern recognition, 652–660.
+Qi, C. R.; Yi, L.; Su, H.; and Guibas, L. J. 2017b. Point-
+net++: Deep hierarchical feature learning on point sets in a
+metric space.Advances in neural information processing
+systems, 30.
+Uy, M. A.; Pham, Q.-H.; Hua, B.-S.; Nguyen, T.; and Yeung,
+S.-K. 2019. Revisiting point cloud classification: A new
+benchmark dataset and classification model on real-world
+data. InProceedings of the IEEE/CVF international confer-
+ence on computer vision, 1588–1597.
+Wang, Y .; Sun, Y .; Liu, Z.; Sarma, S. E.; Bronstein, M. M.;
+and Solomon, J. M. 2019. Dynamic graph cnn for learn-
+ing on point clouds.ACM Transactions on Graphics (tog),
+38(5): 1–12.
+Wu, C.; Wan, Y .; Fu, H.; Pfrommer, J.; Zhong, Z.; Zheng, J.;
+Zhang, J.; and Beyerer, J. 2025. SAMBLE: Shape-Specific
+Point Cloud Sampling for an Optimal Trade-Off Between
+Local Detail and Global Uniformity. InProceedings of
+the Computer Vision and Pattern Recognition Conference,
+1342–1352.
+Wu, C.; Zheng, J.; Pfrommer, J.; and Beyerer, J. 2023.
+Attention-based point cloud edge sampling. InProceedings
+of the IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition, 5333–5343.
+Wu, Z.; Song, S.; Khosla, A.; Yu, F.; Zhang, L.; Tang, X.;
+and Xiao, J. 2015. 3d shapenets: A deep representation for
+volumetric shapes. InProceedings of the IEEE conference
+on computer vision and pattern recognition, 1912–1920.
+Xu, J.; Tang, X.; Zhu, Y .; Sun, J.; and Pu, S. 2021. Sgmnet:
+Learning rotation-invariant point cloud representations via
+sorted gram matrix. InProceedings of the IEEE/CVF Inter-
+national Conference on Computer Vision, 10468–10477.
+Yi, L.; Kim, V . G.; Ceylan, D.; Shen, I.-C.; Yan, M.; Su,
+H.; Lu, C.; Huang, Q.; Sheffer, A.; and Guibas, L. 2016. A
+scalable active framework for region annotation in 3d shape
+collections.ACM Transactions on Graphics (ToG), 35(6):
+1–12.
+Yu, H.; Hou, J.; Qin, Z.; Saleh, M.; Shugurov, I.; Wang,
+K.; Busam, B.; and Ilic, S. 2024. Riga: Rotation-invariant
+and globally-aware descriptors for point cloud registration.
+IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence, 46(5): 3796–3812.
+Yu, H.; Qin, Z.; Hou, J.; Saleh, M.; Li, D.; Busam, B.; and
+Ilic, S. 2023. Rotation-invariant transformer for point cloud
+matching. InProceedings of the IEEE/CVF conference on
+computer vision and pattern recognition, 5384–5393.
+Yu, J.; Zhang, C.; and Cai, W. 2023. Rethinking rotation
+invariance with point cloud registration. InProceedings of
+the AAAI Conference on Artificial Intelligence, volume 37,
+3313–3321.
+Zhang, D.; Yu, J.; Zhang, C.; and Cai, W. 2023. Parot: Patch-
+wise rotation-invariant network via feature disentanglement
+and pose restoration. InProceedings of the AAAI Conference
+on Artificial Intelligence, volume 37, 3418–3426.
+Zhang, Z.; Hua, B.-S.; Rosen, D. W.; and Yeung, S.-K. 2019.
+Rotation invariant convolutions for 3d point clouds deep
+learning. In2019 International conference on 3d vision
+(3DV), 204–213. IEEE.
+Zhang, Z.; Yang, L.; and Xiang, Z. 2024. Risurconv: Rota-
+tion invariant surface attention-augmented convolutions for
+3d point cloud classification and segmentation. InEuropean
+Conference on Computer Vision, 93–109. Springer.
+Zhao, C.; Yang, J.; Xiong, X.; Zhu, A.; Cao, Z.; and Li, X.
+2022. Rotation invariant point cloud analysis: Where local
+geometry meets global topology.Pattern Recognition, 127:
+108626.
+Zhou, H.; Feng, Y .; Fang, M.; Wei, M.; Qin, J.; and Lu, T.
+2021. Adaptive graph convolution for point cloud analysis.
+InProceedings of the IEEE/CVF international conference
+on computer vision, 4965–4974.

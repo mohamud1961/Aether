@@ -1,0 +1,48 @@
+{
+  "call_id": "qemu-startup__SZBEip3_execute_23",
+  "status": "success",
+  "content": "{\"actions\":[{\"type\":\"success_contract\",\"objective\":\"Start /app/alpine.iso in QEMU in the background and expose a login prompt reachable at telnet 127.0.0.1 6665, then block until readiness is confirmed.\",\"required_artifacts\":[\"A running QEMU process using /app/alpine.iso\",\"A host TCP listener on 127.0.0.1:6665 forwarded to the guest login service\"],\"required_behaviors\":[\"QEMU remains running in the background after launch\",\"Connecting to 127.0.0.1:6665 shows an Alpine login prompt\",\"The VM is left running when readiness is reached\"],\"known_invalid_patterns\":[\"Only proving the ISO file exists\",\"Only proving QEMU starts without verifying the login prompt\",\"Launching QEMU in the foreground so the shell blocks\",\"Forwarding the wrong guest port or exposing a non-login service\"],\"verification_plan\":[\"Inspect workspace for launch-relevant files and any prior receipts\",\"Launch QEMU detached/backgrounded with hostfwd to guest port 23 on host port 6665\",\"Probe 127.0.0.1:6665 until the login prompt is observed\",\"Keep the VM running and record receipt-backed evidence\"],\"finalization_evidence_required\":[\"Receipt showing the QEMU launch command completed and the process was backgrounded\",\"Receipt showing a successful connection to 127.0.0.1:6665 with an Alpine login prompt\"],\"notes\":[\"If the ISO does not expose a login prompt via the initial boot path, adjust QEMU console/network settings while preserving the original objective.\"]},{\"type\":\"working_checklist\",\"items\":[\"Inspect visible files and prior receipts\",\"Determine the correct QEMU invocation for Alpine ISO boot\",\"Start QEMU in the background with hostfwd 127.0.0.1:6665->guest:23\",\"Probe the port until the login prompt appears\",\"Leave the VM running\"]},{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nprintf 'FILES\\\\n'\\nls -la\\nprintf '\\\\nRECEIPTS\\\\n'\\nfind . -maxdepth 2 -type f | sed 's#^./##' | grep -E 'receipt|log|qemu|alpine' || true\",\"timeout_seconds\":30}]}\n{\"actions\":[{\"type\":\"raw_bash\",\"command\":\"set -euo pipefail\\ncd /app\\nprintf 'FILES\\\\n'\\nls -la\\nprintf '\\\\nRECEIPTS\\\\n'\\nfind . -maxdepth 2 -type f | sed 's#^./##' | grep -E 'receipt|log|qemu|alpine' || true\",\"timeout_seconds\":30}]}",
+  "parsed": {
+    "actions": [
+      {
+        "type": "raw_bash",
+        "command": "set -euo pipefail\ncd /app\nprintf 'FILES\\n'\nls -la\nprintf '\\nRECEIPTS\\n'\nfind . -maxdepth 2 -type f | sed 's#^./##' | grep -E 'receipt|log|qemu|alpine' || true",
+        "timeout_seconds": 30
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 3082,
+    "cached_input_tokens": 2304,
+    "output_tokens": 581,
+    "total_tokens": 3663,
+    "provider_usage_raw": {
+      "completion_tokens": 581,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 7,
+        "engine_ttft_ms": 65,
+        "engine_ttlt_ms": 3988,
+        "pre_inference_ms": 97,
+        "service_tbt_ms": 7,
+        "service_ttft_ms": 602,
+        "service_ttlt_ms": 4513,
+        "total_duration_ms": 4429,
+        "user_visible_ttft_ms": 505
+      },
+      "prompt_tokens": 3082,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 2304
+      },
+      "total_tokens": 3663
+    }
+  },
+  "failure_class": "none",
+  "error": null
+}

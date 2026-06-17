@@ -1,0 +1,52 @@
+{
+  "action": {
+    "arguments": {
+      "checks": [
+        "start_job job_id=sleep_write_done cwd=... cmd='sh -lc ''sleep 10; printf \"job complete\\n\" > done.txt'''",
+        "job_status job_id=sleep_write_done",
+        "wait 11s",
+        "read_file done.txt"
+      ],
+      "requirements": [
+        {
+          "check": "start_job job_id=sleep_write_done cwd=... cmd='sh -lc ''sleep 10; printf \"job complete\\n\" > done.txt'''",
+          "known_limitations": [
+            "The launch itself is evidenced by the detached job start and subsequent completion, not by direct introspection of the sleeping process."
+          ],
+          "observation_ref": "start_job returned `started job sleep_write_done (pid 64294)`; later `wait` reported `done.txt` added and `job sleep_write_done` exited.",
+          "requirement": "Launch a background job that sleeps for 10 seconds and then writes the line `job complete` to a file named `done.txt` in the current working directory."
+        },
+        {
+          "check": "job_status job_id=sleep_write_done; wait 11s",
+          "known_limitations": [],
+          "observation_ref": "job_status showed `alive=True exit_code=None`; after waiting, the job was reported exited.",
+          "requirement": "Wait for that background job to finish, polling its status as needed."
+        },
+        {
+          "check": "read_file done.txt",
+          "known_limitations": [],
+          "observation_ref": "`done.txt` existed and contained `job complete`",
+          "requirement": "Once it has finished and `done.txt` exists, signal that the task is complete."
+        }
+      ],
+      "summary": "Launched a detached background job in the workspace that slept 10 seconds and wrote `job complete` to `done.txt`, waited for it to finish by polling/waiting, and verified the file contents."
+    },
+    "hook_trace": [],
+    "permission_decision": null,
+    "tool": "task_done"
+  },
+  "raw_output": {
+    "content": "{\"blind_retry_blocked\":false,\"cwd\":\"/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260617T014147Z/workspaces/g2_05_long_running_job/workspace\",\"duration_sec\":0.0,\"error\":{\"command\":null,\"details\":null,\"exit_code\":null,\"failure_class\":null,\"kind\":\"dispatch_error\",\"message\":\"ExecutionContext.task_done() got an unexpected keyword argument 'requirements'\",\"reason_code\":\"dispatch_error\",\"timed_out\":null,\"tool_name\":\"task_done\"},\"exit_code\":1,\"files_changed\":[],\"process_delta\":{\"exited\":[],\"job_log_growth\":{},\"jobs_exited\":[],\"jobs_started\":[],\"log_growth\":{},\"service_log_growth\":{},\"services_exited\":[],\"services_started\":[],\"session_log_growth\":{},\"sessions_exited\":[],\"sessions_started\":[],\"started\":[]},\"raw_log_path\":\"/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260617T014147Z/workspaces/g2_05_long_running_job/workspace/.aether2/raw_logs/task_done_b506de5a07fe42cfad69f42ea210d12f.json\",\"stderr_head\":\"ExecutionContext.task_done() got an unexpected keyword argument 'requirements'\",\"stderr_tail\":\"\",\"stdout_head\":\"\",\"stdout_tail\":\"\",\"tool\":\"task_done\",\"truncated\":false,\"truncation_digest\":null}",
+    "name": "task_done",
+    "role": "tool",
+    "tool_call_id": "call_gzdIlRdu1VF1njJOaYw1HXwY"
+  },
+  "receipt_id": "0005_action_task_done",
+  "request": {
+    "messages_len": 13
+  },
+  "response": {
+    "text": ""
+  },
+  "step": 5
+}

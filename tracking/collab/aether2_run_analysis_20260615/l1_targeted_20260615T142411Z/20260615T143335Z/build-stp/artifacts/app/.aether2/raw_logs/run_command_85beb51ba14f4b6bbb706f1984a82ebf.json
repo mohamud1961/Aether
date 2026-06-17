@@ -1,0 +1,26 @@
+{
+  "tool": "run_command",
+  "exit_code": 0,
+  "duration_sec": 0.06033586399280466,
+  "cwd": "/home/azureuser/aether2_full_tournament/l1_targeted_20260615T142411Z/20260615T143335Z/build-stp/workspace/stp",
+  "stdout": "# AUTHORS: Dan Liew, Ryan Gvostes, Mate Soos\n#\n# Permission is hereby granted, free of charge, to any person obtaining a copy\n# of this software and associated documentation files (the \"Software\"), to deal\n# in the Software without restriction, including without limitation the rights\n# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n# copies of the Software, and to permit persons to whom the Software is\n# # furnished to do so, subject to the following conditions:\n#\n# The above copyright notice and this permission notice shall be included in\n# all copies or substantial portions of the Software.\n#\n# THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n# THE SOFTWARE.\n\n# -----------------------------------------------------------------------------\n# Setup python module in build directory\n# -----------------------------------------------------------------------------\n\n# The binary path isn't known until the build process starts\n# (e.g. when building with MSBuild), so generate the file lately.)\n\n# get_property(STP_LIB_LOCATION TARGET stp PROPERTY LOCATION)\n# file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>)\n\nget_target_property(LIBSTP_BASENAME stp OUTPUT_NAME)\nset(LIBSTP_FILENAME \"${CMAKE_SHARED_LIBRARY_PREFIX}${LIBSTP_BASENAME}${CMAKE_SHARED_LIBRARY_SUFFIX}\")\nconfigure_file(${CMAKE_CURRENT_SOURCE_DIR}/library_path.py.in\n               ${CMAKE_CURRENT_BINARY_DIR}/library_path.py @ONLY)\n\n# Copy rest of files to build directory\nconfigure_file(${CMAKE_CURRENT_SOURCE_DIR}/stp.py.in\n              ${CMAKE_CURRENT_BINARY_DIR}/stp.py)\n\nconfigure_file(${CMAKE_CURRENT_SOURCE_DIR}/__init__.py.in\n                ${CMAKE_CURRENT_BINARY_DIR}/__init__.py)\n\n# -----------------------------------------------------------------------------\n# Handle installation\n# -----------------------------------------------------------------------------\n\n# Try to guess the right place by asking the current python interpreter for its\n# Python library directory\nexecute_process(COMMAND ${PYTHON_EXECUTABLE} -c\n                        \"from distutils.sysconfig import get_python_lib; print(get_python_lib())\"\n                 RESULT_VARIABLE RETURN_CODE\n                 OUTPUT_VARIABLE PYTHON_LIB_DIR_DETECTED\n                 OUTPUT_STRIP_TRAILING_WHITESPACE\n               )\n\nif (${RETURN_CODE} GREATER 0)\n    message(FATAL_ERROR \"Failed to determine python site package directory\")\nendif()\n\n# Provide an option so users can override what we detected earlier\nset(PYTHON_LIB_INSTALL_DIR \"${PYTHON_LIB_DIR_DETECTED}\" CACHE PATH \"Installation directory for stp python package\")\n\nif (EXISTS \"${PYTHON_LIB_INSTALL_DIR}\")\n    message(STATUS \"Detected python site package directory ${PYTHON_LIB_INSTALL_DIR}\")\nelse()\n    message(FATAL_ERROR \"Reported python site package directory '${PYTHON_LIB_INSTALL_DIR}' does not exist\")\nendif()\n\n# Install main files\n\ninstall(FILES ${CMAKE_CURRENT_BINARY_DIR}/stp.py\n              ${CMAKE_CURRENT_BINARY_DIR}/__init__.py\n        DESTINATION \"${PYTHON_LIB_INSTALL_DIR}/stp\")\n\n# Generate and install file describing install location of stp shared library\n# FIXME: the concrete binary filename should be obtained via generator\n#         expressions, but they can't be used for now due to bugs in older\n#         versions of CMake\nconfigure_file(library_path.py.in_install \"${PROJECT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/library_path.py\" @ONLY)\n\ninstall(FILES \"${PROJECT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/library_path.py\"\n        DESTINATION \"${PYTHON_LIB_INSTALL_DIR}/stp\"\n       )\n",
+  "stderr": "",
+  "files_changed": [],
+  "process_delta": {
+    "started": [],
+    "exited": [],
+    "log_growth": {},
+    "jobs_started": [],
+    "jobs_exited": [],
+    "sessions_started": [],
+    "sessions_exited": [],
+    "services_started": [],
+    "services_exited": [],
+    "job_log_growth": {},
+    "session_log_growth": {},
+    "service_log_growth": {}
+  },
+  "blind_retry_blocked": false,
+  "error": null,
+  "truncation_digest": null
+}

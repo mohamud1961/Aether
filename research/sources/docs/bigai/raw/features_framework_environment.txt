@@ -1,0 +1,112 @@
+Source URL: https://tongagents.mybigai.ac.cn/docs/Tong-Agent/features/framework/environment/?q=
+================================================================================
+
+Environment¶
+
+TongAgents 提供强大的 Environment（环境）能力，支持智能体与各种外部系统交互。
+
+概述¶
+
+Environment 是 TongAgents 的核心组件之一，它封装了智能体与外部世界交互的能力，包括：
+
+文件系统访问
+网络请求
+命令行执行
+数据库操作
+API 调用
+等等
+内置 Environment¶
+1. Web Environment¶
+
+用于网页交互的环境，支持：
+
+网页抓取
+表单填写
+浏览器自动化
+from tongagents.env import WebEnv
+
+
+
+env = WebEnv()
+
+result = await env.fetch("https://example.com")
+
+2. TongSim Environment¶
+
+用于模拟测试的环境，支持：
+
+模拟网络请求
+模拟文件操作
+模拟命令行
+from tongagents.env import TongSimEnv
+
+
+
+env = TongSimEnv()
+
+result = await env.run_command("ls -la")
+
+3. File Environment¶
+
+用于文件操作的环境，支持：
+
+文件读取/写入
+目录操作
+文件搜索
+from tongagents.env import FileEnv
+
+
+
+env = FileEnv(base_dir="/data")
+
+content = await env.read_file("example.txt")
+
+自定义 Environment¶
+from tongagents import Environment, EnvConfig
+
+
+
+class MyCustomEnv(Environment):
+
+    name = "my_custom_env"
+
+    description = "自定义环境"
+
+
+
+    async def initialize(self, config: EnvConfig):
+
+        # 初始化逻辑
+
+        pass
+
+
+
+    async def execute(self, action: Action):
+
+        # 执行逻辑
+
+        pass
+
+
+
+    async def cleanup(self):
+
+        # 清理逻辑
+
+        pass
+
+Environment 配置¶
+from tongagents import Agent
+
+
+
+agent = Agent(
+
+    env=WebEnv(),
+
+    # 或多个环境
+
+    envs=[WebEnv(), FileEnv()]
+
+)

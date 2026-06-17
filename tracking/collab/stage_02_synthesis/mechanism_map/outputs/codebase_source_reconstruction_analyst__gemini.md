@@ -1,0 +1,51 @@
+CODEBASE_SOURCE_RECON_OUTPUT
+- artifact: mechanism_map
+- role: codebase/source-reconstruction analyst
+- preflight_scope_confirmed: yes
+- preflight_planned_read_order:
+  1. Local harness codebase files (`blocks/`, `runner/`, `evals/`).
+  2. Mirrored codebase source trees (`research/sources/codebases/KIRA/`, `research/sources/codebases/deepagents/`, `research/sources/codebases/a-evolve/`).
+  3. Archived snapshot `src_cod_*` captures for historical context.
+  4. Behavioral traces (`research/sources/trajectories/`) for no-source mechanism inference.
+- preflight_critical_sources_selected:
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/subagents.py`
+  - `blocks/execution/guided_loop.py`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- preflight_coverage_risks: High reliance on sampling code files. Deep architectural details like how exactly langgraph passes state in `deepagents` might be missed without full run trace debugging. 
+- preflight_likely_blind_spots: Lack of full source for older `BigAI` systems requires reliance on `behavioral reconstruction` which can be faulty or incomplete.
+- preflight_blockers: none
+- coverage_used:
+  - `research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt`
+  - `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/base_prompt.md`
+  - `research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/` (listing)
+  - `research/sources/codebases/a-evolve/README.md`
+  - `research/sources/codebases/src_cod_*/capture.json` (metadata listing for OpenHands, SWE-agent, RALPH, Aider, agentsh, AAMF)
+  - `blocks/execution/guided_loop.py`
+  - `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`
+- coverage_not_yet_used: Full line-by-line reads of all `src_cod_*` snapshots.
+- evidence_classes_touched: mirrored codebases, relevant local harness code, benchmark captures.
+- priority_sources_not_yet_read: papers, formal literature.
+- source_backed_mechanisms:
+  - **Native Tool-Calling Gateway (KIRA):** Backed by `research/sources/codebases/KIRA/terminus_kira/terminus_kira.py`, TerminusKira inherits from a base but overrides parsing, moving to explicit API-level native tool definitions (e.g. `execute_commands`, `image_read`, `task_complete`) rather than regex or XML parsing from text blocks.
+  - **Middleware & Sub-Agent Graph (deepagents):** Backed by `research/sources/codebases/deepagents/libs/deepagents/deepagents/`, it uses a LangGraph `CompiledStateGraph` with a robust middleware stack (filesystem, memory, skills, and compiled subagents).
+  - **Soft Phase Transition (Local Harness):** Backed by `blocks/execution/guided_loop.py`, the local runner logic operates via a prompt-guided phase loop instead of strict code gates.
+- behavioral_reconstructions:
+  - **Planner-Executor Separation (BigAI):** As the source code is unavailable, trajectories indicate a strict observable role separation where a planner outputs `save_plan` and coordinates worker executors. Labelled as `behavioral reconstruction` based on `research/analysis/bigai_trace_layer/output/final_harness_reconstruction.md`.
+- subsystem_findings:
+  - `deepagents` uses explicit `middleware` components like `AsyncSubAgentMiddleware` to handle context before routing to `GENERAL_PURPOSE_SUBAGENT`, heavily leaning on `langgraph` state persistence.
+  - `a-evolve` behaves more as a meta-framework (`ae.Evolver`) wrapping and benchmarking arbitrary base agents against suites like `SWE-bench`, meaning its true mechanisms rely on the injected agent's properties rather than imposing a specific harness loop itself.
+- source_behavior_matches:
+  - The behavior in `terminus-kira` trajectories matches the source code: tools like `execute_commands` and `image_read` are natively called by the LLM without inline ICL parsing.
+- source_behavior_mismatches:
+  - `deepagents` source shows extensive internal modularity and graph states (memory middleware, subagents), but trajectories present a completely monolithic external face via continuous script-execution, hiding the internal agentic handoffs from the trajectory trace.
+- archive_or_visibility_limits:
+  - The `src_cod_*` captures are point-in-time archives (e.g., OpenHands V1, SWE-agent) that cannot be dynamically instrumented or introspected without spinning up their respective Docker sandboxes.
+- confidence_notes:
+  - **High:** KIRA and deepagents implementation mechanisms are explicitly visible in current code trees.
+  - **Medium:** Behavioral reconstructions of BigAI.
+- open_questions:
+  - Do the LangGraph middlewares in deepagents genuinely improve recovery, or are they just prestige architecture masking a basic reactive loop?
+- next_hand_off_target: `tracking/collab/stage_02_synthesis/mechanism_map/outputs/contradiction_analyst.md`

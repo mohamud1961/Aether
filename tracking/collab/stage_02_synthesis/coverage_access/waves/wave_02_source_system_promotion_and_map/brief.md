@@ -1,0 +1,53 @@
+# Coverage Access Wave 02 Source System Promotion And Map Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: coverage_access
+- objective: Promote first-class mirrored source systems explicitly and classify `src_cod_*` captures into a usable source-system map for later Deep Synthesis waves.
+- exact_question: Which mirrored systems are first-class source targets, what subsystems do they expose, how should `claw-code` be positioned, and which `src_cod_*` captures deserve early excavation versus later background status?
+- why_now: The binding wave plan requires first-class source promotion and explicit source triage before new `mechanism_map` waves continue. The owner also explicitly requested that `claw-code` be treated like KIRA and DeepAgents.
+- inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_access/brief.md
+  - research/sources/codebases/
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+- preflight_requirements:
+  - confirm first-class mirrored sources:
+    - `KIRA`
+    - `deepagents`
+    - `a-evolve`
+    - `claw-code`
+  - inventory `src_cod_*` captures without flattening them into one undifferentiated bucket
+  - identify which captures are source-heavy, doc-heavy, eval-heavy, or low-value for the project goal
+  - stop and return a blocker if source visibility is materially broken for any required first-class system
+- exclusions:
+  - do not claim later mechanism conclusions from this routing wave alone
+  - do not silently demote `claw-code`
+  - do not open new `mechanism_map` waves from inside this support wave
+- output_contract:
+  - wave synthesis:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_02_source_system_promotion_and_map/synthesis/principal_synthesis.md
+  - source-system map:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_02_source_system_promotion_and_map/outputs/source_system_map.md
+  - `src_cod_*` triage:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_02_source_system_promotion_and_map/outputs/src_cod_triage.md
+  - source-system dossier scaffolding:
+    - tracking/collab/stage_02_synthesis/source_system_dossiers/
+- collaboration_mode: source-routing support wave; blind parallel allowed for competing triage passes under the same packet
+- external_agent_action: Run external agent now: yes. Use the source-system packet to classify first-class systems and `src_cod_*` captures.
+- assigned_roles:
+  - principal project steward
+  - codebase/source-reconstruction analyst
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+  - tracking/collab/stage_02_synthesis/evidence_inventory/outputs/organizer.md
+- handoff_requirements:
+  - route the resulting source map into the next `mechanism_map` wave packet when that wave reopens
+  - route first-class systems and high-value secondary families into `source_system_dossiers/`
+- evidence_expectations:
+  - keep first-class systems and secondary captures explicitly separate
+  - make `claw-code` visible as first-class source scope
+  - identify which source captures matter most for later mechanism excavation
+- decision_needed_from_human: none unless first-class source integrity is broken and recapture or alternate sourcing is required.
+- done_condition: the first-class mirrored systems are explicitly promoted, `claw-code` is first-class, and `src_cod_*` captures are triaged into a usable source-system map for later Deep Synthesis waves.

@@ -1,0 +1,1287 @@
+--- PAGE 1 ---
+EvolMem: A Cognitive-Driven Benchmark for Multi-Session Dialogue
+Memory
+Ye Shen1,2, Dun Pei1,2, Yiqiu Guo2,3, Junying Wang2,3, Yijin Guo1,2,
+Zicheng Zhang2,Qi Jia 2,*,Jun Zhou 1,Guangtao Zhai 1,2,*
+1Shanghai Jiao Tong University,2Shanghai Artificial Intelligence Laboratory,
+3Fudan University
+{sherylye,dpei29}@sjtu.edu.cn, jiaqi@pjlab.org.cn
+Abstract
+Despite recent advances in understanding and
+leveraging long-range conversational memory,
+existing benchmarks still lack systematic eval-
+uation of large language models(LLMs) across
+diverse memory dimensions, particularly in
+multi-session settings. In this work, we pro-
+pose EvolMem, a new benchmark for assess-
+ing multi-session memory capabilities of LLMs
+and agent systems. EvolMem is grounded in
+cognitive psychology and encompasses both
+declarative and non-declarative memory, fur-
+ther decomposed into multiple fine-grained
+abilities. To construct the benchmark, we
+introduce a hybrid data synthesis framework
+that consists of topic-initiated generation and
+narrative-inspired transformations. This frame-
+work enables scalable generation of multi-
+session conversations with controllable com-
+plexity, accompanied by sample-specific eval-
+uation guidelines. Extensive evaluation re-
+veals that no LLM consistently outperforms
+others across all memory dimensions. More-
+over, agent memory mechanisms do not nec-
+essarily enhance LLMs’ capabilities and of-
+ten exhibit notable efficiency limitations. Data
+and code will be released at https://github.
+com/shenye7436/EvolMem.
+1 Introduction
+As large language models (LLMs) are increasingly
+deployed in interactive and long-horizon applica-
+tions (Xi et al., 2025; Packer et al., 2023; Liu et al.,
+2024a; Ouyang et al., 2022), memory plays a cen-
+tral role in enabling models to preserve user prefer-
+ences, accumulate knowledge, and support coher-
+ent long-term interactions. Consequently, rigorous
+evaluations of memory capabilities, particularly the
+ability to maintain and utilize information across
+sessions, are indispensable for diagnosing model
+limitations and guiding future improvements.
+*Corresponding authors.
+02040608010 0Re trie val
+Summarization
+Is olation
+In fer enceRe prod uction
+Learn ing
+HabituationLeaderboard
+①Gemini-3-Pro②GPT-5.1③MiniMax-M2④Mistral-Large⑤DeepSeek-V3.2⑥Kimi-K2⑦Lllama-4-Maverick
+Figure 1: The leaderboard and capability distribution of
+LLMs across fine-grained memory dimensions.
+Although there is a substantial body of research
+on memory in LLMs and agent systems (Zhang
+et al., 2025b), important limitations remain in ex-
+isting evaluation paradigms. First, most existing
+evaluations assess memory either within a single
+session (Deshpande et al., 2025; Hu et al., 2025)
+or through single-turn long-context inputs (Hsieh
+et al., 2024; Modarressi et al., 2025; Du et al.,
+2024). Such settings fall short of realistic usage,
+where models are expected to accumulate, retain,
+and utilize information across multiple conversa-
+tions with users. Multi-session dialogue more
+closely reflects real-world interactions and poses
+substantially greater challenges for long-term mem-
+ory understanding and management. Second, cur-
+rent evaluations place a strong emphasis on recall-
+ing previously provided information, which primar-
+ily corresponds to declarative memory. From a
+cognitive psychology perspective, however, human
+memory also includes non-declarative systems that
+rely on distinct mechanisms and support habits and
+implicit knowledge (Squire, 1986). Existing di-
+alogue benchmarks (Kim et al., 2024; Wu et al.,
+2024; Jiang et al., 2025; Deshpande et al., 2025)
+largely overlook non-declarative memory and lack
+a comprehensive set of assessment dimensions,
+leaving important aspects of models’ memory ca-
+pabilities insufficiently evaluated.
+In this work, to bridge these gaps, we propose
+1
+arXiv:2601.03543v1  [cs.CL]  7 Jan 2026
+
+--- PAGE 2 ---
+Benchmark Multi-turnMulti-sessionQuery TypeMemory TypesDiverse Metrics
+NIAH (Kamradt, 2024) × × Obj. -
+Ruler (Hsieh et al., 2024) × × Obj. ✓
+NoliMa (Modarressi et al., 2025) × × Obj. ×
+Multi-Session Chat (Xu et al., 2022a) ✓ ✓ Subj. ✓
+PerLTQA (Du et al., 2024) ✓ × Obj. ✓
+LongMemEval (Wu et al., 2024) ✓ ✓ Obj. ×
+PersonaMem (Jiang et al., 2025) ✓ ✓ Subj. ×
+Multichallenge (Deshpande et al., 2025)✓ × Obj. & Subj. ✓
+MemoryAgentBench (Hu et al., 2025) ✓ × Obj. & Subj. ✓
+EvolMem (Ours) ✓ ✓ Obj. & Subj. ✓
+Table 1: A comparison of memory evaluation benchmarks.Multi-turnrepresents whether the benchmark follows a
+multi-turn format.Multi-sessionrepresents whether it follows a multi-session format.Query typerepresents the
+types of questions to assess model memory ability, and Obj. means Objective while Subj. means Subjective. Type
+of Memory represents the memory capabilities involved in the benchmark. represents retrieval, represents
+summarization, represents isolation, represents inference, represents reproduction, represents learning
+and represents habituation.Diverse Metricsindicates the use of diverse evaluation metrics.
+a memory benchmark, EvolMem, for assessing
+LLMs and agent systems. EvolMem focuses on
+multi-session interactions to capture the evolving
+development of long-term memory through succes-
+sive interactions. Grounded in cognitive science, it
+offers a comprehensive evaluation framework that
+covers both declarative and non-declarative mem-
+ory, and further operationalizes seven fine-grained
+abilities including retrieval, inference and etc.
+We introduce a hybrid data synthesis frame-
+work that integrates topic-initiated generation and
+narrative-inspired transformation. Topic-initiated
+generation produces structured overviews from a
+wide range of topics, while narrative-inspired trans-
+formation converts abundant long-context bench-
+marks into multi-session dialogues via segmen-
+tation, ensuring interaction coherence alongside
+linguistic and topical diversity. Subsequently, we
+apply filtering and challenge injection to create sce-
+narios that systematically induce complex mem-
+ory demands. The resulting dialogues support
+customized evaluation of different memory abil-
+ities, including result-oriented, process-oriented,
+and open-ended metrics.
+Through a systematic evaluation of state-of-the-
+art LLMs and agent systems, we effectively differ-
+entiate their long-term memory capabilities and pin-
+point specific vulnerabilities in memory tasks. No-
+tably, neither LLMs nor agent memory mechanisms
+achieve consistent leading performance among fine-
+grained memory capabilities. We also observe
+systematic weaknesses in non-declarative mem-
+ory, even among advanced models, highlighting
+limitations not captured by existing benchmarks.
+Moreover, agent memory mechanisms introduce
+efficiency bottlenecks, particularly when encoun-
+tering long conversation histories.
+In summary, our contributions are:
+• We propose a cognitive-driven memory bench-
+mark, enabling comprehensive evaluation of
+LLMs’ memory capabilities.
+• We develop a multi-source data synthesis
+framework to enhance the benchmark’s diver-
+sity, and introduce multi-faceted evaluation
+metrics for systematic evaluation.
+• Our evaluation indicates that comprehensive
+superiority in memory capabilities remains
+challenging for both LLMs and agents, point-
+ing out multiple future directions.
+2 Related Work
+2.1 The Evolution of LLMs & Agents
+Conventional LLMs are constrained by fixed con-
+text windows, limiting long-horizon reasoning and
+multi-session consistency (Liu et al., 2024b).With
+the expansion of context capabilities, state-of-the-
+art LLMs such as GPT-5 (OpenAI, 2025), Gemini
+3.0 Pro (Google DeepMind, 2025), and DeepSeek-
+V3.2 (Liu et al., 2025) demonstrate enhanced capa-
+bilities in these memory-intensive tasks.
+As models evolve into general-purpose au-
+tonomous agents, memory mechanisms are piv-
+otal for stable reasoning and persistent execu-
+tion. Existing approaches are broadly catego-
+rized into structure-augmented RAG (e.g., Hip-
+poRAG (Gutiérrez et al., 2025), Mem0 (Chhikara
+et al., 2025)), which augments retrieval via struc-
+tured representations, and agentic memory (e.g.,
+2
+
+--- PAGE 3 ---
+Figure 2: The outline of our hybrid data synthesis framework and adopted evaluation metrics.
+A-Mem (Xu et al., 2025), MemoryOS (Kang
+et al., 2025)), which orchestrates memory through
+autonomously decided retrieval-reflection-update
+loops. Given memory’s critical role in agentic evo-
+lution, rigorous benchmarking is imperative.
+2.2 Memory Evaluation Benchmarks
+Long-text benchmarks such as NIAH (Kam-
+radt, 2024), Ruler (Hsieh et al., 2024), and No-
+lima (Modarressi et al., 2025) test the ability to
+retain single-turn information. Limited to fixed
+context windows, these benchmarks fail to re-
+flect the evolution of information. Furthermore,
+PerLTQA (Du et al., 2024), Multichallenge (Desh-
+pande et al., 2025), and MemoryAgentBench (Hu
+et al., 2025) employ a multi-turn format closer to
+the basic pattern of interaction than long text in-
+put. However, information within one session still
+primarily tests short-term memory.
+Subsequently, benchmarks like DiaSim (Kim
+et al., 2024), LongMemEval (Wu et al., 2024),
+PersonaMem (Jiang et al., 2025), Multi-Session
+Chat (Xu et al., 2022a), and Conversation Chron-
+icles (Jang et al., 2023) extend to multiple inde-
+pendent but related sessions, mirroring real-world
+scenarios, and assessing the memory beyond the
+context window. Nevertheless, they neglect non-
+declarative memory, which is equally important to
+examine long-term memory and information reten-
+tion mechanisms (Wu et al., 2025). To this end,
+there is an urgent need for benchmarks featuring
+multi-session dialogues that enable comprehensive
+evaluation across different memory types.
+3 EvolMem
+An overview of the construction of EvolMem is
+illustrated in Fig. 2. We begin by classifying mem-
+ory into declarative and non-declarative types and
+further subdivide them into fine-grained capabili-
+ties. To generate multi-session dialogues, we de-
+velop a hybrid synthesis framework that combines
+topic-initiated generation and narrative-inspired
+transformation, ensuring diverse topics, coherent
+multi-session interactions, and rich linguistic con-
+tent. Finally, we design customized evaluation
+metrics to assess model performance across dif-
+ferent memory abilities, including result-oriented,
+process-oriented, and open-ended metrics.
+3.1 Memory Classification
+According to human cognitive psychology, mem-
+ory is categorized into declarative memory and
+non-declarative memory (Squire, 1986). We ex-
+plain the definitions and delineate the fine-grained
+capabilities for each type as follows.
+Declarative memorycaptures the ability to ex-
+plicitly store and retrieve facts, events, and states. It
+encompasses knowledge and experiences that can
+be consciously recalled and manipulated, and is
+further subdivided into the following capabilities:
+• Retrieval(Mei and Radev, 2022) involves
+grasping previously acquired key information
+amid substantial irrelevant content.
+• Summarization(Hanks and Weld, 1994) up-
+dates memory representations as goals or task
+conditions change.
+• Isolation(Hunt, 2006) requires distinguishing
+the sources of stored information to prevent in-
+3
+
+--- PAGE 4 ---
+terference or source-misattribution errors.
+• Inference(Gregory, 1980) requires reasoning
+about potential relationships and conclusions
+from saliently contradictory cues hidden in his-
+torical messages.
+• Reproduction(Bartlett, 1995) reconstructs a
+process demonstrated in historical interactions.
+Non-declarative memory, in contrast, captures
+implicit and automated learning that shapes behav-
+ior and decision-making without conscious recall.
+We focus on two core capabilities:
+• Learning(Cohen and Squire, 1980) refers to
+internalizing operational rules through repeated
+experience and executing these rules reliably in
+new situations.
+•Habituation(Rankin et al., 2009) involves the
+gradual formation of stable, automatic memory
+patterns that maintain earlier user instructions
+across interactions.
+3.2 Dialogue synthesis framework
+Topic-Initiated Generation and Narrative-Inspired
+Transformation leverage rich seed source to en-
+hance data diversity, regulate inter-session dialogue
+progression through coarse-to-fine paradigms, and
+modulate difficulty via filtering or injection mecha-
+nisms. More details corresponding to each capabil-
+ity are provided in the Appendix C.
+3.2.1 Topic-Initiated Generation
+Seed Dataas initial input comprises N predefined
+task categories Ci, each targeting specific capabili-
+ties and corresponding requirements, alongside a
+diverse set of topics ti provided in the Appendix A.
+It serves as the foundation for detailed dialogue
+generation, formally represented as:
+STIG ={s i}N
+i=1 ={(C i, ti)}N
+i=1 ,(1)
+where each task category Ci is paired with a sys-
+tematically grouped set of topics ti to ensure the
+sufficient diverse and difficulty in dialogue content.
+Plannerto synthesize dialogue overviews O
+employs a generative function fLLM(si,R PLA),
+where RPLA represents a set of structural con-
+straints. To ensure sufficient coverage across di-
+verse task types, the planner invokes model to
+produce K samples per topic, constructing multi-
+session dialogues with at least J≥j sessions.
+Each session is required to include a brief sum-
+mary M grounded in seed data and specific dif-
+ficulty, along with a specified number of turns T .
+The model is further instructed to draft a final query
+Q, its corresponding reference answer A, and an
+evaluation checklistEderived from the overview.
+Algorithm 1Planner: Overview Generation
+Input:S TIG,f LLM(·)
+Output:Generated Dialogue OverviewsO
+1:O ← ∅
+2:fori= 1toNdo▷Iterate over tasks
+3:fork= 1toKdo▷Invoke model
+4:R PLA ← {J≥j, T, M, Q, A, E}
+5:O k
+i ←f LLM(si,R PLA)▷Generate
+Overview
+6:O ← O ∪ {O k
+i }
+7:end for
+8:end for
+9:returnO
+Generatoremploys multiple fLLM(Ok
+i ,R GEN)
+to generate multi-session dialogues D and com-
+plete Q, A, and E, where RGEN represents natural
+expansion constraints. By leveraging the heteroge-
+neous linguistic styles, reasoning behaviors, and
+memory processing capabilities of different mod-
+els, this approach enables the generation of more
+diverse and challenging dialogue scenarios. Conse-
+quently, the resulting corpus provides a robust and
+reliable foundation for subsequent evaluation.
+Filteringensures the complexity of our bench-
+mark. Specifically, we use DeepSeek-V3.2 (Liu
+et al., 2025) to generate answers, run the evalua-
+tion pipeline, and remove all dialogues with scores
+greater than or equal to 0.8, thus retaining more
+challenging and discriminative samples.
+3.2.2 Narrative-Inspired Transformation
+Seed DataLong text data is enormous and evalu-
+ation methods are nearing saturation (Zhang et al.,
+2025a), while multi-session dialogues are relatively
+scarce (Xu et al., 2022b) and more closely reflect
+real scenarios due to cross-turn interaction logic
+and contextual coherence. Therefore, we propose a
+strategy to transform W long text (L) from existing
+benchmark into multi-session dialogues.
+Segmentationproceeds in two stages. Firstly,
+the original long text is partitioned into fine-grained
+semantic paragraphs P , subject to predefined ses-
+sion (J) and turn (T ) constraints. Secondly, T para-
+graphs are systematically assigned to independent
+session units. By precisely modulating the distribu-
+tion of sessions and turns, it effectively simulates
+real challenges like context truncation, memory
+4
+
+--- PAGE 5 ---
+decay, and sparse information dispersion.
+SNIT ={s l}W
+l=1 ={(L l, Pl)}W
+l=1 (2)
+where each Li is paired with Pi, and SeedNIT rep-
+resents the set of user statements. Q&A can be ob-
+tained from the source while the evaluation pipeline
+(E) is established through direct comparison.
+Transformationencapsulates the segmented
+paragraphs and natural responses into a dialogue
+format. Specifically, we employfLLM(sl,R NIT) to
+generate human-like agent responses, where RNIT
+denotes the constraints for naturalness and coher-
+ence. Finally, multi-session dialogues comprising
+J sessions and T turns are integrated into D, ef-
+fectively preserving the semantic integrity of the
+original source.
+Challenge Injectionemploys diverse strategies
+to stress-test model robustness, including (1) the
+strategic insertion of contextually plausible yet log-
+ically antithetical information to probe the model’s
+consistency of memory, and (2) the integration of
+established, high-difficulty benchmarks as rigorous
+evaluation anchors. Overall, this configuration ne-
+cessitates non-linear reasoning, requiring the model
+to navigate long-range dependencies, reconcile se-
+mantic conflicts, and perform iterative learning to
+arrive at a verified conclusion.
+3.3 Evaluation Methods
+Considering the diversity of tasks and their differ-
+ent evaluation focuses, we adopt the metrics cate-
+gorized into three types: result-oriented, process-
+oriented, and open-ended. All scores are normal-
+ized to a range of 0 to 1. Metric details for each
+task are in Appendix C.
+Result-OrientedWe evaluate the correctness
+of final outcomes via direct comparison using two
+metrics:accuracyandprecision. Accuracy mea-
+sures exact match with the complete set of correct
+answers, while precision measures the proportion
+of correct items in the model output, penalizing
+redundancy and errors (Manning, 2008).
+Process-OrientedProcess-oriented evaluation
+assesses the correctness and sequential consistency
+of procedural steps. We first use a stronger LLM
+to extract key steps, and then applysequence order
+matchingbased on the Longest Common Subse-
+quence (LCS) to evaluate step coverage and order-
+ing (Lin, 2004). Let the reference step sequence
+be R= [r 1, r2, . . . , rm], and the extracted model-
+generated sequence be ˆA= [ˆa1,ˆa2, . . . ,ˆan]. The
+sequence order matching score is defined as
+Sseq = LCS(R, ˆA)
+|R| .(3)
+Open-EndedLLM-as-a-Judgeprovides a flex-
+ible and scalable framework for evaluating open-
+ended subjective tasks (Zheng et al., 2023; Min
+et al., 2023), effectively assessing semantic qual-
+ities such as consistency. Inspired by (Wei et al.,
+2025), each question in our work is associated with
+a set of evaluation criteria tailored to the task, en-
+suring that all relevant aspects of the answer are as-
+sessed. Given a question Q and a model-generated
+answer ˆA, the final score is computed as
+Sllm =
+KX
+k=1
+wk ·J (k)
+θ (Q, ˆA),(4)
+where J (k)
+θ is the score for the k-th criterion and
+wk its relative weight.
+4 Experiment Setup
+In this section, we elaborate on dataset construction
+details, and the LLMs and agent memory systems
+for evaluation.
+4.1 Data Construction and Statistics
+To construct a diverse and representative bench-
+mark, we selected data sources and appropriate
+LLMs for dialogue generation specified in Tab. 7.
+For topic-initiated generation, based on a survey
+of topic distributions in existing benchmarks (Hu
+et al., 2025; Deshpande et al., 2025; Jiang et al.,
+2025; Wu et al., 2024) and the user interest re-
+port released by OpenAI (Chatterji et al., 2025),
+we identified 10 topic categories covering 50
+specific topics, set LLM as DeepSeek-V3.2, K
+as 5, j as 5 in the planner stage, and in the
+generation phase, utilized 3 LLMs, which were
+respectively DeepSeek-V3.2 (Liu et al., 2025),
+GPT-4.1 (Achiam et al., 2023), and Grok-4-Fast-
+Reasoning (xAI, 2025). For narrative-inspired
+transformation, after assessing multiple datasets
+detailed in Appendix B, we selected Variable Track-
+ing (VT) in Ruler as the source and employed LLM
+as DeepSeek-V3.2,Jas 9, andTas 4.
+In the end, EvolMem comprises 1,600 dialogues,
+with 6.82 sessions and 29.49 turns on average.
+5
+
+--- PAGE 6 ---
+Model Declarative Memory Non-declarative Memory OverallRet. Sum. Iso. Inf. Rep. Avg Lea. Hab. Avg
+Gemini-3-Pro 58.37 68.77 78.20 92.05 48.40 69.16 47.37 84.16 65.77 67.47
+GPT-5.1 76.41 68.77 82.87 72.38 63.60 72.81 50.86 14.79 32.83 52.82
+MiniMax-M2 80.66 71.74 82.27 59.38 61.06 71.02 51.35 16.16 33.76 52.39
+Mistral-Large 81.11 70.67 82.08 62.09 61.26 71.44 48.10 18.42 33.26 52.35
+DeepSeek-V3.2 72.68 67.00 76.91 60.84 57.26 66.94 50.96 23.86 37.41 52.18
+Kimi-K2 78.85 68.27 77.74 43.36 62.26 66.10 44.46 21.31 32.89 49.50
+Llama-4-Maverick 54.87 44.14 68.03 47.24 35.31 49.92 25.01 25.24 25.13 37.53
+Average 71.85 65.52 77.67 62.48 55.59 66.77 45.44 29.13 37.29 52.03
+Standard Deviation 10.83 9.60 5.01 16.24 10.30 - 9.34 24.57 - -
+Table 2: Performance (%) of evaluated LLMs. The abilities in Sec. 3.1 are represented by their first three letters. Avg
+represents the average scores across corresponding sub-capabilities, and Overall refers to the averaged performance
+of both of them. Best scores in each column are highlighted in pink, and second-best scores in green.
+4.2 LLMs For Evaluation
+We assess 7 LLMs with corresponding default set-
+tings for evaluation including DeepSeek-V3.2 (Liu
+et al., 2025), GPT-5.1 (OpenAI, 2025), Kimi-
+K2 (Team et al., 2025), Gemini-3-Pro (Google
+DeepMind, 2025), Mistral-Large (Mistral AI,
+2024), MiniMax-M2 (MiniMax, 2024), and Llama-
+4-Maverick (Meta AI, 2025), which are all cutting-
+edge open-source and proprietary models.
+4.3 Agent Memory Systems For Evaluation
+Following prior taxonomies (Wang et al., 2024;
+Park et al., 2023), memory agents can be grouped
+into structure-augmented RAG agents and Agen-
+tic memory agents based on their memory mech-
+anisms. For evaluation, we select representative
+agents from each class. Mem0 (Chhikara et al.,
+2025) and HippoRAG (Gutiérrez et al., 2025) ex-
+emplify structure-augmented RAG agents, while
+MemoryOS (Kang et al., 2025) and A-MEM (Xu
+et al., 2025) represent agentic memory agents.
+5 Results and Analysis
+We present the evaluation results of LLMs and
+agent-based systems through specific evaluation
+methods and metrics shown in Appendix E and
+Tab. 7. Accordingly, we analyze their performance,
+the impact of turns, the sensitivity of LLM genera-
+tors, and the significance and evolutionary proper-
+ties of our benchmark.
+5.1 Performance of LLMs
+The performance of LLMs are shown in Table 2
+with an illustration in Fig. 1.
+Overall PerformanceThe highest overall
+score is achieved by Gemini-3-Pro with 67.47%,
+followed by GPT-5.1 and MiniMax-M2. Even the
+top-performing model exhibits notable weaknesses
+in certain dimensions, indicating that current LLMs
+lack a balanced and comprehensive memory ability
+across multiple tasks. For example, Gemini-3-Pro
+achieves 48.40% in Reproduction and GPT-5.1 gets
+merely 14.79% on Habituation.
+Capability ComparisonAs for fine-grained
+abilities, Isolation and Retrieval show stronger and
+more stable performance, with Isolation exhibiting
+the smallest inter-model variance of 5.01%. In con-
+trast, Habituation is the most challenging ability,
+yielding the lowest average performance and the
+largest variance. Notably, Gemini-3-Pro outper-
+forms other models by approximately 4-5 times.
+This pronounced gap suggests that long-term con-
+text habituation ability has been largely overlooked
+in prior training and optimization.
+Model-Specific AnalysisGemini-3-Pro shows
+strong inference capabilities but underperforms in
+detailed retrieval tasks, as reflected by its relatively
+low retrieval score with 58.37%. It also struggles
+with procedure-focused memorization tasks as re-
+flected by Reproduction and Learning, indicating
+that its problem-solving relies heavily on internal
+parameters rather than leveraging dialogue history.
+In contrast, Mistral-Large and MiniMax-M2 ex-
+hibit the opposite pattern. They excel at recall-
+ing contextual content and cues, achieving higher
+scores in retrieval and reproduction. However, their
+inference abilities are comparatively weaker.
+Overall,the results indicate that LLMs per-
+form better on declarative memory tasks than
+on non-declarative ones, andno model currently
+achieves all-round superiority. These findings
+also highlight the significance of EvolMem as a
+comprehensive benchmark.
+5.2 Performance of Agents
+We adopt DeepSeek-V3.2 as the shared base model
+of memory agents and evaluate their performance
+6
+
+--- PAGE 7 ---
+Model Declarative Memory Non-declarative Memory OverallRet. Sum. Iso. Inf. Rep. Avg Lea. Hab. Avg
+Mem0 69.41 68.21 75.89 44.84 54.73 62.62 37.56 6.94 22.25 42.44
+HippoRAG 42.54 43.68 61.20 79.97 41.17 53.71 24.70 0.30 12.50 33.11
+MemoryOS 63.95 68.94 77.19 64.05 58.90 66.61 37.93 23.47 30.70 48.66
+A-MEM 68.47 60.39 75.08 61.82 53.84 63.92 40.93 9.37 25.15 44.54
+DeepSeek-V3.2 72.68 67.00 76.91 60.84 57.26 66.94 50.96 23.86 37.41 52.18
+Table 3: Performance (%) of memory agents with DeepSeek-V3.2 as the base model.
+Agents mem0 HippoRAG MemoryOS A-MEM
+Speed↓ 30.17 92.76 183.24 492.60
+Table 4:Generation Speeddenotes average generation
+time (s) for each sample of different memory agents.
+detailed in Appendix D on EvolMem in Table 3.
+EffectivenessAll evaluatedagent systems fail
+to surpass the base model, DeepSeek-V3.2, which
+undermines the primary design objective of such
+memory modules. Among the agents, MemoryOS
+emerges as the best framework, followed by A-
+MEM and Mem0. When evaluated across diverse
+capability dimensions, agents display significant
+performance disparity. MemoryOS demonstrates
+superior capability among agents in tasks such as
+Summarization, Isolation, and Reproduction, out-
+performing the base model. Nevertheless, it dis-
+plays significant weakness in Retrieval. Notably,
+while performing poorly across other capabilities,
+HippoRAG achieves the highest score in Inference.
+This performance discrepancy likely attributes to
+HippoRAG’s graph-based PageRank mechanism,
+which effectively traces the relational chains essen-
+tial for uncovering implicit logical dependencies.
+The results reveal a substantial divergence in
+agent capability between the categories of declar-
+ative and non-declarative memory. While agents
+demonstrate comparable competence to the base-
+line in declarative tasks, their performance declines
+significantly in non-declarative memory. This dif-
+ference demonstrates a critical deficiency of mem-
+ory agents in procedural adaptation.
+EfficiencyWe further analyze the efficiency of
+different memory mechanisms in Table 4. The re-
+sults show agentic memory systems incur substan-
+tial latency than structure-augmented RAG meth-
+ods, with A-MEM requiring 16.3 times the duration
+of Mem0 system. This evidence suggests thatthe
+iterative decision-making processesinherent to
+autonomous memory evolution currently impose a
+prohibitive temporal cost,significantly constrain-
+ing their viability for real-time applications.
+DeepSeek GPT Grok Overall
+DeepSeek
+GPT
+Grok
+Overall
+1.00 0.05 0.43 0.90
+0.05 1.00 0.62 0.14
+0.43 0.62 1.00 0.52
+0.90 0.14 0.52 1.00 0.2
+0.4
+0.6
+0.8
+1.0
+Figure 3: The Spearman’s Correlation between the rank-
+ings under different generators and overall rankings.
+5.3 Feasibility of Using LLM Generators
+Our proposed dialogue synthesis framework uses
+LLMs to generate data. To validate the feasibility
+of this approach, on the one hand, we conducted a
+manual verification process for a random sample
+of 50 instances from EvolMem. Three independent
+annotators assessed whether each Q&A pair was
+grounded in and consistent with its dialogue con-
+text. The full agreement rate was 0.88, indicating
+consistent and reliable judgments. The results show
+that about 95.33% of the synthesized data is valid.
+On the other hand, we analyzed the sensitivity
+to different LLM generators on the results in Ap-
+pendix F. We categorized the data in EvolMem
+according to its generator and compared model
+rankings across each subset. The results in Fig. 3
+revealed that DeepSeek and Overall exhibited high
+consistency, with a Spearman correlation of 0.90,
+while GPT-4.1 showed a much lower correlation
+of 0.05. This discrepancy was due to differences
+in the topics retained after the complexity filter,
+as well as variations in model style and concen-
+tration. The Jaccard Similarity of topics between
+DeepSeek-V3.2 and GPT-4.1 is 83.53%. These
+findings highlight the importance of using multi-
+ple LLM generators to ensure a diverse dataset,
+which is crucial for generating more accurate and
+fair model evaluations.
+7
+
+--- PAGE 8 ---
+20406080100
+1369
+Performance (%)
+#Sessions
+Figure 4: The performance of DeepSeek-V3.2 under
+different number of sessions.
+5.4 Benchmark Evolution for Continual
+Assessment
+The evolution of dataset difficulty is crucial for pre-
+venting performance saturation in long-term evalua-
+tions. To explore this, we conducted preliminary ex-
+periments by adjusting the complexity of individual
+sessions while constructing multi-session dialogues
+using topic-initiated generation. Experimental re-
+sults, shown in Figure 4, reveal that as the number
+of dialogue sessions increases, DeepSeek-V3.2’s
+performance gradually declines. This suggests that
+EvolMem is capable of evolving in complexity,
+thereby maintaining its long-term effectiveness as
+model capabilities continue to advance.
+5.5 Correlation with Existing Benchmarks
+Currently, there are many benchmarks and eval-
+uation platforms (Chiang et al., 2024; Zhang
+et al., 2025c) available to assess model capabili-
+ties. To distinguish memory performance from gen-
+eral capabilities, we integrate authoritative bench-
+marks—including SWE-Bench-Verified (Jimenez
+et al., 2024; Crossa and the LLM Stats Team,
+2024), AIME 2025 (Mathematical Association of
+America, 2025; Crossa and the LLM Stats Team,
+2024), and AGI-Eval (Team, 2025), to evaluate
+LLM performance across code, reasoning, interac-
+tion, and knowledge domains. Spearman’s Corre-
+lation (Spearman, 1904) between these rankings
+and the EvolMem ranking in Tab. 5 shows that
+memory correlates most strongly with interaction
+at 0.61, suggesting memory is a critical compo-
+nent of interaction abilities. Strong correlations
+with Code at 0.75 and Reasoning at 0.71 indicate
+that improvements in these areas enhance mem-
+ory performance. However, the low correlation
+with Knowledge at 0.18 reveals that EvolMem’s
+memory capabilities are primarily driven by con-
+text understanding, rather than the out-of-context
+knowledge. This confirms that memory is an inde-
+Figure 5: Spearman’s Correlation between EvolMem
+and other four leaderboards.
+User:Ihavethissentence:'Ilovereadingbooks.'Canyourewriteitinaformalwritingstyle?...AI:Okay,letmegetstarted.Iderivegreatpleasurefromtheperusalofbooks.So,that'sallaboutit....
+Capability：HabituationTo p i c：Editor Critique
+User:Howdoyouthinkweshouldapproachthetaskofcriticallyanalyzingandimprovingthestructuralcoherence,logicalflow,andstylisticeleganceofcomplexacademictexts…?DeepSeek-V3.2:Okay,letmegetstarted. Thesystematicrefinementofcomplexacademictextsnecessitatesamulti-layeredanalyticalapproachthatbalancesstructuralintegritywithrhetoricalnuance.Acomprehensivemethodologymightinclude:1.ArchitecturalAnalysis:...2.RhetoricalForensics:...3.LinguisticCalibration:...Gemini-3-Pro:Okay,letmegetstarted.Inwhatmannershouldweformulateanapproachtothecriticalevaluationandenhancementofthestructuralcoherence,logicalprogression,andstylisticrefinementofintricateacademictexts…
+Session1
+Final Query
+Session5...User:Globalizationhasprosandcons.AI:Okay,letmegetstarted.Theprocessofglobalizationencompassesbothmeritsanddrawbacks.So,that'sallaboutit.....
+Figure 6: Case Study, where yellow and blue highlights
+indicate informal and formal wording.
+pendent and essential dimension.
+5.6 Case Study
+We select a sample from Habituation, which shows
+the largest performance variance, as a representa-
+tive case study in Fig. 6. In this example, the user
+consistently expects model to transfer style on the
+statements. Results exhibit that Gemini-3-Pro cor-
+rectly preserves this long-term stylistic constraint
+and performs the expected style transfer perfectly.
+In contrast, DeepSeek-V3.2 ignores the habitual
+style preference encoded in the dialogue history
+and responds only to the current question, reveal-
+ing a failure to capture persistent user intent in
+non-declarative memory.
+8
+
+--- PAGE 9 ---
+6 Conclusion
+We introduce EvolMem, a memory benchmark for
+both LLMs and agents. It is grounded in cognitive
+psychology and built using a multi-source, collabo-
+rative data synthesis framework to ensure diversity.
+The benchmark covers multi-faceted memory di-
+mensions and uses various metrics for assessment.
+Our results show that models exhibit consistent
+weaknesses in non-declarative memory. Future
+work could explore strategies for improving agents’
+effectiveness and efficiency jointly, alongside multi-
+dimensional memory abilities.
+References
+Josh Achiam, Steven Adler, Sandhini Agarwal, Lama
+Ahmad, Ilge Akkaya, Florencia Leoni Aleman,
+Diogo Almeida, Janko Altenschmidt, Sam Altman,
+Shyamal Anadkat, and 1 others. 2023. Gpt-4 techni-
+cal report.arXiv preprint arXiv:2303.08774.
+Frederic Charles Bartlett. 1995.Remembering: A study
+in experimental and social psychology. Cambridge
+university press.
+Aaron Chatterji, Thomas Cunningham, David J Dem-
+ing, Zoe Hitzig, Christopher Ong, Carl Yan Shan,
+and Kevin Wadman. 2025. How people use chat-
+gpt. Technical report, National Bureau of Economic
+Research.
+Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet
+Singh, and Deshraj Yadav. 2025. Mem0: Building
+production-ready ai agents with scalable long-term
+memory.arXiv preprint arXiv:2504.19413.
+Wei-Lin Chiang, Lianmin Zheng, Ying Sheng, Anas-
+tasios N. Angelopoulos, Tianle Li, Dacheng Li,
+Banghua Zhu, Hao Zhang, Michael I. Jordan,
+Joseph E. Gonzalez, and Ion Stoica. 2024. Chat-
+bot arena: An open platform for evaluating llms by
+human preference.Preprint, arXiv:2403.04132.
+Neal J Cohen and Larry R Squire. 1980. Preserved
+learning and retention of pattern-analyzing skill in
+amnesia: Dissociation of knowing how and knowing
+that.Science, 210(4466):207–210.
+Sebastian Crossa and the LLM Stats Team. 2024. Llm
+stats: Real-time large language model statistics and
+benchmarks.https://llm-stats.com/.
+Kaustubh Deshpande, Ved Sirdeshmukh, Johannes Bap-
+tist Mols, Lifeng Jin, Ed-Yeremai Hernandez-
+Cardona, Dean Lee, Jeremy Kritz, Willow E Primack,
+Summer Yue, and Chen Xing. 2025. Multichallenge:
+A realistic multi-turn conversation evaluation bench-
+mark challenging to frontier llms. InFindings of
+the Association for Computational Linguistics: ACL
+2025, pages 18632–18702.
+Yiming Du, Hongru Wang, Zhengyi Zhao, Bin Liang,
+Baojun Wang, Wanjun Zhong, Zezhong Wang, and
+Kam-Fai Wong. 2024. Perltqa: A personal long-term
+memory dataset for memory classification, retrieval,
+and synthesis in question answering.arXiv preprint
+arXiv:2402.16288.
+Google DeepMind. 2025. Gemini 3 Pro. https://
+deepmind.google/models/gemini/pro/.
+Richard Langton Gregory. 1980. Perceptions as
+hypotheses.Philosophical Transactions of the
+Royal Society of London. B, Biological Sciences,
+290(1038):181–197.
+Bernal Jiménez Gutiérrez, Yiheng Shu, Weijian Qi,
+Sizhe Zhou, and Yu Su. 2025. From rag to memory:
+Non-parametric continual learning for large language
+models.arXiv preprint arXiv:2502.14802.
+Steve Hanks and Daniel S Weld. 1994. A domain-
+independent algorithm for plan adaptation.Journal
+of Artificial Intelligence Research, 2:319–360.
+Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shan-
+tanu Acharya, Dima Rekesh, Fei Jia, Yang Zhang,
+and Boris Ginsburg. 2024. Ruler: What’s the real
+context size of your long-context language models?
+arXiv preprint arXiv:2404.06654.
+Yuanzhe Hu, Yu Wang, and Julian McAuley. 2025. Eval-
+uating memory in llm agents via incremental multi-
+turn interactions.arXiv preprint arXiv:2507.05257.
+R Reed Hunt. 2006. The concept of distinctiveness
+in memory research.Distinctiveness and memory,
+pages 3–25.
+Jihyoung Jang, Minseong Boo, and Hyounghun Kim.
+2023. Conversation chronicles: Towards diverse tem-
+poral and relational dynamics in multi-session con-
+versations.arXiv preprint arXiv:2310.13420.
+Bowen Jiang, Zhuoqun Hao, Young-Min Cho, Bryan
+Li, Yuan Yuan, Sihao Chen, Lyle Ungar, Camillo J
+Taylor, and Dan Roth. 2025. Know me, respond to
+me: Benchmarking llms for dynamic user profiling
+and personalized responses at scale.arXiv preprint
+arXiv:2504.14225.
+Carlos E Jimenez, John Yang, Alexander Wettig,
+Shunyu Yao, Kexin Pei, Ofir Press, and Karthik R
+Narasimhan. 2024. SWE-bench: Can language mod-
+els resolve real-world github issues? InThe Twelfth
+International Conference on Learning Representa-
+tions (ICLR).
+Garrett Kamradt. 2024. Needle in a haystack – pressure
+testing llms. https://github.com/gkamradt/
+LLMTest_NeedleInAHaystack. GitHub repository.
+Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting
+Bai. 2025. Memory os of ai agent.arXiv preprint
+arXiv:2506.06326.
+9
+
+--- PAGE 10 ---
+Jiho Kim, Woosog Chay, Hyeonji Hwang, Daeun
+Kyung, Hyunseung Chung, Eunbyeol Cho, Yohan
+Jo, and Edward Choi. 2024. Dialsim: A real-time
+simulator for evaluating long-term multi-party dia-
+logue understanding of conversational agents.
+Chin-Yew Lin. 2004. Rouge: A package for automatic
+evaluation of summaries. InText summarization
+branches out, pages 74–81.
+Aixin Liu, Aoxue Mei, Bangcai Lin, Bing Xue, Bingx-
+uan Wang, Bingzheng Xu, Bochao Wu, Bowei
+Zhang, Chaofan Lin, Chen Dong, and 1 others. 2025.
+Deepseek-v3. 2: Pushing the frontier of open large
+language models.arXiv preprint arXiv:2512.02556.
+Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paran-
+jape, Michele Bevilacqua, Fabio Petroni, and Percy
+Liang. 2024a. Lost in the middle: How language
+models use long contexts.Transactions of the Asso-
+ciation for Computational Linguistics, 12:157–173.
+Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paran-
+jape, Michele Bevilacqua, Fabio Petroni, and Percy
+Liang. 2024b. Lost in the middle: How language
+models use long contexts.Transactions of the Asso-
+ciation for Computational Linguistics, 12:157–173.
+Christopher D Manning. 2008.Introduction to informa-
+tion retrieval. Syngress Publishing,.
+Mathematical Association of America. 2025. American
+invitational mathematics examination (aime) 2025.
+Official contest problems and solutions.
+Qiaozhu Mei and Dragomir Radev. 2022. Information
+retrieval. In Ruslan Mitkov, editor,The Oxford Hand-
+book of Computational Linguistics, 2 edition. Oxford
+University Press.
+Meta AI. 2025. Llama 4: Open multimodal intelli-
+gence with mixture-of-experts. https://ai.meta.
+com/blog/llama-4-announcement/.
+Sewon Min, Kalpesh Krishna, Xinxi Lyu, Mike Lewis,
+Wen-tau Yih, Pang Koh, Mohit Iyyer, Luke Zettle-
+moyer, and Hannaneh Hajishirzi. 2023. Factscore:
+Fine-grained atomic evaluation of factual precision
+in long form text generation. InProceedings of the
+2023 Conference on Empirical Methods in Natural
+Language Processing, pages 12076–12100.
+MiniMax. 2024. Minimax-m2: A next-generation moe
+model family with advanced reasoning capabilities.
+https://www.minimaxi.com/.
+Mistral AI. 2024. Mistral large 3: A state-of-the-art
+open-weight multimodal model. https://mistral.
+ai/news/mistral-large-3.
+Ali Modarressi, Hanieh Deilamsalehy, Franck Dernon-
+court, Trung Bui, Ryan A Rossi, Seunghyun Yoon,
+and Hinrich Schütze. 2025. Nolima: Long-context
+evaluation beyond literal matching.arXiv preprint
+arXiv:2502.05167.
+OpenAI. 2025. Introducing GPT-5. https://openai.
+com.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida,
+Carroll Wainwright, Pamela Mishkin, Chong Zhang,
+Sandhini Agarwal, Katarina Slama, Alex Ray, and 1
+others. 2022. Training language models to follow in-
+structions with human feedback.Advances in neural
+information processing systems, 35:27730–27744.
+Charles Packer, Vivian Fang, Shishir_G Patil, Kevin
+Lin, Sarah Wooders, and Joseph_E Gonzalez. 2023.
+Memgpt: Towards llms as operating systems.
+Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Mered-
+ith Ringel Morris, Percy Liang, and Michael S Bern-
+stein. 2023. Generative agents: Interactive simulacra
+of human behavior. InProceedings of the 36th an-
+nual acm symposium on user interface software and
+technology, pages 1–22.
+Catharine H Rankin, Thomas Abrams, Robert J Barry,
+Seema Bhatnagar, David F Clayton, John Colombo,
+Gianluca Coppola, Mark A Geyer, David L Glanz-
+man, Stephen Marsland, and 1 others. 2009. Habitu-
+ation revisited: an updated and revised description of
+the behavioral characteristics of habituation.Neuro-
+biology of learning and memory, 92(2):135–138.
+Charles Spearman. 1904. The proof and measurement
+of association between two things.The American
+Journal of Psychology, 15(1):72–101.
+Larry R. Squire. 1986. Mechanisms of memory.Sci-
+ence, 232(4758):1612–1619.
+AGI-Eval Team. 2025. Agi-eval: An evalua-
+tion platform for agi. https://github.com/
+AGI-Eval-Official/agi-eval.
+Kimi Team, Yifan Bai, Yiping Bao, Guanduo Chen,
+Jiahao Chen, Ningxin Chen, Ruijue Chen, Yanru
+Chen, Yuankun Chen, Yutian Chen, and 1 others.
+2025. Kimi k2: Open agentic intelligence.arXiv
+preprint arXiv:2507.20534.
+Lei Wang, Chen Ma, Xueyang Feng, Zeyu Zhang, Hao
+Yang, Jingsen Zhang, Zhiyuan Chen, Jiakai Tang,
+Xu Chen, Yankai Lin, and 1 others. 2024. A survey
+on large language model based autonomous agents.
+Frontiers of Computer Science, 18(6):186345.
+Tianjun Wei, Wei Wen, Ruizhi Qiao, Xing Sun, and
+Jianghong Ma. 2025. Rocketeval: Efficient auto-
+mated llm evaluation via grading checklist. InThe
+Thirteenth International Conference on Learning
+Representations.
+Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang,
+Kai-Wei Chang, and Dong Yu. 2024. Longmemeval:
+Benchmarking chat assistants on long-term interac-
+tive memory.arXiv preprint arXiv:2410.10813.
+Yaxiong Wu, Sheng Liang, Chen Zhang, Yichao Wang,
+Yongyue Zhang, Huifeng Guo, Ruiming Tang, and
+Yong Liu. 2025. From human memory to ai memory:
+10
+
+--- PAGE 11 ---
+A survey on memory mechanisms in the era of llms.
+arXiv preprint arXiv:2504.15965.
+xAI. 2025. Grok 4.1: Excellence in reasoning and
+personality.https://x.ai/news/grok-4-1.
+Zhiheng Xi, Wenxiang Chen, Xin Guo, Wei He, Yi-
+wen Ding, Boyang Hong, Ming Zhang, Junzhe Wang,
+Senjie Jin, Enyu Zhou, and 1 others. 2025. The
+rise and potential of large language model based
+agents: A survey.Science China Information Sci-
+ences, 68(2):121101.
+Jing Xu, Arthur Szlam, and Jason Weston. 2022a. Be-
+yond goldfish memory: Long-term open-domain con-
+versation. InProceedings of the 60th annual meeting
+of the association for computational linguistics (vol-
+ume 1: long papers), pages 5180–5197.
+Jing Xu, Arthur Szlam, and Jason Weston. 2022b. Be-
+yond goldfish memory: Long-term open-domain con-
+versation. InProceedings of the 60th annual meeting
+of the association for computational linguistics (vol-
+ume 1: long papers), pages 5180–5197.
+Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Jun-
+tao Tan, and Yongfeng Zhang. 2025. A-mem:
+Agentic memory for llm agents.arXiv preprint
+arXiv:2502.12110.
+Haozhen Zhang, Tao Feng, Pengrui Han, and Jiaxuan
+You. 2025a. Academiceval: Live long-context llm
+benchmark.
+Zeyu Zhang, Quanyu Dai, Xiaohe Bo, Chen Ma, Rui Li,
+Xu Chen, Jieming Zhu, Zhenhua Dong, and Ji-Rong
+Wen. 2025b. A survey on the memory mechanism of
+large language model-based agents.ACM Transac-
+tions on Information Systems, 43(6):1–47.
+Zicheng Zhang, Junying Wang, Yijin Guo, and 1 others.
+2025c. Aibench: Towards trustworthy evaluation
+under the 45° law.Displays, page 103255.
+Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan
+Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin,
+Zhuohan Li, Dacheng Li, Eric Xing, and 1 others.
+2023. Judging llm-as-a-judge with mt-bench and
+chatbot arena.Advances in neural information pro-
+cessing systems, 36:46595–46623.
+A Topics for Dialogue Generation
+We utilize 50 topics from 8 different categories in
+Table. 5 for topic-initiated generation.
+Category Topics
+Technical
+Help
+Computer Programming
+Data Analysis
+Mathematical Calculation
+Writing
+Edit or Critique
+Fiction
+Argument
+Summary
+Survey
+Reports
+Proposal
+Multidis-
+ciplinary
+Studies
+History
+Geography
+Law
+Physics
+Chemistry
+Professional
+Development
+Career Planning
+Time Management
+Self Management
+Communi-
+cation
+Patient-Provider
+Healthcare Team
+Digital Health
+Email Drafts
+Memos
+Customer Service
+Economic
+Diet
+Trip
+Purchasable Products
+Cities
+Flight
+Stock
+Petrol
+Decoration
+Tutoring
+Biology Experiment
+Physics Experiment
+Chemistry Experiment
+Problem-Solving
+Common Sense
+Daily Skills
+Survival Skills
+Planning
+Meeting Schedules
+Book Outline
+Goout Schedules
+Table 5: The specification of categories and topics uti-
+lized in prompt-driven dialogue generation.
+11
+
+--- PAGE 12 ---
+Type Characteristics
+NIAH Embedding key feature information in
+a large amount of lengthy text
+CWE Providing a large number of words,
+some of which appear multiple times
+QA Presenting rich information about peo-
+ple and events
+VT Hiding variable assignments and
+changes in a large amount of irrelevant
+information
+Table 6: Ruler dataset types and corresponding charac-
+teristics.
+B Implementation Details of
+Narrative-Inspired Transformation
+B.1 Task Mapping
+We select Ruler dataset due to its broad acceptance
+and rich collection of long-context instances. The
+dataset is organized into four primary categories:
+Needle in a Haystack (NIAH), Common Words
+(CWE), Question Answering (QA), and Variable
+Tracking (VT). For each category, we systemati-
+cally analyze the challenges faced by evaluation
+models in memorizing long texts, identified the spe-
+cific aspects of memorization being assessed, and
+reorganized the data according to our predefined
+task taxonomy. As summarized in Table 6, each
+category targets a distinct core difficulty and corre-
+sponding capability. Specifically, NIAH evaluates
+retrieval ability, CWE focuses on summarization
+ability, QA assesses information isolation, and VT
+probes reasoning ability.
+B.2 Session Transformation
+For each task, we sample 50 instances to conduct
+the evaluation on DeepSeek-V3.2. With the excep-
+tion of VT, the model not only exhibits assessment
+capabilities consistent with those measured by ex-
+isting dialogues from topic-initiated generation ,
+but also achieves high performance, with scores
+exceeding 90% on the remaining tasks.
+We specifically explainChallenge Injection: 1)
+we find that incorporating contradictory informa-
+tion into VT is feasible and make it more difficult.
+Consequently, we deliberately insert a string in-
+equality that conflicts with previous assignments,
+making several subsequent equations invalid. This
+type of design requires the model to backtrack and
+reason logically based on cross-turn historical in-
+formation, identify and resolve inconsistencies in
+Figure 7: The distribution of capabilities in our bench-
+mark. Green sectors represent declarative memory,
+while blue sectors represent non-declarative memory.
+the context, and thus arrive at the correct conclu-
+sion. 2) we demonstrate the feasibility of incorpo-
+rating ARC-style tasks, which represent a highly
+challenging form of implicit reasoning, into multi-
+turn dialogues. By deliberately embedding abstract
+patterns or spatial logic that demand more than
+mere surface-level recall, we force the model to per-
+form probing inferences. This design necessitates
+that the model backtrack and integrate cross-turn
+historical information, identifying hidden logical
+structures within the context to arrive at the correct
+synthesis.
+C Details of EvolMem
+C.1 Data Statistics
+We display the distribution of samples for different
+capabilities of EvolMem in Fig. 7.
+C.2 Source & Metric
+We construct our multi-session dialogues through
+topic-initiated generation (TIG) and narrative-
+inspired transformation (NIT), the source and eval-
+uation metrics of capabilities are shown in Tab. 7.
+D Memory Agents
+This section details the memory mechanisms and
+experimental implementation of the memory agents
+considered in this work.
+D.1 Memory Mechanisms
+Memory agents are LLM-based agents equipped
+with explicit memory mechanisms that enable in-
+formation to be retained and leveraged beyond the
+12
+
+--- PAGE 13 ---
+Capability Source Metric
+Retrieval TIG Acc& LLM
+Summarization TIG Acc & LLM
+Isolation TIG Acc
+Inference NIT Prec
+Reproduction TIG LCS & LLM
+Learning TIG & NIT Acc & LCS
+Habituation TIG Acc & LLM
+Table 7: The corresponding source and evaluation met-
+rics of each capability. Acc represents Accuracy, Prec
+represents Precision, and LLM refers to the LLM judge.
+fixed context window, thus alleviating the inherent
+context-length constraint during task execution.
+Mem0introduces a modular two-phase mem-
+ory architecture that incrementally extracts and
+maintains salient information from dialogues. In
+the extraction phase, an LLM proposes candidate
+memory items by analyzing the current interaction
+alongside a global conversation summary, which is
+asynchronously generated by an LLM to capture
+the evolving context. These candidates are then
+matched against existing entries via vector retrieval;
+subsequently, an LLM-driven tool-calling interface
+determines whether to insert, merge, delete, or
+discard each item, ensuring a compact and con-
+sistent memory store. A variant augmented with
+graphs further encodes memories as entity–relation
+triplets, enabling retrieval over richer relational
+structures than flat textual chunks.
+HippoRAGrealizes structure-augmented RAG
+by converting the corpus into an open knowledge
+graph via LLM-based OpenIE, then performing
+Personalized PageRank over this graph to support
+associative, multi-hop retrieval. At query time,
+named entities are assigned to graph nodes that
+serve as seeds in the PageRank process, propagat-
+ing probability mass through relation edges to iden-
+tify passages that occur along high-scoring paths.
+This dense–sparse integration yields a retrieval sig-
+nal that captures both local semantic similarity and
+longer relational chains, improving factual, sense-
+making and associative memory tasks over stan-
+dard embedding-based RAG.
+A-MEMintroduces an agentic memory archi-
+tecture in which interaction traces are encoded as
+LLM-generated “notes” comprising content, times-
+tamps, keywords, tags, contextual descriptions and
+embeddings. A new note starts a two-phase agen-
+tic routine: first, similarity-based retrieval identi-
+fies candidate neighboring notes; second, an LLM
+controller performs link construction and mem-
+ory evolution, revising existing notes and updat-
+ing their attributes in light of new information.
+Drawing on Zettelkasten-style personal knowledge
+management, A-Mem builds a graph of intercon-
+nected notes that yields a self-evolving memory
+structure, supporting both fine-grained semantic
+retrieval and higher-level knowledge organization
+for LLM agents.
+MemoryOSmodels an agent’s memory as
+an OS-like hierarchical framework, coordinating
+multi-tier storage (short-/mid-/long-term). Dia-
+logue input stream is first held in a short-term
+buffer, periodically condensed into topic-level units
+in mid-term memory, and subsequently promoted
+to long-term memory based on FIFO and “heat”-
+style signals that reflect recency and usage. Special-
+ized retrieval and generation components perform
+semantic search over these tiers and re-inject se-
+lected content into the LLM’s context, supporting
+stable persona tracking and coherent behavior over
+prolonged interactions.
+D.2 Implementation Details
+In this section, we detail the experimental setup
+of different memory agents. To ensure a fair and
+robust benchmark, we standardize the backbone
+model, embedding model, and key hyperparame-
+ters across all agents. We utilize DeepSeek-V3.2
+as the Backbone LLM and all-MiniLM-L6-v2 as
+the embedding model for all agents.
+For Mem0, we utilize a memory search limit of
+s= 10 , and sliding window of the last m= 10
+messages alongside the retrieved memories, which
+aligns with the original paper’s settings.
+For HippoRAG, the Synonym Threshold is set to
+0.8, and we use top-k= 10 seed nodes for initial
+linking, 200 passage nodes via the Personalized
+PageRank (PPR) algorithm and top-k= 10 pas-
+sages as the context for final generation.
+For MemoryOS, we use a fixed Short-Term
+Memory (STM) queue size of 7 and a Long-Term
+Personal Memory (LPM) capacity of 100 entries.
+The Heat threshold is set to τ= 5 , the semantic
+similarity threshold θ= 0.6 , and for retrieval, we
+use top-k= 10 queues. All parameters strictly
+follow the original experimental setup.
+For A-MEM, we use the default insertion and
+query settings, selecting top-k= 10 semantically
+similar notes and top-k= 10 relevant notes for
+retrieval respectively.
+13
+
+--- PAGE 14 ---
+E Evaluation Plan
+We outline a unified evaluation protocol that maps
+each fine-grained memory ability to a tailored scor-
+ing strategy, balancing objective matching with
+judge-based assessment when needed.
+For Retrieval, Summarization, and Isolation, we
+utilize LLM-as-a-Judge, and directly let the judge
+model output the scoring results according to the
+corresponding evaluation pipeline.
+For Habituation, where correctness is defined by
+whether the model follows the initial instructions
+rather than matching a fixed answer, we adopt a
+hybrid of LLM-as-a-Judge and threshold approach:
+the judge model first produces continuous scores
+via the evaluation pipeline, then binarizes them
+based on a preset threshold 0.8. The evaluation
+metric for this task is Instruction Compliance, re-
+flecting whether the model correctly follows the
+given instructions.
+For Reproduction, although the evaluation
+pipeline has a certain degree of reliability in terms
+of content consistency, it cannot fully determine
+whether the step order is correct. Therefore, we
+adopt a structured sequence order matching, in-
+cluding step extraction, reverse order detection,
+comparing the similarity between the model’s step
+sequence and the correct step sequence and cal-
+culating the longest common subsequence (LCS)
+ratio.
+For Inference, we utilize direct comparison.
+Since the model’s answers contain redundant ex-
+pressions, we first require a strong model to extract
+answers and normalize the format to make it con-
+sistent with the correct answer. Then, we directly
+compare the normalized content to obtain the final
+score.
+For Learning, we utilize respectively direct com-
+parison and Sequence order matching. For ARC-
+style tasks, we normalize model outputs and com-
+pute accuracy by exact match against the ground-
+truth answer. For topic-initiated dialogues, we first
+use an LLM to extract the procedural sequence,
+compute TF-IDF similarity, and then calculate the
+LCS score.
+LLM-as-a-Judge Feasibilityinvolves manual
+verification of the correctiveness of using LLM-as-
+a-Judge. We randomly select 50 evaluation samples
+from the dataset and distribute them to experts for
+verification, and the feasibility rate is over 92.67%.
+F Sensitivity of LLM Generators
+The specific score of test LLMs under different
+generation LLMs and the rank compared with
+EvolMem are shown in Table 8. These results
+highlight the importance of using multiple LLM
+generators to ensure a diverse dataset, which is cru-
+cial for generating more accurate and fair model
+evaluations.
+Models DeepSeek GPT Grok
+Gemini-3-Pro 67.81% 61.93%↓3 65.71% ↓2
+GPT-5.1 67.29% 60.69%↓3 65.41% ↓2
+MiniMax-M2 65.55%↓1 62.40% ↑1 67.15% ↑2
+Mistral-Large 66.81%↑1 62.18% ↑1 66.51% ↑2
+DeepSeek-V3.2 63.49% 57.76%↓1 60.76% ↓1
+Kimi-K2 63.38% 62.79%↑5 63.49% ↑1
+Llama-4-Maverick 46.84% 42.30% 45.65%
+SRCC 96.43% 17.86% 67.86%
+Table 8: Memory comprehensive performance of mod-
+els in different dialogue generators and the change
+of rankings compared with overall score in Tab.2.
+DeepSeekrepresents DeepSeek-V3.2.GPTrepresents
+GPT-4.1.Grokrepresents Grok-4-Fast-Reasoning.
+14

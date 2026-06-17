@@ -1,0 +1,351 @@
+--- PAGE 1 ---
+Dynamic Accuracy Estimation
+in a Wi-Fi-based Positioning System
+Accepted version
+Marcin Kolakowski, Vitomir Djaja-Josko
+Institute of Radioelectronics and Multimedia Technology,
+Warsaw University of Technology, Warsaw, Poland,
+contact: marcin.kolakowski@pw.edu.pl
+Originally presented at:
+2025 33rd Telecommunications Forum (TELFOR), Belgrade, Serbia
+Please cite this manuscript as:
+M. Kolakowski and V . Djaja-Josko, ”Dynamic Accuracy Estimation in a Wi-Fi-Based
+Positioning System,” 2025 33rd Telecommunications Forum (TELFOR), Belgrade, Serbia,
+2025, pp. 1-4, doi: 10.1109/TELFOR67910.2025.11314159.
+Full version available at:
+https://doi.org/10.1109/TELFOR67910.2025.11314159
+Additional information:
+Associated data available at:
+M. Kolakowski, ”Wi-Fi Fingerprints for Dynamic Accuracy Estimation Collected with a
+Robotic Platform,” Zenodo, Oct. 29, 2025. doi: https://doi.org/10.5281/zenodo.17478483.
+© 2025 IEEE. Personal use of this material is permitted. Permission from IEEE must be obtained for all
+other uses, in any current or future media, including reprinting/republishing this material for advertising
+or promotional purposes, creating new collective works, for resale or redistribution to servers or lists, or
+reuse of any copyrighted component of this work in other works.
+arXiv:2601.00999v1  [eess.SP]  2 Jan 2026
+
+--- PAGE 2 ---
+Dynamic Accuracy Estimation
+in a Wi-Fi-based Positioning System
+Marcin Kolakowski, Vitomir Djaja-Josko
+Institute of Radioelectronics and Multimedia Technology
+Warsaw University of Technology
+Warsaw, Poland
+marcin.kolakowski@pw.edu.pl, vitomir.djaja-josko@pw.edu.pl
+Abstract—The paper presents a concept of a dynamic accuracy
+estimation method, in which the localization errors are derived
+based on the measurement results used by the positioning algo-
+rithm. The concept was verified experimentally in a Wi-Fi based
+indoor positioning system, where several regression methods were
+tested (linear regression, random forest, k-nearest neighbors,
+and neural networks). The highest positioning error estimation
+accuracy was achieved for random forest regression, with a mean
+absolute error of 0.72 m.
+Index Terms—indoor positioning, dynamic accuracy estima-
+tion, machine learning, neural networks
+I. INTRODUCTION
+Positioning accuracy is one of the most critical parameters
+of Real-Time Locating Systems (RTLS) as it directly influ-
+ences the scope of services they can provide. For most systems,
+the information on accuracy is described in their datasheets
+with an averaged positioning error measured under certain
+conditions. Such information gives an overall impression of
+the system’s performance, but does not allow for assessing
+the quality of single results.
+Information on possible positioning errors can be helpful in
+many RTLS applications. For instance, in pedestrian localiza-
+tion systems, supplying the users with additional uncertainty
+information alongside the positioning result may allow them
+to interpret the result more easily. Such an approach is widely
+spread in smartphone applications using GNNS location data,
+where the uncertainty is marked with a circle around the com-
+puted location. In the case of autonomous systems, information
+on accuracy may be an additional variable in decision-making
+processes. Both applications require real-time accuracy esti-
+mation, which can be implemented with Dynamic Accuracy
+Estimation (DAE) methods.
+The DAE methods aim to estimate the potential error of the
+computed object’s location. Typically, the result is a radius
+of a circle, which contains the actual user location with
+assumed probability [1]. If the DAE methods differentiate
+the errors between the coordinate system axes, that area is
+elliptical [2]. The positioning accuracy is usually estimated
+based on the same measurement results as used for the object’s
+positioning [3]. Some methods consider additional parameters
+of the received signals, such as power level variation [4].
+This research was funded by the Polish National Centre for Research and
+Development, grant number THCS/I/24/RENEW/2025.
+There are two classes of DAE methods: rule-based and
+data-driven. In the rule-based algorithms, the accuracy is
+computed based on relationships between the measured signal
+parameters and the estimated location accuracy. The examples
+of such methods include algorithms based on Cramer-Rao
+Lower Bound analysis [5] and error propagation method [2],
+in which the measurement uncertainties are directly translated
+to the location accuracy.
+The ongoing machine learning progress results in a rising
+interest in the data-driven methods. The method comparison
+presented in [6] has proven that using the data-driven methods
+results in a higher quality of accuracy estimation than in the
+case of the rule-based ones. The data-driven DAE usually
+employs regression algorithms such as random forests or
+support vector machines [1], [3]. For larger datasets, deep
+neural networks are also considered [7].
+The paper presents an analysis of a data-driven DAE
+method’s performance in a Wi–Fi-based positioning system,
+which was calibrated using an autonomous robotic platform.
+In the experiments, several machine learning methods were
+tested (k-nearest neighbors, random forest, neural networks,
+and linear regression) for error regression. The selected models
+were additionally tested on data gathered in a typical user
+positioning scenario.
+II. DYNAMICACCURACYESTIMATION
+A. Method’s concept
+The concept of DAE assumes implementing an accuracy
+estimation method that runs concurrently with the positioning
+algorithm. This idea is illustrated with Fig. 1.a.
+In the proposed concept, accuracy estimation is done based
+on the same measurement results as those used for positioning.
+An additional variant, where the positioning result is used,
+was also tested in the experiments. The result of the DAE
+is the estimated error valueδ est. The relationship between
+the positioning result(x, y) est, and the actual user location
+(x, y)pos is presented in Fig. 1. b.
+The obtained error estimateδ est can be either smaller or
+larger than the actual errorδ pos. In the case of systems where
+the accuracy estimation is a basis for crucial decisions, the
+DAE algorithm parameters should be adjusted to take that into
+account.
+
+--- PAGE 3 ---
+positioning
+algorithm
+measurement
+results
+accuracy
+estimation
+(a)
+(b)
+Fig. 1. DAE method concept; a) the algorithm workflow; b) relationship
+between the positioning result, true user location, and actual and estimated
+errors
+B. Wi-Fi based system implementation
+The described DAE concept was implemented in a Wi-Fi,
+smartphone-based positioning system. In the system, the user
+is located based on power measurements of signals transmitted
+by Wi-Fi access points operating in 2.4 and 5 GHz bands. The
+user’s location is derived through k-Nearest Neighbors (kNN)
+based fingerprinting (k=4). Error estimation is performed using
+regression methods trained on a dedicated dataset.
+The dataset for DAE methods training should reflect the
+relationship between the parameters of the received signals
+and true positioning errors in the system and its environment.
+The procedure for the dataset preparation is presented in Fig. 2.
+The initial dataset includes radio signatures (measured
+power levels of signals received from the access points,
+annotated with the measurement location). The initial dataset is
+partitioned several times into training and testing sets accord-
+ing to the k-fold cross-validation principles (every time, the
+test set includes unique radio signatures). For each partition,
+the training set is treated as a fingerprinting radio map which is
+used to compute locations of the measurement points from the
+test subsets using kNN. For each location estimate (xpos, ypos),
+a true positioning errorδ pos is calculated. The obtained values
+are combined with the power level measurements, creating
+a piece of the DAE training dataset. Adopting the described
+approach enables the use of all of the collected signatures for
+DAE training, which is especially important in the case of
+sparse maps, where the number of the signatures is limited.
+radio signatures
+kNN localization
+true error calculation
+dataset division
+DAE training dataset
+Fig. 2. The process of preparing the DAE training dataset.
+III. EXPERIMENTS
+A. Experimental environment
+The described concept was experimentally tested in office
+and laboratory rooms of the Faculty of Electronics and In-
+formation Technology of Warsaw University of Technology.
+The general layout is presented in Fig. 4. The radio signal
+propagation conditions in the experiment location are harsh
+due to a large amount of equipment collected in the rooms
+and metal elements in partition walls.
+The experiments consisted in acquiring the dataset using an
+autonomous robotic platform and then using it to train DAE
+data-driven methods.
+Fig. 3. The robotic platform in the experiment environment
+
+--- PAGE 4 ---
+Fig. 4. Measurement points’ locations. The arrows represent the platform’s
+orientation.
+During the experiments, a smartphone (Samsung A41) was
+mounted on a stand that was fixed to a robotic platform.
+A photo of the setup is shown in Fig. 3. The smartphone’s
+elevation was 0.74 m above the ground. The reference platform
+location was obtained with a cm-level accuracy using a LiDAR
+sensor (RPLidar A2M12) with a nominal range of 12 m. The
+whole platform was controlled using the libraries and tools of
+the Robot Operating System (ROS) suite.
+An additional experiment, in which the user held the smart-
+phone, was performed to verify the method’s performance
+under real operational conditions.
+B. Data sets
+The primary dataset comprised 359 radio signatures (Wi-Fi
+signal levels, reference smartphone location) collected in 117
+points (minimum three scans per point) using the robotic plat-
+form. The locations of the measurement points are presented
+in Fig. 4. In the experimental area, 78 different access points
+were detected. As some of them were distant and their signals
+were received in only a few points, the dataset was built using
+data from the 35 most available anchors. To make the dataset
+usable by all algorithms, the missing power measurements
+were replaced with a constant value of -99 dBm (lower than
+the smartphone’s sensitivity). The DAE training dataset was
+prepared according to the procedure described in Section II-B.
+For the given experimental setup, the average robot positioning
+error equaled 0.97 m.
+The second dataset comprised 108 signatures collected by
+the user in 27 points marked in Fig. 4. The average user
+positioning error was relatively high (2.49 m) because he
+was localized based on robot-obtained fingerprinting map.
+This dataset was used only to evaluate the performance of
+DAE models trained on robot-obtained data. Both datasets are
+publicly available online on Zenodo [8].
+C. DAE performance evaluation
+To evaluate the described concept, several machine learning
+methods were used: Linear Regression (LR), Random Forest
+(RF), k-Nearest Neighbors (kNN) and Dense Neural Networks
+(NN). They were trained on the DAE dataset prepared as
+described in Section II-B. All methods, besides NNs, were
+implemented using the scikit-learn suite. Neural networks
+were implemented with PyTorch. Prior to the final evaluation,
+several architectures consisting of dense layers followed by
+batch normalization were tested. The presented results are the
+best that were obtained (the number of neurons in specific
+layers is listed as a parameter in Table I).
+The approach, in which the computed user location is taken
+into account, was also tested (the results for this scheme are
+marked with a -xy suffix). The performance of methods was
+compared based on the DAE error defined as:
+DAEerror =δ est −δ pos (1)
+whereδ est andδ pos are defined by Fig. 1. The values of
+the mean absolute error (MAE) and the mean squared error
+(MSE) with the method’s parameters are collected in Table I.
+The empirical cumulative distribution function of the DAE
+error and the relationship between the real and estimated error
+values are presented in Fig. 5 and Fig. 6, respectively.
+In all cases, considering the estimated smartphone location
+leads to increased DAE quality. The highest accuracy was
+obtained for the random forest (mean MAE of 0.73 m). This
+method was tested on the second, user-collected dataset. For
+user-collected data, the accuracy estimation errors were higher
+due to different propagation conditions in which the data were
+gathered (the robot-collected data do not account for body
+shadowing).
+In the results obtained for the robot positioning error estima-
+tion, we did not observe any tendency to either overestimate or
+underestimate the estimated errors. However, such a tendency
+exists in the case of user positioning, where the estimated
+errors are more optimistic than in reality. In case of the tested
+methods, the obtained estimates show moderate correlation
+with the actual values. The Pearson correlation coefficient is
+around 0.5, close to the result obtained with other methods [6].
+
+--- PAGE 5 ---
+TABLE I
+MEAN ERRORS OF DYNAMIC ACCURACY ESTIMATION
+OF ROBOT’S AND USERS LOCATION
+algorithm parameters MAE MSE
+LR - 0.926 1.529
+LR-xy - 0.921 1.511
+RF trees=100 0.753 1.046
+RF-xy trees=300 0.726 0.980
+kNN k=4 0.831 1.295
+kNN-xy k=4 0.813 1.261
+NN [128, 128, 128] 0.859 1.283
+NN-xy [256, 512, 256] 0.806 1.135
+user RF-xy (300) 1.082 2.112
+DAE estimation error [m]
+ECDF
+Fig. 5. Empirical cumulative distribution of the signed DAE error
+/uni00000013/uni00000015/uni00000017/uni00000019
+pos/uni00000003/uni0000003e/uni00000050/uni00000040
+/uni00000013
+/uni00000015
+/uni00000017est/uni00000003/uni0000003e/uni00000050/uni00000040
+/uni00000053/uni00000048/uni00000044/uni00000055/uni00000056/uni00000052/uni00000051/uni0000001d/uni00000003/uni00000013/uni00000011/uni00000018/uni00000018
+/uni00000056/uni00000053/uni00000048/uni00000044/uni00000055/uni00000050/uni00000044/uni00000051/uni0000001d/uni00000013/uni00000011/uni00000018/uni00000013
+/uni00000035/uni00000029/uni00000010/uni0000005b/uni0000005c
+/uni00000013/uni00000015/uni00000017/uni00000019
+pos/uni00000003/uni0000003e/uni00000050/uni00000040
+/uni00000053/uni00000048/uni00000044/uni00000055/uni00000056/uni00000052/uni00000051/uni0000001d/uni00000003/uni00000013/uni00000011/uni00000017/uni0000001c
+/uni00000056/uni00000053/uni00000048/uni00000044/uni00000055/uni00000050/uni00000044/uni00000051/uni0000001d/uni00000013/uni00000011/uni00000017/uni00000016
+/uni00000035/uni00000029
+/uni00000013/uni00000015/uni00000017/uni00000019
+pos/uni00000003/uni0000003e/uni00000050/uni00000040
+/uni00000013
+/uni00000015
+/uni00000017est/uni00000003/uni0000003e/uni00000050/uni00000040
+/uni00000053/uni00000048/uni00000044/uni00000055/uni00000056/uni00000052/uni00000051/uni0000001d/uni00000003/uni00000013/uni00000011/uni00000017/uni00000019
+/uni00000056/uni00000053/uni00000048/uni00000044/uni00000055/uni00000050/uni00000044/uni00000051/uni0000001d/uni00000013/uni00000011/uni00000016/uni0000001c
+/uni00000031/uni00000031/uni00000010/uni0000005b/uni0000005c
+/uni00000013/uni00000015/uni00000017/uni00000019
+pos/uni00000003/uni0000003e/uni00000050/uni00000040
+/uni00000053/uni00000048/uni00000044/uni00000055/uni00000056/uni00000052/uni00000051/uni0000001d/uni00000003/uni00000013/uni00000011/uni00000017/uni0000001c
+/uni00000056/uni00000053/uni00000048/uni00000044/uni00000055/uni00000050/uni00000044/uni00000051/uni0000001d/uni00000013/uni00000011/uni00000017/uni00000015
+/uni00000058/uni00000056/uni00000048/uni00000055
+Fig. 6. Correlation between true and estimated positioning errors
+IV. CONCLUSIONS
+The paper presents a method for dynamic estimation of
+positioning accuracy in a Wi-Fi-based system. The technique
+consists in training a machine learning model which, based
+on the measurement results, assesses the accuracy of the
+computed locations. The experimental verification showed that
+the method can be successfully used for positioning error
+estimation. However, the quality of estimation deteriorates
+when the system is used in drastically different propagation
+conditions (e.g. when the device is held by the user rather than
+being on a stand). In such situations, model adaptation might
+be required.
+The proposed conception shows potential for further de-
+velopment. One of the possible directions is considering other
+signal parameters or using loss functions to penalize estimates
+that are too optimistic.
+REFERENCES
+[1] G. G. Anagnostopoulos and A. Kalousis, ”Analysing the Data-Driven
+Approach of Dynamically Estimating Positioning Accuracy,” ICC 2021
+- IEEE International Conference on Communications, Montreal, QC,
+Canada, 2021, pp. 1-7, doi: 10.1109/ICC42927.2021.9500369.
+[2] C. Valero-Abundio, R. Montoliu, M. Mart ´ınez-Garc´ıa, E. Sansano-
+Sansano, J. Torres-Sospedra and A. P ´erez-Navarro, ”Using ellipses
+to improve the estimation of the error bound on indoor positioning
+problems,” 2024 International Symposium on Sensing and Instrumen-
+tation in 5G and IoT Era (ISSI), Lagoa, Portugal, 2024, pp. 1-6, doi:
+10.1109/ISSI63632.2024.10720469.
+[3] F. Lemic, V . Handziski and J. Famaey, ”Toward Regression-Based
+Estimation of Localization Errors in Fingerprinting-Based Localiza-
+tion,” 2019 IEEE 89th Vehicular Technology Conference (VTC2019-
+Spring), Kuala Lumpur, Malaysia, 2019, pp. 1-5, doi: 10.1109/VTC-
+Spring.2019.8746700.
+[4] W. Chen, R. Sun, X. Fang and S. Zhang, ”The analysis of positioning
+accuracy based on range and angle measurements,” 2020 3rd Interna-
+tional Conference on Unmanned Systems (ICUS), Harbin, China, 2020,
+pp. 1030-1034, doi: 10.1109/ICUS50048.2020.9274919.
+[5] A. Nikitin, C. Laoudias, G. Chatzimilioudis, P. Karras and D.
+Zeinalipour-Yazti, ”Indoor Localization Accuracy Estimation from Fin-
+gerprint Data,” 2017 18th IEEE International Conference on Mobile Data
+Management (MDM), Daejeon, Korea (South), 2017, pp. 196-205, doi:
+10.1109/MDM.2017.34.
+[6] G. G. Anagnostopoulos and A. Kalousis, ”Can I Trust This Location
+Estimate? Reproducibly Benchmarking the Methods of Dynamic Accu-
+racy Estimation of Localization,” Sensors, vol. 22, no. 3, p. 1088, Jan.
+2022, doi: 10.3390/s22031088.
+[7] F. Lemic and J. Famaey, ”Artificial Neural Network-based Esti-
+mation of Individual Localization Errors in Fingerprinting,” 2020
+IEEE 17th Annual Consumer Communications & Networking Con-
+ference (CCNC), Las Vegas, NV , USA, 2020, pp. 1-6, doi:
+10.1109/CCNC46108.2020.9045648.
+[8] M. Kolakowski, ”Wi-Fi Fingerprints for Dynamic Accuracy Estima-
+tion Collected with a Robotic Platform,” Zenodo, Oct. 29, 2025. doi:
+10.5281/zenodo.17478483.

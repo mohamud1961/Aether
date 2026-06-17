@@ -1,0 +1,789 @@
+--- PAGE 1 ---
+Query Generation Pipeline with Enhanced Answerability
+Assessment for Financial Information Retrieval
+Hyunkyu Kim∗
+Kakaobank
+Seongnam-si, Republic of Korea
+conor.k@lab.kakaobank.com
+Yeeun Yoo∗
+Kakaobank
+Seongnam-si, Republic of Korea
+anny.ye@lab.kakaobank.com
+Youngjun Kwak†
+Kakaobank
+Seongnam-si, Republic of Korea
+vivaan.yjkwak@lab.kakaobank.com
+Abstract
+As financial applications of large language models (LLMs) gain
+attention, accurate Information Retrieval (IR) remains crucial for re-
+liable AI services. However, existing benchmarks fail to capture the
+complex and domain-specific information needs of real-world bank-
+ing scenarios. Building domain-specific IR benchmarks is costly and
+constrained by legal restrictions on using real customer data. To
+address these challenges, we propose a systematic methodology for
+constructing domain-specific IR benchmarks through LLM-based
+query generation. As a concrete implementation of this method-
+ology, our pipeline combines single and multi-document query
+generation with an enhanced and reasoning-augmented answer-
+ability assessment method, achieving stronger alignment with hu-
+man judgments than prior approaches. Using this methodology,
+we construct KoBankIR, comprising 815 queries derived from 204
+official banking documents. Our experiments show that existing
+retrieval models struggle with the complex multi-document queries
+in KoBankIR, demonstrating the value of our systematic approach
+for domain-specific benchmark construction and underscoring the
+need for improved retrieval techniques in financial domains.
+CCS Concepts
+•Information systems → Query reformulation;Relevance
+assessment;Test collections.
+Keywords
+Query Generation, Automatic Query Evaluation, Financial Infor-
+mation Retrieval, Banking Information Retrieval, Multi-document
+Retrieval, Benchmark Dataset
+ACM Reference Format:
+Hyunkyu Kim, Yeeun Yoo, and Youngjun Kwak. 2025. Query Generation
+Pipeline with Enhanced Answerability Assessment for Financial Informa-
+tion Retrieval. In6th ACM International Conference on AI in Finance (ICAIF
+’25), November 15–18, 2025, Singapore, Singapore.ACM, New York, NY, USA,
+9 pages. https://doi.org/10.1145/3768292.3770354
+∗Contributed equally to this research.
+†Corresponding author.
+This work is licensed under a Creative Commons Attribution-NonCommercial 4.0
+International License.
+ICAIF ’25, Singapore, Singapore
+©2025 Copyright held by the owner/author(s).
+ACM ISBN 979-8-4007-2220-2/2025/11
+https://doi.org/10.1145/3768292.3770354
+1 Introduction
+As AI-driven financial services continue to evolve, the demand
+for accurate and domain-specific Information Retrieval (IR) sys-
+tems has significantly increased [7, 11, 43]. Financial institutions,
+particularly banks, require sophisticated IR capabilities to handle
+diverse customer inquiries ranging from product information to
+policy clarifications. These systems are crucial in delivering reli-
+able and context-aware responses to banking customers, ultimately
+enhancing service quality. However, existing financial IR bench-
+marks suffer from several limitations, making them unsuitable for
+real-world banking applications [7, 16, 21, 43].
+First, current financial IR research has largely focused on retriev-
+ing information from structured financial reports, news articles, and
+stock market data for market analysis and decision-making [7, 43].
+In contrast, customer-facing financial services require IR systems
+capable of handling various institutional documents. Second, exist-
+ing datasets lack multi-hop and multi-document queries in an IR
+setting, limiting their applicability to complex real-world financial
+information needs [21]. Third, the linguistic and cultural specificity
+of financial services remains a challenge. Korean financial institu-
+tions, for instance, face unique challenges in developing IR systems
+that can handle domain-specific terminology and regulatory lan-
+guage [16]. The availability of domain-specific IR benchmarks and
+supporting models is significantly limited, hindering the develop-
+ment and evaluation of effective retrieval systems.
+To address these limitations, we introduce a query generation
+pipeline that systematically produces multi-document queries for
+financial IR system, coupled with an enhanced answerability assess-
+ment method. Our methodology enables the creation of realistic
+multi-document queries that better reflect actual customer informa-
+tion needs in banking environments. To demonstrate the effective-
+ness of our approach, we apply this pipeline to produce KoBankIR,
+a benchmark specifically designed for Korean-language banking in-
+formation retrieval. KoBankIR comprises 815 queries derived from
+204 official bank product disclosures, representing real-world bank-
+ing interactions. Unlike existing financial IR datasets, KoBankIR
+explicitly incorporates multi-document queries generated through
+our proposed pipeline, mirroring how customers actually seek and
+retrieve information across multiple banking documents.
+As shown in Figure 1, our pipeline comprises three primary
+steps: (i) single-document query generation using domain-specific
+prompts, (ii) multi-document query generation through topic-based
+merging, context deepening, and comparing & contrasting, and
+(iii) automated evaluation of query answerability using a improved
+reasoning-augmented method. The query answerability assessment
+arXiv:2511.05000v1  [cs.IR]  7 Nov 2025
+
+--- PAGE 2 ---
+ICAIF ’25, November 15–18, 2025, Singapore, Singapore Hyunkyu Kim, Yeeun Yoo, and Youngjun Kwak
+Figure 1: The query generation pipeline. (a) Single-document query generation. (b) Multi-document query generation, com-
+prising (1) Topic-based merging, (2) Context deepening, and (3) Comparing and contrasting. The generated queries undergo
+evaluation to ensure quality and answerability.
+method provides a more robust approach by offering better align-
+ment with human evaluation than previous automatic scoring meth-
+ods, such as G-EVAL [25], which was analyzed in the QGEval study
+[13]. This is achieved through a think-augmented evaluation tech-
+nique based on a reasoning-trained model (DeepSeek-R1-Distill-
+Qwen-14B model [8]). This ensures both the quality of the dataset
+and its applicability to real-world banking scenarios.
+We conduct comprehensive experiments to evaluate our method-
+ology using multilingual retrieval models on the KoBankIR dataset,
+which we developed by applying our query generation pipeline
+to 204 official banking product disclosures, resulting in 815 high-
+quality queries. Our experiments demonstrate that existing retrieval
+models struggle to handle the domain-specific and complex multi-
+document queries generated by our pipeline. This reveals both the
+challenging nature of real-world financial IR tasks and the limita-
+tions of current IR models, while validating the effectiveness of our
+query generation approach.
+Our key contributions are as follows:
+• We develop a structured query generation pipeline that inte-
+grates single-document and multi-document query genera-
+tion with automated answerability evaluation for financial
+IR systems.
+• We introduce a reasoning-augmented answerability assess-
+ment method that significantly improves upon existing au-
+tomatic evaluation methods by providing better alignment
+with human judgment.
+• We demonstrate the effectiveness of our approach through
+comprehensive experiments on Korean banking data, estab-
+lishing new benchmarks for financial IR system evaluation
+and revealing significant challenges for existing retrieval
+models.
+2 Related Works
+2.1 Information Retrieval Datasets
+IR datasets are typically structured as query-document pairs, en-
+abling retrieval models to be evaluated across various domains.
+While general-domain IR datasets have contributed significantly to
+retrieval advancements [1, 14, 40, 41, 49], domain-specific datasets
+are essential for handling specialized tasks, such as legal [6, 23, 26,
+29], scientific [10, 42], and financial information retrieval [30].
+In the financial domain, existing datasets primarily emphasize
+retrieving information and Question Answering(QA). CSPRD [43]
+supports policy retrieval, whereas REFinD [19] and FinRED [38] fo-
+cus on relation extraction rather than document retrieval. Similarly,
+FinQA [5], FinTextQA [4], and DocFinQA [36] prioritize answer
+generation over retrieval performance.
+Despite these advancements, existing financial IR datasets re-
+main heavily focused on structured reports, stock market data, and
+numerical reasoning, and fail to address real-world banking scenar-
+ios in which customers retrieve and integrate information across
+multiple documents [7, 43]. We propose a systematic methodology
+for constructing domain-specific IR benchmarks through query
+generation and enhanced quality assessment.
+2.2 Multi-document, Multi-hop Questions
+Several multi-hop, multi-document QA datasets exist, such as Hot-
+potQA [48], ComplexWebQuestions [39], 2WikiMultiHopQA [15],
+and FanOutQA [50]. These evaluate reasoning by requiring multiple
+
+--- PAGE 3 ---
+Query Generation Pipeline with Enhanced Answerability Assessment for Financial Information Retrieval ICAIF ’25, November 15–18, 2025, Singapore, Singapore
+Figure 2: Hierarchical Structure of the Financial Document
+Dataset.
+inference steps over linked documents. However, although these
+datasets support complex multi-hop, multi-document and multi-
+modal reasoning, they are primarily designed for structured QA
+tasks rather than for document retrieval. Moreover, most of these
+benchmarks are built on general-domain corpora like Wikipedia,
+making them less suitable for domain-specific tasks such as finan-
+cial information retrieval.
+2.3 Automatic Query Generation Evaluation
+Ensuring the quality of generated queries is a crucial step in con-
+structing a reliable information retrieval benchmark. Although
+human evaluation is the most accurate method for assessing the
+query quality, it is time-consuming and unscalable for filtering
+large candidate sets. Therefore, an effective automatic evaluation
+metric is essential for prescreening generated queries efficiently
+and maintaining high data quality [25].
+However, evaluating automatically generated questions remains
+a significant challenge in this field. QGEval [13] conducted a com-
+prehensive analysis, which reveals a notable misalignment between
+automatic evaluation metrics and human judgment. Their findings
+indicate that even G-EVAL, the most human-aligned metric among
+existing methods, achieved only a modest Pearson correlation coef-
+ficient of 0.36. This highlights the considerable gap between current
+automatic evaluation approaches and the human assessments of
+generated questions. To address this misalignment, we introduce
+a reasoning-augmented evaluator that demonstrates significantly
+stronger alignment with human evaluations.
+3 Methodology
+In this section, we present the query generation pipeline for con-
+structing KoBankIR. We outline data collection and preprocessing,
+describe our query generation pipeline, and introduce query evalu-
+ation method.
+3.1 Data Collection & Preprocessing
+The KoBankIR dataset is constructed from 204 real-world financial
+documents provided by a Korean bank, covering 48 financial prod-
+ucts such as time deposits, installment savings, and other banking
+services. These documents include product disclosures, terms and
+conditions, and policy documents. To support query generation, the
+documents were segmented into 1,794 coherent passages through
+a chunking process that reflects the hierarchical structure of the
+financial documents, as illustrated in Figure 2.
+3.2 Query Generation Pipeline
+Owing to legal and ethical constraints prohibiting the use of actual
+customer inquiries, we implement a query generation pipeline to
+ensure compliance while maintaining relevance to real-world finan-
+cial applications. As illustrated in Figure 1, the pipeline comprises
+two key components: (a) single-document query generation and (b)
+multi-document query generation.
+3.2.1 Single-document Query Generation.Using the constructed
+passages, we generate a query for each single-document passage.
+We leverage GPT-4o as a query generator with a structured prompt
+template. Formally, let 𝐺 represents the generator, and the initially
+generated query set𝑄={𝑞 1, 𝑞2, . . . , 𝑞𝑛 }be defined as:
+𝑞𝑖 =𝐺(𝑇 𝑠𝑖𝑛𝑔𝑙𝑒 (𝑝𝑖 )), (1)
+where 𝑇𝑠𝑖𝑛𝑔𝑙𝑒 denotes the prompt template designed for single-
+document query generation, and 𝑝𝑖 represents an individual pas-
+sage within the passage set 𝑃={𝑝 1, 𝑝2, . . . , 𝑝|𝑃| }. Each query 𝑞𝑖 is
+initially generated without filtering, implying that some queries
+may not be fully answerable based on their respective passages.
+Additionally, we add metadata to the queries, including the product
+name under the label "the product held by the user" to link each
+query to a specific product.
+To ensure that only high-quality queries are included in the final
+dataset, we apply an query evaluation using reasoning-augmented
+answerability assessment method that evaluates whether a query
+can be answered based on its corresponding passage. Only the
+queries deemed answerable through this evaluation are retained
+in the single-document query set. Further details can be found in
+Section 3.3.
+3.2.2 Multi-document Query Generation.After generating and fil-
+tering single-document queries based on query evaluation, we sys-
+tematically construct multi-document queries that better reflect
+real-world banking IR scenarios in which users frequently seek
+information distributed across multiple sources. Through an inten-
+sive review of actual customers‘ inquiries, we define three types
+of multi-document query generation approaches: 1) Topic-based
+merging, 2) Context deepening, and 3) Comparing and contrasting.
+These three approaches are illustrated in the right panel of Figure 1,
+and examples for each are shown in Table 1.
+1) Topic-based merging.As shown in the top section of Fig-
+ure 1(b), this method merges two or three single-document queries
+are merged into a single sentence. Single-document queries are
+randomly sampled from those associated with the same financial
+products. Appropriate conjunctions (e.g., "and, " "also, " "in addition, "
+and "however") are incorporated to maintain natural linguistic in-
+tegration.
+To construct𝑘-document queries, we first group single-document
+queries according to their associated financial product. For each
+𝑝𝑟𝑜𝑑𝑢𝑐𝑡 , we sample 𝑘 queries from the corresponding query set, as
+follows:
+{𝑞1,· · ·, 𝑞𝑘 }=𝛿(𝑄 𝑝𝑟𝑜𝑑𝑢𝑐𝑡 𝑖 , 𝑘),(2)
+
+--- PAGE 4 ---
+ICAIF ’25, November 15–18, 2025, Singapore, Singapore Hyunkyu Kim, Yeeun Yoo, and Youngjun Kwak
+TypeExample
+Topic-based merg-
+ing
+(English) Where can I find the basic terms and conditions of Bank
+Special Sale Term Deposit, and what is the effective date of this special
+offer?
+(Korean) ᄋ ᅵᄋ ᅳ ᆫᄒ ᅢᆼᄋ ᅴᄐ ᅳ ᆨ별판ᄆ ᅢ정ᄀ ᅵᄋ ᅨ그 ᆷᄋ ᅴᄋ ᅨ그 ᆷᄀ ᅥᄅ ᅢᄀ ᅵ본ᄋ ᅣ ᆨ관을ᄋ ᅥ
+ᄃ ᅵᄉ ᅥ볼ᄉ ᅮ있ᄂ ᅡᄋ ᅭ?ᄀ ᅳᄅ ᅵᄀ ᅩ ᄋ ᅵᄐ ᅳ ᆨᄋ ᅣ ᆨᄋ ᅴᄉ ᅵᄒ ᅢᆼ이 ᆯᄋ ᅳ ᆫ언ᄌ ᅦᄋ ᅵᆫᄀ ᅡᄋ ᅭ?
+Contextual deep-
+ening
+(English) Do you check if a new home is purchased during the loan
+and how many homes a spouse owns at the time of loan origination?
+(Korean) ᄃ ᅢ출ᄀ ᅵ간ᄃ ᅩ ᆼ안ᄉ ᅵᆫᄀ ᅲ ᄌ ᅮ택을ᄀ ᅮ이 ᆸᄒ ᅡ는ᄌ ᅵ확ᄋ ᅵᆫᄒ ᅡᄂ ᅡᄋ ᅭ? ᄀ ᅳ
+ᄅ ᅵᄀ ᅩ ᄃ ᅢ출시 ᆯᄒ ᅢᆼᄉ ᅵ ᄇ ᅢᄋ ᅮᄌ ᅡᄀ ᅡ ᄇ ᅩᄋ ᅲ한ᄌ ᅮ택ᄉ ᅮ를확ᄋ ᅵᆫᄒ ᅡᄂ ᅡᄋ ᅭ?
+Comparing and
+contrasting
+(English) How are the prepayment penalties different for this Bank’s
+Personal Loan and Household Loan products?
+(Korean) ᄋ ᅵᄋ ᅳ ᆫᄒ ᅢᆼᄋ ᅴᄀ ᅢᄋ ᅵᆫᄃ ᅢ출과ᄌ ᅮ택ᄃ ᅡ ᆷᄇ ᅩᄃ ᅢ출상ᄑ ᅮ ᆷᄋ ᅴ중ᄃ ᅩ상환
+ᄉ ᅮᄉ ᅮᄅ ᅭ는ᄋ ᅥ떻ᄀ ᅦ ᄃ ᅡᄅ ᅳᄂ ᅡᄋ ᅭ?
+Table 1: Examples of multi-document query
+where 𝛿 is random sampling function and, 𝑄𝑝𝑟𝑜𝑑𝑢𝑐𝑡 𝑖 represents the
+set of single-document queries belonging𝑝𝑟𝑜𝑑𝑢𝑐𝑡 𝑖.
+Finally, by using a structured prompt template 𝑇𝑚𝑒𝑟𝑔𝑒 , the query
+generator𝐺reformulates them into a multi-document query:
+𝑞𝑚𝑒𝑟𝑔𝑒𝑑 =𝐺(𝑇 𝑚𝑒𝑟𝑔𝑒 ({𝑞 1,· · ·, 𝑞𝑘 }),(3)
+This allows us to construct queries that reflect real-world sce-
+narios, in which users naturally ask multiple questions together.
+2) Context deepening.In this merging approach, illustrated in the
+middle section of Figure 1(b), we sample multiple query-passage
+pairs from the single-document queries, and the generator, 𝐺, con-
+siders both queries and passages during the merging process. This
+generates outputs, which simulate realistic financial consultations.
+First, we identify the queries that originate from the same docu-
+ment. For each𝑑𝑜𝑐𝑢𝑚𝑒𝑛𝑡, we sample𝑘of query-passage pairs:
+{(𝑞 1, 𝑝1),· · ·,(𝑞 𝑘, 𝑝𝑘 )}=𝛿(𝑄 𝑑𝑜𝑐𝑢𝑚𝑒𝑛𝑡 𝑖 , 𝑘),(4)
+where 𝑄𝑑𝑜𝑐𝑢𝑚𝑒𝑛𝑡 𝑖 represents the set of single-document queries and
+their associated passages within𝑑𝑜𝑐𝑢𝑚𝑒𝑛𝑡 𝑖.
+Using a structured prompt template 𝑇𝑑𝑒𝑒𝑝 for deepening queries,
+the query generator,𝐺, reformulates these query-passage pairs
+{(𝑞 1, 𝑝1),· · ·,(𝑞 𝑘, 𝑝𝑘 )}into a deepened multi-document query:
+𝑞𝑑𝑒𝑒𝑝 =𝐺(𝑇 𝑑𝑒𝑒𝑝 ({(𝑞 1, 𝑝1),· · ·,(𝑞 𝑘, 𝑝𝑘 )})),(5)
+As shown in Table 1, these questions require multiple reasoning
+steps to answer.
+3) Comparing and contrasting.As shown in the bottom section
+of Figure 1(b), this method constructs multi-document queries by
+identifying comparable passages across different products within
+a financial product category. Unlike the previous methods, where
+queries are initially generated from individual passages and then
+merged or deepened, this approach directly utilizes the passages as
+generator inputs. The objective is to create queries that emphasize
+the similarities and differences between key financial concepts and
+policies.
+First, we choose one category and then select several products
+within it. From each chosen product, we sample one passage. For
+example, selecting three products yields a set of three passages.
+The generator, 𝐺, creates a query by comparing and contrasting
+the selected passages:
+Figure 3: The process of reasoning-augmented evaluation
+method.
+𝑝1 =𝛿(𝑃 𝑐𝑎𝑡𝑒𝑔𝑜𝑟 𝑦 𝑖 ,1)
+...(6)
+𝑝𝑘 =𝛿(𝑃 𝑐𝑎𝑡𝑒𝑔𝑜𝑟 𝑦 𝑖 ,1)
+𝑞𝑐𝑜𝑚𝑝 =𝐺(𝑇 𝑐𝑜𝑚𝑝 ({𝑝 1,· · ·, 𝑝𝑘 })),(7)
+where 𝑇𝑐𝑜𝑚𝑝 is a structured prompt template designed to encourage
+contrastive and comparative reasoning and, 𝑃𝑐𝑎𝑡𝑒𝑔𝑜𝑟 𝑦 𝑖 represents
+the set of passages within 𝑐𝑎𝑡𝑒𝑔𝑜𝑟𝑦 𝑖. These queries reflect real-
+world scenarios in which users compare financial options or policies
+across products.
+3.3 Query Evaluation
+3.3.1 Automatic Answerability Scoring.To evaluate query answer-
+ability, we introduce a reasoning-augmented evaluator built on
+DeepSeek-R1-Distill-Qwen (7B and 14B)which guides the model
+through explicit "Think" steps. Following the findings of the QGEval
+paper, which reported that G-EVAL-4 achieved the best perfor-
+mance among its competitors yet still exhibited limited alignment
+with human judgments (Pearson’s𝜌 = 0.36 on the QGEval dataset;
+see Table 2), we replicated part of their experimental setup and
+extended it with additional experiments tailored to our approach.
+By incorporating explicit reasoning steps into the evaluation, we
+achieved substantially higher alignment with human judgments on
+the QGEval benchmark (Pearson’s𝜌= 0.60 vs 0.36; Table 2).
+Surprisingly, with just a minor prompt modification, the pro-
+posed evaluator outperformed all baselines in matching human
+judgments-even though it is much smaller than GPT-4o [35]. Fig-
+ure 3 illustrates the complete "Think" reasoning chain, showing
+how each query is evaluated step by step. We also tested GPT-o1
+under identical conditions. Because OpenAI’s API limits extended
+reasoning paths, we reverted to the simpler G-EVAL prompts for
+
+--- PAGE 5 ---
+Query Generation Pipeline with Enhanced Answerability Assessment for Financial Information Retrieval ICAIF ’25, November 15–18, 2025, Singapore, Singapore
+Metric𝜌 𝜏
+G-Eval-gpt4 0.356 0.169
+G-Eval-gpt4o 0.302 0.183
+G-Eval-gpto1 0.542 0.295
+Ours(7B) 0.299 0.187
+Ours(14B) 0.598 0.304
+Table 2: Pearson (𝜌) and Kendall-Tau (𝜏) correlations between
+automatic evaluation metrics and human assessments for
+query answerability. G-EV AL-gpt4 results are from the origi-
+nal QGEval study, while G-EV AL-gpt4o, G-EV AL-gpt-o1, and
+our proposed reasoning-augmented evaluation methods us-
+ing DeepSeek models (7B and 14B) were evaluated in this
+work. Our method with DeepSeek-14B achieves the highest
+correlation with human judgments.
+Metric𝜌 𝜏
+G-Eval-gpt4 0.647 0.451
+Ours(14B) 0.775 0.565
+Table 3: Pearson ( 𝜌) and Kendall-Tau ( 𝜏) correlations with
+human judgments on the KoBankIR dataset for G-EV AL-
+gpt4 and our proposed reasoning-augmented evaluation ap-
+proach using DeepSeek-14B. Our method achieves substan-
+tially higher alignment with human evaluations.
+GPT-o1, which consequently showed lower alignment with human
+judgments compared to our reasoning-augmented approach (see
+Table 2).
+Although we use Pearson and Kendall-tau correlations to mea-
+sure alignment with human judgments-as done in QGEval-our
+primary focus is on its performance for query filtering. Only 6 of
+450 queries (1.33%) receive high answerability scores (≥ 4) despite
+low human ratings ( < 2). This result shows that our assessment
+method rarely overestimates query quality compared to human
+judgments, demonstrating its reliability as an automated filtering
+mechanism with a minimal false-positive rate.
+Since QGEval was not originally designed for Korean, so its di-
+rect adaption to our Korean banking dataset may raise concerns.
+To address this, we conducted a complementary human evaluation
+following the QGEval’s answerability criteria on our data. From
+the initial pool of generated queries, we stratified samples into four
+bins-below 2, [2, 3), [3, 4), and 4 or above-and randomly selected 25
+queries from each bin to form a set of 100 samples. These were then
+independently rated by the authors of this paper on a 1-3 answer-
+ability scale. The resulting correlations, shown in Table 3, confirm
+that our evaluator’s higher alignment with human judgments holds
+true even in a Korean-language setting.
+3.3.2 Conditioning Multi-Document Dependency.When synthe-
+sizing the multi-document queries, we observed that many of the
+generated queries could be answered using a single passage, contra-
+dicting the multi-document dependency condition. To address this
+issue, we apply an additional filtering mechanism. We define a valid
+Figure 4: Human evaluation interface.
+multi-document query as one in which the answerability score of
+the query with all supporting contexts combined is higher than
+the score when evaluated with any individual document alone. For-
+mally, for a query with the corresponding passages, the following
+condition must hold:
+𝐹(𝑃 𝑐, 𝑄𝑐 )>𝑚𝑎𝑥(𝐹(𝑃 1, 𝑄𝑐 ),· · ·, 𝐹(𝑃 𝑛, 𝑄𝑐 )),(8)
+where 𝑃𝑐 represents the union of all relevant passages for the multi-
+document query 𝑄𝑐. This condition requires that 𝑄𝑐 be more an-
+swerable when provided with all passages rather than just a subset
+of them. By applying this criterion, we eliminated a substantial
+number of queries, ensuring the final dataset included only those
+that require information across multiple contexts.
+3.3.3 Human Evaluation.To ensure the quality of the dataset, we
+conducted a human evaluation on queries with an answerability
+score greater than 4.0, as determined by our reasoning-augmented
+assessment method. The purpose of this evaluation was to refine
+the dataset and ensure that only high-quality queries were included
+in the benchmark. The evaluation was conducted by five banking
+professionals, each with at least two years of financial industry
+experience, using a single review approach in which each query
+was evaluated by an expert reviewer to ensure efficient processing
+while maintaining quality standards.
+• Relevance: The query must be highly relevant to banking-
+related information retrieval tasks.
+• Answerability: The query must be answerable based on the
+provided passage.
+• Multi-hop Necessity: Queries should necessitate multi-
+document reasoning, and unrelated passages must be filtered
+out.
+You may see the human evaluation tool in the Figure 4.
+3.4 Data Statistics
+As a result of human evaluation, we selected a total of 815 queries
+for the benchmark, including 358 multi-document queries and 457
+
+--- PAGE 6 ---
+ICAIF ’25, November 15–18, 2025, Singapore, Singapore Hyunkyu Kim, Yeeun Yoo, and Youngjun Kwak
+Query Type 1-docs 2-docs 3-docs 4-docs
+Single-document Queries457 - - -
+Multi-document Queries
+Topic-based Merging - 69 54 0
+Context Deepening - 59 35 2
+Comparing and Contrasting - 93 31 15
+Table 4: Statistics of the KoBankIR dataset: the numbers
+indicate the number of queries for each type and number of
+supporting documents.
+single-document queries. Table 4 shows the detailed statistics of
+single-document and multi-document queries, which are catego-
+rized into three types: Topic-based Merging (123 queries), Con-
+text Deepening (96 queries), and Comparing and Contrasting (139
+queries). These queries are distributed across different document
+combinations, ranging from 2-docs to 4-docs configurations.
+4 Experiments
+4.1 Baselines
+Sparse, dense, multi-vector retrieval models are prominent ap-
+proaches for information retrieval [3]. In this section, we evaluate
+the three types of retrieval models using our benchmark to assess
+their performance in real-world banking scenarios.
+Sparse retrieval models.Sparse methods like BM25 [37] are widely
+used due to their simplicity and interpretability [28, 32], but often
+fail to capture deeper semantic relationships [ 12]. Recent works
+have addressed this by enhancing term representations [31]. We
+evaluate BM25 and BGE-M3 (Sparse), a lexicon-based model with
+Korean support. Notably, BGE-M3 supports sparse, dense and multi-
+vector retrieval, making it a versatile choice for evaluating different
+retrieval paradigms.
+Dense retrieval models.Dense retrieval models encode docu-
+ments and queries into dense vectors and match them based on
+similarity measures [2, 3, 18, 27, 34, 44, 47]. Dense retrieval models
+dominate current retrieval system research, particularly because
+the adoption of LLMs has significantly boosted their performance
+[22, 45]. Based on strong multilingual performance in MTEB [33],
+we selected three representative models for our experiments: GTE-
+Qwen2-1.5B-instruct [24], Multilingual-e5-Large, Multilingual-e5-
+Large-instruct [46], and BGE-M3.
+Multi-vector retrieval models.Multi-vector retrieval models en-
+hance retrieval effectiveness by representing queries and docu-
+ments with multiple vectors, thereby enabling more fine-grained
+semantic matching [9, 20]. Although these approaches demonstrate
+improved performance compared to single-vector models through
+token-level interaction mechanisms, they encounter scalability chal-
+lenges when applied to large-scale collections [ 9]. In our experi-
+mental setup, we utilize BGE-M3 as a multi-vector retrieval model,
+primarily because of the limited availability of open-source models
+with official Korean language support.
+We also evaluate hybrid retrieval strategies that combine sparse,
+dense, and multi-vector outputs to leverage the strengths of each
+representation.
+4.2 Experimental Settings
+Dense retrieval used cosine similarity for ranking, while sparse
+retrieval used lexical matching through sparse matrix multiplica-
+tion. Multi-vector retrieval captured token-level similarity using
+MaxSim operations [20]. The hybrid approach used three weight
+configurations: (0.4, 0.3, 0.3), (0.7, 0.3, 0), and (0.5, 0, 0.5) for dense,
+sparse, and multi-vector retrieval respectively. The models were
+evaluated using NDCG [17], mAP, and Recall metrics.
+4.3 Experimental Results
+The complete experimental results on the baselines are presented
+in Table 5.
+Sparse retrieval models(BM25 and BGE-M3 (Sparse)) exhibit
+limited effectiveness in banking scenarios. BM25 performs the
+worst among all baselines, with an NDCG@5 of 0.1768. In con-
+trast, BGE-M3 (Sparse) significantly outperforms BM25, achieving
+an NDCG@5 of 0.5722, demonstrating that lexicon-based sparse
+models benefit from deep learning enhancements. However, despite
+these improvements, sparse retrieval remains inferior to the dense
+and multi-vector approaches.
+Dense retrieval modelsexhibit stronger ranking performance
+compared to the sparse and multi-vector retrieval models. Among
+the dense models, BGE-m3 (Dense) achieves the best score with an
+NDCG@5 of 0.6452, surpassing both Alibaba-NLP/gte-Qwen2-1.5B-
+instruct (0.565) and intfloat/multilingual-e5-large (0.6165).
+Multi-vector retrieval model(BGE-M3 (Multi)) achieves an
+NDCG@5 of 0.6408, which is comparable to that of the best dense
+model.
+Hybrid retrieval approaches that combine sparse, dense, and
+multi-vector representations yield the best overall performance.
+Notably, BGE-M3 (Sparse + Dense) achieves an NDCG@5 of 0.6795,
+outperforming all other models, including the pure dense and multi-
+vector approaches. Additionally, it records the highest mAP@5
+(0.6167) and Recall@10 (0.8663), indicating that the hybrid ap-
+proaches simultaneously enhance ranking and recall. These results
+reinforce the idea that combining sparse and dense retrieval ef-
+fectively balances lexical matching and semantic understanding,
+making it the most suitable approach for financial document re-
+trieval.
+However, even with the hybrid method achieving the best results,
+overall performance remains modest, highlighting significant room
+for improvement in financial IR techniques.
+Performance by Document Count.To further analyze performance
+differences by query type, we evaluate the best-performing model
+(BGE-M3 (Sparse + Dense)) on single- and multi-document queries.
+Table 6 shows the NDCG@5 scores broken down by the number of
+supporting documents per query. While the model achieves strong
+performance on single-document queries, performance degrades
+as the number of documents increases, highlighting the greater
+challenge of multi-document retrieval.
+
+--- PAGE 7 ---
+Query Generation Pipeline with Enhanced Answerability Assessment for Financial Information Retrieval ICAIF ’25, November 15–18, 2025, Singapore, Singapore
+NDCG@ mAP@ Recall@
+EmbSize 5 10 5 10 5 10
+Sparse retrieval models
+BM25 0.1768 0.2063 0.1455 0.1579 0.2216 0.3038
+BAAI/bge-m3 (Sparse) 1024 0.5722 0.6127 0.5047 0.5263 0.6723 0.7783
+Dense retrieval models
+Alibaba-NLP/gte-Qwen2-1.5B-instruct 1536 0.5650 0.6105 0.5045 0.5278 0.6540 0.7741
+intfloat/multilingual-e5-large 1024 0.6165 0.6545 0.5526 0.5726 0.7069 0.8061
+intfloat/multilingual-e5-large-instruct 1024 0.6180 0.6625 0.5527 0.5765 0.7141 0.8315
+BAAI/bge-m3 (Dense) 1024 0.6452 0.6848 0.5828 0.6043 0.7342 0.8387
+Multi-vector retrieval models
+BAAI/bge-m3 (Multi) 1024 0.6408 0.6789 0.5796 0.5997 0.7226 0.8228
+Hybrid approaches
+BAAI/bge-m3 (Sparse + Dense + Multi) 1024 0.6565 0.6917 0.5838 0.6041 0.7267 0.8271
+BAAI/bge-m3 (Sparse + Dense) 1024 0.6950 0.7109 0.6167 0.6345 0.7723 0.8528
+BAAI/bge-m3 (Dense + Multi) 1024 0.6377 0.6749 0.5806 0.6002 0.7246 0.8232
+Table 5: Experimental results comparing sparse, dense, multi-vector, and hybrid retrieval models on NDCG, mAP, and Recall
+metrics. Bold denotes best score in each column. The results show that hybrid approach (BGE-M3 Sparse + Dense) consistently
+outperforms other models.
+Document count NDCG@5
+Single-document Queries0.749
+Multi-document Queries
+2-documents 0.590
+3-documents 0.633
+4-documents 0.302
+Table 6: NDCG@5 performance of the best model (BGE-
+M3(Sparse + Dense)) by document count.
+Performance by Multi-document Query Type.To better under-
+stand how retrieval performance varies across different types of
+multi-document queries, we evaluate the best-performing model
+(BGE-M3(Sparse + Dense)) on each query type. As shown in Table 7,
+the model performs well on Topic-based Merging and Context Deep-
+ening queries, but shows a notable performance drop on Comparing
+and Contrasting queries. This suggests that comparative reasoning
+remains a challenging task in current retrieval models.
+5 Conclusion
+We propose a structured query generation pipeline that combines
+single-document and multi-document queries with automated an-
+swerability evaluation, enabling the construction of high quality
+information retrieval benchmarks. As part of this pipeline, we in-
+troduce a reasoning-augmented evaluator for query answerabil-
+ity, which improves the quality and reliability of the generated
+dataset. By using this pipeline, we build KoBankIR, the first Korean-
+language benchmark for banking-domain information retrieval.
+Our experiments on KoBankIR highlight the limitations of current
+Query Type NDCG@5
+Single-document Queries0.749
+Multi-document Queries
+Topic-based Merging 0.709
+Context Deepening 0.696
+Comparing and Contrasting 0.414
+Table 7: NDCG@5 performance of the best model (BGE-
+M3(Sparse + Dense)) by query type. Performance on com-
+paring and contrasting queries is notably lower.
+retrieval models in this domain, emphasizing the need for further
+research on more effective retrieval techniques.
+References
+[1] Lucas Bandarkar, Davis Liang, Benjamin Muller, Mikel Artetxe, Satya Narayan
+Shukla, Donald Husa, Naman Goyal, Abhinandan Krishnan, Luke Zettlemoyer,
+and Madian Khabsa. 2023. The belebele benchmark: a parallel reading com-
+prehension dataset in 122 language variants.arXiv preprint arXiv:2308.16884
+(2023).
+[2] Haonan Chen, Carlos Lassance, and Jimmy Lin. 2023. End-to-End Retrieval with
+Learned Dense and Sparse Representations Using Lucene.ArXivabs/2311.18503
+(2023). doi:10.48550/arXiv.2311.18503
+[3] Jianlv Chen, Shitao Xiao, Peitian Zhang, Kun Luo, Defu Lian, and Zheng Liu.
+2024. BGE M3-Embedding: Multi-Lingual, Multi-Functionality, Multi-Granularity
+Text Embeddings Through Self-Knowledge Distillation. arXiv:2402.03216 [cs.CL]
+https://arxiv.org/abs/2402.03216
+[4] Jian Chen, Peilin Zhou, Yining Hua, Yingxin Loh, Kehui Chen, Ziyuan Li, Bing
+Zhu, and Junwei Liang. 2024. FinTextQA: A Dataset for Long-form Financial
+Question Answering. arXiv:2405.09980 [cs.CL] https://arxiv.org/abs/2405.09980
+[5] Zhiyu Chen, Wenhu Chen, Charese Smiley, Sameena Shah, Iana Borova, Dylan
+Langdon, Reema Moussa, Matt Beane, Ting-Hao Huang, Bryan Routledge, et al.
+2021. Finqa: A dataset of numerical reasoning over financial data.arXiv preprint
+arXiv:2109.00122(2021).
+
+--- PAGE 8 ---
+ICAIF ’25, November 15–18, 2025, Singapore, Singapore Hyunkyu Kim, Yeeun Yoo, and Youngjun Kwak
+[6] Zhe Chen, Pengjie Ren, Fuhui Sun, Xiaoyan Wang, Yujun Li, Siwen Zhao, and
+Tengyi Yang. 2025. SLARD: A Chinese Superior Legal Article Retrieval Dataset.
+InProceedings of the 31st International Conference on Computational Linguistics.
+740–754.
+[7] Stephen Choi, William Gazeley, Siu Ho Wong, and Tingting Li. 2023. Con-
+versational Financial Information Retrieval Model (ConFIRM).arXiv preprint
+arXiv:2310.13001(2023).
+[8] DeepSeek-AI, Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu
+Zhang, Runxin Xu, et al. 2025. DeepSeek-R1: Incentivizing Reasoning Capability
+in LLMs via Reinforcement Learning. arXiv:2501.12948 [cs.CL] https://arxiv.org/
+abs/2501.12948
+[9] Laxman Dhulipala, Majid Hadian, Rajesh Jayaram, Jason Lee, and Vahab Mir-
+rokni. 2024. MUVERA: Multi-Vector Retrieval via Fixed Dimensional Encodings.
+arXiv:2405.19504 [cs.DS] https://arxiv.org/abs/2405.19504
+[10] Yihao Ding, Kaixuan Ren, Jiabin Huang, Siwen Luo, and Soyeon Caren Han. 2024.
+PDF-MVQA: A Dataset for Multimodal Information Retrieval in PDF-based Visual
+Question Answering. arXiv:2404.12720 [cs.CV] https://arxiv.org/abs/2404.12720
+[11] Fuli Feng, Cheng Luo, Xiangnan He, Yiqun Liu, and Tat-Seng Chua. 2020. FinIR
+2020: The First Workshop on Information Retrieval in Finance. (2020), 2451–2454.
+doi:10.1145/3397271.3401462
+[12] Thibault Formal, Carlos Lassance, Benjamin Piwowarski, and S. Clinchant. 2023.
+Towards Effective and Efficient Sparse Neural Information Retrieval.ACM Trans-
+actions on Information Systems42 (2023), 1 – 46. doi:10.1145/3634912
+[13] Weiping Fu, Bifan Wei, Jianxiang Hu, Zhongmin Cai, and Jun Liu. 2024.
+QGEval: Benchmarking Multi-dimensional Evaluation for Question Generation.
+arXiv:2406.05707 [cs.CL] https://arxiv.org/abs/2406.05707
+[14] Mor Geva, Daniel Khashabi, Elad Segal, Tushar Khot, Dan Roth, and Jonathan
+Berant. 2021. Did aristotle use a laptop? a question answering benchmark with
+implicit reasoning strategies.Transactions of the Association for Computational
+Linguistics9 (2021), 346–361.
+[15] Xanh Ho, Anh-Khoa Duong Nguyen, Saku Sugawara, and Akiko Aizawa. 2020.
+Constructing a multi-hop QA dataset for comprehensive evaluation of reasoning
+steps.arXiv preprint arXiv:2011.01060(2020).
+[16] Yewon Hwang, Sungbum Jung, Hanwool Lee, and Sara Yu. 2025. TWICE: What
+Advantages Can Low-Resource Domain-Specific Embedding Model Bring? – A
+Case Study on Korea Financial Texts. arXiv:2502.07131 [cs.CL] https://arxiv.org/
+abs/2502.07131
+[17] Kalervo Järvelin and Jaana Kekäläinen. 2002. Cumulated gain-based evaluation
+of IR techniques.ACM Transactions on Information Systems (TOIS)20, 4 (2002),
+422–446.
+[18] Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey
+Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense Passage Retrieval for Open-
+Domain Question Answering. InProceedings of the 2020 Conference on Empirical
+Methods in Natural Language Processing (EMNLP), Bonnie Webber, Trevor Cohn,
+Yulan He, and Yang Liu (Eds.). Association for Computational Linguistics, Online,
+6769–6781. doi:10.18653/v1/2020.emnlp-main.550
+[19] Simerjot Kaur, Charese Smiley, Akshat Gupta, Joy Sain, Dongsheng Wang,
+Suchetha Siddagangappa, Toyin Aguda, and Sameena Shah. 2023. REFinD: Re-
+lation extraction financial dataset. InProceedings of the 46th International ACM
+SIGIR Conference on Research and Development in Information Retrieval. 3054–
+3063.
+[20] Omar Khattab and Matei Zaharia. 2020. ColBERT: Efficient and Effective Passage
+Search via Contextualized Late Interaction over BERT. arXiv:2004.12832 [cs.IR]
+https://arxiv.org/abs/2004.12832
+[21] Seunghee Kim, Changhyeon Kim, and Taeuk Kim. 2024. FCMR: Robust Evaluation
+of Financial Cross-Modal Multi-Hop Reasoning. arXiv:2412.12567 [cs.CL] https:
+//arxiv.org/abs/2412.12567
+[22] Chankyu Lee, Rajarshi Roy, Mengyao Xu, Jonathan Raiman, Mohammad Shoeybi,
+Bryan Catanzaro, and Wei Ping. 2024. NV-Embed: Improved Techniques for
+Training LLMs as Generalist Embedding Models.arXiv preprint arXiv:2405.17428
+(2024).
+[23] Haitao Li, Yunqiu Shao, Yueyue Wu, Qingyao Ai, Yixiao Ma, and Yiqun Liu. 2024.
+Lecardv2: A large-scale Chinese Legal Case Retrieval Dataset. InProceedings of
+the 47th International ACM SIGIR Conference on Research and Development in
+Information Retrieval. 2251–2260.
+[24] Zehan Li, Xin Zhang, Yanzhao Zhang, Dingkun Long, Pengjun Xie, and Meishan
+Zhang. 2023. Towards general text embeddings with multi-stage contrastive
+learning.arXiv preprint arXiv:2308.03281(2023).
+[25] Yang Liu, Dan Iter, Yichong Xu, Shuohang Wang, Ruochen Xu, and Chenguang
+Zhu. 2023. G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment.
+arXiv:2303.16634 [cs.CL] https://arxiv.org/abs/2303.16634
+[26] Ehsan Lotfi, Nikolay Banar, Nerses Yuzbashyan, and Walter Daelemans. 2024.
+Bilingual BSARD: Extending Statutory Article Retrieval to Dutch.arXiv preprint
+arXiv:2412.07462(2024).
+[27] Y. Luan, Jacob Eisenstein, Kristina Toutanova, and M. Collins. 2020. Sparse, Dense,
+and Attentional Representations for Text Retrieval.Transactions of the Association
+for Computational Linguistics9 (2020), 329–345. doi:10.1162/tacl_a_00369
+[28] Xueguang Ma, Hengxin Fun, Xusen Yin, Antonio Mallia, and Jimmy Lin. 2023.
+Enhancing Sparse Retrieval via Unsupervised Learning. InProceedings of the
+Annual International ACM SIGIR Conference on Research and Development in
+Information Retrieval in the Asia Pacific Region. 150–157.
+[29] Yixiao Ma, Yunqiu Shao, Yueyue Wu, Yiqun Liu, Ruizhe Zhang, Min Zhang, and
+Shaoping Ma. 2021. LeCaRD: a legal case retrieval dataset for Chinese law system.
+InProceedings of the 44th international ACM SIGIR conference on research and
+development in information retrieval. 2342–2348.
+[30] Macedo Maia, Siegfried Handschuh, André Freitas, Brian Davis, Ross McDer-
+mott, Manel Zarrouk, and Alexandra Balahur. 2018. WWW’18 Open Challenge:
+Financial Opinion Mining and Question Answering. InCompanion Proceedings
+of the The Web Conference 2018(Lyon, France)(WWW ’18). International World
+Wide Web Conferences Steering Committee, Republic and Canton of Geneva,
+CHE, 1941–1942. doi:10.1145/3184558.3192301
+[31] Antonio Mallia, Omar Khattab, Torsten Suel, and Nicola Tonellotto. 2021. Learn-
+ing passage impacts for inverted indexes. InProceedings of the 44th International
+ACM SIGIR Conference on Research and Development in Information Retrieval.
+1723–1727.
+[32] Priyanka Mandikal and Raymond Mooney. 2024. Sparse Meets Dense: A Hybrid
+Approach to Enhance Scientific Document Retrieval.ArXivabs/2401.04055 (2024).
+doi:10.48550/arXiv.2401.04055
+[33] Niklas Muennighoff, Nouamane Tazi, Loïc Magne, and Nils Reimers. 2023. MTEB:
+Massive Text Embedding Benchmark. arXiv:2210.07316 [cs.CL] https://arxiv.
+org/abs/2210.07316
+[34] Arvind Neelakantan, Tao Xu, Raul Puri, Alec Radford, Jesse Michael Han, Jerry
+Tworek, Qiming Yuan, Nikolas Tezak, Jong Wook Kim, Chris Hallacy, Johannes
+Heidecke, Pranav Shyam, Boris Power, Tyna Eloundou Nekoul, Girish Sastry,
+Gretchen Krueger, David Schnurr, Felipe Petroski Such, Kenny Hsu, Madeleine
+Thompson, Tabarak Khan, Toki Sherbakov, Joanne Jang, Peter Welinder, and
+Lilian Weng. 2022. Text and Code Embeddings by Contrastive Pre-Training.
+arXiv:2201.10005 [cs.CL] https://arxiv.org/abs/2201.10005
+[35] OpenAI, Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge
+Akkaya, Florencia Leoni Aleman, et al . 2024. GPT-4 Technical Report.
+arXiv:2303.08774 [cs.CL] https://arxiv.org/abs/2303.08774
+[36] Varshini Reddy, Rik Koncel-Kedziorski, Viet Dac Lai, Michael Krumdick, Charles
+Lovering, and Chris Tanner. 2024. DocFinQA: A Long-Context Financial Reason-
+ing Dataset. arXiv:2401.06915 [cs.CL] https://arxiv.org/abs/2401.06915
+[37] Stephen Robertson, Hugo Zaragoza, et al . 2009. The probabilistic relevance
+framework: BM25 and beyond.Foundations and Trends®in Information Retrieval
+3, 4 (2009), 333–389.
+[38] Soumya Sharma, Tapas Nayak, Arusarka Bose, Ajay Kumar Meena, Koustuv
+Dasgupta, Niloy Ganguly, and Pawan Goyal. 2023. FinRED: A Dataset for Relation
+Extraction in Financial Domain. arXiv:2306.03736 [cs.CL] https://arxiv.org/abs/
+2306.03736
+[39] Alon Talmor and Jonathan Berant. 2018. The Web as a Knowledge-base for
+Answering Complex Questions. arXiv:1803.06643 [cs.CL] https://arxiv.org/abs/
+1803.06643
+[40] Nandan Thakur, Nils Reimers, Andreas Rücklé, Abhishek Srivastava, and Iryna
+Gurevych. 2021. Beir: A heterogenous benchmark for zero-shot evaluation of
+information retrieval models.arXiv preprint arXiv:2104.08663(2021).
+[41] Francisco Valentini, Viviana Cotik, Damián Furman, Ivan Bercovich, Edgar Alt-
+szyler, and Juan Manuel Pérez. 2024. MessIRve: A Large-Scale Spanish Informa-
+tion Retrieval Dataset. arXiv:2409.05994 [cs.CL] https://arxiv.org/abs/2409.05994
+[42] Jianyou Wang, Kaicheng Wang, Xiaoyue Wang, Prudhviraj Naidu, Leon Bergen,
+and Ramamohan Paturi. 2023. DORIS-MAE: Scientific Document Retrieval using
+Multi-level Aspect-based Queries. arXiv:2310.04678 [cs.IR] https://arxiv.org/abs/
+2310.04678
+[43] Jinyuan Wang, Hai Zhao, Zhong Wang, Zeyang Zhu, Jinhao Xie, Yong Yu,
+Yongjian Fei, Yue Huang, and Dawei Cheng. 2023. CSPRD: A Financial Pol-
+icy Retrieval Dataset for Chinese Stock Market. arXiv:2309.04389 [cs.CL]
+https://arxiv.org/abs/2309.04389
+[44] Liang Wang, Nan Yang, Xiaolong Huang, Binxing Jiao, Linjun Yang, Daxin Jiang,
+Rangan Majumder, and Furu Wei. 2024. Text Embeddings by Weakly-Supervised
+Contrastive Pre-training. arXiv:2212.03533 [cs.CL] https://arxiv.org/abs/2212.
+03533
+[45] Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and
+Furu Wei. 2023. Improving Text Embeddings with Large Language Models.arXiv
+preprint arXiv:2401.00368(2023).
+[46] Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and
+Furu Wei. 2024. Multilingual E5 Text Embeddings: A Technical Report.arXiv
+preprint arXiv:2402.05672(2024).
+[47] Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang, Jialin Liu, Paul Bennett,
+Junaid Ahmed, and Arnold Overwijk. 2020. Approximate nearest neighbor nega-
+tive contrastive learning for dense text retrieval.arXiv preprint arXiv:2007.00808
+(2020).
+[48] Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W Cohen, Ruslan
+Salakhutdinov, and Christopher D Manning. 2018. HotpotQA: A dataset for di-
+verse, explainable multi-hop question answering.arXiv preprint arXiv:1809.09600
+
+--- PAGE 9 ---
+Query Generation Pipeline with Enhanced Answerability Assessment for Financial Information Retrieval ICAIF ’25, November 15–18, 2025, Singapore, Singapore
+(2018).
+[49] Xinyu Zhang, Nandan Thakur, Odunayo Ogundepo, Ehsan Kamalloo, David
+Alfonso-Hermelo, Xiaoguang Li, Qun Liu, Mehdi Rezagholizadeh, and Jimmy
+Lin. 2023. Miracl: A multilingual retrieval dataset covering 18 diverse languages.
+Transactions of the Association for Computational Linguistics11 (2023), 1114–1131.
+[50] Andrew Zhu, Alyssa Hwang, Liam Dugan, and Chris Callison-Burch. 2024.
+FanOutQA: A multi-hop, multi-document question answering benchmark for
+large language models. InProceedings of the 62nd Annual Meeting of the Associa-
+tion for Computational Linguistics (Volume 2: Short Papers). 18–37.

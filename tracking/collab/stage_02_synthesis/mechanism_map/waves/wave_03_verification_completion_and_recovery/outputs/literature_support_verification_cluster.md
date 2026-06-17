@@ -1,0 +1,69 @@
+DEEP_SYNTHESIS_SUPPORT_OUTPUT
+- artifact: mechanism_map
+- wave: wave_03_verification_completion_and_recovery
+- calling_lane: literature/papers/docs analyst
+- support_task_type: formal-source clustering
+- bounded_scope_confirmed: yes
+- source_scope:
+  - `research/sources/papers/papers_text/`
+  - `research/sources/docs/`
+  - `tracking/collab/stage_02_synthesis/literature_dossiers/README.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/brief.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_papers_docs_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`
+  - `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`
+- cluster_summary:
+  - `Theme 1: verification gates, completion contracts, and replay-adjacent proof surfaces`
+  - `Strong anchors`
+  - `src_pap_f6aa42bfdc1a` - `Terminal-Bench: Benchmarking Agents on Hard, Realistic Tasks in Command Line Interfaces`. Strong anchor for outcome-driven completion contracts and externally checkable final-state success.
+  - `src_pap_2531fb990b03` - `VeRO: An Evaluation Harness for Agents to Optimize Agents`. Strong anchor for structured observation, versioning, replay-aware evaluation, and trace-bearing benchmark contracts.
+  - `src_pap_8c2cb08d2c57` - `DeepPlanning: Benchmarking Long-Horizon Agentic Planning with Verifiable Constraints`. Strong anchor for rule-based completion checking under long-horizon constraint satisfaction.
+  - `src_pap_d4370863a7e0` - `MCPAgentBench: A Real-world Task Benchmark for Evaluating LLM Agent MCP Tool Use`. Strong anchor for completion-plus-efficiency benchmark doctrine in tool-use settings.
+  - `src_pap_9a7e75663b9d` - `Verified Multi-Agent Orchestration: A Plan-Execute-Verify-Replan Framework for Complex Query Resolution`. Strong anchor for orchestration-level verification, completeness checks, and replan-on-gap behavior.
+  - `src_pap_9c739fa97b90` - `Agentic Rubrics: Scaling Test-Time Verification for Software Engineering`. Strong anchor for test-time verification and grader/verifier style gating.
+  - `Caveated or lower-yield`
+  - `research/sources/docs/src_doc_f4ab21a8c943/artifact.txt` - `Harness design for long-running application development`. Useful as provider-stated verifier/evaluator intent, but not stronger than direct trajectory or source evidence.
+  - `research/sources/docs/bigai/translated/architecture_plan_execute.md` - `Tong-Agent Architecture: Planner and Executor`. Useful for stated planner-executor-verification loop intent, but remains provider documentation rather than visible source.
+  - `Theme 2: replay, provenance, and discrepancy checking`
+  - `Strong anchors`
+  - `src_pap_dfc5da528d9d` - `Replayable Financial Agents: A Determinism-Faithfulness Assurance Harness for Tool-Using LLM Agents`. Strong anchor for replay fidelity and determinism checks.
+  - `src_pap_45e5459616e1` - `Reasoning Provenance for Autonomous AI Agents: Structured Behavioral Analytics Beyond State Checkpoints and Execution Traces`. Strong anchor for distinguishing reasoning provenance from raw checkpoints and traces.
+  - `src_pap_2531fb990b03` - `VeRO: An Evaluation Harness for Agents to Optimize Agents`. Cross-theme anchor for reproducible execution, structured tracing, and replay-aware evaluation.
+  - `Theme 3: rollback, checkpoint-restore, and resumability`
+  - `Strong anchors`
+  - `src_pap_567951e5e0b3` - `ACRFence: Preventing Semantic Rollback Attacks in Agent Checkpoint-Restore`. Strong anchor for restore safety and rollback attack prevention.
+  - `src_doc_07fd01b8b76a` - `Sessions`. Strong doc anchor for persisted history, interruption resume, and correction-oriented continuation.
+  - `src_doc_776484f287d8` - `Durable execution`. Strong doc anchor for replay-based resume semantics and idempotency requirements.
+  - `src_doc_118b78fe9c63` - `Microsoft Agent Framework Workflows - Checkpoints`. Strong doc anchor for checkpoint creation, restore, rehydration, and state persistence on resume.
+  - `Caveated or lower-yield`
+  - `src_doc_a7930779ecd3` - `Agent Continuations for Resumable AI Workflows`. Useful for resumability vocabulary and design intent, but weaker than code or trajectory evidence.
+- strongest_cross_wave_anchors:
+  - `src_pap_f6aa42bfdc1a`
+  - `src_pap_2531fb990b03`
+  - `src_pap_9a7e75663b9d`
+  - `src_pap_dfc5da528d9d`
+  - `src_pap_567951e5e0b3`
+  - `src_doc_118b78fe9c63`
+- caveat_notes:
+  - The Wave 03 formal slice is verifier-heavy and should not crowd out the stronger direct-evidence support for minimal-sufficient artifact-backed completion proof in DeepAgents, KIRA, and A-Evolve: `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/trajectory_failure_analyst.md`, `tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_source_reconstruction_analyst.md`.
+  - `cleanup confirmation` remains underrepresented in the formal corpus slice.
+  - The wave has stronger formal evidence for verification, replay, and checkpoint-restore than for cleanup confirmation or a standalone minimal completion-proof method.
+  - Provider docs are retained only as intent surfaces; they are not promoted above stronger behavior or source evidence.
+- unusable_or_excluded_candidates:
+  - `src_pap_2126cf579e39` - excluded from promotion because the extracted text does not match the recorded verification-framework title and begins with unrelated content (`HEAD`) in the captured text.
+  - `src_pap_7c8d9e1a2b3c` - excluded from promotion because the extracted text appears to be an unrelated physics paper rather than `VeriStep`.
+  - `src_pap_a2865d580c30` - excluded from promotion because the extracted text appears unrelated to rollback or checkpoint-restore despite the recorded `ACRFence` title.
+- deferred_candidates_not_promoted_in_this_repair:
+  - `src_pap_7a8b9c0d1e2f`
+  - `src_pap_815287df3ad8`
+  - `src_pap_8c314cc9f889`
+  - `src_pap_6560d0e7d057`
+  - `2603.17100`
+  - `src_pap_ca5c7b42ffd1`
+  - `src_doc_1069e67c4fe5`
+  - These were not promoted here because they were unread, lower-yield, or not part of the main Wave 03 literature lane's cited anchor set.
+- not_promoted_claims:
+  - This artifact only clusters sources for downstream use.
+  - It does not assert a final wave-level synthesis.
+  - It does not promote any mechanism claim for the main lane.
+- output_path: `/Users/mohamud/Downloads/harnesseng/tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/literature_support_verification_cluster.md`

@@ -1,0 +1,90 @@
+DEEP_SYNTHESIS_SUPPORT_OUTPUT
+- artifact: mechanism_map
+- wave: wave_03_verification_completion_and_recovery
+- calling_lane: codebase/source-reconstruction analyst
+- support_task_type: subsystem map
+- bounded_scope_confirmed: verification, completion, cleanup, rollback, restart, replay, resumability, and grader/verifier hooks only
+- files_or_paths_read:
+  - /Users/mohamud/Downloads/harnesseng/prompts/deep_synthesis_support_subagent_prompt.md
+  - /Users/mohamud/Downloads/harnesseng/blocks/verification/checkpoint_verify.py
+  - /Users/mohamud/Downloads/harnesseng/blocks/verification/double_confirm.py
+  - /Users/mohamud/Downloads/harnesseng/blocks/verification/agent_writes_tests.py
+  - /Users/mohamud/Downloads/harnesseng/blocks/verification/trust_model.py
+  - /Users/mohamud/Downloads/harnesseng/blocks/recovery/rollback.py
+  - /Users/mohamud/Downloads/harnesseng/blocks/recovery/remediation_inject.py
+  - /Users/mohamud/Downloads/harnesseng/blocks/recovery/no_recovery.py
+  - /Users/mohamud/Downloads/harnesseng/runner/agent.py
+  - /Users/mohamud/Downloads/harnesseng/runner/evaluator.py
+  - /Users/mohamud/Downloads/harnesseng/runner/logger.py
+  - /Users/mohamud/Downloads/harnesseng/evals/verification_eval.py
+  - /Users/mohamud/Downloads/harnesseng/evals/context_eval.py
+  - /Users/mohamud/Downloads/harnesseng/evals/step_efficiency_eval.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/graph.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/state.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/composite.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/filesystem.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/store.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/protocol.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/backends/sandbox.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/summarization.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/deepagents/deepagents/middleware/filesystem.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/server.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/app.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/sessions.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/non_interactive.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/textual_adapter.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/server_graph.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/cli/deepagents_cli/main.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/evaluation.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/deepagents/libs/evals/tests/evals/tau2_airline/test_tau2_airline.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/terminus_kira/terminus_kira.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/prompt-templates/terminus-kira.txt
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/scripts/verify_bridge_release.sh
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/docs/bridge-release-checklist.md
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/README.md
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/api.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/engine.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/session_manager.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/run_log_store.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/agentd/src/kiraclaw_agentd/scheduler_runtime.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/desktop/lib/daemon-controller.js
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/KIRA/KiraClaw/apps/desktop/lib/register-ipc.js
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/a-evolve/agent_evolve/engine/versioning.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/a-evolve/agent_evolve/benchmarks/tb2/terminal2.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/a-evolve/agent_evolve/agents/terminal/agent.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/a-evolve/agent_evolve/agents/terminal/tools.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/a-evolve/agent_evolve/agents/skillbench/backends.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/a-evolve/examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/quarantine/claw-code/src/query_engine.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/quarantine/claw-code/src/transcript.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/quarantine/claw-code/src/remote_runtime.py
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/src_cod_e231561a3d69/capture.json
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/src_cod_18ba360eb4b2/capture.json
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/src_cod_564b05dcc95b/capture.json
+  - /Users/mohamud/Downloads/harnesseng/research/sources/codebases/src_cod_a1e1a27e13a1/capture.json
+- structured_findings:
+  - shared harness: `runner/agent.py` wires the block lattice; `runner/evaluator.py` is the post-run verifier hook; `runner/logger.py` is the replay/trajectory sink.
+  - shared harness evals: `evals/verification_eval.py`, `evals/context_eval.py`, and `evals/step_efficiency_eval.py` are the visible quality gates for verification accuracy, state preservation, and step overhead.
+  - block stubs: `blocks/verification/checkpoint_verify.py`, `double_confirm.py`, and `agent_writes_tests.py` are verification variants; `trust_model.py` is the no-verification baseline. `blocks/recovery/rollback.py`, `remediation_inject.py`, and `no_recovery.py` are the recovery variants.
+  - deepagents core: `deepagents/deepagents/graph.py` is the assembly point for `checkpointer`, `store`, `backend`, `interrupt_on`, and the middleware stack. `backends/state.py`, `composite.py`, `filesystem.py`, and `store.py` define the persistence surfaces that affect resumability and replay. `middleware/summarization.py` and `middleware/filesystem.py` carry context compaction and filesystem-state mutation behavior that can affect continuation after overflow.
+  - deepagents cli: `sessions.py` owns thread listing, checkpoint summary extraction, deletion, and `get_checkpointer()`. `server.py` owns restart/stop/cleanup of the LangGraph dev server. `app.py` owns resume-thread resolution, fallback from remote state to local checkpointer, and rollback when thread switching fails. `non_interactive.py` and `textual_adapter.py` own HITL resume payloads and task completion dispatch. `main.py` owns CLI `--resume`, sandbox verification, and shutdown/cleanup sequencing. `server_graph.py` provides a sandbox cleanup hook.
+  - deepagents eval source: `libs/evals/tests/evals/tau2_airline/evaluation.py` replays expected actions against a fresh DB, checks state, and emits verifier-style scores; `test_tau2_airline.py` shows checkpoint-backed execution with `MemorySaver`.
+  - KIRA native agent: `terminus_kira.py` is the main completion gate. It defines `task_complete`, marker-based command completion polling, double-confirmation on completion, and trajectory logging of completion state. The prompt template `prompt-templates/terminus-kira.txt` adds the explicit final review and minimal-state-change constraint before completion.
+  - KiraClaw runtime: `apps/agentd/src/kiraclaw_agentd/session_manager.py` is the session lane/restart-safe orchestration point with `queued -> running -> completed -> failed` transitions and `on_record_complete` hooks. `run_log_store.py` persists completed runs and keeps live rows for replay/tail. `engine.py` assembles tools and captures run events. `scheduler_runtime.py` emits schedule completion events. `api.py` exposes the completion-adjacent runtime endpoints. `apps/desktop/lib/daemon-controller.js` and `register-ipc.js` manage daemon start/stop/restart and IPC hooks.
+  - KiraClaw verification: `scripts/verify_bridge_release.sh` is the release verifier; `docs/bridge-release-checklist.md` names the bridge preflight gates and `README.md` points to the bridge verification command and runtime expectations.
+  - a-evolve: `engine/versioning.py` is the explicit rollback/version-control layer. `agents/skillbench/backends.py` is the main verifier adapter: it copies tests, runs verification, parses `reward.txt`, classifies failures, retries on retryable failures, and builds the trajectory fields used downstream. `benchmarks/tb2/terminal2.py` evaluates by reading the agent-produced `passed=` result and verifier output. `agents/terminal/tools.py` owns the `submit()` completion signal. `examples/skillbench_examples/skillbench_evolve_in_situ_cycle.py` is the resumable grind loop: it reloads completed tasks, writes per-cycle observations/results, retries failures, and skips already-completed tasks.
+  - claw-code: `query_engine.py` provides `from_saved_session()`, `replay_user_messages()`, `compact_messages_if_needed()`, and `persist_session()`. `transcript.py` is the replay/compact/flush store. `remote_runtime.py` exposes the teleport resume/create placeholder path.
+  - capture snapshots: the four `capture.json` files identify archive provenance only; they do not add extra mechanism detail beyond the corresponding source trees.
+- unresolved_gaps:
+  - I did not expand into literature or claim-level synthesis, per the stop condition.
+  - Some restart/replay behavior is split across large CLI modules; I mapped the obvious load-bearing entry points rather than exhaustively enumerating every helper.
+  - The capture.json records were read as provenance stubs, not unpacked archives.
+- handoff_notes_for_calling_lane:
+  - Use this as a source index for where verification/completion/recovery behavior actually enters the loop: completion signals, checkpoint persistence, replay/resume paths, and rollback/cleanup handlers.
+  - For principal synthesis, the strongest cross-cutting pattern is that verifier state is usually externalized separately from agent state, while completion and rollback are handled by explicit hooks rather than implicit returns.
+- not_promoted_claims:
+  - No verdict on which mechanism is best.
+  - No contradiction review.
+  - No comparative effectiveness claim across codebases.
+  - No literature synthesis.
+- output_path: /Users/mohamud/Downloads/harnesseng/tracking/collab/stage_02_synthesis/mechanism_map/waves/wave_03_verification_completion_and_recovery/outputs/codebase_support_verifier_recovery_map.md

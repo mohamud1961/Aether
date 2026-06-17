@@ -1,0 +1,1771 @@
+--- PAGE 1 ---
+M2: Dual-Memory Augmentation for Long-Horizon Web Agents via
+Trajectory Summarization and Insight Retrieval
+Dawei Yan1 2 Haokui Zhang* 1 Guangda Huzhang 2 Yang Li2 Yibo Wang2 Qing-Guo Chen 2 Zhao Xu 2
+Weihua Luo 2 Ying Li 1 Wei Dong 3 Chunhua Shen 4
+Abstract
+Multimodal Large Language Models (MLLMs)
+based agents have demonstrated remarkable po-
+tential in autonomous web navigation. However,
+handling long-horizon tasks remains a critical bot-
+tleneck. Prevailing strategies often rely heavily
+on extensive data collection and model training,
+yet still struggle with high computational costs
+and insufficient reasoning capabilities when fac-
+ing complex, long-horizon scenarios. To address
+this, we propose M 2, a training-free, memory-
+augmented framework designed to optimize con-
+text efficiency and decision-making robustness.
+Our approach incorporates a dual-tier memory
+mechanism that synergizes Dynamic Trajectory
+Summarization (Internal Memory) to compress
+verbose interaction history into concise state up-
+dates, and Insight Retrieval Augmentation (Exter-
+nal Memory) to guide the agent with actionable
+guidelines retrieved from an offline insight bank.
+Extensive evaluations across WebV oyager and On-
+lineMind2Web demonstrate that M2 consistently
+surpasses baselines, yielding up to a 19.6% suc-
+cess rate increase and 58.7% token reduction for
+Qwen3-VL-32B, while proprietary models like
+Claude achieve accuracy gains up to 12.5% along-
+side significantly lower computational overhead.
+1. Introduction
+Recent advancements in MLLMs have catalyzed progress
+in autonomous web navigation, allowing agents to perform
+intricate tasks within open-ended web environments (Chen
+et al., 2024; Xu et al., 2024; Qi et al., 2024; Liu et al.,
+1Northwestern Polytechnical University, Xi’an, China 2AI
+Business, Alibaba Group, Hangzhou, China 3Xi’an University
+of Architecture and Technology, Xi’an, China 4Zhejiang Uni-
+versity, Hangzhou, China. Correspondence to: Haokui Zhang
+<hkzhang@nwpu.edu.cn>.
+Preprint. March 3, 2026.
+Table 1.Comparison with
+SOTA methods on WebV oy-
+ager dataset. ⋆: Official met-
+rics from the original release;
+note that some tasks within
+this benchmark are now infea-
+sible due to website updates.
+Model SFT RL Acc.
+UI-TARS-1.5✓ ✓84.8 ⋆
+OpenAI CUA✗ ✓87.0 ⋆
+M2 (Ours)✗ ✗86.0
+Figure 1.Average Token cost
+and accuracy of baseline and M2
+across models on WebV oyager.
+2025b; Jain et al., 2025; Zhang et al., 2025a). However,
+real-world web tasks are inherently long-horizon, often re-
+quiring numbers of interaction steps to navigate through
+dynamic web pages, fill forms, and process information.
+Current mainstream approaches typically employ a “full-
+context” strategy, concatenating the entire history of HTML
+screenshots, and interactive text into the prompt (Qin et al.,
+2025; Li et al., 2025; Huang et al., 2025). This leads to
+two critical issues: (1) Exorbitant Computational Cost: The
+accumulation of verbose history and high-resolution screen-
+shots causes the context window to grow rapidly, imposing
+severe pressure on inference resources. (2) Performance
+Degradation: An overly long and noisy context often dis-
+tracts the model, burying critical task-relevant cues under
+redundant historical information, a phenomenon known as
+“lost-in-the-middle” (Liu et al., 2024).
+To mitigate the context explosion, recent research has ex-
+plored memory-augmented mechanisms (Yu et al., 2025;
+Wang et al., 2025b; Cheng et al., 2025; Liu et al., 2025a;
+Zhou et al., 2025). The prominent direction involves train-
+ing the model to autonomously maintain a condensed mem-
+ory state via Supervised Fine-Tuning (SFT), Reinforcement
+Learning (RL), or constructing complex memory architec-
+tures composed of multiple collaborative agents. While
+these methods effectively reduce context length, they in-
+troduce considerable drawbacks: (1) Intensive Data and
+Training Overhead: Optimizing agents through SFT or RL
+requires massive computational resources, extensive tra-
+jectory datasets for training, and delicate reward shaping
+mechanisms to ensure effective convergence. (2) High Op-
+1
+arXiv:2603.00503v1  [cs.CV]  28 Feb 2026
+
+--- PAGE 2 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Action
+Observation
+(a) Original Interaction Condition
+Tt & At
+Contextt
+T1 & A1
+Context1
+Tn & An
+Contextn
+Finish
+Execution Trajectory
+System Prompt:
+You are a …
+All Historical
+Interaction Record
+Multiple Screenshots
+Query:
+Find the most…
+Deficiency
+Bloated full-history
+trajectories causing high
+resource overhead and
+reasoning errors.
+Ex-Mem
+(b) Dynamic Trajectory Summarization
+In-Mem
+Optimized Summarize
+Prompt
+Tt & At
+Single Step
+Step t Summary In-Mem State t
+Contextt
+All
+Historical
+Record
+Interaction Trajectory
+Update
+Replace
+(d) Dual-Memory Augment Condition
+(c) Insight Retrieval Augmentation
+Historical
+Successful
+Trajectory
+Query of Current Task: Identify…
+Abstract
+Trajectory Insight
+Database
+Similarity
+f(x)
+Top-i Relevant Trajectory
+Insights
+System
+Prompt
+Enhance
+In-Mem State t
+Step 1: On GitHub
+home page…
+Step 2: Search bar
+focused…
+Step 3: Search bar
+containing query
+Step t : On Python
+repositories with
+star counts…
+Ex-Mem Insights
+1. When filtering
+trending repositories
+by stars…
+2. To avoid web
+page authentication
+steps, bypass…
+3. If the initial
+search yields zero
+results, recognize…
+System Prompt
+with Insights
+Query
+Condensed
+Contextt
+Action
+Observation
+Superiority
+Streamlined dual-
+memory architecture
+optimizing efficiency
+and decision
+robustness.
+Figure 2.Overview of the proposed framework. (a) The baseline agent operates with raw context containing redundant visual history and
+verbose interaction text. This creates high computational overhead and introduces noise that may impair decision-making. Our method
+M2 incorporates two key mechanisms: In-Mem and Ex-Mem. (b) The In-Mem module prompts the agent to self-summarize historical
+steps into a concise context. Simultaneously, (c) the Ex-Mem module retrieves actionable insights from historically successful trajectories
+based on query similarity. (d) This dual-memory approach provides explicit guidance for the current execution step, significantly reducing
+errors and yielding tangible performance gains.
+erational and Deployment Costs: Systems relying on mul-
+tiple agents suffer from substantial overhead in inter-agent
+communication, increased complexity in deployment, and
+elevated invocation costs during real-time execution. Conse-
+quently, a training-free and lightweight approach is highly
+desirable for scalable web agents.
+Another line of research focuses on external memory banks
+and graph-based structures to retrieve relevant context. How-
+ever, directly migrating these general-purpose memory ar-
+chitectures (Wang et al., 2025a; Kang et al., 2025; Zhang
+et al., 2025b) to web agents faces distinct domain gaps. First,
+the interaction nature is different. Unlike conversational
+agents that need to track multi-turn dialogue history and
+user personas, web navigation is predominantly execution-
+oriented. Once the initial instruction is given, there is rarely
+new user input; tracking detailed interaction history (e.g.,
+every scroll or click) is often redundant unless it contributes
+to the current subgoal. Second, visual information presents
+unique challenges. Current multimodal memory systems
+either store text-only abstractions (Wang & Chen, 2025) or
+treat visual history as continuous video frames (He et al.,
+2024a). However, web navigation is visually discontinu-
+ous—a single click can lead to a completely different page
+layout, rendering frame-based consistency assumptions in-
+valid. Furthermore, raw screenshots contain excessive visual
+noise (e.g., ads, sidebars) irrelevant to the task. Storing raw
+visual history incurs high token costs with low information
+density, making simple screenshot buffering inefficient.
+To address these challenges, we propose a novel, training-
+free framework that optimizes context efficiency and exe-
+cution robustness through a dual-tier memory mechanism
+named M 2. As shown in Fig. 2, it includes two compo-
+nents: (1)Dynamic Trajectory Summarization (Internal
+Memory)introduces a prompt-driven self-summarization
+mechanism. Instead of relying on a sliding window of mul-
+tiple raw observations that consume excessive tokens, the
+agent is instructed to distill its own thoughts, actions, and
+page feedback into concise textual abstractions at each step.
+By maintaining a recursive chain of these summaries and
+discarding redundant historical screenshots, we ensure the
+agent retains a clear sense of progress within a lean context
+window. Complementing this, (2)Insight Retrieval Aug-
+mentation (External Memory)provides global strategic
+foresight. We construct an offline insight bank by distill-
+ing actionable interaction rules and defensive hints from a
+vast collection of successful trajectories. During inference,
+the agent retrieves the most relevant insights via semantic
+similarity based on the user query. This allows the agent to
+benefit from cross-trajectory experience, effectively navi-
+gating complex UI structures and avoiding common pitfalls
+without any additional training or fine-tuning. As demon-
+strated in Table 1, our proposed M 2 framework achieves
+2
+
+--- PAGE 3 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+competitive performance compared to state-of-the-art mod-
+els that rely on extensive SFT and RL, while completely
+bypassing the associated training overhead.
+Empirical evaluations on WebV oyager (He et al., 2024b)
+and OnlineMind2Web (Xue et al., 2025) demonstrate that
+our framework achieves a consistent improvement in both
+execution success and resource efficiency. The open-source
+Qwen3-VL-32B (Bai et al., 2025) model exhibits the most
+substantial gains, with success rates surging by 16.2% on
+WebV oyager and 19.6% on OnlineMind2Web, while simul-
+taneously reducing token overhead by over 57% in both
+benchmarks. This efficiency trend extends to frontier pro-
+prietary models: Claude-3.7-Sonnet (anthropic, 2025a) and
+Claude-Sonnet-4 (anthropic, 2025b) achieve accuracy incre-
+ments of up to 12.5% alongside significant token reductions
+ranging from 30.3% to 55.0% (see Fig. 1). These results val-
+idate that our dual-memory architecture effectively decou-
+ples task performance from context growth, enabling high-
+fidelity navigation with sustainable computational costs.
+In summary, the major contributions are as follows:
+• Training-Free Dual-Memory Architecture:We pro-
+pose a lightweight framework that integrates recursive
+internal tracking with external guidance, enabling ef-
+ficient long-horizon navigation without the need for
+costly training or cumbersome multi-agent interaction.
+• Intra-Trajectory Compression and Inter-Trajectory
+Retrieval:We introduce mechanisms to distill execu-
+tion history into concise summary chains and retrieve
+cross-task expert insights, effectively mitigating infor-
+mation overload while enhancing decision robustness.
+• Scalable Efficacy and Model Parity:We demon-
+strate that M 2 enables sustainable high-fidelity navi-
+gation across diverse and dynamic web domains. Our
+training-free approach enables local models to match
+proprietary performance with superior token efficiency.
+2. Method: Dual-Memory Augmentation
+2.1. Overview
+In this section, we present the Dual-Memory Augmentation
+framework M2designed to address the challenges of long-
+horizon web navigation.
+2.1.1. FORMALIZATION OFCONTEXT
+We define a web navigation task as a sequence of steps
+t∈ {1,2, . . . , n} , where n denotes the final step of com-
+pletion. In a conventional setting, at any given step t, the
+agent operates within a context Ct. This context typically
+consists of the system prompt Psys, the user query Q, and
+the complete history of previous steps. Each step can be
+represented as a tuple St = (T t, At), Tt is the generated
+thought (reasoning), and At is the executed action. Thus,
+the vanilla context used in mainstream works is:
+Ct ={P sys, Q, S1, S2, . . . , St−k−1,
+St−k, Ot−k, . . . , St−1, Ot−1, Ot} (1)
+where Ot is the page observation with window size k. As t
+increases, the cardinality of Ct grows indefinitely, leading
+to high token costs and the “lost-in-the-middle” effect. For
+specific details such as Psys, as well as examples of Q, Ot,
+and St, and the action space of the Agent, please refer to
+Appendix F.
+2.1.2. THEDUAL-MEMORYFRAMEWORK
+Our approach redefines the context Ct by introducing two
+specialized memory modules:Internal Memory( Mint)
+andExternal Memory( Mext). The modified decision-
+making context at steptis formulated as:
+C ′
+t ={P sys, Q,M int
+t ,M ext, Ot}(2)
+The interaction between these components is governed by
+the following logic(O t−k:t−1 ={O i}t−1
+i=t−k):
+• Internal Memory Mint
+t :This module maintains a
+dynamic trajectory summary. Instead of retaining the
+raw observations Ot−k:t−1 and S1:t−1 which are often
+redundant and noisy, Mint
+t stores a chain of concise
+state abstractions s1:t−1. Each st is a distilled represen-
+tation of (Ot, Tt, At), ensuring that the internal context
+remains compact regardless of the task length.
+• External Memory Mext:This module facilitates
+cross-task experience retrieval. It provides the agent
+with task-relevant insights I retrieved from an offline
+Insight Bank. These insights, denoted as Mext =
+{I1, . . . ,Ii}, serve as global guidance to prevent the
+agent from repeating historical errors or falling into
+common pitfalls.
+By substituting the growing list of historical steps with these
+two components, our framework ensures that Ct remains
+within efficient token consumption while providing both
+local trajectory awareness and global strategic knowledge.
+2.2. Dynamic Trajectory Summarization
+Typically, HTML pages are replete with task-irrelevant ele-
+ments—such as advertisements, sidebars, and navigational
+components unrelated to the current objective. These ele-
+ments, when captured in full-page screenshots, dominate
+the visual information. Conversely, interactive targets like
+search bars or specific buttons often occupy only a negli-
+gible fraction of the screen. Consequently, these critical
+3
+
+--- PAGE 4 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Dynamic Trajectory Summarization
+Steps
+Condition
+e homepage …
+909, 205</p>
+pple Watch…
+p>down</p>
+System PromptQuery
+Only Current
+Screenshot
+In-Mem State t-1
+Step 1: [On Apple homepage …] → [Click
+on Watch menu item to access …]
+Step t-1 : [On Apple Watch main page
+showing …] → [Scroll down to find
+pricing information for …]
+Exclusively Text-based (No Visual)
+tem Prompt:
+robot
+sing the web,
+task is to
+lete …
+Summary Prompt:
+Analyze provided
+In-Mem State …
+Summarize current
+state and action …
+e
+At
+Tt
+ Step t:[On Apple Watch
+Series 11 …] → [Scroll
+down to view more …]
+Update
+Dynamic Trajectory Summarization
+Query:
+Determine
+the price
+difference
+between the
+latest
+series …
+Screenshots of Last k Steps
+Complete Historical
+Interaction Record
+Original Interaction Condition
+T1:  I'm on Apple homepage …
+A1: “click” <p>909, 205</p>
+Tt-1:  I can see Apple Watch…
+At-1 : “scroll”<p>down</p>
+System PromptQuery
+Only Current
+Screenshot
+In-Mem State t-1
+Step 1: [On Apple homepage with
+navigation…] → [Click on Watch
+menu item to access …]
+Exclusively Text-based
+(No Visual)
+System
+Prompt:
+As a robot
+browsing the
+web, your
+task is to
+complete …
+Summary
+Prompt:
+Analyze provided
+In-Mem State …
+Summarize
+current state and
+action …
+At :
+“scroll”<p>down</p>
+Tt:  I'm currently on the
+Apple Watch Series 11
+page see …
+At
+Tt
+Step t :
+[On Apple Watch
+Series 11 …] →
+[Scroll down to
+view more …]
+Update
+Web Agent
+Step t-1 : [On Apple Watch main
+page showing …] → [Scroll down
+to find pricing information for …]
+Figure 3.Comparison between Full Context and In Mem interac-
+tion paradigms. The Full Context (left) retains the entire sequence
+of raw screenshots and exhaustive historical text, leading to high
+redundancy. In contrast, the In Mem approach (right) employs a
+specific prompt to synthesize historical steps into a concise textual
+summary.
+signals are easily overwhelmed by background noise, a per-
+sistent issue that is further exacerbated when processing
+sequences of multiple screenshots.
+In contrast, human cognition retains historical interaction
+information in a much more concise manner. Rather than
+memorizing the specific visual details of previous pages,
+humans tend to form a high-level abstraction of their actions
+(e.g., ‘I clicked the search bar and entered text’). Inspired by
+this cognitive mechanism, we propose summarizing histori-
+cal interaction steps to replace the verbose and potentially
+distracting visual context, thereby enabling the agent to
+make more precise decisions.
+To maintain a lean context Ct while preserving essential
+historical information, we propose a Dynamic Trajectory
+Summarization mechanism. This module replaces the raw,
+high-dimensional observation sequences with a sequence of
+semantic abstractions.
+2.2.1. PROMPT-DRIVENSTATEABSTRACTION
+In our framework, we shift this burden from the raw input
+buffer to the agent’s self-reasoning capability. We augment
+the system prompt Psys with specific meta-instructions that
+mandate the agent to performself-summarizationalongside
+its primary decision-making. As shown in Fig. 3, the origi-
+nal system prompt is augmented with a new directive that
+instructs the agent to perform self-summarization. Specifi-
+cally, at each step t, the agent is required to output a triplet
+(Tt, At, st)based on the current context:
+(Tt, At, st) =Agent(P in
+sys, Q,M int
+t , Ot)(3)
+where P in
+sys is the updated system prompt, and Mint
+t is the
+internal memory consisting of a sequence of concise textual
+abstractionss 1:t−1.
+By integrating the summarization task directly into the exe-
+cution loop, the agent treats the abstraction of st as a prereq-
+uisite for its next action. The instructions within P in
+sys guide
+the agent to distills t from two perspectives:
+• Visual Feedback:The observable changes and key
+information extracted from the page after the action.
+• Action Execution:A brief record of the action At
+performed onO t.
+This approach allows the context Ct to retain only
+the current observation Ot. The historical trajec-
+tory {S1, S2, . . . , St−1} and the multi observations
+{Ot−k, . . . , Ot−1} is effectively discarded and replaced by
+the internal memory Mint
+t which is constructed by st. This
+transformation ensures that the context length grows sub-
+linearly with the task horizon while maintaining a high
+density of task-relevant information. For details, please
+refer to the complete P in
+sys and st samples we provided in
+Appendix F.
+2.2.2. ITERATIVEMEMORYUPDATE
+The core efficiency of our framework lies in the recursive
+transition of the internal memory state Mint, which allows
+the agent to maintain a persistent state without retaining
+bulky historical context. Unlike vanilla architectures that
+store the entire history of Ot−k:t−1 and S1:t−1, our method
+treats the internal memory as an append-only sequence of
+distilled summaries.
+Formally, at the initialization step t= 1 , the internal mem-
+ory is empty, i.e.,Mint
+1 =∅ . For any subsequent step t >1 ,
+the internal memory Mint
+t is constructed by iteratively ap-
+pending the summary st generated in the previous step to
+the existing memory state:
+Mint
+t = [s 1, s2, . . . , st−1](4)
+The update rule for the internal memory state can be ex-
+pressed as:
+Mint
+t =M int
+t−1 ⊕s t−1 (5)
+4
+
+--- PAGE 5 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Claude3.7 & 4 Ovis
+Insight Retrieval Augmentation
+High-Fidelity Agent
+Interaction
+Successful
+Trajectory
+Trajectory Insight
+Database
+Abstractor
+Query: Read the latest
+health-related news article
+published on BBC…
+Filter insights based on
+semantic similarity of query
+Top-i
+Relevant
+Trajectory
+Insights
+Insights
+Block 1
+Insights
+Block i
+System
+Prompt
+Query
+History
+ Web Agent
+Injection
+Goal-Centric
+Error-Proof
+Figure 4.Overview of Insight Retrieval Augmentation pipeline.
+The workflow begins with a Trajectory Insight Database populated
+by successful trajectories from diverse models. For a given user
+query , the system filters insights based on semantic similarity,
+retrieving the Top- i relevant insights. These insights are then
+injected into the System Prompt. This mechanism ensures the Web
+Agent generates goal-centric and error-proof actions, effectively
+navigating complex UI environments by leveraging cross-trajectory
+experiences.
+where⊕denotes the sequence concatenation operator.
+Crucially, oncest−1 is successfully generated and integrated
+into Mint
+t , the observation Ot−1, the intermediate Thought
+Tt−1 and Action At−1 are permanently discarded from the
+active context window.
+This iterative update mechanism ensures that the memory
+footprint grows only at the scale of concise text summaries
+(dozens of tokens) rather than raw webpage observation
+(typically thousands of tokens). This state-to-state transition
+effectively transforms long-horizon navigation task into a
+manageable Markovian-like decision process, where Mint
+t
+serves as a sufficient statistic for historical trajectory.
+2.3. Insight Retrieval Augmentation
+While internal memory ensures trajectory-level coherence,
+it cannot provide the agent with prior knowledge of com-
+mon web navigation patterns or potential pitfalls. To bridge
+this gap, we design an External Memory module that lever-
+ages an Insight Bank B to provide strategic guidance. The
+complete pipeline is shown in Fig. 4.
+2.3.1. OFFLINEINSIGHTEXTRACTION FROM
+SUCCESSFULTRAJECTORIES
+The efficacy of our external memory depends on the qual-
+ity of the distilled insights. To transform raw interaction
+logs into transferable strategic knowledge, we implement a
+systematic reverse-engineering process. We utilize a hetero-
+geneous collection of successful trajectoriesTsucc generated
+by various frontier models (e.g., Claude-3.7, Claude-4, and
+Ovis (Lu et al., 2024; 2025)) as the source data.
+To perform high-fidelity knowledge distillation, we employ
+the Ovis-inhouse 80A3B model as a Web Navigation Strat-
+egy Abstractor. This model is guided by a specialized extrac-
+tion prompt Pext designed to identify “High-Leverage Inter-
+action Rules” from successful trajectories. It is worth noting
+that our framework is model-agnostic; Ovis is selected here
+primarily for its favorable balance between performance and
+deployment efficiency, serving as a representative instanti-
+ation of a capable vision-language model. The extraction
+process is formulated as:
+B=Abstractor(T succ, Pext)(6)
+The prompt Pext enforces a focus on pure UI interaction
+logic, strictly prohibiting URL manipulation and trivial ac-
+tion reporting. It requires the abstractor to distill insights
+across three critical dimensions:
+• Search & Filter Strategy (Input Logic):This dimen-
+sion focuses on the construction of precision queries.
+It identifies optimal keyword prefixes, the use of exact
+match operators, and the strategic combination of UI
+filters to narrow down the search space immediately.
+• Navigation Efficiency (Click Logic):The extractor
+identifies “Anchor Elements”—specific UI components
+(e.g., advanced search buttons or hierarchical bread-
+crumbs) that serve as shortcuts to avoid deep, irrelevant
+navigation paths and prevent the agent from wandering.
+• State Validation (Wait/Check Logic):This provides
+agent with robustness heuristics, such as verifying UI
+state changes or implementing fallback strategies when
+a specific query yields no results, thereby avoiding
+infinite loops and traps.
+Crucially, the extraction prompt requires the generalization
+of task-specific values into universal strategies. For example,
+specific item names are abstracted into “target items” to
+ensure the resulting insights I are applicable to a broad
+range of semantically similar tasks. The output is formatted
+5
+
+--- PAGE 6 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+as a set of topic-tagged, actionable insights, providing a
+structured knowledge base for the subsequent retrieval phase.
+We provide the complete Pext in Appendix F, as well as the
+distribution of these trajectories and an insight example in
+Appendix C.
+2.3.2. CONSTRUCTION OFINSIGHTBANK
+The insights extracted are organized into a key-value store,
+referred to as the Insight Bank B. Each entry in the bank is
+represented as a pair (Qhist,I) , where Qhist is the histori-
+cal user query that initiated the successful trajectory, and I
+is the corresponding insights.
+To enable semantic retrieval, we utilize a pre-trained Sen-
+tence Transformer model ϕ(·) to encode the historical
+queries into a high-dimensional vector space:
+vhist =ϕ(Q hist)(7)
+The set of N trajectories in bank can be characterized as
+{(vhist
+j ,I)} N
+j=1 thus serves as a global experience reposi-
+tory that the agent can query during inference.
+2.3.3. SIMILARITY-BASEDRETRIEVAL AND
+CONTEXTUALINJECTION
+During execution of a new task with queryQnew, agent first
+computes the query’s embedding vnew =ϕ(Q new). We
+then calculate the semantic similarity between current query
+and all entries inBusing cosine similarity:
+sim(Qnew, Qhist) = vnew ·v hist
+j
+∥vnew∥∥vhist
+j ∥ (8)
+The i most similar queries are identified, and their corre-
+sponding insights are retrieved to form the external memory
+Mext ={I 1, . . . ,Ii}.
+Finally, these insights are injected into the system prompt
+Psys as “Defensive Hints.” The agent is instructed to treat
+these insights as strategic suggestions that must be verified
+against the current observation Ot before execution. This
+injection transforms the agent from a purely reactive entity
+into a goal-oriented navigator that actively avoids past mis-
+takes, thereby significantly increasing the success rate in
+complex, long-horizon tasks.
+2.4. Dual-Memory Integration and Inference
+The final decision-making architecture of our agent is a
+synthesis of local trajectory awareness and global strategic
+knowledge. By integrating the internal and external memory
+modules, we reconstruct the operational context Ct at each
+time step t. This integration allows the agent to navigate
+complex web environments with both hindsight (from past
+steps) and foresight (from expert insights).
+2.4.1. SYNTHESIZEDDECISIONCONTEXT
+As established in the preceding sections, the vanilla con-
+text—which suffers from rapid growth in length—is re-
+placed by our dual-memory augmented context C ′
+t. For any
+step t∈ {1, . . . , n} , the agent generates the current thought
+Tt, action At, and state summary st based on the following
+synthesized formulation:
+(Tt, At, st) =Agent(P ′
+sys, Q,M int
+t ,M ext, Ot)(9)
+where:
+•M int
+t ={s 1, . . . , st−1} provideslocal trajectory
+awareness, ensuring agent maintains a compact yet
+coherent record of its progress within current session.
+•M ext =Top i(ϕ(Q),B) providesglobal heuristic
+guidance, injecting task-specific “defensive hints” re-
+trieved from the offline Insight Bank to prevent the
+recurrence of historical failures.
+•P ′
+sys represents the optimized Psys that fits M2 frame-
+work. Please refer to Appendix F for completeP ′
+sys.
+2.4.2. SYNERGY ANDEFFICIENCY
+The interplay between Mint
+t and Mext creates a powerful
+synergy for long-horizon web navigation. While Mint
+t an-
+chors agent to current task’s state transitions,Mext acts as a
+regularizer, correcting agent’s trajectory when it encounters
+ambiguous page elements or complex interaction logic.
+From an efficiency perspective, this dual-memory structure
+effectively decodes the long-horizon dependency problem
+into a sub-linearly growing context window. By discarding
+raw historical context Ot−k:t−1 & S1:t−1 and retaining only
+the distilled summaries and Top-i insights, our framework
+ensures that the token consumption remains stable even as
+the task depth increases. Consequently, this architecture
+achieves a superior trade-off between computational cost
+and task success rate, fulfilling the primary objective of our
+training-free augmentation approach.
+3. Experiment
+In this section, we evaluate the performance of our dual-
+memory augmented framework across diverse real-time web
+navigation benchmarks. We describe the experimental con-
+figurations, evaluation protocols, and the infrastructure used
+to simulate real-world user interactions.
+3.1. Basic Settings
+Datasets and Models.Our framework is evaluated on two
+benchmarks: WebV oyager (12 representative websites) and
+OnlineMind2Web (291 accessible tasks). We employ a
+6
+
+--- PAGE 7 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Table 2.Performance Comparison of Claude and Qwen3VL Model across Multiple WebSite on WebV oyager. (Abbreviations: AR:
+Allrecipes, AM: Amazon, AP: Apple, AX: ArXiv, BN: BBC News, CD: Cambridge Dict., CO: Coursera, ES: ESPN, GH: GitHub, GM:
+Google Map, HF: Huggingface, W A: Wolfram Alpha.)
+Model Config AR AM AP AX BN CD CO ES GH GM HF W A Avg.step Avg.token Avg.acc.
+Claude-3.7-Sonnet
+Normal 71.1 65.9 69.8 74.4 78.6 83.7 83.3 77.3 75.6 63.4 44.2 76.1 14.6 121.2k 72.0
+In Mem 73.3 70.7 69.8 62.8 78.6 88.4 83.3 68.2 78.1 63.4 58.1 80.4 20.3 82.9k 72.9
+Ex Mem 82.2 78.1 76.7 76.7 83.3 86.1 85.7 68.2 90.2 80.5 67.4 82.6 15.7 164.9k 79.8
+In & Ex Mem 84.4 80.5 76.7 86.1 85.7 93.0 95.2 84.1 92.7 82.9 74.4 78.3 16.9 84.5k84.5(+12.5%)
+Claude-Sonnet-4
+Normal 82.2 70.7 69.8 79.1 83.3 93.0 85.7 84.1 87.8 78.1 69.8 82.6 15.4 128.2k 80.5
+In Mem 84.4 75.6 79.1 81.4 78.6 88.4 85.7 79.6 82.9 70.7 67.4 82.6 16.8 64.5k 79.7
+Ex Mem 84.4 85.4 83.7 83.7 92.9 86.1 70.5 85.4 85.4 73.2 72.1 89.1 12.4 120.7k 82.7
+In & Ex Mem 82.2 78.1 81.4 81.4 85.7 95.4 92.9 95.5 92.7 87.8 74.4 84.8 16.1 78.1k86.0(+5.5%)
+Qwen3-VL-32B
+Normal 55.6 51.2 60.5 46.5 73.8 83.7 71.4 47.7 56.1 56.1 30.2 60.9 24.1 215.2k 57.8
+In Mem 62.2 75.6 60.5 44.2 73.8 76.7 76.2 70.5 80.5 58.5 37.2 63.0 22.5 73.2k 64.9
+Ex Mem 71.1 63.4 67.4 65.1 83.3 88.4 81.0 63.6 70.7 73.2 46.5 67.4 19.2 189.1k 70.1
+In & Ex Mem 75.6 70.7 72.1 72.1 90.5 88.4 81.0 77.3 80.5 68.3 48.8 63.0 21.8 92.3k74.0(+16.2%)
+Table 3.Evaluation Results on OnlineMind2Web. Green values in parentheses represent the relative reduction percentage for Tokens and
+absolute percentage point increase for Accuracy.
+Model Config Easy Medium Hard Average
+Step Token Acc. (%) Step Token Acc. (%) Step Token Acc (%) Step Token Acc. (%)
+Claude-3.7-SonnetNormal 21.72 219.6k 74.07 29.50 310.9k 58.27 34.51 371.6k 53.52 28.56 300.3k 61.95In & Ex 19.89 98.0k(−55.4%)79.01(+4.9%)27.40 144.0k(−53.7%)65.47(+7.2%)31.03 163.9k(−55.9%)61.97(+8.5%)26.05 135.2k(−55.0%)68.82(+6.9%)
+Claude-Sonnet-4Normal 16.23 154.7k 74.07 21.24 205.9k 66.91 21.24 292.1k 61.97 21.54 212.7k 67.70In & Ex 18.77 95.7k(−38.1%)82.72(+8.7%)27.00 141.2k(−31.4%)73.38(+6.5%)37.24 207.2k(−29.1%)64.79(+2.8%)27.21 144.6k(−32.0%)73.88(+6.2%)
+Qwen3-VL-32BNormal 25.41 220.9k 44.44 35.38 325.8k 30.22 42.11 403.7k 21.13 34.25 315.6k 31.96In & Ex 24.67 104.0k(−52.9%)65.43(+21.0%)29.67 127.1k(−61.0%)52.52(+22.3%)37.21 166.0k(−58.9%)33.80(+12.7%)30.12 130.2k(−58.7%)51.55(+19.6%)
+diverse set of multimodal backbones as agents, including
+Claude 3.7 & 4 computer-use version, and open-source
+Qwen3-VL-32B.
+Infrastructure and Constraints.All experiments are ex-
+ecuted on a high-concurrency Kubernetes cluster. Agents
+interact with virtualized browser environments via kubectl.
+Each task is restricted to a maximum of 60 interaction steps.
+While the baseline utilizes a raw observation window of
+size k= 5 , our dual-memory approach optimizes this into a
+sub-linear summary chain.
+Implementation and Evaluation.The external Insight
+Bank is constructed from 55k successful trajectories; while
+they share the same website distribution as WebV oyager,
+they involve a distinct set of user queries. For each query, we
+retrieve the Top-5 insights using sentence transformer and
+cosine similarity. Following the interaction, GPT-4o (Hurst
+et al., 2024) determines task success by analyzing the agent’s
+textual response and last five screenshots of the trajectory.
+More details on configurations are provided in Appendix B.
+3.2. Main Results and Analysis
+3.2.1. OVERALLPERFORMANCE ANDGENERALIZATION
+The experimental results on WebV oyager and Online-
+Mind2Web, summarized in Table 2 and Table 3, demonstrate
+the consistent superiority of our Dual-Memory Augmenta-
+tion framework across various model backbones and task
+complexities. We provide several examples of visualized
+agent interaction trajectories with corresponding analysis in
+Appendix E.
+Overall Superiority.In all tested scenarios, the combined
+“In & Ex Mem” configuration achieves the highest success
+rates. On WebV oyager, Claude-3.7-Sonnet and Claude-
+Sonnet-4 reach success rates of 84.5% and 86.0% respec-
+tively, while the open-source Qwen3-VL-32B sees a sig-
+nificant jump from 57.8% to 74.0%. Notably, our frame-
+work effectively bridges the gap between open-source and
+closed-source models; with dual-memory augmentation, the
+local Qwen3-VL-32B model (74.0%) even outperforms the
+vanilla Claude-3.7-Sonnet agent (72.0%), highlighting that
+robust memory management can compensate for limitations
+in web navigation.
+Robustness Across Task Complexity.Analysis of the
+OnlineMind2Web dataset (Table 3) reveals that the per-
+formance gains are most pronounced in more challenging
+scenarios. In “Medium” tasks, the success rate of Qwen3-
+VL-32B increases from 30.22% to 52.52%, a relative im-
+provement of nearly 73%. This suggests that our memory
+mechanism provides crucial stability when the agents are
+faced with the deep navigation hierarchies and the complex
+UI interaction chains.
+Cross-Trajectory Knowledge Transfer.A key finding
+is the efficacy of our Insight Bank. Although the trajec-
+tories align with the website distribution of WebV oyager,
+the extracted insights demonstrate a universal value across
+different benchmarks and models. Even when applied to
+7
+
+--- PAGE 8 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+the dynamic OnlineMind2Web environment, these insights
+provide strategic guidance that translates into immediate
+success rate improvements for Claude and Qwen3VL mod-
+els alike, proving that high-level website UI interaction rules
+are transferable across different web domains.
+3.2.2. EFFICIENCY ANDPRACTICALITYANALYSIS
+Beyond raw success rates, we investigate the underlying
+mechanisms of efficiency and decision-making quality pro-
+vided by our internal and external memory modules.
+Efficiency Gains via Internal Memory.As shown in the
+“Avg.token” columns, the introduction of internal memory
+(Mint) leads to a dramatic reduction in computational cost.
+By replacing redundant raw observation windows with con-
+cise trajectory summaries, the average token consumption
+per task for Qwen3-VL-32B on WebV oyager drops from
+215.2k to 92.3k, a saving of approximately 57%. This con-
+firms that our training-free framework effectively mitigates
+the context-window pressure inherent in long-horizon tasks
+without sacrificing historical context.
+Practicality via External Memory.The ablation of mem-
+ory modules (Table 2) illustrates that external memory
+(Mext) is the primary driver of decision practicality. For in-
+stance, in the Google Maps domain, the accuracy of Claude-
+3.7-Sonnet increases from 63.4% to 80.5% with the addi-
+tion of insights. These “defensive hints” prevent the agent
+from repeating common pitfalls and ensure that navigation
+remains goal-centric even in visually noisy environments.
+Furthermore, performance profiling indicates that against
+an average task duration of 122 seconds on WebV oyager,
+the latency for a single similarity-based insight retrieval is
+approximately 6 milliseconds, demonstrating that the com-
+putational overhead introduced by Mext is negligible and
+highly sustainable for real-time deployment.
+Trade-off between Steps and Accuracy.We observe an
+interesting correlation between average steps and accuracy.
+In certain configurations, the average steps slightly increase
+alongside accuracy (e.g., Claude-3.7-Sonnet on WebV oy-
+ager). This is not an indication of inefficiency, but rather
+a reflection of the agent’s enhanced persistence. M 2 pro-
+vides the agent with a clearer sense of progress and strategic
+guidance, preventing the model from prematurely judging
+the task as uncompletable and exiting. By maintaining a
+more stable and compact context, the agent is empowered to
+explore longer, correct its own course, and eventually reach
+the target state. We visualize the token consumption of the
+baseline and M2 on a specific task in Appendix D.
+3.3. Ablation Studies
+We perform ablation experiments on the specific settings of
+the M2 framework to systematically evaluate the influence
+Table 4.Ablation study of M 2 components on WebV oyager by
+Qwen3-VL-32B. S.T. denotes Sentence Transformer (Default).
+Ablation Category Settings Acc. (%)
+Historical Windowk
+1 51.6
+3 56.0
+5 (Default)57.8
+7 52.2
+Similarity Function
+TF-IDF (Salton & Buckley, 1988) 61.1
+Word2Vec (Mikolov et al., 2013) 64.4
+BM25 (Robertson et al., 1995) 58.0
+S.T. (Reimers & Gurevych, 2019)70.1
+Insight Counti
+3 64.8
+5 (Default)70.1
+7 66.2
+In-Mem Components
+w/o Visual 62.3
+w/o Action 54.7
+Full64.9
+of various parameters on agent performance. (1) Regarding
+the historical observation window size, performance scales
+with context depth up to five steps, demonstrating that while
+moderate temporal cues are essential for resolving state am-
+biguity, excessive historical length introduces contextual
+interference that can degrade agent reasoning. (2) In the
+evaluation of similarity functions, the sentence transformer
+outperforms traditional lexical methods such as TF-IDF and
+BM25, indicating that capturing the underlying semantic
+intent of a query is more effective than simple keyword
+overlap. (3) For insight retrieval count, five insights provide
+optimal density of guidance; increasing the number to seven
+leads to a performance decline, likely due to the introduc-
+tion of redundant information that distracts the agent. (4)
+Finally, the analysis of internal memory components demon-
+strates that while both visual feedback and action history
+are critical, the removal of action records causes a more
+significant drop in accuracy, identifying it as the primary
+element for maintaining trajectory continuity and ensuring
+robust decision-making.
+4. Conclusion
+In this paper, we introduce the Dual-Memory framework
+M2, a training-free approach designed to enhance the execu-
+tion robustness and computational efficiency of autonomous
+web agents. Our recursive summarization mechanism dis-
+tills interaction history into concise state updates, while the
+retrieval of offline expert insights provides the strategic guid-
+ance necessary to navigate complex user interfaces without
+the overhead of data production or training. Extensive eval-
+uations on WebV oyager and OnlineMind2Web demonstrate
+that our framework significantly improves navigation suc-
+cess across diverse model backbones. Most notably, the
+open-source Qwen3-VL-32B achieved a 16.2% increase
+in success rate alongside a 57% reduction in token con-
+8
+
+--- PAGE 9 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+sumption, effectively bridging the performance gap with
+proprietary models. These results establish that the dual-
+memory architecture provides a scalable and sustainable
+path for deploying high-fidelity web agents in real-world
+environments.
+Impact Statement
+This paper presents work whose goal is to advance the
+field of Machine Learning, specifically in the domain of
+autonomous web navigation agents. There are many poten-
+tial societal consequences of our work, none which we feel
+must be specifically highlighted here.
+References
+anthropic. Claude 3.7 sonnet system card. 2025a.
+URL https://api.semanticscholar.org/
+CorpusID:276612236.
+anthropic. System card: Claude opus
+4 & claude sonnet 4. 2025b. URL
+https://www-cdn.anthropic.com/
+6d8a8055020700718b0c49369f60816ba2a7c285.
+pdf.
+Bai, S., Cai, Y ., Chen, R., Chen, K., Chen, X., Cheng, Z.,
+Deng, L., Ding, W., Gao, C., Ge, C., Ge, W., Guo, Z.,
+Huang, Q., Huang, J., Huang, F., Hui, B., Jiang, S., Li, Z.,
+Li, M., Li, M., Li, K., Lin, Z., Lin, J., Liu, X., Liu, J., Liu,
+C., Liu, Y ., Liu, D., Liu, S., Lu, D., Luo, R., Lv, C., Men,
+R., Meng, L., Ren, X., Ren, X., Song, S., Sun, Y ., Tang,
+J., Tu, J., Wan, J., Wang, P., Wang, P., Wang, Q., Wang,
+Y ., Xie, T., Xu, Y ., Xu, H., Xu, J., Yang, Z., Yang, M.,
+Yang, J., Yang, A., Yu, B., Zhang, F., Zhang, H., Zhang,
+X., Zheng, B., Zhong, H., Zhou, J., Zhou, F., Zhou, J.,
+Zhu, Y ., and Zhu, K. Qwen3-vl technical report, 2025.
+URLhttps://arxiv.org/abs/2511.21631.
+Chen, Q., Pitawela, D., Zhao, C., Zhou, G., Chen, H.-T.,
+and Wu, Q. Webvln: Vision-and-language navigation
+on websites. InProceedings of the AAAI Conference on
+Artificial Intelligence, volume 38, pp. 1165–1173, 2024.
+Cheng, W., Ni, E., Wang, W., Sun, Y ., Liu, J., Shen, W.,
+Chen, Y ., Shi, B., and Wang, D. Mga: Memory-driven gui
+agent for observation-centric interaction.arXiv preprint
+arXiv:2510.24168, 2025.
+Fan, Y ., Ma, X., Wu, R., Du, Y ., Li, J., Gao, Z., and Li,
+Q. Videoagent: A memory-augmented multimodal agent
+for video understanding. InEuropean Conference on
+Computer Vision, pp. 75–92. Springer, 2024.
+Ge, Y ., Romeo, S., Cai, J., Shu, R., Benajiba, Y ., Sunkara,
+M., and Zhang, Y . Tremu: Towards neuro-symbolic
+temporal reasoning for llm-agents with memory in multi-
+session dialogues. InFindings of the Association for
+Computational Linguistics: ACL 2025, pp. 18974–18988,
+2025.
+He, B., Li, H., Jang, Y . K., Jia, M., Cao, X., Shah, A.,
+Shrivastava, A., and Lim, S.-N. Ma-lmm: Memory-
+augmented large multimodal model for long-term video
+understanding. InProceedings of the IEEE/CVF Confer-
+ence on Computer Vision and Pattern Recognition, pp.
+13504–13514, 2024a.
+He, H., Yao, W., Ma, K., Yu, W., Dai, Y ., Zhang, H., Lan,
+Z., and Yu, D. Webvoyager: Building an end-to-end
+web agent with large multimodal models.arXiv preprint
+arXiv:2401.13919, 2024b.
+Huang, J., Zeng, Z., Han, W., Zhong, Y ., Zheng, L., Fu,
+S., Chen, J., and Ma, L. Scaletrack: Scaling and
+back-tracking automated gui agents.arXiv preprint
+arXiv:2505.00416, 2025.
+Hurst, A., Lerer, A., Goucher, A. P., Perelman, A., Ramesh,
+A., Clark, A., Ostrow, A., Welihinda, A., Hayes, A.,
+Radford, A., et al. Gpt-4o system card.arXiv preprint
+arXiv:2410.21276, 2024.
+Jain, J., Maheshwari, S., Yu, N., Hwu, W.-m., and Shi,
+H. Augustus: An llm-driven multimodal agent sys-
+tem with contextualized user memory.arXiv preprint
+arXiv:2510.15261, 2025.
+Kang, J., Ji, M., Zhao, Z., and Bai, T. Memory os of ai
+agent.arXiv preprint arXiv:2506.06326, 2025.
+Li, K., Zhang, Z., Yin, H., Zhang, L., Ou, L., Wu, J., Yin, W.,
+Li, B., Tao, Z., Wang, X., et al. Websailor: Navigating
+super-human reasoning for web agent.arXiv preprint
+arXiv:2507.02592, 2025.
+Li, Z., Xie, Y ., Shao, R., Chen, G., Jiang, D., and Nie,
+L. Optimus-1: Hybrid multimodal memory empowered
+agents excel in long-horizon tasks.Advances in neural
+information processing systems, 37:49881–49913, 2024.
+Liu, G., Geng, S., Li, S., Cui, H., Zhang, S., Liu, X.,
+and Liu, T. Webcoach: Self-evolving web agents
+with cross-session memory guidance.arXiv preprint
+arXiv:2511.12997, 2025a.
+Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua,
+M., Petroni, F., and Liang, P. Lost in the middle: How
+language models use long contexts.Transactions of the
+Association for Computational Linguistics, 12:157–173,
+2024.
+Liu, Z., Li, J., Zhao, W. X., Gao, D., Li, Y ., and Wen, J.-r.
+Pal-ui: Planning with active look-back for vision-based
+gui agents.arXiv preprint arXiv:2510.00413, 2025b.
+9
+
+--- PAGE 10 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Long, L., He, Y ., Ye, W., Pan, Y ., Lin, Y ., Li, H., Zhao, J.,
+and Li, W. Seeing, listening, remembering, and reason-
+ing: A multimodal agent with long-term memory.arXiv
+preprint arXiv:2508.09736, 2025.
+Lu, S., Li, Y ., Chen, Q.-G., Xu, Z., Luo, W., Zhang, K.,
+and Ye, H.-J. Ovis: Structural embedding alignment for
+multimodal large language model, 2024. URL https:
+//arxiv.org/abs/2405.20797.
+Lu, S., Li, Y ., Xia, Y ., Hu, Y ., Zhao, S., Ma, Y ., Wei, Z., Li,
+Y ., Duan, L., Zhao, J., Han, Y ., Li, H., Chen, W., Tang,
+J., Hou, C., Du, Z., Zhou, T., Zhang, W., Ding, H., Li,
+J., Li, W., Hu, G., Gu, Y ., Yang, S., Wang, J., Sun, H.,
+Wang, Y ., Sun, H., Huang, J., He, Y ., Shi, S., Zhang, W.,
+Zheng, G., Jiang, J., Gao, S., Wu, Y .-F., Chen, S., Chen,
+Y ., Chen, Q.-G., Xu, Z., Luo, W., and Zhang, K. Ovis2.5
+technical report, 2025. URL https://arxiv.org/
+abs/2508.11737.
+Mikolov, T., Chen, K., Corrado, G., and Dean, J. Efficient
+estimation of word representations in vector space.arXiv
+preprint arXiv:1301.3781, 2013.
+Packer, C., Fang, V ., Patil, S., Lin, K., Wooders, S., and
+Gonzalez, J. Memgpt: Towards llms as operating systems.
+2023.
+Pink, M., Wu, Q., V o, V . A., Turek, J., Mu, J., Huth,
+A., and Toneva, M. Position: Episodic memory is the
+missing piece for long-term llm agents.arXiv preprint
+arXiv:2502.06975, 2025.
+Qi, Z., Liu, X., Iong, I. L., Lai, H., Sun, X., Zhao, W., Yang,
+Y ., Yang, X., Sun, J., Yao, S., et al. Webrl: Training
+llm web agents via self-evolving online curriculum re-
+inforcement learning.arXiv preprint arXiv:2411.02337,
+2024.
+Qin, Y ., Ye, Y ., Fang, J., Wang, H., Liang, S., Tian, S.,
+Zhang, J., Li, J., Li, Y ., Huang, S., et al. Ui-tars: Pioneer-
+ing automated gui interaction with native agents.arXiv
+preprint arXiv:2501.12326, 2025.
+Rasmussen, P., Paliychuk, P., Beauvais, T., Ryan, J., and
+Chalef, D. Zep: a temporal knowledge graph architecture
+for agent memory.arXiv preprint arXiv:2501.13956,
+2025.
+Reimers, N. and Gurevych, I. Sentence-bert: Sentence em-
+beddings using siamese bert-networks. InProceedings
+of the 2019 Conference on Empirical Methods in Natu-
+ral Language Processing. Association for Computational
+Linguistics, 11 2019. URL https://arxiv.org/
+abs/1908.10084.
+Robertson, S. E., Walker, S., Jones, S., Hancock-Beaulieu,
+M. M., Gatford, M., et al.Okapi at TREC-3. British
+Library Research and Development Department, 1995.
+Salama, R., Cai, J., Yuan, M., Currey, A., Sunkara, M.,
+Zhang, Y ., and Benajiba, Y . Meminsight: Autonomous
+memory augmentation for llm agents.arXiv preprint
+arXiv:2503.21760, 2025.
+Salton, G. and Buckley, C. Term-weighting approaches
+in automatic text retrieval.Information processing &
+management, 24(5):513–523, 1988.
+Sarch, G., Jang, L., Tarr, M., Cohen, W. W., Marino, K., and
+Fragkiadaki, K. Vlm agents generate their own memories:
+Distilling experience into embodied programs of thought.
+Advances in Neural Information Processing Systems, 37:
+75942–75985, 2024.
+Tan, H., Zhang, Z., Ma, C., Chen, X., Dai, Q., and Dong,
+Z. Membench: Towards more comprehensive evalua-
+tion on the memory of llm-based agents.arXiv preprint
+arXiv:2506.21605, 2025a.
+Tan, Z., Yan, J., Hsu, I.-H., Han, R., Wang, Z., Le, L., Song,
+Y ., Chen, Y ., Palangi, H., Lee, G., et al. In prospect and
+retrospect: Reflective memory management for long-term
+personalized dialogue agents. InProceedings of the 63rd
+Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pp. 8416–8439,
+2025b.
+Wang, Y . and Chen, X. Mirix: Multi-agent memory system
+for llm-based agents.arXiv preprint arXiv:2507.07957,
+2025.
+Wang, Y ., Takanobu, R., Liang, Z., Mao, Y ., Hu, Y .,
+McAuley, J., and Wu, X. Mem- {\alpha}: Learning
+memory construction via reinforcement learning.arXiv
+preprint arXiv:2509.25911, 2025a.
+Wang, Z., Yang, L., Tang, X., Zhou, S., Chen, D., Jiang, W.,
+and Li, Y . History-aware reasoning for gui agents.arXiv
+preprint arXiv:2511.09127, 2025b.
+Wheeler, S. and Jeunen, O. Procedural memory is not all
+you need: Bridging cognitive gaps in llm-based agents.
+InAdjunct Proceedings of the 33rd ACM Conference
+on User Modeling, Adaptation and Personalization, pp.
+360–364, 2025.
+Xu, W., Liang, Z., Mei, K., Gao, H., Tan, J., and Zhang, Y .
+A-mem: Agentic memory for llm agents.arXiv preprint
+arXiv:2502.12110, 2025.
+Xu, Y ., Lu, D., Shen, Z., Wang, J., Wang, Z., Mao, Y ., Xiong,
+C., and Yu, T. Agenttrek: Agent trajectory synthesis
+via guiding replay with web tutorials.arXiv preprint
+arXiv:2412.09605, 2024.
+10
+
+--- PAGE 11 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Xue, T., Qi, W., Shi, T., Song, C. H., Gou, B., Song,
+D., Sun, H., and Su, Y . An illusion of progress? as-
+sessing the current state of web agents.arXiv preprint
+arXiv:2504.01382, 2025.
+Yu, H., Chen, T., Feng, J., Chen, J., Dai, W., Yu, Q., Zhang,
+Y .-Q., Ma, W.-Y ., Liu, J., Wang, M., et al. Memagent: Re-
+shaping long-context llm with multi-conv rl-based mem-
+ory agent.arXiv preprint arXiv:2507.02259, 2025.
+Zhang, D., Rama, B., Ni, J., He, S., Zhao, F., Chen, K., Chen,
+A., and Cao, J. Litewebagent: The open-source suite
+for vlm-based web-agent applications.arXiv preprint
+arXiv:2503.02950, 2025a.
+Zhang, G., Fu, M., Wan, G., Yu, M., Wang, K., and Yan, S.
+G-memory: Tracing hierarchical memory for multi-agent
+systems.arXiv preprint arXiv:2506.07398, 2025b.
+Zhang, Z., Dai, Q., Chen, X., Li, R., Li, Z., and Dong, Z.
+Memengine: A unified and modular library for develop-
+ing advanced memory of llm-based agents. InCompanion
+Proceedings of the ACM on Web Conference 2025, pp.
+821–824, 2025c.
+Zhou, Z., Qu, A., Wu, Z., Kim, S., Prakash, A., Rus, D.,
+Zhao, J., Low, B. K. H., and Liang, P. P. Mem1: Learning
+to synergize memory and reasoning for efficient long-
+horizon agents.arXiv preprint arXiv:2506.15841, 2025.
+11
+
+--- PAGE 12 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+A. Related Work
+A.1. Context Management and Memory Optimization
+in LLM Agents
+Effective context management is a fundamental prerequi-
+site for deploying LLM based agents in long-horizon web
+navigation tasks. Recent literature has extensively explored
+strategies to optimize memory representation and context
+utilization (Ge et al., 2025; Tan et al., 2025a; Pink et al.,
+2025; Xu et al., 2025; Zhang et al., 2025c). To manage
+extensive contexts, MemGPT (Packer et al., 2023) utilizes a
+tiered storage mechanism to handle unbounded data, while
+MIRIX (Wang & Chen, 2025) orchestrates six distinct
+memory types for persistent reasoning. In multimodal do-
+mains, VideoAgent (Fan et al., 2024) and M3-Agent (Long
+et al., 2025) employ structured, entity-centric frameworks
+to track visual and auditory states dynamically. Similarly,
+MGA (Cheng et al., 2025) leverages structured memory to
+model GUI interactions as independent states, effectively
+decoupling long-chain dependencies.
+Current context strategies typically suffer from two draw-
+backs: the reliance on decoupled summarization agents
+which increases inference cost, and the dependence on
+learning-based models that require extensive training. We
+overcome these by proposing a lightweight, training-free
+alternative. Our method employs in-context prompt abstrac-
+tion to filter visual noise and retain navigation cues, elim-
+inating the need for heavy external modules or parameter
+updates.
+A.2. Experience Learning and Retrieval-Augmented
+Generation for LLM Agents
+By leveraging paradigms like Experience Learning or
+Retrieval-Augmented Generation (RAG) to retrieve rele-
+vant insights, agents can transcend immediate context lim-
+itations to avoid recurring pitfalls and enhance generaliza-
+tion (Salama et al., 2025; Wheeler & Jeunen, 2025; Ras-
+mussen et al., 2025). Focusing on abstraction and reflection,
+ICAL (Sarch et al., 2024) transforms suboptimal trajecto-
+ries into cognitive abstractions via self-correction, while
+Optimus-1 (Li et al., 2024) utilizes an experience pool of
+summarized interactions to enhance planning. Incorporating
+reinforcement learning, RMM (Tan et al., 2025b) iteratively
+refines memory retrieval using online RL, and HAR (Wang
+et al., 2025b) employs hybrid rewards to synthesize error cor-
+rection guidelines. Furthermore, G-Memory (Zhang et al.,
+2025b) integrates high-level insights with fine-grained tra-
+jectories through a bi-directional retrieval mechanism.
+Existing frameworks primarily target textual tasks, often
+lacking the procedural specificity required for web naviga-
+tion. Moreover, they typically rely on factual retrieval or
+online interactions. Addressing these limitations, we pro-
+pose a semantic Insight Retrieval Augmentation module.
+This mechanism utilizes an offline bank of successful tra-
+jectories to retrieve actionable insights via task similarity,
+offering robust guidance in a training-free manner.
+B. Implementation Details
+Benchmarks and Datasets.We evaluate our framework
+on two primary benchmarks:WebVoyagerandOnline-
+Mind2Web. Due to regional access and verification re-
+strictions, we select a representative subset of12 websites
+from WebV oyager for evaluation. For OnlineMind2Web,
+which involves real-time web interaction, we successfully
+conduct tasks across291 websites, discarding 9 tasks where
+the target URLs were inaccessible at the time of testing.
+These datasets provide a rigorous testbed for long-horizon
+reasoning and cross-domain UI navigation.
+Agent Backbones.To demonstrate the model-agnostic na-
+ture of our dual-memory approach, we employ three mul-
+timodal models as agents:Claude-3.7-Sonnet,Claude-
+Sonnet-4, and the open-sourceQwen3-VL-32B. All mod-
+els are tasked with operating web pages and executing user
+instructions within a training-free prompting framework.
+Infrastructure and Environment.Experiments are con-
+ducted on a high-concurrency platform built onKubernetes
+(K8s). We deploy a cluster of64 concurrent nodes, each
+hosting a virtual computer environment. The agents in-
+teract with these environments via kubectl to perform
+browser actions and capture visual feedback. To balance
+task complexity and computational cost, we limit each task
+to a maximum of60 steps.
+Dual-Memory Configuration.For the internal memory,
+while the baseline maintains a sliding window of the last
+k= 5 screenshots, our framework replaces this with a
+summary chain Mint, retaining only the current observation
+Ot. The external memory is powered by anInsight Bank
+distilled from55k successful trajectories. We utilize the
+all-MiniLM-L6-v2 Sentence Transformer to calculate
+cosine similaritybetween the current query Q and historical
+trajectories, retrieving theTop-5most relevant insights as
+strategic hints.
+Evaluation Protocol.Following the interaction, task suc-
+cess is determined by aGPT-4o judge. The judge evaluates
+the model’s final response and thelast five screenshotsof
+the trajectory to verify goal completion. This visual-textual
+evidence ensures a robust and objective assessment of the
+agent’s performance in real-world navigation scenarios.
+C. Insight Bank Statistics & Details
+To ensure the generalization capability and robustness of
+our external memory, we construct a large-scale Insight
+12
+
+--- PAGE 13 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Figure 5.Distribution of the 55k trajectory data across 12 distinct
+web domains in the Insight Bank.
+Figure 6.Cumulative token consumption comparison on an Ap-
+ple.com navigation task (16 steps). The agent uses Qwen3-VL-
+32B.
+Bank derived from approximately 55k successful execution
+trajectories. These trajectories span 12 diverse web domains,
+covering categories such as e-commerce, academic research,
+coding platforms, and utility tools. The user queries for
+all these trajectories are generated by LLM and are strictly
+distinct from the benchmarks used in the experiments.
+As illustrated in Fig. 5, the data distribution is strategically
+balanced to prevent overfitting to specific website layouts.
+This diversity ensures that the extracted insights cover a
+wide spectrum of interaction logic, from static information
+retrieval to dynamic form manipulation.
+Beyond the quantitative scale, qualitative analysis of stored
+insights is critical for effective retrieval augmentation. Un-
+like raw trajectory logs which record specific interactions,
+our Insight Bank stores generalized, high-leverage interac-
+tion rules. To illustrate this, consider a complex task on
+Apple.comrequiring the configuration of a 16-inch Mac-
+Book Pro with specific specifications (M4 Max chip, 32GB
+memory, etc.). Instead of memorizing the specific click
+sequence for this singular product, the extracted insights
+provide universal UI strategies applicable to similar shop-
+ping scenarios:
+• Search Strategy:When the exact query yields no
+results, strip the query to the core noun and use the
+sidebar model filter to drill down manually.
+• Interaction Order:Always apply the “Sort by
+Date/Price”beforeselecting specific filters. On many
+dynamic sites, changing the sort order triggers a page
+refresh that inadvertently resets active filters, causing
+the agent to lose progress.
+• State Validation:After clicking “Add to Cart/Bag,”
+do not proceed immediately; verify the “Cart Icon”
+badge number has incremented. If it hasn’t changed
+within 3 seconds, the click was likely intercepted by
+an overlay—trigger the click again.
+• Navigation Efficiency:If a page fails to load or dis-
+play properly, use the browser’s “Back” key (Alt+Left)
+to return to the previous page and resume the configura-
+tion process, rather than refreshing the page repeatedly.
+By retrieving and injecting such structured, logic-driven
+insights into the prompt, our method enables the agent to
+reference explicit operational goals and avoid recurring nav-
+igation traps during inference.
+D. Token Consumption Growth Curve
+To rigorously quantify the efficiency gains of our proposed
+framework, we conduct a step-by-step token consumption
+analysis on a representative task by Qwen3-VL-32B. The
+task required the agent to navigateApple.comto retrieve
+specific technical specifications and software compatibility
+information:“Find information on Apple website, and tell
+me the device weight of Apple Vision Pro and list 5 Built-in
+Apps it supports. ”
+Fig. 6 illustrates the cumulative token usage for both the
+OriginalInteraction mode (full-history concatenation) and
+ourM 2 Interaction mode (dual-memory augmentation) over
+a 16-step trajectory.
+The comparison reveals three distinct phases of token con-
+sumption dynamics:
+1. Initial Overhead (Step 1):As observed in the ini-
+tial phase, the M2 framework incurs a higher starting cost
+compared to the baseline. Specifically, at Step 1, M 2 con-
+sumes approximately ∼3.6k tokens, exceeding the Original
+13
+
+--- PAGE 14 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+method by ∼1.7k tokens. This overhead is intentional and
+attributable to theInsight Retrieval Augmentationmodule,
+which injects retrieved guidelines and defensive instructions
+into the system prompt before the first action is taken. This
+upfront investment is designed to “prime” the agent with
+expert knowledge.
+2. The Crossover Point (Steps 3–5):The efficiency ad-
+vantage of the baseline is short-lived. The curves intersect
+between Step 3 and Step 4. By Step 4, the cumulative cost
+of the Original method accelerates rapidly as it begins to
+stack raw history (screenshots and entire text) from previous
+steps. In contrast, M 2 employsDynamic Trajectory Sum-
+marization, discarding raw observations in favor of concise
+textual state updates. Consequently, the consumption of the
+original method surpasses M2 almost immediately after the
+several interaction loop begins.
+3. Long-Term Growth Trends (Step 5–16):The diver-
+gence becomes drastic as the trajectory lengthens.
+• Original Interaction (Rapid Growth):The baseline
+exhibits a super-linear growth trend. By Step 16, the
+context window is burdened with full interaction his-
+tory, driving the total consumption to106k tokens.
+This exponential bloat not only increases cost but also
+introduces significant visual noise.
+• M2 Interaction (Gradual Growth):In contrast, our
+method maintains a stable growth rate. By condensing
+history into summaries, the marginal cost per step re-
+mains constant (∼3.7k tokens). By Step 16, the total
+consumption is only58k tokens, representing a45.3%
+reductioncompared to the baseline.
+This analysis confirms that while M 2 requires a minimal
+cold-start “token investment” to prime the agent with expert
+knowledge, it effectively solves the context explosion prob-
+lem, making it a highly scalable solution for long-horizon
+web navigation.
+E. Qualitative Analysis
+E.1. Comparison of Response Structure Visualization
+Fig. 7 illustrates the structural differences in agent responses
+between the baseline and our proposed method.
+Original Interaction Condition (Left):The baseline agent
+follows a standard ReAct-style output format. The response
+consists solely of a Thought block, where the agent rea-
+sons based on the immediate visual observation, followed
+directly by the Action parameters. The context relies
+implicitly on the raw history of previous turns.
+Dual-Memory Augment Condition (Right):In contrast,
+the M 2 framework introduces two distinct structural en-
+hancements to the response format:
+• Insight-Aware Reasoning:Within the Thought
+block, the agent explicitly references the external mem-
+ory (e.g.,“According to the Reference Trajectory In-
+sights... ”), demonstrating that high-level strategic guid-
+ance is actively incorporated into the planning process
+before action selection.
+• Structured Summarization:A unique Summary
+field is generated alongside the action. This field ad-
+heres to a strict template ([Brief current page
+state]→[Brief action taken] ), which
+serves as the compressed internal memory update for
+the subsequent step, replacing the need to store raw
+observation logs.
+E.2. Case Study: GitHub Copilot FAQ Retrieval
+We analyze a retrieval task:“Open GitHub Copilot’s FAQs
+to find the official answer to when Copilot chat can be used
+on mobile. ”(Fig. 8).
+Baseline Failure (Context Overload):The baseline agent
+falls into a “global search trap,” repeatedly querying the
+homepage. Specifically, the agent consistently triggers the
+“Search all of GitHub” action and receives a static “No
+results found” page; interpreting this visual invariance as
+a system non-response, the agent mistakenly retries the
+click indefinitely, obscuring state awareness in the context
+window.
+M2 Success (Insight & Summary-Driven Navigation):
+In contrast, M 2 bypasses the noisy global search in favor
+of hierarchical navigation (Copilot→Resources→
+Documentation). This is enabled by M 2, which main-
+tains a clean execution log and professional guidance. By
+filtering out visual noise, the concise context allows the
+agent to track its progress accurately and eventually execute
+a precise local search within the documentation to retrieve
+the answer.
+E.3. Case Study: Disambiguating Geographic Locations
+We examine a navigation task susceptible to geographic am-
+biguity:“Find a parking lot in Gloucester and book a ride
+from there to North Plymouth, view the map to understand
+the route better. ”(Fig. 9).
+Baseline Failure (Context Hallucination):The baseline
+agent initially identifies the starting point inGloucester, UK.
+However, when searching for the destination “North Ply-
+mouth,” it suffers from acontextual hallucination. Ignoring
+the established UK context, it selects the second suggestion,
+14
+
+--- PAGE 15 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+“North Plymouth, MA, USA.” This results in an infeasible
+trans-Atlantic routing error.
+M2 Success (Insight & Context Synergy):The M 2 agent
+successfully resolves this ambiguity through two synergistic
+mechanisms:
+• Insight-Driven Selection Strategy (External Mem-
+ory):Guided by the specific insight“Preferably select
+the first suggestion from the dropdown list to ensure ac-
+curacy, ”the agent prioritizes the top-ranked suggestion
+provided by the search engine (which naturally priori-
+tizes proximity to the current map view/start point).
+• Contextual Consistency (Internal Memory):The
+agent’s reasoning explicitly validates the choice:
+“matches the intended destination in the UK (as Glouces-
+ter is in the UK). ”By adhering to the specific context
+rather than relying on intrinsic bias, it correctly se-
+lects “North Plymouth, UK,” enabling a valid route
+calculation.
+F. Prompt Templates
+F.1. Original System PromptP sys and Action Space
+As shown in Fig. 10, the system prompt Psys establishes
+model’s role as an autonomous web browsing agent tasked
+with resolving user queries through sequential interaction
+with web interfaces. At each step, the agent receives a
+multimodal observation consisting of a webpage screen-
+shot and semantic text, grounded by the specific viewport
+resolution. The action space is designed to simulate hu-
+man interactions, encompassing mouse operations (e.g.,
+HOVER, LEFT CLICK, DRAG), keyboard inputs ( TYPE,
+PRESS KEY), and navigational controls (SCROLL, WAIT,
+and page transitions). To ensure execution, the model
+is constrained to generate a strictly formatted four-part
+output: aThoughtsummarizing the reasoning process,
+anAction Elementspecifying the target coordinates (e.g.,
+<point>(x,y)</point>), anAction Typeselected
+from the predefined set, and anAction Valuecontaining
+necessary parameters such as input text or scroll direction.
+F.2.P in
+sys and st for Dynamic Trajectory Summarization
+To accommodate the integration of the dynamic memory
+mechanism, we refine the standard system instructions into
+a history-aware prompt, denoted as P in
+sys (Fig. 11). Unlike
+the baseline which relies solely on immediate observations,
+P in
+sys explicitly conditions the agent’s reasoning on a
+“Historical Summary”—a compressed chronological log
+of prior interactions ( Mint
+t ). This summary enforces
+a structured format where each entry st encapsulates
+the pre-action state and the operation performed, exem-
+plified by: st =[On Apple Watch Series 11
+landing page with "Buy" button visible]
+→[Click the "Buy" button to access
+pricing details] . Furthermore, P in
+sys incorporates
+strict negative constraints (Rule 6) that compel the agent
+to cross-reference the current observation against the
+historical trace to actively prune redundant explorations
+and prevent execution loops. Finally, the output space is
+augmented to require the generation of the current step’s
+summary alongside the action, ensuring the memory stream
+is autonomously maintained.
+F.3.P ext for Insight Retrieval Augmentation
+The insight extraction prompt Pext (Fig. 12) configures the
+Model to act as a “Web Navigation Strategy Abstractor,”
+tasked with distilling generalizable “High-Leverage Interac-
+tion Rules” from historical successful trajectories. Unlike
+standard summarization, this prompt enforces aPure UI In-
+teractionconstraint, strictly prohibiting URL manipulation
+to ensure the extracted insights focus on intelligent interface
+usage—such as identifying “Anchor Elements” for naviga-
+tion shortcuts or constructing precise search queries. The
+analysis is stratified into three specific dimensions:Search
+& Filter Strategy(optimizing input logic),Navigation Ef-
+ficiency(optimizing click paths), andState Validation(vi-
+sual logic for error avoidance). To ensure transferability,
+the prompt mandates the generalization of specific values
+and the exclusion of trivial actions. The output is con-
+strained to a strict, machine-parsable text format, consisting
+of newline-separated insights prefixed with topic tags (e.g.,
+[Search Strategy] ), enabling seamless storage and
+retrieval within the Insight Bank.
+F.4.P ′
+sys applicable to M2
+Compared to the initial baseline prompt, the final version
+P ′
+sys (Fig. 13) incorporates substantial modifications to sup-
+port the dual-memory architecture and ensure robust exe-
+cution. First, the observation space (Rule 1) is augmented
+to include both “Reference Trajectory Insights” (External
+Memory) and a “Historical Summary” (Internal Memory),
+providing the agent with global strategic guidance and local
+state context. Second, a defensive verification mechanism is
+explicitly codified (Rule 2), instructing the agent to critically
+evaluate retrieved insights against the current visual screen-
+shot and prioritize actual observations over historical sug-
+gestions to prevent context mismatch. Third, the reasoning
+process is constrained by history-aware negative constraints
+(Rule 7), effectively barring the agent from repeating inef-
+fective actions or re-exploring visited states identified in the
+summary. Finally, the output space (Rule 8) is expanded to
+require the generation of a structured Summary for the cur-
+rent step, enabling the iterative maintenance of the internal
+memory stream without external intervention.
+15
+
+--- PAGE 16 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Query: "Find out the starting price for the most recent model of the iMac on the Apple website."
+Original Interaction Condition Dual-Memory Augment Condition
+Step 1 Thought: The goal is to find the starting price for the
+most recent model of the iMac. Currently, the page is displaying
+iPhone content, so I need to navigate to the iMac section. The
+top navigation bar includes a \"Mac\" link, which is likely to
+lead to information about iMac models. Clicking on \"Mac\"
+should direct me to the relevant section.
+* Action Element: <point>(208, 232)</point>
+* Action Type: LEFT_CLICK
+* Action Value: None"
+Step 1 Thought: The current page is the Apple homepage,
+promoting the Apple Watch Series 11. The goal is to find the
+starting price for the most recent iMac model. According to the
+Reference Trajectory Insights, the best strategy is to navigate to
+the broader product category (\"Mac\") first, then drill down to
+the specific product line (\"iMac\"). The \"Mac\" link is visible
+in the top navigation bar, which is the logical next step to access
+the Mac product line, including the iMac.
+* Summary: [On Apple homepage, promoting Apple Watch
+Series 11, with top navigation menu visible] → [Click on
+\"Mac\" in the top navigation menu to navigate to the Mac
+product category]
+* Action Element: <point>(208, 232)</point>
+* Action Type: LEFT_CLICK
+* Action Value: None"
+Tips: Due to the characteristic of qwen3vl that it
+resizes images to a 1k^2 size, actual operating
+coordinates undergo an operation of x=x * 1.28, y=y*
+0.88, which means (208,232) is converted to (266,204).
+Step 5 Thought: The starting price for the most recent model of
+the iMac is visible in the screenshot. The leftmost configuration,
+which includes an 8-Core CPU, 8-Core GPU, 16GB Unified
+Memory, and 256GB Storage, is priced at $1,299.00. This is the
+lowest price available, making it the starting price for the iMac.
+* Action Element: None
+* Action Type: FINISHED
+* Action Value: The starting price for the most recent model of
+the iMac is $1,299.00.
+Step 4 Thought: The current page is the iMac product page on
+Apple’s website, and the starting price is clearly visible ……
+* Summary: [On iMac product page, starting price \"From
+$1299\" is visible below the \"Buy\" button] → [Query resolved:
+starting price for the most recent iMac model is $1299]
+* Action Element: None
+* Action Type: FINISHED
+* Action Value: The starting price for the most recent model of
+the iMac is $1299."
+Figure 7.Comparison of agent responses between the original interaction form and the M 2 interaction form.
+16
+
+--- PAGE 17 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Query: "Open GitHub Copilot's FAQs to find the official answer to when Copilot chat can be used on mobile."
+Original Interaction Condition Dual-Memory Augment Condition
+Figure 8.Qualitative comparison on the GitHub task.Left (Original):Agent gets trapped in a loop of irrelevant repository results due to
+context redundancy.Right (M 2):Agent navigates hierarchically to the documentation page and uses a precise search, maintaining a clear
+task progress via memory summarization.
+17
+
+--- PAGE 18 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+Query: "Find a parking lot in Gloucester and book a ride from there to North Plymouth, view the map to understand the route better."
+Original Interaction Condition Dual-Memory Augment Condition
+Figure 9.Qualitative comparison on a geographic disambiguation task.Left (Original):The agent suffers from context hallucination,
+ignoring the established UK starting point and selecting a US destination (North Plymouth, MA), resulting in a routing failure.Right
+(M2):Guided by the external insight to prioritize the first dropdown suggestion and maintaining internal context consistency, the agent
+correctly identifies the local UK destination.
+18
+
+--- PAGE 19 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+As a robot browsing the web, your task is to complete the query through a series of actions with web page and strictly follow the rules.
+rules:
+```
+1. In each iteration, you will receive an Observation that includes a screenshot of the web page and some texts. The screen's resolution is
+#VIEWPORT_WIDTH#x#VIEWPORT_HEIGHT#.
+2. First carefully think and analyze the visual information to identify the location corresponding to the web element that requires interaction.
+Describe the location using absolute screen coordinates in the following format:
+<point>(x,y)</point>
+where x and y are the horizontal and vertical pixel coordinates, respectively.
+Note: If no specific point is required, output 'None'.
+3. Then choose one Action Type from the following actions:
+(1) HOVER: Hover the mouse over the specified coordinates.
+(2) LEFT_CLICK: Click the left mouse button on the specified coordinates.
+(3) RIGHT_CLICK: Click the right mouse button on the specified coordinates.
+(4) MIDDLE_CLICK: Click the middle mouse button on the specified coordinates.
+(5) DOUBLE_CLICK: Double-click the left mouse button on the specified coordinates.
+(6) TRIPLE_CLICK: Triple-click the left mouse button on the specified coordinates.
+(7) TYPE: Type the specified text.
+(8) DRAG: Drag the mouse from a start point to an end point. Action Element should be two <point>(x,y)</point> entries, representing the
+start and end coordinates.
+(9) SCROLL: Scroll the page in the specified direction. If the coordinates are 'None', the default is to scroll the entire window. Otherwise,
+scroll from the specified coordinates.
+(10) WAIT: Wait for a specified duration or for unfinished page processes.
+(11) PRESS_KEY: Press a key or hotkey to complete a specific operation. The value supports xdotool's `key` syntax.
+Examples: "a", "Return", "alt+Tab", "ctrl+s", "Up", "KP_0" (for the numpad 0 key).
+(12) FINISHED: This action should be selected if the query has been resolved or is considered unresolvable.
+4. Finally, determine the action value based on the action type. Note that if no content is required, output 'None'.
+(1) HOVER: value is None.
+(2) LEFT_CLICK, (3) RIGHT_CLICK, (4) MIDDLE_CLICK, (5) DOUBLE_CLICK, (6) TRIPLE_CLICK:
+For these click actions, the value is fixed to None. The specific coordinates to operate on are provided as the Action Element.
+(7) TYPE: value is the text content that needs to be entered.
+(8) DRAG: value is None.
+(9) SCROLL: value is the scroll direction, such as left, right, up, or down.
+(10) WAIT: value is None.
+(11) PRESS_KEY: value is the key or key-combination to be pressed.
+(12) FINISHED: value is the final answer for the given query or the reason why it could not be solved.
+5. Output only one action per iteration and strictly in the following format:
+* Thought: {brief thoughts (brief summary of information that helps answer the query)}
+* Action Element: {the coordinates in <point>(x,y)</point> format; for DRAG operations, provide two coordinates in
+<point>(start_x,start_y)</point> <point>(end_x,end_y)</point>; otherwise output 'None'}
+* Action Type: {one Action Type you choose to operate}
+* Action Value: {one Action Value you choose in the above format}
+```
+Figure 10.Original system prompt used by the agent.
+19
+
+--- PAGE 20 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+......
+2. First, carefully analyze the provided query and Historical Summary to understand the user's intent and historical interaction information,
+clarify the current progress in fulfilling the query, and determine the subsequent actions to take. Historical Summary consists of multiple
+historical step summaries in the format: "n. [Brief current page state] → [Brief action taken]", where:
+n represents the logical sequence number of the step summary, starting from 1.
+[Brief current page state]: A concise description of the key visual/content state of the webpage just before the action.
+[Brief action taken]: The operation performed (such as click, type, etc.).
+……
+6. *NOTE: Before deciding the next action, you must carefully review the entire Historical Summary and compare it with the current
+screenshot/Observation.
+(1) Avoid repeating any action on the same element (bar/button/text/area) that has already been tried and did not advance the query.
+(2) If an action (such as clicking, typing, selecting) failed to change the page meaningfully or did not match the intent, do not try this action
+again on the same element, unless the page state has clearly changed.
+(3) If you realize the last action was ineffective (e.g., page state did not change or the result was the same), you must reflect and explicitly
+choose a different strategy.
+(4) Do not re-explore items, links, pages, or sections that have already been checked and excluded by summary.
+(5) Whenever there is redundancy or repeated actions in the summary, actively avoid further repetition and focus only on new, untried, or
+promising actions.
+7. Output only one action and strictly in the following format:
+* Thought: {brief thoughts (brief summary of information that helps answer the query)}
+* Summary: {a concise, structured summary for current step in the format: [Brief current page state] → [Brief action taken]. Example: [On
+homepage, search bar visible] → [Clicked search bar to input search term]}
+* Action Element: ……
+```
+Figure 11.Update of Dynamic Trajectory Summarization compared to the original system prompt.
+Role: Web Navigation Strategy Analyst
+Goal: Analyze a successful agent trajectory to distill "High-Leverage Interaction Rules" that ensure reliability and efficiency.
+Input Data:
+User Query: <user_query>
+Trajectory: <successful_trajectory_log>
+Task - Pure UI Interaction Logic:
+Reverse-engineer the UI interaction logic. Since URL modification is prohibited, focus strictly on intelligent usage of buttons, menus, and search
+forms.
+Analysis Dimensions:
+1. Search & Filter Strategy (Input Logic):
+Analyze how the agent phrased the query for precision (e.g., specific keywords, prefixes, exact match quotes, or filter combinations). Identify
+how to construct the perfect query string or use advanced search forms.
+2. Navigation Efficiency (Click Logic):
+Identify "Anchor Elements" (e.g., "Advanced Search", "Catalog") that serve as shortcuts to avoid deep navigation. Note how the agent selected
+critical paths or used visual cues to avoid infinite loops (e.g., recognizing when to stop clicking "Next").
+3. State Validation (Wait/Check Logic):
+Determine how the agent verified action success (e.g., waiting for specific tags/badges) or handled empty results (e.g., falling back to broader
+categories).
+Strict Constraints:
+- NO URL Manipulation: Focus only on clicking and typing.
+- NO Trivial Actions: Exclude generic steps like "Click search" or "Wait for load" unless handling a non-standard UI quirk.
+- Generalize Values: Replace specific entities (e.g., "iPhone 15") with placeholders (e.g., "target item").
+Your Output:
+"""
+Figure 12.PromptP ext used by Abstractor to extract insight.
+20
+
+--- PAGE 21 ---
+Dual-Memory Augmentation for Long-Horizon Web Agents via Trajectory Summarization and Insight Retrieval
+As a robot browsing the web, your task is to complete the query through a series of actions with web page and strictly follow the rules.
+rules:
+```
+1. In each iteration, you will receive an Observation that includes a screenshot of the web page and some texts, including a set of "Reference Trajectory Insights"
+(extra lessons from similar past tasks) and Historical Summary (description of pages already browsed and operation steps performed). The screen's resolution is
+#VIEWPORT_WIDTH#x#VIEWPORT_HEIGHT#.
+2. First carefully think and analyze the visual information and the provided Reference Trajectory Insights.
+**CRITICAL INSTRUCTION ON INSIGHTS:**
+- The provided "Reference Trajectory Insights" are historical suggestions and MAY NOT perfectly match the current page state.
+- **Verify before applying:** Only follow an insight if the visual elements it describes (e.g., buttons, sidebars) are actually visible in your current screenshot.
+- **Ignore if conflicting:** If an insight contradicts your visual observation (e.g., it says "click left sidebar" but there is no sidebar), IGNORE it and trust your
+own judgment.
+- **Prioritize Success:** Use insights to avoid known pitfalls (e.g., dead loops), but do not force an action if it seems wrong.
+3. Next, carefully analyze the provided query and Historical Summary to understand the user's intent and historical interaction information, clarify the current
+progress in fulfilling the query, and determine the subsequent actions to take. Historical Summary consists of multiple historical step summaries in the format: "n.
+[Brief current page state] → [Brief action taken]", where:
+n represents the logical sequence number of the step summary, starting from 1.
+[Brief current page state]: A concise description of the key visual/content state of the webpage just before the action.
+[Brief action taken]: The operation performed (such as click, type, etc.).
+4. Afterwards, carefully consider and analyze the current visual information to determine the location of the next web element to interact with based on the user's
+intent and historical context. Describe the location using absolute screen coordinates in the following format:
+<point>(x,y)</point>
+where x and y are the horizontal and vertical pixel coordinates, respectively.
+Note: If no specific point is required, output 'None'.
+5. Then choose one Action Type from the following actions:
+(1) HOVER: Hover the mouse over the specified coordinates.
+(2) LEFT_CLICK: Click the left mouse button on the specified coordinates.
+(3) RIGHT_CLICK: Click the right mouse button on the specified coordinates.
+(4) MIDDLE_CLICK: Click the middle mouse button on the specified coordinates.
+(5) DOUBLE_CLICK: Double-click the left mouse button on the specified coordinates.
+(6) TRIPLE_CLICK: Triple-click the left mouse button on the specified coordinates.
+(7) TYPE: Type the specified text.
+(8) DRAG: Drag the mouse from a start point to an end point. Action Element should be two <point>(x,y)</point> entries, representing the start and end
+coordinates.
+(9) SCROLL: Scroll the page in the specified direction. If the coordinates are 'None', the default is to scroll the entire window. Otherwise, scroll from the
+specified coordinates.
+(10) WAIT: Wait for a specified duration or for unfinished page processes.
+(11) PRESS_KEY: Press a key or hotkey to complete a specific operation. The value supports xdotool's`key` syntax.
+Examples: "a", "Return", "alt+Tab", "ctrl+s", "Up", "KP_0" (for the numpad 0 key).
+(12) FINISHED: This action should be selected if the query has been resolved or is considered unresolvable.
+6. Finally, determine the action value based on the action type. Note that if no content is required, output 'None'.
+(1) HOVER: value is None.
+(2) LEFT_CLICK, (3) RIGHT_CLICK, (4) MIDDLE_CLICK, (5) DOUBLE_CLICK, (6) TRIPLE_CLICK:
+For these click actions, the value is fixed to None. The specific coordinates to operate on are provided as the Action Element.
+(7) TYPE: value is the text content that needs to be entered.
+(8) DRAG: value is None.
+(9) SCROLL: value is the scroll direction, such as left, right, up, or down.
+(10) WAIT: value is None.
+(11) PRESS_KEY: value is the key or key-combination to be pressed.
+(12) FINISHED: value is the final answer for the given query or the reason why it could not be solved.
+7. *NOTE: Before deciding the next action, you must carefully review the entire Historical Summary and compare it with the current screenshot/Observation.
+(1) Avoid repeating any action on the same element (bar/button/text/area) that has already been tried and did not advance the query.
+(2) If an action (such as clicking, typing, selecting) failed to change the page meaningfully or did not match the intent, do not try this action again on the same
+element, unless the page state has clearly changed.
+(3) If you realize the last action was ineffective (e.g., page state did not change or the result was the same), you must reflect and explicitly choose a different
+strategy.
+(4) Do not re-explore items, links, pages, or sections that have already been checked and excluded by summary.
+(5) Whenever there is redundancy or repeated actions in the summary, actively avoid further repetition and focus only on new, untried, or promising actions.
+8. Output only one action and strictly in the following format:
+* Thought: {brief thoughts (brief summary of information that helps answer the query)}
+* Summary: {a concise, structured summary for current step in the format: [Brief current page state] → [Brief action taken]. Example: [On homepage, search
+bar visible] → [Clicked search bar to input search term]}
+* Action Element: {the coordinates in <point>(x,y)</point> format; for DRAG operations, provide two coordinates in <point>(start_x,start_y)</point>
+<point>(end_x,end_y)</point>; otherwise output 'None'}
+* Action Type: {one Action Type you choose to operate}
+* Action Value: {one Action Value you choose in the above format}
+```
+Figure 13.System promptsP ′
+sys used in the final M2 framework.
+21

@@ -1,0 +1,52 @@
+# Coverage Access Wave 01 Formal Access Closure Brief
+
+TASK_PACKET
+- stage: Deep Synthesis
+- artifact: coverage_access
+- objective: Create a stable repo-local paper text-access surface and a formal-source routing map so Deep Synthesis can claim actual paper-content coverage rather than metadata-only paper presence.
+- exact_question: How do we extract and store readable paper text under `research/sources/papers/papers_text/`, how do we classify extraction quality, which papers remain unread or failed, and which readable formal sources are anchor, theme, or inventory-only inputs downstream?
+- why_now: Deep Synthesis cannot honestly claim formal-paper coverage until the PDF lane is readable. This is the first required `coverage_access` wave under the binding wave plan.
+- inputs:
+  - tracking/collab/stage_02_synthesis/deep_synthesis_wave_plan/synthesis/principal_synthesis.md
+  - tracking/collab/stage_02_synthesis/coverage_access/brief.md
+  - tracking/collab/stage_02_synthesis/literature_dossiers/README.md
+  - research/sources/papers/
+  - research/intake/normalized/manifests/corpus__captured_for_synthetic_prep.json
+- preflight_requirements:
+  - count the paper PDFs and existing readable text surfaces
+  - identify the best available repo-local extraction path
+  - preserve one `<paper_key>.txt` and one `<paper_key>.meta.json` per accessible paper
+  - classify extraction quality as `clean`, `usable_with_caveats`, `ocr_needed`, or `failed`
+  - classify readable formal sources as `anchor`, `theme`, or `inventory_only` using the literature-dossier selection rules
+  - stop and return a concrete blocker if no workable extraction path exists yet
+- exclusions:
+  - do not make mechanism claims from unread PDFs
+  - do not silently treat metadata as paper-content coverage
+  - do not open new `mechanism_map` waves from inside this support wave
+- output_contract:
+  - wave synthesis:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_01_formal_access_closure/synthesis/principal_synthesis.md
+  - wave summary:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_01_formal_access_closure/outputs/formal_access_closure.md
+  - formal-source routing map:
+    - tracking/collab/stage_02_synthesis/coverage_access/waves/wave_01_formal_access_closure/outputs/formal_source_routing.md
+  - paper-text surface:
+    - research/sources/papers/papers_text/<paper_key>.txt
+    - research/sources/papers/papers_text/<paper_key>.meta.json
+- collaboration_mode: bounded support wave; blind parallel allowed if multiple extractors or validators are compared under the same packet
+- external_agent_action: Run external agent now: yes. Use the formal-access analyst packet to establish the paper-text access surface or return the concrete blocker.
+- assigned_roles:
+  - principal project steward
+  - formal-access analyst
+- upstream_artifact_inputs:
+  - tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+- handoff_requirements:
+  - write the paper-access status back into the wave summary so later formal literature waves know which papers are actually readable
+  - write the routing status back into `formal_source_routing.md` so later literature work knows which papers deserve anchor dossiers, theme dossiers, or inventory-only treatment
+- evidence_expectations:
+  - preserve exact file-level mapping between source PDF and extracted text
+  - keep failed and OCR-needed papers visible
+  - do not treat readable text alone as enough; readable papers still need formal-source routing status
+  - do not overstate coverage
+- decision_needed_from_human: approve external tool installation only if repo-local extraction options fail.
+- done_condition: `research/sources/papers/papers_text/` exists as the canonical paper-text surface, the wave summary makes unread, usable-with-caveats, OCR-needed, and failed papers explicit, and `formal_source_routing.md` classifies readable formal sources into anchor, theme, or inventory-only status.
