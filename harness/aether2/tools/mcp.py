@@ -13,7 +13,6 @@ ConfigScope = Literal["local", "user", "project", "dynamic", "enterprise", "mana
 McpTransport = Literal["fake_local", "stdio", "sse", "http", "sdk"]
 McpConnectionState = Literal["connected", "failed", "needs-auth", "pending", "disabled"]
 
-_CLAUDEAI_SERVER_PREFIX = "claude.ai "
 _ASCII_MCP_CHARSET = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
 
 
@@ -94,7 +93,7 @@ class LocalMcpServer(Protocol):
 
 @dataclass(frozen=True)
 class McpServerConnection:
-    """Connection-state abstraction mirroring the TS connected/failed/pending/disabled model."""
+    """Connection-state abstraction over the connected/failed/pending/disabled lifecycle."""
 
     name: str
     type: McpConnectionState
@@ -119,12 +118,9 @@ class McpServerUnavailableError(RuntimeError):
 
 
 def normalize_name_for_mcp(name: str) -> str:
-    """Direct adaptation of normalizeNameForMCP from the TS source."""
+    """Normalize a server or tool name into the MCP-safe identifier charset."""
 
-    normalized = "".join(character if character in _ASCII_MCP_CHARSET else "_" for character in name)
-    if name.startswith(_CLAUDEAI_SERVER_PREFIX):
-        normalized = _collapse_underscores(normalized).strip("_")
-    return normalized
+    return "".join(character if character in _ASCII_MCP_CHARSET else "_" for character in name)
 
 
 def build_mcp_tool_name(server_name: str, tool_name: str) -> str:
@@ -385,12 +381,6 @@ def _coerce_optional_mapping(value: Any) -> dict[str, Any] | None:
     if isinstance(value, Mapping):
         return deepcopy(dict(value))
     return {"value": deepcopy(value)}
-
-
-def _collapse_underscores(value: str) -> str:
-    while "__" in value:
-        value = value.replace("__", "_")
-    return value
 
 
 def _render_result_stdout(result: McpToolResult) -> str:

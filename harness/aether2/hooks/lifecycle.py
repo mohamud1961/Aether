@@ -14,7 +14,7 @@ PermissionBehavior = Literal["allow", "deny", "ask"]
 
 @dataclass(frozen=True)
 class PermissionDecisionReason:
-    """Structured reason metadata mirroring the TS permission-decision shape."""
+    """Structured reason metadata attached to a permission decision."""
 
     type: str
     source: str
@@ -81,7 +81,7 @@ class HookContext:
 
 @dataclass(frozen=True)
 class HookResult:
-    """First-slice hook result: audit note plus optional permission decision."""
+    """Hook result: an audit note plus an optional permission decision."""
 
     permission_decision: PermissionDecision | None = None
     note: str | None = None
@@ -123,7 +123,7 @@ class HookRunResult:
 
 
 def deep_copy_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Keep hook/tool inputs immutable and auditable in the first port slice."""
+    """Return a deep copy so hook and tool inputs stay immutable and auditable."""
 
     return deepcopy(arguments)
 

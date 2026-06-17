@@ -13,13 +13,13 @@ from harness.aether2.hooks.registry import HookRegistry
 
 
 _UNSUPPORTED_MUTATION_MESSAGE = (
-    "Permission hook attempted to rewrite tool arguments; mutation is deferred in the first port slice."
+    "Permission hooks may not rewrite tool arguments; in-place argument mutation is not supported."
 )
 
 
 @dataclass(frozen=True)
 class PermissionRule:
-    """First-slice permission rule mirroring the TS tool-name plus optional content matcher."""
+    """Permission rule: a tool-name matcher with an optional argument-content matcher."""
 
     behavior: str
     tool_matcher: str

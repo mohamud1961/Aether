@@ -1,2 +1,0 @@
-"""Public HarnessEng namespace."""
-

@@ -1,1 +1,0 @@
-sh -lc 'sleep 10; printf "job complete\n" > done.txt'

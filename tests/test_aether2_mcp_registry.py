@@ -174,8 +174,8 @@ def test_mcp_registry_discovery_is_deterministic_and_schema_mapping_is_faithful(
     assert registry.tool_names() == second_registry.tool_names()
 
 
-def test_mcp_name_normalization_matches_ascii_only_ts_contract() -> None:
-    assert build_mcp_tool_name("claude.ai Café", "Δelta Tool") == "mcp__claude_ai_Caf___elta_Tool"
+def test_mcp_name_normalization_replaces_non_ascii_uniformly() -> None:
+    assert build_mcp_tool_name("Acme Registry", "Δelta Tool") == "mcp__Acme_Registry___elta_Tool"
 
 
 def test_registry_invokes_mcp_tool_with_hook_and_permission_evidence(tmp_path: Path) -> None:

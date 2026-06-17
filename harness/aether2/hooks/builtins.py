@@ -1,4 +1,4 @@
-"""Built-in hook helpers for the first TS-to-Python permission/hook port slice."""
+"""Built-in hook helpers for the permission and tool-lifecycle hook surface."""
 
 from __future__ import annotations
 
