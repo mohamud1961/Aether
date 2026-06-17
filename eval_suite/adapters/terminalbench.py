@@ -12,11 +12,11 @@ from runner.benchmark_adapter_contracts import (
     validate_benchmark_adapter_case,
 )
 from runner.eval_substrate_contracts import validate_result_row, validate_task_pack
-from runner.phase65_measurement_contracts import (
+from runner.measurement_contracts import (
     load_financial_document_contract,
     load_regex_log_contract,
 )
-from runner.phase65_measurement_grading import grade_public_terminalbench_workspace
+from runner.measurement_grading import grade_public_terminalbench_workspace
 from runner.terminalbench_paths import resolve_terminalbench_task_root
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

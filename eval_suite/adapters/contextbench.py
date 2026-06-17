@@ -13,7 +13,7 @@ from runner.benchmark_adapter_contracts import (
     validate_benchmark_adapter_case,
 )
 from runner.eval_substrate_contracts import validate_result_row, validate_task_pack
-from runner.phase65_measurement_grading import grade_contextbench_verified_answer
+from runner.measurement_grading import grade_contextbench_verified_answer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTEXTBENCH_ROOT = REPO_ROOT / "research/sources/codebases/ContextBench"

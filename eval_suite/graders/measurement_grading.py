@@ -1,4 +1,4 @@
-"""Truthful graders for the bounded Phase 6.5 measurement repair slice."""
+"""Truthful graders for the bounded measurement eval slice."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from runner.letta_context_bench import grade_letta_filesystem_answer
-from runner.phase65_measurement_contracts import (
+from runner.measurement_contracts import (
     load_extract_moves_contract,
     load_financial_document_contract,
     load_regex_log_contract,
@@ -21,7 +21,7 @@ from runner.phase65_measurement_contracts import (
 from runner.terminalbench_paths import resolve_terminalbench_task_root
 
 
-def grade_phase65_spec(
+def grade_measurement_spec(
     *,
     spec: dict[str, Any],
     result: dict[str, Any],
@@ -38,16 +38,16 @@ def grade_phase65_spec(
         return grade_extract_moves_workspace(workspace, task_id=spec["task_id"])
     if benchmark_class == "terminalbench_public_regression":
         return grade_public_terminalbench_workspace(workspace, task_id=spec["task_id"])
-    if benchmark_class == "phase65_completion_partial_progress":
+    if benchmark_class == "measurement_completion_partial_progress":
         return grade_partial_progress_workspace(
             workspace=workspace,
             result_text=_assistant_text(result),
             artifact_relpath=spec["artifact_relpath"],
             expected_payload=spec["expected_payload"],
         )
-    if benchmark_class == "phase65_completion_verifier_repair":
+    if benchmark_class == "measurement_completion_verifier_repair":
         return grade_verifier_repair_workspace(workspace=workspace, verifier_relpath=spec["verifier_relpath"])
-    if benchmark_class == "phase65_context_work_pocket":
+    if benchmark_class == "measurement_context_work_pocket":
         return grade_work_pocket_handoff_workspace(
             workspace=workspace,
             result_text=_assistant_text(result),
@@ -200,7 +200,7 @@ def grade_verifier_repair_workspace(*, workspace: Path, verifier_relpath: str) -
                 mode="w",
                 encoding="utf-8",
                 suffix=".sh",
-                prefix="phase65_verifier_",
+                prefix="measurement_verifier_",
                 dir=str(workspace),
                 delete=False,
             )
