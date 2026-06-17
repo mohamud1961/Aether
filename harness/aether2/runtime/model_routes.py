@@ -5,20 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import time
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Protocol
-from urllib import error as urllib_error
 from urllib import parse as urllib_parse
-from urllib import request as urllib_request
 
 from harness.aether2.runtime.route_schemas import validate_model_route
 
-CODEX_INFERENCE_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
-CODEX_REFRESH_ENDPOINT = "https://auth.openai.com/oauth/token"
-CODEX_REFRESH_CLIENT_ID = "app_codex"
-DEFAULT_CODEX_AUTH_PATH = Path("~/.codex/auth.json").expanduser()
 TRANSIENT_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 AZURE_OPENAI_DEFAULT_API_VERSION = "2024-12-01-preview"
 AZURE_ROUTE_MODEL_TIERS = frozenset({"gpt-5.4-mini", "gpt-5.3-codex"})
@@ -29,7 +21,6 @@ AZURE_ENV_GPT54_MINI_KEY = "AZURE_OPENAI_GPT54_MINI_KEY"
 AZURE_ENV_GPT54_MINI_DEPLOYMENT = "AZURE_OPENAI_GPT54_MINI_DEPLOYMENT"
 AZURE_ENV_GPT53_CODEX_KEY = "AZURE_OPENAI_GPT53_CODEX_KEY"
 AZURE_ENV_GPT53_CODEX_DEPLOYMENT = "AZURE_OPENAI_GPT53_CODEX_DEPLOYMENT"
-OPENAI_ENV_API_KEY = "OPENAI_API_KEY"
 
 
 class ModelClientError(RuntimeError):
@@ -115,24 +106,6 @@ def make_no_model_route() -> dict[str, Any]:
         model_name="none",
         adapter_id="no_model",
         auth_mode="none",
-    )
-
-
-def make_codex_subscription_route(
-    *,
-    model_name: str,
-    request_settings: dict[str, Any] | None = None,
-    provider_scope: str = "local_dev",
-) -> dict[str, Any]:
-    return make_model_route(
-        model_client_id="codex_subscription",
-        provider_route="codex_subscription",
-        model_name=model_name,
-        adapter_id="codex_subscription_oauth",
-        auth_mode="oauth",
-        provider_scope=provider_scope,
-        api_base=CODEX_INFERENCE_ENDPOINT,
-        request_settings=request_settings,
     )
 
 
@@ -230,27 +203,6 @@ def make_azure_gpt53_codex_route_from_env(
     )
 
 
-def make_openai_chat_completions_route(
-    *,
-    model_name: str,
-    api_key_env_var: str = OPENAI_ENV_API_KEY,
-    request_settings: dict[str, Any] | None = None,
-    provider_scope: str = "local_dev",
-) -> dict[str, Any]:
-    settings = dict(request_settings or {})
-    settings["api_key_env_var"] = api_key_env_var
-    return make_model_route(
-        model_client_id="openai_api_key",
-        provider_route="openai_api",
-        model_name=model_name,
-        adapter_id="openai_chat_completions_api_key",
-        auth_mode="api_key",
-        provider_scope=provider_scope,
-        api_base="https://api.openai.com/v1/chat/completions",
-        request_settings=settings,
-    )
-
-
 @dataclass(frozen=True)
 class LocalStubModelClient:
     route: dict[str, Any]
@@ -290,182 +242,6 @@ class LocalStubModelClient:
 
 
 @dataclass
-class CodexSubscriptionModelClient:
-    route: dict[str, Any]
-    auth_path: Path = DEFAULT_CODEX_AUTH_PATH
-    timeout_sec: float = 30.0
-    max_retries: int = 2
-    retry_backoff_sec: float = 0.2
-    refresh_cooldown_sec: float = 5.0
-    _last_refresh_attempt: float = field(default=-1.0, init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        self.route = validate_model_route(dict(self.route))
-        self.auth_path = Path(self.auth_path).expanduser()
-        if self.route["provider_route"] != "codex_subscription":
-            raise ValueError("CodexSubscriptionModelClient requires provider_route=codex_subscription")
-
-    def complete(self, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
-        payload = self._build_payload(messages=messages, kwargs=kwargs)
-        timeout_sec = float(kwargs.get("timeout_sec", self.timeout_sec))
-        max_retries = max(0, int(kwargs.get("max_retries", self.max_retries)))
-        max_attempts = max_retries + 1
-
-        access_token, refresh_token, auth_payload = _load_auth_tokens(self.auth_path)
-        refreshed = False
-        attempts = 0
-        while attempts < max_attempts:
-            attempts += 1
-            try:
-                events = self._post_inference(payload=payload, access_token=access_token, timeout_sec=timeout_sec)
-                return _normalize_codex_result(events=events, model_route=self.route)
-            except urllib_error.HTTPError as err:
-                status_code = int(getattr(err, "code", 0) or 0)
-                if status_code == 401 and not refreshed:
-                    access_token, refresh_token, auth_payload = self._refresh_access_token(
-                        refresh_token=refresh_token,
-                        auth_payload=auth_payload,
-                        timeout_sec=timeout_sec,
-                    )
-                    refreshed = True
-                    attempts -= 1
-                    continue
-                if status_code in TRANSIENT_STATUS_CODES and attempts < max_attempts:
-                    self._sleep_for_retry(attempts)
-                    continue
-                raise ModelClientError(
-                    f"codex_subscription request failed with status {status_code}",
-	                    status_code=status_code,
-	                    response_body=_http_error_body(err),
-	                    response_headers=_http_error_headers(err),
-	                    error_kind="http_error",
-                    metadata={"url": getattr(err, "url", None)},
-                ) from err
-            except (urllib_error.URLError, OSError, TimeoutError, ConnectionError) as err:
-                if attempts < max_attempts:
-                    self._sleep_for_retry(attempts)
-                    continue
-                raise ModelClientError(
-                    "codex_subscription request failed due to network error",
-                    error_kind="network_error",
-                    metadata={"reason": _network_error_reason(err)},
-                ) from err
-
-        raise ModelClientError("codex_subscription request exhausted retries")
-
-    def _build_payload(self, *, messages: list[dict[str, Any]], kwargs: dict[str, Any]) -> dict[str, Any]:
-        route_settings = self.route.get("request_settings") or {}
-        route_settings = dict(route_settings) if isinstance(route_settings, dict) else {}
-        tools = _normalize_request_tools(kwargs.get("tools", route_settings.get("tools", [])))
-
-        payload: dict[str, Any] = {
-            "model": self.route["model_name"],
-            "store": False,
-            "stream": True,
-            "instructions": _extract_instructions(messages, route_settings, kwargs),
-            "input": _normalize_input_messages(messages),
-            "tools": tools,
-        }
-        route_settings.pop("tools", None)
-        route_settings.pop("instructions", None)
-        if isinstance(route_settings, dict):
-            payload.update(route_settings)
-        for key, value in kwargs.items():
-            if key in {"timeout_sec", "max_retries", "tools"}:
-                continue
-            payload[key] = value
-        return payload
-
-    def _post_inference(
-        self,
-        *,
-        payload: dict[str, Any],
-        access_token: str,
-        timeout_sec: float,
-    ) -> list[dict[str, Any]]:
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-            "Accept": "text/event-stream",
-        }
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        request = urllib_request.Request(
-            url=self.route.get("api_base") or CODEX_INFERENCE_ENDPOINT,
-            data=body,
-            method="POST",
-            headers=headers,
-        )
-        with urllib_request.urlopen(request, timeout=timeout_sec) as response:
-            return _parse_sse_events(response.read())
-
-    def _refresh_access_token(
-        self,
-        *,
-        refresh_token: str | None,
-        auth_payload: dict[str, Any],
-        timeout_sec: float,
-    ) -> tuple[str, str | None, dict[str, Any]]:
-        if not refresh_token:
-            raise ModelClientError("codex_subscription refresh token is missing")
-        now = time.monotonic()
-        if self._last_refresh_attempt >= 0 and now - self._last_refresh_attempt < self.refresh_cooldown_sec:
-            raise ModelClientError("codex_subscription refresh cooldown active")
-        self._last_refresh_attempt = now
-
-        refresh_payload = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": CODEX_REFRESH_CLIENT_ID,
-        }
-        request = urllib_request.Request(
-            url=CODEX_REFRESH_ENDPOINT,
-            data=json.dumps(refresh_payload, separators=(",", ":")).encode("utf-8"),
-            method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
-        )
-        try:
-            with urllib_request.urlopen(request, timeout=timeout_sec) as response:
-                refresh_data = json.loads(response.read().decode("utf-8"))
-        except urllib_error.HTTPError as err:
-            status_code = int(getattr(err, "code", 0) or 0)
-            raise ModelClientError(
-                f"codex_subscription token refresh failed with status {status_code}",
-	                status_code=status_code,
-	                response_body=_http_error_body(err),
-	                response_headers=_http_error_headers(err),
-	                error_kind="refresh_http_error",
-                metadata={"url": getattr(err, "url", None)},
-            ) from err
-        except (urllib_error.URLError, OSError, TimeoutError, ConnectionError) as err:
-            raise ModelClientError(
-                "codex_subscription token refresh failed due to network error",
-                error_kind="refresh_network_error",
-                metadata={"reason": _network_error_reason(err)},
-            ) from err
-
-        new_access_token = _first_string(refresh_data.get("access_token"))
-        if not new_access_token:
-            raise ModelClientError("codex_subscription token refresh returned no access token")
-        new_refresh_token = _first_string(refresh_data.get("refresh_token")) or refresh_token
-        updated_payload = _with_updated_tokens(
-            auth_payload=auth_payload,
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-        )
-        self.auth_path.parent.mkdir(parents=True, exist_ok=True)
-        self.auth_path.write_text(
-            json.dumps(updated_payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        return new_access_token, new_refresh_token, updated_payload
-
-    def _sleep_for_retry(self, attempts: int) -> None:
-        delay = self.retry_backoff_sec * attempts
-        if delay > 0:
-            time.sleep(delay)
-
-
-@dataclass
 class AzureOpenAIAPIKeyModelClient:
     route: dict[str, Any]
     timeout_sec: float = 30.0
@@ -482,96 +258,19 @@ class AzureOpenAIAPIKeyModelClient:
             raise ValueError("AzureOpenAIAPIKeyModelClient requires model_client_id=azure_openai_api_key")
 
     def complete(self, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
-        payload = self._build_payload(messages=messages, kwargs=kwargs)
+        # litellm is imported lazily so the module loads cleanly when litellm is absent.
+        import litellm  # type: ignore[import-not-found]
+
         route_settings = self.route.get("request_settings") or {}
         route_settings = dict(route_settings) if isinstance(route_settings, dict) else {}
+
         api_surface = _first_string(route_settings.get("azure_api_surface")) or "deployment_chat_completions"
-        timeout_sec = float(kwargs.get("timeout_sec", self.timeout_sec))
-        max_retries = max(0, int(kwargs.get("max_retries", self.max_retries)))
-        max_attempts = max_retries + 1
-        attempts = 0
-        while attempts < max_attempts:
-            attempts += 1
-            try:
-                response = self._post_chat_completion(payload=payload, timeout_sec=timeout_sec)
-                if api_surface == "v1_responses":
-                    return _normalize_azure_responses_result(response=response, model_route=self.route)
-                return _normalize_azure_chat_result(response=response, model_route=self.route)
-            except urllib_error.HTTPError as err:
-                status_code = int(getattr(err, "code", 0) or 0)
-                if status_code in TRANSIENT_STATUS_CODES and attempts < max_attempts:
-                    self._sleep_for_retry(attempts)
-                    continue
-                raise ModelClientError(
-                    f"azure openai request failed with status {status_code}",
-	                    status_code=status_code,
-	                    response_body=_http_error_body(err),
-	                    response_headers=_http_error_headers(err),
-	                    error_kind="http_error",
-                    metadata={
-                        "url": getattr(err, "url", None),
-                        "deployment": self.route.get("model_name"),
-                        "api_base": self.route.get("api_base"),
-                    },
-                ) from err
-            except (urllib_error.URLError, OSError, TimeoutError, ConnectionError) as err:
-                if attempts < max_attempts:
-                    self._sleep_for_retry(attempts)
-                    continue
-                raise ModelClientError(
-                    "azure openai request failed due to network error",
-                    error_kind="network_error",
-                    metadata={
-                        "reason": _network_error_reason(err),
-                        "deployment": self.route.get("model_name"),
-                        "api_base": self.route.get("api_base"),
-                    },
-                ) from err
-
-        raise ModelClientError("azure openai request exhausted retries")
-
-    def _build_payload(self, *, messages: list[dict[str, Any]], kwargs: dict[str, Any]) -> dict[str, Any]:
-        route_settings = self.route.get("request_settings") or {}
-        route_settings = dict(route_settings) if isinstance(route_settings, dict) else {}
-        api_surface = _first_string(route_settings.get("azure_api_surface")) or "deployment_chat_completions"
-        tools_input = kwargs.get("tools", route_settings.pop("tools", []))
-        if api_surface == "v1_responses":
-            tools = _normalize_request_tools(tools_input)
-            payload: dict[str, Any] = {
-                "model": self.route["model_name"],
-                "input": _normalize_input_messages(messages),
-                "instructions": _extract_instructions(messages, route_settings, kwargs),
-                "store": False,
-            }
-        else:
-            tools = _normalize_chat_completions_tools(tools_input)
-            payload = {"messages": _normalize_chat_messages(messages)}
-        if api_surface == "v1_chat_completions":
-            payload["model"] = self.route["model_name"]
-        if tools:
-            payload["tools"] = tools
-
-        for internal_key in (
-            "azure_endpoint",
-            "azure_api_version",
-            "azure_deployment",
-            "api_key_env_var",
-            "pricing_model_id",
-            "azure_api_surface",
-        ):
-            route_settings.pop(internal_key, None)
-        if isinstance(route_settings, dict):
-            payload.update(route_settings)
-        for key, value in kwargs.items():
-            if key in {"timeout_sec", "max_retries", "tools"}:
-                continue
-            payload[key] = value
-        return payload
-
-    def _post_chat_completion(self, *, payload: dict[str, Any], timeout_sec: float) -> dict[str, Any]:
-        route_settings = self.route.get("request_settings") or {}
-        settings = dict(route_settings) if isinstance(route_settings, dict) else {}
-        api_key_env_var = _first_string(settings.get("api_key_env_var"))
+        deployment = _first_string(route_settings.get("azure_deployment")) or self.route.get("model_name") or ""
+        endpoint = _first_string(route_settings.get("azure_endpoint"))
+        api_version = (
+            _first_string(route_settings.get("azure_api_version")) or AZURE_OPENAI_DEFAULT_API_VERSION
+        )
+        api_key_env_var = _first_string(route_settings.get("api_key_env_var"))
         if not api_key_env_var:
             raise ModelClientError(
                 "azure openai route is missing request_settings.api_key_env_var",
@@ -584,146 +283,117 @@ class AzureOpenAIAPIKeyModelClient:
                 error_kind="auth_error",
                 metadata={"api_key_env_var": api_key_env_var},
             )
-        api_surface = _first_string(settings.get("azure_api_surface")) or "deployment_chat_completions"
-        request_url = _first_string(self.route.get("api_base"))
-        if api_surface != "v1_responses":
-            api_version = _first_string(settings.get("azure_api_version")) or AZURE_OPENAI_DEFAULT_API_VERSION
-            request_url = _with_api_version(url=request_url, api_version=api_version)
-        if not request_url:
-            raise ModelClientError("azure openai route is missing api_base", error_kind="route_error")
-        headers = {
-            "api-key": api_key,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
+        if not endpoint:
+            raise ModelClientError(
+                "azure openai route is missing request_settings.azure_endpoint",
+                error_kind="route_error",
+            )
+
+        tools_input = kwargs.get("tools", route_settings.get("tools", []))
+        if api_surface == "v1_responses":
+            # Azure Responses API: use normalized flat tools for litellm's chat completions call.
+            tools = _normalize_request_tools(tools_input) or None
+            normalized_messages = _normalize_input_messages(messages)
+        else:
+            tools = _normalize_chat_completions_tools(tools_input) or None
+            normalized_messages = _normalize_chat_messages(messages)
+
+        # Build extra kwargs from route settings, excluding internal keys.
+        _INTERNAL_KEYS = frozenset({
+            "azure_endpoint", "azure_api_version", "azure_deployment",
+            "api_key_env_var", "pricing_model_id", "azure_api_surface", "tools",
+        })
+        extra: dict[str, Any] = {
+            k: v for k, v in route_settings.items() if k not in _INTERNAL_KEYS
         }
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        request = urllib_request.Request(
-            url=request_url,
-            data=body,
-            method="POST",
-            headers=headers,
-        )
-        with urllib_request.urlopen(request, timeout=timeout_sec) as response:
-            decoded = response.read().decode("utf-8")
-        parsed = json.loads(decoded)
-        if not isinstance(parsed, dict):
-            raise ModelClientError("azure openai response payload must be an object")
-        return parsed
+        for key, value in kwargs.items():
+            if key not in {"timeout_sec", "max_retries", "tools"}:
+                extra[key] = value
 
-    def _sleep_for_retry(self, attempts: int) -> None:
-        delay = self.retry_backoff_sec * attempts
-        if delay > 0:
-            time.sleep(delay)
-
-
-@dataclass
-class OpenAIAPIKeyModelClient:
-    route: dict[str, Any]
-    timeout_sec: float = 30.0
-    max_retries: int = 2
-    retry_backoff_sec: float = 0.2
-
-    def __post_init__(self) -> None:
-        self.route = validate_model_route(dict(self.route))
-        if self.route["provider_route"] != "openai_api":
-            raise ValueError("OpenAIAPIKeyModelClient requires provider_route=openai_api")
-        if self.route.get("auth_mode") != "api_key":
-            raise ValueError("OpenAIAPIKeyModelClient requires auth_mode=api_key")
-        if self.route.get("model_client_id") != "openai_api_key":
-            raise ValueError("OpenAIAPIKeyModelClient requires model_client_id=openai_api_key")
-
-    def complete(self, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
-        payload = self._build_payload(messages=messages, kwargs=kwargs)
         timeout_sec = float(kwargs.get("timeout_sec", self.timeout_sec))
         max_retries = max(0, int(kwargs.get("max_retries", self.max_retries)))
-        max_attempts = max_retries + 1
-        attempts = 0
-        while attempts < max_attempts:
-            attempts += 1
-            try:
-                response = self._post_chat_completion(payload=payload, timeout_sec=timeout_sec)
-                return _normalize_azure_chat_result(response=response, model_route=self.route)
-            except urllib_error.HTTPError as err:
-                status_code = int(getattr(err, "code", 0) or 0)
-                if status_code in TRANSIENT_STATUS_CODES and attempts < max_attempts:
-                    self._sleep_for_retry(attempts)
-                    continue
-                raise ModelClientError(
-                    f"openai api request failed with status {status_code}",
-	                    status_code=status_code,
-	                    response_body=_http_error_body(err),
-	                    response_headers=_http_error_headers(err),
-	                    error_kind="http_error",
-                    metadata={"url": getattr(err, "url", None), "model": self.route.get("model_name")},
-                ) from err
-            except (urllib_error.URLError, OSError, TimeoutError, ConnectionError) as err:
-                if attempts < max_attempts:
-                    self._sleep_for_retry(attempts)
-                    continue
-                raise ModelClientError(
-                    "openai api request failed due to network error",
-                    error_kind="network_error",
-                    metadata={"reason": _network_error_reason(err), "model": self.route.get("model_name")},
-                ) from err
 
-        raise ModelClientError("openai api request exhausted retries")
-
-    def _build_payload(self, *, messages: list[dict[str, Any]], kwargs: dict[str, Any]) -> dict[str, Any]:
-        route_settings = self.route.get("request_settings") or {}
-        route_settings = dict(route_settings) if isinstance(route_settings, dict) else {}
-        tools = _normalize_chat_completions_tools(kwargs.get("tools", route_settings.pop("tools", [])))
-        payload: dict[str, Any] = {
-            "model": self.route["model_name"],
-            "messages": _normalize_chat_messages(messages),
+        litellm_kwargs: dict[str, Any] = {
+            "model": f"azure/{deployment}",
+            "messages": normalized_messages,
+            "api_key": api_key,
+            "api_base": endpoint,
+            "api_version": api_version,
+            "timeout": timeout_sec,
+            "num_retries": max_retries,
+            **extra,
         }
         if tools:
-            payload["tools"] = tools
-        route_settings.pop("api_key_env_var", None)
-        if isinstance(route_settings, dict):
-            payload.update(route_settings)
-        for key, value in kwargs.items():
-            if key in {"timeout_sec", "max_retries", "tools"}:
-                continue
-            payload[key] = value
-        return payload
+            litellm_kwargs["tools"] = tools
 
-    def _post_chat_completion(self, *, payload: dict[str, Any], timeout_sec: float) -> dict[str, Any]:
-        route_settings = self.route.get("request_settings") or {}
-        settings = dict(route_settings) if isinstance(route_settings, dict) else {}
-        api_key_env_var = _first_string(settings.get("api_key_env_var")) or OPENAI_ENV_API_KEY
-        api_key = _first_string(os.environ.get(api_key_env_var))
-        if not api_key:
+        try:
+            response_obj = litellm.completion(**litellm_kwargs)
+        except litellm.exceptions.AuthenticationError as exc:
             raise ModelClientError(
-                f"missing OpenAI API key in environment variable {api_key_env_var}",
+                f"azure openai authentication error: {exc}",
+                status_code=getattr(exc, "status_code", 401),
                 error_kind="auth_error",
-                metadata={"api_key_env_var": api_key_env_var},
-            )
-        request_url = _first_string(self.route.get("api_base"))
-        if not request_url:
-            raise ModelClientError("openai api route is missing api_base", error_kind="route_error")
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        request = urllib_request.Request(
-            url=request_url,
-            data=body,
-            method="POST",
-            headers=headers,
-        )
-        with urllib_request.urlopen(request, timeout=timeout_sec) as response:
-            decoded = response.read().decode("utf-8")
-        parsed = json.loads(decoded)
-        if not isinstance(parsed, dict):
-            raise ModelClientError("openai api response payload must be an object")
-        return parsed
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
+        except litellm.exceptions.RateLimitError as exc:
+            raise ModelClientError(
+                f"azure openai rate limit: {exc}",
+                status_code=getattr(exc, "status_code", 429),
+                error_kind="rate_limit_error",
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
+        except litellm.exceptions.ServiceUnavailableError as exc:
+            raise ModelClientError(
+                f"azure openai service unavailable: {exc}",
+                status_code=getattr(exc, "status_code", 503),
+                error_kind="service_unavailable_error",
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
+        except litellm.exceptions.BadRequestError as exc:
+            raise ModelClientError(
+                f"azure openai bad request: {exc}",
+                status_code=getattr(exc, "status_code", 400),
+                error_kind="bad_request_error",
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
+        except litellm.exceptions.APIConnectionError as exc:
+            raise ModelClientError(
+                f"azure openai connection error: {exc}",
+                error_kind="network_error",
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
+        except litellm.exceptions.Timeout as exc:
+            raise ModelClientError(
+                f"azure openai request timed out: {exc}",
+                error_kind="timeout_error",
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
+        except Exception as exc:
+            status_code = getattr(exc, "status_code", None)
+            if isinstance(status_code, int):
+                raise ModelClientError(
+                    f"azure openai request failed with status {status_code}: {exc}",
+                    status_code=status_code,
+                    error_kind="http_error",
+                    metadata={"deployment": deployment, "api_base": endpoint},
+                ) from exc
+            raise ModelClientError(
+                f"azure openai request failed: {exc}",
+                error_kind="unknown_error",
+                metadata={"deployment": deployment, "api_base": endpoint},
+            ) from exc
 
-    def _sleep_for_retry(self, attempts: int) -> None:
-        delay = self.retry_backoff_sec * attempts
-        if delay > 0:
-            time.sleep(delay)
+        try:
+            response_dict = response_obj.model_dump()
+        except AttributeError:
+            try:
+                response_dict = dict(response_obj)
+            except TypeError:
+                response_dict = json.loads(response_obj.json())
+
+        if api_surface == "v1_responses":
+            return _normalize_azure_responses_result(response=response_dict, model_route=self.route)
+        return _normalize_azure_chat_result(response=response_dict, model_route=self.route)
 
 
 def make_model_client_from_route(model_route: dict[str, Any], **kwargs: Any) -> ModelClient:
@@ -732,15 +402,11 @@ def make_model_client_from_route(model_route: dict[str, Any], **kwargs: Any) -> 
     pacer_options = _extract_tpm_pacer_options(route, client_kwargs)
     client_route = _route_without_tpm_pacer_settings(route)
     provider_route = route["provider_route"]
-    if provider_route == "codex_subscription":
-        return _maybe_wrap_tpm_pacer(CodexSubscriptionModelClient(route=client_route, **client_kwargs), pacer_options)
     if provider_route == "openai_api":
         if route.get("model_client_id") == "azure_openai_api_key":
             return _maybe_wrap_tpm_pacer(AzureOpenAIAPIKeyModelClient(route=client_route, **client_kwargs), pacer_options)
-        if route.get("model_client_id") == "openai_api_key":
-            return _maybe_wrap_tpm_pacer(OpenAIAPIKeyModelClient(route=client_route, **client_kwargs), pacer_options)
         raise ValueError(
-            "unsupported openai_api model client route; expected model_client_id=azure_openai_api_key or openai_api_key"
+            "unsupported openai_api model client route; expected model_client_id=azure_openai_api_key"
         )
     if provider_route == "local_stub":
         planned_completions = client_kwargs.get("planned_completions")
@@ -932,111 +598,6 @@ def _model_route_pacer_scope(route: dict[str, Any]) -> str:
 
 def _first_string(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
-
-
-def _load_auth_tokens(auth_path: Path) -> tuple[str, str | None, dict[str, Any]]:
-    if not auth_path.exists():
-        raise ModelClientError(f"codex auth file not found: {auth_path}")
-    auth_payload = json.loads(auth_path.read_text(encoding="utf-8"))
-    nested_tokens = auth_payload.get("tokens")
-    nested_tokens = nested_tokens if isinstance(nested_tokens, dict) else {}
-    access_token = _first_string(auth_payload.get("access_token")) or _first_string(
-        nested_tokens.get("access_token")
-    )
-    refresh_token = _first_string(auth_payload.get("refresh_token")) or _first_string(
-        nested_tokens.get("refresh_token")
-    )
-    if not access_token:
-        raise ModelClientError("codex auth file is missing access_token")
-    return access_token, refresh_token, auth_payload
-
-
-def _with_updated_tokens(
-    *,
-    auth_payload: dict[str, Any],
-    access_token: str,
-    refresh_token: str | None,
-) -> dict[str, Any]:
-    updated_payload = dict(auth_payload)
-    if "access_token" in updated_payload or not isinstance(updated_payload.get("tokens"), dict):
-        updated_payload["access_token"] = access_token
-    if "refresh_token" in updated_payload and refresh_token is not None:
-        updated_payload["refresh_token"] = refresh_token
-
-    nested_tokens = updated_payload.get("tokens")
-    if isinstance(nested_tokens, dict):
-        nested = dict(nested_tokens)
-        nested["access_token"] = access_token
-        if refresh_token is not None:
-            nested["refresh_token"] = refresh_token
-        updated_payload["tokens"] = nested
-    return updated_payload
-
-
-def _parse_sse_events(raw_body: bytes) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    data_lines: list[str] = []
-
-    def flush() -> None:
-        if not data_lines:
-            return
-        chunk = "\n".join(data_lines).strip()
-        data_lines.clear()
-        if not chunk or chunk == "[DONE]":
-            return
-        parsed = json.loads(chunk)
-        if isinstance(parsed, dict):
-            events.append(parsed)
-
-    for line in raw_body.decode("utf-8", errors="replace").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("data:"):
-            data_lines.append(stripped[5:].lstrip())
-        elif not stripped:
-            flush()
-    flush()
-    return events
-
-
-def _normalize_codex_result(
-    *,
-    events: list[dict[str, Any]],
-    model_route: dict[str, Any],
-) -> dict[str, Any]:
-    response_payload: dict[str, Any] = {}
-    text_deltas: list[str] = []
-    for event in events:
-        if not isinstance(event, dict):
-            continue
-        if event.get("type") == "response.output_text.delta":
-            delta = event.get("delta")
-            if isinstance(delta, str):
-                text_deltas.append(delta)
-        if isinstance(event.get("output"), list):
-            response_payload = event
-        response = event.get("response")
-        if isinstance(response, dict):
-            response_payload = response
-
-    text, tool_calls = _extract_text_and_tool_calls(response_payload)
-    usage = response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else {}
-    status = response_payload.get("status") if isinstance(response_payload.get("status"), str) else "completed"
-    reasoning_telemetry = _extract_responses_reasoning_telemetry(response_payload)
-    reasoning_token_count = _extract_reasoning_token_count(usage)
-    if not text:
-        text = "".join(text_deltas)
-
-    normalized = {
-        "text": text,
-        "tool_calls": tool_calls,
-        "usage": usage,
-        "status": status,
-        "model_route": model_route,
-    }
-    if reasoning_token_count is not None:
-        normalized["reasoning_token_count"] = reasoning_token_count
-    normalized.update(reasoning_telemetry)
-    return normalized
 
 
 def _extract_text_and_tool_calls(response_payload: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
@@ -1394,49 +955,6 @@ def _extract_responses_reasoning_telemetry(response_payload: dict[str, Any]) -> 
     return telemetry
 
 
-def _http_error_body(err: urllib_error.HTTPError) -> str | None:
-    body_stream = getattr(err, "fp", None)
-    if body_stream is None:
-        return None
-    try:
-        raw = err.read()
-    except Exception:
-        return None
-    if not raw:
-        return None
-    return raw.decode("utf-8", errors="replace")[:1000]
-
-
-def _http_error_headers(err: urllib_error.HTTPError) -> dict[str, str]:
-    headers_obj = getattr(err, "headers", None) or getattr(err, "hdrs", None)
-    if headers_obj is None:
-        return {}
-    try:
-        items = headers_obj.items()
-    except Exception:
-        return {}
-    headers: dict[str, str] = {}
-    for key, value in items:
-        key_str = str(key).strip().lower()
-        if not key_str:
-            continue
-        if (
-            key_str == "retry-after"
-            or key_str == "apim-request-id"
-            or key_str == "x-request-id"
-            or key_str.startswith("x-ratelimit-")
-        ):
-            headers[key_str] = str(value)[:500]
-    return headers
-
-
-def _network_error_reason(err: Exception) -> str:
-    reason = getattr(err, "reason", None)
-    if reason is None:
-        return str(err)
-    return str(reason)
-
-
 def _coerce_int(value: Any) -> int:
     if isinstance(value, bool):
         return 0
@@ -1457,15 +975,6 @@ def _required_env_var(name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"missing required environment variable: {name}")
     return value.strip()
-
-
-def _with_api_version(*, url: Any, api_version: str) -> str:
-    base_url = _first_string(url) or ""
-    if not base_url:
-        raise ModelClientError("azure openai route is missing api_base", error_kind="route_error")
-    separator = "&" if "?" in base_url else "?"
-    encoded_api_version = urllib_parse.quote(api_version, safe="")
-    return f"{base_url}{separator}api-version={encoded_api_version}"
 
 
 def _normalize_tool_call(tool_payload: dict[str, Any], *, fallback_type: str) -> dict[str, Any]:

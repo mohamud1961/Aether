@@ -28,11 +28,10 @@ FINAL_VERDICTS = ("pass", "fail", "unresolved", "blocked_non_promotable")
 PROVIDER_ROUTES = (
     "openai_api",
     "openrouter",
-    "codex_subscription",
     "local_stub",
     "none",
 )
-AUTH_MODES = ("api_key", "oauth", "none")
+AUTH_MODES = ("api_key", "none")
 PHASES = ("orient", "tool", "execute", "context", "verify", "recover", "eval")
 
 EXECUTION_MODES = (
@@ -81,8 +80,8 @@ GOVERNED_TERMINAL_STATUSES = (
 GOVERNED_TRUTH_COMPLETION_SCOPES = ("case_coverage_only", "not_applicable")
 GOVERNED_TRUTH_AUTHORITY_COMPLETENESS = ("complete", "incomplete", "not_applicable")
 
-PACKET03_MODEL_TIER_DEFAULT = "oauth:gpt-5.4-nano"
-PACKET03_MODEL_TIER_FALLBACK = "oauth:gpt-5.4-mini"
+PACKET03_MODEL_TIER_DEFAULT = "gpt-5.4-nano"
+PACKET03_MODEL_TIER_FALLBACK = "gpt-5.4-mini"
 PACKET03_MODEL_TIER_PROMOTION = "gpt-5.3-codex"
 MODEL_TIER_POLICY_KEYS = ("screening_default", "screening_fallback", "promotion_tier")
 
@@ -232,8 +231,6 @@ def validate_model_route(model_route: dict[str, Any]) -> dict[str, Any]:
         _require_string(route.get(key), f"model_route.{key}")
     _require_enum(route.get("provider_route"), "model_route.provider_route", PROVIDER_ROUTES)
     _require_enum(route.get("auth_mode"), "model_route.auth_mode", AUTH_MODES)
-    if route["provider_route"] == "codex_subscription" and route["auth_mode"] != "oauth":
-        raise SchemaValidationError("codex_subscription requires auth_mode=oauth")
     if "access_token" in route or "refresh_token" in route:
         raise SchemaValidationError("model_route must not contain token material")
     if not isinstance(route.get("request_settings", {}), dict):
