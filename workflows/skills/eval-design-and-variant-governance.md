@@ -166,9 +166,9 @@ A prediction that fails is data, not a prompt to widen scope.
 
 ## Sources
 
-- `workflows/orchestration/codex-goal-governance.md` — §Experiment Discipline
+- `workflows/orchestration/goal-governance.md` — §Experiment Discipline
   (the governing rules for eval design and variant governance)
-- `workflows/orchestration/codex-goal-governance.md` — §Eval-First Reset Rules
+- `workflows/orchestration/goal-governance.md` — §Eval-First Reset Rules
 - `workflows/skills/eval-first-implementation-slice.md` — the gate between
   hypothesis and implementation
 - `workflows/schemas/variant-family-seed.md` — the full VARIANT_FAMILY_SEED schema

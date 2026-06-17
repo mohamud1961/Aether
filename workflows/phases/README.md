@@ -10,7 +10,7 @@ pile of skills.
 
 | Phase | Question | Primary artifacts |
 |---|---|---|
-| 0. Frame | What are we trying to achieve, and what is out of scope? | `task-briefing-and-planning`, `codex-goal-governance` |
+| 0. Frame | What are we trying to achieve, and what is out of scope? | `task-briefing-and-planning`, `goal-governance` |
 | 1. Plan | What is the control map and evidence contract? | `loop-orchestrator`, `context-memory-token-economy`, `task-packet` |
 | 2. Launch | Who does the work, where, and with what isolation? | `run-vm-operations`, `hooks-and-automations`, `bounded-implementation-slice` |
 | 3. Analyze | What happened, and what evidence is trustworthy? | `analyze-agent-runs`, `deep-synthesis-loop`, `synthesis-adjudication` |

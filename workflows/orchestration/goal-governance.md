@@ -1,4 +1,4 @@
-# Codex Goal Governance
+# Goal Governance
 
 Derived from the Goal governance, experiment discipline, and eval-first reset rules in
 the project's operating model. Private-infra references and suite-specific content
@@ -6,7 +6,7 @@ have been stripped; the methodology is generic.
 
 ---
 
-## Codex Goal Governance
+## Goal Governance
 
 Goals are intentionally long-running execution containers. They may adapt as evidence
 arrives, but they must not silently redefine success.
@@ -20,7 +20,7 @@ Every serious Goal should declare:
 - evidence outputs;
 - stop conditions;
 - escape-hatch protocol;
-- review gate: `none | adversarial_only | codex_review_skill | codex_review_skill_plus_adversarial`;
+- review gate: `none | adversarial_only | code_review_skill | code_review_skill_plus_adversarial`;
 - blocked/out-of-scope escalation triggers.
 
 ### Orchestrator Handoff Requirement
@@ -105,18 +105,18 @@ The orchestrator or principal chooses the review gate at Goal creation based on 
 
 - `none`: tiny docs-only or mechanical work.
 - `adversarial_only`: strategy, eval design, analysis, policy, or trace interpretation.
-- `codex_review_skill`: non-trivial code changes where code-review findings are the main closeout risk.
-- `codex_review_skill_plus_adversarial`: runner, sandbox, eval substrate, grader, result-row, contamination, promotion, or other measurement-critical code.
+- `code_review_skill`: non-trivial code changes where code-review findings are the main closeout risk.
+- `code_review_skill_plus_adversarial`: runner, sandbox, eval substrate, grader, result-row, contamination, promotion, or other measurement-critical code.
 
 When a code review skill/helper is available, use it as the preferred code closeout gate
-for `codex_review_skill*` goals. Treat review output as advisory: verify findings against
+for `code_review_skill*` goals. Treat review output as advisory: verify findings against
 the real code, accept or reject each actionable finding with reasons, rerun focused tests
 after review-triggered fixes, and rerun review until no accepted/actionable findings remain
 or the remaining findings are consciously rejected.
 
 ### Adversarial Closeout
 
-For `adversarial_only` and `codex_review_skill_plus_adversarial` goals, the Goal is
+For `adversarial_only` and `code_review_skill_plus_adversarial` goals, the Goal is
 not complete until an adversarial reviewer tries to disprove completion.
 
 The orchestrator must either:

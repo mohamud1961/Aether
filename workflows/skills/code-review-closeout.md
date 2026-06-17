@@ -22,7 +22,7 @@ Use this skill for:
 
 ## Preferred Review Path
 
-If the local `codex-review` skill or helper is available, use it first.
+If the local `code-review` skill or helper is available, use it first.
 
 That means:
 

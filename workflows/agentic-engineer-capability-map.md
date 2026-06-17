@@ -26,7 +26,7 @@ claiming that private threads or raw traces are themselves public proof.
 | Experiment governance | [eval design and variant governance](skills/eval-design-and-variant-governance.md), [tournament runner](skills/tournament-runner.md), [variants/](../variants/) | Predicted deltas, regression sentinels, fixed candidate matrices, keep/kill decisions |
 | Deep synthesis | [deep synthesis loop](skills/deep-synthesis-loop.md), [deep synthesis family](skills/deep-synthesis.md) | Multi-lane evidence work, contradiction review, accepted claims, public-safe closure |
 | Git and clean slices | [git commit slicing](skills/git-commit-slicing.md) | Coherent commits, dirty-tree awareness, handoff-ready diffs |
-| Honest communication | [handoff writing](skills/handoff-writing.md), [codex goal governance](orchestration/codex-goal-governance.md) | Complete/partial/blocked statuses, evidence paths, external-state accounting |
+| Honest communication | [handoff writing](skills/handoff-writing.md), [goal governance](orchestration/goal-governance.md) | Complete/partial/blocked statuses, evidence paths, external-state accounting |
 | Source and publication hygiene | [provenance publication review](skills/provenance-publication-review.md), [publication gap list](../docs/publication/publication_gap_list.md) | Public/private boundary control, third-party notice gaps, overclaim prevention |
 
 ## The Proof Path

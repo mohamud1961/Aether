@@ -1,6 +1,6 @@
 # Adversarial Code Review Closeout
 
-Use this skill as the manual fallback when the `codex-review` helper is not
+Use this skill as the manual fallback when the `code-review` helper is not
 available or when a reviewer wants a second adversarial pass.
 
 The goal is not to "sound reviewed." The goal is to decide, with evidence,

@@ -370,7 +370,7 @@ is explicitly future, see [../loop-engineering.md](../loop-engineering.md).
 
 ## Governance
 
-The loop runs under `workflows/orchestration/codex-goal-governance.md`.
+The loop runs under `workflows/orchestration/goal-governance.md`.
 Key constraints:
 
 - No variant without a target eval, predicted delta, and named sentinels.

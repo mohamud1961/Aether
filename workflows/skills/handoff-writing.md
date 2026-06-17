@@ -139,7 +139,7 @@ WORKER_HANDOFF
 
 ## Sources
 
-- `workflows/orchestration/codex-goal-governance.md` — §Orchestrator Handoff
+- `workflows/orchestration/goal-governance.md` — §Orchestrator Handoff
   Requirement (the full field list for what orchestrators must require)
 - `workflows/templates/multi-thread-handoff.md` — the compact handoff template
 - `workflows/loop-engineering/handoff-example-pre-milestone.md` — a real milestone

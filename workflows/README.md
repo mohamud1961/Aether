@@ -127,7 +127,7 @@ The governance layer for multi-agent work.
 | [governed-multi-agent-model.md](orchestration/governed-multi-agent-model.md) | Role hierarchy, collaboration modes, stage-aware governance |
 | [principal-agent-workflow.md](orchestration/principal-agent-workflow.md) | Human-facing engagement protocol for the principal agent |
 | [synthesis-team-spec.md](orchestration/synthesis-team-spec.md) | Deep-synthesis team: per-artifact cell activation, run order, specialist roles |
-| [codex-goal-governance.md](orchestration/codex-goal-governance.md) | Goal governance, handoff requirements, review gates, experiment discipline |
+| [goal-governance.md](orchestration/goal-governance.md) | Goal governance, handoff requirements, review gates, experiment discipline |
 
 ### [prompts/](prompts/) — role prompts
 
@@ -182,7 +182,7 @@ see [loop-engineering/](loop-engineering/).
 5. Follow any link to the skill or evidence artifact for that stage.
 
 **To see the governance model:**
-6. Read [orchestration/codex-goal-governance.md](orchestration/codex-goal-governance.md)
+6. Read [orchestration/goal-governance.md](orchestration/goal-governance.md)
    for the Goal governance rules.
 7. Read [orchestration/governed-multi-agent-model.md](orchestration/governed-multi-agent-model.md)
    for the multi-agent role model.

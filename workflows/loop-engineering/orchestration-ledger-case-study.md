@@ -131,7 +131,7 @@ use — rather than every individual row.
   the worker packet omitted part of the component contract, track that as
   orchestration prompt debt. Dispatch an immediate follow-up worker for the
   missing behavior instead of letting the thin slice stand.
-- The `codex-review` helper showed a shared environment/config blocker on
+- The `code-review` helper showed a shared environment/config blocker on
   worker follow-up attempts. Centralized as one shared blocker (D-014) instead of
   having every worker retry the same failing invocation.
 - W-018 executor exhausted its own token budget before validation; the orchestrator

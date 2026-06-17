@@ -163,7 +163,7 @@ orchestrator.
 
 ## Sources
 
-- `workflows/orchestration/codex-goal-governance.md` — Goal governance rules
+- `workflows/orchestration/goal-governance.md` — Goal governance rules
   (§Orchestrator Handoff Requirement, §Review Gates)
 - `workflows/templates/multi-thread-handoff.md` — the handoff template
 - `workflows/loop-engineering/orchestration-ledger-case-study.md` — the
