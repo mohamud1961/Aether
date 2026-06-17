@@ -18,6 +18,6 @@ public-smoke:
 	bash scripts/public_manifest_repair_smoke.sh "$(SMOKE_OUTPUT_ROOT)"
 
 public-tests:
-	$(PYTEST) tests/test_public_manifest_repair_smoke.py
+	$(PYTEST) tests/test_public_manifest_repair_smoke.py tests/test_aether2_genericity.py tests/test_aether2_launch_integrity.py
 
 public-readiness: public-tests public-cold-start public-smoke

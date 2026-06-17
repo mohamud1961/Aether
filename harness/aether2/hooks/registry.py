@@ -1,4 +1,4 @@
-"""Session-scoped hook registry adapted from the TS session hook matcher model."""
+"""Session-scoped hook registry for the Aether harness."""
 
 from __future__ import annotations
 

@@ -19,7 +19,7 @@ _ASCII_MCP_CHARSET = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01
 
 @dataclass(frozen=True)
 class McpServerConfig:
-    """Subset of the TS scoped MCP config adapted for the first Python runtime slice."""
+    """Subset of the scoped MCP config for the Python runtime slice."""
 
     type: McpTransport
     scope: ConfigScope = "dynamic"

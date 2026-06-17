@@ -47,7 +47,7 @@ copies, reproduced for a complete record.
 
 ### Aether-2 line (current winning line)
 
-`harness/aether2/` is the live harness — see `../aether/README.md` for summary.
+`harness/aether2/` is the live harness — see `../../harness/aether2/README.md` for summary.
 
 ## Other Artifacts
 

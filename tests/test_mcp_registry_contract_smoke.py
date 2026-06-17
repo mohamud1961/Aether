@@ -36,12 +36,14 @@ def test_mcp_registry_contract_task_pack_is_valid_and_public_safe():
 def test_mcp_registry_contract_grader_handles_pass_and_fail(tmp_path: Path):
     grader = _load_module(GRADER_PATH, "mcp_registry_contract_smoke_grader_test")
     fixture_root = PACK_ROOT / "fixture"
+    challenge = "challenge_token_abc"
 
     pass_root = tmp_path / "pass"
     fail_root = tmp_path / "fail"
     for root in (pass_root, fail_root):
         (root / "workspace").mkdir(parents=True)
         (root / "reference").mkdir(parents=True)
+        (root / "workspace" / "challenge.txt").write_text(challenge, encoding="utf-8")
         (root / "reference" / "mcp_audit.json").write_text(
             (fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"),
             encoding="utf-8",
@@ -51,22 +53,21 @@ def test_mcp_registry_contract_grader_handles_pass_and_fail(tmp_path: Path):
             encoding="utf-8",
         )
 
-    (pass_root / "workspace" / "mcp_audit.json").write_text(
-        (fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    (pass_root / "workspace" / "mcp_registry_trace.json").write_text(
-        (fixture_root / "reference" / "mcp_registry_trace.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    (fail_root / "workspace" / "mcp_audit.json").write_text(
-        (fixture_root / "workspace" / "mcp_audit.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    (fail_root / "workspace" / "mcp_registry_trace.json").write_text(
-        (fixture_root / "workspace" / "mcp_registry_trace.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    pass_audit = json.loads((fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"))
+    pass_audit["challenge_response"] = f"payload={challenge}"
+    (pass_root / "workspace" / "mcp_audit.json").write_text(json.dumps(pass_audit), encoding="utf-8")
+
+    pass_trace = json.loads((fixture_root / "reference" / "mcp_registry_trace.json").read_text(encoding="utf-8"))
+    pass_trace["challenge_response"] = f"payload={challenge}"
+    (pass_root / "workspace" / "mcp_registry_trace.json").write_text(json.dumps(pass_trace), encoding="utf-8")
+
+    fail_audit = json.loads((fixture_root / "workspace" / "mcp_audit.json").read_text(encoding="utf-8"))
+    fail_audit["challenge_response"] = f"payload={challenge}"
+    (fail_root / "workspace" / "mcp_audit.json").write_text(json.dumps(fail_audit), encoding="utf-8")
+
+    fail_trace = json.loads((fixture_root / "workspace" / "mcp_registry_trace.json").read_text(encoding="utf-8"))
+    fail_trace["challenge_response"] = f"payload={challenge}"
+    (fail_root / "workspace" / "mcp_registry_trace.json").write_text(json.dumps(fail_trace), encoding="utf-8")
 
     pass_grade = grader.grade_workspace(workspace_root=pass_root / "workspace", reference_root=pass_root / "reference")
     fail_grade = grader.grade_workspace(workspace_root=fail_root / "workspace", reference_root=fail_root / "reference")
@@ -86,10 +87,12 @@ def test_mcp_registry_contract_grader_handles_pass_and_fail(tmp_path: Path):
 def test_mcp_registry_contract_rejects_copying_only_the_audit_file(tmp_path: Path):
     grader = _load_module(GRADER_PATH, "mcp_registry_contract_smoke_bundle_test")
     fixture_root = PACK_ROOT / "fixture"
+    challenge = "test_challenge"
 
     copied_root = tmp_path / "copied"
     (copied_root / "workspace").mkdir(parents=True)
     (copied_root / "reference").mkdir(parents=True)
+    (copied_root / "workspace" / "challenge.txt").write_text(challenge, encoding="utf-8")
     (copied_root / "reference" / "mcp_audit.json").write_text(
         (fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"),
         encoding="utf-8",
@@ -98,15 +101,47 @@ def test_mcp_registry_contract_rejects_copying_only_the_audit_file(tmp_path: Pat
         (fixture_root / "reference" / "mcp_registry_trace.json").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+
+    audit = json.loads((fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"))
+    audit["challenge_response"] = f"payload={challenge}"
+    (copied_root / "workspace" / "mcp_audit.json").write_text(json.dumps(audit), encoding="utf-8")
+
+    grade = grader.grade_workspace(workspace_root=copied_root / "workspace", reference_root=copied_root / "reference")
+
+    assert grade["verdict"] == "fail"
+    assert "missing_mcp_registry_trace" in grade["reason_codes"]
+
+
+def test_mcp_registry_contract_rejects_static_reference_copying(tmp_path: Path):
+    grader = _load_module(GRADER_PATH, "mcp_registry_contract_smoke_challenge_test")
+    fixture_root = PACK_ROOT / "fixture"
+
+    copied_root = tmp_path / "copied"
+    (copied_root / "workspace").mkdir(parents=True)
+    (copied_root / "reference").mkdir(parents=True)
+    (copied_root / "workspace" / "challenge.txt").write_text("my_random_challenge", encoding="utf-8")
+
     (copied_root / "workspace" / "mcp_audit.json").write_text(
         (fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (copied_root / "workspace" / "mcp_registry_trace.json").write_text(
+        (fixture_root / "reference" / "mcp_registry_trace.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (copied_root / "reference" / "mcp_audit.json").write_text(
+        (fixture_root / "reference" / "mcp_audit.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (copied_root / "reference" / "mcp_registry_trace.json").write_text(
+        (fixture_root / "reference" / "mcp_registry_trace.json").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
 
     grade = grader.grade_workspace(workspace_root=copied_root / "workspace", reference_root=copied_root / "reference")
 
     assert grade["verdict"] == "fail"
-    assert "missing_mcp_registry_trace" in grade["reason_codes"]
+    assert "mcp_challenge_response_invalid_or_missing" in grade["reason_codes"]
 
 
 def test_mcp_registry_contract_board_points_to_pack_and_grader():

@@ -1,4 +1,4 @@
-"""Agent loader adapted from a quarantined external TypeScript source tree."""
+"""Agent loader implementation for the Aether harness."""
 
 from __future__ import annotations
 

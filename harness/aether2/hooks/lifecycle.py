@@ -1,4 +1,4 @@
-"""Hook lifecycle primitives adapted from a quarantined external TypeScript source tree."""
+"""Hook lifecycle primitives for the Aether harness."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class PermissionDecisionReason:
 
 @dataclass(frozen=True)
 class PermissionDecision:
-    """Permission outcome adapted from the TS allow/deny/ask decision union."""
+    """Permission outcome representing the allow/deny/ask decision union."""
 
     behavior: PermissionBehavior
     message: str | None = None

@@ -14,16 +14,16 @@ flowchart LR
     Control["harness.aether2.control"]
     Tools["harness.aether2.tools"]
     Traces["harness.aether2.traces"]
+    Agents["harness.aether2.agents"]
+    Hooks["harness.aether2.hooks"]
+    Skills["harness.aether2.skills"]
     Packages["harness.aether2 package exports"]
   end
 
   subgraph Navigation["Public navigation-only subpackages"]
-    Agents["harness.aether2.agents"]
     CLI["harness.aether2.cli"]
     Env["harness.aether2.env"]
-    Hooks["harness.aether2.hooks"]
     Monitoring["harness.aether2.monitoring"]
-    Skills["harness.aether2.skills"]
     Verification["harness.aether2.verification"]
   end
 
@@ -96,17 +96,39 @@ dispatch implementation in `native.py`.
 - `mirror.py`
 - `receipts.py`
 
+## Agents
+
+`harness.aether2.agents` implements the agent model loading and structured task boundaries:
+
+- `loader.py`
+- `handoff.py`
+- `runtime.py`
+- `task.py`
+
+## Hooks
+
+`harness.aether2.hooks` implements session-scoped lifecycle callbacks:
+
+- `builtins.py`
+- `lifecycle.py`
+- `registry.py`
+
+## Skills
+
+`harness.aether2.skills` implements reusable agent behavior modules and dynamic registry:
+
+- `invocation.py`
+- `loader.py`
+- `registry.py`
+
 ## Navigation-Only Subpackages
 
 The following directories are part of the public package map but do not yet
 contain separate Python implementations:
 
-- `harness/aether2/agents/`
 - `harness/aether2/cli/`
 - `harness/aether2/env/`
-- `harness/aether2/hooks/`
 - `harness/aether2/monitoring/`
-- `harness/aether2/skills/`
 - `harness/aether2/verification/`
 
 ## Eval Suite
@@ -124,8 +146,8 @@ adapted-pressure layers:
 - `eval_suite/benchmark_derived_families/`
 
 The concrete executable smoke packs still live under
-`eval_suite/custom/public_manifest_repair_smoke/` and
-`eval_suite/custom/homolog_contract_smoke/`, with matching boards in
+`eval_suite/families/filesystem/public_manifest_repair_smoke/` and
+`eval_suite/families/runtime_contract/homolog_contract_smoke/`, with matching boards in
 `eval_suite/boards/` and example scoreboards in `eval_suite/scoreboards/`.
 
 ## Workflows

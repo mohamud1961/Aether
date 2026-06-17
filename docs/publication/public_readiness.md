@@ -28,3 +28,5 @@ commands so the public story stays runnable and easy to verify.
 - `scripts/public_readiness_cold_start.sh`
 - `scripts/public_manifest_repair_smoke.sh`
 - `tests/test_public_manifest_repair_smoke.py`
+- `tests/test_aether2_genericity.py`
+- `tests/test_aether2_launch_integrity.py`

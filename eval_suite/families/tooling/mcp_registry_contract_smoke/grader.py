@@ -23,6 +23,7 @@ def _project_trace(trace: dict[str, Any] | None) -> dict[str, Any] | None:
         "invocation_results": trace.get("invocation_results"),
         "hook_permission_trace": trace.get("hook_permission_trace"),
         "native_regression": trace.get("native_regression"),
+        "challenge_response": trace.get("challenge_response"),
     }
 
 
@@ -49,6 +50,22 @@ def grade_workspace(*, workspace_root: Path, reference_root: Path, mode: str = "
         "reference_trace_present": reference_trace is not None,
     }
 
+    # Challenge validation
+    challenge_path = workspace_root / "challenge.txt"
+    if challenge_path.exists():
+        challenge_token = challenge_path.read_text(encoding="utf-8").strip()
+    else:
+        challenge_token = "default_smoke_challenge"
+    expected_challenge_response = f"payload={challenge_token}"
+
+    if candidate is not None:
+        if candidate.get("challenge_response") != expected_challenge_response:
+            reason_codes.append("mcp_challenge_response_invalid_or_missing")
+
+    if candidate_trace is not None:
+        if candidate_trace.get("challenge_response") != expected_challenge_response:
+            reason_codes.append("mcp_trace_challenge_response_invalid_or_missing")
+
     if candidate is not None and reference is not None:
         candidate_bundle = candidate.get("bundle_contract")
         reference_bundle = reference.get("bundle_contract")
@@ -73,6 +90,7 @@ def grade_workspace(*, workspace_root: Path, reference_root: Path, mode: str = "
             "invocation_results": candidate.get("invocation_results"),
             "hook_permission_trace": candidate.get("hook_permission_trace"),
             "native_regression": candidate.get("native_regression"),
+            "challenge_response": candidate.get("challenge_response"),
         }:
             reason_codes.append("mcp_trace_bundle_mismatch")
 

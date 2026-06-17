@@ -35,9 +35,9 @@ The loop here was eval-first and deliberately narrow:
 
 ## Public Artifacts Produced
 
-- `eval_suite/custom/public_manifest_repair_smoke/README.md`
-- `eval_suite/custom/public_manifest_repair_smoke/task_pack.json`
-- `eval_suite/custom/public_manifest_repair_smoke/grader.py`
+- `eval_suite/families/filesystem/public_manifest_repair_smoke/README.md`
+- `eval_suite/families/filesystem/public_manifest_repair_smoke/task_pack.json`
+- `eval_suite/families/filesystem/public_manifest_repair_smoke/grader.py`
 - `eval_suite/boards/public_manifest_repair_smoke_v1.json`
 - `eval_suite/scoreboards/public_manifest_repair_smoke_v1.example.scoreboard.json`
 - `tools/run_public_manifest_repair_smoke.py`
@@ -48,9 +48,9 @@ The loop here was eval-first and deliberately narrow:
 
 | Artifact | What it shows |
 | --- | --- |
-| `eval_suite/custom/public_manifest_repair_smoke/README.md` | A small public-safe smoke pack built around a synthetic filesystem repair task. |
-| `eval_suite/custom/public_manifest_repair_smoke/task_pack.json` | A bounded diagnostic contract with a clean contamination policy and no public evaluation row. |
-| `eval_suite/custom/public_manifest_repair_smoke/grader.py` | Deterministic manifest, summary, and checksum grading. |
+| `eval_suite/families/filesystem/public_manifest_repair_smoke/README.md` | A small public-safe smoke pack built around a synthetic filesystem repair task. |
+| `eval_suite/families/filesystem/public_manifest_repair_smoke/task_pack.json` | A bounded diagnostic contract with a clean contamination policy and no public evaluation row. |
+| `eval_suite/families/filesystem/public_manifest_repair_smoke/grader.py` | Deterministic manifest, summary, and checksum grading. |
 | `eval_suite/boards/public_manifest_repair_smoke_v1.json` | Board wiring to the pack, grader, fixture root, and smoke runner. |
 | `eval_suite/scoreboards/public_manifest_repair_smoke_v1.example.scoreboard.json` | Example scoreboard with one pass row and one fail row, labeled as smoke/example output. |
 | `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md` | Review, validation, and out-of-scope notes for the slice. |
@@ -95,6 +95,6 @@ publication artifacts.
 - `docs/case-studies/README.md`
 - `workflows/ai-native-engineering-operating-system.md`
 - `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md`
-- `eval_suite/custom/public_manifest_repair_smoke/README.md`
-- `eval_suite/custom/public_manifest_repair_smoke/task_pack.json`
-- `eval_suite/custom/public_manifest_repair_smoke/grader.py`
+- `eval_suite/families/filesystem/public_manifest_repair_smoke/README.md`
+- `eval_suite/families/filesystem/public_manifest_repair_smoke/task_pack.json`
+- `eval_suite/families/filesystem/public_manifest_repair_smoke/grader.py`

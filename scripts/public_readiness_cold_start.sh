@@ -13,25 +13,21 @@ log() {
   printf '[public-readiness-cold-start] %s\n' "$*"
 }
 
-DOC_FILES=(
-  README.md
-  PUBLIC_REVIEWER_GUIDE.md
-  docs/README.md
-  docs/provenance/README.md
-  docs/provenance/agent_runtime_adaptation_policy.md
-  docs/provenance/third_party_notices.md
-  docs/publication/README.md
-  docs/publication/public_evidence_index.md
-  docs/publication/publication_gap_list.md
-  aether/hooks/README.md
-  aether/agents/README.md
-  aether/skills/loader.py
-  aether/skills/registry.py
-  aether/tools/mcp.py
-  aether/tools/permissions.py
-)
+SCAN_FILES=()
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  while IFS= read -r file; do
+    if [[ "$file" != "scripts/public_readiness_cold_start.sh" ]]; then
+      SCAN_FILES+=("$file")
+    fi
+  done < <(git ls-files harness/ runner/ docs/ README.md PUBLIC_REVIEWER_GUIDE.md)
+else
+  while IFS= read -r file; do
+    SCAN_FILES+=("$file")
+  done < <(find harness runner docs -type f ! -path '*/__pycache__/*' ! -path '*/.*' 2>/dev/null)
+  SCAN_FILES+=(README.md PUBLIC_REVIEWER_GUIDE.md)
+fi
 
-if rg -n -e 'quarantined|MIT licensing|root LICENSE|adapted from a quarantined external|quarantined external' "${DOC_FILES[@]}"; then
+if rg -n -e 'quarantined|MIT licensing|root LICENSE|adapted from a quarantined external|quarantined external' "${SCAN_FILES[@]}"; then
   printf '[public-readiness-cold-start] ERROR: public-facing provenance wording sweep found disallowed phrases\n' >&2
   exit 1
 fi
