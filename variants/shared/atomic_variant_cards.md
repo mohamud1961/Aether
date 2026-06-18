@@ -12,13 +12,13 @@ block_interface: VerificationBlock.check(task, workspace_state) -> verified: boo
 source_from_deep_synthesis:
   anchors:
     - claim_ref: mm.w03.artifact_backed_postcondition_proof
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: mm.w03.layered_verifier_grader_replay_separation
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: ft.w02.verifier_completion_vs_final_acceptance_divergence
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: vfs.w02.vf_pc_02_layered_acceptance_survives
-      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+      source: research/phases/variant_family_seeds/synthesis/README.md
 observed_trace_or_eval_evidence:
   - packet_03 eval card for ae_completion_layer_contract_guard reports layered non-substitution as required and promotion-relevant
   - packet_03 closeout marks this surface accepted and usable now
@@ -65,13 +65,13 @@ block_interface: ExecutionBlock.run_loop(model, tools, context, max_steps) -> re
 source_from_deep_synthesis:
   anchors:
     - claim_ref: mm.w05.process_lifecycle_cancellation_boundary_control
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: ft.w04.process_lifecycle_cancellation_boundary_failure
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: ft.w02.recovery_resume_state_index_fragility
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: vfs.w02.vf_pc_03_lifecycle_cleanup_hardening_survives
-      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+      source: research/phases/variant_family_seeds/synthesis/README.md
 observed_trace_or_eval_evidence:
   - packet_03 eval card for ae_lifecycle_terminality_contract_guard marks single-terminal-write and cleanup sequencing as required contract
   - packet_03 closeout marks lifecycle terminality guard accepted and usable now
@@ -118,15 +118,15 @@ block_interface: ExecutionBlock.run_loop(model, tools, context, max_steps) -> re
 source_from_deep_synthesis:
   anchors:
     - claim_ref: mm.w05.cwd_workdir_path_contract
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: mm.w04.explicit_artifact_continuity_workspace_state
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: ft.w03.workspace_repo_branch_path_drift
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: ft.w04.cwd_workdir_path_contract_failure
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: vfs.w02.vf_pc_04_workspace_path_contract_bounded
-      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+      source: research/phases/variant_family_seeds/synthesis/README.md
 observed_trace_or_eval_evidence:
   - packet_03 eval card for ae_cwd_workdir_path_contract_guard identifies explicit path-invariant logging and reason-code requirements
   - packet_03 closeout marks cwd/workdir surface accepted and usable now
@@ -172,13 +172,13 @@ block_interface: ContextBlock.manage(history, new_observation) -> updated_histor
 source_from_deep_synthesis:
   anchors:
     - claim_ref: mm.w04.explicit_artifact_continuity_workspace_state
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: mm.w05.cwd_workdir_path_contract
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: ft.w03.workspace_repo_branch_path_drift
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: vfs.w02.vf_pc_04_workspace_path_contract_bounded
-      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+      source: research/phases/variant_family_seeds/synthesis/README.md
 observed_trace_or_eval_evidence:
   - packet_03 eval card for ae_workspace_target_correctness_probe requires target-vs-decoy discrimination with workspace integrity tracking
   - packet_03 closeout marks workspace target correctness accepted and usable now
@@ -226,13 +226,13 @@ block_interface: ToolBlock.get_tools() -> list[tool_definitions]
 source_from_deep_synthesis:
   anchors:
     - claim_ref: mm.w05.tool_gateway_family_separation
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: mm.w05.permission_policy_vs_capability_boundary
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: ft.w04.tool_gateway_substrate_mismatch
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: vfs.w02.vf_pc_05_tool_surface_pruned_standalone
-      source: tracking/collab/stage_02_synthesis/variant_family_seeds/synthesis/principal_synthesis.md
+      source: research/phases/variant_family_seeds/synthesis/README.md
 observed_trace_or_eval_evidence:
   - packet_03 eval card for ae_tool_call_shape_argument_contract requires strict malformed-call vs runtime-error separation
   - packet_03 closeout marks this tool-call surface accepted and usable now
@@ -277,13 +277,13 @@ block_interface: ToolBlock.get_tools() -> list[tool_definitions]
 source_from_deep_synthesis:
   anchors:
     - claim_ref: mm.w05.tool_gateway_family_separation
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: mm.w05.permission_policy_vs_capability_boundary
-      source: tracking/collab/stage_02_synthesis/mechanism_map/synthesis/cumulative_synthesis.md
+      source: research/synthesis/mechanism-map.md
     - claim_ref: ft.w04.permission_policy_runtime_mismatch
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
     - claim_ref: ft.w04.tool_gateway_substrate_mismatch
-      source: tracking/collab/stage_02_synthesis/failure_taxonomy/synthesis/cumulative_synthesis.md
+      source: research/synthesis/failure-taxonomy.md
 observed_trace_or_eval_evidence:
   - packet_03 eval card for ae_tool_result_normalization_permission_probe requires deny-vs-runtime reason-code separation
   - packet_03 closeout marks tool-result normalization surface accepted and usable now

@@ -19,11 +19,7 @@ Paused after VM disconnect during the attempted generic progress escalation patc
 
 ## Pulled locally
 
-Artifacts confirmed pulled to:
-
-/Users/mohamud/Downloads/harnesseng/tracking/variants/
-
-Pulled:
+Artifacts confirmed pulled from Azure VM to local working tree. Pulled:
 - official_harbor_receipt_memory_hard3_20260611T110509Z.tar.gz
 - official_harbor_bgtools_hard2_20260611T112824Z.tar.gz
 - official_harbor_bgtools_hard2_audit_20260611T112824Z.tar.gz

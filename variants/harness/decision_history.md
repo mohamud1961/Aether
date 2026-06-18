@@ -79,7 +79,7 @@ failures and reversals are first-class.
      predict, implement one mechanism, score target+sentinels,
      promote/kill/pause.
 - **Variant hypothesis backlog created** (2026-05-13,
-  `tracking/collab/variant_hypothesis_backlog.md` — only on `vm-pulled`):
+  see `variants/harness/variant_hypothesis_backlog.md`):
   an admission-gated queue with statuses `control`, `paused_hypothesis`,
   `blocked_pending_eval_substrate`, `blocked_pending_target_eval`,
   `never_evaluated_backlog`, `future_hypothesis`,
@@ -140,7 +140,7 @@ failures and reversals are first-class.
   `dependency_config_environment`, `filesystem_open_workflow`,
   `verifier_repair` (admissible for next round); parked:
   `pressure_tool_call_sentinel`, `structured_retrieval_reduction`.
-- **Results** (`vm-pulled:tracking/collab/autonomous_loop/single_family_winner_discovery_gate/closeout.md`):
+- **Results** ([private-source: phase4_single_family_winner_discovery_closeout]):
   - `tool_result_attribution`: all 4 variants 0/2 target, 0/1 sentinel.
   - `long_horizon_artifact_handoff`: both candidates pass target+pressure rows but
     **fail the tool-call sentinel** (cross-benchmark regression).
@@ -188,7 +188,7 @@ failures and reversals are first-class.
 This was the single busiest day in the project's recorded history (19 inbox
 files).
 
-- **Antigravity's theoretical specs** (tracking/collab, benchmark-100-series theoretical harness specification): proposed a "100% theoretical harness"
+- **Antigravity's theoretical specs** ([private-source: benchmark-100-series theoretical harness specification]): proposed a "100% theoretical harness"
   combining persistent tmux/PTY shell, supervised background daemons,
   double-loop recovery hooks, unified CLI tool wrappers, "Stem Agents"
   (static system prompts + session forking + VFS minification, modeled on
@@ -200,10 +200,7 @@ files).
     "lean/zero-abstraction" run that was actually tried **regressed** — it
     improved one path-state row but did so by hiding evidence and using
     brittle anchors (per inbox A5).
-- **Codex family-level diagnostic run** (inbox A5,
-  `tracking/collab/eval_suite_v1_baseline/`,
-  `tracking/collab/eval_suite_v1_repair_runs/`,
-  `tracking/collab/eval_suite_v1_tournament_runs/`): the **most concrete
+- **Codex family-level diagnostic run** (inbox A5, [private-source: eval_suite_v1_baseline/repair_runs/tournament_runs]): the **most concrete
   measured data point in the whole repo**:
   - filesystem/cwd: 0/6
   - service readiness: 0/3
@@ -220,7 +217,7 @@ files).
     baseline failed on wrong process identity + missing readiness proof.
 - **`winning_harness_v1` synthesized and implemented** (Phase 5 continued,
   inbox A6-A8): an 11-step build order
-  (`tracking/collab/final_harness_eval_suite/reviews/winning_harness_synthesis_trace_analysis_2026-05-30.md`)
+  ([private-source: winning_harness_synthesis_trace_analysis_2026-05-30])
   targeting exactly the families above. Implementation completed
   (`runner/packet04_route_manifest.py`, `blocks/orientation/phase6_doctrine.py`),
   unit/adapter tests pass, route manifest builds correctly.
@@ -230,8 +227,7 @@ files).
   unavailable. Closeout: HOLD, "rerun on certified Docker backend before
   promotion."
 - **GPT-5.5 Pro context curation** (inbox A6): built a 1.5MB then 3.16MB
-  context dump (`tracking/collab/gpt55pro_best_harness_synthesis/
-  INPUT_CONTEXT_AND_PROMPT*.md`) for an external GPT-5.5 Pro synthesis pass —
+  context dump ([private-source: gpt55pro_best_harness_synthesis]) for an external GPT-5.5 Pro synthesis pass —
   a context-curation artifact, no architecture decision recorded from it in
   the inbox window.
 - **Lesson**: Phase 5 produced the project's best diagnostic data AND its
@@ -254,7 +250,7 @@ files).
   (`tests/test_kernel_layer2_audit.py`). **Integration into
   `active_evidence_kernel.py`/`kernel_gates.py` was NOT done in this step.**
 - **Adversarial review** (2026-06-05, antigravity,
-  `tracking/collab/model_led_substrate_v1/reviews/adversarial_review_01.md`):
+  [private-source: model_led_substrate_v1/adversarial_review_01]):
   found 4 gaps:
   1. Layer-2 auditor was completely dead code (confirms the integration gap
      above).
@@ -288,7 +284,7 @@ files).
 ## Phase 7 — MLPCP v2/v3 (2026-06-08→11, PULLED & PAUSED)
 
 - **Hypothesis**: A cockpit/capability-graph/receipt "execute-plan" architecture (v2) and/or a continuous-conversation, typed-tools continuity runner (v3), inspired by Claude-Code-style continuous-session agents (option H in `03`).
-- **Work**: MLPCP v2 remains purged from the working tree. For MLPCP v3, the active VM run files (runs, audits, patches, and pause state) have been pulled to `tracking/variants/mlpcp_v3/` as of 2026-06-11.
+- **Work**: MLPCP v2 remains purged from the working tree. For MLPCP v3, the active VM run files (runs, audits, patches, and pause state) were pulled from the VM and are preserved under `variants/harness/mlpcp_v3/` as of 2026-06-11.
 - **Outcome**: The `qemu-startup` task passed after applying the `receipt-memory-cockpit` patch. However, latest `hard2` reruns for `extract-moves-from-video` and `install-windows-3.11` remained at 0.0 because the model ignored the background/service tools and kept looping. A generic progress escalation patch failed to apply because target anchors in `_execute_single_action` were missing.
 - **Lesson**: While the `receipt-memory-cockpit` patch succeeded in passing `qemu-startup`, the model's failure to naturally use the background tools on `hard2` tasks indicates that the agent needs explicit progress tracking or escalation. Resuming/repairing this session requires reconnecting to the VM and resolving the source anchors for generic progress escalation.
 

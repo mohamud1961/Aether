@@ -11,7 +11,7 @@ target eval, a predicted score delta, and named regression sentinels. Items are 
 ---
 
 ## 2026-06-13 — entries from G5 run-analysis of `full_twice_20260612T200830Z`
-Source analysis: `tracking/collab/aether2_g5_run_analysis_20260613/` (24/241 authoritative A1 rows,
+Source analysis: `research/case_studies/aether2_run_analysis_20260614.md` (24/241 authoritative A1 rows,
 0/241 A2 rows; 457/482 attempts invalid launches). Read that before acting on anything below.
 
 ### H1 — Eval-substrate launch integrity (self-bootstrapping import + fail-fast) — `EVIDENCE-BACKED / ACTIONABLE`
@@ -27,7 +27,7 @@ Source analysis: `tracking/collab/aether2_g5_run_analysis_20260613/` (24/241 aut
 - **Sentinels:** the 5 known passes (acl-permissions-inheritance, analyze-access-logs, assign-seats,
   attention-mil, build-pmars); spec §14 G5 sentinels (qemu-startup green-check, BFCL adapter,
   `tools/aether2_genericity_check.py`).
-- **Next Goal:** `tracking/collab/aether2_g5_run_analysis_20260613/next_goal_prompt.md`.
+- **Next Goal:** See `research/case_studies/aether2_run_analysis_20260614.md` for the run analysis and next-goal context.
 
 ### H2 — False-positive `task_done` reducer — `UNVALIDATED / GATED`
 - **Observation:** 10/14 valid `finalize=task_done` Attempt-1 rows failed the external grader
@@ -68,10 +68,10 @@ Source analysis: `tracking/collab/aether2_g5_run_analysis_20260613/` (24/241 aut
 ## 2026-06-14 — fake-progress implementation program
 
 Source diagnosis:
-`tracking/collab/aether2_fake_progress_analysis_20260614/older_vm_and_trace_rerun_fake_progress_analysis_20260614.md`
+`research/case_studies/aether2_fake_progress_analysis_20260614.md`
 
 Implementation plan:
-`tracking/collab/aether2_fake_progress_implementation_plan_20260614/IMPLEMENTATION_FIX_PLAN.md`
+`research/case_studies/aether2_fake_progress_fix_plan.md`
 
 ### H6 — Activity/evidence separation and evidence provenance — `EVIDENCE-BACKED / ACTIONABLE AFTER EVAL BASELINE`
 - **Class:** pre-verifier harness-control failure.

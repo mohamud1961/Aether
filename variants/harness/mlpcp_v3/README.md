@@ -2,8 +2,8 @@
 
 **HISTORICAL CODE SNAPSHOT** — not standalone-runnable.
 
-These files are verbatim copies from the MLPCP v3 VM run pulled to
-`tracking/variants/mlpcp_v3/` on 2026-06-11. They are preserved here
+These files are verbatim copies from the MLPCP v3 VM run pulled
+from the VM on 2026-06-11. They are preserved here
 as a readable historical record, not as executable code.
 
 **Import note**: `mlpcp_v2_harbor_host.py`, `mlpcp_v2_harbor_agent.py`, and
