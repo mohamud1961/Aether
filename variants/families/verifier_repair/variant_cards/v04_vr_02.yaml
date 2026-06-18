@@ -1,0 +1,43 @@
+variant_id: v04_vr_02_verifier_repair_projection
+block_family: VerificationBlock
+block_interface: VerificationBlock.check(task, workspace_state) -> verified: bool
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w03.artifact_backed_postcondition_proof
+      source: research/synthesis/mechanism-map.md
+    - claim_ref: mm.w05.cwd_workdir_path_contract
+      source: research/synthesis/mechanism-map.md
+    - claim_ref: ft.w02.verifier_completion_vs_final_acceptance_divergence
+      source: research/synthesis/failure-taxonomy.md
+    - claim_ref: vfs.w02.vf_pc_02_layered_acceptance_survives
+      source: research/phases/variant_family_seeds/synthesis/README.md
+observed_trace_or_eval_evidence:
+  - Phase 4 single-family closeout: verifier_repair_projection (formerly
+    path_normalized_verifier_repair_projection) passed all rows — but the eval was
+    non-discriminating. No promotion claim (hypothesis.md; verifier_repair/README.md).
+  - Renamed from path_normalized_verifier_repair_projection to verifier_repair_projection
+    for public snapshot (name reflects generic mechanism, not benchmark specificity).
+mechanism_claim: project a path-normalized verifier repair action when the episode parser
+  detects a re-triggerable verifier failure, targeting the correct workspace path to avoid
+  off-target repair attempts.
+target_failure: off_target_verifier_repair_attempt
+anti_benchmarkifying_risk: repair projection may over-fit to known path layouts and fail on
+  novel workspace structures.
+expected_improvement: higher task-pass rate on tasks requiring verifier re-run after agent
+  edits, by ensuring the repair targets the correct path.
+expected_failure_mode: strict path normalization in repair projection may reject valid
+  symlink or alias flows.
+complexity_cost: medium (path normalization integrated into repair action dispatch).
+token_cost_expectation: low; deterministic path resolution adds minimal overhead.
+changed_files:
+  - variants/families/verifier_repair/code/verifier_repair_projection.py
+hypothesis_status: retest_required
+eval_status: phase4_non_discriminating
+promotion_threshold: harder, more varied eval surface; named regression sentinels not
+  trivially passed; preregistered prediction; certified backend (not local Mac Docker).
+retirement_condition: retire if no improvement on discriminating eval, or if off-target
+  repair rate does not decrease vs. baseline.
+bounded_claims:
+  - Phase 4 pass result is NOT a promotion claim (non-discriminating eval)
+  - must be paired with v04_vr_01 (verifier_episode_parser) for the re-trigger signal
+  - no promotion without certified backend and harder eval surface

@@ -1,0 +1,41 @@
+variant_id: v04_ce_01_app_workspace_path_normalizer
+block_family: ContextBlock
+block_interface: ContextBlock.manage(history, new_observation) -> updated_history
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w05.cwd_workdir_path_contract
+      source: research/synthesis/mechanism-map.md
+    - claim_ref: ft.w03.workspace_repo_branch_path_drift
+      source: research/synthesis/failure-taxonomy.md
+    - claim_ref: vfs.w02.vf_pc_04_workspace_path_contract_bounded
+      source: research/phases/variant_family_seeds/synthesis/README.md
+observed_trace_or_eval_evidence:
+  - Phase 4 single-family closeout (dependency_config_environment): target uplift existed
+    but did not carry to sentinels or global board (decision_history.md Phase 4).
+  - Phase 5 family-level diagnostic: environment/toolchain scored 4/7; root causes included
+    stale docs source, wrong canonical-runner discovery, wrong python invocation — all
+    addressable by path normalization (decision_history.md Phase 5).
+  - Phase 4 recommended next step: "better bounded slate around cwd_workdir_invariant_guard
+    + candidate_plus_app_workspace_path_normalizer_01" (hypothesis.md Grounding §3).
+mechanism_claim: Normalize /app and local workspace paths in history observations to prevent
+  environment bootstrap failures caused by path aliasing and stale docs sources.
+target_failure: environment_bootstrap_failure
+anti_benchmarkifying_risk: normalizer may overfit to /app alias patterns seen in known eval
+  fixtures while missing novel path aliasing forms.
+expected_improvement: reduced environment bootstrap failures on tasks where path/cwd
+  misconfiguration is the proximate failure; higher reach-grader rate on env/toolchain rows.
+expected_failure_mode: over-normalization may strip valid non-default paths required by tasks
+  targeting specific virtualenvs or non-standard path layouts.
+complexity_cost: low (regex-based path rewriting in context manager; no model dependency).
+token_cost_expectation: negligible; context normalization reduces path noise in prompts.
+changed_files:
+  - variants/families/dependency_config_environment/code/app_workspace_path_normalizer.py
+hypothesis_status: paused_hypothesis
+eval_status: no_eval_run
+promotion_threshold: bounded re-run with proper authority backend showing improvement on
+  environment/toolchain rows with named regression sentinels (filesystem + long-horizon).
+retirement_condition: retire if gains are not reproducible on certified backend or if
+  path normalization causes regressions on non-standard-path tasks.
+bounded_claims:
+  - bounded to environment/path misconfiguration failure class only
+  - no promotion claim without certified backend eval baseline and named sentinels

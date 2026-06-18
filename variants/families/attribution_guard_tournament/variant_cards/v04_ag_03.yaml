@@ -1,0 +1,53 @@
+variant_id: v04_ag_03_combined_guard
+block_family: ToolBlock
+block_interface: ToolBlock.execute_tool_call(tool_call, sandbox) -> result
+source_from_deep_synthesis:
+  anchors:
+    - claim_ref: mm.w05.tool_gateway_family_separation
+      source: research/synthesis/mechanism-map.md
+    - claim_ref: mm.w05.permission_policy_vs_capability_boundary
+      source: research/synthesis/mechanism-map.md
+    - claim_ref: ft.w04.tool_gateway_substrate_mismatch
+      source: research/synthesis/failure-taxonomy.md
+observed_trace_or_eval_evidence:
+  - attribution_guard_tournament decision_table.json: target_pass 2/2, sentinel_pass 0/1,
+    contamination clean, decision keep_for_follow_up_not_promote.
+  - Prediction was "largest target lift, with some sentinel risk" — confirmed. Sentinel
+    ctc_semantics_001_multi_required_order FAILED; prediction said no_material_regression.
+    Sentinel prediction was WRONG.
+  - Tournament run on Azure VM Docker (harnesseng-dev, Ubuntu 24.04, Docker 29.1.3).
+  - decision_history.md Phase 3: this was (incorrectly) called a "perfect tournament run" in
+    the inbox before the sentinel regression was noticed. The file documents this as a
+    recurring "declare victory before checking sentinels" error.
+  - NOTE: the combined guard contains a hardcoded repair for `lookup_customer_order` tool
+    (task-specific, not generalizable).
+mechanism_claim: combine the no-call attribution guard and the ignored-result-IDs guard into
+  a single path-normalized tool surface, with an additional task-specific sentinel contract
+  repair injecting the missing include_history argument.
+target_failure: tool_result_attribution_error
+anti_benchmarkifying_risk: HIGH — the combined guard contains a hardcoded repair for a
+  specific tool name (lookup_customer_order). This is not a generalizable mechanism.
+expected_improvement: 2/2 target lift confirmed; but the sentinel regression must be
+  resolved and the hardcoded repair redesigned generically before any promotion.
+expected_failure_mode: sentinel regression on ctc_semantics_001 confirmed. Hardcoded repair
+  creates brittle coupling to specific task fixture.
+complexity_cost: medium (combined guard + task-specific injection logic).
+token_cost_expectation: neutral to small reduction (per prediction.json).
+changed_files:
+  - variants/families/attribution_guard_tournament/code/combined_result_attribution_guard.py
+tournament_result:
+  target_pass: 2
+  target_total: 2
+  sentinel_pass: 0
+  sentinel_total: 1
+  contamination_status: clean
+  decision: keep_for_follow_up_not_promote
+eval_status: tournament_complete_azure_vm_docker_20260517
+promotion_threshold: BLOCKED — sentinel regression must be resolved and hardcoded
+  tool-specific repair replaced with a generic mechanism before any follow-up eval.
+retirement_condition: retire if sentinel regression cannot be resolved generically, or if
+  2/2 target lift disappears after removing the hardcoded lookup_customer_order repair.
+bounded_claims:
+  - NOT PROMOTED despite 2/2 target — sentinel regression disqualifies promotion (AGENTS.md)
+  - hardcoded task-specific repair is anti-pattern; must be redesigned
+  - keep_for_follow_up_not_promote is the authoritative tournament verdict
