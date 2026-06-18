@@ -62,6 +62,8 @@ flowchart LR
 
 `harness.aether2.runtime` contains workspace execution and support plumbing:
 
+- `action_bus.py`
+- `azure_openai_env.py`
 - `bridge_harbor.py`
 - `cleanup_accounting.py`
 - `compactor.py`
@@ -71,37 +73,80 @@ flowchart LR
 - `jobs.py`
 - `metrics.py`
 - `model_client.py`
+- `model_response_normalizers.py`
+- `model_route_helpers.py`
+- `model_routes.py`
 - `orientation.py`
+- `orientation_helpers.py`
 - `prompts.py`
+- `route_schemas.py`
 - `sessions.py`
+- `tpm_pacer.py`
 - `verify.py`
+- `verify_evidence.py`
+- `verify_report.py`
 
 ## Control
 
-`harness.aether2.control` contains the loop and orchestration boundary. The
-implemented module is `loop.py`.
+`harness.aether2.control` contains the loop and orchestration boundary:
+
+- `action_helpers.py`
+- `completion.py`
+- `execution_context.py`
+- `loop.py`
+- `pkg_detect.py`
+- `reasoning_trace.py`
+- `requirements.py`
+- `runtime_support.py`
+- `tail_helpers.py`
+- `tool_dispatch.py`
+- `verification_context.py`
+- `verification_rounds.py`
 
 ## Tools
 
-`harness.aether2.tools` currently surfaces the canonical tool schema and
-dispatch implementation in `native.py`.
+`harness.aether2.tools` surfaces the canonical tool schema, permissions, and dispatch:
+
+- `mcp.py`
+- `native.py`
+- `permissions.py`
+- `registry.py`
 
 ## Traces
 
 `harness.aether2.traces` contains the evidence and decision artifacts:
 
+- `_blocker_builders.py`
+- `_blocker_relevance.py`
+- `_failure_families.py`
+- `_text_utils.py`
+- `artifact_command_classify.py`
+- `artifact_type_tables.py`
+- `blockers.py`
 - `decision_trace.py`
 - `delta.py`
+- `dt_event_extraction.py`
+- `dt_observation_summarize.py`
+- `dt_receipts.py`
+- `dt_row_loading.py`
 - `envelope.py`
+- `envelope_digest.py`
+- `evidence_ledger.py`
+- `kernel_artifacts.py`
 - `mirror.py`
 - `receipts.py`
+- `redaction.py`
+- `snapshot_diff.py`
+- `terminal_claims.py`
+- `verifier.py`
 
 ## Agents
 
 `harness.aether2.agents` implements the agent model loading and structured task boundaries:
 
-- `loader.py`
+- `agent_types.py`
 - `handoff.py`
+- `loader.py`
 - `runtime.py`
 - `task.py`
 
@@ -117,9 +162,11 @@ dispatch implementation in `native.py`.
 
 `harness.aether2.skills` implements reusable agent behavior modules and dynamic registry:
 
+- `frontmatter_helpers.py`
 - `invocation.py`
 - `loader.py`
 - `registry.py`
+- `skill_types.py`
 
 ## Navigation-Only Subpackages
 
