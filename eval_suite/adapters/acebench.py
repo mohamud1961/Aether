@@ -514,9 +514,11 @@ def _resolve_upstream_root() -> Path:
     from_env = os.environ.get("ACEBENCH_UPSTREAM_ROOT")
     if from_env:
         return Path(from_env).resolve()
+    # Prefer /private/tmp canonical location; fall back to user home if set.
+    # Set ACEBENCH_UPSTREAM_ROOT env var to override for all environments.
     candidates = (
         Path("/private/tmp/acebench_upstream"),
-        Path("/home/azureuser/acebench_upstream"),
+        Path.home() / "acebench_upstream",
     )
     for candidate in candidates:
         if candidate.exists():

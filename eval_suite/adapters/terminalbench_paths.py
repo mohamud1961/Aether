@@ -7,7 +7,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TERMINALBENCH_TASK_ID = "regex-log"
 TERMINALBENCH_TASK_ROOT_CANDIDATES = (
-    Path("/home/azureuser/terminalbench/official_tasks"),
+    Path("/private/tmp/terminalbench/official_tasks"),
     REPO_ROOT / "official_tasks",
 )
 TERMINALBENCH_SEARCH_ROOTS = (
