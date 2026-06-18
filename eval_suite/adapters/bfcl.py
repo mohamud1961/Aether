@@ -14,12 +14,12 @@ import types
 from pathlib import Path
 from typing import Any, Literal, Union, get_args, get_origin
 
-from runner.benchmark_adapter_contracts import (
+from eval_suite.adapters.contracts import (
     build_adapter_result_row,
     validate_benchmark_adapter_case,
 )
-from runner import bfcl_assets
-from runner.eval_substrate_contracts import validate_result_row, validate_task_pack
+from eval_suite.adapters import bfcl_assets
+from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_BFCL_SAMPLES_PATH = REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/benchmark_samples/bfcl_v3_final.json"

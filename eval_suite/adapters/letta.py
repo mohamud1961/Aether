@@ -8,12 +8,12 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from runner.benchmark_adapter_contracts import (
+from eval_suite.adapters.contracts import (
     build_adapter_result_row,
     validate_benchmark_adapter_case,
 )
-from runner.eval_substrate_contracts import validate_result_row, validate_task_pack
-from runner.letta_context_bench import (
+from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
+from eval_suite.adapters.letta_context_bench import (
     LETTA_FILESYSTEM_DATASET,
     LETTA_FILESYSTEM_ROOT,
     letta_preflight,

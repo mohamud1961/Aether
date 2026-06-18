@@ -12,13 +12,13 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from runner.letta_context_bench import grade_letta_filesystem_answer
-from runner.measurement_contracts import (
+from eval_suite.adapters.letta_context_bench import grade_letta_filesystem_answer
+from eval_suite.graders.measurement_contracts import (
     load_extract_moves_contract,
     load_financial_document_contract,
     load_regex_log_contract,
 )
-from runner.terminalbench_paths import resolve_terminalbench_task_root
+from eval_suite.adapters.terminalbench_paths import resolve_terminalbench_task_root
 
 
 def grade_measurement_spec(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
-from runner.model_client import (
+from harness.aether2.runtime.model_routes import (
     AZURE_ENV_API_VERSION,
     AZURE_ENV_ENDPOINT,
     AZURE_ENV_GPT53_CODEX_DEPLOYMENT,

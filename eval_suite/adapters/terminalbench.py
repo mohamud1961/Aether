@@ -7,17 +7,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-from runner.benchmark_adapter_contracts import (
+from eval_suite.adapters.contracts import (
     build_adapter_result_row,
     validate_benchmark_adapter_case,
 )
-from runner.eval_substrate_contracts import validate_result_row, validate_task_pack
-from runner.measurement_contracts import (
+from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
+from eval_suite.graders.measurement_contracts import (
     load_financial_document_contract,
     load_regex_log_contract,
 )
-from runner.measurement_grading import grade_public_terminalbench_workspace
-from runner.terminalbench_paths import resolve_terminalbench_task_root
+from eval_suite.graders.measurement_grading import grade_public_terminalbench_workspace
+from eval_suite.adapters.terminalbench_paths import resolve_terminalbench_task_root
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ADAPTER_FAMILY = "terminalbench_equivalent_adapter"

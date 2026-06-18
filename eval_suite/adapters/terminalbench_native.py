@@ -9,8 +9,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from runner.benchmark_adapter_contracts import build_adapter_result_row, validate_benchmark_adapter_case
-from runner.eval_substrate_contracts import validate_result_row, validate_task_pack
+from eval_suite.adapters.contracts import build_adapter_result_row, validate_benchmark_adapter_case
+from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
 
 EXPECTED_REMOTE_FRAGMENT = "harbor-framework/terminal-bench"
 ADAPTER_FAMILY = "terminalbench_native_adapter"

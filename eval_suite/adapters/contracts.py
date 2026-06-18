@@ -6,14 +6,14 @@ import json
 from copy import deepcopy
 from typing import Any, Iterable
 
-from runner.eval_substrate_contracts import (
+from eval_suite.schemas.eval_substrate_contracts import (
     ADMISSION_LEVELS,
     SURFACE_TYPES,
     result_row_verdict,
     validate_result_row,
     validate_task_pack,
 )
-from runner.schemas import SchemaValidationError
+from harness.aether2.runtime.route_schemas import SchemaValidationError
 
 ADAPTER_AUTHORITIES = ("native", "equivalent", "shaped")
 EXPECTED_ANSWER_FORMATS = ("text", "json", "tool_call_sequence", "artifact_ref")

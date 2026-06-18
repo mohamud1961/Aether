@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from runner.benchmark_adapter_contracts import (
+from eval_suite.adapters.contracts import (
     aggregate_adapter_result_rows,
     build_adapter_result_row,
     contamination_status_from_labels,
@@ -10,7 +10,7 @@ from runner.benchmark_adapter_contracts import (
     validate_adapter_result_row,
     validate_benchmark_adapter_case,
 )
-from runner.schemas import SchemaValidationError
+from harness.aether2.runtime.route_schemas import SchemaValidationError
 
 
 def _task_pack() -> dict:

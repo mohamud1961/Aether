@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 TERMINALBENCH_TASK_ID = "regex-log"
 TERMINALBENCH_TASK_ROOT_CANDIDATES = (
     Path("/home/azureuser/terminalbench/official_tasks"),

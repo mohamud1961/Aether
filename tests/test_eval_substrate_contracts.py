@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from runner.eval_substrate_contracts import (
+from eval_suite.schemas.eval_substrate_contracts import (
     FAILURE_CLASSES,
     REQUIRED_RESULT_ROW_FIELDS,
     REQUIRED_TASK_PACK_FIELDS,
@@ -10,7 +10,7 @@ from runner.eval_substrate_contracts import (
     validate_result_row,
     validate_task_pack,
 )
-from runner.schemas import SchemaValidationError
+from harness.aether2.runtime.route_schemas import SchemaValidationError
 
 
 def _task_pack() -> dict:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from runner.schemas import SchemaValidationError
+from harness.aether2.runtime.route_schemas import SchemaValidationError
 
 REQUIRED_TASK_PACK_FIELDS = (
     "task_id",

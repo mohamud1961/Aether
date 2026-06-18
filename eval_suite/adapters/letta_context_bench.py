@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 LETTA_EVALS_ROOT = REPO_ROOT / "research/sources/codebases/letta-evals"
 LETTA_FILESYSTEM_ROOT = LETTA_EVALS_ROOT / "letta-leaderboard/filesystem-agent"
 LETTA_FILESYSTEM_FILES = LETTA_FILESYSTEM_ROOT / "files"

@@ -1,4 +1,4 @@
-from runner.letta_context_bench import (
+from eval_suite.adapters.letta_context_bench import (
     grade_letta_filesystem_answer,
     selected_letta_filesystem_specs,
 )
