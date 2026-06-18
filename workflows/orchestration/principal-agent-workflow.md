@@ -44,7 +44,7 @@ The external-agent callout should be explicit:
 - `Run external agent now: yes`
 - `Agent: synthesis-prep specialist`
 - `Why: evidence inventory is bounded specialist work`
-- `Expected output: tracking/collab/<stage>/<artifact>/outputs/<file>.md`
+- `Expected output: work/ledger/<stage>/<artifact>/outputs/<file>.md`
 
 Or:
 
@@ -74,7 +74,7 @@ It should define:
 
 The task packet should usually become:
 
-- `tracking/collab/<stage>/<artifact>/brief.md`
+- `work/ledger/<stage>/<artifact>/brief.md`
 
 ### Step 4. Principal agent routes specialist work
 
@@ -92,17 +92,17 @@ At this step, the principal agent should tell you plainly whether to task/run an
 
 These should go under:
 
-- `tracking/collab/<stage>/<artifact>/outputs/`
+- `work/ledger/<stage>/<artifact>/outputs/`
 
 ### Step 6. Principal agent synthesizes
 
 This should go under:
 
-- `tracking/collab/<stage>/<artifact>/synthesis/principal_synthesis.md`
+- `work/ledger/<stage>/<artifact>/synthesis/principal_synthesis.md`
 
 And the principal should also produce:
 
-- `tracking/collab/<stage>/<artifact>/decision.md`
+- `work/ledger/<stage>/<artifact>/decision.md`
 
 ### Step 7. You approve the next move
 

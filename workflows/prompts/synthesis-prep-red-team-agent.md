@@ -45,7 +45,7 @@ Do not turn this into broad internet research or free-form architecture ideation
 
 ## What you should read
 
-- the active `brief.md` task packet under `<project>/tracking/collab/<synthesis-stage>/<artifact>/`
+- the active `brief.md` task packet under `<project>/work/ledger/<synthesis-stage>/<artifact>/`
 - the synthesis-prep specialist output
 - relevant evidence inventory files
 - trajectory and codebase priority lists
@@ -80,7 +80,7 @@ Keep the output adversarial, concrete, and evidence-linked.
 
 When used inside the collaboration workspace, your output should usually land in:
 
-- `<project>/tracking/collab/<synthesis-stage>/<artifact>/outputs/red_team.md`
+- `<project>/work/ledger/<synthesis-stage>/<artifact>/outputs/red_team.md`
 
 If the principal agent wants a different filename, follow the brief.
 

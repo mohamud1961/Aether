@@ -42,7 +42,7 @@ class FinalSuiteRowSpec:
 
 
 def load_final_suite_row_specs(repo_root: Path) -> list[FinalSuiteRowSpec]:
-    suite_dir = repo_root / "tracking/collab/final_harness_eval_suite"
+    suite_dir = repo_root / "work/ledger/final_harness_eval_suite"
     final_registry = _load_yaml(suite_dir / "final_suite_registry.yaml")
     hard_registry = _load_yaml(suite_dir / "hard_task_registry.yaml")
     sentinel_registry = _load_yaml(suite_dir / "sentinel_composition_board.yaml")

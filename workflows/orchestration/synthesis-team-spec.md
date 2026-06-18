@@ -433,12 +433,12 @@ Then:
 
 Canonical collaboration location:
 
-- `tracking/collab/stage_02_synthesis/`
+- `work/ledger/stage_02_synthesis/`
 
 Recommended workspace shape:
 
 ```text
-tracking/collab/stage_02_synthesis/
+work/ledger/stage_02_synthesis/
   mechanism_map/
     brief.md
     inputs/

@@ -48,7 +48,7 @@ and `harness.aether2`:
 
 Public evidence:
 
-- `tracking/collab/public_repo_readiness/aether_namespace_closeout_handoff.md`
+- `work/ledger/public_repo_readiness/aether_namespace_closeout_handoff.md`
 - `README.md`
 - `docs/architecture/public-architecture.md`
 
@@ -122,7 +122,7 @@ That pattern was then reused by the runtime capability slices above.
 
 Public evidence:
 
-- `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md`
+- `work/ledger/public_repo_readiness/public_eval_pack_handoff.md`
 - `eval_suite/families/filesystem/public_manifest_repair_smoke/README.md`
 - `eval_suite/families/environment/runtime_policy_hook_smoke/README.md`
 - `eval_suite/families/tooling/mcp_registry_contract_smoke/README.md`
@@ -177,8 +177,8 @@ Public evidence:
 - `docs/case-studies/README.md`
 - `workflows/loop-engineering.md`
 - `workflows/ai-native-engineering-operating-system.md`
-- `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md`
-- `tracking/collab/public_repo_readiness/aether_namespace_closeout_handoff.md`
+- `work/ledger/public_repo_readiness/public_eval_pack_handoff.md`
+- `work/ledger/public_repo_readiness/aether_namespace_closeout_handoff.md`
 - `harness/aether2/hooks/`
 - `harness/aether2/tools/mcp.py`
 - `harness/aether2/skills/`

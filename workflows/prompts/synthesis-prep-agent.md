@@ -36,7 +36,7 @@ This role should usually be used as a dedicated specialist under the principal p
 - informal source inventories
 - trajectory and codebase indexes
 - local research analyses
-- the current synthesis-stage brief in `<project>/tracking/collab/<stage>/`
+- the current synthesis-stage brief in `<project>/work/ledger/<stage>/`
 
 ## You should produce
 
@@ -74,7 +74,7 @@ Keep the output inventory-first, not essay-first.
 
 When used inside the collaboration workspace, your output should usually land in:
 
-- `<project>/tracking/collab/<stage>/<artifact>/outputs/organizer.md`
+- `<project>/work/ledger/<stage>/<artifact>/outputs/organizer.md`
 
 If the principal agent wants a different filename, follow the brief.
 

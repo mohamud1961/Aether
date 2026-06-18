@@ -28,7 +28,7 @@ Use it when you want the shortest route to the most review-friendly evidence.
 
 - [Public architecture map](../architecture/public-architecture.md): live tree
   map and compatibility boundaries for the canonical public namespaces.
-- [Namespace closeout handoff](../../tracking/collab/public_repo_readiness/aether_namespace_closeout_handoff.md): final public
+- [Namespace closeout handoff](../../work/ledger/public_repo_readiness/aether_namespace_closeout_handoff.md): final public
   closeout for the `harness.aether2` canonical path and the
   `runner.aether2` compatibility layer.
 - [Aether runtime capability migration case study](../case-studies/aether-runtime-capability-migration.md):
@@ -184,9 +184,9 @@ contracts as owned HarnessEng runtime interfaces.
   boundary.
 - [Synthesis handbook](../../workflows/synthesis/synthesis-handbook.md): public
   synthesis workflow for turning evidence into curated claims.
-- [Public eval pack handoff](../../tracking/collab/public_repo_readiness/public_eval_pack_handoff.md):
+- [Public eval pack handoff](../../work/ledger/public_repo_readiness/public_eval_pack_handoff.md):
   first public-safe eval-pack slice with the smoke-runner pattern.
-- [Documentation packaging handoff](../../tracking/collab/public_repo_readiness/documentation_packaging_handoff.md):
+- [Documentation packaging handoff](../../work/ledger/public_repo_readiness/documentation_packaging_handoff.md):
   public navigation and packaging curation that made the reviewer-facing tree
   easier to follow.
 
@@ -199,11 +199,11 @@ contracts as owned HarnessEng runtime interfaces.
 - [Third-party notices](../provenance/third_party_notices.md):
   publication guidance for future third-party notice needs.
 - [Collab promotion map](collab_promotion_map.md): region-by-region public /
-  private split for `tracking/collab/`, including promote-now targets,
+  private split for `work/ledger/`, including promote-now targets,
   evidence-only links, and private exclusions.
-- [Collab promotion handoff](../../tracking/collab/public_repo_readiness/collab_promotion_map_handoff.md):
+- [Collab promotion handoff](../../work/ledger/public_repo_readiness/collab_promotion_map_handoff.md):
   compact evidence receipt for the curation slice and its validation checks.
-- [Public eval suite family/harness promotion handoff](../../tracking/collab/public_repo_readiness/public_eval_suite_family_harness_promotion_handoff.md):
+- [Public eval suite family/harness promotion handoff](../../work/ledger/public_repo_readiness/public_eval_suite_family_harness_promotion_handoff.md):
   evidence receipt for the family/harness/calibration public map slice.
 - [Publication gap list](publication_gap_list.md): active publication hygiene
   checklist and the remaining scoped gaps.

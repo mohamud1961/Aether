@@ -91,4 +91,4 @@ Template: [Context memory handoff checklist](../templates/context-memory-handoff
 
 Derived from the Goal governance contract, the orchestrator handoff rules, the
 thread/ledger skill-mining report, and the repeated public-readiness handoff
-pattern under `tracking/collab/public_repo_readiness/`.
+pattern under `work/ledger/public_repo_readiness/`.

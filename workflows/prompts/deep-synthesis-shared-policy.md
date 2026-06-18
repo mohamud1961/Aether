@@ -6,7 +6,7 @@ Use this policy supplement together with:
 
 - the active Deep Synthesis `brief.md`
 - your role-specific prompt
-- `<project>/tracking/collab/<synthesis-stage>/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md` when execution is being run manually by the human owner
+- `<project>/work/ledger/<synthesis-stage>/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md` when execution is being run manually by the human owner
 
 ## Mission
 
@@ -28,7 +28,7 @@ Your job is not to summarize the corpus loosely. Your job is to produce traceabl
   - `literature/papers/docs analyst`
   - `informal/issues/postmortems analyst`
 - `eval contract analyst` is an optional fifth main lane only when the active wave packet says verifier, grader, replay, or eval contract logic is load-bearing.
-- `<project>/tracking/collab/<synthesis-stage>/coverage_register/current_status.md` is a mandatory control surface, not background reading.
+- `<project>/work/ledger/<synthesis-stage>/coverage_register/current_status.md` is a mandatory control surface, not background reading.
 - The support artifacts are load-bearing and should be treated as reusable infrastructure, not optional side notes:
   - `source_system_dossiers`
   - `trajectory_case_studies`

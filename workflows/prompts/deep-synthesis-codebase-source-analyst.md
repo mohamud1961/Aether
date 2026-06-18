@@ -60,7 +60,7 @@ CODEBASE_SOURCE_RECON_OUTPUT
 
 ## Default storage expectation
 
-- `<project>/tracking/collab/<synthesis-stage>/<artifact>/outputs/codebase_source_reconstruction_analyst.md`
+- `<project>/work/ledger/<synthesis-stage>/<artifact>/outputs/codebase_source_reconstruction_analyst.md`
 
 ## Non-negotiable rules
 

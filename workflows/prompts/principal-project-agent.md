@@ -107,7 +107,7 @@ Use when the project already knows what to build and the main task is coherent e
 
 ## Storage rules
 
-- collaboration artifacts go under `tracking/collab/`
+- collaboration artifacts go under `work/ledger/`
 - historian inputs go under `tracking/ledger/inbox/`
 - git handoff reports go under `tracking/git/`
 - research artifacts stay under `research/`

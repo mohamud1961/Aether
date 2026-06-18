@@ -8,11 +8,11 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BFCL_SAMPLE_PATH_CANDIDATES = (
     REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/benchmark_samples/bfcl_v3_final.json",
-    REPO_ROOT / "tracking/collab/final_harness_eval_suite/adapter_fixtures/bfcl/benchmark_samples/bfcl_v3_final.json",
+    REPO_ROOT / "work/ledger/final_harness_eval_suite/adapter_fixtures/bfcl/benchmark_samples/bfcl_v3_final.json",
 )
 BFCL_API_DIR_CANDIDATES = (
     REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/bfcl_apis",
-    REPO_ROOT / "tracking/collab/final_harness_eval_suite/adapter_fixtures/bfcl/bfcl_apis",
+    REPO_ROOT / "work/ledger/final_harness_eval_suite/adapter_fixtures/bfcl/bfcl_apis",
 )
 
 

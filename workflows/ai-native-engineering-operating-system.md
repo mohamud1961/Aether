@@ -64,7 +64,7 @@ The repository is organized around several cooperating layers:
 - `harness.aether2`: the runtime/control/tooling surface.
 - `eval_suite/`: task packs, graders, boards, sentinels, and scoreboards.
 - `workflows/`: the operator method for goals, reviews, handoffs, and analysis.
-- `tracking/collab/public_repo_readiness/`: curated public handoffs that show
+- `work/ledger/public_repo_readiness/`: curated public handoffs that show
   what changed, how it was validated, and what remains blocked.
 
 The system is designed so the model can act, but cannot quietly redefine
@@ -162,8 +162,8 @@ Worker handoffs are expected to report:
 Public examples:
 
 - [Public evidence index](../docs/publication/public_evidence_index.md)
-- `tracking/collab/public_repo_readiness/documentation_packaging_handoff.md`
-- `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md`
+- `work/ledger/public_repo_readiness/documentation_packaging_handoff.md`
+- `work/ledger/public_repo_readiness/public_eval_pack_handoff.md`
 - `harness/aether2/hooks/`
 - `harness/aether2/tools/mcp.py`
 - `harness/aether2/skills/`

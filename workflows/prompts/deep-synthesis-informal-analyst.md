@@ -57,7 +57,7 @@ INFORMAL_ISSUES_POSTMORTEMS_OUTPUT
 
 ## Default storage expectation
 
-- `<project>/tracking/collab/<synthesis-stage>/<artifact>/outputs/informal_issues_postmortems_analyst.md`
+- `<project>/work/ledger/<synthesis-stage>/<artifact>/outputs/informal_issues_postmortems_analyst.md`
 
 ## Non-negotiable rules
 

@@ -29,9 +29,9 @@ Your job is to expose:
 - all first-pass outputs for the artifact
 - the contradiction output
 - the principal synthesis
-- `<project>/tracking/collab/<synthesis-stage>/coverage_register/current_status.md`
-- `<project>/tracking/collab/<synthesis-stage>/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
-- `<project>/tracking/collab/<synthesis-stage>/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
+- `<project>/work/ledger/<synthesis-stage>/coverage_register/current_status.md`
+- `<project>/work/ledger/<synthesis-stage>/adjudication/DEEP_SYNTHESIS_V1_AUDIT_CHECKLIST.md`
+- `<project>/work/ledger/<synthesis-stage>/DEEP_SYNTHESIS_EXECUTION_PROTOCOL.md`
 
 ## Required stance
 
@@ -44,7 +44,7 @@ Your job is to expose:
 
 Write one review to:
 
-- `<project>/tracking/collab/<synthesis-stage>/<artifact>/outputs/checklist_adjudicator.md`
+- `<project>/work/ledger/<synthesis-stage>/<artifact>/outputs/checklist_adjudicator.md`
 
 If you are running as an external model gate reviewer, use a model-suffixed sibling file instead of overwriting the primary adjudicator output.
 

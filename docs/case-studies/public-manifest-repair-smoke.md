@@ -42,7 +42,7 @@ The loop here was eval-first and deliberately narrow:
 - `eval_suite/scoreboards/public_manifest_repair_smoke_v1.example.scoreboard.json`
 - `tools/run_public_manifest_repair_smoke.py`
 - `tests/test_public_manifest_repair_smoke.py`
-- `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md`
+- `work/ledger/public_repo_readiness/public_eval_pack_handoff.md`
 
 ## Evidence Table
 
@@ -53,7 +53,7 @@ The loop here was eval-first and deliberately narrow:
 | `eval_suite/families/filesystem/public_manifest_repair_smoke/grader.py` | Deterministic manifest, summary, and checksum grading. |
 | `eval_suite/boards/public_manifest_repair_smoke_v1.json` | Board wiring to the pack, grader, fixture root, and smoke runner. |
 | `eval_suite/scoreboards/public_manifest_repair_smoke_v1.example.scoreboard.json` | Example scoreboard with one pass row and one fail row, labeled as smoke/example output. |
-| `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md` | Review, validation, and out-of-scope notes for the slice. |
+| `work/ledger/public_repo_readiness/public_eval_pack_handoff.md` | Review, validation, and out-of-scope notes for the slice. |
 
 ## Validation Summary
 
@@ -94,7 +94,7 @@ publication artifacts.
 - `docs/README.md`
 - `docs/case-studies/README.md`
 - `workflows/ai-native-engineering-operating-system.md`
-- `tracking/collab/public_repo_readiness/public_eval_pack_handoff.md`
+- `work/ledger/public_repo_readiness/public_eval_pack_handoff.md`
 - `eval_suite/families/filesystem/public_manifest_repair_smoke/README.md`
 - `eval_suite/families/filesystem/public_manifest_repair_smoke/task_pack.json`
 - `eval_suite/families/filesystem/public_manifest_repair_smoke/grader.py`

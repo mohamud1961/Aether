@@ -333,12 +333,12 @@ This is the recommended order from the current state of the project:
 
 Canonical location:
 
-- `tracking/collab/`
+- `work/ledger/`
 
 Recommended layout:
 
 ```text
-tracking/collab/
+work/ledger/
   stage_02_synthesis/
     mechanism_map/
       brief.md
@@ -370,7 +370,7 @@ Do not use one shared live multi-agent discussion as the canonical record.
 
 ### Collaboration artifacts
 
-- `tracking/collab/`
+- `work/ledger/`
 
 ### Canonical ledger
 
@@ -436,7 +436,7 @@ This pass created and/or updated the following governance artifacts:
 
 - operating model: `GOVERNED_MULTI_AGENT_OPERATING_MODEL.md`
 - principal prompt: `prompts/principal_project_agent_prompt.md`
-- collaboration workspace guidance: `tracking/collab/README.md`
+- collaboration workspace guidance: `work/ledger/README.md`
 - canonical ledger: `tracking/ledger/`
 - git handoff reports: `tracking/git/`
 

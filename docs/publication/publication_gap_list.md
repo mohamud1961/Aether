@@ -36,7 +36,7 @@ reviewer-facing repository surface.
 
 - Keep branded source-study handoff files out of the reviewer-facing path
   unless they are deliberately published as legal/provenance appendix material.
-- Apply the collab promotion map when deciding whether a `tracking/collab`
+- Apply the collab promotion map when deciding whether a `work/ledger`
   region should be cloned, linked, redacted, or kept private.
 - Complete a direct audit of every public-facing doc and workflow page for
   accidental references to private traces, raw evidence ledgers, private

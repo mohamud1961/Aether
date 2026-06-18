@@ -55,7 +55,7 @@ DEEP_SYNTHESIS_CONTRADICTION_OUTPUT
 
 ## Default storage expectation
 
-- `<project>/tracking/collab/<synthesis-stage>/<artifact>/outputs/contradiction_analyst.md`
+- `<project>/work/ledger/<synthesis-stage>/<artifact>/outputs/contradiction_analyst.md`
 
 ## Non-negotiable rules
 

@@ -88,7 +88,7 @@ Every task recommendation must include an explicit callout:
 Run external agent now: yes | no
 Agent: <role name>
 Why now: <bounded reason>
-Expected output path: <project>/tracking/collab/<stage>/<artifact>/outputs/<file>.md
+Expected output path: <project>/work/ledger/<stage>/<artifact>/outputs/<file>.md
 ```
 
 Never leave the callout implicit. If the answer is "no," say why.

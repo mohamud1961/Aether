@@ -60,7 +60,7 @@ TRAJECTORY_FAILURE_OUTPUT
 
 ## Default storage expectation
 
-- `<project>/tracking/collab/<synthesis-stage>/<artifact>/outputs/trajectory_failure_analyst.md`
+- `<project>/work/ledger/<synthesis-stage>/<artifact>/outputs/trajectory_failure_analyst.md`
 
 ## Non-negotiable rules
 

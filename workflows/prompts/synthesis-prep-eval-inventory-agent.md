@@ -197,6 +197,6 @@ Strong output should:
 
 When used inside the collaboration workspace, write to:
 
-- `<project>/tracking/collab/<synthesis-stage>/eval_inventory/outputs/eval_inventory.md`
+- `<project>/work/ledger/<synthesis-stage>/eval_inventory/outputs/eval_inventory.md`
 
 If the principal-agent brief specifies a different artifact path, follow the brief.

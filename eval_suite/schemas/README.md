@@ -13,7 +13,7 @@ eval suite.
 ## Schema contracts (not redistributed here)
 
 The full YAML schema files that were used during harness construction live in
-`tracking/collab/final_harness_eval_suite/` and are not redistributed in this
+`work/ledger/final_harness_eval_suite/` and are not redistributed in this
 public tree. They include:
 
 - `current_stack_manifest.schema.yaml` — 179 lines; defines the live recipe
