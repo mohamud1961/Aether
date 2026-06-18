@@ -69,6 +69,32 @@ HarnessEng interfaces with public eval coverage and provenance boundaries:
 See `docs/provenance/` for publication boundaries and `docs/publication/` for
 the public evidence index.
 
+## Quickstart: run the agent
+
+Run the Aether-2 agent loop offline with no API keys or containers:
+
+```
+python -m harness.aether2
+```
+
+Expected output:
+
+```
+=== harness.aether2 offline demo ===
+task_id        : offline_demo_v1
+finalize_reason: budget_exhaustion
+verifier_clean : False
+steps          : 0
+model_calls    : 1
+wall_time_s    : 2.xx
+summary        : 'The trivial demo task is done.'
+```
+
+The stub model client resolves immediately; `budget_exhaustion` is the
+expected exit reason when no tool calls are issued and no verifier report
+is produced.  `model_calls: 1` confirms the loop called the model and
+received a response.  No network connections or credentials are needed.
+
 ## Run an Eval
 
 Run a single eval pack offline with zero API credentials:
