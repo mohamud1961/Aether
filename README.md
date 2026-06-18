@@ -69,6 +69,34 @@ HarnessEng interfaces with public eval coverage and provenance boundaries:
 See `docs/provenance/` for publication boundaries and `docs/publication/` for
 the public evidence index.
 
+## Run an Eval
+
+Run a single eval pack offline with zero API credentials:
+
+```
+python -m runner run-eval eval_suite/families/tooling/mcp_registry_contract_smoke/task_pack.json
+```
+
+Expected output (abbreviated):
+
+```json
+{
+  "task_id": "mcp_registry_contract_smoke_v1",
+  "passed": true,
+  "score": 1.0,
+  "verdict": "pass",
+  "reason_codes": [],
+  "agent_result": {
+    "status": "stub_wrote_reference_solution",
+    "files_written": ["mcp_audit.json", "mcp_registry_trace.json"],
+    "challenge_response": "payload=default_smoke_challenge"
+  }
+}
+```
+
+The CLI accepts either the `task_pack.json` path or the containing directory.
+Exit code 0 = pass, 1 = fail.
+
 ## Start Here
 
 1. Read `PUBLIC_REVIEWER_GUIDE.md` for the shortest hiring/reviewer narrative.
