@@ -5,9 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace as dataclass_replace
 from pathlib import Path
 from typing import Any, Mapping
-import hashlib
 import json
-import re
 import shlex
 import time
 
@@ -38,10 +36,7 @@ from harness.aether2.runtime.jobs import JobRegistry
 from harness.aether2.traces.mirror import Mirror, MirrorNote, SemanticObservation
 from harness.aether2.runtime.orientation import orient
 from harness.aether2.runtime.prompts import (
-    COMPLETION_REMINDER_INTRO,
-    STRATEGY_RESET_REMINDER,
     SYSTEM_PROMPT,
-    TASK_DONE_REMINDER,
 )
 from harness.aether2.traces.receipts import ReceiptWriter, _redact_text
 from harness.aether2.runtime.sessions import SessionRegistry
@@ -50,12 +45,66 @@ from harness.aether2.tools.registry import ToolRegistry, build_native_tool_regis
 from harness.aether2.runtime.verify import DiscrepancyReport, RequirementResult, replay_checks, verify_fresh_context
 from harness.aether2.traces.redaction import _clean_hidden_refs
 
+# --- Extracted sub-modules (pure extraction; public API unchanged) ---
+from harness.aether2.control.requirements import (
+    UNASSIGNED_ACTIVITY_REQUIREMENT,
+    _current_evidence_ledger,
+    _extract_stated_requirements,
+    _extract_verifier_task_contract,
+    _is_harness_wrapper_requirement_line,
+    _is_noise_requirement_line,
+    _ledger_requirement_text,
+    _ledger_requirements,
+    _observation_relevance_tokens,
+    _primary_requirement,
+    _relevant_requirement,
+    _requirement_relevance_tokens,
+    _tail_evidence_ledger,
+    _unresolved_requirements,
+)
+from harness.aether2.control.completion import (
+    _INDEPENDENT_PROVENANCE_LABELS,
+    _SELF_AUTHORED_PROVENANCE_LABELS,
+    _WEAK_EVIDENCE_STRENGTHS,
+    _active_blockers,
+    _build_completion_contract,
+    _build_completion_evidence_gate_report,
+    _build_suppressed_blocker_report,
+    _failure_class,
+    _has_independent_runtime_evidence,
+    _ledger_progress,
+    _new_independent_provenance_added,
+    _semantic_action_family,
+    _strength_rank,
+)
+from harness.aether2.control.reasoning_trace import (
+    _build_reasoning_trace_step,
+    _model_visible_requirement_summary,
+    _response_cost,
+    _response_usage,
+    _tail_payload_digest,
+    _trace_envelope_summary,
+    _trace_non_step_model_calls,
+    _trace_tool_invocation_summary,
+    _write_reasoning_trace,
+)
+from harness.aether2.control.verification_context import _ReadOnlyVerificationContext
+from harness.aether2.control.runtime_support import (
+    _SERVICE_MONITOR_WINDOW_SEC,
+    _check_runs_in_workspace,
+    _env_contract_drift,
+    _env_contract_metadata,
+    _job_status_payload,
+    _monitor_persistent_runtime,
+    _service_monitoring_candidate,
+    _service_pid,
+)
+
 
 STEP_CAP = 120
 MAX_VERIFICATION_ROUNDS = 3
 CONTEXT_WINDOW_TOKENS = 128_000
 _REQUIREMENT_PREVIEW_LIMIT = 4
-_WEAK_EVIDENCE_STRENGTHS = {"none", "weak"}
 _SERVICE_MONITOR_WINDOW_SEC = 2
 
 # Generic package-manager invocations (first 1-2 shell tokens). Used only to
@@ -623,420 +672,6 @@ def _envelope_to_message(tool_name: str, tool_call_id: Any, envelope: Observatio
     }
 
 
-# W1.1: requirement extraction stays descriptive and conservative -- the
-# verbatim task instruction (`task.instruction` / `context.task_instruction`)
-# remains the authoritative contract. This projection only seeds a compact,
-# human-scannable requirement list for the evidence ledger and skips
-# wrapper/boilerplate lines (pure headings, separators, "thanks"/sign-off
-# style lines) so they do not become noisy requirement entries.
-_REQUIREMENT_LINE_NOISE_PATTERNS = (
-    "thank you",
-    "thanks",
-    "good luck",
-    "please",
-)
-
-_WRAPPER_REQUIREMENT_PATTERNS = (
-    "current working directory is",
-    "writable task workspace",
-    "official verifier",
-    "hidden verifier",
-    "hidden grader",
-    "hidden tests",
-    "solution.sh",
-    "task_done",
-    "plan-only diagnostic",
-    "plausible file",
-    "plausible process",
-    "independent verifier",
-    "if the task asks for",
-    "for qemu/telnet",
-    "for vnc/desktop",
-    "for media/transcription",
-    "for long-running jobs",
-    "strong checks",
-    "strong enough",
-    "receipt-backed evidence",
-)
-
-
-def _is_noise_requirement_line(line: str) -> bool:
-    """Conservative filter for wrapper/boilerplate lines.
-
-    Only filters lines that are clearly structural noise: markdown heading
-    markers, pure separator/punctuation lines, or very short sign-off style
-    lines. Never filters anything that looks like it carries a path, command,
-    constraint, or behavioral detail.
-    """
-
-    stripped = line.strip()
-    if not stripped:
-        return True
-    # Markdown headings (e.g. "# Task", "## Notes") are structural, not
-    # individually actionable requirements.
-    if stripped.lstrip("#").strip() != stripped and stripped.startswith("#"):
-        return True
-    # Pure separator/punctuation lines (e.g. "---", "===", "***").
-    if all(char in "-=*_~. " for char in stripped):
-        return True
-    # Short sign-off/wrapper lines with no path-, command-, or constraint-like
-    # content (no slashes, backticks, digits, or quotes) are likely boilerplate.
-    lowered = stripped.lower()
-    if len(stripped) <= 40 and not any(token in stripped for token in ("/", "`", "\"", "'", ":")) and not any(char.isdigit() for char in stripped):
-        if any(phrase in lowered for phrase in _REQUIREMENT_LINE_NOISE_PATTERNS):
-            return True
-    return False
-
-
-def _is_harness_wrapper_requirement_line(line: str) -> bool:
-    """Return true for wrapper doctrine that should not become task contract.
-
-    These lines describe harness operating policy rather than the user-authored
-    success condition. Real task constraints are still preserved
-    unless they contain explicit harness-control vocabulary such as task_done,
-    hidden grader/verifier files, or generic "if the task asks for..." doctrine.
-    """
-
-    lowered = line.lower()
-    if "you can run" in lowered and "verify" in lowered:
-        return True
-    return any(pattern in lowered for pattern in _WRAPPER_REQUIREMENT_PATTERNS)
-
-
-def _extract_stated_requirements(task_instruction: str) -> list[str]:
-    requirements: list[str] = []
-    for raw_line in task_instruction.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if _is_noise_requirement_line(line):
-            continue
-        if line.startswith(("-", "*")):
-            requirement = line[1:].strip()
-        else:
-            digits = []
-            for char in line:
-                if char.isdigit():
-                    digits.append(char)
-                    continue
-                if char in {".", ")"} and digits:
-                    requirement = line[len(digits) + 1 :].strip()
-                    break
-                requirement = line
-                break
-            else:
-                requirement = line
-        if _is_harness_wrapper_requirement_line(requirement):
-            continue
-        if len(requirement) > 300:
-            requirement = requirement[:297].rstrip() + "..."
-        if requirement and requirement not in requirements:
-            requirements.append(requirement)
-    if requirements:
-        return requirements
-    trimmed = " ".join(task_instruction.split())
-    if not trimmed:
-        return ["Complete the stated task contract."]
-    if len(trimmed) > 300:
-        trimmed = trimmed[:297].rstrip() + "..."
-    return [trimmed]
-
-
-def _extract_verifier_task_contract(task_instruction: str) -> str:
-    """Compact task contract for fresh-context verification.
-
-    The executor still receives the full task instruction, including any
-    harness wrapper. The verifier receives only the requirement projection so
-    harness-side doctrine cannot be reinterpreted as success criteria.
-    """
-
-    return "\n".join(_extract_stated_requirements(task_instruction))
-
-
-# W1.1: a generic bucket for tool activity that does not visibly relate to any
-# stated requirement (e.g. exploratory commands, environment probes). Keeping
-# this separate avoids forcing every observation onto the first unresolved
-# requirement, which previously made unrelated activity look like progress on
-# that requirement.
-UNASSIGNED_ACTIVITY_REQUIREMENT = "unassigned activity (not linked to a stated requirement)"
-
-
-def _requirement_relevance_tokens(text: str) -> set[str]:
-    tokens: set[str] = set()
-    for raw_token in re.findall(r"[A-Za-z0-9_./\\-]+", text.lower()):
-        token = raw_token.strip("./\\-_")
-        if len(token) >= 3:
-            tokens.add(token)
-        # Path-like tokens: also index the basename and extension.
-        if "/" in raw_token or "\\" in raw_token:
-            base = raw_token.replace("\\", "/").rsplit("/", 1)[-1]
-            base = base.strip("./\\-_")
-            if len(base) >= 3:
-                tokens.add(base)
-    return tokens
-
-
-def _observation_relevance_tokens(*, tool_name: str, arguments: Mapping[str, Any], artifact_paths: list[str]) -> set[str]:
-    tokens: set[str] = set()
-    for path in artifact_paths:
-        tokens |= _requirement_relevance_tokens(path)
-    for key in ("path", "cmd", "session_id", "job_id"):
-        raw = arguments.get(key)
-        if isinstance(raw, str) and raw.strip():
-            tokens |= _requirement_relevance_tokens(raw)
-    return tokens
-
-
-def _relevant_requirement(
-    ledger: Mapping[str, Any],
-    fallback_requirements: list[str],
-    *,
-    tool_name: str,
-    arguments: Mapping[str, Any],
-    artifact_paths: list[str],
-) -> str:
-    """Pick the requirement an observation visibly relates to.
-
-    Matches on shared path/command/identifier tokens between the observation
-    and each requirement's text. Falls back to `UNASSIGNED_ACTIVITY_REQUIREMENT`
-    when no stated requirement shares any visible token with the observation,
-    instead of always attaching to the first unresolved requirement.
-    """
-
-    observation_tokens = _observation_relevance_tokens(
-        tool_name=tool_name, arguments=arguments, artifact_paths=artifact_paths
-    )
-    if observation_tokens:
-        for item in _ledger_requirements(ledger):
-            requirement_text = _ledger_requirement_text(item)
-            if requirement_text == UNASSIGNED_ACTIVITY_REQUIREMENT:
-                continue
-            if observation_tokens & _requirement_relevance_tokens(requirement_text):
-                return requirement_text
-    if tool_name == "task_done":
-        return _primary_requirement(ledger, fallback_requirements)
-    return UNASSIGNED_ACTIVITY_REQUIREMENT
-
-
-def _current_evidence_ledger(context: ContextManager) -> dict[str, Any]:
-    snapshot = context.delta_state
-    if snapshot is None:
-        return build_evidence_ledger()
-    ledger = getattr(snapshot, "evidence_ledger", {}) or {}
-    requirements = _extract_stated_requirements(context.task_instruction)
-    return ensure_stated_requirements(ledger, requirements)
-
-
-def _ledger_requirements(ledger: Mapping[str, Any]) -> list[dict[str, Any]]:
-    raw_requirements = ledger.get("requirements", [])
-    if not isinstance(raw_requirements, list):
-        return []
-    return [item for item in raw_requirements if isinstance(item, Mapping)]
-
-
-def _ledger_requirement_text(requirement: Mapping[str, Any]) -> str:
-    return str(requirement.get("requirement", "")).strip()
-
-
-def _primary_requirement(ledger: Mapping[str, Any], fallback_requirements: list[str]) -> str:
-    unresolved = _unresolved_requirements(ledger)
-    if unresolved:
-        return _ledger_requirement_text(unresolved[0])
-    requirements = _ledger_requirements(ledger)
-    if requirements:
-        return _ledger_requirement_text(requirements[0])
-    return fallback_requirements[0]
-
-
-def _unresolved_requirements(ledger: Mapping[str, Any]) -> list[dict[str, Any]]:
-    unresolved: list[dict[str, Any]] = []
-    for item in _ledger_requirements(ledger):
-        if _ledger_requirement_text(item) == UNASSIGNED_ACTIVITY_REQUIREMENT:
-            continue
-        status = str(item.get("status", "unproven"))
-        blockers = item.get("verifier_blockers", []) or []
-        next_required = item.get("next_required_evidence", []) or []
-        if status != "proven" or blockers or next_required:
-            unresolved.append(dict(item))
-    return unresolved
-
-
-def _tail_evidence_ledger(ledger: Mapping[str, Any]) -> dict[str, Any]:
-    requirement_rows: list[dict[str, Any]] = []
-    for item in _ledger_requirements(ledger)[:_REQUIREMENT_PREVIEW_LIMIT]:
-        requirement_rows.append(
-            {
-                "requirement": _ledger_requirement_text(item),
-                "status": str(item.get("status", "unproven")),
-                "evidence_strength": str(item.get("evidence_strength", "none")),
-                "failed_checks": list(item.get("failed_checks", []) or [])[:2],
-                "open_risks": list(item.get("open_risks", []) or [])[:2],
-                "verifier_blockers": list(item.get("verifier_blockers", []) or [])[:2],
-                "next_required_evidence": list(item.get("next_required_evidence", []) or [])[:2],
-            }
-        )
-    return {
-        "requirements": requirement_rows,
-        "repeated_failure_families": list(ledger.get("repeated_failure_families", []) or [])[:4],
-    }
-
-
-# W1.2: provenance labels that indicate evidence was generated by the model's
-# own artifact/check rather than an independent or externally observable
-# source. Used only for a passive, model-visible reflection note -- never to
-# veto or rewrite an action.
-_SELF_AUTHORED_PROVENANCE_LABELS = {
-    "model_authored_artifact",
-    "model_authored_check",
-    "same_method_check",
-}
-
-
-def _build_completion_contract(task_instruction: str, ledger: Mapping[str, Any]) -> dict[str, Any]:
-    unresolved = _unresolved_requirements(ledger)
-    weak_evidence: list[str] = []
-    next_required: list[str] = []
-    blockers: list[str] = []
-    for item in unresolved:
-        evidence_strength = str(item.get("evidence_strength", "none"))
-        requirement = _ledger_requirement_text(item)
-        if evidence_strength in _WEAK_EVIDENCE_STRENGTHS and list(item.get("evidence_refs", []) or []):
-            weak_evidence.append(f"{requirement}: evidence is only {evidence_strength}")
-        for blocker in list(item.get("verifier_blockers", []) or []):
-            blockers.append(f"{requirement}: {blocker}")
-        for evidence in list(item.get("next_required_evidence", []) or []):
-            next_required.append(f"{requirement}: {evidence}")
-    contract_text = " ".join(task_instruction.split())
-    if len(contract_text) > 280:
-        contract_text = contract_text[:277].rstrip() + "..."
-
-    # W1.2: a concise, per-turn evidence question derived from visible state.
-    # Passive reflection only -- it states the current unresolved requirement,
-    # the strongest missing evidence for it, and (when applicable) that the
-    # existing evidence for that requirement was only weak/self-authored.
-    current_unresolved_requirement: str | None = None
-    strongest_missing_evidence: str | None = None
-    current_evidence_is_self_authored_or_weak: bool = False
-    if unresolved:
-        top = unresolved[0]
-        current_unresolved_requirement = _ledger_requirement_text(top)
-        top_next_required = list(top.get("next_required_evidence", []) or [])
-        if top_next_required:
-            strongest_missing_evidence = str(top_next_required[0])
-        evidence_strength = str(top.get("evidence_strength", "none"))
-        provenance_labels = {str(label) for label in (top.get("evidence_provenance", []) or [])}
-        has_evidence = bool(list(top.get("evidence_refs", []) or []))
-        if has_evidence and (
-            evidence_strength in _WEAK_EVIDENCE_STRENGTHS
-            or (provenance_labels and provenance_labels.issubset(_SELF_AUTHORED_PROVENANCE_LABELS))
-        ):
-            current_evidence_is_self_authored_or_weak = True
-
-    return {
-        "intro": COMPLETION_REMINDER_INTRO,
-        "stated_task_contract": contract_text,
-        "unresolved_requirements": [_ledger_requirement_text(item) for item in unresolved[:_REQUIREMENT_PREVIEW_LIMIT]],
-        "verifier_blockers": blockers[:_REQUIREMENT_PREVIEW_LIMIT],
-        "weak_evidence": weak_evidence[:_REQUIREMENT_PREVIEW_LIMIT],
-        "next_required_evidence": next_required[:_REQUIREMENT_PREVIEW_LIMIT],
-        "current_unresolved_requirement": current_unresolved_requirement,
-        "strongest_missing_evidence": strongest_missing_evidence,
-        "current_evidence_is_self_authored_or_weak": current_evidence_is_self_authored_or_weak,
-        "strategy_reset_rule": STRATEGY_RESET_REMINDER,
-        "task_done_rule": TASK_DONE_REMINDER,
-    }
-
-
-def _strength_rank(value: str) -> int:
-    return {"none": 0, "weak": 1, "moderate": 2, "strong": 3}.get(value, 0)
-
-
-def _ledger_progress(before: Mapping[str, Any], after: Mapping[str, Any]) -> tuple[bool, bool]:
-    before_map = {
-        _ledger_requirement_text(item): item
-        for item in _ledger_requirements(before)
-        if _ledger_requirement_text(item)
-    }
-    after_map = {
-        _ledger_requirement_text(item): item
-        for item in _ledger_requirements(after)
-        if _ledger_requirement_text(item)
-    }
-    requirement_advanced = False
-    stronger_evidence_added = False
-    for requirement, after_item in after_map.items():
-        before_item = before_map.get(requirement, {})
-        if str(before_item.get("status", "unproven")) != str(after_item.get("status", "unproven")):
-            requirement_advanced = True
-        if _strength_rank(str(after_item.get("evidence_strength", "none"))) > _strength_rank(
-            str(before_item.get("evidence_strength", "none"))
-        ):
-            stronger_evidence_added = True
-        if _new_independent_provenance_added(before_item, after_item):
-            stronger_evidence_added = True
-    return requirement_advanced, stronger_evidence_added
-
-
-# Provenance labels that indicate the evidence was not merely self-authored
-# (model-written artifact, replayed/same-method check, etc.). A newly added
-# label from this set represents genuine independent evidence, distinct from
-# a bare increase in evidence_refs count (e.g. an output write or status note).
-_INDEPENDENT_PROVENANCE_LABELS = {
-    "task_supplied",
-    "external_tool_observation",
-    "fresh_process",
-    "fresh_client",
-    "task_environment",
-    "independent",
-}
-
-
-def _new_independent_provenance_added(before_item: Mapping[str, Any], after_item: Mapping[str, Any]) -> bool:
-    before_labels = {str(label) for label in (before_item.get("evidence_provenance", []) or [])}
-    after_labels = {str(label) for label in (after_item.get("evidence_provenance", []) or [])}
-    newly_added = after_labels - before_labels
-    return bool(newly_added & _INDEPENDENT_PROVENANCE_LABELS)
-
-
-def _semantic_action_family(tool_name: str, arguments: Mapping[str, Any]) -> tuple[str, str | None, str | None]:
-    if tool_name != "run_command":
-        for key, target_kind in (("path", "path"), ("job_id", "job"), ("session_id", "session"), ("cwd", "path")):
-            raw = arguments.get(key)
-            if isinstance(raw, str) and raw.strip():
-                return tool_name, raw, target_kind
-        return tool_name, None, None
-
-    command = str(arguments.get("cmd", ""))
-    try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
-        return "run_command", command.strip() or None, "command"
-    if not tokens:
-        return "run_command", None, None
-    family_tokens = [tokens[0]]
-    if len(tokens) > 1 and tokens[0] in {"python", "python3", "pytest", "bash", "sh", "node", "Rscript", "make", "cmake", "cargo", "go", "npm", "pip", "pip3", "uv"}:
-        family_tokens.append(tokens[1])
-    target = None
-    target_kind = None
-    for token in tokens[1:]:
-        if token.startswith("-") or "://" in token:
-            continue
-        if "/" in token or token.endswith((".py", ".sh", ".txt", ".json", ".md", ".toml", ".yaml", ".yml", ".csv")):
-            target = token
-            target_kind = "path"
-            break
-    return " ".join(family_tokens), target, target_kind
-
-
-def _failure_class(envelope: ObservationEnvelope) -> str | None:
-    if envelope.error is not None:
-        return envelope.error.failure_class or envelope.error.reason_code or envelope.error.kind
-    if envelope.exit_code is not None and envelope.exit_code != 0:
-        return f"exit_{envelope.exit_code}"
-    if not envelope.files_changed and envelope.exit_code == 0:
-        return "no_effect"
-    return None
-
 def _build_tail_state(
     *,
     plan_text: str | None,
@@ -1085,218 +720,6 @@ def _build_tail_state(
     return tail
 
 
-def _trace_envelope_summary(envelope: ObservationEnvelope) -> dict[str, Any]:
-    return {
-        "tool": envelope.tool,
-        "exit_code": envelope.exit_code,
-        "duration_sec": round(envelope.duration_sec, 3),
-        "cwd": envelope.cwd,
-        "stdout_head": envelope.stdout_head,
-        "stdout_tail": envelope.stdout_tail,
-        "stderr_head": envelope.stderr_head,
-        "stderr_tail": envelope.stderr_tail,
-        "truncated": envelope.truncated,
-        "raw_log_path": envelope.raw_log_path,
-        "files_changed": [item.__dict__ for item in envelope.files_changed],
-        "process_delta": envelope.process_delta.__dict__,
-        "blind_retry_blocked": envelope.blind_retry_blocked,
-        "error": None if envelope.error is None else envelope.error.__dict__,
-    }
-
-
-def _trace_tool_invocation_summary(record: ToolInvocationRecord) -> dict[str, Any]:
-    return {
-        "step": record.step,
-        "tool_name": record.tool_name,
-        "arguments": record.arguments,
-        "permission_decision": record.permission_decision,
-        "hook_trace": record.hook_trace,
-        "observation": _trace_envelope_summary(record.envelope),
-    }
-
-
-def _model_visible_requirement_summary(
-    completion_contract: Mapping[str, Any],
-    ledger: Mapping[str, Any],
-) -> dict[str, Any]:
-    unresolved_requirements = completion_contract.get("unresolved_requirements")
-    if not isinstance(unresolved_requirements, list):
-        unresolved_requirements = []
-    next_required_evidence = completion_contract.get("next_required_evidence")
-    if not isinstance(next_required_evidence, list):
-        next_required_evidence = []
-    weak_evidence = completion_contract.get("weak_evidence")
-    if not isinstance(weak_evidence, list):
-        weak_evidence = []
-    verifier_blockers = completion_contract.get("verifier_blockers")
-    if not isinstance(verifier_blockers, list):
-        verifier_blockers = []
-    return {
-        "unresolved_requirements": [str(item) for item in unresolved_requirements],
-        "next_required_evidence": [str(item) for item in next_required_evidence],
-        "weak_evidence": [str(item) for item in weak_evidence],
-        "verifier_blockers": [str(item) for item in verifier_blockers],
-        "persistent_blockers": list(ledger.get("blockers", []) or []),
-    }
-
-
-def _build_reasoning_trace_step(
-    *,
-    step: int | None,
-    model_call_idx: int,
-    call_role: str,
-    response: Any,
-    input_digests: Mapping[str, Any],
-    visible_tail_state: Mapping[str, Any],
-    completion_contract: Mapping[str, Any],
-    pre_step_ledger: Mapping[str, Any],
-    post_step_ledger: Mapping[str, Any],
-    tool_invocations: list[ToolInvocationRecord],
-    task_done_call: tuple[dict[str, Any], ObservationEnvelope] | None,
-    decision_kind: str,
-    plan_text: str | None,
-    model_exchange_ref: str,
-    verification_round_index: int | None = None,
-    blocker_state: Mapping[str, Any] | None = None,
-    finalize_reason: str | None = None,
-) -> dict[str, Any]:
-    requirement_advanced, stronger_evidence_added = _ledger_progress(pre_step_ledger, post_step_ledger)
-    task_done_summary = {
-        "called": task_done_call is not None,
-        "summary": None,
-        "checks": [],
-    }
-    if task_done_call is not None:
-        task_done_summary["summary"] = str(task_done_call[0].get("summary", ""))
-        task_done_summary["checks"] = [str(item) for item in task_done_call[0].get("checks", [])]
-
-    return {
-        "schema_version": 1,
-        "step": step,
-        "model_call_idx": model_call_idx,
-        "call_role": call_role,
-        "decision_kind": decision_kind,
-        "assistant_text": getattr(response, "text", ""),
-        "assistant_plan_after_turn": plan_text,
-        "tool_call_count": len(tool_invocations),
-        "tool_calls": [_trace_tool_invocation_summary(record) for record in tool_invocations],
-        "model_input_digests": dict(input_digests),
-        "visible_context": {
-            "model_exchange_ref": model_exchange_ref,
-            "tail_state": visible_tail_state,
-            "completion_contract": completion_contract,
-            "model_visible_requirements": _model_visible_requirement_summary(completion_contract, post_step_ledger),
-        },
-        "pre_step_evidence_ledger": pre_step_ledger,
-        "post_step_evidence_ledger": post_step_ledger,
-        "verification_round_index": verification_round_index,
-        "blocker_state": dict(blocker_state or {}),
-        "progress": {
-            "requirement_advanced": requirement_advanced,
-            "stronger_evidence_added": stronger_evidence_added,
-            "no_progress": not (requirement_advanced or stronger_evidence_added),
-        },
-        "task_done": task_done_summary,
-        "finalize_reason": finalize_reason,
-    }
-
-
-def _write_reasoning_trace(
-    *,
-    trace_path: Path,
-    task_id: str,
-    task_dir: Path,
-    workspace_root: Path,
-    receipts_root: Path,
-    steps: list[dict[str, Any]],
-    non_step_model_calls: list[dict[str, Any]],
-    model_call_count: int,
-    finalize_reason: str,
-    finalize_pass: bool,
-) -> Path:
-    payload = {
-        "schema_version": 1,
-        "task_id": task_id,
-        "task_dir": str(task_dir),
-        "workspace_root": str(workspace_root),
-        "receipts_root": str(receipts_root),
-        "step_count": len(steps),
-        "model_call_count": model_call_count,
-        "finalize_reason": finalize_reason,
-        "verifier_clean": finalize_pass,
-        "steps": steps,
-        "non_step_model_calls": non_step_model_calls,
-    }
-    trace_path.parent.mkdir(parents=True, exist_ok=True)
-    trace_path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True) + "\n", encoding="utf-8")
-    return trace_path
-
-
-def _response_usage(response: Any) -> Mapping[str, Any]:
-    usage = getattr(response, "usage", {})
-    if isinstance(usage, Mapping):
-        return usage
-    return {}
-
-
-def _response_cost(response: Any) -> float:
-    raw_response = getattr(response, "raw_response", {})
-    if isinstance(raw_response, Mapping):
-        direct = raw_response.get("cost")
-        if isinstance(direct, (int, float)):
-            return float(direct)
-        usage = raw_response.get("usage")
-        if isinstance(usage, Mapping):
-            value = usage.get("cost")
-            if isinstance(value, (int, float)):
-                return float(value)
-    return 0.0
-
-
-def _trace_non_step_model_calls(
-    *,
-    receipts_dir: Path,
-    step_model_call_indices: set[int],
-) -> list[dict[str, Any]]:
-    non_step_calls: list[dict[str, Any]] = []
-    for path in sorted(receipts_dir.glob("model_exchange_*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(payload, Mapping):
-            continue
-        call_idx = payload.get("call_idx")
-        if not isinstance(call_idx, int) or call_idx in step_model_call_indices:
-            continue
-        request_context = payload.get("request_context")
-        if not isinstance(request_context, Mapping):
-            request_context = {}
-        non_step_calls.append(
-            {
-                "model_call_idx": call_idx,
-                "call_role": payload.get("call_role"),
-                "model_exchange_ref": str(path),
-                "request_context": {
-                    "env_contract": request_context.get("env_contract"),
-                    "tool_schema_digest": request_context.get("tool_schema_digest"),
-                    "tail_state_digest": _tail_payload_digest(request_context.get("tail_state")),
-                },
-            }
-        )
-    return non_step_calls
-
-
-def _tail_payload_digest(payload: Any) -> str | None:
-    if payload is None:
-        return None
-    try:
-        rendered = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    except TypeError:
-        return None
-    return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
-
-
 def _model_requested_rebase(response_text: str, tool_calls: Any) -> bool:
     if tool_calls:
         return False
@@ -1339,115 +762,6 @@ def _unused_affordances() -> list[str]:
         "write_file",
         "wait",
     ]
-
-
-class _ReadOnlyVerificationContext:
-    """Expose only read-only inspection affordances during verifier probes (C7).
-
-    Deny-by-default: `run_command` is rejected unless every pipe segment's first
-    token is a conservative read-only binary AND no shell metacharacters other
-    than `|` (pipe) appear anywhere in the command. Every attempt -- allowed or
-    rejected -- is recorded via `receipts.record_verifier_command` for a full
-    audit trail. Perfect read-only enforcement in a shell is not possible (e.g.
-    a malicious `find -exec`); this is a best-effort structural guard plus a
-    complete audit trail, per the spec's honest-engineering posture.
-    """
-
-    _ALLOWED_BINARIES = {
-        "ls",
-        "cat",
-        "head",
-        "tail",
-        "grep",
-        "find",
-        "stat",
-        "wc",
-        "file",
-        "ps",
-        "df",
-        "du",
-        "sha256sum",
-        "jq",
-        "pwd",
-    }
-    # Any of these appearing as standalone tokens (other than "|") makes the
-    # command rejected: redirects, command chaining/substitution, backgrounding.
-    _DISALLOWED_TOKENS = {
-        ">", ">>", "<", "<<", ";", "&", "&&", "||", "`", "$(",
-        "rm", "mv", "cp", "tee", "chmod", "chown", "mkdir", "touch", "kill",
-        "dd", "truncate", "sed", "-exec", "-delete", "-ok",
-    }
-
-    def __init__(self, ctx: ExecutionContext, receipts: "ReceiptWriter | None" = None) -> None:
-        self._ctx = ctx
-        self._receipts = receipts
-        self._call_idx = 0
-
-    def _record(self, tool_name: str, arguments: dict[str, Any], envelope: ObservationEnvelope) -> ObservationEnvelope:
-        self._call_idx += 1
-        if self._receipts is not None:
-            try:
-                self._receipts.record_verifier_command(self._call_idx, tool_name, arguments, envelope)
-            except Exception:  # noqa: BLE001 - receipts must never break verification
-                pass
-        return envelope
-
-    def _rejected(self, cmd: str, message: str) -> ObservationEnvelope:
-        return build_envelope(
-            {
-                "tool": "run_command",
-                "exit_code": 1,
-                "duration_sec": 0.0,
-                "cwd": str(self._ctx.executor.workspace_root),
-                "stdout": "",
-                "stderr": message,
-                "error": {
-                    "kind": "verification_read_only_violation",
-                    "message": message,
-                    "reason_code": "verification_read_only_violation",
-                    "command": cmd,
-                },
-            },
-            raw_log_dir=self._ctx.raw_log_dir,
-        )
-
-    def run_command(self, cmd: str, timeout_sec: int = 120, cwd: str | None = None) -> ObservationEnvelope:
-        try:
-            tokens = shlex.split(cmd, posix=True)
-        except ValueError:
-            envelope = self._rejected(cmd, "verifier inspection command could not be parsed")
-            return self._record("run_command", {"cmd": cmd, "timeout_sec": timeout_sec, "cwd": cwd}, envelope)
-
-        if not tokens or any(token in self._DISALLOWED_TOKENS for token in tokens):
-            envelope = self._rejected(cmd, "verifier inspection is read-only; command rejected")
-            return self._record("run_command", {"cmd": cmd, "timeout_sec": timeout_sec, "cwd": cwd}, envelope)
-
-        # Split on pipe tokens into segments; each segment's leading token must
-        # be an allowed read-only binary.
-        segments: list[list[str]] = [[]]
-        for token in tokens:
-            if token == "|":
-                segments.append([])
-            else:
-                segments[-1].append(token)
-        if any(not segment or segment[0] not in self._ALLOWED_BINARIES for segment in segments):
-            envelope = self._rejected(cmd, "verifier inspection is read-only; command rejected")
-            return self._record("run_command", {"cmd": cmd, "timeout_sec": timeout_sec, "cwd": cwd}, envelope)
-
-        envelope = self._ctx.run_command(cmd, timeout_sec=timeout_sec, cwd=cwd)
-        return self._record("run_command", {"cmd": cmd, "timeout_sec": timeout_sec, "cwd": cwd}, envelope)
-
-    def read_file(self, path: str, offset: int | None = None, limit: int | None = None) -> ObservationEnvelope:
-        envelope = self._ctx.read_file(path, offset=offset, limit=limit)
-        return self._record("read_file", {"path": path, "offset": offset, "limit": limit}, envelope)
-
-    def job_status(self, job_id: str) -> ObservationEnvelope:
-        envelope = self._ctx.job_status(job_id)
-        return self._record("job_status", {"job_id": job_id}, envelope)
-
-    def session_read(self, session_id: str) -> ObservationEnvelope:
-        envelope = self._ctx.session_read(session_id)
-        return self._record("session_read", {"session_id": session_id}, envelope)
 
 
 def _execute_tool_calls(
@@ -2535,123 +1849,6 @@ def _check_result_summary(result: Any) -> str:
     if reason_code:
         summary += f" reason={reason_code}"
     return summary
-
-
-def _active_blockers(ledger: Mapping[str, Any]) -> list[dict[str, Any]]:
-    blockers = ledger.get("blockers", []) if isinstance(ledger, Mapping) else []
-    if not isinstance(blockers, list):
-        return []
-    return [
-        dict(item)
-        for item in blockers
-        if isinstance(item, Mapping) and str(item.get("status", "")) in {"active", "candidate_resolved", "exhausted"}
-    ]
-
-
-def _build_suppressed_blocker_report(ledger: Mapping[str, Any]) -> DiscrepancyReport:
-    blocker_rows = _active_blockers(ledger)[:_REQUIREMENT_PREVIEW_LIMIT]
-    requirements = tuple(
-        RequirementResult(
-            requirement=str(blocker.get("requirement", "")).strip() or "unresolved requirement",
-            verdict="unverifiable",
-            evidence=(
-                str(blocker.get("insufficiency_reason", "")).strip()
-                or "No new blocker-relevant evidence was provided."
-            )
-            + (
-                ""
-                if not list(blocker.get("required_next_evidence", []) or [])
-                else f" Next evidence: {list(blocker.get('required_next_evidence', []) or [])[0]}"
-            ),
-            evidence_strength="weak",
-            evidence_strength_reasons=("suppressed_verifier_without_new_relevant_evidence",),
-            confidence="high",
-            evidence_refs=tuple(str(item) for item in list(blocker.get("rejected_evidence_refs", []) or [])[:2]),
-            unresolved=True,
-        )
-        for blocker in blocker_rows
-    )
-    summary = "Completion request rejected without a new verifier call because active blockers still require new relevant evidence."
-    blocker_summaries = [
-        f"{str(blocker.get('requirement', '')).strip()}: "
-        f"{(list(blocker.get('required_next_evidence', []) or []) or ['new blocker-relevant evidence required'])[0]}"
-        for blocker in blocker_rows
-    ]
-    if blocker_summaries:
-        summary += " " + " | ".join(blocker_summaries)
-    return DiscrepancyReport(
-        requirements=requirements,
-        reason_codes=("verifier_suppressed_no_new_relevant_evidence",),
-        summary=summary,
-        raw_response="suppressed_verifier_call",
-    )
-
-
-def _has_independent_runtime_evidence(action_digest: Mapping[str, Any]) -> bool:
-    service_monitoring = action_digest.get("service_monitoring")
-    if not isinstance(service_monitoring, Mapping) or not service_monitoring.get("applies"):
-        return False
-
-    jobs = service_monitoring.get("jobs")
-    if isinstance(jobs, Mapping):
-        for payload in jobs.values():
-            if not isinstance(payload, Mapping):
-                continue
-            after = payload.get("end")
-            if isinstance(after, Mapping) and (after.get("alive") is True or after.get("exit_code") == 0):
-                return True
-
-    sessions = service_monitoring.get("sessions")
-    if isinstance(sessions, Mapping):
-        for payload in sessions.values():
-            if isinstance(payload, Mapping) and payload.get("end_present") is True:
-                return True
-
-    services = service_monitoring.get("services")
-    if isinstance(services, Mapping):
-        for payload in services.values():
-            if isinstance(payload, Mapping) and payload.get("end") is not None:
-                return True
-
-    return False
-
-
-def _build_completion_evidence_gate_report(
-    ledger: Mapping[str, Any],
-    *,
-    stated_requirements: list[str],
-    finalize_reason: str | None,
-    check_results: list[Any],
-    action_digest: Mapping[str, Any],
-) -> DiscrepancyReport | None:
-    if finalize_reason != "task_done":
-        return None
-    if check_results or _has_independent_runtime_evidence(action_digest):
-        return None
-
-    requirement = _primary_requirement(ledger, stated_requirements)
-    evidence = (
-        "task_done did not provide any replayed checks and the harness "
-        "did not observe independent runtime/service/session evidence. Provide "
-        "a concrete externally observable check, or keep working."
-    )
-    result = RequirementResult(
-        requirement=requirement or "completion claim",
-        verdict="unverifiable",
-        evidence=evidence,
-        evidence_strength="weak",
-        evidence_strength_reasons=("no_replayed_check", "no_independent_runtime_evidence"),
-        evidence_provenance=("model_authored",),
-        confidence="high",
-        evidence_refs=("claim", "action_digest.service_monitoring"),
-        unresolved=True,
-    )
-    return DiscrepancyReport(
-        requirements=(result,),
-        reason_codes=("completion_evidence_gate_rejected",),
-        summary="Completion request rejected before verifier because no replayed check or independent runtime evidence was available.",
-        raw_response="completion_evidence_gate",
-    )
 
 
 def _service_monitoring_candidate(
