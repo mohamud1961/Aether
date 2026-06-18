@@ -1,48 +1,34 @@
-# Adapters
+# Benchmark Adapters
 
-Benchmark adapter code is **not redistributed in this public tree** for two reasons:
+These adapters convert external benchmarks into the eval-substrate contract
+(`eval_suite/schemas/eval_substrate_contracts.py`) so the harness can be scored
+against them with the same grader/verifier machinery as the native eval families.
+They are real, tested code (`tests/test_benchmark_adapter_*.py`).
 
-1. **Licensing** — the benchmark corpora (question sets, answer keys, evaluation
-   scripts) are each governed by their own licenses. Redistributing adapter code
-   that is tightly coupled to a corpus would require redistributing the corpus
-   itself, or at minimum making implied license claims we cannot make.
+| Benchmark | Adapter module | Maps to | Capability |
+|---|---|---|---|
+| BFCL (Berkeley Function-Calling Leaderboard) | `bfcl.py`, `bfcl_native.py`, `bfcl_assets.py` | `families/tooling/` | tool-call correctness |
+| ContextBench | `contextbench.py`, `contextbench_native.py` | retrieval family | retrieval / context reduction |
+| Letta | `letta.py`, `letta_native.py`, `letta_context_bench.py` | `families/filesystem/` | filesystem agent |
+| TerminalBench | `terminalbench.py`, `terminalbench_native.py`, `terminalbench_paths.py` | `families/environment/` | terminal / environment |
+| ACEBench | `acebench.py` | whole-harness | whole-harness tool use |
 
-2. **Import coupling** — each adapter in the original runtime imports from 5–6
-   other `runner.*` modules (asset loaders, measurement contracts, grading
-   contracts, schema validators). Extracting them without their full dependency
-   chain would produce non-runnable stubs.
+Each adapter provides the standard surface: validate/build task packs and result
+rows against `contracts.py`, and grade candidate outputs into a `GradeResult`.
 
-## What adapters do
+## Running a benchmark-derived eval
 
-Each adapter bridges one external benchmark family into the harness runner loop.
-The adapter provides:
+Running a benchmark end-to-end requires the **upstream benchmark's own dataset**,
+which is **not redistributed in this repository** for licensing reasons. To run one:
 
-- a `load_rows(fixture_root)` function that yields `EvalRow` objects
-- a `grade_row(row, candidate_output)` function that returns a `GradeResult`
-- family-level metadata (failure cluster labels, surface type, authority label)
+1. Obtain the upstream dataset from its source project.
+2. Point the adapter at it via its documented env var / path (see the adapter
+   module's docstring).
+3. The adapter emits eval-substrate task packs; run them with
+   `python -m runner run-eval <task_pack>`.
 
-The adapter contract is defined in `runner/benchmark_adapter_contracts.py`
-(not redistributed here) and mirrors the `EvalSubstrateContracts` schema.
-
-## Where the real graders live
-
-For the **task-pack families** (families/<mechanism-family>/<pack>/), the
-grader lives inside the task pack itself at `<pack>/grader/grade.py`. These
-are self-contained Python scripts that take `--candidate`, `--trace`, and
-`--output` arguments and emit a `GradeResult` JSON. No adapter is needed to
-run them.
-
-For adapter-driven lanes (external benchmark families integrated via the
-runner loop), the adapter code resides in `runner/` and is not included here.
-
-## Neutral family names
-
-The adapter-driven lanes are documented under neutral mechanism-cluster names:
-
-| neutral name            | mechanism cluster     |
-|-------------------------|-----------------------|
-| tool_call_composite     | tooling/tool-call     |
-| tool_call_atom          | tooling/tool-call     |
-| retrieval_reduction     | retrieval/reduction   |
-| filesystem_agent        | filesystem/path       |
-| terminal_task           | filesystem/path       |
+The native families under `families/` and `whole_harness/` ship with
+self-contained, **offline-runnable** packs (e.g.
+`families/tooling/mcp_registry_contract_smoke`,
+`whole_harness/harness_registry_smoke`) and need no external data. The benchmark
+adapters are integration surfaces, not bundled datasets.

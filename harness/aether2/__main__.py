@@ -11,10 +11,16 @@ task, and prints the ``RunResult`` summary.  No network calls are made.
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import time
 from pathlib import Path
+
+
+def _tool_call(name: str, arguments: dict, call_id: str) -> dict:
+    """Build a tool call in the shape the continuity loop dispatches."""
+    return {"id": call_id, "type": "function", "name": name, "arguments": json.dumps(arguments)}
 
 
 def _run_demo() -> None:
@@ -34,15 +40,29 @@ def _run_demo() -> None:
 
     # Aether2ModelClient wraps any object with a .complete() method and
     # provides the .call() interface that run_aether2_loop expects.
+    # Script the stub to take one real tool step (write the file) and then
+    # finalize via task_done, so the demo shows the agent actually acting.
     model_client = Aether2ModelClient(
         stub.route,
         planned_completions=[
             {
-                "text": "The trivial demo task is done.",
-                "tool_calls": [],
-                "usage": {"cached_input_tokens": 0, "fresh_input_tokens": 3},
+                "text": "Writing DONE to result.txt.",
+                "tool_calls": [_tool_call("write_file", {"path": "result.txt", "content": "DONE"}, "call-1")],
+                "usage": {"cached_input_tokens": 0, "fresh_input_tokens": 6},
+                "status": "in_progress",
+            },
+            {
+                "text": "result.txt now contains DONE; task complete.",
+                "tool_calls": [
+                    _tool_call(
+                        "task_done",
+                        {"summary": "Wrote DONE to result.txt.", "checks": ["result.txt contains DONE"]},
+                        "call-2",
+                    )
+                ],
+                "usage": {"cached_input_tokens": 0, "fresh_input_tokens": 6},
                 "status": "completed",
-            }
+            },
         ],
     )
 
