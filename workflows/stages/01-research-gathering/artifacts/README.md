@@ -11,6 +11,6 @@ Expected artifacts:
 
 Useful repo examples:
 
-- `../../../synthesis/synthesis-prep-checklist.md`
+- See `research/synthesis/` for synthesis methodology and prep guidance
 - `../../../schemas/task-packet.md`
 - `../../../schemas/trajectory-case-study.md`

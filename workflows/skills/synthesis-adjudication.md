@@ -90,5 +90,5 @@ Useful sections:
 
 The public handbook for this workflow lives at:
 
-[Synthesis handbook](../synthesis/synthesis-handbook.md)
+See `research/synthesis/` for synthesis methodology and artifacts.
 

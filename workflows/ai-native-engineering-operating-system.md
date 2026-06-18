@@ -235,7 +235,7 @@ Public-facing examples:
   coverage, inventory, mechanism, failure, dossier, case-study, adjudication,
   and closure skills used in the synthesis work;
 - [Synthesis and adjudication](skills/synthesis-adjudication.md) plus
-  [Synthesis handbook](synthesis/synthesis-handbook.md) for turning multiple
+  the synthesis methodology in `research/synthesis/` for turning multiple
   analyses into one public-safe claim set.
 
 The public templates for those slices live in `workflows/templates/` and are

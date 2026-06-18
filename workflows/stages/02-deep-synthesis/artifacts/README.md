@@ -12,7 +12,7 @@ Expected artifacts:
 
 Useful repo examples:
 
-- `../../../synthesis/synthesis-handbook.md`
+- See `research/synthesis/` for synthesis methodology and artifacts
 - `../../../schemas/failure-card.md`
 - `../../../schemas/mechanism-card.md`
 - `../../../schemas/trajectory-case-study.md`

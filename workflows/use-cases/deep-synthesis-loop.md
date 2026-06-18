@@ -20,7 +20,7 @@ engineering direction.
 - `../skills/deep-synthesis-loop.md`
 - `../skills/deep-synthesis.md`
 - `../skills/synthesis-adjudication.md`
-- `../synthesis/synthesis-handbook.md`
+- See `research/synthesis/` for synthesis methodology
 - `../../research/synthesis/README.md`
 - `../../research/README.md`
 

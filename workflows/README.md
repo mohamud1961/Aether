@@ -144,13 +144,11 @@ method as a skill or template.
 Structured templates for failure cards, mechanism cards, variant seeds,
 case studies, and task packets. See [schemas/README.md](schemas/README.md).
 
-### [synthesis/](synthesis/) — synthesis handbook and protocols
+### Synthesis methodology
 
 The synthesis workflow: evidence-based multi-agent analysis for mechanism maps,
-failure taxonomies, and eval implications.
-
-- [synthesis-handbook.md](synthesis/synthesis-handbook.md)
-- [synthesis-prep-checklist.md](synthesis/synthesis-prep-checklist.md)
+failure taxonomies, and eval implications. Synthesis content lives in
+`research/synthesis/` at the repo root.
 
 ### [templates/](templates/) — concise checklists
 
