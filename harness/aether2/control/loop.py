@@ -92,6 +92,8 @@ from harness.aether2.control.execution_context import (
     ToolInvocationRecord,
 )
 from harness.aether2.control.tool_dispatch import _execute_tool_calls
+from harness.aether2.control.verification_rounds import _run_verification_rounds
+
 
 STEP_CAP = 120
 MAX_VERIFICATION_ROUNDS = 3
@@ -520,264 +522,66 @@ def run_aether2_loop(
             finalize_reason=finalize_reason,
         )
     else:
-        rounds = 0
-        claim_summary = finalize_summary
-        claim_checks = most_recent_checks
-        while rounds < MAX_VERIFICATION_ROUNDS:
-            rounds += 1
-            verification_rounds += 1
-            check_results = replay_checks(claim_checks, executor) if claim_checks else []
-            verification_ledger = _current_evidence_ledger(context)
-            successful_check_summaries = [
-                _check_result_summary(result)
-                for result in check_results
-                if getattr(result, "exit_code", None) == 0 and not bool(getattr(result, "timed_out", False))
-            ]
-            if check_results:
-                verification_ledger = record_check_results(
-                    verification_ledger,
-                    requirement=_primary_requirement(verification_ledger, stated_requirements),
-                    check_results=check_results,
-                    step=step,
-                    raw_log_path=None,
-                )
-            curr_snapshot = delta_snapshot(task.workspace_root)
-            workspace_diff = delta_diff(ctx.last_snapshot, curr_snapshot)
-            relevant_artifact_paths = [*workspace_diff.added_paths, *workspace_diff.modified_paths]
-            verification_ledger = mark_blockers_candidate_resolved(
-                verification_ledger,
-                step=step,
-                relevant_failed_checks=successful_check_summaries,
-                relevant_artifact_paths=relevant_artifact_paths,
-            )
-            curr_snapshot = with_evidence_ledger(curr_snapshot, verification_ledger)
-            service_monitoring, monitored_snapshot = _monitor_persistent_runtime(
-                ctx=ctx,
-                job_registry=job_registry,
-                session_registry=session_registry,
-                job_ids=job_ids,
-                session_ids=session_ids,
-                claim_checks=claim_checks,
-                check_results=check_results,
-                remaining_sec=deadline_ts - time.time(),
-                start_snapshot=curr_snapshot,
-            )
-            curr_snapshot = monitored_snapshot
-            workspace_diff = delta_diff(ctx.last_snapshot, curr_snapshot)
-            relevant_artifact_paths = [*workspace_diff.added_paths, *workspace_diff.modified_paths]
-            ctx.last_snapshot = curr_snapshot
-            context.delta_state = curr_snapshot
-            verification_orientation_dict = orient(executor).as_dict()
+        rounds_state = {
+            "verification_rounds": verification_rounds,
+            "model_calls": model_calls,
+            "tokens_cached": tokens_cached,
+            "tokens_fresh": tokens_fresh,
+            "total_cost": total_cost,
+            "compaction_count": compaction_count,
+            "completion_precheck_rejections": completion_precheck_rejections,
+            "recoveries": recoveries,
+            "no_delta_streaks": no_delta_streaks,
+            "finalize_pass": finalize_pass,
+            "finalize_summary": finalize_summary,
+            "plan_text": plan_text,
+            "context": context,
+            "failure_tracker": failure_tracker,
+            "claim_checks": most_recent_checks,
+            "finalize_reason": finalize_reason,
+        }
+        _run_verification_rounds(
+            task=task,
+            model_client=model_client,
+            executor=executor,
+            ctx=ctx,
+            receipts=receipts,
+            mirror=mirror,
+            job_registry=job_registry,
+            session_registry=session_registry,
+            job_ids=job_ids,
+            session_ids=session_ids,
+            stated_requirements=stated_requirements,
+            verifier_task_contract=verifier_task_contract,
+            seen_artifacts=seen_artifacts,
+            known_job_status=known_job_status,
+            tool_invocations=tool_invocations,
+            mirror_notes=mirror_notes,
+            discrepancy_reports=discrepancy_reports,
+            reasoning_trace_steps=reasoning_trace_steps,
+            step=step,
+            deadline_ts=deadline_ts,
+            started_at=started_at,
+            orientation_dict=orientation_dict,
+            active_tool_schemas=active_tool_schemas,
+            state=rounds_state,
+        )
+        verification_rounds = rounds_state["verification_rounds"]
+        model_calls = rounds_state["model_calls"]
+        tokens_cached = rounds_state["tokens_cached"]
+        tokens_fresh = rounds_state["tokens_fresh"]
+        total_cost = rounds_state["total_cost"]
+        compaction_count = rounds_state["compaction_count"]
+        completion_precheck_rejections = rounds_state["completion_precheck_rejections"]
+        recoveries = rounds_state["recoveries"]
+        no_delta_streaks = rounds_state["no_delta_streaks"]
+        finalize_pass = rounds_state["finalize_pass"]
+        finalize_summary = rounds_state["finalize_summary"]
+        plan_text = rounds_state["plan_text"]
+        context = rounds_state["context"]
+        failure_tracker = rounds_state["failure_tracker"]
+        finalize_reason = rounds_state["finalize_reason"]
 
-            action_digest = {
-                "environment_contract": _env_contract_drift(orientation_dict, verification_orientation_dict),
-                "service_monitoring": service_monitoring,
-                "tool_calls": [
-                    {"step": record.step, "tool": record.tool_name, "arguments": record.arguments}
-                    for record in tool_invocations[-20:]
-                ]
-            }
-            completion_gate_report = _build_completion_evidence_gate_report(
-                verification_ledger,
-                stated_requirements=stated_requirements,
-                finalize_reason=finalize_reason,
-                check_results=check_results,
-                action_digest=action_digest,
-            )
-            if completion_gate_report is not None:
-                completion_precheck_rejections += 1
-                discrepancy_report = completion_gate_report
-                updated_ledger = record_verifier_report(
-                    _current_evidence_ledger(context),
-                    report=discrepancy_report,
-                    verifier_ref=f"completion_evidence_gate_round={verification_rounds}",
-                    step=step,
-                    exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                )
-                if rounds >= MAX_VERIFICATION_ROUNDS:
-                    updated_ledger = mark_blockers_exhausted(
-                        updated_ledger,
-                        step=step,
-                        exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                        force=True,
-                    )
-            elif should_suppress_verifier_call(
-                verification_ledger,
-                relevant_failed_checks=successful_check_summaries,
-                relevant_artifact_paths=relevant_artifact_paths,
-            ):
-                suppressed_verifier_calls += 1
-                completion_precheck_rejections += 1
-                if rounds >= MAX_VERIFICATION_ROUNDS:
-                    verification_ledger = mark_blockers_exhausted(
-                        verification_ledger,
-                        step=step,
-                        exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                        force=True,
-                    )
-                discrepancy_report = _build_suppressed_blocker_report(verification_ledger)
-                updated_ledger = verification_ledger
-            else:
-                verifier_counter = {"next": model_calls + 1}
-                discrepancy_report = verify_fresh_context(
-                    verifier_task_contract,
-                    orientation_dict,
-                    _diff_to_dict(workspace_diff),
-                    {"summary": claim_summary, "trigger": finalize_reason},
-                    check_results,
-                    action_digest,
-                    model_client,
-                    inspection_ctx=_ReadOnlyVerificationContext(ctx, receipts),
-                    record_exchange=make_exchange_recorder(verifier_counter),
-                    stated_requirements=stated_requirements,
-                )
-                model_calls = verifier_counter["next"] - 1
-                updated_ledger = record_verifier_report(
-                    _current_evidence_ledger(context),
-                    report=discrepancy_report,
-                    verifier_ref=f"verification_round={verification_rounds}",
-                    step=step,
-                    exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                )
-                if discrepancy_report.has_discrepancies and rounds >= MAX_VERIFICATION_ROUNDS:
-                    updated_ledger = mark_blockers_exhausted(
-                        updated_ledger,
-                        step=step,
-                        exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                        force=True,
-                    )
-            discrepancy_reports.append(discrepancy_report)
-            ctx.last_snapshot = with_evidence_ledger(ctx.last_snapshot, updated_ledger)
-            context.delta_state = ctx.last_snapshot
-
-            remaining_sec = deadline_ts - time.time()
-            if not discrepancy_report.has_discrepancies or remaining_sec <= 0 or rounds >= MAX_VERIFICATION_ROUNDS:
-                finalize_pass = not discrepancy_report.has_discrepancies
-                finalize_summary = claim_summary if finalize_pass else discrepancy_report.summary
-                break
-
-            report_message = {
-                "role": "system",
-                "content": json.dumps(
-                    _clean_hidden_refs(
-                        {
-                            "verification_blocker": discrepancy_report.summary,
-                            "verification_report": {
-                                "requirements": [item.__dict__ for item in discrepancy_report.requirements],
-                                "reason_codes": list(discrepancy_report.reason_codes),
-                                "summary": discrepancy_report.summary,
-                            },
-                            "checks_results": [result.__dict__ for result in check_results],
-                            "time_remaining_sec": remaining_sec,
-                        }
-                    ),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    ensure_ascii=True,
-                ),
-            }
-            context.append_turn(report_message)
-
-            messages = [*context.message_history()]
-            repair_pre_ledger = _current_evidence_ledger(context)
-            repair_completion_contract = _build_completion_contract(verifier_task_contract, repair_pre_ledger)
-            repair_tail_state = context.current_tail_payload()
-            response = model_client.call(messages, active_tool_schemas, cache_prefix_len=context.prefix.token_estimate)
-            model_calls += 1
-            record_exchange(model_calls, messages, response, tool_schemas=active_tool_schemas, call_role="repair")
-            usage = _response_usage(response)
-            tokens_cached += int(usage.get("cached_input_tokens", 0))
-            tokens_fresh += int(usage.get("fresh_input_tokens", 0))
-            total_cost += _response_cost(response)
-
-            assistant_message = {"role": "assistant", "content": response.text}
-            if response.tool_calls:
-                assistant_message["tool_calls"] = [dict(tool_call) for tool_call in response.tool_calls]
-            context.append_turn(assistant_message)
-
-            claim_summary = response.text
-            if _model_requested_rebase(response.text, response.tool_calls):
-                append_trace_step(
-                    step_index=step,
-                    model_call_idx=model_calls,
-                    call_role="repair",
-                    response=response,
-                    visible_tail_state=repair_tail_state,
-                    completion_contract=repair_completion_contract,
-                    pre_step_ledger=repair_pre_ledger,
-                    post_step_ledger=_current_evidence_ledger(context),
-                    tool_invocations_for_step=[],
-                    task_done_call=None,
-                    decision_kind="repair_rebase_request",
-                    verification_round_index=rounds,
-                    blocker_state={
-                        "verification_summary": discrepancy_report.summary,
-                        "reason_codes": list(discrepancy_report.reason_codes),
-                    },
-                )
-                _sync_fact_ledger_state(context, ctx)
-                compaction_counter = {"next": model_calls + 1}
-                context = rebase(
-                    context,
-                    model_client,
-                    record_exchange=make_exchange_recorder(compaction_counter),
-                )
-                compaction_count += 1
-                model_calls = compaction_counter["next"] - 1
-                continue
-
-            repair_step_tool_invocation_start = len(tool_invocations)
-            previous_claim_checks = list(claim_checks)
-            failure_tracker, recoveries, no_delta_streaks, new_checks, new_task_done = _execute_tool_calls(
-                response=response,
-                response_messages=messages,
-                step=step,
-                executor=executor,
-                ctx=ctx,
-                context=context,
-                receipts=receipts,
-                mirror=mirror,
-                tool_invocations=tool_invocations,
-                mirror_notes=mirror_notes,
-                failure_tracker=failure_tracker,
-                recoveries=recoveries,
-                no_delta_streaks=no_delta_streaks,
-                job_ids=job_ids,
-                session_ids=session_ids,
-                stated_requirements=stated_requirements,
-                plan_text=plan_text,
-                elapsed_sec=time.monotonic() - started_at,
-                remaining_sec=remaining_sec,
-                model_request_index=model_calls,
-            )
-            repair_step_tool_invocations = tool_invocations[repair_step_tool_invocation_start:]
-            if new_task_done is not None:
-                claim_summary = str(new_task_done[0].get("summary", claim_summary))
-            if new_checks:
-                claim_checks = new_checks
-            append_trace_step(
-                step_index=step,
-                model_call_idx=model_calls,
-                call_role="repair",
-                response=response,
-                visible_tail_state=repair_tail_state,
-                completion_contract=repair_completion_contract,
-                pre_step_ledger=repair_pre_ledger,
-                post_step_ledger=_current_evidence_ledger(context),
-                tool_invocations_for_step=repair_step_tool_invocations,
-                task_done_call=new_task_done,
-                decision_kind="repair_task_done" if new_task_done is not None else ("repair_tool_calls" if response.tool_calls else "repair_implicit_stop"),
-                verification_round_index=rounds,
-                blocker_state={
-                    "verification_summary": discrepancy_report.summary,
-                    "reason_codes": list(discrepancy_report.reason_codes),
-                    "previous_checks": previous_claim_checks,
-                },
-                finalize_reason=finalize_reason if new_task_done is not None else None,
-            )
-            if new_task_done is None and not response.tool_calls:
-                # implicit stop during a verification round: treat as resubmission with no new checks
-                continue
 
     job_survival = all(_job_alive_safe(job_registry, job_id) for job_id in job_ids) if job_ids else True
     session_survival = (
