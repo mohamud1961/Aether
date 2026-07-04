@@ -1,0 +1,60 @@
+PREFIX uni: <http://university.org/ontology/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?professorName (GROUP_CONCAT(DISTINCT ?country; separator=", ") AS ?countries)
+WHERE {
+  {
+    SELECT DISTINCT ?professor ?professorName
+    WHERE {
+      ?professor a uni:Professor ;
+                 uni:hasName ?professorName .
+
+      {
+        ?professor a uni:FullProfessor .
+      }
+      UNION
+      {
+        ?professor uni:hasRank "Full Professor" .
+      }
+      UNION
+      {
+        ?professor uni:rank "Full Professor" .
+      }
+      UNION
+      {
+        ?professor uni:academicRank "Full Professor" .
+      }
+
+      FILTER EXISTS {
+        ?professor (uni:worksIn|uni:worksInDepartment|uni:memberOfDepartment|uni:affiliatedWithDepartment) ?euDepartment .
+        ?euDepartment a uni:Department ;
+                      uni:belongsTo ?euUniversity .
+        ?euUniversity uni:locatedInCountry ?euCountry .
+        VALUES ?euCountry {
+          "AT" "BE" "BG" "HR" "CY" "CZ" "DK" "EE" "FI" "FR" "DE" "GR" "HU" "IE" "IT"
+          "LV" "LT" "LU" "MT" "NL" "PL" "PT" "RO" "SK" "SI" "ES" "SE"
+        }
+      }
+
+      FILTER EXISTS {
+        {
+          SELECT ?professor ?qualifyingDepartment
+          WHERE {
+            ?professor (uni:worksIn|uni:worksInDepartment|uni:memberOfDepartment|uni:affiliatedWithDepartment) ?qualifyingDepartment .
+            ?course (uni:belongsToDepartment|uni:hasDepartment|uni:offeredByDepartment|uni:taughtInDepartment|uni:isTaughtInDepartment) ?qualifyingDepartment .
+            ?student (uni:enrolledIn|uni:registeredIn|uni:takesClass|uni:attendsClass) ?course .
+            ?student a uni:Student .
+          }
+          GROUP BY ?professor ?qualifyingDepartment
+          HAVING (COUNT(DISTINCT ?student) > 10)
+        }
+      }
+    }
+  }
+
+  ?professor (uni:worksIn|uni:worksInDepartment|uni:memberOfDepartment|uni:affiliatedWithDepartment) ?department .
+  ?department a uni:Department ;
+              uni:belongsTo ?university .
+  ?university uni:locatedInCountry ?country .
+}
+GROUP BY ?professorName
