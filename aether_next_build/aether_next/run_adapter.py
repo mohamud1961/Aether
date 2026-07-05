@@ -119,6 +119,8 @@ def run_task(
         "status": result.status,
         "step": result.step,
         "reconfigurations": result.reconfigurations,
+        "architect_defect": result.architect_defect,
+        "architect_defect_reasons": list(result.architect_defect_reasons),
         "used_check_ids": list(result.used_check_ids),
         "blockers": list(result.blockers),
         "classifier_label": classification.label,

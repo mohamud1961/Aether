@@ -150,10 +150,18 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Tests: `tests/test_verifier_probes.py` (6): open/closed/invalid port, live+dead HTTP server, live process + absent process, PNG/text/missing artifact, inspector dispatch with no-mutation assertion, read_file offset paging.
 - Suite: **297 passed**.
 
+## P2g — Verifier-triggered single-shot reconfiguration (2026-07-05) — DONE
+
+- A verifier `blocked_by_harness_config` verdict (workbench mode only) triggers at most ONE mid-run reconfiguration, re-invoking the real workbench architect via `resolve_runtime(..., reconfigure_context=...)` with the full verifier verdict + failure clusters + open obligations as evidence. A second blocked verdict yields a `verifier_reconfigure_exhausted` receipt, never a second reconfigure.
+- **architect_defect is a first-class result field**: `KernelResult.architect_defect` + `architect_defect_reasons`, true when the initial config needed `repair_config` fixes (reasons `initial_config_repaired:<code>`) or when a verifier-triggered reconfigure fired — even when the task then passes. Threaded into run_adapter and docker_runner records (closes the Phase 0 Q2 repair-surfacing item).
+- Bug found & fixed while testing: the verifier-skip gate (`active findings require intervening evidence`) compared step numbers, so a same-step reconfigure receipt didn't count and the verifier starved on its own config finding. Now position-based over the ledger; `verifier_triggered_reconfigure` counts as intervening evidence so the verifier re-judges the new workbench.
+- Tests: `tests/test_verifier_triggered_reconfigure.py` (3): blocked→reconfigure→completed with architect_defect=True and evidence-bearing reconfigure_context; second blocked verdict exhausted; clean run has no defect.
+- Suite: **300 passed**.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P2g: verifier-triggered single-shot reconfiguration (architect_defect=true).
+P2h: bounded verifier-disagreement / stalemate protocol.

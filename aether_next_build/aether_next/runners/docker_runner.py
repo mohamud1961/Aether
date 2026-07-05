@@ -570,6 +570,8 @@ def run_tbench_task(
             "model_verifier_final_verdict": verifier_verdict,
             "step": result.step,
             "reconfigurations": result.reconfigurations,
+            "architect_defect": result.architect_defect,
+            "architect_defect_reasons": list(result.architect_defect_reasons),
             "classifier_label": classifier_label,
             "classifier_confidence": classifier_confidence,
             "classifier_detail": classifier_detail,

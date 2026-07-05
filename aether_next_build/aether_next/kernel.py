@@ -41,10 +41,17 @@ class KernelResult:
     blockers: tuple[str, ...] = ()
     env_digest: str = ""
     receipts: tuple[Receipt, ...] = ()
+    # An architect defect is recorded even when the task subsequently passes:
+    # the initial config needed repair, or the verifier had to trigger a
+    # reconfiguration.  Result rows must never launder architect defects into
+    # clean passes.
+    architect_defect: bool = False
+    architect_defect_reasons: tuple[str, ...] = ()
 
 def _completed_result(
     step: int, reconfigurations: int, decision: Any,
     compiled: CompiledRuntime, ledger: ExecutionLedger,
+    architect_defect_reasons: tuple[str, ...] = (),
 ) -> KernelResult:
     """Build a completed ``KernelResult`` from a ready gate decision."""
     used_ids = set(decision.used_check_ids)
@@ -55,6 +62,8 @@ def _completed_result(
             c.command for c in compiled.planned_checks() if c.check_id in used_ids
         ),
         blockers=(), env_digest=compiled.env_digest, receipts=ledger.all_receipts(),
+        architect_defect=bool(architect_defect_reasons),
+        architect_defect_reasons=architect_defect_reasons,
     )
 
 
@@ -202,6 +211,10 @@ class AetherNextKernel:
         step = 0
         context_packet: Mapping[str, Any] | None = None
         turn: SolverTurn | None = None
+        architect_defect_reasons: list[str] = [
+            f"initial_config_repaired:{code}" for code in architect_repair_codes
+        ]
+        verifier_reconfigure_used = False
         while step < self.max_steps:
             alerts = self.monitor_runner.run(compiled, ledger)
             context_packet = self.context_compiler.compile(compiled, ledger, alerts)
@@ -307,13 +320,46 @@ class AetherNextKernel:
                     ready_decision = decision
                     if ready_decision is None:
                         ready_decision = self.completion_gate.evaluate(compiled, ledger, self.monitor_runner.run(compiled, ledger))
-                    return _completed_result(step, reconfigurations, ready_decision, compiled, ledger)
+                    return _completed_result(
+                        step, reconfigurations, ready_decision, compiled, ledger,
+                        tuple(architect_defect_reasons),
+                    )
                 if decision is not None and decision.ready and verdict is None and not canonical_workbench:
                     if trace is not None:
                         trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
-                    return _completed_result(step, reconfigurations, decision, compiled, ledger)
+                    return _completed_result(
+                        step, reconfigurations, decision, compiled, ledger,
+                        tuple(architect_defect_reasons),
+                    )
                 if trace is not None:
                     trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
+                if (
+                    verdict is not None
+                    and verdict.verdict == "blocked_by_harness_config"
+                    and canonical_workbench
+                ):
+                    if not verifier_reconfigure_used:
+                        verifier_reconfigure_used = True
+                        compiled, reconfigured = self._verifier_triggered_reconfigure(
+                            hooks, compiler, envmap, compiled, ledger, verdict,
+                            current_step=step,
+                        )
+                        if reconfigured:
+                            reconfigurations += 1
+                            architect_defect_reasons.append("verifier_triggered_reconfigure")
+                    else:
+                        ledger.record(Receipt(
+                            receipt_id=f"step-{step}:verifier_reconfigure_exhausted",
+                            step=step,
+                            kind="verifier_reconfigure_exhausted",
+                            success=False,
+                            summary=(
+                                "verifier reported blocked_by_harness_config again but the "
+                                "single-shot reconfiguration was already used"
+                            ),
+                            failure_class="config_invalid",
+                            payload={"architect_defect": True},
+                        ))
                 if (
                     decision is not None
                     and canonical_workbench
@@ -335,14 +381,78 @@ class AetherNextKernel:
             status="incomplete", step=step, reconfigurations=reconfigurations,
             blockers=tuple(ob.obligation_id for ob in ledger.open_obligations()),
             env_digest=compiled.env_digest, receipts=ledger.all_receipts(),
+            architect_defect=bool(architect_defect_reasons),
+            architect_defect_reasons=tuple(architect_defect_reasons),
         )
+
+    def _verifier_triggered_reconfigure(
+        self,
+        hooks: KernelHooks,
+        compiler: ConfigCompiler,
+        envmap: EnvMap,
+        compiled: CompiledRuntime,
+        ledger: ExecutionLedger,
+        verdict: Any,
+        *,
+        current_step: int,
+    ) -> tuple[CompiledRuntime, bool]:
+        """Single-shot, evidence-backed reconfiguration through the workbench
+        architect, triggered only by a verifier ``blocked_by_harness_config``
+        verdict.  Always recorded as an architect defect."""
+        reconfig_request = {
+            "reason": "verifier_blocked_by_harness_config",
+            "verifier_verdict": verdict.as_dict(),
+            "failure_clusters": ledger.failure_clusters(),
+            "open_obligations": [ob.as_dict() for ob in ledger.open_obligations()],
+        }
+        resolved = resolve_runtime(
+            envmap, compiler, hooks,
+            workbench_architect=self.workbench_architect,
+            reconfigure_context=reconfig_request,
+        )
+        if resolved.compiled is None:
+            ledger.record(Receipt(
+                receipt_id=f"step-{current_step}:verifier_reconfigure:invalid",
+                step=current_step,
+                kind="reconfigure_validation",
+                success=False,
+                summary=(
+                    "verifier-triggered reconfiguration invalid: "
+                    + (", ".join(resolved.fallback_codes) or "unknown")
+                ),
+                failure_class="config_invalid",
+                payload={
+                    "architect_defect": True,
+                    "blockers": list(resolved.config_invalid_blockers),
+                },
+            ))
+            return compiled, False
+        new_compiled = resolved.compiled
+        ledger.seed_capabilities(new_compiled.selected_capability_ids())
+        ledger.record(Receipt(
+            receipt_id=f"step-{current_step}:verifier_reconfigure:ok",
+            step=current_step,
+            kind="verifier_triggered_reconfigure",
+            success=True,
+            summary="single-shot reconfiguration triggered by verifier blocked_by_harness_config",
+            state_change=True,
+            payload={
+                "architect_defect": True,
+                "reconfigure_cause": "verifier_blocked_by_harness_config",
+                "verifier_verdict": verdict.as_dict(),
+            },
+        ))
+        ledger.record_config_realization(
+            dict(new_compiled.config_realization),
+            receipt_id="verifier-reconfig:realization",
+        )
+        return new_compiled, True
 
     @staticmethod
     def _active_findings_need_intervening_evidence(ledger: ExecutionLedger) -> bool:
         active_findings = ledger.active_finding_context(len(ledger.all_receipts()))
         if not active_findings:
             return False
-        newest_finding_step = max(int(item.get("created_step", 0)) for item in active_findings)
         evidence_kinds = {
             "read_file",
             "write_file",
@@ -358,10 +468,19 @@ class AetherNextKernel:
             "query_memory",
             "register_candidate",
             "run_experiment",
+            # A verifier-triggered reconfiguration changes the workbench the
+            # findings were raised against; the verifier must re-judge rather
+            # than being starved by its own config finding.
+            "verifier_triggered_reconfigure",
         }
-        for receipt in ledger.all_receipts():
-            if receipt.step <= newest_finding_step:
-                continue
+        # Compare by ledger position, not step number: evidence recorded in
+        # the same step as (but after) the verifier result still counts.
+        receipts = ledger.all_receipts()
+        last_verifier_index = -1
+        for index, receipt in enumerate(receipts):
+            if receipt.kind == "model_verifier_result":
+                last_verifier_index = index
+        for receipt in receipts[last_verifier_index + 1:]:
             if receipt.kind in evidence_kinds:
                 return False
         return True
