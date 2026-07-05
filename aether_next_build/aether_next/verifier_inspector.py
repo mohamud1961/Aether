@@ -18,6 +18,8 @@ class VerifierInspectionRequest:
     check_id: str = ""
     receipt_kind: str = ""
     limit: int = 5
+    command: str = ""
+    content: str = ""
 
 
 def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRequest, ...]:
@@ -44,6 +46,8 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
                 check_id=str(item.get("check_id", "")).strip(),
                 receipt_kind=str(item.get("receipt_kind", "")).strip(),
                 limit=max(1, int(item.get("limit", 5) or 5)),
+                command=str(item.get("command", "")),
+                content=str(item.get("content", "")),
             )
         )
     if not parsed:
@@ -58,6 +62,7 @@ def execute_verifier_inspection_requests(
     ledger: Any,
     executor: Any,
     envmap: EnvMap,
+    overlay: Any | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     checks_by_id = {check.check_id: check for check in compiled.planned_checks()}
@@ -71,18 +76,46 @@ def execute_verifier_inspection_requests(
             if check is None:
                 results.append(_error_result(request, f"unknown check_id: {request.check_id}"))
                 continue
-            outcome = executor.run_command(check.command, cwd=envmap.workspace_root)
-            results.append({
+            if overlay is None:
+                results.append(_error_result(
+                    request,
+                    "rerun_check requires the verifier overlay; no overlay available",
+                ))
+                continue
+            # Checks execute in the copy-on-demand overlay so verification can
+            # never mutate the solver workspace.
+            outcome = overlay.run_command(check.command)
+            row = {
                 "request_id": request.request_id,
                 "kind": request.kind,
                 "check_id": check.check_id,
                 "label": check.label,
-                "command": check.command,
-                "success": outcome.success,
-                "exit_code": outcome.exit_code,
-                "stdout": outcome.stdout[:2000],
-                "stderr": outcome.stderr[:2000],
-            })
+                "executed_in": "verifier_overlay",
+            }
+            row.update(outcome)
+            results.append(row)
+            continue
+        if request.kind == "overlay_run_command":
+            if overlay is None:
+                results.append(_error_result(request, "no overlay available"))
+                continue
+            if not getattr(request, "command", "").strip():
+                results.append(_error_result(request, "overlay_run_command requires command"))
+                continue
+            row = {"request_id": request.request_id, "kind": request.kind, "executed_in": "verifier_overlay"}
+            row.update(overlay.run_command(getattr(request, "command", "")))
+            results.append(row)
+            continue
+        if request.kind == "overlay_write_fixture":
+            if overlay is None:
+                results.append(_error_result(request, "no overlay available"))
+                continue
+            if not request.path.strip():
+                results.append(_error_result(request, "overlay_write_fixture requires path"))
+                continue
+            row = {"request_id": request.request_id, "kind": request.kind, "executed_in": "verifier_overlay"}
+            row.update(overlay.write_fixture(request.path, getattr(request, "content", "")))
+            results.append(row)
             continue
         if request.kind == "inspect_artifact_history":
             rows = [

@@ -15,6 +15,7 @@ from .verifier_inspector import (
     VerifierInspectionRequest,
     execute_verifier_inspection_requests,
 )
+from .verifier_overlay import VerifierOverlay
 from .verifier_packets import build_verifier_packet
 
 _REASON_ALIASES = {
@@ -189,6 +190,8 @@ def _call_verify(
 ) -> Any:
     verify_with_inspector = getattr(hooks, "verify_with_inspector", None)
     if callable(verify_with_inspector) and executor is not None and envmap is not None:
+        overlay = VerifierOverlay(executor, envmap.workspace_root)
+
         def _inspector(requests: tuple[VerifierInspectionRequest, ...]) -> list[dict[str, Any]]:
             results = execute_verifier_inspection_requests(
                 requests,
@@ -196,6 +199,7 @@ def _call_verify(
                 ledger=ledger,
                 executor=executor,
                 envmap=envmap,
+                overlay=overlay,
             )
             ledger.record(Receipt(
                 receipt_id=f"step-{step}:model_verifier_inspection:{len(ledger.all_receipts())}",
@@ -212,6 +216,7 @@ def _call_verify(
                             "check_id": request.check_id,
                             "receipt_kind": request.receipt_kind,
                             "limit": request.limit,
+                            "command": getattr(request, "command", ""),
                         }
                         for request in requests
                     ],
@@ -219,7 +224,22 @@ def _call_verify(
                 },
             ))
             return results
-        return verify_with_inspector(packet, compiled, ledger, _inspector)
+
+        try:
+            return verify_with_inspector(packet, compiled, ledger, _inspector)
+        finally:
+            # Rollback is unconditional: the overlay never outlives the
+            # verification round, pass or fail.
+            teardown = overlay.teardown()
+            if teardown.get("overlay_root"):
+                ledger.record(Receipt(
+                    receipt_id=f"step-{step}:model_verifier_overlay_teardown",
+                    step=step,
+                    kind="model_verifier_overlay_teardown",
+                    success=bool(teardown.get("removed")),
+                    summary=f"verifier overlay removed: {teardown.get('overlay_root')}",
+                    payload=teardown,
+                ))
     return verify(packet, compiled, ledger)
 
 

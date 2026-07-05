@@ -132,10 +132,19 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Tests: `tests/test_truthful_output_capture.py` (4): 100k verbatim (old cap would destroy), >1MB spool completeness + marked inline, timeout partial preservation, kernel page+grep across spooled stream by handle.
 - Suite: **286 passed**. Invariant 3 (no information destruction) now HOLDS at the substrate.
 
+## P2d — Sandboxed verifier overlay execution (2026-07-05) — DONE
+
+- New `aether_next/verifier_overlay.py` (~130 LOC): `VerifierOverlay` creates a copy of the solver workspace **through the same executor substrate** (`cp -a` via executor.run_command — works identically for host bash and `docker exec`, so overlay runs see the solver's real toolchain). Lazily created, sibling-of-workspace path (outside solver-visible tree and mtime snapshots), unconditional idempotent `teardown()` (rm -rf).
+- Verifier inspection now supports: `overlay_run_command` (bounded execution in overlay cwd), `overlay_write_fixture` (verifier-authored fixture, base64-written INTO OVERLAY ONLY, path-escape rejected), and `rerun_check` now **routes through the overlay** — verifier check execution can never mutate solver state (no-overlay fallback is an explicit error, never a workspace run).
+- `kernel_verifier._call_verify` builds the overlay per verification round and tears it down in `finally` (rollback pass or fail), recording a `model_verifier_overlay_teardown` receipt.
+- Verifier guidance updated: fixtures + overlay semantics documented; "test the deliverable against YOUR OWN inputs".
+- Tests: `tests/test_verifier_overlay.py` (5): overlay mutations invisible to workspace, fixture+run with teardown removing everything, fixture path-escape rejection, rerun_check overlay routing with side-effect containment, no-overlay explicit error.
+- Suite: **291 passed**.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P2d: sandboxed verifier overlay execution.
+P2e: generic service/port/process + media/artifact verifier probes.
