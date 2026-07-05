@@ -52,6 +52,20 @@ class HarnessLimiterClassifier:
                 detail=f"config_invalid: {', '.join(result.blockers)}",
             )
 
+        if result.status == "verifier_stalemate":
+            stalemate = tuple(
+                r.receipt_id for r in receipts if r.kind == "verifier_stalemate"
+            )
+            return LimiterClassification(
+                label="verification_failure",
+                confidence="high",
+                evidence=stalemate or tuple(result.blockers),
+                detail=(
+                    "bounded verifier stalemate: identical findings survived "
+                    "repeated verification rounds; disagreement recorded, not adjudicated"
+                ),
+            )
+
         # Check for safety blocks.
         safety_receipts = [r for r in receipts if r.kind == "safety_block"]
         if safety_receipts:

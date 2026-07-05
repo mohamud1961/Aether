@@ -117,6 +117,13 @@ class KernelHooks(Protocol):
         ...
 
 class AetherNextKernel:
+    # Bounded verifier-disagreement protocol: after this many consecutive
+    # verification rounds in which the identical non-empty finding set
+    # survives despite intervening solver evidence, the run terminates with
+    # status ``verifier_stalemate``.  The harness records the disagreement;
+    # it never adjudicates it.
+    STALEMATE_ROUNDS = 3
+
     def __init__(
         self,
         *,
@@ -215,6 +222,7 @@ class AetherNextKernel:
             f"initial_config_repaired:{code}" for code in architect_repair_codes
         ]
         verifier_reconfigure_used = False
+        verifier_round_finding_sets: list[frozenset[str]] = []
         while step < self.max_steps:
             alerts = self.monitor_runner.run(compiled, ledger)
             context_packet = self.context_compiler.compile(compiled, ledger, alerts)
@@ -333,6 +341,48 @@ class AetherNextKernel:
                     )
                 if trace is not None:
                     trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
+                if verdict is not None and verdict.verdict != "completed":
+                    active_ids = frozenset(
+                        str(item.get("finding_id", ""))
+                        for item in ledger.active_finding_context(step + 1)
+                        if str(item.get("finding_id", "")).strip()
+                    )
+                    verifier_round_finding_sets.append(active_ids)
+                    window = verifier_round_finding_sets[-self.STALEMATE_ROUNDS:]
+                    if (
+                        len(window) == self.STALEMATE_ROUNDS
+                        and window[0]
+                        and all(entry == window[0] for entry in window)
+                    ):
+                        ledger.record(Receipt(
+                            receipt_id=f"step-{step}:verifier_stalemate",
+                            step=step,
+                            kind="verifier_stalemate",
+                            success=False,
+                            summary=(
+                                f"verifier stalemate: the same {len(window[0])} finding(s) "
+                                f"survived {self.STALEMATE_ROUNDS} verification rounds with "
+                                "intervening solver evidence; harness records the disagreement "
+                                "and terminates without picking a winner"
+                            ),
+                            failure_class="verifier_stalemate",
+                            payload={
+                                "rounds": self.STALEMATE_ROUNDS,
+                                "finding_ids": sorted(window[0]),
+                                "round_history": [sorted(entry) for entry in verifier_round_finding_sets],
+                                "final_verifier_verdict": verdict.as_dict(),
+                                "active_findings": ledger.active_finding_context(step + 1),
+                            },
+                        ))
+                        return KernelResult(
+                            status="verifier_stalemate", step=step,
+                            reconfigurations=reconfigurations,
+                            blockers=tuple(sorted(window[0])),
+                            env_digest=compiled.env_digest,
+                            receipts=ledger.all_receipts(),
+                            architect_defect=bool(architect_defect_reasons),
+                            architect_defect_reasons=tuple(architect_defect_reasons),
+                        )
                 if (
                     verdict is not None
                     and verdict.verdict == "blocked_by_harness_config"

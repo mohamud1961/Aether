@@ -158,10 +158,19 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Tests: `tests/test_verifier_triggered_reconfigure.py` (3): blocked→reconfigure→completed with architect_defect=True and evidence-bearing reconfigure_context; second blocked verdict exhausted; clean run has no defect.
 - Suite: **300 passed**.
 
+## P2h — Bounded verifier-disagreement / stalemate protocol (2026-07-05) — DONE
+
+- `AetherNextKernel.STALEMATE_ROUNDS = 3`: when the identical non-empty active-finding set survives 3 consecutive verification rounds (each round only happens after intervening solver evidence, per the existing skip-gate), the run terminates with new status **`verifier_stalemate`** and a `verifier_stalemate` receipt carrying the full disagreement record (finding ids, per-round history, final verdict, active findings). The harness records the disagreement; it never adjudicates it. Changing finding sets = progress, no stalemate.
+- Classifier: `verifier_stalemate` → `verification_failure` (high confidence, receipt evidence) — never `model_limit`.
+- Fixed a double trace-step recording in the stalemate return path (caught by the tracing suite).
+- Tests: `tests/test_verifier_stalemate.py` (3): identical findings terminate at exactly 3 verifier calls with full record; changing findings never stalemate; classification is verification_failure.
+- Suite: **303 passed**.
+- Standards debt noted: kernel.py at 923 LOC — decomposition slice next, before P2i.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P2h: bounded verifier-disagreement / stalemate protocol.
+Kernel decomposition slice (500-LOC cap), then P2i per-task capability closure.
