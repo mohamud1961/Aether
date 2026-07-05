@@ -66,6 +66,20 @@ class HarnessLimiterClassifier:
                 ),
             )
 
+        if result.status == "solver_submit_stalemate":
+            stalemate = tuple(
+                r.receipt_id for r in receipts if r.kind == "solver_submit_stalemate"
+            )
+            return LimiterClassification(
+                label="verification_failure",
+                confidence="high",
+                evidence=stalemate or tuple(result.blockers),
+                detail=(
+                    "bounded solver submit stalemate: active verifier findings "
+                    "required intervening evidence, but the solver kept submitting"
+                ),
+            )
+
         # Check for safety blocks.
         safety_receipts = [r for r in receipts if r.kind == "safety_block"]
         if safety_receipts:

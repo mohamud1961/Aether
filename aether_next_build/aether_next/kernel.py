@@ -76,6 +76,7 @@ class AetherNextKernel:
     # status ``verifier_stalemate``.  The harness records the disagreement;
     # it never adjudicates it.
     STALEMATE_ROUNDS = 3
+    SUBMIT_STALEMATE_ROUNDS = 3
 
     def __init__(
         self,
@@ -176,6 +177,7 @@ class AetherNextKernel:
         ]
         verifier_reconfigure_used = False
         verifier_round_finding_sets: list[frozenset[str]] = []
+        submit_without_evidence_rounds = 0
         while step < self.max_steps:
             alerts = self.monitor_runner.run(compiled, ledger)
             context_packet = self.context_compiler.compile(compiled, ledger, alerts)
@@ -241,6 +243,7 @@ class AetherNextKernel:
                     trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
                 self._fire_snapshot(step); step += 1; continue
             if turn.kind == "act":
+                submit_without_evidence_rounds = 0
                 run_act_turn(self, turn, step, compiled, executor, envmap, ledger)
             elif turn.kind == "submit_outcome":
                 run_submit_turn(
@@ -250,6 +253,8 @@ class AetherNextKernel:
                 canonical_workbench = self.workbench_architect is not None
                 if canonical_workbench and self._active_findings_need_intervening_evidence(ledger):
                     verdict = None
+                    submit_without_evidence_rounds += 1
+                    active_findings = ledger.active_finding_context(step)
                     ledger.record(Receipt(
                         receipt_id=f"step-{step}:model_verifier_skipped:active_findings",
                         step=step,
@@ -262,10 +267,47 @@ class AetherNextKernel:
                         failure_class="",
                         payload={
                             "reason": "active_findings_without_intervening_evidence",
-                            "active_findings": ledger.active_finding_context(step),
+                            "active_findings": active_findings,
+                            "submit_without_evidence_rounds": submit_without_evidence_rounds,
                         },
                     ))
+                    if submit_without_evidence_rounds >= self.SUBMIT_STALEMATE_ROUNDS:
+                        active_ids = tuple(sorted(
+                            str(item.get("finding_id", ""))
+                            for item in active_findings
+                            if str(item.get("finding_id", "")).strip()
+                        ))
+                        ledger.record(Receipt(
+                            receipt_id=f"step-{step}:solver_submit_stalemate",
+                            step=step,
+                            kind="solver_submit_stalemate",
+                            success=False,
+                            summary=(
+                                "solver submit stalemate: active verifier findings "
+                                "required intervening evidence, but the solver kept "
+                                "submitting without adding evidence"
+                            ),
+                            failure_class="solver_submit_stalemate",
+                            payload={
+                                "rounds": submit_without_evidence_rounds,
+                                "finding_ids": active_ids,
+                                "active_findings": active_findings,
+                            },
+                        ))
+                        if trace is not None:
+                            trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
+                        return KernelResult(
+                            status="solver_submit_stalemate",
+                            step=step,
+                            reconfigurations=reconfigurations,
+                            blockers=active_ids,
+                            env_digest=compiled.env_digest,
+                            receipts=ledger.all_receipts(),
+                            architect_defect=bool(architect_defect_reasons),
+                            architect_defect_reasons=tuple(architect_defect_reasons),
+                        )
                 else:
+                    submit_without_evidence_rounds = 0
                     verdict = run_model_verifier_if_available(
                         hooks,
                         compiled,

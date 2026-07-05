@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next remaining harness reset execution
+- event_type: implementation
+- summary: Closed the deterministic Aether-Next gate after making process probes truth-preserving under host process-enumeration denial and fixing Docker integration tests to use a Docker-shareable /tmp bind mount.
+- observations: Focused verifier probe tests passed (7 passed); configurability plus verifier probes passed (34 passed); Docker runner tests passed (12 passed); full Aether-Next deterministic suite passed (308 passed). Latest Docker isolation smoke artifact DOCKER_ISOLATION_SMOKE_20260705T032020Z shows file and service golden rows aligned with the official grader, and the known-bad file row exposed as verifier_false_clean rather than hidden success. The prescribed recorder path tracking/ledger/tools/record_update.py was absent, so this raw update was persisted directly in the dated inbox without editing canonical ledger files.
+- inference: The current no-model Aether-Next substrate gate is clean locally. Process liveness inspection remains a generic verifier capability, but when the host denies process enumeration the harness now reports unknown/tool_unavailable instead of fabricating a negative state. Docker bind mounts should use benchmark-compatible shareable roots, not macOS /var/folders tempdirs.
+- evidence_paths: aether_next_build/AETHER_NEXT_PROGRESS.md; aether_next_build/aether_next/verifier_probes.py; aether_next_build/tests/test_verifier_probes.py; aether_next_build/tests/test_docker_runner.py; aether_next_build/tests/test_vnext_configurability.py; aether_next_build/DOCKER_ISOLATION_SMOKE_20260705T032020Z.json; aether_next_build/deterministic_integration_eval_20260705_033142/DETERMINISTIC_INTEGRATION_REPORT.md
+- affected_components: aether_next_build/aether_next verifier probes; DockerExecExecutor integration tests; stable-core workbench tool surface; progress/evidence ledger
+- decision_change: Ext-j can be treated as complete for local Docker smoke evidence; Ext-k should proceed only after focused architect/solver/verifier component evals, then one 5.4-mini-managed model-backed sentinel batch.
+- unresolved_questions: Model-backed sentinel performance, architect prompt/config quality across diverse tasks, verifier false-clean reduction, and non-pass classification remain open for Ext-k.
+- confidence: high for deterministic gate and local Docker smoke classification; medium for extrapolation to VM until 5.4-mini-managed sentinel runs complete.
+- commit_message: aether-next: close deterministic substrate gate

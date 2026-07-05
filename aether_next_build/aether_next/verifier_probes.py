@@ -23,6 +23,21 @@ def _run(executor: Any, command: str, *, timeout_s: int = _PROBE_TIMEOUT_S) -> A
     return executor.run_command(command, timeout_s=timeout_s)
 
 
+def _process_listing_unavailable(stderr: str) -> bool:
+    lowered = stderr.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "command not found",
+            "cannot get process list",
+            "operation not permitted",
+            "permission denied",
+            "sysmond service not found",
+            "procfs",
+        )
+    )
+
+
 def probe_port(executor: Any, target: str) -> dict[str, Any]:
     """TCP connect probe. ``target`` is ``host:port`` or ``port`` (localhost)."""
     raw = target.strip()
@@ -99,11 +114,18 @@ def probe_process(executor: Any, pattern: str) -> dict[str, Any]:
     else:
         regex = clean
     result = _run(executor, f"pgrep -fal {_quote(regex)} || true")
-    if "command not found" in (result.stderr or ""):
-        # Fall back to ps parsing when pgrep is absent.
+    if _process_listing_unavailable(result.stderr or ""):
+        # Fall back to ps parsing when pgrep is absent or host policy denies it.
         result = _run(executor, f"ps ax -o pid=,command= | grep -e {_quote(regex)} || true")
-        if "command not found" in (result.stderr or ""):
-            return {"pattern": clean, "state": "unknown", "error": "tool_missing: pgrep and ps unavailable"}
+        if _process_listing_unavailable(result.stderr or ""):
+            return {
+                "pattern": clean,
+                "state": "unknown",
+                "running": False,
+                "match_count": 0,
+                "matches": [],
+                "error": "tool_unavailable: process listing unavailable",
+            }
     lines = [line for line in result.stdout.splitlines() if line.strip()]
     return {
         "pattern": clean,

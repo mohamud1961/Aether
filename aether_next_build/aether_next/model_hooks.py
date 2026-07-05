@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import fields as dc_fields
 from typing import Any, Mapping, Protocol, runtime_checkable
@@ -329,6 +330,31 @@ def _verifier_identity_prompt_for(compiled: CompiledRuntime) -> str:
     raise ModelOutputError("architect-authored verifier prompt is required")
 
 
+def _verifier_max_output_tokens() -> int:
+    return int(os.environ.get("AETHER_VERIFIER_MAX_OUTPUT_TOKENS", "6000"))
+
+
+def _structured_missing_evidence_requests(raw: str) -> tuple[VerifierInspectionRequest, ...]:
+    text = str(raw or "").strip()
+    decoder = json.JSONDecoder()
+    data: Any = None
+    for idx, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            data, _end = decoder.raw_decode(text[idx:])
+            break
+        except json.JSONDecodeError:
+            continue
+    if not isinstance(data, Mapping):
+        return ()
+    raw_requests = data.get("missing_evidence_requests")
+    if not isinstance(raw_requests, list) or not any(isinstance(item, Mapping) for item in raw_requests):
+        return ()
+    request_items = [dict(item) for item in raw_requests if isinstance(item, Mapping)]
+    return parse_verifier_inspection_requests({"kind": "inspect", "requests": request_items})
+
+
 def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[VerifierInspectionRequest, ...]:
     """Minimal generic read-only evidence when a verifier completes uninspected.
 
@@ -490,7 +516,7 @@ class ModelHooks:
             {"role": "user", "content": json.dumps(user_payload, default=str, sort_keys=True)},
         ]
         try:
-            return self._verifier(messages, max_output_tokens=6000)
+            return self._verifier(messages, max_output_tokens=_verifier_max_output_tokens())
         except Exception as exc:
             self.last_parse_errors.append(str(exc))
             raise
@@ -520,7 +546,8 @@ class ModelHooks:
         inspected = False
         for round_idx in range(max_rounds + 1):
             try:
-                raw = self._verifier(messages, max_output_tokens=6000)
+                raw = self._verifier(messages, max_output_tokens=_verifier_max_output_tokens())
+                setattr(self, "last_raw_verifier_output", raw)
             except Exception as exc:
                 self.last_parse_errors.append(str(exc))
                 raise
@@ -529,8 +556,27 @@ class ModelHooks:
             except Exception as verdict_exc:
                 try:
                     requests = parse_verifier_inspection_requests(raw)
-                except Exception:
-                    self.last_parse_errors.append(str(verdict_exc))
+                except Exception as inspection_exc:
+                    self.last_parse_errors.append(f"{verdict_exc}; {inspection_exc}")
+                    if round_idx < max_rounds:
+                        messages.append({"role": "assistant", "content": raw})
+                        messages.append({
+                            "role": "user",
+                            "content": json.dumps(
+                                {
+                                    "instruction": (
+                                        "Your previous verifier message was not valid protocol JSON. "
+                                        "Return exactly one JSON object and no prose. The object must "
+                                        "be either a final verifier verdict with fields verdict, "
+                                        "confidence, and summary, or an inspection request with "
+                                        "kind='inspect' and a non-empty requests list."
+                                    ),
+                                },
+                                default=str,
+                                sort_keys=True,
+                            ),
+                        })
+                        continue
                     raise
                 results = inspector(requests)
                 inspected = True
@@ -597,6 +643,33 @@ class ModelHooks:
                     ),
                 })
                 continue
+            if result.verdict == "uncertain_missing_evidence" and round_idx < max_rounds:
+                try:
+                    missing_requests = _structured_missing_evidence_requests(raw)
+                except Exception as exc:
+                    self.last_parse_errors.append(str(exc))
+                    missing_requests = ()
+                if missing_requests:
+                    results = inspector(missing_requests)
+                    inspected = True
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "verifier_inspection_results": results,
+                                "instruction": (
+                                    "The runtime executed the structured read-only evidence "
+                                    "requests from your uncertain_missing_evidence verdict. "
+                                    "Use these observations with the original verifier_packet "
+                                    "and return a final verdict or another bounded inspection request."
+                                ),
+                            },
+                            default=str,
+                            sort_keys=True,
+                        ),
+                    })
+                    continue
             if result.verdict == "completed" and not inspected:
                 # Out of rounds and still uninspected: do not accept the
                 # completion. Return an explicit non-completion verdict so the

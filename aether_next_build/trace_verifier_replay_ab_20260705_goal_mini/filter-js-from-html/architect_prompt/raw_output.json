@@ -1,0 +1,18 @@
+uncertain
+
+I can see `/app/filter.py` is present, but the packet does not include the required behavioral proof:
+
+- no syntax-check result for `/app/filter.py`
+- no before/after evidence that the same HTML file was rewritten in place
+- no diff showing preserved benign markup like tables/headers/safe attributes
+- no proof that malicious vectors like `<script>`, inline event handlers, or `javascript:` URLs were actually removed/neutralized
+
+Next repair action:
+1. Run a syntax check on `/app/filter.py` and report the result.
+2. Create a scratch HTML fixture containing:
+   - a `<script>` block
+   - an inline handler like `onclick=...`
+   - a `javascript:` URL
+   - benign content such as a table, header, and safe attributes
+3. Run `python /app/filter.py <same-fixture.html>` and show a before/after diff proving the file was modified in place.
+4. Make sure the diff shows preserved formatting outside the removed malicious spans, and include at least one mixed-case or multiline JavaScript example to prove coverage.

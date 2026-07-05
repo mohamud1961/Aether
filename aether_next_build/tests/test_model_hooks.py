@@ -754,10 +754,14 @@ class TestEndToEnd:
         kernel = AetherNextKernel(max_steps=10, workbench_architect=_canonical_workbench_architect_config())
         result = kernel.run(envmap, executor, hooks)
 
-        assert result.status != "completed"
+        assert result.status == "solver_submit_stalemate"
+        assert result.step < 10
         assert verifier_calls["n"] == 1
         skipped = [r for r in result.receipts if r.kind == "model_verifier_skipped"]
         assert any(
             r.payload.get("reason") == "active_findings_without_intervening_evidence"
             for r in skipped
         )
+        stalemate = [r for r in result.receipts if r.kind == "solver_submit_stalemate"]
+        assert stalemate
+        assert stalemate[-1].payload["finding_ids"] == ("vf-need-evidence",)

@@ -400,7 +400,8 @@ def _model_output(packet: Mapping[str, Any], *, architect_prompt: str) -> str:
         poll_interval_s=float(os.environ.get("AETHER_VERIFIER_POLL_INTERVAL_S", "5")),
         poll_timeout_s=float(os.environ.get("AETHER_VERIFIER_POLL_TIMEOUT_S", "900")),
     )
-    return model(_model_messages(packet, architect_prompt=architect_prompt), max_output_tokens=6000)
+    max_output_tokens = int(os.environ.get("AETHER_TRACE_VERIFIER_MAX_OUTPUT_TOKENS", "6000"))
+    return model(_model_messages(packet, architect_prompt=architect_prompt), max_output_tokens=max_output_tokens)
 
 
 def _judge(parsed: ModelVerifierResult | None) -> dict[str, Any]:

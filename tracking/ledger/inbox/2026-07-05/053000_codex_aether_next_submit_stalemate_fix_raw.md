@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next submit-only liveness repair
+- event_type: implementation
+- summary: Added a bounded `solver_submit_stalemate` runtime stop for repeated submit-only turns while active verifier findings require intervening evidence.
+- observations: The one real log-summary run showed one real solver action followed by repeated `submit_outcome` turns through step 79 after the verifier produced an active `blocked_by_tooling` finding. The kernel previously skipped repeat verifier calls but allowed the solver to keep submitting until max steps. New kernel logic terminates after three skipped verifier rounds without intervening evidence and records a `solver_submit_stalemate` receipt. Classifier maps this status to high-confidence `verification_failure`. Focused tests passed (`tests/test_model_hooks.py tests/test_verifier_probes.py`: 31 passed) and full Aether-Next deterministic suite passed (`311 passed`).
+- inference: This preserves the user's verifier-led architecture while preventing 80-step submit loops. The harness does not judge task correctness; it records a runtime liveness failure when solver behavior cannot move the verifier state forward.
+- evidence_paths: aether_next_build/aether_next/kernel.py; aether_next_build/aether_next/classifier.py; aether_next_build/tests/test_model_hooks.py; aether_next_build/ONE_REAL_RUN_AUDIT_20260705.md; aether_next_build/AETHER_NEXT_PROGRESS.md
+- affected_components: Aether-Next kernel loop; classifier; verifier-feedback liveness; model-backed run efficiency
+- decision_change: Future real attempts should no longer burn the full max-step budget on submit-only loops under active verifier findings.
+- unresolved_questions: A future approved real run is needed to measure actual step-efficiency improvement and whether the verifier now completes after structured evidence routing.
+- confidence: high for deterministic behavior and test coverage; medium for real-run impact until rerun is approved.
+- commit_message: HOLD - git index is read-only in this sandbox; commit exact Aether-Next liveness and verifier-inspection files from a writable git session

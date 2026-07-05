@@ -31,9 +31,15 @@ from aether_next.runtime_ir import (
     ProofObligation,
     RuntimeConfigIR,
 )
-from aether_next.model_hooks import DEFAULT_VERIFIER_IDENTITY_PROMPT, VERIFIER_RUNTIME_CONTRACT
+from aether_next.model_hooks import DEFAULT_VERIFIER_IDENTITY_PROMPT, ModelHooks, VERIFIER_RUNTIME_CONTRACT
 from aether_next.verifier import ModelVerifierResult, VerifierFinding, parse_model_verifier_result
 from aether_next.verifier_packets import build_verifier_packet
+
+
+class _VerifierEvalError(Exception):
+    def __init__(self, message: str, raw: str) -> None:
+        super().__init__(message)
+        self.raw = raw
 
 
 def _env(task: str, *, file_map_summary: dict[str, Any] | None = None) -> EnvMap:
@@ -258,6 +264,75 @@ def _model_output(packet: dict[str, Any]) -> str:
     return model(_model_messages(packet), max_output_tokens=int(os.environ.get("AETHER_VERIFIER_MAX_OUTPUT_TOKENS", "6000")))
 
 
+def _model_output_with_inspector(case_id: str, compiled, ledger: ExecutionLedger, packet: dict[str, Any]) -> str:
+    from aether_next.providers.azure_model import make_azure_callable
+
+    model = make_azure_callable(
+        deployment_env="AZURE_OPENAI_GPT54_MINI_DEPLOYMENT",
+        key_env="AZURE_OPENAI_GPT54_MINI_KEY",
+        endpoint_env="AZURE_OPENAI_ENDPOINT",
+        effort=os.environ.get("AETHER_VERIFIER_EFFORT", "high"),
+        poll_interval_s=float(os.environ.get("AETHER_VERIFIER_POLL_INTERVAL_S", "5")),
+        poll_timeout_s=float(os.environ.get("AETHER_VERIFIER_POLL_TIMEOUT_S", "900")),
+    )
+    hooks = ModelHooks(model, model, verifier_model=model)
+    try:
+        return hooks.verify_with_inspector(packet, compiled, ledger, _synthetic_inspector(case_id))
+    except Exception as exc:
+        raise _VerifierEvalError(str(exc), str(getattr(hooks, "last_raw_verifier_output", ""))) from exc
+
+
+def _synthetic_inspector(case_id: str):
+    file_contents = {
+        "semantic_wrong": {"out.txt": "PASS-124\n"},
+        "solver_claim_conflicts_with_raw_state": {
+            "data/events.log": "INFO boot\nERROR bad\nERROR worse\n",
+            "summary.csv": "metric,count\nERROR,1\n",
+        },
+        "missing_artifact": {},
+        "schema_mismatch": {"out.txt": "{}\n"},
+        "repeated_no_progress": {"out.txt": "TODO\n"},
+        "insufficient_evidence": {"out.txt": "answer-without-derivation\n"},
+    }
+    files = file_contents.get(case_id, {})
+
+    def inspect(requests):
+        rows = []
+        for request in requests:
+            row = {
+                "request_id": request.request_id,
+                "kind": request.kind,
+                "read_only": True,
+            }
+            if request.kind == "read_file":
+                path = request.path
+                if path in files:
+                    content = files[path]
+                    row.update({
+                        "path": path,
+                        "exists": True,
+                        "bytes": len(content),
+                        "offset": request.offset,
+                        "excerpt": content[request.offset: request.offset + max(1, request.limit)],
+                    })
+                else:
+                    row.update({"path": path, "exists": False, "error": "file_not_found"})
+            elif request.kind == "inspect_artifact":
+                row.update({"path": request.path, "exists": request.path in files})
+            elif request.kind == "inspect_recent_receipts":
+                row.update({"receipts": []})
+            elif request.kind == "inspect_artifact_history":
+                row.update({"path": request.path, "history": []})
+            elif request.kind == "overlay_run_command":
+                row.update({"exit_code": 0, "stdout": "synthetic verifier-only overlay output\n", "stderr": ""})
+            else:
+                row.update({"error": f"synthetic inspector does not implement {request.kind}"})
+            rows.append(row)
+        return rows
+
+    return inspect
+
+
 def run(mode: str, out_dir: Path) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -265,13 +340,22 @@ def run(mode: str, out_dir: Path) -> dict[str, Any]:
         case_id = item["case_id"]
         case_dir = out_dir / case_id; case_dir.mkdir(exist_ok=True)
         packet = build_verifier_packet(item["compiled"], item["ledger"], step=len(item["ledger"].all_receipts()) + 1, reason=item["reason"])
-        raw = _fake_output(case_id, packet) if mode == "fake" else _model_output(packet)
+        try:
+            raw = (
+                _fake_output(case_id, packet)
+                if mode == "fake"
+                else _model_output_with_inspector(case_id, item["compiled"], item["ledger"], packet)
+            )
+            model_error = ""
+        except _VerifierEvalError as exc:
+            raw = exc.raw
+            model_error = str(exc)
         parsed = None; parse_error = ""
         try:
             parsed = parse_model_verifier_result(raw)
             item["ledger"].apply_verifier_result(parsed, step=packet["step"])
         except Exception as exc:  # pragma: no cover - model-mode forensic path
-            parse_error = str(exc)
+            parse_error = model_error or str(exc)
         judgement = _judge(case_id, packet, parsed)
         (case_dir / "verifier_packet.json").write_text(json.dumps(packet, indent=2, sort_keys=True))
         (case_dir / "raw_output.json").write_text(json.dumps(raw, indent=2, sort_keys=True) if not isinstance(raw, str) else raw)
@@ -283,6 +367,7 @@ def run(mode: str, out_dir: Path) -> dict[str, Any]:
             "raw_verdict": raw.get("verdict") if isinstance(raw, dict) else "raw_text",
             "parsed_verdict": parsed.verdict if parsed else "parse_error",
             "parse_ok": parsed is not None,
+            "parse_error": parse_error,
             "active_findings": [f["finding_id"] for f in item["ledger"].active_finding_context(packet["step"] + 1)],
             **judgement,
             "artifact_paths": packet.get("artifacts_present", []),

@@ -10,12 +10,14 @@ import threading
 from pathlib import Path
 
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler
+from aether_next.execution import CommandResult
 from aether_next.ledger import ExecutionLedger
 from aether_next.real_executor import SubprocessExecutor
 from aether_next.runtime_ir import CapabilityDescriptor, EnvMap, RuntimeConfigIR
 from aether_next.verifier_inspector import (
     VerifierInspectionRequest,
     execute_verifier_inspection_requests,
+    parse_verifier_inspection_requests,
 )
 from aether_next.verifier_probes import (
     inspect_artifact_probe,
@@ -37,6 +39,15 @@ def _free_port() -> int:
     port = s.getsockname()[1]
     s.close()
     return port
+
+
+class _ScriptedExecutor:
+    def __init__(self, results: tuple[CommandResult, ...]) -> None:
+        self._results = list(results)
+
+    def run_command(self, command: str, *, timeout_s: int = 30) -> CommandResult:
+        assert self._results, command
+        return self._results.pop(0)
 
 
 def test_probe_port_open_and_closed() -> None:
@@ -92,10 +103,32 @@ def test_probe_process_finds_live_process() -> None:
         executor = SubprocessExecutor(root)
         # This test's own interpreter is a guaranteed-live python process.
         result = probe_process(executor, "python")
+        if result.get("state") == "unknown":
+            assert result["running"] is False
+            assert "tool_unavailable" in result["error"]
+            return
         assert result["running"] is True
         assert result["match_count"] >= 1
         missing = probe_process(executor, "definitely_not_a_process_name_xyz123")
         assert missing["running"] is False
+
+
+def test_probe_process_reports_unknown_when_process_listing_is_denied() -> None:
+    executor = _ScriptedExecutor(
+        (
+            CommandResult(
+                command="pgrep",
+                exit_code=0,
+                stderr="pgrep: Cannot get process list\nsysmon request failed with error: sysmond service not found\n",
+            ),
+            CommandResult(command="ps", exit_code=0, stderr="ps: operation not permitted\n"),
+        )
+    )
+    result = probe_process(executor, "python")
+    assert result["state"] == "unknown"
+    assert result["running"] is False
+    assert result["match_count"] == 0
+    assert "tool_unavailable" in result["error"]
 
 
 def test_inspect_artifact_probe_binary_and_text() -> None:
@@ -150,11 +183,65 @@ def test_probe_kinds_dispatch_through_inspector_and_never_mutate() -> None:
             envmap=env,
         )
         by_id = {row["request_id"]: row for row in results}
-        assert by_id["p1"]["running"] is True
+        if by_id["p1"].get("state") == "unknown":
+            assert by_id["p1"]["running"] is False
+            assert "tool_unavailable" in by_id["p1"]["error"]
+        else:
+            assert by_id["p1"]["running"] is True
         assert by_id["p2"]["state"] == "closed"
         assert by_id["p3"]["exists"] is True
         assert all(row.get("read_only") for row in results)
         assert sorted(p.name for p in Path(root).iterdir()) == before
+
+
+def test_inspection_request_parser_accepts_first_json_object_only() -> None:
+    raw = (
+        '{"kind":"inspect","requests":[{"kind":"read_file","path":"out.txt","request_id":"r1"}]}'
+        '{"verdict":"uncertain_missing_evidence","confidence":"high","summary":"later object"}'
+    )
+    requests = parse_verifier_inspection_requests(raw)
+    assert len(requests) == 1
+    assert requests[0].kind == "read_file"
+    assert requests[0].path == "out.txt"
+
+
+def test_inspection_request_parser_aliases_run_check_to_rerun_check() -> None:
+    requests = parse_verifier_inspection_requests({
+        "kind": "inspect",
+        "requests": [{"kind": "run_check", "check_id": "c1", "request_id": "r1"}],
+    })
+    assert requests[0].kind == "rerun_check"
+
+
+def test_read_file_inspection_supports_globbed_paths() -> None:
+    with tempfile.TemporaryDirectory() as root:
+        Path(root, "logs").mkdir()
+        Path(root, "logs", "a.log").write_text("A\n")
+        Path(root, "logs", "b.log").write_text("B\n")
+        env = EnvMap(
+            task_prompt="t",
+            workspace_root=root,
+            capabilities={
+                "shell": CapabilityDescriptor("shell", "Run commands"),
+                "filesystem": CapabilityDescriptor("filesystem", "Files"),
+            },
+        )
+        ir = RuntimeConfigIR(
+            architect_summary="s",
+            solver_identity_prompt="solver",
+            verifier_identity_prompt="verifier",
+            selected_capabilities=("shell", "filesystem"),
+        )
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(ir, env)
+        results = execute_verifier_inspection_requests(
+            (VerifierInspectionRequest(request_id="r", kind="read_file", path="logs/*.log", limit=2),),
+            compiled=compiled,
+            ledger=ExecutionLedger(),
+            executor=SubprocessExecutor(root),
+            envmap=env,
+        )
+        assert sorted(results[0]["matched_paths"]) == ["logs/a.log", "logs/b.log"]
+        assert [row["excerpt"] for row in results[0]["matches"]] == ["A\n", "B\n"]
 
 
 def test_read_file_inspection_supports_offset_paging() -> None:

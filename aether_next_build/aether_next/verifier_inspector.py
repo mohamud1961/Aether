@@ -44,6 +44,8 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
         if not isinstance(item, dict):
             continue
         kind = str(item.get("kind", "")).strip()
+        if kind == "run_check":
+            kind = "rerun_check"
         if not kind:
             continue
         parsed.append(
@@ -182,6 +184,28 @@ def execute_verifier_inspection_requests(
 
 def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap: EnvMap) -> dict[str, Any]:
     path = normalize_relpath(request.path, envmap.workspace_root)
+    if any(token in path for token in ("*", "?", "[")):
+        matches = tuple(executor.glob(path))[: max(1, request.limit)]
+        rows = []
+        for matched in matches:
+            try:
+                content = executor.read_file(matched)
+            except FileNotFoundError:
+                rows.append({"path": matched, "error": "file_not_found"})
+                continue
+            rows.append({
+                "path": matched,
+                "bytes": len(content),
+                "content_hash": sha256(content.encode("utf-8", "replace")).hexdigest()[:16],
+                "excerpt": content[: min(1000, len(content))],
+            })
+        return {
+            "request_id": request.request_id,
+            "kind": request.kind,
+            "path": path,
+            "matched_paths": list(matches),
+            "matches": rows,
+        }
     try:
         content = executor.read_file(path)
     except FileNotFoundError:
@@ -211,7 +235,21 @@ def _load_mapping(value: Any) -> Mapping[str, Any]:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
-        parsed = json.loads(value)
-        if isinstance(parsed, dict):
-            return parsed
+        text = value.strip()
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        decoder = json.JSONDecoder()
+        for idx, char in enumerate(text):
+            if char != "{":
+                continue
+            try:
+                parsed, _end = decoder.raw_decode(text[idx:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
     raise TypeError("inspection request must be a JSON object or JSON object string")

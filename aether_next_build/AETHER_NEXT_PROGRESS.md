@@ -186,10 +186,64 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - **Verification against raw tasks (not script trust):** all 90 rows reviewed for class sanity (0 tasks unclassified; over-inclusion accepted as coverage-safe); deep spot-checks of headless-terminal (solver-authored pty via run_command — deliberate: no bespoke TTY channel, scripting via expect/pexpect is the generic path), install-windows-3.11 (qemu_vm/VNC/nginx → port/process probes + screendump artifacts), sparql-university, mailman, code-from-image. Existing test proves the audit never reads solution/ or tests/ (test_local_vision_delta).
 - Suite: **306 passed**. P2 complete.
 
+## Ext-j — Docker isolation + golden-grader smoke (2026-07-05) — DONE
+
+- Latest evidence: `DOCKER_ISOLATION_SMOKE_20260705T032020Z.json`.
+- Golden file case: official grader pass, internal completion completed, verifier alignment aligned.
+- Golden service case: official grader pass, internal completion completed, verifier alignment aligned; exercises stable process launch + service readiness in Docker.
+- Known-bad file case: official grader fail while internal verifier completed; recorded as `verifier_false_clean` rather than a pass. This is the intended alignment artifact: the grader remains external and the result row exposes verifier disagreement instead of hiding it.
+- Earlier smoke attempts are retained as evidence of failure progression: `DOCKER_ISOLATION_SMOKE_20260705T031739Z.json` (grader errors) and `DOCKER_ISOLATION_SMOKE_20260705T031827Z.json` (service smoke still failing).
+
+## Deterministic gate closeout (2026-07-05)
+
+- Stable-core tool surface includes every generic workbench capability (`read_file`, `write_file`, `run_command`, `launch_process`, `probe_service`, `stop_process`, `inspect_artifact`, `bootstrap_acquire`, `query_memory`, `run_check`, `inspect_checks`); evidence in `tests/test_vnext_configurability.py`.
+- Process probing now preserves truth under host policy denial: when `pgrep`/`ps` cannot enumerate processes, `probe_process` returns `state=unknown` and `tool_unavailable`, not a false `running=false` claim.
+- Docker runner tests now mount workspaces under `/tmp`, a Docker-shareable path on local Docker Desktop; the previous `/var/folders/...` tempdir could fail before harness code executed.
+- Focused tests:
+  - `python3.11 -m pytest tests/test_verifier_probes.py -q` → **7 passed**
+  - `python3.11 -m pytest tests/test_vnext_configurability.py tests/test_verifier_probes.py -q` → **34 passed**
+  - `python3.11 -m pytest tests/test_docker_runner.py -q` → **12 passed**
+- Full deterministic suite: `python3.11 -m pytest tests -q` → **308 passed**.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-Ext-j: Docker mount-isolation + golden-grader smoke (Docker available locally).
+Ext-k: ONE model-backed sentinel batch managed with 5.4 mini, preceded by focused architect/solver/verifier component evals and followed by non-pass classification.
+
+## Ext-k component gates + one real run (2026-07-05) — PARTIAL
+
+- Architect-only 5.4-mini eval across 10 varied official tasks: `architect_only_eval_20260705_goal_10_mini/ARCHITECT_EVAL_REPORT.md`.
+  - 8/10 rows scored 10.0/10.
+  - `headless-terminal` scored 9.67/10.
+  - `fix-git` scored 9.0/10.
+  - All configs were valid; no repair warnings or rejected config fields.
+  - Every solver prompt included self-verification; every config used `model_verifier_policy.runs_on=["solver_submit"]`.
+- Verifier-only model eval found and drove fixes:
+  - Initial packet-style verifier eval exposed parse/protocol drift and lack of inspection-loop realism.
+  - Production-style verifier-only eval after fixes: `verifier_only_eval_20260705_goal_mini_structured_missing_v1` → 6/6 parse-ok, evidence-bound, actionable `needs_repair` rows.
+- Real run: `local_goal_runs/20260705T041231Z_one_real_logsummary`.
+  - Task `log-summary-date-ranges`, 5.4 mini, Docker-backed official grader.
+  - Result: reward 0.0, status incomplete, final verifier verdict `blocked_by_tooling`, 80 steps.
+  - Official grader failed on semantic counts (`today,ERROR` expected 370, got 414).
+  - Trace showed one real solver action at step 0, then repeated submit-only turns through step 79.
+  - Root cause: verifier structured missing-evidence requests were not realized, glob/raw-state inspection was too weak, and active verifier findings did not stop submit-only looping.
+  - Full audit: `ONE_REAL_RUN_AUDIT_20260705.md`.
+- Fixes applied after the run:
+  - `uncertain_missing_evidence` with structured evidence requests now triggers read-only verifier inspection rounds.
+  - verifier JSON/protocol repair retry added for prose drift.
+  - verifier output token budget now configurable via `AETHER_VERIFIER_MAX_OUTPUT_TOKENS`.
+  - inspection request parser accepts first JSON object from mixed output.
+  - `run_check` aliases to `rerun_check`.
+  - globbed `read_file` verifier inspection returns bounded matched-file excerpts.
+  - repeated submit-only turns under active verifier findings now terminate as `solver_submit_stalemate` after three skipped verifier rounds without intervening evidence.
+- Tests after fixes:
+  - `python3.11 -m pytest tests/test_verifier_probes.py -q` → **10 passed**.
+  - `python3.11 -m pytest tests/test_model_hooks.py tests/test_verifier_probes.py -q` → **31 passed**.
+  - `python3.11 -m pytest tests -q` → **311 passed**.
+
+## Current open item
+
+No second real run launched, per the one-run constraint. Next approved real attempt should test whether the structured missing-evidence inspection and submit-stalemate fixes improve step efficiency and verifier completion behavior.

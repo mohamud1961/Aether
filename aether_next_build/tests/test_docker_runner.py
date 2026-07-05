@@ -42,7 +42,10 @@ def docker_env():
 
     Yields ``(container_id, workspace_dir)`` and tears down on exit.
     """
-    workspace = tempfile.mkdtemp(prefix="test_docker_runner_")
+    # Docker Desktop does not always share the platform tempdir on macOS
+    # (often /var/folders/...), while /tmp is part of the benchmark-native
+    # workspace contract exercised by the isolation smoke.
+    workspace = tempfile.mkdtemp(prefix="test_docker_runner_", dir="/tmp")
     container_id: str | None = None
     try:
         start = subprocess.run(
