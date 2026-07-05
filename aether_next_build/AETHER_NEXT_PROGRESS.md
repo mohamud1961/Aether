@@ -167,10 +167,16 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Suite: **303 passed**.
 - Standards debt noted: kernel.py at 923 LOC — decomposition slice next, before P2i.
 
+## Kernel decomposition slice (2026-07-05) — DONE
+
+- kernel.py 923 → **493 LOC**: extracted `kernel_dispatch.py` (action dispatch + `_head_tail` + `_action_timeout_s`, 288 LOC) and `kernel_turns.py` (act/submit turn execution + automatic-memory advisory reason, 174 LOC); dead imports pruned.
+- Suite: **303 passed**.
+- **Remaining size-cap debt (baseline modules, pre-existing):** context_compiler.py 858, docker_runner.py 794, compiler.py 663, model_hooks.py 637, runtime_ir.py 547. Decomposition deferred behind the mission-critical path (P2i → Ext-j → Ext-k); tracked here so it is not silently dropped.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-Kernel decomposition slice (500-LOC cap), then P2i per-task capability closure.
+P2i: per-task capability closure over the ~90-task official corpus.
