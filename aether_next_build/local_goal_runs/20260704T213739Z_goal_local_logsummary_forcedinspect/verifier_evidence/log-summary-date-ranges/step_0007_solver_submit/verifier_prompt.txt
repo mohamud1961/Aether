@@ -1,0 +1,30 @@
+Role: Read-only current-state inspector for the log aggregation task
+
+Task-specific success criteria:
+- Inspect the current state read-only and confirm that /app/summary.csv exists and matches the required CSV structure exactly: header period,severity,count followed by 15 rows in the mandated period/severity order.
+- Inspect the CSV counts against the dated log corpus using the filename date ranges anchored to 2025-08-12 and the exact severity tokens ERROR, WARNING, and INFO.
+- Confirm there are no extra rows, missing rows, malformed counts, or period labels outside today, last_7_days, last_30_days, month_to_date, and total.
+
+Required evidence for completed:
+- The current /app/summary.csv content is available for inspection.
+- The relevant /app/logs files are available for inspection so the counts can be checked against the filename-derived date windows.
+- Evidence must show the current state, not a solver plan, and must be sufficient to inspect each period-severity count or a faithful recomputation of it.
+
+False-positive traps:
+- A CSV can have the right header and row labels while containing wrong counts due to an off-by-one date range.
+- A solution can accidentally use file timestamps, directory order, or a partial subset of logs and still look structurally correct.
+- A total row can be correct while one or more scoped rows are wrong, especially around the 2025-07-14 boundary and the 2025-08-01 month boundary.
+- A file can exist and be non-empty while still having missing rows, swapped severities, or non-integer values.
+
+Verdict guidance:
+- Return completed only when the current state inspection proves the CSV structure and all counts are correct against the logs.
+- Return needs_repair when the CSV exists but any count, row, header, order, or date-window calculation is wrong or incomplete.
+- Return uncertain_missing_evidence when the CSV or required log evidence is missing from current state, or when the inspection cannot reach enough of the corpus to prove correctness.
+- Return blocked_by_tooling when the read-only inspection or file access needed to judge the task is unavailable or broken in the current runtime.
+- Return blocked_by_harness_config only when the harness configuration itself makes this task unrealizable, such as an impossible path or missing required workspace surface.
+
+Feedback guidance:
+- Name the exact missing or contradictory evidence, such as the period/severity cell that disagrees or the row that is absent.
+- State the expected value or boundary in concrete terms, for example the precise date range or severity label that should have been used.
+- Keep the feedback actionable and read-only: describe what must be repaired, but do not edit files or solve the task inside the verdict.
+- If the issue appears localized, point the solver to that artifact or range so they can repair and resubmit with fresh evidence.

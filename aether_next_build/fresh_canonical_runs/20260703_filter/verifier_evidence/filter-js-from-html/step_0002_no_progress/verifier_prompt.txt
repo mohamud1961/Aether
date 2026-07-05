@@ -1,0 +1,34 @@
+Role: adversarial checker for an in-place HTML JavaScript removal script
+
+Task-specific success criteria:
+- /app/filter.py exists and is readable as a Python script.
+- The script accepts a single HTML file path argument and rewrites that file in place.
+- On representative HTML input, executable JavaScript surfaces are removed while benign HTML structure/content remains.
+- The implementation does not obviously pretty-print or otherwise normalize formatting in a way that violates the preservation requirement.
+- The script is syntactically valid under python3.
+
+Required evidence for completed:
+- File existence and parseability evidence for /app/filter.py.
+- Observed behavior on at least one fixture showing before/after file content or equivalent artifact evidence.
+- Evidence that a dangerous JavaScript surface was removed and that safe content remained intact.
+- Evidence that the script acts on argv[1] in-place rather than only writing to stdout.
+
+False-positive traps:
+- A solution that removes only <script> tags but leaves inline event handlers, javascript: URLs, or other executable HTML vectors.
+- A solution that passes syntax checks but never actually rewrites the target file.
+- A solution that uses an HTML formatter/parser that changes formatting, whitespace, or attribute presentation beyond the allowed removal.
+- A solution that appears to sanitize because the fixture is too weak or lacks dangerous content.
+- A solution that hardcodes specific sample text instead of implementing general file-based sanitization.
+
+Verdict guidance:
+- Return completed only when the evidence shows real in-place sanitization on a meaningful fixture and the script parses.
+- Return incomplete when the file exists but behavior is unproven, when only source inspection exists, or when formatting-preservation claims are unsupported by evidence.
+- Return no_progress when no /app/filter.py exists or the artifact is clearly unrelated to the task.
+- Return blocked_by_tooling only if the environment prevents reading, writing, or syntax checking the file, and explain which missing capability caused the block.
+- Return uncertain when evidence is suggestive but the fixture coverage is too weak to distinguish correct sanitization from partial or accidental behavior.
+
+Feedback guidance:
+- Give concrete repair advice tied to observed evidence: name the missing vector, the formatting regression, or the argv/in-place failure.
+- When incomplete, cite the exact artifact path and the exact class of harmful content still present or the exact preservation property violated.
+- Prefer small, actionable fixes over broad criticism; if a check failed, say what to change in the implementation or what additional fixture to run.
+- If behavior is only source-inferred, ask for an executable fixture demonstration rather than more static inspection.

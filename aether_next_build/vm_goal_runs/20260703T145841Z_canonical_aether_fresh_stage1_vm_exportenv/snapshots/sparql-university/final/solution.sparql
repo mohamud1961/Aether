@@ -1,0 +1,50 @@
+PREFIX uni: <http://university.org/ontology/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?professorName (GROUP_CONCAT(DISTINCT ?country; separator=", ") AS ?countries)
+WHERE {
+  VALUES ?euCountry {
+    "AT" "BE" "BG" "HR" "CY" "CZ" "DK" "EE" "FI" "FR"
+    "DE" "GR" "HU" "IE" "IT" "LV" "LT" "LU" "MT" "NL"
+    "PL" "PT" "RO" "SK" "SI" "ES" "SE"
+  }
+
+  ?professor a uni:Professor ;
+             uni:hasName ?professorName .
+
+  {
+    ?professor uni:hasRank "Full Professor" .
+  }
+  UNION
+  {
+    ?professor uni:rank "Full Professor" .
+  }
+  UNION
+  {
+    ?professor a uni:FullProfessor .
+  }
+
+  ?professor uni:worksIn ?department .
+  ?department uni:isDepartmentOf ?university .
+  ?university uni:locatedInCountry ?country .
+  FILTER(?country = ?euCountry)
+
+  {
+    SELECT ?department
+    WHERE {
+      {
+        SELECT ?department (COUNT(DISTINCT ?student) AS ?studentCount)
+        WHERE {
+          ?professor2 a uni:Professor ;
+                      uni:worksIn ?department .
+          ?class uni:taughtInDepartment ?department ;
+                 uni:hasEnrollment ?student .
+          ?student a uni:Student .
+        }
+        GROUP BY ?department
+      }
+      FILTER(?studentCount > 10)
+    }
+  }
+}
+GROUP BY ?professorName

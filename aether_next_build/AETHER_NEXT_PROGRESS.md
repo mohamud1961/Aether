@@ -108,10 +108,19 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Suite: **279 passed, 0 failed**. Note: kernel.py now 838 LOC (auto-submit removal) — still >500, shrink continues in P1b.
 - Watch item: `EnvMap.grader_hints` is a model-visible field name fed to the architect (kernel_messages.py:37); populated from public task surfaces (analysis.py builds checks from it). Verify at P2i/Ext-j that nothing grader-derived ever lands there in the docker runner path.
 
+## P1b — Solver-requested reconfiguration deleted (2026-07-05) — DONE
+
+- `request_reconfigure` removed from SolverTurn kinds + `reconfigure_reason` field deleted (runtime_ir); a solver emitting it now gets a visible `turn_validation` receipt ("unknown turn kind"), no silent loss.
+- `KernelHooks.reconfigure` protocol method, `ModelHooks.reconfigure`, `RECONFIGURE_SYSTEM_PROMPT`, `reconfigure_model` plumbing: deleted.
+- Legacy mid-run reconfigure loop (`_do_reconfigure` + completion-gate `recommend_reconfigure` consumption) and unreachable `_do_reconfigure_workbench`: deleted. `CompletionDecision.recommend_reconfigure` and monitors' flags retained — P2g (verifier-triggered single-shot reconfigure) will consume them via the workbench resolve path (`resolve_runtime(..., reconfigure_context=...)` kept).
+- report_blocker routing: verifier packet now carries `solver_reported_blockers` (authority `escalation_request_only`, bounded excerpts) — the solver's only config signal, routed to the verifier as designed. Positive test added.
+- kernel.py 889 → 730 LOC (still >500; P1c/P2 continue the shrink).
+- Suite: **279 passed**.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P1b: delete solver `request_reconfigure` turn kind + legacy `hooks.reconfigure` path.
+P1c: prompt-cache-stability test + verify prefix/volatile split byte-stability.

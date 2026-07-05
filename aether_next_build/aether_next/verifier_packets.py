@@ -100,6 +100,33 @@ def _raw_state_candidates(realization: dict[str, Any]) -> list[dict[str, str]]:
     return rows[:8]
 
 
+def _solver_reported_blockers(ledger: ExecutionLedger, *, limit: int = 6) -> list[dict[str, Any]]:
+    """Blocker escalations the solver filed via the report_blocker action.
+
+    report_blocker is the solver's only configuration signal and is
+    deliberately routed to the verifier: an escalation request to judge,
+    never proof that a blocker is real.
+    """
+    rows: list[dict[str, Any]] = []
+    for receipt in ledger.all_receipts():
+        if receipt.kind != "report_blocker":
+            continue
+        payload = receipt.payload or {}
+        rows.append({
+            "receipt_id": receipt.receipt_id,
+            "step": receipt.step,
+            "authority": "escalation_request_only",
+            "blocked_component": str(payload.get("blocked_component", "")),
+            "observed_evidence": str(payload.get("observed_evidence", ""))[:2000],
+            "attempted_actions": str(payload.get("attempted_actions", ""))[:2000],
+            "why_current_tools_or_config_prevent_progress": str(
+                payload.get("why_current_tools_or_config_prevent_progress", "")
+            )[:2000],
+            "requested_harness_change": str(payload.get("requested_harness_change", ""))[:1000],
+        })
+    return rows[-max(0, limit):]
+
+
 def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *, step: int, reason: str) -> dict[str, Any]:
     """Build a state-only verifier packet.
 
@@ -159,6 +186,7 @@ def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *,
         "state_inspection_handles": state_handles[-32:],
         "open_obligations": [item.as_dict() for item in ledger.open_obligations()],
         "active_findings": ledger.active_finding_context(step),
+        "solver_reported_blockers": _solver_reported_blockers(ledger),
     }
     forbidden = {
         "solver_claim",

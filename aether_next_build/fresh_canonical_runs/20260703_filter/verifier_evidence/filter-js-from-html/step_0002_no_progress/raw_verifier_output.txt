@@ -1,0 +1,53 @@
+{
+  "verdict": "needs_repair",
+  "confidence": "high",
+  "summary": "The packet shows /app/filter.py exists and was parsed by python3, but the required runtime evidence is incomplete: the only fixture command shown does not include the rewritten file contents, and the proof contract explicitly failed because there is no before/after evidence that clean benign HTML is preserved byte-identically or otherwise unchanged outside removed script content. The current evidence is therefore insufficient to confirm in-place sanitization behavior, argv[1] handling, or formatting preservation.",
+  "findings": [
+    {
+      "finding_id": "missing_clean_preservation_evidence",
+      "summary": "There is no before/after comparison demonstrating that benign HTML remains unchanged while only harmful content is removed.",
+      "evidence": [
+        "\"proof_contract_analysis\": {\"finding_count\": 1, \"findings\": [{\"code\": \"missing_clean_preservation_evidence\", ... \"next_action\": \"Run a before/after comparison on clean, benign HTML and show the output is byte-identical (or explicitly unchanged) outside the removed script content.\", ...}], \"status\": \"failed\"}",
+        "\"evidence_requirements\": [\"A before/after example showing the script removing JavaScript from an HTML file in place.\", \"A visible demonstration that benign HTML remains present and unformatted regions are not rewritten unnecessarily.\"]",
+        "\"command exit=0: python3 -m py_compile /app/filter.py && tmp=$(mktemp /app/fixtureXXXX.html) && cat > \\\"$tmp\\\" <<'HTML' ... python3 /app/filter.py \\\"$tmp\\\" && printf '\\\\n---AFTER---\\\\n' && cat \\\"$tmp\\\"\""
+      ],
+      "repair_instruction": "Run a concrete before/after fixture on /app/filter.py that prints both the original HTML and the rewritten file, using a benign-preservation case and a dangerous-content case, so the output proves only the harmful substrings were removed and untouched HTML stayed unchanged.",
+      "applies_to": [
+        "/app/filter.py",
+        "fixture/HTML rewrite validation"
+      ]
+    },
+    {
+      "finding_id": "argv_inplace_behavior_not_shown",
+      "summary": "The packet does not show the script modifying the same argv[1] file in place; the recorded command only shows the invocation and does not include the resulting file contents or a diff.",
+      "evidence": [
+        "\"The script accepts a single HTML file path argument and rewrites that file in place.\"",
+        "\"Evidence that the script acts on argv[1] in-place rather than only writing to stdout.\"",
+        "\"command exit=0: python3 -m py_compile /app/filter.py && tmp=$(mktemp /app/fixtureXXXX.html) ... python3 /app/filter.py \\\"$tmp\\\" && printf '\\\\n---AFTER---\\\\n' && cat \\\"$tmp\\\"\""
+      ],
+      "repair_instruction": "Demonstrate in-place behavior by showing the file path before invocation, running /app/filter.py on that same path, and then displaying the file afterward or a diff proving the same file was rewritten rather than stdout-only output.",
+      "applies_to": [
+        "/app/filter.py",
+        "argv[1] file rewrite behavior"
+      ]
+    },
+    {
+      "finding_id": "fixture_output_not_visible",
+      "summary": "The fixture command result in the packet does not expose the actual after-state content, so the sanitizer's effect cannot be verified from the evidence provided.",
+      "evidence": [
+        "\"artifact_evidence\" includes the command string but no captured stdout excerpt showing the after content.",
+        "\"Observed behavior on at least one fixture showing before/after file content or equivalent artifact evidence.\""
+      ],
+      "repair_instruction": "Re-run the fixture and capture the actual stdout or a saved diff that includes the rewritten HTML text, not just the command string, so the sanitizer's output can be inspected directly.",
+      "applies_to": [
+        "fixture execution evidence",
+        "run_command output capture"
+      ]
+    }
+  ],
+  "missing_evidence_requests": [
+    "Provide a before/after fixture transcript or diff that shows /app/filter.py rewriting argv[1] in place and preserves benign HTML formatting/content while removing dangerous JavaScript.",
+    "Provide a clean-input fixture where the post-run file is byte-identical to the input except for removed harmful substrings.",
+    "Provide the actual captured after-content from the HTML fixture run, not only the command that was executed."
+  ]
+}

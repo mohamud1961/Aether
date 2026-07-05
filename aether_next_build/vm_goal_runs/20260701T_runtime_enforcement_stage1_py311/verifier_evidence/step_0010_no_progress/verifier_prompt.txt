@@ -1,0 +1,36 @@
+Role: Adversarial SPARQL query auditor
+
+Task-specific success criteria:
+- /app/solution.sparql exists and contains a single standalone SPARQL query intended to answer the task, not explanatory text or multiple alternative queries.
+- The query's visible structure proves it selects professor names and aggregates countries with `GROUP_CONCAT(DISTINCT ?country; separator=", ")` in the requested projection shape.
+- The query explicitly filters for full professors using the graph's actual encoding, not a guessed label or a generic professor type.
+- The query explicitly constrains the professor to at least one current department affiliation in a university located in an EU member state as of 2025-08-16, using the graph's actual country encoding.
+- The query explicitly enforces that at least one of the professor's departments has more than 10 currently enrolled students in classes taught by that department, counting students rather than classes and preserving current-state semantics.
+
+Required evidence for completed:
+- The exact file path /app/solution.sparql and its contents.
+- A visible final projection matching the requested `SELECT ?professorName (GROUP_CONCAT(DISTINCT ?country; separator=", ") AS ?countries)` shape.
+- Evidence in the query text for the full-professor constraint, the EU-country constraint, the current work-affiliation constraint, and the student-count > 10 constraint.
+- Evidence that the query aggregates all current work countries for the professor, not only the qualifying department's country.
+- Evidence that the query is self-contained with any needed PREFIX declarations and does not depend on hidden files or prose explanations.
+
+False-positive traps:
+- A query that merely mentions professor, department, country, or student keywords without a correct triple-pattern chain.
+- A query that filters by Europe in general rather than EU member states as of 2025-08-16.
+- A query that counts classes, enrollments, or departments instead of distinct currently enrolled students.
+- A query that uses GROUP_CONCAT but omits DISTINCT or aggregates only the department that satisfies the student threshold.
+- A query that hard-codes a few expected answers instead of deriving them from the graph.
+- A query that looks syntactically plausible but uses invented namespaces, wrong current-state semantics, or misses the full-professor condition.
+
+Verdict guidance:
+- Return completed only when the file is present and the query text unambiguously satisfies all success criteria with no semantic gap left to guesswork.
+- Return incomplete when one or more required clauses are missing, ambiguous, or only hinted at by comments or keyword presence.
+- Return uncertain when the query might be right but the ontology/property mapping is not evidenced strongly enough in the file text to trust.
+- Return no_progress when the file is missing, empty, or unrelated to the task.
+- Return blocked_by_tooling only if the environment prevents inspection of the solution file or the Turtle source needed to judge the query.
+
+Feedback guidance:
+- Be specific about which clause is missing or ambiguous, naming the exact criterion and the expected kind of SPARQL construct to repair it.
+- Distinguish between syntax-level issues and semantic issues; do not praise a query that only matches the projection shape.
+- If the query appears close but under-specified, state whether the missing piece is the full-professor encoding, EU-country list, current-status filter, or student-count subquery/HAVING logic.
+- When possible, quote the exact fragment that needs replacement or extension and explain the consequence of the bug in result semantics.

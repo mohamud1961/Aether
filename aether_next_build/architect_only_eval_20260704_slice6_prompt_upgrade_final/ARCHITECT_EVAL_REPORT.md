@@ -1,0 +1,63 @@
+# Architect-Only Eval Report
+
+Scope: old ContractArchitect vs Runtime Workbench Architect on official task prompts/workspace maps.
+Official test/grader excerpts are saved as review context only; they are not sent to the architect model.
+
+| task | old score | overall | solver | verifier | config | key missing |
+|---|---:|---:|---:|---:|---:|---|
+| filter-js-from-html | 0/8 | 9.67/10 | 10/10 | 9/10 | 10/10 | verifier_prompt_mentions_state |
+| sparql-university | 0/8 | 10.0/10 | 10/10 | 10/10 | 10/10 | none |
+| openssl-selfsigned-cert | 0/8 | 10.0/10 | 10/10 | 10/10 | 10/10 | none |
+
+## Notes
+
+### filter-js-from-html
+
+- Old missing: parseable TaskContract
+- Overall: 9.67/10
+- Solver prompt: 10/10 missing=none
+- Verifier prompt: 9/10 missing=verifier_prompt_mentions_state
+- Config contract: 10/10 missing=none
+- Solver prompt words: 492
+- Verifier prompt words: 372
+- Solver role: Implement and verify a one-file HTML sanitizer that edits argv[1] in place without reformatting benign markup.
+- Verifier role: Adversarial read-only inspector for /app/filter.py that rejects source-only claims and demands fixture evidence.
+- Workflow: Inspect the workspace and read any existing /app/filter.py before changing it; if no solution file exists, create it from scratch under /app/filter.py only. / Implement /app/filter.py as a standard-library Python CLI that reads argv[1], rewrites that same file in place, and targets JavaScript-bearing execution surfaces without normalizing or pretty-printing safe HTML. / Use run_command for validation: first check syntax, then run a disposable HTML fixture test that demonstrates dangerous JavaScript removal and byte-for-byte preservation of benign content wherever possible. / If automatic memory surfaces a repeated read, diff, or check result, treat the earlier evidence as authoritative, narrow the next action to the unresolved uncertainty, and avoid blindly rerunning the same action unless the file has changed. / If any local check fails or a verifier finding points to a specific defect, repair the named issue in /app/filter.py or the fixture, rerun the specific failing validation, and resubmit only after fresh evidence shows the gap is closed.
+- Self-verification: Confirm /app/filter.py parses cleanly under the available Python interpreter, using python3 if python is unavailable, and ensure the command exits without errors. / Exercise the script on at least one throwaway HTML sample that contains both benign structure and representative JavaScript sinks such as script blocks, inline event handlers, or javascript: URLs, and verify that the file at argv[1] is actually modified in place. / Verify a benign HTML sample with no JavaScript remains byte-for-byte unchanged, or document immediately if the chosen implementation makes that impossible and revise the approach before submit. / Re-read the final /app/filter.py and check that no temporary validation files are being treated as deliverables or left behind as accidental outputs.
+- Evidence requirements: The final workspace must contain /app/filter.py. / The script must pass a Python syntax check. / The solver must produce at least one before/after fixture run showing the file at argv[1] was modified in place and dangerous JavaScript was removed. / The fixture evidence must also show benign HTML content or formatting remained unchanged aside from the minimal deletions.
+- False-positive risks: Hidden tests may include mixed-case or malformed HTML, not just clean script-tag examples. / A serializer-based solution may pass on source review but fail because it changes whitespace or attribute ordering. / Removing only a subset of JavaScript vectors can leave XSS openings that hidden tests will catch. / A solution that is correct on one crafted sample may still fail because it does not actually edit the input file in place.
+- Minimum completion evidence: /app/filter.py exists and is syntactically valid. / A successful local run on a crafted HTML fixture demonstrates in-place sanitization. / The observed diff shows only harmful JavaScript-bearing substrings were removed and benign markup was preserved.
+
+### sparql-university
+
+- Old missing: parseable TaskContract
+- Overall: 10.0/10
+- Solver prompt: 10/10 missing=none
+- Verifier prompt: 10/10 missing=none
+- Config contract: 10/10 missing=none
+- Solver prompt words: 576
+- Verifier prompt words: 464
+- Solver role: SPARQL ontology analyst and query author.
+- Verifier role: Adversarial read-only SPARQL verifier for /app/solution.sparql against the task and the Turtle graph.
+- Workflow: Read /app/university_graph.ttl first and identify the exact IRIs or prefixes for professor rank, current employment, department membership, university location, teaching, class enrollment, and any date-validity predicates before writing anything. / Draft the query so that the full-professor check, the EU-country employment restriction, and the department-level student-count > 10 check are separated with EXISTS blocks or subqueries to avoid accidental cross joins or university-wide counting. / Bind the reference date 2025-08-16 wherever the graph uses validity intervals or current-state logic, and use a static 2025-08-16 EU alpha-2 whitelist only if the graph does not already encode EU membership correctly. / Write the final query to /app/solution.sparql with the exact requested projection, and keep country aggregation distinct so repeated department or class rows do not duplicate country codes. / If any parser or query runner is available locally, use it for a syntax sanity check; if not, do a clause-by-clause review against the observed TTL predicates and tighten any ambiguous pattern before submission. / If a local check fails or a later verifier finding names a problem, repair that exact clause, rerun the relevant validation, and do not resubmit until the repaired file is the one being checked.
+- Self-verification: Confirm that the saved query visibly contains the exact projected variables ?professorName and the GROUP_CONCAT(DISTINCT ?country; separator=", ") AS ?countries expression. / Confirm that the query explicitly enforces all four task conditions: full professor status, current work in at least one EU-country university department, and at least one of the professor's departments with more than 10 currently enrolled students in classes taught there. / Check that the student threshold is scoped per department and current enrollments only, not per university, not lifetime enrollment, and not a count of unrelated class rows. / Check that every IRI, prefix, and literal assumption is grounded in the TTL you inspected rather than in a guessed university ontology or generic vocabularies.
+- Evidence requirements: A saved query file at /app/solution.sparql. / A query body that visibly contains the requested projection and distinct country aggregation. / A query body that visibly encodes the full-professor, EU-country, current-employment, and >10-current-students conditions. / A successful local parse or, if no parser exists, a careful structural review against the TTL predicates showing no unresolved syntax or scope concern.
+- False-positive risks: Matching professors in any European country instead of only EU member states as of 2025-08-16. / Counting students outside the department scope or across all time instead of current enrollments in classes taught by that department. / Returning current professors but not restricting to full professors. / Producing duplicated country codes because GROUP_CONCAT is not DISTINCT. / Aggregating only the department that satisfies the student threshold rather than all current work-country codes for the professor.
+- Minimum completion evidence: The /app/solution.sparql file exists and is non-empty. / The file contains the exact requested SELECT projection and a clause-by-clause match for the four task conditions. / Any available local syntax or structural validation has been run, or the solver has documented that no parser was available and performed a grounded manual review of the TTL terms.
+
+### openssl-selfsigned-cert
+
+- Old missing: parseable TaskContract
+- Overall: 10.0/10
+- Solver prompt: 10/10 missing=none
+- Verifier prompt: 10/10 missing=none
+- Config contract: 10/10 missing=none
+- Solver prompt words: 600
+- Verifier prompt words: 509
+- Solver role: Verification-first TLS artifact builder and checker author.
+- Verifier role: Adversarial read-only auditor for TLS certificate artifacts and checker evidence.
+- Workflow: Inspect the workspace just enough to avoid overwriting user work, then probe `openssl`, `python3`, and `python` with `run_command`; if automatic repeat interception surfaces prior evidence for a path or command, reuse that evidence first, narrow the next check, or justify any repeat before re-running it. / Create `/app/ssl/` and generate an unencrypted 2048-bit RSA private key at `/app/ssl/server.key` and a self-signed 365-day certificate at `/app/ssl/server.crt` whose subject includes `O=DevOps Team` and `CN=dev-internal.company.local`, then set the key mode to `0600` immediately. / Assemble `/app/ssl/server.pem` from the exact generated key and certificate; any ordering is acceptable if both PEM blocks are present and the file remains usable. / Generate `/app/ssl/verification.txt` from OpenSSL inspection output for the live certificate, including the subject, validity dates, and SHA-256 fingerprint, and write `/app/check_cert.py` as a simple checker with standard-library-only dependencies if possible. / If `python` is absent but `python3` exists, use `python3` consistently for the checker and validation runs; if any local check fails or the verifier returns repair feedback, fix the named artifact, rerun the relevant validation, and resubmit only after fresh evidence matches the repaired state.
+- Self-verification: Verify `/app/ssl/server.key` exists and has mode `600`, then inspect `/app/ssl/server.crt` for the live subject, issuer, validity window, and SHA-256 fingerprint and confirm the issuer matches the subject because the certificate is self-signed. / Confirm `/app/ssl/server.pem` contains both the private key material and the certificate material, and that both blocks were created from the just-generated artifacts rather than copied or stale files. / Run `/app/check_cert.py` with the available Python interpreter and require output that includes the Common Name `dev-internal.company.local`, an expiration date in `YYYY-MM-DD`, and the exact message `Certificate verification successful`. / If any validation fails, inspect the named artifact or check result, repair the specific defect, rerun the affected validation, and do not submit until the post-repair evidence is current.
+- Evidence requirements: A stat or equivalent filesystem check proving `/app/ssl/server.key` is mode `600` and the required files exist at `/app/ssl/server.key`, `/app/ssl/server.crt`, `/app/ssl/server.pem`, `/app/ssl/verification.txt`, and `/app/check_cert.py`. / OpenSSL inspection output for `/app/ssl/server.crt` showing the live subject, issuer, 365-day validity, and SHA-256 fingerprint. / The literal contents of `/app/ssl/verification.txt` showing the same subject, validity dates, and fingerprint as the certificate. / The literal contents of `/app/check_cert.py` showing real certificate loading/parsing logic and no hardcoded success path. / A successful runtime invocation of `/app/check_cert.py` showing the Common Name, expiration date in `YYYY-MM-DD`, and `Certificate verification successful`. / Evidence that `/app/ssl/server.pem` contains both the private key and certificate blocks from the generated artifacts.
+- False-positive risks: The report and checker can both look correct while being based on copied or guessed data instead of the generated certificate. / The PEM file can be non-empty yet still omit either the private key or the certificate block. / The Python checker can pass source-level checks while never loading the certificate at runtime. / The key can exist and the certificate can parse while the key file still has the wrong permissions. / The certificate can have the correct subject while still failing the 365-day or SHA-256 requirements.
+- Minimum completion evidence: Filesystem evidence for the five deliverable paths plus a mode check showing `/app/ssl/server.key` is `600`. / Current OpenSSL output for `/app/ssl/server.crt` proving the subject, issuer, validity window, and SHA-256 fingerprint. / Current contents of `/app/ssl/verification.txt` that match the certificate metadata. / A successful run of `/app/check_cert.py` with the requested Common Name, expiration date, and success message.

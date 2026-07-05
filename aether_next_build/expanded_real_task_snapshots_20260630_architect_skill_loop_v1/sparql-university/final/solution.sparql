@@ -1,0 +1,40 @@
+PREFIX uni: <http://university.org/ontology/>
+
+SELECT ?professorName (GROUP_CONCAT(DISTINCT ?country; separator=", ") AS ?countries)
+WHERE {
+  {
+    SELECT DISTINCT ?professor ?professorName ?country
+    WHERE {
+      ?professor a uni:Professor ;
+                 uni:hasName ?professorName ;
+                 uni:professorRank "full" ;
+                 uni:worksInDepartment ?department .
+
+      ?department uni:partOfUniversity ?university .
+      ?university uni:locatedInCountry ?country .
+
+      VALUES ?country {
+        "AT" "BE" "BG" "HR" "CY" "CZ" "DK" "EE" "FI" "FR"
+        "DE" "GR" "HU" "IE" "IT" "LV" "LT" "LU" "MT" "NL"
+        "PL" "PT" "RO" "SK" "SI" "ES" "SE"
+      }
+
+      {
+        SELECT ?department
+        WHERE {
+          {
+            SELECT DISTINCT ?department ?student
+            WHERE {
+              ?course uni:taughtInDepartment ?department ;
+                      uni:hasStudent ?student .
+              ?student a uni:Student .
+            }
+          }
+        }
+        GROUP BY ?department
+        HAVING (COUNT(DISTINCT ?student) > 10)
+      }
+    }
+  }
+}
+GROUP BY ?professorName

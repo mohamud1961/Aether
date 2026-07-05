@@ -657,7 +657,7 @@ def test_invalid_reconfigure_no_longer_calls_verifier_without_submit() -> None:
         repair_instruction="Choose only available capabilities before retrying.",
     )
     hooks = InvalidReconfigureHooks(
-        [SolverTurn(kind="request_reconfigure", summary="need missing tool", reconfigure_reason="missing execution")],
+        [SolverTurn(kind="request_reconfigure", summary="need missing tool")],
         ModelVerifierResult("blocked_by_harness_config", findings=(finding,)),
     )
 
@@ -665,7 +665,10 @@ def test_invalid_reconfigure_no_longer_calls_verifier_without_submit() -> None:
 
     assert result.status == "incomplete"
     assert hooks.verify_packets == []
-    assert any(r.kind == "unsupported_solver_reconfigure" and not r.success for r in result.receipts)
+    assert any(
+        r.kind == "turn_validation" and not r.success and "unknown turn kind" in r.summary
+        for r in result.receipts
+    )
     assert not any(r.kind == "reconfigure_validation" for r in result.receipts)
     assert not any(r.kind == "model_verifier_result" for r in result.receipts)
 

@@ -818,7 +818,7 @@ def test_solver_requested_reconfigure_is_rejected_not_routed_through_architect()
     legacy_ir = _ir()
     workbench = FakeWorkbenchArchitect(_workbench_config_json())
     turns = [
-        SolverTurn(kind="request_reconfigure", summary="need fresh config", reconfigure_reason="test_reconfigure"),
+        SolverTurn(kind="request_reconfigure", summary="need fresh config"),
         SolverTurn(kind="submit_outcome", summary="submit"),
     ]
     hooks = CapturingHooks(legacy_ir, turns)
@@ -827,9 +827,8 @@ def test_solver_requested_reconfigure_is_rejected_not_routed_through_architect()
 
     assert result.status == "incomplete"
     assert not [r for r in result.receipts if r.kind == "reconfigure" and r.success]
-    denied = [r for r in result.receipts if r.kind == "unsupported_solver_reconfigure"]
-    assert denied
-    assert denied[0].failure_class == "unsupported_solver_reconfigure"
+    denied = [r for r in result.receipts if r.kind == "turn_validation" and not r.success]
+    assert denied and "unknown turn kind" in denied[0].summary
 
 
 def test_solver_requested_reconfigure_does_not_invoke_failed_workbench_repair() -> None:
@@ -840,7 +839,7 @@ def test_solver_requested_reconfigure_does_not_invoke_failed_workbench_repair() 
     )
     original_ir = _ir()
     turns = [
-        SolverTurn(kind="request_reconfigure", summary="need fresh config", reconfigure_reason="test_reconfigure_failure"),
+        SolverTurn(kind="request_reconfigure", summary="need fresh config"),
         SolverTurn(kind="submit_outcome", summary="submit"),
     ]
     hooks = CapturingHooks(original_ir, turns)
@@ -848,7 +847,10 @@ def test_solver_requested_reconfigure_does_not_invoke_failed_workbench_repair() 
     result = AetherNextKernel(max_steps=3, workbench_architect=workbench).run(_env(), executor, hooks)
 
     assert result.status == "incomplete"
-    assert any(r.kind == "unsupported_solver_reconfigure" and not r.success for r in result.receipts)
+    assert any(
+        r.kind == "turn_validation" and not r.success and "unknown turn kind" in r.summary
+        for r in result.receipts
+    )
     assert not any(r.kind == "reconfigure_validation" for r in result.receipts)
     assert workbench.calls == 1
 

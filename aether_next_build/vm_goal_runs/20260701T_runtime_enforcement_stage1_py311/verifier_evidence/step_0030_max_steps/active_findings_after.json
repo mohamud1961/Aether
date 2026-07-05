@@ -1,0 +1,44 @@
+[
+  {
+    "age_steps": 31,
+    "applies_to": [
+      "/app/filter.py"
+    ],
+    "created_step": 0,
+    "evidence": [
+      "\"artifacts_present\": [\"filter.py\"]",
+      "\"path\": \"filter.py\"",
+      "\"matched_paths\": [\"filter.py\"]"
+    ],
+    "finding_id": "missing_absolute_path_evidence",
+    "keep_until": "resolved_or_superseded",
+    "priority": "blocking",
+    "repair_instruction": "Provide explicit evidence of the absolute path, such as ls -l /app/filter.py or a read/check result that names /app/filter.py directly.",
+    "status": "active",
+    "summary": "The packet only evidences the file as filter.py, not explicitly as /app/filter.py, so the required absolute-path deliverable is not confirmed.",
+    "superseded_by": "",
+    "verdict": "uncertain_missing_evidence"
+  },
+  {
+    "age_steps": 1,
+    "applies_to": [
+      "filter.py",
+      "/tmp/malicious.html",
+      "/tmp/benign.html"
+    ],
+    "created_step": 30,
+    "evidence": [
+      "\"The packet lacks actual before/after fixture output demonstrating that harmful JavaScript-bearing substrings were removed in place while benign HTML stayed unchanged.\"",
+      "\"command\": \"python3 - <<'PY'\\nfrom pathlib import Path\\nimport difflib\\nimport subprocess\\nimport sys\\n\\np = Path('/app/filter.py')\\nprint(f'ABSOLUTE_PATH={p.resolve()}')\\n...\\nPY\"",
+      "\"summary\": \"command exit=0: python3 - <<'PY'\\nfrom pathlib import Path\\nimport difflib\\nimport subprocess\\nimport sys\\n\\np = Path('/app/filter.py')\\nprint(f'ABSOLUTE_PATH={p.resolve()}')\\n...\\nPY\""
+    ],
+    "finding_id": "missing_behavioral_proof_inplace_sanitization",
+    "keep_until": "resolved_or_superseded",
+    "priority": "blocking",
+    "repair_instruction": "Provide the actual stdout from a run on the malicious and benign fixtures, including the full pre-state, post-state, and either a unified diff or exact removed substrings so the sanitizer behavior can be verified from the packet.",
+    "status": "active",
+    "summary": "No actual before/after fixture output or diff is present to prove in-place JavaScript removal while preserving benign HTML formatting/content.",
+    "superseded_by": "",
+    "verdict": "uncertain_missing_evidence"
+  }
+]

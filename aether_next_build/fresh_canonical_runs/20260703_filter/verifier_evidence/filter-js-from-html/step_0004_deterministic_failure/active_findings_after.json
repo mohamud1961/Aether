@@ -1,0 +1,68 @@
+[
+  {
+    "age_steps": 3,
+    "applies_to": [
+      "/app/filter.py",
+      "argv[1] file rewrite behavior"
+    ],
+    "created_step": 2,
+    "evidence": [
+      "\"The script accepts a single HTML file path argument and rewrites that file in place.\"",
+      "\"Evidence that the script acts on argv[1] in-place rather than only writing to stdout.\"",
+      "\"command exit=0: python3 -m py_compile /app/filter.py && tmp=$(mktemp /app/fixtureXXXX.html) ... python3 /app/filter.py \\\"$tmp\\\" && printf '\\\\n---AFTER---\\\\n' && cat \\\"$tmp\\\"\""
+    ],
+    "finding_id": "argv_inplace_behavior_not_shown",
+    "keep_until": "resolved_or_superseded",
+    "priority": "blocking",
+    "repair_instruction": "Demonstrate in-place behavior by showing the file path before invocation, running /app/filter.py on that same path, and then displaying the file afterward or a diff proving the same file was rewritten rather than stdout-only output.",
+    "stale_cycles": 1,
+    "status": "active",
+    "summary": "The packet does not show the script modifying the same argv[1] file in place; the recorded command only shows the invocation and does not include the resulting file contents or a diff.",
+    "superseded_by": "",
+    "verdict": "needs_repair"
+  },
+  {
+    "age_steps": 1,
+    "applies_to": [
+      "/app/filter.py",
+      "fixture/HTML rewrite validation"
+    ],
+    "created_step": 4,
+    "evidence": [
+      "\"proof_contract_analysis\": {\"finding_count\": 1, \"findings\": [{\"code\": \"missing_clean_preservation_evidence\", ... \"next_action\": \"Run a before/after comparison on clean, benign HTML and show the output is byte-identical (or explicitly unchanged) outside the removed script content.\", ...}], \"status\": \"failed\"}",
+      "\"evidence_requirements\": [\"A before/after example showing the script removing JavaScript from an HTML file in place.\", \"A visible demonstration that benign HTML remains present and unformatted regions are not rewritten unnecessarily.\"]",
+      "\"The packet does not show the script modifying the same argv[1] file in place; the recorded command only shows the invocation and does not include the resulting file contents or a diff.\""
+    ],
+    "finding_id": "missing_clean_preservation_evidence",
+    "keep_until": "resolved_or_superseded",
+    "priority": "blocking",
+    "repair_instruction": "Run a concrete before/after fixture on /app/filter.py that prints both the original HTML and the rewritten file, using a benign-preservation case and a dangerous-content case, so the output proves only the harmful substrings were removed and untouched HTML stayed unchanged.",
+    "stale_cycles": 0,
+    "status": "active",
+    "summary": "No evidence shows that benign HTML remains unchanged while only harmful JavaScript is removed.",
+    "superseded_by": "",
+    "verdict": "needs_repair"
+  },
+  {
+    "age_steps": 1,
+    "applies_to": [
+      "fixture execution evidence",
+      "run_command output capture"
+    ],
+    "created_step": 4,
+    "evidence": [
+      "\"artifact_evidence\" includes the command string but no captured stdout excerpt showing the after content.",
+      "\"Observed behavior on at least one fixture showing before/after file content or equivalent artifact evidence.\"",
+      "\"command exit=0: python3 -m py_compile /app/filter.py && tmp=$(mktemp /app/fixtureXXXX.html) && cat > \\\"$tmp\\\" <<'HTML' ... python3 /app/filter.py \\\"$tmp\\\" && printf '\\\\n---AFTER---\\\\n' && cat \\\"$tmp\\\"\""
+    ],
+    "finding_id": "fixture_output_not_visible",
+    "keep_until": "resolved_or_superseded",
+    "priority": "blocking",
+    "repair_instruction": "Re-run the fixture and capture the actual stdout or a saved diff that includes the rewritten HTML text, not just the command string, so the sanitizer's output can be inspected directly.",
+    "stale_cycles": 0,
+    "status": "active",
+    "summary": "The fixture command is recorded, but the actual rewritten HTML output is not visible in the packet.",
+    "superseded_by": "",
+    "verdict": "needs_repair"
+  }
+]

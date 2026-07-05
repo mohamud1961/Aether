@@ -205,8 +205,6 @@ def parse_solver_turn(text: str) -> SolverTurn:
     for optional_key in ("requested_check_ids", "claimed_artifacts"):
         if optional_key in data:
             turn_kwargs[optional_key] = _coerce_tuple(data[optional_key])
-    if "reconfigure_reason" in data:
-        turn_kwargs["reconfigure_reason"] = str(data["reconfigure_reason"])
 
     return SolverTurn(**turn_kwargs)
 
@@ -248,15 +246,6 @@ Pick the workflow mode fitting the task shape:
   direct_build           - otherwise
 
 Strict JSON only.  No commentary outside the object."""
-
-RECONFIGURE_SYSTEM_PROMPT = """\
-You are the Runtime Architect performing a RECONFIGURATION.
-The previous configuration hit problems.  The user message contains:
-reason, failure_clusters, open_obligations, reconfigure_causes,
-plus the compiled runtime summary and ledger summary.
-Emit ONLY a strict JSON RuntimeConfigIR object (same schema as initial
-architect output).  Adjust workflow_mode, capabilities, policies, or
-model tiers to address the reported failures.  Strict JSON only."""
 
 DEFAULT_VERIFIER_IDENTITY_PROMPT = (
     "[legacy fallback only] "
@@ -420,12 +409,10 @@ class ModelHooks:
         self,
         architect_model: ModelCallable,
         solver_model: ModelCallable,
-        reconfigure_model: ModelCallable | None = None,
         verifier_model: ModelCallable | None = None,
     ) -> None:
         self._architect = architect_model
         self._solver = solver_model
-        self._reconfigure = reconfigure_model or architect_model
         self._verifier = verifier_model or architect_model
         self.last_parse_errors: list[str] = []
 
@@ -450,10 +437,10 @@ class ModelHooks:
     ) -> SolverTurn:
         """Return a parsed solver turn, or fail loudly.
 
-        Solver parse/validation errors must not be converted into a fabricated
-        request_reconfigure turn.  The kernel owns parse-error receipts and
-        same-step retry so the solver sees the exact failure and raw malformed
-        output is preserved for audit.
+        Solver parse/validation errors must never be converted into a
+        fabricated turn.  The kernel owns parse-error receipts and same-step
+        retry so the solver sees the exact failure and raw malformed output is
+        preserved for audit.
         """
         self.last_parse_errors = []
         raw = ""
@@ -474,29 +461,6 @@ class ModelHooks:
             self.last_parse_errors.append(str(exc))
             setattr(self, "last_raw_solver_output", raw)
             raise ModelOutputError(f"solver call failed: {exc}") from exc
-
-    def reconfigure(
-        self,
-        request: Mapping[str, Any],
-        compiled: CompiledRuntime,
-        ledger: ExecutionLedger,
-    ) -> RuntimeConfigIR:
-        self.last_parse_errors = []
-        user_payload = {
-            **dict(request),
-            "compiled_summary": compiled.task_prompt[:500],
-            "ledger_receipt_count": len(ledger.all_receipts()),
-        }
-        messages = [
-            {"role": "system", "content": RECONFIGURE_SYSTEM_PROMPT},
-            {"role": "user", "content": json.dumps(user_payload, default=str)},
-        ]
-        try:
-            raw = self._reconfigure(messages, max_output_tokens=8000)
-            return parse_runtime_config_ir(raw)
-        except Exception as exc:
-            self.last_parse_errors.append(str(exc))
-            raise ModelOutputError(f"reconfigure output could not be parsed: {exc}") from exc
 
     def verify(
         self,

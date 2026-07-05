@@ -525,11 +525,10 @@ class SolverTurn:
     actions: tuple[ActionRequest, ...] = ()
     requested_check_ids: tuple[str, ...] = ()
     claimed_artifacts: tuple[str, ...] = ()
-    reconfigure_reason: str = ""
 
     def validate(self, action_schema: tuple[tuple[str, tuple[str, ...]], ...] = ACTION_SCHEMA) -> tuple[str, ...]:
         errors: list[str] = []
-        if self.kind not in {"act", "submit_outcome", "request_reconfigure"}:
+        if self.kind not in {"act", "submit_outcome"}:
             errors.append(f"unknown turn kind: {self.kind}")
         if not self.summary.strip():
             errors.append("summary is required")
@@ -537,8 +536,6 @@ class SolverTurn:
             errors.append("act turns require at least one action")
         if self.kind != "act" and self.actions:
             errors.append(f"{self.kind} turns may not carry actions")
-        if self.kind == "request_reconfigure" and not self.reconfigure_reason.strip():
-            errors.append("request_reconfigure requires reconfigure_reason")
         for action in self.actions:
             errors.extend(action.validate(action_schema))
         return tuple(errors)

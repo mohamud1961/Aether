@@ -349,64 +349,6 @@ class TestIntegrityGuardBlocksProtectedPathWrite:
         assert "config/secret.yaml" not in executor.files
 
 
-class TestReconfigureRecompilesAndPreservesLedger:
-    def test_reconfigure_recompiles_and_preserves_ledger(self) -> None:
-        """A request_reconfigure turn calls the reconfigure hook, and ledger receipts
-        recorded BEFORE reconfigure are still present AFTER."""
-        envmap = _make_envmap()
-        executor = MemoryExecutor(workspace_root="/app")
-
-        def echo_handler(ex: MemoryExecutor, cmd: str) -> CommandResult:
-            return CommandResult(command=cmd, exit_code=0, stdout="ok")
-
-        executor.register_command("echo setup", echo_handler)
-
-        ir = _make_ir(
-            reconfigure_policy=ReconfigurePolicy(max_reconfigurations=2),
-        )
-        reconfig_ir = _make_ir(
-            reconfigure_policy=ReconfigurePolicy(max_reconfigurations=2),
-        )
-
-        setup_action = _action("run_command", {"command": "echo setup"}, action_id="a-setup-1")
-        reconfig_turn = SolverTurn(
-            kind="request_reconfigure",
-            summary="need reconfigure",
-            reconfigure_reason="mode_mismatch",
-        )
-        turns = [
-            _act_turn(setup_action),
-            reconfig_turn,
-            _submit_turn(),
-        ]
-
-        # Capture the ledger passed to reconfigure to verify pre-reconfigure
-        # receipts are preserved across the reconfigure boundary.
-        captured_ledgers: list[ExecutionLedger] = []
-
-        class CapturingHooks(FakeHooks):
-            def reconfigure(
-                self,
-                request: Mapping[str, Any],
-                compiled: CompiledRuntime,
-                ledger: ExecutionLedger,
-            ) -> RuntimeConfigIR:
-                captured_ledgers.append(ledger)
-                return super().reconfigure(request, compiled, ledger)
-
-        hooks = CapturingHooks(ir, turns, reconfigure_ir=reconfig_ir)
-        kernel = AetherNextKernel(max_steps=10)
-        result = kernel.run(envmap, executor, hooks)
-
-        assert hooks.reconfigure_call_count == 0, "solver-requested reconfigure must not call reconfigure hook"
-        assert result.reconfigurations == 0, "solver-requested reconfigure must not mutate config"
-        assert not captured_ledgers, "no legacy reconfigure ledger should be passed"
-        kinds = [r.kind for r in result.receipts]
-        assert "unsupported_solver_reconfigure" in kinds
-        receipt_ids = [r.receipt_id for r in result.receipts]
-        assert "step-0:a-setup-1:cmd" in receipt_ids, "pre-denial work receipt should be preserved"
-
-
 class TestMaxStepsExhaustionReturnsIncomplete:
     def test_max_steps_exhaustion_returns_incomplete(self) -> None:
         """Solver keeps returning non-completing act turns -> after max_steps, status='incomplete'."""

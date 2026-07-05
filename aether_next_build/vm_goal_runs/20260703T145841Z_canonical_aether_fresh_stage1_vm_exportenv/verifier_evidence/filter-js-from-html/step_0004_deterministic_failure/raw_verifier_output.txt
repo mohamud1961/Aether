@@ -1,0 +1,25 @@
+{
+  "verdict": "needs_repair",
+  "confidence": "high",
+  "summary": "The target file /app/filter.py exists and passes syntax and visible smoke content checks, but the packet’s proof contract failed twice with the blocking finding that there is no evidence showing clean, benign HTML is preserved unchanged. The existing evidence demonstrates removal of harmful substrings and some structural preservation on a mixed test, but it does not satisfy the required before/after comparison on clean HTML.",
+  "findings": [
+    {
+      "finding_id": "missing_clean_preservation_evidence",
+      "summary": "No evidence was provided that benign HTML is preserved byte-identically or unchanged after filtering.",
+      "evidence": [
+        "proof contract failed: missing_clean_preservation_evidence",
+        "A security/HTML-sanitizer task requires evidence that benign/clean HTML is preserved unchanged, distinct from evidence that dangerous content is removed, but no such comparison evidence is present.",
+        "Run a before/after comparison on clean, benign HTML and show the output is byte-identical (or explicitly unchanged) outside the removed script content."
+      ],
+      "repair_instruction": "Run the filter on a clean HTML sample with no JavaScript, then provide a before/after comparison proving the output is byte-identical or otherwise unchanged; if the script currently rewrites formatting, fix the code so clean HTML is preserved exactly.",
+      "applies_to": [
+        "/app/filter.py",
+        "verification evidence for clean HTML preservation"
+      ]
+    }
+  ],
+  "missing_evidence_requests": [
+    "Provide a before/after test on benign HTML with no JavaScript showing the file content is unchanged byte-for-byte after running /app/filter.py.",
+    "If the current implementation changes formatting on clean input, provide a repaired version of /app/filter.py and rerun the clean preservation comparison."
+  ]
+}

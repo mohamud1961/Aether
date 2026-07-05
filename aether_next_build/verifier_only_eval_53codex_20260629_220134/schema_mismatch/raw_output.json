@@ -1,0 +1,22 @@
+{
+  "confidence": "high",
+  "findings": [
+    {
+      "applies_to": [
+        "out.txt"
+      ],
+      "evidence": [
+        "artifact_evidence excerpt for out.txt is \"{}\"",
+        "task_prompt: \"Create out.txt as JSON with key result.\"",
+        "deterministic_checks command \"python3 -c 'import json; json.load(open(\\\"out.txt\\\"))[\\\"result\\\"]'\" with detail \"KeyError: result\"",
+        "artifact_history summary: \"schema missing result\""
+      ],
+      "finding_id": "missing-result-key-outtxt",
+      "repair_instruction": "Rewrite out.txt as valid JSON that includes the required top-level key \"result\" (for example: {\"result\": ...}), then rerun the schema check.",
+      "summary": "The submitted out.txt is valid JSON but does not contain the required \"result\" key."
+    }
+  ],
+  "missing_evidence_requests": [],
+  "summary": "Evidence shows out.txt was written as \"{}\", while the task explicitly requires JSON with key \"result\". The verifier check that indexes [\"result\"] failed with \"KeyError: result\", and the recorded check summary states \"schema missing result\". This is a concrete artifact/schema defect requiring file repair.",
+  "verdict": "needs_repair"
+}

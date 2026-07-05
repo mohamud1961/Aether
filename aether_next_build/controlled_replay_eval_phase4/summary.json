@@ -1,0 +1,816 @@
+{
+  "cases": [
+    {
+      "axes": [
+        {
+          "axis": "old_context vs enriched_deterministic_context",
+          "evidence": {
+            "added_keys": [
+              "files_already_read",
+              "stuck"
+            ],
+            "enriched_context_bytes": 1436,
+            "enriched_context_key_count": 12,
+            "files_already_read_count": 1,
+            "model_hint_present": false,
+            "old_context_bytes": 1310,
+            "old_context_key_count": 10,
+            "repeated_actions_count": 0
+          },
+          "status": "pass"
+        },
+        {
+          "axis": "preset/basic context vs context recipe/structured memory evidence",
+          "evidence": {
+            "architect_model_tier": "default",
+            "basic_context_labels": [
+              "kernel_contract",
+              "task_prompt",
+              "envmap",
+              "objective_graph",
+              "eval_index",
+              "architect_summary",
+              "inspection_plan",
+              "proof_plan",
+              "check_plan",
+              "forbidden_paths",
+              "workflow_mode",
+              "solver_identity",
+              "refusal_boundary",
+              "selected_capabilities",
+              "action_schema"
+            ],
+            "solver_model_tier": "default",
+            "structured_recipe_fields": [
+              "selected_capabilities",
+              "process_policy",
+              "workflow_policy",
+              "proof_plan",
+              "inspection_plan",
+              "verifier_model_tier"
+            ]
+          },
+          "status": "pass"
+        },
+        {
+          "axis": "deterministic feedback vs active/verifier-like findings",
+          "reason": "The trace exposes deterministic feedback fields ['recent_progress', 'artifacts_present'] but no active findings or verifier packet payload field to compare against.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "no verifier vs verifier packet evidence",
+          "reason": "Only the verifier model tier is present in architect_config; the trace does not include a verifier packet or packet-level verifier evidence block.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "query_memory weak/absent vs enriched memory/tool guidance",
+          "reason": "No query_memory, memory_guidance, or similar memory-tool guidance field is present in the captured trace checkpoints.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "compression/simple vs current enriched context",
+          "evidence": {
+            "delta_bytes": 126,
+            "enriched_context_bytes": 1436,
+            "files_already_read_count": 1,
+            "no_progress_streak": 1,
+            "old_context_bytes": 1310,
+            "pending_checks_count": 0,
+            "repair_hints_count": 0,
+            "repeated_actions_count": 0
+          },
+          "status": "pass"
+        }
+      ],
+      "case_id": "filter-js-from-html",
+      "checkpoint_step": 2,
+      "checkpoint_turn_kind": "submit_outcome",
+      "evidence": {
+        "architect_config_fields": [
+          "advisory_notes",
+          "architect_model_tier",
+          "architect_summary",
+          "bootstrap_policy",
+          "check_plan",
+          "completion_policy",
+          "context_policy",
+          "escalation_triggers",
+          "forbidden_paths",
+          "helper_tool_policy",
+          "inspection_plan",
+          "perception_model_tier",
+          "process_policy",
+          "proof_plan",
+          "reconfigure_policy",
+          "refusal_policy",
+          "selected_capabilities",
+          "solver_identity_prompt",
+          "solver_model_tier",
+          "verifier_model_tier",
+          "workflow_policy"
+        ],
+        "feedback_fields": [
+          "recent_progress",
+          "artifacts_present"
+        ],
+        "prefix_labels": [
+          "kernel_contract",
+          "task_prompt",
+          "envmap",
+          "objective_graph",
+          "eval_index",
+          "architect_summary",
+          "inspection_plan",
+          "proof_plan",
+          "check_plan",
+          "forbidden_paths",
+          "workflow_mode",
+          "solver_identity",
+          "refusal_boundary",
+          "selected_capabilities",
+          "action_schema"
+        ],
+        "structured_recipe_fields": [
+          "selected_capabilities",
+          "process_policy",
+          "workflow_policy",
+          "proof_plan",
+          "inspection_plan",
+          "verifier_model_tier"
+        ]
+      },
+      "metrics": {
+        "added_context_keys": [
+          "files_already_read",
+          "stuck"
+        ],
+        "enriched_context_key_count": 12,
+        "files_already_read_count": 1,
+        "model_hint_present": false,
+        "no_progress_streak": 1,
+        "old_context_key_count": 10,
+        "pending_checks_count": 0,
+        "repair_hints_count": 0,
+        "repeated_actions_count": 0
+      },
+      "model_hint_present": false,
+      "packet": {
+        "enriched_deterministic_context": {
+          "artifacts_present": [
+            "_smoke.html",
+            "filter.py"
+          ],
+          "candidate_leaderboard": [],
+          "failure_clusters": [],
+          "files_already_read": [
+            {
+              "last_step": 1,
+              "path": "filter.py",
+              "read_count": 1
+            }
+          ],
+          "installed_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "shell"
+          ],
+          "live_processes": {},
+          "monitor_alerts": [],
+          "obligation_status": [
+            {
+              "description": "no protected or disallowed edits",
+              "evidence_ids": [
+                "reconcile"
+              ],
+              "kind": "integrity",
+              "obligation_id": "integrity:clean",
+              "status": "satisfied",
+              "target": "clean_workspace"
+            }
+          ],
+          "open_obligations": [],
+          "planned_checks": [],
+          "recent_progress": [
+            {
+              "kind": "write_file",
+              "receipt_id": "a1_write_filter_py:write",
+              "summary": "wrote filter.py"
+            },
+            {
+              "kind": "run_command",
+              "receipt_id": "a_smoke_test_filter_002:cmd",
+              "summary": "command exit=0: python3 - <<'PY'\nfrom pathlib import Path\nimport subprocess, textwrap, sys\np = Path('/app/_smoke.html')\norig = '<html>\\n<body>\\n<h1 onclick=\"alert(1)\">Title</h1>\\n<script>evil()</script>\\n<a href=\"javascript:alert(2)\">x</a>\\n<table><tr><td data-id=\"1\">ok</td></tr></table>\\n</body>\\n</html>\\n'\np.write_text(orig, encoding='utf-8')\nsubprocess.check_call([sys.executable, '/app/filter.py', str(p)])\nout = p.read_text(encoding='utf-8')\nprint(out)\nassert '<script' not in out.lower()\nassert 'onclick=' not in out.lower()\nassert 'javascript:' not in out.lower()\nassert '<table><tr><td data-id=\"1\">ok</td></tr></table>' in out\nPY"
+            }
+          ],
+          "stuck": {
+            "no_progress": false,
+            "no_progress_streak": 1
+          }
+        },
+        "old_context": {
+          "artifacts_present": [
+            "_smoke.html",
+            "filter.py"
+          ],
+          "candidate_leaderboard": [],
+          "failure_clusters": [],
+          "installed_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "shell"
+          ],
+          "live_processes": {},
+          "monitor_alerts": [],
+          "obligation_status": [
+            {
+              "description": "no protected or disallowed edits",
+              "evidence_ids": [
+                "reconcile"
+              ],
+              "kind": "integrity",
+              "obligation_id": "integrity:clean",
+              "status": "satisfied",
+              "target": "clean_workspace"
+            }
+          ],
+          "open_obligations": [],
+          "planned_checks": [],
+          "recent_progress": [
+            {
+              "kind": "write_file",
+              "receipt_id": "a1_write_filter_py:write",
+              "summary": "wrote filter.py"
+            },
+            {
+              "kind": "run_command",
+              "receipt_id": "a_smoke_test_filter_002:cmd",
+              "summary": "command exit=0: python3 - <<'PY'\nfrom pathlib import Path\nimport subprocess, textwrap, sys\np = Path('/app/_smoke.html')\norig = '<html>\\n<body>\\n<h1 onclick=\"alert(1)\">Title</h1>\\n<script>evil()</script>\\n<a href=\"javascript:alert(2)\">x</a>\\n<table><tr><td data-id=\"1\">ok</td></tr></table>\\n</body>\\n</html>\\n'\np.write_text(orig, encoding='utf-8')\nsubprocess.check_call([sys.executable, '/app/filter.py', str(p)])\nout = p.read_text(encoding='utf-8')\nprint(out)\nassert '<script' not in out.lower()\nassert 'onclick=' not in out.lower()\nassert 'javascript:' not in out.lower()\nassert '<table><tr><td data-id=\"1\">ok</td></tr></table>' in out\nPY"
+            }
+          ]
+        }
+      },
+      "trace_path": "/Users/mohamud/Downloads/harnesseng/aether_next_build/phase2_traces/codex/filter-js-from-html.trace.json"
+    },
+    {
+      "axes": [
+        {
+          "axis": "old_context vs enriched_deterministic_context",
+          "evidence": {
+            "added_keys": [
+              "files_already_read",
+              "repeated_actions",
+              "stuck"
+            ],
+            "enriched_context_bytes": 780,
+            "enriched_context_key_count": 13,
+            "files_already_read_count": 1,
+            "model_hint_present": false,
+            "old_context_bytes": 471,
+            "old_context_key_count": 10,
+            "repeated_actions_count": 2
+          },
+          "status": "pass"
+        },
+        {
+          "axis": "preset/basic context vs context recipe/structured memory evidence",
+          "evidence": {
+            "architect_model_tier": "default",
+            "basic_context_labels": [
+              "kernel_contract",
+              "task_prompt",
+              "envmap",
+              "objective_graph",
+              "eval_index",
+              "architect_summary",
+              "inspection_plan",
+              "proof_plan",
+              "check_plan",
+              "forbidden_paths",
+              "workflow_mode",
+              "solver_identity",
+              "refusal_boundary",
+              "selected_capabilities",
+              "action_schema"
+            ],
+            "solver_model_tier": "default",
+            "structured_recipe_fields": [
+              "selected_capabilities",
+              "process_policy",
+              "workflow_policy",
+              "proof_plan",
+              "inspection_plan",
+              "verifier_model_tier"
+            ]
+          },
+          "status": "pass"
+        },
+        {
+          "axis": "deterministic feedback vs active/verifier-like findings",
+          "reason": "The trace exposes deterministic feedback fields ['artifacts_present'] but no active findings or verifier packet payload field to compare against.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "no verifier vs verifier packet evidence",
+          "reason": "Only the verifier model tier is present in architect_config; the trace does not include a verifier packet or packet-level verifier evidence block.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "query_memory weak/absent vs enriched memory/tool guidance",
+          "reason": "No query_memory, memory_guidance, or similar memory-tool guidance field is present in the captured trace checkpoints.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "compression/simple vs current enriched context",
+          "evidence": {
+            "delta_bytes": 309,
+            "enriched_context_bytes": 780,
+            "files_already_read_count": 1,
+            "no_progress_streak": 29,
+            "old_context_bytes": 471,
+            "pending_checks_count": 0,
+            "repair_hints_count": 0,
+            "repeated_actions_count": 2
+          },
+          "status": "pass"
+        }
+      ],
+      "case_id": "sparql-university",
+      "checkpoint_step": 29,
+      "checkpoint_turn_kind": "act",
+      "evidence": {
+        "architect_config_fields": [
+          "advisory_notes",
+          "architect_model_tier",
+          "architect_summary",
+          "bootstrap_policy",
+          "check_plan",
+          "completion_policy",
+          "context_policy",
+          "escalation_triggers",
+          "forbidden_paths",
+          "helper_tool_policy",
+          "inspection_plan",
+          "perception_model_tier",
+          "process_policy",
+          "proof_plan",
+          "reconfigure_policy",
+          "refusal_policy",
+          "selected_capabilities",
+          "solver_identity_prompt",
+          "solver_model_tier",
+          "verifier_model_tier",
+          "workflow_policy"
+        ],
+        "feedback_fields": [
+          "artifacts_present"
+        ],
+        "prefix_labels": [
+          "kernel_contract",
+          "task_prompt",
+          "envmap",
+          "objective_graph",
+          "eval_index",
+          "architect_summary",
+          "inspection_plan",
+          "proof_plan",
+          "check_plan",
+          "forbidden_paths",
+          "workflow_mode",
+          "solver_identity",
+          "refusal_boundary",
+          "selected_capabilities",
+          "action_schema"
+        ],
+        "structured_recipe_fields": [
+          "selected_capabilities",
+          "process_policy",
+          "workflow_policy",
+          "proof_plan",
+          "inspection_plan",
+          "verifier_model_tier"
+        ]
+      },
+      "metrics": {
+        "added_context_keys": [
+          "files_already_read",
+          "repeated_actions",
+          "stuck"
+        ],
+        "enriched_context_key_count": 13,
+        "files_already_read_count": 1,
+        "model_hint_present": false,
+        "no_progress_streak": 29,
+        "old_context_key_count": 10,
+        "pending_checks_count": 0,
+        "repair_hints_count": 0,
+        "repeated_actions_count": 2
+      },
+      "model_hint_present": false,
+      "packet": {
+        "enriched_deterministic_context": {
+          "artifacts_present": [
+            "university_graph.ttl"
+          ],
+          "candidate_leaderboard": [],
+          "failure_clusters": [],
+          "files_already_read": [
+            {
+              "last_step": 25,
+              "path": "university_graph.ttl",
+              "read_count": 4
+            }
+          ],
+          "installed_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "shell"
+          ],
+          "live_processes": {},
+          "monitor_alerts": [],
+          "obligation_status": [
+            {
+              "description": "no protected or disallowed edits",
+              "evidence_ids": [
+                "reconcile"
+              ],
+              "kind": "integrity",
+              "obligation_id": "integrity:clean",
+              "status": "satisfied",
+              "target": "clean_workspace"
+            }
+          ],
+          "open_obligations": [],
+          "planned_checks": [],
+          "recent_progress": [],
+          "repeated_actions": [
+            {
+              "action": "read_file:university_graph.ttl",
+              "count": 13,
+              "last_step": 28
+            },
+            {
+              "action": "sed -n '1,260p' /app/university_graph.ttl",
+              "count": 5,
+              "last_step": 27
+            }
+          ],
+          "stuck": {
+            "no_progress": true,
+            "no_progress_streak": 29
+          }
+        },
+        "old_context": {
+          "artifacts_present": [
+            "university_graph.ttl"
+          ],
+          "candidate_leaderboard": [],
+          "failure_clusters": [],
+          "installed_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "shell"
+          ],
+          "live_processes": {},
+          "monitor_alerts": [],
+          "obligation_status": [
+            {
+              "description": "no protected or disallowed edits",
+              "evidence_ids": [
+                "reconcile"
+              ],
+              "kind": "integrity",
+              "obligation_id": "integrity:clean",
+              "status": "satisfied",
+              "target": "clean_workspace"
+            }
+          ],
+          "open_obligations": [],
+          "planned_checks": [],
+          "recent_progress": []
+        }
+      },
+      "trace_path": "/Users/mohamud/Downloads/harnesseng/aether_next_build/phase2_traces/codex/sparql-university.trace.json"
+    },
+    {
+      "axes": [
+        {
+          "axis": "old_context vs enriched_deterministic_context",
+          "evidence": {
+            "added_keys": [
+              "files_already_read",
+              "repeated_actions",
+              "stuck"
+            ],
+            "enriched_context_bytes": 2366,
+            "enriched_context_key_count": 13,
+            "files_already_read_count": 2,
+            "model_hint_present": false,
+            "old_context_bytes": 1375,
+            "old_context_key_count": 10,
+            "repeated_actions_count": 3
+          },
+          "status": "pass"
+        },
+        {
+          "axis": "preset/basic context vs context recipe/structured memory evidence",
+          "evidence": {
+            "architect_model_tier": "default",
+            "basic_context_labels": [
+              "kernel_contract",
+              "task_prompt",
+              "envmap",
+              "objective_graph",
+              "eval_index",
+              "architect_summary",
+              "inspection_plan",
+              "proof_plan",
+              "check_plan",
+              "forbidden_paths",
+              "workflow_mode",
+              "solver_identity",
+              "refusal_boundary",
+              "selected_capabilities",
+              "action_schema"
+            ],
+            "solver_model_tier": "default",
+            "structured_recipe_fields": [
+              "selected_capabilities",
+              "process_policy",
+              "workflow_policy",
+              "proof_plan",
+              "inspection_plan",
+              "verifier_model_tier"
+            ]
+          },
+          "status": "pass"
+        },
+        {
+          "axis": "deterministic feedback vs active/verifier-like findings",
+          "reason": "The trace exposes deterministic feedback fields ['recent_progress', 'artifacts_present'] but no active findings or verifier packet payload field to compare against.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "no verifier vs verifier packet evidence",
+          "reason": "Only the verifier model tier is present in architect_config; the trace does not include a verifier packet or packet-level verifier evidence block.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "query_memory weak/absent vs enriched memory/tool guidance",
+          "reason": "No query_memory, memory_guidance, or similar memory-tool guidance field is present in the captured trace checkpoints.",
+          "status": "evidence_limited"
+        },
+        {
+          "axis": "compression/simple vs current enriched context",
+          "evidence": {
+            "delta_bytes": 991,
+            "enriched_context_bytes": 2366,
+            "files_already_read_count": 2,
+            "no_progress_streak": 28,
+            "old_context_bytes": 1375,
+            "pending_checks_count": 0,
+            "repair_hints_count": 0,
+            "repeated_actions_count": 3
+          },
+          "status": "pass"
+        }
+      ],
+      "case_id": "openssl-selfsigned-cert",
+      "checkpoint_step": 29,
+      "checkpoint_turn_kind": "act",
+      "evidence": {
+        "architect_config_fields": [
+          "advisory_notes",
+          "architect_model_tier",
+          "architect_summary",
+          "bootstrap_policy",
+          "check_plan",
+          "completion_policy",
+          "context_policy",
+          "escalation_triggers",
+          "forbidden_paths",
+          "helper_tool_policy",
+          "inspection_plan",
+          "perception_model_tier",
+          "process_policy",
+          "proof_plan",
+          "reconfigure_policy",
+          "refusal_policy",
+          "selected_capabilities",
+          "solver_identity_prompt",
+          "solver_model_tier",
+          "verifier_model_tier",
+          "workflow_policy"
+        ],
+        "feedback_fields": [
+          "recent_progress",
+          "artifacts_present"
+        ],
+        "prefix_labels": [
+          "kernel_contract",
+          "task_prompt",
+          "envmap",
+          "objective_graph",
+          "eval_index",
+          "architect_summary",
+          "inspection_plan",
+          "proof_plan",
+          "check_plan",
+          "forbidden_paths",
+          "workflow_mode",
+          "solver_identity",
+          "refusal_boundary",
+          "selected_capabilities",
+          "action_schema"
+        ],
+        "structured_recipe_fields": [
+          "selected_capabilities",
+          "process_policy",
+          "workflow_policy",
+          "proof_plan",
+          "inspection_plan",
+          "verifier_model_tier"
+        ]
+      },
+      "metrics": {
+        "added_context_keys": [
+          "files_already_read",
+          "repeated_actions",
+          "stuck"
+        ],
+        "enriched_context_key_count": 13,
+        "files_already_read_count": 2,
+        "model_hint_present": false,
+        "no_progress_streak": 28,
+        "old_context_key_count": 10,
+        "pending_checks_count": 0,
+        "repair_hints_count": 0,
+        "repeated_actions_count": 3
+      },
+      "model_hint_present": false,
+      "packet": {
+        "enriched_deterministic_context": {
+          "artifacts_present": [
+            "check_cert.py",
+            "ssl/server.crt",
+            "ssl/server.key",
+            "ssl/server.pem",
+            "ssl/verification.txt"
+          ],
+          "candidate_leaderboard": [],
+          "failure_clusters": [],
+          "files_already_read": [
+            {
+              "last_step": 10,
+              "path": "ssl/verification.txt",
+              "read_count": 3
+            },
+            {
+              "last_step": 8,
+              "path": "check_cert.py",
+              "read_count": 1
+            }
+          ],
+          "installed_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "shell"
+          ],
+          "live_processes": {},
+          "monitor_alerts": [],
+          "obligation_status": [
+            {
+              "description": "no protected or disallowed edits",
+              "evidence_ids": [
+                "reconcile"
+              ],
+              "kind": "integrity",
+              "obligation_id": "integrity:clean",
+              "status": "satisfied",
+              "target": "clean_workspace"
+            }
+          ],
+          "open_obligations": [],
+          "planned_checks": [],
+          "recent_progress": [
+            {
+              "kind": "run_command",
+              "receipt_id": "a1_create_tls_artifacts:cmd",
+              "summary": "command exit=0: set -euo pipefail\nmkdir -p /app/ssl\nopenssl genrsa -out /app/ssl/server.key 2048\nchmod 600 /app/ssl/server.key\nopenssl req -new -x509 -key /app/ssl/server.key -out /app/ssl/server.crt -days 365 -subj \"/O=DevOps Team/CN=dev-internal.company.local\"\ncat /app/ssl/server.key /app/ssl/server.crt > /app/ssl/server.pem\n{\n  echo \"Subject:\"\n  openssl x509 -in /app/ssl/server.crt -noout -subject\n  echo \"Validity:\"\n  openssl x509 -in /app/ssl/server.crt -noout -dates\n  echo \"SHA-256 Fingerprint:\"\n  openssl x509 -in /app/ssl/server.crt -noout -fingerprint -sha256\n} > /app/ssl/verification.txt\nstat -c '%a %n' /app/ssl/server.key"
+            },
+            {
+              "kind": "write_file",
+              "receipt_id": "a2_write_python_checker:write",
+              "summary": "wrote check_cert.py"
+            }
+          ],
+          "repeated_actions": [
+            {
+              "action": "read_file:ssl/verification.txt",
+              "count": 4,
+              "last_step": 15
+            },
+            {
+              "action": "set -euo pipefail\npython3 /app/check_cert.py",
+              "count": 2,
+              "last_step": 15
+            },
+            {
+              "action": "set -euo pipefail\n[ -d /app/ssl ]\n[ -f /app/ssl/server.key ]\n[ -f /app/ssl/server.crt ]\n[ -f /app/ssl/server.pem ]\n[ -f /app/ssl/verification.txt ]\n[ -f /app/check_cert.py ]\nperm=$(stat -c '%a' /app/ssl/server.key)\n[ \"$perm\" = \"600\" ]\nopenssl rsa -in /app/ssl/server.key -check -noout >/dev/null\nopenssl x509 -in /app/ssl/server.crt -noout -subject -dates -fingerprint -sha256 >/dev/null\ngrep -q \"Subject:\" /app/ssl/verification.txt\ngrep -q \"Validity:\" /app/ssl/verification.txt\ngrep -q \"SHA-256 Fingerprint:\" /app/ssl/verification.txt\npython3 /app/check_cert.py",
+              "count": 2,
+              "last_step": 22
+            }
+          ],
+          "stuck": {
+            "no_progress": true,
+            "no_progress_streak": 28
+          }
+        },
+        "old_context": {
+          "artifacts_present": [
+            "check_cert.py",
+            "ssl/server.crt",
+            "ssl/server.key",
+            "ssl/server.pem",
+            "ssl/verification.txt"
+          ],
+          "candidate_leaderboard": [],
+          "failure_clusters": [],
+          "installed_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "shell"
+          ],
+          "live_processes": {},
+          "monitor_alerts": [],
+          "obligation_status": [
+            {
+              "description": "no protected or disallowed edits",
+              "evidence_ids": [
+                "reconcile"
+              ],
+              "kind": "integrity",
+              "obligation_id": "integrity:clean",
+              "status": "satisfied",
+              "target": "clean_workspace"
+            }
+          ],
+          "open_obligations": [],
+          "planned_checks": [],
+          "recent_progress": [
+            {
+              "kind": "run_command",
+              "receipt_id": "a1_create_tls_artifacts:cmd",
+              "summary": "command exit=0: set -euo pipefail\nmkdir -p /app/ssl\nopenssl genrsa -out /app/ssl/server.key 2048\nchmod 600 /app/ssl/server.key\nopenssl req -new -x509 -key /app/ssl/server.key -out /app/ssl/server.crt -days 365 -subj \"/O=DevOps Team/CN=dev-internal.company.local\"\ncat /app/ssl/server.key /app/ssl/server.crt > /app/ssl/server.pem\n{\n  echo \"Subject:\"\n  openssl x509 -in /app/ssl/server.crt -noout -subject\n  echo \"Validity:\"\n  openssl x509 -in /app/ssl/server.crt -noout -dates\n  echo \"SHA-256 Fingerprint:\"\n  openssl x509 -in /app/ssl/server.crt -noout -fingerprint -sha256\n} > /app/ssl/verification.txt\nstat -c '%a %n' /app/ssl/server.key"
+            },
+            {
+              "kind": "write_file",
+              "receipt_id": "a2_write_python_checker:write",
+              "summary": "wrote check_cert.py"
+            }
+          ]
+        }
+      },
+      "trace_path": "/Users/mohamud/Downloads/harnesseng/aether_next_build/phase2_traces/codex/openssl-selfsigned-cert.trace.json"
+    }
+  ],
+  "generated_at_utc": "2026-06-29T21:35:19.822718+00:00",
+  "model_hint_present": false,
+  "schema_version": "aether_next.controlled_replay_report.v1",
+  "summary": {
+    "axis_status_counts": {
+      "compression/simple vs current enriched context": {
+        "evidence_limited": 0,
+        "pass": 3
+      },
+      "deterministic feedback vs active/verifier-like findings": {
+        "evidence_limited": 3,
+        "pass": 0
+      },
+      "no verifier vs verifier packet evidence": {
+        "evidence_limited": 3,
+        "pass": 0
+      },
+      "old_context vs enriched_deterministic_context": {
+        "evidence_limited": 0,
+        "pass": 3
+      },
+      "preset/basic context vs context recipe/structured memory evidence": {
+        "evidence_limited": 0,
+        "pass": 3
+      },
+      "query_memory weak/absent vs enriched memory/tool guidance": {
+        "evidence_limited": 3,
+        "pass": 0
+      }
+    },
+    "case_count": 3,
+    "metric_totals": {
+      "files_already_read_count": 4,
+      "no_progress_streak_max": 29,
+      "pending_checks_count": 0,
+      "repair_hints_count": 0,
+      "repeated_actions_count": 5
+    },
+    "model_hint_present": false
+  }
+}

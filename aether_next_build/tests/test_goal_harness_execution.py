@@ -118,7 +118,7 @@ class _ReconfigHooks:
         return self.ir
 
     def solve(self, messages: list[dict[str, str]], compiled: CompiledRuntime) -> SolverTurn:
-        return SolverTurn(kind="request_reconfigure", summary="no", reconfigure_reason="legacy")
+        return SolverTurn(kind="request_reconfigure", summary="no")
 
     def reconfigure(self, request: Mapping[str, Any], compiled: CompiledRuntime, ledger: ExecutionLedger) -> RuntimeConfigIR:
         self.reconfigure_calls += 1
@@ -137,7 +137,8 @@ def test_solver_requested_reconfigure_is_visible_denial_not_config_change() -> N
     result = AetherNextKernel(max_steps=1).run(env, MemoryExecutor(workspace_root="/app"), hooks)
     assert hooks.reconfigure_calls == 0
     assert result.reconfigurations == 0
-    assert any(r.kind == "unsupported_solver_reconfigure" for r in result.receipts)
+    denied = [r for r in result.receipts if r.kind == "turn_validation" and not r.success]
+    assert denied and "unknown turn kind" in denied[0].summary
 
 
 def test_command_output_has_full_handles_and_context_floor() -> None:
@@ -214,3 +215,26 @@ def test_verifier_packet_has_no_solver_journey_fields() -> None:
     ):
         assert forbidden not in packet
     assert packet["state_inspection_handles"]
+
+
+def test_report_blocker_is_routed_to_verifier_packet() -> None:
+    compiled = _compiled()
+    ledger = ExecutionLedger()
+    ledger.ensure_objective(compiled.objective_graph)
+    ledger.record(Receipt(
+        "step-1:a-block:blocker", 1, "report_blocker", False,
+        "solver reported blocker: executor",
+        failure_class="solver_reported_blocker",
+        payload={
+            "blocked_component": "executor",
+            "observed_evidence": "gcc: command not found (exit 127)",
+            "attempted_actions": "ran gcc --version; checked PATH",
+            "why_current_tools_or_config_prevent_progress": "no compiler capability enabled",
+            "requested_harness_change": "enable compiler_build tools",
+        },
+    ))
+    packet = build_verifier_packet(compiled, ledger, step=2, reason="solver_submit")
+    rows = packet["solver_reported_blockers"]
+    assert rows and rows[0]["blocked_component"] == "executor"
+    assert rows[0]["authority"] == "escalation_request_only"
+    assert "gcc" in rows[0]["observed_evidence"]

@@ -1,0 +1,25 @@
+SELECT ?professorName (GROUP_CONCAT(DISTINCT ?country; separator=", ") AS ?countries)
+WHERE {
+  ?professor a uni:Professor ;
+             uni:hasName ?professorName ;
+             uni:academicRank "Full Professor" ;
+             uni:worksInDepartment ?department .
+
+  ?department uni:partOfUniversity ?university .
+  ?university uni:locatedInCountry ?country .
+
+  FILTER(?country IN ("AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE"))
+
+  {
+    SELECT ?department
+    WHERE {
+      ?class uni:taughtInDepartment ?department ;
+             uni:hasEnrollment ?enrollment .
+      ?enrollment uni:isCurrentEnrollment true ;
+                  uni:studentCount ?studentCount .
+    }
+    GROUP BY ?department
+    HAVING(COUNT(DISTINCT ?enrollment) > 10)
+  }
+}
+GROUP BY ?professorName

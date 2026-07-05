@@ -1,0 +1,52 @@
+{
+  "confidence": "high",
+  "findings": [
+    {
+      "applies_to": [
+        "/app/solution.sparql",
+        "/app/university_graph.ttl"
+      ],
+      "created_step": 0,
+      "evidence": [
+        "\"proof contract failed: declared_query_terms_absent_from_graph, missing_semantic_query_execution\"",
+        "\"The saved SPARQL/RDF artifact uses prefixed terms not observed in the graph evidence.\"",
+        "\"A SPARQL/Turtle task has graph and query evidence but no semantic query execution receipt.\""
+      ],
+      "finding_id": "proof_contract_blocker_terms_and_execution",
+      "keep_until": "resolved_or_superseded",
+      "priority": "blocking",
+      "repair_instruction": "Repair the query using predicates/classes actually observed in the Turtle graph evidence, then run the query against /app/university_graph.ttl or otherwise provide a concrete execution/validation receipt; do not rely on the current unchecked query text.",
+      "stale_cycles": 0,
+      "status": "active",
+      "summary": "The proof contract failed because the query uses terms not confirmed by the graph evidence and there is no semantic execution/validation receipt.",
+      "superseded_by": "",
+      "verdict": "needs_repair"
+    },
+    {
+      "applies_to": [
+        "/app/solution.sparql"
+      ],
+      "created_step": 0,
+      "evidence": [
+        "\"excerpt: \\\"  {\\n    ?professor uni:hasRank \\\\\\\"Full Professor\\\\\\\" .\\n  }\\n  UNION\\n \\\"\"",
+        "\"The query includes the exact requested SELECT projection with GROUP_CONCAT(DISTINCT ?country; separator=\\\", \") AS ?countries\""
+      ],
+      "finding_id": "unresolved_query_semantics_in_truncated_solution",
+      "keep_until": "resolved_or_superseded",
+      "priority": "blocking",
+      "repair_instruction": "Finish the query so the full-professor constraint, EU-member-state country restriction, and the >10 current-student condition are all visible in the saved file and are scoped to departments taught by the professor; then validate the final query result on the graph.",
+      "stale_cycles": 0,
+      "status": "active",
+      "summary": "The saved solution text is truncated, so the department-scoped >10 student condition and the full EU/country wiring are not visible in the file evidence.",
+      "superseded_by": "",
+      "verdict": "needs_repair"
+    }
+  ],
+  "missing_evidence_requests": [
+    "Provide the complete literal contents of `/app/solution.sparql` showing the full WHERE clause, including the department-scoped student-count subquery or equivalent logic, the EU country filter, and the full-professor filter.",
+    "Provide a concrete query execution or validation receipt against `/app/university_graph.ttl` showing that the query runs successfully and that the result shape matches `SELECT ?professorName (GROUP_CONCAT(DISTINCT ?country; separator=\", \") AS ?countries)`.",
+    "Provide the exact graph vocabulary evidence for the predicates/classes used in the query, especially the professor-rank term, department affiliation term, teaching/class enrollment terms, and country/location terms."
+  ],
+  "summary": "The packet shows a saved `/app/solution.sparql`, but the visible query is truncated after a `UNION` and does not expose the full department-scoped student-count logic or a complete end-to-end query. The runtime proof contract also failed with two blocking issues: declared query terms were not confirmed against the graph evidence, and there is no semantic query execution receipt. As a result, the evidence is insufficient to confirm that the query is semantically correct, fully scoped, and executable against `/app/university_graph.ttl`.",
+  "verdict": "needs_repair"
+}

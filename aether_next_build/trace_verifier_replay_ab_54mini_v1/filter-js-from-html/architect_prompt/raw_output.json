@@ -1,0 +1,26 @@
+{
+  "verdict": "uncertain_missing_evidence",
+  "confidence": "high",
+  "summary": "The packet provides evidence that /app/filter.py was written and that python3 -m py_compile /app/filter.py exited 0, so syntax validity is supported. However, the packet contains no concrete before/after fixture, diff, or execution trace showing the script rewrote an HTML file in place, nor any evidence that benign structure was preserved while script tags, event handlers, or javascript: URLs were removed. Because the required behavioral proof is absent, completion cannot be confirmed from this packet alone.",
+  "findings": [
+    {
+      "finding_id": "missing_inplace_behavioral_evidence",
+      "summary": "Required behavioral evidence for in-place HTML sanitization is missing.",
+      "evidence": [
+        "\"command exit=0: python3 -m py_compile /app/filter.py\"",
+        "\"The solver must provide a syntax check and a behavioral in-place run on at least one scratch HTML fixture.\"",
+        "\"The solver must provide before/after evidence showing preserved benign markup and removed JavaScript-bearing substrings.\""
+      ],
+      "repair_instruction": "Run /app/filter.py on a scratch HTML file via argv[1], then provide the same file's before/after contents or a diff proving the file was modified in place. Include evidence that benign tables/headers/safe attributes and formatting remain intact, and that malicious script tags, inline event handlers, and javascript: URLs were removed or neutralized.",
+      "applies_to": [
+        "/app/filter.py",
+        "scratch HTML fixture"
+      ]
+    }
+  ],
+  "missing_evidence_requests": [
+    "Provide a concrete before/after diff or paired file contents for one HTML fixture processed in place by /app/filter.py, showing the same file path was rewritten.",
+    "Provide evidence that the processed HTML still preserves benign tables, headers, safe attributes, and formatting outside removed spans.",
+    "Provide evidence that script tags, inline event handlers, and javascript: URLs were removed or neutralized in the malicious parts of the fixture."
+  ]
+}

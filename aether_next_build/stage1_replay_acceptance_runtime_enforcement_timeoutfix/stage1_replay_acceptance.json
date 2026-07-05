@@ -1,0 +1,89 @@
+{
+  "passed": true,
+  "rows": [
+    {
+      "analysis": {
+        "finding_count": 1,
+        "findings": [
+          {
+            "code": "insufficient_adversarial_sample_coverage",
+            "evidence": [
+              "step-0:a3:cmd"
+            ],
+            "next_action": "Run broader adversarial fixtures or keep the verifier verdict uncertain.",
+            "severity": "blocking",
+            "summary": "Security/HTML proof contract warns that one sample is insufficient, but fewer than two adversarial sample checks are evidenced."
+          }
+        ],
+        "status": "failed"
+      },
+      "case": "filter_false_clean",
+      "expected": "insufficient_adversarial_sample_coverage",
+      "passed": true
+    },
+    {
+      "blocked": [
+        {
+          "action_family": "evidence_display_command",
+          "command": "bash -lc \"grep -nE 'full professor|Professor|professor|department|teach|enroll|student|locatedInCountry|hasName|current|rank' /app/university_graph.ttl | head -n 200\"",
+          "consequence": "soft_block",
+          "message": "Repeated evidence-display commands targeted the same unchanged artifact. Next action must repair the artifact, run semantic validation, inspect a new target, or declare a concrete blocker.",
+          "prior_receipt_ids": [
+            "step-2:a1:cmd",
+            "step-5:a1:cmd"
+          ],
+          "reason_code": "repeated_evidence_display_no_state_change",
+          "repeat_count": 3,
+          "step": 7,
+          "target": "university_graph.ttl"
+        }
+      ],
+      "case": "sparql_repeated_evidence_display",
+      "passed": true
+    },
+    {
+      "analysis": {
+        "finding_count": 2,
+        "findings": [
+          {
+            "code": "declared_query_terms_absent_from_graph",
+            "evidence": [
+              "uni:Professor",
+              "uni:hasEnrollment",
+              "uni:hasRank",
+              "uni:hasStudent",
+              "uni:partOfUniversity",
+              "uni:teachesClass",
+              "uni:validFrom",
+              "uni:validTo",
+              "uni:worksInDepartment"
+            ],
+            "next_action": "Repair the query using predicates/classes observed in the Turtle graph, then execute it.",
+            "severity": "blocking",
+            "summary": "The saved SPARQL/RDF artifact uses prefixed terms not observed in the graph evidence."
+          },
+          {
+            "code": "missing_semantic_query_execution",
+            "evidence": [
+              "query artifact present",
+              "Turtle graph read",
+              "no command evidence of executing the query"
+            ],
+            "next_action": "Run the query against the Turtle graph or declare the missing query engine as a blocker.",
+            "severity": "blocking",
+            "summary": "A SPARQL/Turtle task has graph and query evidence but no semantic query execution receipt."
+          }
+        ],
+        "status": "failed"
+      },
+      "case": "sparql_invented_predicates",
+      "expected": [
+        "declared_query_terms_absent_from_graph",
+        "missing_semantic_query_execution"
+      ],
+      "passed": true
+    }
+  ],
+  "run_root": "vm_goal_runs/20260701T144500Z_aether_next_vm_stage1_py311",
+  "schema_version": "aether_next.stage1_replay_acceptance.v1"
+}

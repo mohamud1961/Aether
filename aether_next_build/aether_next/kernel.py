@@ -107,14 +107,6 @@ class KernelHooks(Protocol):
     def solve(self, messages: list[dict[str, str]], compiled: CompiledRuntime) -> SolverTurn:
         ...
 
-    def reconfigure(
-        self,
-        request: Mapping[str, Any],
-        compiled: CompiledRuntime,
-        ledger: ExecutionLedger,
-    ) -> RuntimeConfigIR:
-        ...
-
 class AetherNextKernel:
     def __init__(
         self,
@@ -323,18 +315,6 @@ class AetherNextKernel:
                 if trace is not None:
                     trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
                 if (
-                    not canonical_workbench
-                    and decision is not None
-                    and decision.recommend_reconfigure
-                    and reconfigurations < compiled.reconfigure_policy.max_reconfigurations
-                ):
-                    runtime_ir, compiled, reconfigurations = self._do_reconfigure(
-                        hooks, compiler, envmap, compiled, ledger,
-                        objective_graph, eval_index, reconfigurations,
-                        reason="completion_gate_recommend", current_step=step, trace=trace,
-                    )
-                    self._fire_snapshot(step); step += 1; continue
-                if (
                     decision is not None
                     and canonical_workbench
                     and verdict is None
@@ -347,19 +327,6 @@ class AetherNextKernel:
                         summary="canonical workbench submit did not receive a verifier verdict; completion remains solver-driven until verifier runs",
                         failure_class="verifier_missing",
                     ))
-                self._fire_snapshot(step); step += 1; continue
-            elif turn.kind == "request_reconfigure":
-                ledger.record(Receipt(
-                    receipt_id=f"step-{step}:solver_reconfigure_unsupported",
-                    step=step,
-                    kind="unsupported_solver_reconfigure",
-                    success=False,
-                    summary="solver-requested reconfiguration is not supported; use report_blocker with concrete evidence",
-                    failure_class="unsupported_solver_reconfigure",
-                    payload={"reconfigure_reason": turn.reconfigure_reason},
-                ))
-                if trace is not None:
-                    trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
                 self._fire_snapshot(step); step += 1; continue
             if trace is not None:
                 trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
@@ -553,111 +520,6 @@ class AetherNextKernel:
         if trace is not None:
             trace.add_gate(step, decision)
         self._last_gate_decision = decision
-
-    def _do_reconfigure(self, hooks: KernelHooks, compiler: ConfigCompiler,
-                        envmap: EnvMap, compiled: CompiledRuntime,
-                        ledger: ExecutionLedger, objective_graph: ObjectiveGraph,
-                        eval_index: EvalIndex, reconfigurations: int, *,
-                        reason: str,
-                        current_step: int,
-        trace: RunTrace | None = None,
-    ) -> tuple[RuntimeConfigIR, CompiledRuntime, int]:
-        reconfig_request = {
-            "reason": reason,
-            "failure_clusters": ledger.failure_clusters(),
-            "open_obligations": [ob.as_dict() for ob in ledger.open_obligations()],
-            "reconfigure_causes": list(ledger.reconfigure_causes),
-        }
-        if self.workbench_architect is not None:
-            return self._do_reconfigure_workbench(
-                hooks, compiler, envmap, compiled, ledger,
-                objective_graph, eval_index, reconfigurations,
-                reason=reason, current_step=current_step, trace=trace,
-                reconfig_request=reconfig_request,
-            )
-        new_ir = hooks.reconfigure(reconfig_request, compiled, ledger)
-        issues = compiler.validate(
-            new_ir, envmap,
-            objective_graph=objective_graph, eval_index=eval_index,
-        )
-        fatal_issues = [issue for issue in issues if issue.fatal]
-        if fatal_issues:
-            ledger.record(Receipt(
-                receipt_id=f"step-{current_step}:reconfig-{reconfigurations}:invalid", step=current_step,
-                kind="reconfigure_validation", success=False,
-                summary=f"reconfiguration invalid: {'; '.join(i.code for i in fatal_issues)}",
-                failure_class="config_invalid",
-            ))
-            return new_ir, compiled, reconfigurations + 1
-        new_compiled = compiler.compile(
-            new_ir, envmap,
-            objective_graph=objective_graph, eval_index=eval_index,
-        )
-        ledger.seed_capabilities(new_compiled.selected_capability_ids())
-        ledger.record(Receipt(
-            receipt_id=f"step-{current_step}:reconfig-{reconfigurations}:ok", step=current_step,
-            kind="reconfigure", success=True,
-            summary=f"reconfigured: {reason}", state_change=True,
-            payload={"reconfigure_cause": reason},
-        ))
-        ledger.record_config_realization(
-            dict(new_compiled.config_realization),
-            receipt_id=f"reconfig-{reconfigurations}:realization",
-        )
-        if trace is not None:
-            trace.add_reconfigure(reconfigurations, reason, new_ir)
-        return new_ir, new_compiled, reconfigurations + 1
-
-    def _do_reconfigure_workbench(self, hooks: KernelHooks, compiler: ConfigCompiler,
-                        envmap: EnvMap, compiled: CompiledRuntime,
-                        ledger: ExecutionLedger, objective_graph: ObjectiveGraph,
-                        eval_index: EvalIndex, reconfigurations: int, *,
-                        reason: str,
-                        current_step: int,
-                        reconfig_request: dict[str, Any],
-        trace: RunTrace | None = None,
-    ) -> tuple[RuntimeConfigIR, CompiledRuntime, int]:
-        """Reconfigure through the same workbench architect interface used for
-        the initial config, instead of the legacy ``hooks.reconfigure()`` path
-        (a thinner prompt/parser that silently collapses a rich architect
-        contract to a generic default on any parse hiccup). The architect
-        should never be forced through a weaker interface mid-run just because
-        a reconfiguration was requested.
-        """
-        resolved = resolve_runtime(
-            envmap, compiler, hooks,
-            workbench_architect=self.workbench_architect,
-            reconfigure_context=reconfig_request,
-        )
-        if resolved.compiled is None:
-            codes = ", ".join(resolved.fallback_codes) or "workbench_reconfigure_failed"
-            ledger.record(Receipt(
-                receipt_id=f"step-{current_step}:reconfig-{reconfigurations}:invalid", step=current_step,
-                kind="reconfigure_validation", success=False,
-                summary=f"workbench reconfiguration invalid: {codes}",
-                failure_class="config_invalid",
-                payload={
-                    "architect_path": "workbench",
-                    "blockers": list(resolved.config_invalid_blockers),
-                    "fallback_codes": list(resolved.fallback_codes),
-                },
-            ))
-            return resolved.runtime_ir, compiled, reconfigurations + 1
-        new_ir, new_compiled = resolved.runtime_ir, resolved.compiled
-        ledger.seed_capabilities(new_compiled.selected_capability_ids())
-        ledger.record(Receipt(
-            receipt_id=f"step-{current_step}:reconfig-{reconfigurations}:ok", step=current_step,
-            kind="reconfigure", success=True,
-            summary=f"reconfigured via workbench architect: {reason}", state_change=True,
-            payload={"reconfigure_cause": reason, "architect_path": "workbench"},
-        ))
-        ledger.record_config_realization(
-            dict(new_compiled.config_realization),
-            receipt_id=f"reconfig-{reconfigurations}:realization",
-        )
-        if trace is not None:
-            trace.add_reconfigure(reconfigurations, reason, new_ir)
-        return new_ir, new_compiled, reconfigurations + 1
 
     def _dispatch_action(self, action: ActionRequest, step: int, compiled: CompiledRuntime,
                          executor: Executor, envmap: EnvMap, ledger: ExecutionLedger) -> list[Receipt]:
