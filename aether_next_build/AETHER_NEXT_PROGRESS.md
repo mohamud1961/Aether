@@ -1,0 +1,108 @@
+# AETHER_NEXT_PROGRESS — Running Ledger
+
+Lead: Fable 5 (autonomous session, started 2026-07-05).
+Canonical root: `aether_next_build/aether_next/`. Branch: `codex/canonical-aether-consolidation` (never master).
+
+## Goal
+
+(1) Verify the codebase builds the intended design — generic, minimal, capable, elite — and correct drift.
+(2) Finish remaining work and prove it, until failures are the model's, not the harness's.
+
+North star, invariants, and Definition of Done are as stated in the mission brief (2026-07-05); not restated here.
+
+## Phase list
+
+- **Phase 0** — vision-fidelity gate (6 questions, KEEP/FIX/DELETE, invariant confirmation, regression sentinel) → **IN PROGRESS**
+- **P1a** quarantine legacy modules; **P1b** delete solver reconfiguration; **P1c** cache-stable prompt prefix split
+- **P2d** verifier overlay execution; **P2e** generic probes; **P2f** full-output capture; **P2g** verifier-triggered reconfig; **P2h** stalemate protocol; **P2i** per-task capability closure (~90 tasks)
+- **Ext-j** Docker isolation + golden-grader smoke; **Ext-k** ONE model-backed sentinel batch, then STOP
+
+## Session log
+
+### 2026-07-05 — Session init
+- **Baseline adoption:** user-provided `aether_next_build_local_vision_delta.zip` verified as strict superset of the repo working tree (repo `aether_next_build/` was entirely untracked; only repo-side extra file was `.DS_Store`). Zip contains newer versions of ~20 modules (head/tail output preservation, budget-bounded timeouts, lenient-but-fail-closed verifier JSON parse, task.toml metadata, advisory-only memory/no-progress) plus new `task_capability.py`, `test_local_vision_delta.py`, `test_goal_harness_execution.py`. Synced zip → working tree via rsync; post-sync diff = 0 files.
+- **Baseline suite:** `python3.11 -m pytest tests -q` → **300 passed, 0 failed, 0 errors** (~25s). NOTE: system python3 is 3.9 and fails collection (`tomllib`); python3.11 required.
+- **Environment:** Docker available (`docker info` OK). Official corpus at `official_tasks/` (~90 task dirs + tasks_index.json). Audit script at `scripts/audit_official_task_capabilities.py`; existing outputs `OFFICIAL_TASK_CAPABILITY_AUDIT_LOCAL.{csv,md}`.
+
+## Phase 0 — Vision-fidelity gate (2026-07-05)
+
+### Q1 — Genuine matches to the north star (evidence)
+
+- **Verifier judges state, not story:** `build_verifier_packet` is state-only with a runtime assertion that solver-journey fields never leak (verifier_packets.py:344-427). Verifier has read-only inspection (read_file / rerun_check / artifact history / recent receipts) with executor access (verifier_inspector.py; kernel_verifier.py:190-223).
+- **Completion authority:** canonical workbench completion requires a verifier `completed` verdict; solver submit alone never completes (kernel.py:333-343, 358-370 records `verifier_required_for_completion` when verdict missing). Active blocking findings require intervening evidence before re-verify (kernel.py:306-322, 394-421).
+- **Fail-closed config:** workbench architect failure → `config_invalid`, no default config (kernel_config.py:229-242, `_invalid_runtime_ir` docstring 189-201). Verifier prompt missing → raise, no fallback prompt (model_hooks.py:329-334).
+- **Solver-signal receipts:** parse error → raw(20k) capture + one retry + receipt (kernel.py:225-271); invalid turn → receipt (272-281); solver reconfigure request → neutralizing receipt, config untouched (372-384); report_blocker action exists (761-775).
+- **No unprobed env facts:** network_scope defaults `unknown`, upgraded only by live probe (envmap_builder.py:315-321); capability needs marked `inferred_not_fact` (task_capability.py:26).
+- **Evidence-bar classifier:** model_limit requires real-action diversity, no harness blocks, no disqualifying failure classes (classifier.py:207-229); grader reconciliation is post-run-record-only (classifier.py:232-283).
+- **Provenance:** docker runner threads `run_provenance` into results (docker_runner.py:316,583).
+- **Prefix/volatile split exists structurally:** `CompiledRuntime.stable_prefix_sections` + `prefix_messages()` (runtime_ir.py:439,467-471); volatile `[context_packet]` appended per step (kernel_messages.py:69-87). No stability test yet (P1c).
+- **Advisory-only memory/no-progress:** completion gate explicitly does not block on them (completion.py:216-219); soft-block is advisory receipt only (kernel.py:474-489; test_memory_loop_fixes).
+
+### Q2 — Appears-to-match only
+
+- **Mount isolation** (solver container without /task,/tests; post-terminal docker cp): code present (docker_runner.py:489-501) but **not Docker-proven** → Ext-j.
+- **repair_config on the workbench path** (kernel_config.py:271-283): recorded via receipt + repair_codes, so not silent, but an architect defect is absorbed into a continuing run without an `architect_defect` mark in result rows → fold into P2g.
+- **`stdout_full`/`stderr_full` + handles** (kernel.py:823-830) claim losslessness, but the substrate caps output at 20k **before** the kernel sees it (real_executor.py:21-22,150-151), and on timeout partial output is dropped entirely (152-158) → P2f is real work, currently a truthfulness violation of "full output retrievable by handle".
+
+### Q3 — Benchifying sweep (verified by hand against Haiku inventory)
+
+- **proof_contract.py (273 LOC): CONFIRMED task-family semantic analyzers** — `_openssl_cert_findings` (openssl+cert+key shape, lines 193-216), SPARQL/Turtle semantic checks (84-111). **Orphaned**: zero imports from any aether_next module; referenced only by tests (test_runtime_enforcement.py, test_vnext_memory_context_verifier.py) and as a forbidden-string in verifier_packets. → P1a quarantine + delete blessing tests.
+- **no_progress.py:16**: `_PATH_RE` extension whitelist includes `.sparql|.ttl` — benchmark residue in a certified-path regex. → fixed this slice (generic extension pattern).
+- **Legacy architect modes** (`ir`, `contract`): live code in kernel_config.py (_baseline_resolve/_contract_resolve), contract_compile.py, contract_hooks.py, task_contract.py; flag-gated off certified runs (run_adapter.ensure_certified_architect_mode) but physically co-resident and imported at module top by kernel_config. Auto-submit exists only on non-workbench path (kernel.py:284-299). → P1a physical quarantine.
+- **envmap_builder / task_capability keyword tables** (openssl, qemu, sparql, stan, cobol...): generic tool/language/extension vocabulary used as capability classes, marked inferred; no task-name branching; architect can override. KEEP (watch item).
+- **docker_runner `run_tbench_task`**: benchmark-format adapter (task.toml, /task layout, grader invocation) at the runner boundary, not model-visible. KEEP.
+- **Zero task-name conditionals** in aether_next/ certified path (verified: no `task_name ==`-style branching; startswith uses are path validation).
+
+### Q4 — Minimality sweep
+
+- **Dead cluster in verifier_packets.py**: `_solver_authored_evidence`, `_recent_actions`, `_latest_command_results`, `_latest_file_reads`, `_failed_or_empty_checks`, `_memory_loop_feedback`, `_automatic_memory_findings`, `_artifact_evidence`, `_changes_since_active_findings` — unreachable (only call each other). → deleted this slice.
+- **model_hooks.py:333**: dead assignment before raise. → deleted this slice.
+- **Orphaned modules**: proof_contract.py (0 prod importers), alignment_board.py (tests only), architect_quality.py (tests only). → P1a quarantine.
+- **Module-size violations** (>500 LOC): kernel.py 889, context_compiler.py 858, docker_runner.py 796, model_hooks.py 667, compiler.py 663, runtime_ir.py 544. P1a/P1b shrink kernel; remaining decomposition tracked as standards debt in P1.
+
+### Q5 — Generic sweep
+
+EnvMap and tooling are capability-class shaped (task_capability.CapabilityNeed; capability registry; tool hints as generic names). No task shape special-cased in certified path. Keyword tables are tool-vocabulary, not task IDs (watch item, acceptable).
+
+### Q6 — Capability gaps (what stops true behavioral judgment / lossless context)
+
+1. Executor 20k output cap + timeout output destruction (P2f).
+2. Verifier cannot execute the deliverable against its own fixtures in an isolated overlay — only rerun declared checks (P2d).
+3. No generic service/port/media probes for the verifier beyond process probe via solver receipts (P2e).
+4. Verifier inspection `read_file` returns only a 4k excerpt (verifier_inspector.py:130-131) — fine for text, but no paging for large artifacts (fold into P2e).
+5. No verifier-triggered reconfiguration path (P2g) and no stalemate bound (P2h).
+
+### KEEP / FIX / DELETE
+
+| Verdict | Item |
+|---|---|
+| KEEP | workbench architect path, verifier packet + inspector, completion gate (verifier-gated), classifier evidence bar, report_blocker, paging handles, envmap probe discipline, task_capability vocab, docker runner adapter |
+| FIX | executor output truthfulness (P2f); prompt-cache stability test (P1c); repair_codes → architect_defect surfacing (P2g); no_progress regex (this slice); verifier read_file paging (P2e); module size cap debt |
+| DELETE/QUARANTINE | proof_contract.py + blessing tests; contract/ir architect paths (contract_compile, contract_hooks, task_contract, _baseline_resolve/_contract_resolve, auto-submit branch, hooks.reconfigure legacy path); solver `request_reconfigure` turn kind (P1b); dead verifier_packets cluster (this slice); model_hooks dead line (this slice); alignment_board + architect_quality (quarantine) |
+
+### Invariants — one line each
+
+1. No silent fallback — HOLDS on workbench path (fail-closed config, fail-closed verifier prompt); repair_config recorded, defect-surfacing deferred to P2g.
+2. No silent loss of solver signal — HOLDS (receipts for parse/validation/reconfigure/blocker).
+3. No information destruction — **VIOLATED at substrate** (executor 20k cap; timeout drops output) → P2f.
+4. No grader/test leakage into solver phase — HOLDS in code (packet assertion; container isolation code) — Docker proof pending (Ext-j).
+5. No solver self-report authority — HOLDS (verifier-gated completion).
+6. No task-specific semantic judgment — HOLDS after this slice quarantines are done; violations were orphaned proof_contract + no_progress regex residue.
+7. Explicit provenance — HOLDS (run_provenance in run records); SHA stamping enforced at Ext-k.
+8. Every non-pass row classified with evidence — HOLDS (classifier + reconcile_grader_alignment).
+9. Substrate vs model failures separated — HOLDS (classifier labels).
+10. Verifier judges state not story — HOLDS (state-only packet + inspection).
+11. No unprobed env facts — HOLDS (network unknown-until-probed; inferred_not_fact).
+12. Cache-stable prefix — structurally present; test added in P1c.
+
+### Regression sentinel
+
+Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solution (summaries/artifact text containing scary words like "failed"/"error" in benign context) must not trip FailureParser on successful commands, must not trip automatic-memory/no-progress blocks, and CompletionGate must stay state-based.
+
+## BLOCKED
+
+(none)
+
+## Next step
+
+Drift-correction slice (no_progress regex, dead code, sentinel test) → commit → P1a.
