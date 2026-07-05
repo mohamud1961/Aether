@@ -288,3 +288,11 @@ Fix → measured failure mapping:
 - **Validation rerun** (headless-terminal, kv-store-grpc, code-from-image with vision): Docker daemon on this Mac is down/flapping (`docker ps` cannot connect; it was up minutes earlier during the test suite). Start Docker Desktop, then:
   `python3.11 run_pilot.py --tasks headless-terminal,kv-store-grpc,code-from-image --vision-deploy-env AZURE_OPENAI_GPT54_MINI_DEPLOYMENT --max-steps 40 --trace-dir local_goal_runs/<stamp>/traces --out local_goal_runs/<stamp>/results.json`
 - Size-cap debt: docker_runner 965, compiler 664, model_hooks 619.
+
+
+## Validation3 batch + road execution (2026-07-05, Fable session 4)
+
+- **3/3 official grader passes**: headless-terminal 1.0/8 steps, kv-store-grpc 1.0/22, code-from-image 1.0/16 (vision lane's first live conversion; was 0.0/120). Both prior timeout tasks converted exactly as predicted.
+- Road items landed: verifier economics (unchanged-packet memoization + changed-inputs-only checks, `3eceeba6`), verifier-side vision `perceive_artifact` (`3eceeba6`), expected_steps/step_efficiency metric (`e5f5e179`), run-artifact gitignore (`e5f5e179`), size caps docker_runner 965→693 / model_hooks 619→446 / compiler 664→606 (`e855e05c`, `c082095a`), prose missing-evidence realization (`d4367064`).
+- Remaining (ROAD_TO_100.md): perceptual live proof (video-processing, qemu-startup), finish size caps (docker_runner 693, compiler 606), 10–20 task board at fixed SHA, `aether/` rename.
+- Suite: **330 passed**.

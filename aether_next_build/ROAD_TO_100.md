@@ -12,7 +12,11 @@ Suite gate: `python3.11 -m pytest tests -q` must stay green after every slice. N
 
 ## The ordered road (strike through as completed; record evidence refs)
 
-1. **Validation batch (IN FLIGHT)** — headless-terminal already CONVERTED: completed, reward 1.0, **8 steps** (was timeout/ungraded at 34 with 20 free verifier rounds). kv-store-grpc and code-from-image pending; results land in `local_goal_runs/20260705T201305Z_validation3/`.
+1. ~~**Validation batch**~~ DONE — **3/3 OFFICIAL GRADER PASSES** (`local_goal_runs/20260705T201305Z_validation3/`):
+   - headless-terminal: completed, reward 1.0, **8 steps** (was timeout/ungraded at 34) — prediction HIT
+   - kv-store-grpc: reward 1.0, 22 steps (was timeout/ungraded at 49) — prediction HIT; internal solver_submit_stalemate (see below)
+   - code-from-image: reward 1.0, **16 steps** (was 0.0 at 120 steps) — the VISION LANE converted an unreachable task — prediction EXCEEDED
+   - Residual defect found via auto-persisted evidence bundles and FIXED (`d4367064`): the verifier asked the SOLVER to "provide the contents of /app/output.txt" (unsatisfiable — solver claims never enter the state-only packet); path-bearing prose missing-evidence requests now trigger the verifier's own read_file/perceive_artifact inspection within the same round. The kv/code-from-image internal stalemates should convert to internal `completed` on the next run.
    Original spec:
    `python3.11 run_pilot.py --tasks headless-terminal,kv-store-grpc,code-from-image --vision-deploy-env AZURE_OPENAI_GPT54_MINI_DEPLOYMENT --max-steps 40 --trace-dir local_goal_runs/<stamp>/traces --out local_goal_runs/<stamp>/results.json`
    Prediction (record hit/miss): headless PASS, kv PASS, code-from-image first genuine attempt (pass uncertain).
