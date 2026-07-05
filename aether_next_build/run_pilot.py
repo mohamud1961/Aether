@@ -203,13 +203,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--architect-mode",
         default="workbench",
-        choices=["ir", "contract", "workbench"],
-        help="Architect mode: 'ir' (reference baseline), 'contract' (reference extracted contract), or 'workbench' (canonical HarnessConfigIR path). Default: workbench.",
-    )
-    ap.add_argument(
-        "--allow-reference-architect-mode",
-        action="store_true",
-        help="Explicitly opt into reference architect modes for debug/reference use.",
+        choices=["workbench"],
+        help="Certified architect mode (legacy ir/contract modes are quarantined in reference_legacy).",
     )
     ap.add_argument(
         "--snapshot-dir",
