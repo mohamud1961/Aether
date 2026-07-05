@@ -250,3 +250,52 @@ class AzureModelCallable:
         raise AzureModelError(
             f"background job {job_id} ended with status={status}: {detail}"
         )
+
+
+class AzureVisionCallable:
+    """Vision transcription callable: (prompt, image_b64, media_type) -> text.
+
+    Sends a multimodal Responses API request with an inline data-URL image.
+    """
+
+    def __init__(self, client: Any, deployment: str) -> None:
+        self._client = client
+        self._deployment = deployment
+
+    def __call__(self, prompt: str, image_b64: str, media_type: str) -> str:
+        response = self._client.responses.create(
+            model=self._deployment,
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:{media_type};base64,{image_b64}",
+                    },
+                ],
+            }],
+            max_output_tokens=8000,
+        )
+        return _extract_output_text(response)
+
+
+def make_azure_vision_callable(
+    *,
+    deployment_env: str,
+    key_env: str,
+    endpoint_env: str = "AZURE_OPENAI_ENDPOINT",
+) -> AzureVisionCallable:
+    """Build a vision transcription callable from Azure env vars (build-time)."""
+    endpoint = _normalize_endpoint(os.environ[endpoint_env])
+    api_key = os.environ[key_env]
+    deployment = os.environ[deployment_env]
+    if openai is None:
+        raise AzureModelError("openai package is required for AzureVisionCallable")
+    client = openai.OpenAI(
+        api_key=api_key,
+        base_url=f"{endpoint}/openai/v1/",
+        timeout=300,
+        max_retries=2,
+    )
+    return AzureVisionCallable(client, deployment)

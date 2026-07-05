@@ -512,15 +512,11 @@ class ActionRequest:
             missing = [name for name in required if name not in self.arguments]
             if missing:
                 errors.append(f"{self.kind} missing required arguments: {', '.join(missing)}")
-        if self.kind != "register_candidate" and not self.capability_id.strip():
-            errors.append("capability_id is required")
-        for field_name, value in (
-            ("intent", self.intent),
-            ("expected_observation", self.expected_observation),
-            ("if_fail_next", self.if_fail_next),
-        ):
-            if not str(value).strip():
-                errors.append(f"{field_name} is required")
+        # capability_id / intent / expected_observation / if_fail_next are
+        # audit metadata, not dispatch inputs.  Demanding boilerplate prose per
+        # action only burns turns on protocol retries (observed live: dozens of
+        # wasted solver turns per run); missing values default to empty and the
+        # receipts still record exactly what happened.
         return tuple(errors)
 
 

@@ -111,3 +111,32 @@ def test_submit_stalemate_without_delivered_feedback_is_not_blamed_on_model() ->
     )
     classification = HarnessLimiterClassifier().classify(result)
     assert classification.label == "harness_context_failure"
+
+
+def test_turn_parser_infers_act_and_tolerates_missing_boilerplate() -> None:
+    """Protocol ergonomics: dozens of live solver turns were burned on
+    'missing required field: kind' (with actions present) and missing
+    intent/expected_observation boilerplate.  The payload implies the turn."""
+    import pytest
+    from aether_next.model_hooks import ModelOutputError, parse_solver_turn
+
+    turn = parse_solver_turn(
+        '{"actions":[{"kind":"run_command","arguments":{"command":"ls"}}]}'
+    )
+    assert turn.kind == "act"
+    assert turn.actions[0].action_id  # autofilled
+    assert not turn.validate()  # no boilerplate errors
+    assert not turn.actions[0].validate()
+
+    # Submission is never inferred: no kind and no actions stays a hard error.
+    with pytest.raises(ModelOutputError):
+        parse_solver_turn('{"summary":"done i think"}')
+
+
+def test_architect_prompt_requires_transcript_producing_self_checks() -> None:
+    for required in (
+        "PRINT the observed evidence",
+        'never a bare "OK"/"PASS"',
+        "your check output is your evidence",
+    ):
+        assert required in WORKBENCH_ARCHITECT_SYSTEM_PROMPT, required

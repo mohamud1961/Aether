@@ -173,16 +173,21 @@ def parse_solver_turn(text: str) -> SolverTurn:
         raise ModelOutputError("expected a JSON object at top level")
 
     kind = str(data.get("kind", "")).strip()
+    raw_actions = data.get("actions", ()) or ()
     if not kind:
-        raise ModelOutputError("missing required field: kind")
+        # A turn that carries actions IS an act turn; do not burn a retry on
+        # a missing label the payload already implies.  A turn with neither
+        # kind nor actions stays a hard error -- submission is never inferred.
+        if isinstance(raw_actions, (list, tuple)) and len(raw_actions) > 0:
+            kind = "act"
+        else:
+            raise ModelOutputError("missing required field: kind")
 
-    summary = str(data.get("summary", "")).strip()
-    if not summary:
-        raise ModelOutputError("missing required field: summary")
+    summary = str(data.get("summary", "")).strip() or f"({kind} turn without summary)"
 
     actions: list[ActionRequest] = []
     action_accepted = _accepted_fields(ActionRequest)
-    for raw_action in data.get("actions", ()) or ():
+    for action_index, raw_action in enumerate(raw_actions):
         if not isinstance(raw_action, dict):
             continue
         action_kwargs: dict[str, Any] = {}
@@ -194,7 +199,9 @@ def parse_solver_turn(text: str) -> SolverTurn:
             else:
                 action_kwargs[akey] = aval
         # Ensure required fields have defaults so construction does not crash
-        action_kwargs.setdefault("action_id", "")
+        action_kwargs.setdefault("action_id", f"a-{action_index}")
+        if not str(action_kwargs.get("action_id", "")).strip():
+            action_kwargs["action_id"] = f"a-{action_index}"
         action_kwargs.setdefault("kind", "")
         action_kwargs.setdefault("capability_id", "")
         action_kwargs.setdefault("arguments", {})
@@ -334,11 +341,22 @@ class ModelHooks:
         architect_model: ModelCallable,
         solver_model: ModelCallable,
         verifier_model: ModelCallable | None = None,
+        vision_model: Any | None = None,
     ) -> None:
         self._architect = architect_model
         self._solver = solver_model
         self._verifier = verifier_model or architect_model
         self.last_parse_errors: list[str] = []
+        if vision_model is not None:
+            # Exposed only when a vision route exists so the perception lane
+            # can detect availability with a plain getattr -- absence stays an
+            # honest capability gap, never a fake success.
+            self._vision = vision_model
+
+            def perceive_image(prompt: str, image_b64: str, media_type: str) -> str:
+                return str(self._vision(prompt, image_b64, media_type))
+
+            self.perceive_image = perceive_image
 
     def architect(self, request: Mapping[str, Any]) -> RuntimeConfigIR:
         self.last_parse_errors = []

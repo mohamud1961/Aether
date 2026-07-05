@@ -124,6 +124,9 @@ class AetherNextKernel:
         *,
         trace: RunTrace | None = None,
     ) -> KernelResult:
+        # Perception (e.g. vision transcription) needs the model hooks at
+        # dispatch time; scoped to this run.
+        self.active_hooks = hooks
         compiler = ConfigCompiler(CapabilityRegistry.from_envmap(envmap))
         resolved = resolve_runtime(
             envmap, compiler, hooks,

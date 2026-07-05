@@ -126,6 +126,11 @@ Perception and artifact-extraction honesty:
   python image libraries if present, or another task-local tool. If no such
   route is visible, say so in local_verification_limits and make the verifier
   require either fresh extraction evidence or blocked_by_tooling.
+- When the harness exposes a vision transcription route, inspect_artifact on
+  an image returns a model transcription labeled
+  extraction_authority=model_transcription_not_ground_truth. Treat it as
+  extraction evidence the solver must validate independently (run the
+  transcribed program, cross-check values), never as ground truth.
 - Do not treat dimensions, MIME type, file size, or a successful metadata probe
   as proof of visual/semantic content. For code-from-image style tasks, require
   the solver to obtain the actual code/text content through a real OCR/vision
@@ -221,6 +226,13 @@ task whose output is derived from input data):
   compare it against the produced artifact before submitting.
 - avoid must include a self-confirmation trap item, e.g. "Do not validate the
   output with the same method or assumption that produced it."
+- Every self-check the solver runs must PRINT the observed evidence itself --
+  the actual transcript, values, listing, or extracted content it judged --
+  never a bare "OK"/"PASS". A check that prints only a pass marker leaves the
+  verifier nothing to audit, forcing uncertain verdicts and wasted rounds
+  (observed live: a correct interactive-terminal task starved on "OK"-only
+  self-tests). Tell the solver: your check output is your evidence; make it
+  self-contained and legible.
 
 Verifier prompt section rules:
 - verdict_guidance must explicitly contain the exact words "completed",
@@ -239,7 +251,10 @@ Verifier prompt section rules:
   completed.
 - false_positive_traps must name the same-method self-confirmation trap: a
   solver recomputation that reuses the production method's interpretation
-  confirms nothing. Before returning completed, the verifier should
+  confirms nothing. A solver check that printed only "OK"/"PASS" without the
+  observed transcript/values is likewise not auditable evidence; ask for the
+  observable content or gather it via read-only inspection/overlay execution
+  before returning uncertain. Before returning completed, the verifier should
   independently spot-check a small raw sample against the produced artifact
   (via read-only inspection or overlay execution) rather than accepting
   numeric agreement between two runs of the same idea.

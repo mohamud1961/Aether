@@ -11,6 +11,7 @@ from typing import Any, Mapping
 
 from .execution import Executor
 from .ledger import ExecutionLedger, Receipt
+from .perception_vision import needs_vision, vision_transcribe_receipt
 from .runtime_ir import ActionRequest, CompiledRuntime, EnvMap, normalize_relpath
 
 
@@ -265,9 +266,14 @@ def dispatch_action(kernel: Any, action: ActionRequest, step: int, compiled: Com
     if kind == "stop_process":
         return [kernel.process_orchestrator.stop(action, step, executor)]
     if kind == "inspect_artifact":
-        return [kernel.perception_lane.inspect(
+        base = kernel.perception_lane.inspect(
             action, step, executor, workspace_root=envmap.workspace_root,
-        )]
+        )
+        if needs_vision(base):
+            vision = vision_transcribe_receipt(kernel, action, step, executor, base)
+            if vision is not None:
+                return [vision]
+        return [base]
     if kind == "register_candidate":
         cid = str(action.arguments.get("candidate_id", "")).strip()
         return [Receipt(

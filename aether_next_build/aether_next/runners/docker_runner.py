@@ -148,6 +148,9 @@ class DockerExecExecutor:
     def read_file(self, path: str) -> str:
         return self._host_exec.read_file(path)
 
+    def read_file_bytes(self, path: str) -> bytes:
+        return self._host_exec.read_file_bytes(path)
+
     def write_file(self, path: str, content: str) -> None:
         self._host_exec.write_file(path, content)
 
@@ -475,6 +478,7 @@ def run_tbench_task(
     image: str,
     architect_model: ModelCallable,
     solver_model: ModelCallable,
+    vision_model: Any | None = None,
     max_steps: int = 30,
     run_timeout_s: int = 1800,
     trace_dir: str | None = None,
@@ -592,7 +596,7 @@ def run_tbench_task(
             task_metadata={"environment_probe": env_probe},
             task_toml=task_toml,
         )
-        hooks = ModelHooks(architect_model, solver_model)
+        hooks = ModelHooks(architect_model, solver_model, vision_model=vision_model)
 
         # Build snapshot callback: captures container_id + snapshot_dir from closure.
         snap_cb = None
@@ -613,7 +617,7 @@ def run_tbench_task(
         kernel_timeout_detail = ""
 
         try:
-            with _scoped_verifier_evidence_dir(task_name), _kernel_wall_timeout(run_timeout_s):
+            with _scoped_verifier_evidence_dir(task_name, trace_dir), _kernel_wall_timeout(run_timeout_s):
                 result = kernel.run(envmap, executor, hooks, trace=run_trace)
         except KernelRunTimeout as exc:
             # The agent phase has TERMINATED (by wall clock).  The official
@@ -909,7 +913,7 @@ _VERIFIER_EVIDENCE_DIR_ENV = "AETHER_VERIFIER_EVIDENCE_DIR"
 
 
 @contextmanager
-def _scoped_verifier_evidence_dir(task_name: str) -> Iterator[None]:
+def _scoped_verifier_evidence_dir(task_name: str, trace_dir: str | None = None) -> Iterator[None]:
     """Namespace verifier evidence output by task for this process's duration.
 
     A pilot run drives several tasks sequentially in one process, each
@@ -918,10 +922,17 @@ def _scoped_verifier_evidence_dir(task_name: str) -> Iterator[None]:
     usage), later tasks silently overwrite earlier tasks' ``step_NNNN``
     verifier evidence directories. Scope it here so evidence never collides
     regardless of how the caller launched the run.
+
+    When the operator did NOT set the env var but the run is traced, default
+    the evidence root under the trace dir: two live batches already lost every
+    verifier packet/raw-output bundle to a forgotten export, and per-round
+    verifier evidence is not optional provenance.
     """
     previous = os.environ.get(_VERIFIER_EVIDENCE_DIR_ENV)
     if previous:
         os.environ[_VERIFIER_EVIDENCE_DIR_ENV] = str(Path(previous) / task_name)
+    elif trace_dir:
+        os.environ[_VERIFIER_EVIDENCE_DIR_ENV] = str(Path(trace_dir) / "verifier_evidence" / task_name)
     try:
         yield
     finally:

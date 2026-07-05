@@ -576,11 +576,9 @@ class ConfigCompiler:
                         "required_fields": {
                             "always": ["kind", "summary"],
                             "act": ["actions"],
-                            "act_action_fields": [
+                            "act_action_fields": ["kind", "arguments"],
+                            "recommended_action_fields": [
                                 "action_id",
-                                "kind",
-                                "capability_id",
-                                "arguments",
                                 "intent",
                                 "expected_observation",
                                 "if_fail_next",

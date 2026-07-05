@@ -243,6 +243,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Certified architect mode (legacy ir/contract modes are quarantined in reference_legacy).",
     )
     ap.add_argument(
+        "--vision-deploy-env",
+        default="",
+        help="Optional env var naming a vision-capable deployment; when set, "
+        "the solver gains real image transcription via inspect_artifact.",
+    )
+    ap.add_argument(
+        "--vision-key-env",
+        default="",
+        help="Env var for the vision deployment API key (defaults to the solver key env).",
+    )
+    ap.add_argument(
         "--snapshot-dir",
         default=None,
         help="Directory to write workspace snapshots for resumable replay. "
@@ -293,6 +304,15 @@ def main(argv: list[str] | None = None) -> int:
         endpoint_env=args.endpoint_env,
         effort=args.effort,
     )
+    vision_model = None
+    if args.vision_deploy_env:
+        from aether_next.providers.azure_model import make_azure_vision_callable
+        vision_model = make_azure_vision_callable(
+            deployment_env=args.vision_deploy_env,
+            key_env=args.vision_key_env or args.solver_key_env,
+            endpoint_env=args.endpoint_env,
+        )
+
     architect_model = make_azure_callable(
         deployment_env=args.architect_deploy_env,
         key_env=args.architect_key_env,
@@ -389,6 +409,7 @@ def main(argv: list[str] | None = None) -> int:
                 image=docker_image,
                 architect_model=architect_model,
                 solver_model=solver_model,
+                vision_model=vision_model,
                 max_steps=args.max_steps,
                 run_timeout_s=args.run_timeout_s,
                 trace_dir=args.trace_dir,

@@ -138,6 +138,13 @@ class SubprocessExecutor:
         with open(resolved, encoding="utf-8", errors="replace") as fh:
             return fh.read()
 
+    def read_file_bytes(self, path: str) -> bytes:
+        resolved = _resolve_safe(self._root, path)
+        if not os.path.isfile(resolved):
+            raise FileNotFoundError(resolved)
+        with open(resolved, "rb") as fh:
+            return fh.read()
+
     def write_file(self, path: str, content: str) -> None:
         resolved = _resolve_safe(self._root, path)
         os.makedirs(os.path.dirname(resolved), exist_ok=True)
