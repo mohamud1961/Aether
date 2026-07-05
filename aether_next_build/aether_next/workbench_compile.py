@@ -19,10 +19,20 @@ from .runtime_ir import (
 )
 from .workbench_config import HarnessConfigIR, SUPPORTED_TOP_LEVEL_CONFIG_FIELDS
 
+# The stable core is the FULL generic workbench: every kernel-implemented,
+# capability-backed tool a task class could legitimately require.  The
+# architect's tool_policy is recorded as guidance, never as a gate -- a
+# missing tool must never be a hidden harness ceiling (caught 2026-07-05 by
+# the Docker service-class smoke: launch_process was unreachable).
 STABLE_CORE_SOLVER_TOOLS = (
     "read_file",
     "write_file",
     "run_command",
+    "launch_process",
+    "probe_service",
+    "stop_process",
+    "inspect_artifact",
+    "bootstrap_acquire",
     "query_memory",
     "query_artifact_history",
     "inspect_diff",

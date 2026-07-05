@@ -856,3 +856,19 @@ def test_solver_requested_reconfigure_does_not_invoke_failed_workbench_repair() 
 
 
 
+
+
+def test_stable_core_includes_every_generic_capability_tool() -> None:
+    """The stable core is the full generic workbench.  A missing tool here is
+    a hidden harness ceiling (the 2026-07-05 Docker smoke found service tasks
+    unreachable because launch_process was absent)."""
+    from aether_next.workbench_compile import STABLE_CORE_SOLVER_TOOLS
+
+    required = {
+        "read_file", "write_file", "run_command",
+        "launch_process", "probe_service", "stop_process",
+        "inspect_artifact", "bootstrap_acquire",
+        "query_memory", "run_check", "inspect_checks",
+    }
+    missing = required - set(STABLE_CORE_SOLVER_TOOLS)
+    assert not missing, f"stable core lost generic tools: {sorted(missing)}"
