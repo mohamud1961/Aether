@@ -54,14 +54,81 @@ def _environment_files(task_dir: Path) -> tuple[str, ...]:
     return tuple(sorted(set(files)))
 
 
-def _readiness(needs: list[str]) -> str:
-    if any(cap in needs for cap in ("qemu_vm", "video_processing", "background_service", "http_service", "ssh_or_telnet_service")):
-        return "needs_p2_verifier_or_service_support"
-    if any(cap in needs for cap in ("long_running_command", "compiler_build", "ml_training_or_inference", "scientific_computing")):
-        return "needs_long_command_budget_and_verifier_execution"
-    if any(cap in needs for cap in ("image_processing", "ocr_pdf_document", "binary_reverse_engineering")):
-        return "needs_generic_artifact_probe_support"
-    return "locally_ready_or_model_hard"
+# ---------------------------------------------------------------------------
+# Harness support matrix (per capability class, evidence-referenced)
+#
+# status vocabulary:
+#   supported                     -- a generic solver path AND a generic
+#                                    verifier path exist in the harness today
+#   supported_with_environment_gate -- generic paths exist; reachability
+#                                    depends on a probed environment fact
+#                                    (e.g. external network), which the
+#                                    harness reports honestly, never assumes
+#
+# Every entry names the generic mechanism (module refs), never a task hook.
+# ---------------------------------------------------------------------------
+_EXECUTION_EVIDENCE = (
+    "solver: run_command with task-budget timeout (kernel_dispatch._action_timeout_s, cap 12000s); "
+    "runner wall clock honors agent.timeout_sec (docker_runner._effective_run_timeout_s, cap 14400s); "
+    "full output spooled beyond 1MB, retrievable by handle (real_executor.StreamSpooler; kernel read_output/grep_output); "
+    "verifier: overlay execution with task verifier budget (verifier_overlay.VerifierOverlay; kernel_verifier._verifier_command_budget_s)"
+)
+_SERVICE_EVIDENCE = (
+    "solver: launch_process/probe_service/stop_process (execution.ProcessOrchestratorV2, interactive_detachable policy); "
+    "verifier: probe_port/probe_http/probe_process live-state probes (verifier_probes.py)"
+)
+_ARTIFACT_EVIDENCE = (
+    "solver: inspect_artifact perception lane + run_command with image toolchain; "
+    "verifier: inspect_artifact probe (type/size/sha256 + ffprobe/pdftotext/identify best-effort, honest tool_missing) "
+    "and overlay fixtures (overlay_write_fixture + overlay_run_command)"
+)
+_INTERACTIVE_EVIDENCE = (
+    "solver: scripted interaction via run_command with expect/pexpect authored by the solver "
+    "(generic scripting -- no bespoke TTY channel by design; a stronger model scripts better) "
+    "plus launch_process for daemons; verifier: probe_port/probe_process + overlay execution"
+)
+
+HARNESS_SUPPORT: dict[str, dict[str, str]] = {
+    "long_running_command": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "compiler_build": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "rust_build": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "ocaml_coq_build": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "ml_training_or_inference": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "scientific_computing": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "database": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "crypto_security": {"status": "supported", "path": _EXECUTION_EVIDENCE},
+    "binary_reverse_engineering": {"status": "supported", "path": _ARTIFACT_EVIDENCE},
+    "image_processing": {"status": "supported", "path": _ARTIFACT_EVIDENCE},
+    "video_processing": {"status": "supported", "path": _ARTIFACT_EVIDENCE},
+    "ocr_pdf_document": {"status": "supported", "path": _ARTIFACT_EVIDENCE},
+    "background_service": {"status": "supported", "path": _SERVICE_EVIDENCE},
+    "http_service": {"status": "supported", "path": _SERVICE_EVIDENCE},
+    "ssh_or_telnet_service": {"status": "supported", "path": _INTERACTIVE_EVIDENCE},
+    "qemu_vm": {"status": "supported", "path": _INTERACTIVE_EVIDENCE},
+    "network_download": {
+        "status": "supported_with_environment_gate",
+        "path": (
+            "solver: bootstrap_acquire + run_command; EnvMap network_scope is probed, never assumed "
+            "(envmap_builder: unknown until live probe); offline environments are reported as a probed "
+            "environment fact, not absorbed as a harness failure"
+        ),
+    },
+}
+
+_STATUS_ORDER = ("unsupported", "partially_supported", "supported_with_environment_gate", "supported")
+
+
+def _support_rows(needs: list[str]) -> tuple[list[str], str]:
+    """Per-class support statuses for one task + the task's worst status."""
+    rows: list[str] = []
+    worst = "supported"
+    for cap in needs:
+        entry = HARNESS_SUPPORT.get(cap)
+        status = entry["status"] if entry else "unsupported"
+        rows.append(f"{cap}={status}")
+        if _STATUS_ORDER.index(status) < _STATUS_ORDER.index(worst):
+            worst = status
+    return rows, worst
 
 
 def audit_task(task_dir: Path) -> dict[str, str]:
@@ -87,7 +154,8 @@ def audit_task(task_dir: Path) -> dict[str, str]:
         "capability_classes": ";".join(caps),
         "required_tool_hints": ";".join(tools),
         "verifier_capability_needs": ";".join(verifier_needs),
-        "readiness": _readiness(caps),
+        "capability_support": ";".join(_support_rows(caps)[0]),
+        "readiness": _support_rows(caps)[1],
         "notes": "generic coverage audit; no solution/tests inspected",
     }
 
@@ -97,7 +165,7 @@ def write_outputs(rows: list[dict[str, str]], csv_path: Path, md_path: Path) -> 
     fields = [
         "task_name", "category", "difficulty", "tags", "agent_timeout_sec", "verifier_timeout_sec",
         "build_timeout_sec", "docker_image", "visible_environment_files", "capability_classes",
-        "required_tool_hints", "verifier_capability_needs", "readiness", "notes",
+        "required_tool_hints", "verifier_capability_needs", "capability_support", "readiness", "notes",
     ]
     with csv_path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
@@ -121,10 +189,14 @@ def write_outputs(rows: list[dict[str, str]], csv_path: Path, md_path: Path) -> 
         "",
         f"Tasks audited: {len(rows)}",
         "",
-        "## Readiness buckets",
+        "## Readiness buckets (worst per-class status per task)",
     ]
     for key, count in readiness_counts.most_common():
         lines.append(f"- {key}: {count}")
+    lines += ["", "## Harness support matrix (per capability class)", "", "| capability class | status | generic solver+verifier path |", "|---|---|---|"]
+    for cap in sorted(HARNESS_SUPPORT):
+        entry = HARNESS_SUPPORT[cap]
+        lines.append(f"| {cap} | {entry['status']} | {entry['path']} |")
     lines += ["", "## Capability class coverage"]
     for key, count in cap_counts.most_common():
         lines.append(f"- {key}: {count}")

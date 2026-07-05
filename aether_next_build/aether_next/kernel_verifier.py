@@ -18,6 +18,20 @@ from .verifier_inspector import (
 from .verifier_overlay import VerifierOverlay
 from .verifier_packets import build_verifier_packet
 
+def _verifier_command_budget_s(envmap: Any) -> int:
+    """Task-declared verifier budget bounds overlay command execution."""
+    metadata = getattr(envmap, "task_metadata", {}) or {}
+    budget = metadata.get("resource_budget") if isinstance(metadata.get("resource_budget"), dict) else {}
+    for source in (budget, metadata):
+        value = source.get("verifier_timeout_sec") if isinstance(source, dict) else None
+        try:
+            if value is not None and float(value) > 0:
+                return min(int(float(value)), 7_200)
+        except (TypeError, ValueError):
+            pass
+    return 300
+
+
 _REASON_ALIASES = {
     "solver_submit_success_candidate": "solver_submit",
     "deterministic_success_candidate": "deterministic_success_candidate",
@@ -190,7 +204,11 @@ def _call_verify(
 ) -> Any:
     verify_with_inspector = getattr(hooks, "verify_with_inspector", None)
     if callable(verify_with_inspector) and executor is not None and envmap is not None:
-        overlay = VerifierOverlay(executor, envmap.workspace_root)
+        overlay = VerifierOverlay(
+            executor,
+            envmap.workspace_root,
+            max_command_timeout_s=_verifier_command_budget_s(envmap),
+        )
 
         def _inspector(requests: tuple[VerifierInspectionRequest, ...]) -> list[dict[str, Any]]:
             results = execute_verifier_inspection_requests(

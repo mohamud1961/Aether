@@ -56,6 +56,28 @@ class KernelRunTimeout(TimeoutError):
     """Raised when the per-task kernel loop exceeds the wall-clock budget."""
 
 
+_MAX_RUN_TIMEOUT_S = 14_400
+
+
+def _effective_run_timeout_s(run_timeout_s: int, task_toml: dict[str, Any]) -> tuple[int, str]:
+    """Honor the task's own declared agent budget; never let a generic runner
+    default silently starve a long task.  ``run_timeout_s`` remains the floor;
+    the declared budget raises it up to a hard safety cap."""
+    agent = task_toml.get("agent") if isinstance(task_toml.get("agent"), dict) else {}
+    raw = agent.get("timeout_sec")
+    try:
+        declared = int(float(raw)) if raw is not None else 0
+    except (TypeError, ValueError):
+        declared = 0
+    if declared <= 0:
+        return run_timeout_s, f"runner_default={run_timeout_s}"
+    effective = max(run_timeout_s, min(declared, _MAX_RUN_TIMEOUT_S))
+    return effective, (
+        f"task_declared={declared}; runner_floor={run_timeout_s}; "
+        f"cap={_MAX_RUN_TIMEOUT_S}; effective={effective}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # DockerExecExecutor
 # ---------------------------------------------------------------------------
@@ -343,6 +365,9 @@ def run_tbench_task(
             architect_mode=architect_mode,
         )
 
+    task_toml = _load_task_toml(task_dir)
+    run_timeout_s, run_timeout_policy = _effective_run_timeout_s(run_timeout_s, task_toml)
+
     try:  # outer try: catch ALL exceptions so the pilot never gets a raise
         # -- 1. Temp workspace + seed ----------------------------------------
         workspace_dir = tempfile.mkdtemp(prefix=f"tbench_{task_name}_")
@@ -401,7 +426,6 @@ def run_tbench_task(
             instruction_text = instruction_path.read_text(encoding="utf-8")
         else:
             instruction_text = f"Complete the task described in /task/."
-        task_toml = _load_task_toml(task_dir)
 
         envmap = build_envmap_from_task(
             workspace_dir,
@@ -580,6 +604,8 @@ def run_tbench_task(
             "grader_stdout_tail": grader_stdout, "grader_stderr_tail": grader_stderr,
             "receipt_summary": _receipt_summary(result),
             "run_provenance": dict(run_provenance or {}),
+            "run_timeout_s_effective": run_timeout_s,
+            "run_timeout_policy": run_timeout_policy,
             **reconcile_grader_alignment(
                 reward=reward,
                 grader_error=grader_error,

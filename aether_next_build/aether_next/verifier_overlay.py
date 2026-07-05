@@ -34,11 +34,18 @@ class VerifierOverlay:
     solver-visible tree and outside executor mtime snapshots.
     """
 
-    def __init__(self, executor: Any, workspace_root: str) -> None:
+    def __init__(
+        self,
+        executor: Any,
+        workspace_root: str,
+        *,
+        max_command_timeout_s: int = _OVERLAY_COMMAND_TIMEOUT_S,
+    ) -> None:
         self._executor = executor
         self._workspace_root = workspace_root.rstrip("/") or "/"
         self._overlay_root: str | None = None
         self._setup_error: str = ""
+        self._max_command_timeout_s = max(30, int(max_command_timeout_s))
 
     @property
     def overlay_root(self) -> str:
@@ -65,15 +72,19 @@ class VerifierOverlay:
         self._overlay_root = candidate
         return {"overlay_root": candidate, "created": True}
 
-    def run_command(self, command: str, *, timeout_s: int = _OVERLAY_COMMAND_TIMEOUT_S) -> dict[str, Any]:
-        """Run a command with the overlay as working directory."""
+    def run_command(self, command: str, *, timeout_s: int | None = None) -> dict[str, Any]:
+        """Run a command with the overlay as working directory.
+
+        The ceiling is the task-declared verifier budget when the caller
+        provided one at construction; a fixed default otherwise."""
         state = self.ensure()
         if "error" in state:
             return {"error": state["error"]}
+        requested = self._max_command_timeout_s if timeout_s is None else int(timeout_s)
         result = self._executor.run_command(
             command,
             cwd=self._overlay_root,
-            timeout_s=max(1, min(int(timeout_s), _OVERLAY_COMMAND_TIMEOUT_S)),
+            timeout_s=max(1, min(requested, self._max_command_timeout_s)),
         )
         return {
             "overlay_root": self._overlay_root,

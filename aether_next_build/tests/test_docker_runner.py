@@ -191,3 +191,30 @@ class TestCertifiedArchitectModeQuarantine:
         assert record["error"] == "invalid_architect_mode"
         assert record["architect_mode"] == "ir"
         assert "quarantined in reference_legacy" in record["error_detail"]
+
+
+class TestEffectiveRunTimeout:
+    def test_task_declared_budget_raises_runner_floor(self) -> None:
+        from aether_next.runners.docker_runner import _effective_run_timeout_s
+
+        effective, policy = _effective_run_timeout_s(1800, {"agent": {"timeout_sec": 3600}})
+        assert effective == 3600
+        assert "task_declared=3600" in policy
+
+    def test_missing_budget_keeps_runner_default(self) -> None:
+        from aether_next.runners.docker_runner import _effective_run_timeout_s
+
+        effective, policy = _effective_run_timeout_s(1800, {})
+        assert effective == 1800
+        assert "runner_default" in policy
+
+    def test_declared_budget_is_capped_and_never_lowers_floor(self) -> None:
+        from aether_next.runners.docker_runner import (
+            _MAX_RUN_TIMEOUT_S,
+            _effective_run_timeout_s,
+        )
+
+        effective, _ = _effective_run_timeout_s(1800, {"agent": {"timeout_sec": 999999}})
+        assert effective == _MAX_RUN_TIMEOUT_S
+        effective, _ = _effective_run_timeout_s(1800, {"agent": {"timeout_sec": 60}})
+        assert effective == 1800

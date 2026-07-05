@@ -173,10 +173,23 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Suite: **303 passed**.
 - **Remaining size-cap debt (baseline modules, pre-existing):** context_compiler.py 858, docker_runner.py 794, compiler.py 663, model_hooks.py 637, runtime_ir.py 547. Decomposition deferred behind the mission-critical path (P2i → Ext-j → Ext-k); tracked here so it is not silently dropped.
 
+## P2i — Per-task capability closure (2026-07-05) — DONE
+
+- **Two generic gaps found and closed while building the support matrix:**
+  1. Runner wall clock was a fixed 1800s regardless of the task's declared budget (bn-fit-modify declares 3600s → would be killed by a hidden harness constraint). `docker_runner._effective_run_timeout_s`: task `agent.timeout_sec` raises the runner floor up to a 14400s cap; policy recorded in the run record. 3 tests.
+  2. Verifier overlay commands were capped at a fixed 300s while tasks declare verifier budgets up to 3600s. `VerifierOverlay(max_command_timeout_s=...)` now bound by task `verifier_timeout_sec` (`kernel_verifier._verifier_command_budget_s`, cap 7200s).
+- **Audit script upgraded into a reusable per-class closure artifact:** `HARNESS_SUPPORT` matrix maps every capability class → status + the exact generic solver+verifier mechanism (module refs); per-task CSV gains `capability_support` (class=status per class); readiness = worst class status.
+- **Re-run over all 90 tasks. Before → after readiness buckets:**
+  - before: `needs_long_command_budget_and_verifier_execution` 59, `needs_p2_verifier_or_service_support` 31
+  - after: `supported` 63, `supported_with_environment_gate` 27, **unsupported 0**
+  - The environment gate is exclusively `network_download`: generic path exists (bootstrap_acquire + probed network_scope); offline environments are a probed environment fact reported honestly, never a silent harness failure. No capability class lacks a generic path; no BLOCKED entries required.
+- **Verification against raw tasks (not script trust):** all 90 rows reviewed for class sanity (0 tasks unclassified; over-inclusion accepted as coverage-safe); deep spot-checks of headless-terminal (solver-authored pty via run_command — deliberate: no bespoke TTY channel, scripting via expect/pexpect is the generic path), install-windows-3.11 (qemu_vm/VNC/nginx → port/process probes + screendump artifacts), sparql-university, mailman, code-from-image. Existing test proves the audit never reads solution/ or tests/ (test_local_vision_delta).
+- Suite: **306 passed**. P2 complete.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P2i: per-task capability closure over the ~90-task official corpus.
+Ext-j: Docker mount-isolation + golden-grader smoke (Docker available locally).
