@@ -1,0 +1,10 @@
+{
+  "confidence": "0.18",
+  "findings": [],
+  "missing_evidence_requests": [
+    "{'kind': 'read_file', 'path': '/app/summary.csv', 'summary': 'Provide the full current contents of /app/summary.csv so the exact header and row order can be checked.'}",
+    "{'kind': 'overlay_run_command', 'command': \"set -e\\npython3 - <<'PY'\\nfrom pathlib import Path\\nfrom datetime import date, timedelta\\nimport re, csv\\nanchor = date(2025,8,12)\\nwindows = {\\n  'today': (anchor, anchor),\\n  'last_7_days': (anchor - timedelta(days=6), anchor),\\n  'last_30_days': (anchor - timedelta(days=29), anchor),\\n  'month_to_date': (anchor.replace(day=1), anchor),\\n  'total': (date.min, date.max),\\n}\\nseverities = ['ERROR','WARNING','INFO']\\ncounts = {p:{s:0 for s in severities} for p in windows}\\nfor p in sorted(Path('/app/logs').glob('*.log')):\\n    m = re.match(r'^(\\\\d{4}-\\\\d{2}-\\\\d{2})_', p.name)\\n    if not m: continue\\n    d = date.fromisoformat(m.group(1))\\n    text = p.read_text(errors='replace').splitlines()\\n    for line in text:\\n        for sev in severities:\\n            if re.search(rf'\\\\b{sev}\\\\b', line):\\n                counts['total'][sev] += 1\\n                for period,(start,end) in windows.items():\\n                    if period=='total':\\n                        continue\\n                    if start <= d <= end:\\n                        counts[period][sev] += 1\\n                break\\nfor period in ['today','last_7_days','last_30_days','month_to_date','total']:\\n    for sev in severities:\\n        print(period, sev, counts[period][sev])\\nPY\", 'summary': 'Provide a full recomputation trace from the current /app/logs using the fixed 2025-08-12 anchor and exact whole-word severity matching.'}"
+  ],
+  "summary": "I can confirm that /app/summary.csv exists and that /app/logs contains date-stamped log files, but the current evidence does not include the actual CSV contents or the source log lines needed to verify the exact header, row order, and all 15 period/severity counts against the fixed 2025-08-12 date windows.",
+  "verdict": "uncertain_missing_evidence"
+}

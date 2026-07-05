@@ -70,13 +70,30 @@ class HarnessLimiterClassifier:
             stalemate = tuple(
                 r.receipt_id for r in receipts if r.kind == "solver_submit_stalemate"
             )
+            feedback_delivered = any(
+                r.kind == "model_verifier_result" for r in receipts
+            )
+            # The verifier did its job here (it raised findings and refused to
+            # rubber-stamp).  If the workbench was otherwise clean and feedback
+            # was delivered, repeatedly submitting instead of repairing is the
+            # model's behavior; otherwise fall back to a harness/context label.
+            if feedback_delivered and self._model_limit_evidence_bar_for_stalemate(receipts):
+                return LimiterClassification(
+                    label="model_limit",
+                    confidence="medium",
+                    evidence=stalemate or tuple(result.blockers),
+                    detail=(
+                        "solver kept submitting without new evidence despite "
+                        "delivered, legible verifier findings on a clean workbench"
+                    ),
+                )
             return LimiterClassification(
-                label="verification_failure",
-                confidence="high",
+                label="harness_context_failure",
+                confidence="medium",
                 evidence=stalemate or tuple(result.blockers),
                 detail=(
-                    "bounded solver submit stalemate: active verifier findings "
-                    "required intervening evidence, but the solver kept submitting"
+                    "solver submit stalemate without proven-clean feedback "
+                    "delivery; insufficient evidence to blame the model"
                 ),
             )
 
@@ -230,6 +247,14 @@ class HarnessLimiterClassifier:
             r.kind in cls._HARNESS_BLOCK_KINDS and not r.success
             for r in receipts
         )
+
+    @classmethod
+    def _model_limit_evidence_bar_for_stalemate(cls, receipts: tuple["Receipt", ...]) -> bool:
+        """Evidence bar for submit-stalemate attribution, ignoring the
+        stalemate receipt itself (it describes the outcome being classified,
+        not a harness defect)."""
+        filtered = tuple(r for r in receipts if r.kind != "solver_submit_stalemate")
+        return cls._model_limit_evidence_bar(filtered)
 
     @classmethod
     def _model_limit_evidence_bar(cls, receipts: tuple["Receipt", ...]) -> bool:

@@ -186,6 +186,25 @@ Solver prompt section rules:
   budget. A terse solver prompt that names the deliverable but omits failure
   recovery, local proof, and do-not-submit gates is not acceptable.
 
+Independent-verification discipline (anti-self-confirmation; applies to every
+task whose output is derived from input data):
+- workflow must START with raw-input inspection: before choosing any parsing,
+  counting, matching, or transformation semantics, the solver must inspect
+  real samples of the raw input (including boundary/edge entries) and commit
+  to an explicit statement of the semantics it chose and why the samples
+  support it.
+- self_verification must require a verification method that is genuinely
+  independent of the production method: a different tool, a different
+  algorithm, an inverse transformation, or a comparison against a manually
+  derived answer for a small sample. Re-running the same script, regex, or
+  interpretation a second time is NOT verification -- it reproduces the same
+  mistake with more confidence.
+- self_verification must include at least one manual spot-audit: select a
+  small raw sample, derive the expected output by direct inspection, and
+  compare it against the produced artifact before submitting.
+- avoid must include a self-confirmation trap item, e.g. "Do not validate the
+  output with the same method or assumption that produced it."
+
 Verifier prompt section rules:
 - verdict_guidance must explicitly contain the exact words "completed",
   "needs_repair", "uncertain_missing_evidence", "blocked_by_tooling", and
@@ -201,6 +220,12 @@ Verifier prompt section rules:
   evidence to audit, not proof by themselves. The verifier should inspect
   whether the validation method matches the task semantics before returning
   completed.
+- false_positive_traps must name the same-method self-confirmation trap: a
+  solver recomputation that reuses the production method's interpretation
+  confirms nothing. Before returning completed, the verifier should
+  independently spot-check a small raw sample against the produced artifact
+  (via read-only inspection or overlay execution) rather than accepting
+  numeric agreement between two runs of the same idea.
 
 Do not invent hidden grader logic. Do not emit arbitrary shell commands as trusted
 gate checks. visible_smoke_tests[*].type must be exactly one of: """

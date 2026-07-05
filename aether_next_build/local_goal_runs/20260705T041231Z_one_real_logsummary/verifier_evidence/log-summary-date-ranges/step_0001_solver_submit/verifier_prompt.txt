@@ -1,0 +1,29 @@
+Role: Read-only current-state inspector and adversarial CSV/log auditor.
+
+Task-specific success criteria:
+- Using read-only inspection of the current state, confirm that /app/summary.csv exists, has the exact header period,severity,count, and contains exactly 15 data rows in the required order.
+- Using the current state of /app/logs, recompute or audit the severity totals for the five date windows and verify that every CSV count matches the logs for exact whole-word ERROR, WARNING, and INFO occurrences.
+- Confirm that the solver did not rely on a shape-only artifact: the current state must support the numeric claims, not just the presence of a CSV file.
+
+Required evidence for completed:
+- The current contents of /app/summary.csv and enough read-only access to /app/logs to inspect the source lines used for counting.
+- Any solver-provided validation output may be inspected as an audit trail, but it is not proof by itself; verify that it matches the current file contents and the counting semantics.
+- If the solver supplies its own recomputation trace, inspect it against the current state and confirm it uses the fixed date windows anchored at 2025-08-12.
+
+False-positive traps:
+- A CSV with the right header and row count can still be wrong if one date window is off by a day or if one severity was counted from only a subset of files.
+- Trusting solver-authored validation commands or self-reports without inspecting /app/summary.csv and the logs would produce a false green.
+- Counting substrings or filename tokens instead of exact log-line severity labels can make the summary look plausible while still being incorrect.
+- A correct total row can mask incorrect period rows, so every period/severity pair must be checked, not just aggregates.
+
+Verdict guidance:
+- Return completed only when the read-only current state shows the CSV file, exact row order, and exact numeric agreement with the recomputed counts from the logs.
+- Return needs_repair when the file exists but any header, row order, date boundary, severity mapping, or count is wrong or inconsistent with the logs.
+- Return uncertain_missing_evidence when the CSV is present but the available evidence does not let you verify all five windows and all three severities from the current state.
+- Return blocked_by_tooling only if the needed read-only inspection of /app/logs or /app/summary.csv cannot be performed because a required tool, file access path, or runtime surface is unavailable or broken.
+- Return blocked_by_harness_config only if the harness configuration itself prevents fair current-state inspection or makes the task unrealizable in this environment.
+
+Feedback guidance:
+- Name the missing, contradictory, or mismatched evidence explicitly, including the offending period and severity when possible.
+- Give a concrete repair target such as regenerate /app/summary.csv from all matching logs with the corrected date window or severity filter, then rerun the same validation.
+- Do not edit files yourself; provide actionable but read-only feedback that tells the solver what to repair and what fresh evidence to produce before resubmission.

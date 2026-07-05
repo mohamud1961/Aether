@@ -268,7 +268,7 @@ class ConfigCompiler:
                 )
             )
 
-        visible_check_ids = {check.check_id for check in checks.authoritative_checks()}
+        visible_check_ids = {check.check_id for check in checks.checks}
         unknown_check_ids = [check_id for check_id in ir.check_plan if check_id not in visible_check_ids]
         if unknown_check_ids:
             issues.append(
@@ -399,8 +399,11 @@ class ConfigCompiler:
             and self.registry.get(capability_id).available  # type: ignore[union-attr]
         )  # type: ignore[arg-type]
 
-        # Sanitize: drop unknown check_plan ids, keep only valid ones.
-        visible_check_ids = {check.check_id for check in checks.authoritative_checks()}
+        # Sanitize: drop unknown check_plan ids, keep only valid ones.  Plan
+        # membership accepts any indexed check; the authoritative flag carries
+        # evidential weight only (shape-only checks stay runnable but must
+        # never read as semantic proof).
+        visible_check_ids = {check.check_id for check in checks.checks}
         sanitized_check_plan = tuple(
             cid for cid in ir.check_plan if cid in visible_check_ids
         )

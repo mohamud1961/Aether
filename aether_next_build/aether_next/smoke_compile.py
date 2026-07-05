@@ -147,12 +147,17 @@ def _compile_fixture_run(spec: dict[str, Any], idx: int, envmap: EnvMap) -> tupl
 
 def _check(idx: int, smoke_type: str, path: str, command: str) -> CheckSpec:
     safe = re.sub(r"[^a-zA-Z0-9_.-]+", "-", path).strip("-")[:40] or str(idx)
+    # Shape-only: existence/size/syntax/content-literal checks prove that a
+    # deliverable has the right surface, never that it is semantically
+    # correct.  Presenting them as authoritative biases the solver toward
+    # "green enough" (observed live: log-summary-date-ranges shipped wrong
+    # counts behind passing shape checks).
     return CheckSpec(
         check_id=f"visible-smoke:{idx}:{smoke_type}:{safe}",
-        label=f"visible smoke {smoke_type}: {path}",
+        label=f"visible smoke (shape-only, not semantic proof) {smoke_type}: {path}",
         command=command,
         origin="visible_smoke",
-        authoritative=True,
+        authoritative=False,
     )
 
 

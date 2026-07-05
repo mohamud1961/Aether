@@ -1,0 +1,46 @@
+I’ll inspect the knowledge graph schema/data first, then craft and save the SPARQL query in `/app/solution.sparql`.Here is the SPARQL query to save as `/app/solution.sparql`:
+
+```sparql
+PREFIX ub:   <http://www.lehigh.edu/~zhp2/2004/0401/univ-bench.owl#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?professorName
+       (GROUP_CONCAT(DISTINCT STR(?country); separator=", ") AS ?countries)
+WHERE {
+  {
+    SELECT DISTINCT ?professor ?professorName
+    WHERE {
+      ?professor a ub:FullProfessor ;
+                 (ub:name|foaf:name|rdfs:label) ?professorName ;
+                 (ub:worksFor|ub:memberOf|ub:worksIn) ?euDept .
+      ?euDept (ub:subOrganizationOf|ub:partOf) ?euUniversity .
+      ?euUniversity (ub:country|ub:countryCode|ub:locatedInCountry) ?euCountry .
+      FILTER(
+        STR(?euCountry) IN (
+          "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR",
+          "HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK",
+          "SI","ES","SE"
+        )
+      )
+    }
+  }
+
+  {
+    SELECT ?dept
+    WHERE {
+      ?anyProf (ub:worksFor|ub:memberOf|ub:worksIn) ?dept ;
+               (ub:teacherOf|^ub:teacherOf|ub:teaches|^ub:teaches) ?course .
+      ?student (ub:takesCourse|^ub:takesCourse|ub:enrolledIn|^ub:enrolledIn|ub:registeredIn|^ub:registeredIn) ?course .
+    }
+    GROUP BY ?dept
+    HAVING(COUNT(DISTINCT ?student) > 10)
+  }
+
+  ?professor (ub:worksFor|ub:memberOf|ub:worksIn) ?dept .
+  ?dept (ub:subOrganizationOf|ub:partOf) ?university .
+  ?university (ub:country|ub:countryCode|ub:locatedInCountry) ?country .
+}
+GROUP BY ?professorName
+```

@@ -288,6 +288,8 @@ VERIFIER_RUNTIME_CONTRACT = {
         "When repair is needed, provide at least one actionable finding grounded in packet evidence.",
         "Treat explicit runtime-computed fields in verifier_packet as observed facts about the run.",
         "Treat solver-authored validation commands and recomputation receipts as claims to audit, not as proof; inspect whether their method matches the task semantics before returning completed.",
+        "Numeric agreement between two runs of the same method proves nothing: before returning completed on data-derived outputs, independently spot-check a small raw sample against the produced artifact via read-only inspection or overlay execution.",
+        "Shape-only checks (existence, size, syntax, content literals) are never sufficient evidence of semantic correctness.",
     ],
     "read_only_inspector": {
         "enabled": True,
