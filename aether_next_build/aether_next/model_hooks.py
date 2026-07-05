@@ -298,21 +298,24 @@ VERIFIER_RUNTIME_CONTRACT = {
             "requests": [
                 {
                     "request_id": "stable id",
-                    "kind": "read_file | rerun_check | inspect_artifact_history | inspect_recent_receipts | overlay_run_command | overlay_write_fixture",
-                    "path": "relative path when needed (fixture target for overlay_write_fixture)",
+                    "kind": "read_file | rerun_check | inspect_artifact_history | inspect_recent_receipts | overlay_run_command | overlay_write_fixture | probe_port | probe_http | probe_process | inspect_artifact",
+                    "path": "relative path when needed (fixture target for overlay_write_fixture; artifact for inspect_artifact)",
                     "check_id": "compiled check id when needed",
                     "receipt_kind": "receipt kind filter when needed",
                     "command": "command to execute for overlay_run_command",
                     "content": "fixture file content for overlay_write_fixture",
+                    "target": "host:port for probe_port, URL for probe_http, process pattern for probe_process",
+                    "offset": 0,
                     "limit": 1,
                 }
             ],
         },
         "rules": [
             "Use inspection requests only when the current verifier packet is insufficient to judge safely.",
-            "read_file and receipt/history inspection never mutate anything.",
+            "read_file, receipt/history inspection, probe_port, probe_http, probe_process, and inspect_artifact never mutate anything; probes observe LIVE services/processes/artifacts.",
             "rerun_check, overlay_run_command, and overlay_write_fixture execute in a disposable copy of the workspace: the solver workspace is never mutated and the copy is destroyed after this verification round.",
             "Use overlay_write_fixture + overlay_run_command to test the deliverable against YOUR OWN inputs, not only the solver's.",
+            "For service tasks, judge the live state with probe_port/probe_http/probe_process rather than the solver's captured output.",
             "Prefer the smallest observation that resolves uncertainty.",
         ],
     },

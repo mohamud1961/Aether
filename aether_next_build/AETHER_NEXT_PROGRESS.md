@@ -141,10 +141,19 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Tests: `tests/test_verifier_overlay.py` (5): overlay mutations invisible to workspace, fixture+run with teardown removing everything, fixture path-escape rejection, rerun_check overlay routing with side-effect containment, no-overlay explicit error.
 - Suite: **291 passed**.
 
+## P2e — Generic service/port/process + media/artifact verifier probes (2026-07-05) — DONE
+
+- New `aether_next/verifier_probes.py` (~170 LOC), pure capability classes: `probe_port` (TCP connect via python3 socket through the executor substrate), `probe_http` (GET status+body head), `probe_process` (pgrep with bracket-first-char regex so the probe never matches itself; ps fallback; `tool_missing` reported honestly), `inspect_artifact_probe` (file type, size, sha256, plus type-appropriate metadata: ffprobe for a/v, pdftotext head for PDFs, identify for images, content head for text — missing tools reported as `tool_missing`, never silently skipped).
+- All probes run through the executor substrate (container-aware for docker runs), take typed quoted fields (no command injection), observe LIVE state read-only.
+- New inspection kinds dispatched in verifier_inspector (`probe_port|probe_http|probe_process|inspect_artifact`) with `target` field; verifier `read_file` inspection now supports `offset` paging (closes Phase 0 Q6 item 4).
+- Verifier guidance: "for service tasks, judge live state with probes rather than the solver's captured output."
+- Tests: `tests/test_verifier_probes.py` (6): open/closed/invalid port, live+dead HTTP server, live process + absent process, PNG/text/missing artifact, inspector dispatch with no-mutation assertion, read_file offset paging.
+- Suite: **297 passed**.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P2e: generic service/port/process + media/artifact verifier probes.
+P2g: verifier-triggered single-shot reconfiguration (architect_defect=true).

@@ -8,6 +8,12 @@ from typing import Any, Mapping
 
 from .memory_events import artifact_history
 from .runtime_ir import CompiledRuntime, EnvMap, normalize_relpath
+from .verifier_probes import (
+    inspect_artifact_probe,
+    probe_http,
+    probe_port,
+    probe_process,
+)
 
 
 @dataclass(frozen=True)
@@ -20,6 +26,8 @@ class VerifierInspectionRequest:
     limit: int = 5
     command: str = ""
     content: str = ""
+    target: str = ""
+    offset: int = 0
 
 
 def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRequest, ...]:
@@ -48,6 +56,8 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
                 limit=max(1, int(item.get("limit", 5) or 5)),
                 command=str(item.get("command", "")),
                 content=str(item.get("content", "")),
+                target=str(item.get("target", "")).strip(),
+                offset=max(0, int(item.get("offset", 0) or 0)),
             )
         )
     if not parsed:
@@ -117,6 +127,22 @@ def execute_verifier_inspection_requests(
             row.update(overlay.write_fixture(request.path, getattr(request, "content", "")))
             results.append(row)
             continue
+        if request.kind in {"probe_port", "probe_http", "probe_process", "inspect_artifact"}:
+            target = getattr(request, "target", "") or request.path
+            if request.kind == "probe_port":
+                probe = probe_port(executor, target)
+            elif request.kind == "probe_http":
+                probe = probe_http(executor, target)
+            elif request.kind == "probe_process":
+                probe = probe_process(executor, target)
+            else:
+                probe = inspect_artifact_probe(
+                    executor, normalize_relpath(request.path, envmap.workspace_root),
+                )
+            row = {"request_id": request.request_id, "kind": request.kind, "read_only": True}
+            row.update(probe)
+            results.append(row)
+            continue
         if request.kind == "inspect_artifact_history":
             rows = [
                 row
@@ -160,12 +186,14 @@ def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap:
         content = executor.read_file(path)
     except FileNotFoundError:
         return _error_result(request, f"file not found: {path}")
-    excerpt = content[:4000]
+    offset = max(0, int(getattr(request, "offset", 0) or 0))
+    excerpt = content[offset: offset + 4000]
     return {
         "request_id": request.request_id,
         "kind": request.kind,
         "path": path,
         "bytes": len(content),
+        "offset": offset,
         "content_hash": sha256(content.encode("utf-8", "replace")).hexdigest()[:16],
         "excerpt": excerpt,
     }
