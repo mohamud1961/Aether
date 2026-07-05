@@ -50,8 +50,14 @@ Emit compact strict JSON matching this shape exactly:
   "model_verifier_policy": {"enabled": true, "runs_on": ["solver_submit"]},
   "failure_feedback_policy": {"persist_until": "resolved_or_superseded", "show_age_steps": true, "show_evidence": true},
   "helper_script_policy": {"enabled": true, "directory": "/app/.aether_tools", "trust_level": "advisory"},
-  "local_verification_limits": ["what local checks cannot prove"]
+  "local_verification_limits": ["what local checks cannot prove"],
+  "expected_steps": 12
 }
+
+expected_steps is your honest estimate of how many solver steps a competent
+model should need for this task (a step = one act or submit turn). It is an
+advisory efficiency yardstick recorded in result rows, never a runtime gate --
+estimate realistically, not aspirationally.
 
 Strict JSON rules:
 - Return exactly one JSON object and nothing else.

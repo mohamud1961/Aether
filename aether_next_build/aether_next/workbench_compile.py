@@ -339,6 +339,11 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "count": len(config.local_verification_limits),
             "realized_as": "RuntimeConfigIR.local_verification_limits, advisory_notes, and verifier packet metadata",
         },
+        "expected_steps": {
+            "status": "realized_advisory",
+            "value": int(getattr(config, "expected_steps", 0) or 0),
+            "realized_as": "config_realization.expected_steps and result-row step_efficiency (advisory metric, never a gate)",
+        },
     }
     missing = [field for field in TOP_LEVEL_CONFIG_FIELDS if field not in dispositions]
     return {

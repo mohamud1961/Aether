@@ -34,6 +34,7 @@ SUPPORTED_TOP_LEVEL_CONFIG_FIELDS = frozenset({
     "failure_feedback_policy",
     "helper_script_policy",
     "local_verification_limits",
+    "expected_steps",
 })
 
 
@@ -153,6 +154,7 @@ class HarnessConfigIR:
     repair_warning_codes: tuple[str, ...] = ()
     repair_warnings: tuple[str, ...] = ()
     rejected_config_items: tuple[dict[str, Any], ...] = ()
+    expected_steps: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -374,6 +376,7 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
     return HarnessConfigIR(
         schema_version="harness_config.v1",
         task_understanding=str(data.get("task_understanding", "")).strip(),
+        expected_steps=_parse_expected_steps(data.get("expected_steps")),
         success_definition=str(data.get("success_definition", "")).strip(),
         solver_system_prompt=SolverPromptSpec(
             role=str(solver_raw.get("role", "")).strip(),
@@ -479,3 +482,12 @@ def parse_workbench_architect_output(text: str) -> HarnessConfigParseRepair:
         raw_output=text,
         repaired_json=repaired_json,
     )
+
+
+def _parse_expected_steps(raw: object) -> int:
+    """Advisory step-budget expectation; never a runtime gate."""
+    try:
+        value = int(float(raw))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
+    return value if 0 < value <= 500 else 0

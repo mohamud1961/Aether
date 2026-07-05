@@ -151,6 +151,7 @@ class AetherNextKernel:
             from .workbench_compile import config_realization_audit
             realization["architect_path"] = "workbench"
             realization["harness_config_schema_version"] = resolved.workbench_config.schema_version
+            realization["expected_steps"] = int(getattr(resolved.workbench_config, "expected_steps", 0) or 0)
             realization["workbench_repair_warning_codes"] = list(resolved.workbench_config.repair_warning_codes)
             realization["workbench_repair_warnings"] = list(resolved.workbench_config.repair_warnings)
             realization["workbench_rejected_config_items"] = [dict(item) for item in resolved.workbench_config.rejected_config_items]

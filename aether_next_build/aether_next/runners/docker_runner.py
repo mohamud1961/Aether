@@ -462,6 +462,26 @@ def _parse_tcp_probe_target(target: str) -> tuple[str, int] | None:
     return clean_host, port
 
 
+def _expected_steps_from(result: KernelResult) -> int:
+    for receipt in result.receipts:
+        if receipt.kind == "config_realization":
+            payload = (receipt.payload or {}).get("config_realization", {})
+            if isinstance(payload, dict):
+                try:
+                    return int(payload.get("expected_steps", 0) or 0)
+                except (TypeError, ValueError):
+                    return 0
+    return 0
+
+
+def _step_efficiency(result: KernelResult) -> float | None:
+    """Advisory metric: actual steps / architect expectation (>1 = over budget)."""
+    expected = _expected_steps_from(result)
+    if expected <= 0:
+        return None
+    return round(result.step / expected, 2)
+
+
 def _docker_snapshot(container_id: str, dest: str) -> None:
     """Best-effort ``docker cp`` of /app to *dest*."""
     os.makedirs(dest, exist_ok=True)
@@ -738,6 +758,8 @@ def run_tbench_task(
             "grader_stdout_tail": grader_stdout, "grader_stderr_tail": grader_stderr,
             "receipt_summary": _receipt_summary(result),
             "run_provenance": dict(run_provenance or {}),
+            "expected_steps": _expected_steps_from(result),
+            "step_efficiency": _step_efficiency(result),
             "run_timeout_s_effective": run_timeout_s,
             "run_timeout_policy": run_timeout_policy,
             **reconcile_grader_alignment(
