@@ -16,11 +16,6 @@ from aether_next.runtime_ir import (
     RuntimeConfigIR,
     SolverTurn,
 )
-from aether_next.task_contract import (
-    ContractDeliverable,
-    ContractThreshold,
-    TaskContract,
-)
 from aether_next.workbench_config import HarnessConfigIR, parse_harness_config_ir
 
 
@@ -70,26 +65,6 @@ class _FakeHooks:
 
     def architect(self, request: Mapping[str, Any]) -> RuntimeConfigIR:
         return self._ir
-
-
-class _FakeContractArchitect:
-    """Stub contract architect returning a predefined contract or failure."""
-
-    def __init__(
-        self,
-        contract: TaskContract | None,
-        errors: list[str] | None = None,
-    ) -> None:
-        self._contract = contract
-        self._errors = errors or []
-
-    def extract(
-        self,
-        request: Mapping[str, Any],
-        *,
-        workspace_root: str = "/app",
-    ) -> tuple[TaskContract | None, list[str]]:
-        return self._contract, self._errors
 
 
 class _FakeWorkbenchArchitect:
@@ -153,7 +128,6 @@ class TestBaselineResolveMatchesCurrent:
 
         resolved = resolve_runtime(envmap, compiler, hooks)
 
-        assert resolved.contract is None
         assert resolved.compiled is not None
         assert resolved.config_invalid_blockers == ()
         assert len(resolved.objective_graph.obligations) > 0
@@ -177,69 +151,6 @@ class TestBaselineResolveMatchesCurrent:
         assert resolved.runtime_ir.selected_capabilities == ()
 
 
-class TestContractResolvePopulatesObjectiveGraph:
-    def test_contract_populates_deliverables_and_checks(self) -> None:
-        """A contract architect returning a TaskContract with a deliverable
-        and a file_size threshold produces a resolved runtime with those
-        structures in the objective graph and eval index."""
-        envmap = _make_envmap()
-        contract = TaskContract(
-            task_understanding="Create output file.",
-            deliverables=(
-                ContractDeliverable(path="/app/out.txt", description="output"),
-            ),
-            thresholds=(
-                ContractThreshold(
-                    name="output_size",
-                    comparator="<",
-                    target=10.0,
-                    unit="MB",
-                    source="file_size_bytes:/app/out.txt",
-                ),
-            ),
-            capabilities=("shell", "filesystem"),
-        )
-        ca = _FakeContractArchitect(contract)
-        compiler = ConfigCompiler(CapabilityRegistry.from_envmap(envmap))
-
-        resolved = resolve_runtime(
-            envmap, compiler, _FakeHooks(_make_ir()),
-            contract_architect=ca,
-        )
-
-        assert resolved.contract is not None
-        assert resolved.compiled is not None
-        deliverable_paths = [d.path for d in resolved.objective_graph.deliverables]
-        assert "out.txt" in deliverable_paths
-
-        # Eval index should have a file existence check.
-        check_commands = [c.command for c in resolved.eval_index.checks]
-        assert any("test -e out.txt" in cmd for cmd in check_commands), (
-            f"Expected existence check, got: {check_commands}"
-        )
-
-        # Compiled check_plan_ids should be non-empty.
-        assert resolved.compiled.check_plan_ids
-
-
-class TestContractExtractionFailureFallsBack:
-    def test_extraction_failure_uses_baseline(self) -> None:
-        """A contract architect that returns (None, errors) falls back to
-        the baseline path: contract is None and the run still compiles."""
-        envmap = _make_envmap()
-        ca = _FakeContractArchitect(None, errors=["boom"])
-        compiler = ConfigCompiler(CapabilityRegistry.from_envmap(envmap))
-
-        resolved = resolve_runtime(
-            envmap, compiler, _FakeHooks(_make_ir()),
-            contract_architect=ca,
-        )
-
-        assert resolved.contract is None
-        assert resolved.compiled is not None
-        assert resolved.config_invalid_blockers == ()
-
-
 class TestWorkbenchResolve:
     def test_workbench_architect_config_compiles_to_runtime(self) -> None:
         envmap = _make_envmap()
@@ -253,7 +164,6 @@ class TestWorkbenchResolve:
         )
 
         assert resolved.workbench_config is config
-        assert resolved.contract is None
         assert resolved.compiled is not None
         assert resolved.runtime_ir.context_policy.mode == "failure_focused"
         assert "Task-specific careful solver" in resolved.runtime_ir.solver_identity_prompt

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping
 
-from .model_hooks import ModelCallable
+from aether_next.model_hooks import ModelCallable
 from .task_contract import (
     CONTRACT_ARCHITECT_SYSTEM_PROMPT,
     TaskContract,

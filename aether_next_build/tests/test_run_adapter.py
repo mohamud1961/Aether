@@ -8,9 +8,9 @@ import tempfile
 import pytest
 
 from aether_next.run_adapter import (
-    architect_overrides_for_mode,
     ensure_certified_architect_mode,
     run_task,
+    workbench_architect_for,
 )
 
 
@@ -189,26 +189,15 @@ class _StubVerifierModel:
 
 
 class TestRunAdapter:
-    def test_architect_mode_helpers_select_expected_paths(self) -> None:
-        model = _StubArchitectModel()
-
-        assert architect_overrides_for_mode("ir", model) == (None, None)
-        contract, workbench = architect_overrides_for_mode("contract", model)
-        assert contract is not None and workbench is None
-        contract, workbench = architect_overrides_for_mode("workbench", model)
-        assert contract is None and workbench is not None
-
-        with pytest.raises(ValueError, match="unsupported architect_mode"):
-            architect_overrides_for_mode("bogus", model)
-
-    def test_reference_modes_are_quarantined_for_certified_runs_by_default(self) -> None:
+    def test_workbench_is_the_only_certified_architect_mode(self) -> None:
         ensure_certified_architect_mode("workbench")
-        with pytest.raises(ValueError, match="reference architect modes are quarantined"):
-            ensure_certified_architect_mode("ir")
-        with pytest.raises(ValueError, match="reference architect modes are quarantined"):
-            ensure_certified_architect_mode("contract")
-        ensure_certified_architect_mode("ir", allow_reference_architect_mode=True)
-        ensure_certified_architect_mode("contract", allow_reference_architect_mode=True)
+        for mode in ("ir", "contract", "bogus"):
+            with pytest.raises(ValueError, match="quarantined in reference_legacy"):
+                ensure_certified_architect_mode(mode)
+
+    def test_workbench_architect_for_builds_workbench_architect(self) -> None:
+        architect = workbench_architect_for(_StubWorkbenchArchitectModel())
+        assert type(architect).__name__ == "WorkbenchArchitect"
 
     def test_end_to_end_stub(self) -> None:
         with tempfile.TemporaryDirectory() as task_dir, \
@@ -240,7 +229,6 @@ class TestRunAdapter:
             assert "receipt_summary" in record
             assert isinstance(record["receipt_summary"], list)
             assert record["architect_mode"] == "workbench"
-            assert record["reference_architect_mode"] is False
 
             # The run should complete successfully.
             assert record["status"] == "completed", (
@@ -308,23 +296,3 @@ class TestRunAdapter:
                 assert "failure_class" in entry
                 assert "summary" in entry
 
-    def test_ir_mode_remains_available_as_reference_path(self) -> None:
-        with tempfile.TemporaryDirectory() as task_dir, \
-             tempfile.TemporaryDirectory() as workspace:
-            with open(os.path.join(task_dir, "README.md"), "w") as fh:
-                fh.write("Reference path task")
-
-            record = run_task(
-                task_dir=task_dir,
-                instruction_text="Create out.txt containing any text.",
-                architect_model=_StubArchitectModel(),
-                solver_model=_StubSolverModel(),
-                workspace_root=workspace,
-                max_steps=6,
-                architect_mode="ir",
-                allow_reference_architect_mode=True,
-            )
-
-            assert record["status"] == "completed"
-            assert record["architect_mode"] == "ir"
-            assert record["reference_architect_mode"] is True

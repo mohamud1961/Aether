@@ -19,7 +19,7 @@ if _BUILD_DIR not in sys.path:
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler  # noqa: E402
 from aether_next.ledger import ExecutionLedger, Receipt  # noqa: E402
 from aether_next.no_progress import NoProgressController  # noqa: E402
-from aether_next.proof_contract import analyze_proof_contract  # noqa: E402
+from reference_legacy.proof_contract import analyze_proof_contract  # noqa: E402
 from aether_next.runtime_ir import (  # noqa: E402
     ActionRequest,
     AutomaticMemoryPolicy,

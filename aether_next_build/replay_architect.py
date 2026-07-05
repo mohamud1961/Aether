@@ -41,7 +41,7 @@ from aether_next.contract_compile import (  # noqa: E402
     contract_to_objective_graph,
     contract_to_runtime_ir,
 )
-from aether_next.contract_hooks import ContractArchitect  # noqa: E402
+from reference_legacy.contract_hooks import ContractArchitect  # noqa: E402
 from aether_next.envmap_builder import build_envmap_from_task  # noqa: E402
 from aether_next.kernel_messages import build_architect_request  # noqa: E402
 from aether_next.model_hooks import ModelHooks  # noqa: E402

@@ -21,11 +21,6 @@ from aether_next.runtime_ir import (
     SolverTurn,
     WorkflowPolicy,
 )
-from aether_next.task_contract import (
-    ContractDeliverable,
-    ContractThreshold,
-    TaskContract,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -502,75 +497,3 @@ class TestInvalidArchitectIrRepair:
 # ---------------------------------------------------------------------------
 # Contract-architect integration
 # ---------------------------------------------------------------------------
-
-
-class _FakeContractArchitect:
-    """Stub contract architect for kernel integration tests."""
-
-    def __init__(self, contract: TaskContract | None, errors: list[str] | None = None) -> None:
-        self._contract = contract
-        self._errors = errors or []
-
-    def extract(self, request: Any, *, workspace_root: str = "/app") -> tuple[TaskContract | None, list[str]]:
-        return self._contract, self._errors
-
-
-class TestKernelWithContractArchitectRunsChecks:
-    def test_contract_architect_runs_checks(self) -> None:
-        """Construct a kernel with a contract_architect stub that returns a
-        contract with a deliverable.  The solver creates the artifact and
-        submits.  Assert the gate ran at least one check (a check_result
-        receipt exists) and the status reflects it."""
-        envmap = _make_envmap()
-        executor = MemoryExecutor(workspace_root="/app")
-
-        # The contract says /app/out.txt is a deliverable.
-        contract = TaskContract(
-            task_understanding="Create out.txt.",
-            deliverables=(
-                ContractDeliverable(path="/app/out.txt", description="output"),
-            ),
-            capabilities=("shell", "filesystem"),
-        )
-        ca = _FakeContractArchitect(contract)
-
-        # Solver writes the file then submits.
-        write_action = _action(
-            "write_file",
-            {"path": "out.txt", "content": "hello"},
-            action_id="a-write-out",
-            capability_id="filesystem",
-        )
-
-        ir = _make_ir(
-            completion_policy=CompletionPolicy(
-                require_authoritative_check=True,
-                allow_evidence_fallback=False,
-                require_all_obligations=False,
-                require_recent_progress=False,
-                require_clean_integrity=True,
-            ),
-        )
-        hooks = FakeHooks(ir, [_act_turn(write_action), _submit_turn()])
-
-        kernel = AetherNextKernel(max_steps=5, contract_architect=ca)
-
-        # Register a handler for the existence check that the contract
-        # generates (test -e out.txt).  Since executor is MemoryExecutor
-        # and we wrote the file, make it pass.
-        def pass_check(ex: MemoryExecutor, cmd: str) -> CommandResult:
-            return CommandResult(command=cmd, exit_code=0, stdout="exists")
-
-        # The contract generates "test -e out.txt" as a check command.
-        executor.register_command("test -e out.txt", pass_check)
-
-        result = kernel.run(envmap, executor, hooks)
-
-        # At least one check_result receipt should exist.
-        check_receipts = [r for r in result.receipts if r.kind == "check_result"]
-        assert check_receipts, (
-            f"Expected check_result receipt but found none. "
-            f"Kinds: {[r.kind for r in result.receipts]}"
-        )
-        # The run should complete since the check passed.
-        assert result.status == "completed"

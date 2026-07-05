@@ -25,19 +25,17 @@ def _load_task_toml(task_dir: str) -> dict[str, Any]:
     except (OSError, tomllib.TOMLDecodeError):
         return {}
 
-def ensure_certified_architect_mode(
-    architect_mode: str,
-    *,
-    allow_reference_architect_mode: bool = False,
-) -> None:
-    """Fail closed unless certified runs explicitly opt into reference modes."""
+def ensure_certified_architect_mode(architect_mode: str) -> None:
+    """Fail closed: the certified harness supports only the workbench architect.
+
+    Legacy ir/contract architect modes are physically quarantined in
+    ``reference_legacy`` and cannot be reached from this adapter.
+    """
     if architect_mode == "workbench":
         return
-    if allow_reference_architect_mode:
-        return
     raise ValueError(
-        "reference architect modes are quarantined for certified/default runs; "
-        "pass allow_reference_architect_mode=True only for explicit reference/debug use"
+        "legacy architect modes are quarantined in reference_legacy; "
+        "the certified harness supports only architect_mode='workbench'"
     )
 
 
@@ -55,17 +53,10 @@ def _receipt_summary(result: KernelResult) -> list[dict[str, Any]]:
     return items
 
 
-def architect_overrides_for_mode(architect_mode: str, architect_model: ModelCallable) -> tuple[Any | None, Any | None]:
-    """Return ``(contract_architect, workbench_architect)`` for a mode."""
-    if architect_mode == "ir":
-        return None, None
-    if architect_mode == "contract":
-        from .contract_hooks import ContractArchitect
-        return ContractArchitect(architect_model), None
-    if architect_mode == "workbench":
-        from .workbench_hooks import WorkbenchArchitect
-        return None, WorkbenchArchitect(architect_model)
-    raise ValueError(f"unsupported architect_mode: {architect_mode}")
+def workbench_architect_for(architect_model: ModelCallable) -> Any:
+    """Construct the certified workbench architect for a model callable."""
+    from .workbench_hooks import WorkbenchArchitect
+    return WorkbenchArchitect(architect_model)
 
 
 def run_task(
@@ -78,7 +69,6 @@ def run_task(
     workspace_root: str = "/app",
     max_steps: int = 24,
     architect_mode: str = "workbench",
-    allow_reference_architect_mode: bool = False,
 ) -> dict[str, Any]:
     """Execute a task end-to-end and return a JSON-serializable run record.
 
@@ -110,19 +100,13 @@ def run_task(
         task_toml=task_toml,
     )
 
-    ensure_certified_architect_mode(
-        architect_mode,
-        allow_reference_architect_mode=allow_reference_architect_mode,
-    )
+    ensure_certified_architect_mode(architect_mode)
 
     executor = SubprocessExecutor(workspace_root)
     hooks = ModelHooks(architect_model, solver_model, verifier_model=verifier_model)
-    contract_architect, workbench_architect = architect_overrides_for_mode(architect_mode, architect_model)
-
     kernel = AetherNextKernel(
         max_steps=max_steps,
-        contract_architect=contract_architect,
-        workbench_architect=workbench_architect,
+        workbench_architect=workbench_architect_for(architect_model),
     )
 
     result = kernel.run(envmap, executor, hooks)
@@ -132,7 +116,6 @@ def run_task(
 
     return {
         "architect_mode": architect_mode,
-        "reference_architect_mode": architect_mode != "workbench",
         "status": result.status,
         "step": result.step,
         "reconfigurations": result.reconfigurations,
@@ -150,25 +133,6 @@ def run_task(
 # ---------------------------------------------------------------------------
 # Stub model for offline CLI use
 # ---------------------------------------------------------------------------
-
-class _StubArchitectModel:
-    """Returns a valid RuntimeConfigIR JSON selecting shell + filesystem."""
-
-    def __call__(
-        self,
-        messages: list[dict[str, str]],
-        *,
-        max_output_tokens: int = 8000,
-    ) -> str:
-        return json.dumps({
-            "architect_summary": "stub architect: direct_build with shell+filesystem",
-            "solver_identity_prompt": "You are a careful software engineer.",
-            "selected_capabilities": ["shell", "filesystem"],
-            "workflow_policy": {"mode": "direct_build"},
-            "process_policy": {"mode": "stateless_shell"},
-            "completion_policy": {"require_authoritative_check": False},
-        })
-
 
 class _StubWorkbenchArchitectModel:
     """Returns a valid HarnessConfigIR JSON for offline workbench mode."""
@@ -263,19 +227,6 @@ def _main() -> None:
         default=24,
         help="Maximum kernel steps (default: 24).",
     )
-    parser.add_argument(
-        "--architect-mode",
-        default="workbench",
-        choices=["ir", "contract", "workbench"],
-        help="Architect mode: ir, contract, or workbench (default: workbench). "
-        "Reference modes are quarantined unless --allow-reference-architect-mode is set.",
-    )
-    parser.add_argument(
-        "--allow-reference-architect-mode",
-        action="store_true",
-        help="Explicitly opt into reference architect modes for offline/debug use.",
-    )
-
     args = parser.parse_args()
 
     instruction_path = Path(args.instruction_file)
@@ -289,20 +240,14 @@ def _main() -> None:
         print(f"error: task directory not found: {args.task_dir}", file=sys.stderr)
         sys.exit(1)
 
-    architect_model = _StubWorkbenchArchitectModel() if args.architect_mode == "workbench" else _StubArchitectModel()
-    solver_model = _StubSolverModel()
-    verifier_model = _StubVerifierModel() if args.architect_mode == "workbench" else None
-
     record = run_task(
         task_dir=task_dir,
         instruction_text=instruction_text,
-        architect_model=architect_model,
-        solver_model=solver_model,
-        verifier_model=verifier_model,
+        architect_model=_StubWorkbenchArchitectModel(),
+        solver_model=_StubSolverModel(),
+        verifier_model=_StubVerifierModel(),
         workspace_root=args.workspace_root,
         max_steps=args.max_steps,
-        architect_mode=args.architect_mode,
-        allow_reference_architect_mode=args.allow_reference_architect_mode,
     )
 
     json.dump(record, sys.stdout, indent=2, default=str)

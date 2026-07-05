@@ -35,7 +35,7 @@ from ..real_executor import (
     _SKIP_DIRS,
     _MAX_SCAN_ENTRIES,
 )
-from ..run_adapter import architect_overrides_for_mode, ensure_certified_architect_mode
+from ..run_adapter import ensure_certified_architect_mode, workbench_architect_for
 from ..runtime_ir import EnvMap, normalize_relpath
 from .docker_helpers import detect_grader_command, ensure_image_available, seed_workspace_from_image
 
@@ -310,7 +310,6 @@ def run_tbench_task(
     run_timeout_s: int = 1800,
     trace_dir: str | None = None,
     architect_mode: str = "workbench",
-    allow_reference_architect_mode: bool = False,
     snapshot_dir: str | None = None,
     snapshot_steps: tuple[int, ...] = (),
     run_provenance: dict[str, Any] | None = None,
@@ -324,10 +323,7 @@ def run_tbench_task(
     run_trace: Any = None
 
     try:
-        ensure_certified_architect_mode(
-            architect_mode,
-            allow_reference_architect_mode=allow_reference_architect_mode,
-        )
+        ensure_certified_architect_mode(architect_mode)
     except ValueError as exc:
         return _error_record(
             task_name,
@@ -431,15 +427,6 @@ def run_tbench_task(
         )
         hooks = ModelHooks(architect_model, solver_model)
 
-        try:
-            ca, wa = architect_overrides_for_mode(architect_mode, architect_model)
-        except ValueError:
-            return _error_record(
-                task_name, image, "invalid_architect_mode",
-                f"unsupported architect_mode: {architect_mode}",
-                architect_mode=architect_mode,
-            )
-
         # Build snapshot callback: captures container_id + snapshot_dir from closure.
         snap_cb = None
         if snapshot_dir and container_id:
@@ -447,7 +434,8 @@ def run_tbench_task(
             snap_cb = lambda step: _docker_snapshot(container_id, os.path.join(_base, f"step_{step}"))  # noqa: E731
 
         kernel = AetherNextKernel(
-            max_steps=max_steps, contract_architect=ca, workbench_architect=wa,
+            max_steps=max_steps,
+            workbench_architect=workbench_architect_for(architect_model),
             snapshot_callback=snap_cb, snapshot_steps=snapshot_steps,
         )
 
@@ -566,7 +554,6 @@ def run_tbench_task(
             "task": task_name,
             "image": image,
             "architect_mode": architect_mode,
-            "reference_architect_mode": architect_mode != "workbench",
             "reward": reward,
             "status": record_status,
             "kernel_status": result.status,
@@ -644,7 +631,6 @@ def _error_record(
         "task": task,
         "image": image,
         "architect_mode": architect_mode,
-        "reference_architect_mode": architect_mode != "workbench",
         "reward": 0.0,
         "status": "error",
         "step": 0,

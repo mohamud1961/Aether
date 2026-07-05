@@ -250,10 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        ensure_certified_architect_mode(
-            args.architect_mode,
-            allow_reference_architect_mode=args.allow_reference_architect_mode,
-        )
+        ensure_certified_architect_mode(args.architect_mode)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -288,7 +285,6 @@ def main(argv: list[str] | None = None) -> int:
                 "task": task_name,
                 "image": "",
                 "architect_mode": args.architect_mode,
-                "reference_architect_mode": args.architect_mode != "workbench",
                 "reward": 0.0,
                 "status": "error",
                 "error": "task_dir_not_found",
@@ -338,7 +334,6 @@ def main(argv: list[str] | None = None) -> int:
             "task": task_name,
             "image": docker_image,
             "architect_mode": args.architect_mode,
-            "reference_architect_mode": args.architect_mode != "workbench",
             "reward": 0.0,
             "status": "running",
             "kernel_status": "running",
@@ -367,7 +362,6 @@ def main(argv: list[str] | None = None) -> int:
                 run_timeout_s=args.run_timeout_s,
                 trace_dir=args.trace_dir,
                 architect_mode=args.architect_mode,
-                allow_reference_architect_mode=args.allow_reference_architect_mode,
                 snapshot_dir=args.snapshot_dir,
                 snapshot_steps=snap_steps,
                 run_provenance={**run_provenance, "task_hash": _task_hash(task_dir)},
@@ -377,7 +371,6 @@ def main(argv: list[str] | None = None) -> int:
                 "task": task_name,
                 "image": docker_image,
                 "architect_mode": args.architect_mode,
-                "reference_architect_mode": args.architect_mode != "workbench",
                 "reward": 0.0,
                 "status": "error",
                 "error": type(exc).__name__,

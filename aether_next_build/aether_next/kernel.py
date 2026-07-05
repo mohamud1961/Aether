@@ -20,7 +20,7 @@ from .automatic_memory import automatic_memory_receipt
 from .no_progress import NoProgressController
 from .ledger import ExecutionLedger, Receipt
 from .monitors import IntegrityGuards, LocalOnlySafetyGuard, MonitorRunner
-from .kernel_checks import cheap_checks_all_passed, probe_checks
+from .kernel_checks import probe_checks
 from .model_hooks import ModelOutputError
 from .redaction import redact_text_with_events
 from .runtime_ir import (
@@ -120,13 +120,11 @@ class AetherNextKernel:
         self,
         *,
         max_steps: int = 24,
-        contract_architect: Any | None = None,
         workbench_architect: Any | None = None,
         snapshot_callback: Callable[[int], None] | None = None,
         snapshot_steps: tuple[int, ...] = (),
     ) -> None:
         self.max_steps = max(1, int(max_steps))
-        self.contract_architect = contract_architect
         self.workbench_architect = workbench_architect
         self.snapshot_callback, self._snapshot_steps = snapshot_callback, frozenset(snapshot_steps)
         self.monitor_runner = MonitorRunner()
@@ -166,7 +164,6 @@ class AetherNextKernel:
         compiler = ConfigCompiler(CapabilityRegistry.from_envmap(envmap))
         resolved = resolve_runtime(
             envmap, compiler, hooks,
-            contract_architect=self.contract_architect,
             workbench_architect=self.workbench_architect,
         )
         if resolved.config_invalid_blockers:
@@ -194,8 +191,6 @@ class AetherNextKernel:
             realization["harness_config_realization_audit"] = config_realization_audit(
                 resolved.workbench_config, envmap,
             )
-        elif resolved.contract is not None:
-            realization["architect_path"] = "contract"
         else:
             realization["architect_path"] = "ir"
         ledger.record_config_realization(realization)
@@ -281,22 +276,6 @@ class AetherNextKernel:
                 self._fire_snapshot(step); step += 1; continue
             if turn.kind == "act":
                 self._run_act_turn(turn, step, compiled, executor, envmap, ledger)
-                if compiled.planned_checks() and cheap_checks_all_passed(compiled, ledger):
-                    self._run_submit_turn(step, compiled, executor, envmap, ledger, trace)
-                    decision = self._last_gate_decision
-                    if (
-                        decision is not None
-                        and decision.ready
-                        and self.workbench_architect is None
-                    ):
-                        ledger.record(Receipt(
-                            receipt_id=f"step-{step}:auto_submit", step=step,
-                            kind="auto_submit", success=True,
-                            summary="auto-submitted: contract checks passed",
-                        ))
-                        if trace is not None:
-                            trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
-                        return _completed_result(step, reconfigurations, decision, compiled, ledger)
             elif turn.kind == "submit_outcome":
                 self._run_submit_turn(
                     step, compiled, executor, envmap, ledger, trace,

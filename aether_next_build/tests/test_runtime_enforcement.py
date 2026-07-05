@@ -12,7 +12,6 @@ from aether_next.execution import CommandResult, MemoryExecutor
 from aether_next.kernel import AetherNextKernel
 from aether_next.kernel_verifier import run_model_verifier_if_available
 from aether_next.ledger import ExecutionLedger, Receipt
-from aether_next.proof_contract import analyze_proof_contract, proof_contract_receipt
 from aether_next.runners.docker_runner import KernelRunTimeout, _kernel_wall_timeout
 from aether_next.tracing import RunTrace
 from aether_next.verifier import ModelVerifierResult, VerifierFinding
@@ -208,97 +207,6 @@ def test_filter_false_clean_now_completes_when_verifier_claims_done() -> None:
     assert not proof, "certified kernel path must not emit proof_contract receipts"
 
 
-def test_filter_security_analyzer_fires_on_differently_worded_risk_text() -> None:
-    """Regression for the Stage 1 repair-slice rerun's filter false-clean: the
-    architect wrote a genuinely better, more specific false_positive_risks entry
-    ("A sanitizer that only removes <script> blocks but misses inline event
-    handlers or javascript: URLs.") that did NOT contain any of the old hardcoded
-    trigger phrases ("one trivial input", "single sample", etc.), so the whole
-    adversarial-coverage obligation silently never engaged and a single narrow
-    self-authored fixture was accepted as proof. The trigger must depend only on
-    the structural security/HTML shape (already present via task_prompt alone),
-    never on the architect's specific wording for the risk.
-    """
-    runtime = _runtime(
-        architect_summary="HTML JavaScript/XSS sanitizer",
-        success_definition="filter.py removes JavaScript from HTML while preserving clean HTML.",
-        evidence_requirements=("local evidence of in-place JavaScript removal",),
-        false_positive_risks=(
-            "A sanitizer that only removes <script> blocks but misses inline event handlers or javascript: URLs.",
-        ),
-    )
-    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(_env())).compile(
-        runtime, _env("Create a python file /app/filter.py that removes JavaScript from HTML to prevent XSS attacks."),
-    )
-    ledger = ExecutionLedger()
-    # Only one attack class evidenced (script tags), no preservation evidence at all.
-    ledger.record(Receipt(
-        "sample-1", 0, "run_command", True, "ran sample",
-        payload={"command": "python3 check.py", "stdout": "removed <script>alert(1)</script> ok"},
-    ))
-
-    analysis = analyze_proof_contract(compiled, ledger)
-
-    assert analysis["status"] == "failed"
-    codes = {f["code"] for f in analysis["findings"]}
-    assert "insufficient_adversarial_filter_evidence" in codes
-    assert "missing_clean_preservation_evidence" in codes
-
-
-def test_proof_contract_missing_contract_is_not_labeled_passed() -> None:
-    """An architect contract with no success_definition/evidence_requirements/
-    false_positive_risks/minimum_completion_evidence, on a task that doesn't match
-    any structural analyzer, has nothing for these checks to evaluate. Claiming
-    "passed" would assert "checked and clean" when nothing was actually checked.
-    Must not block completion (see proof_contract_receipt), and must be labeled
-    honestly when the legacy analyzer is called directly.
-    """
-    runtime = _runtime()  # no success_definition/evidence_requirements/etc.
-    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(_env())).compile(
-        runtime, _env("Write a CSV report generator to /app/report.py."),
-    )
-    ledger = ExecutionLedger()
-
-    analysis = analyze_proof_contract(compiled, ledger)
-
-    assert analysis["status"] == "contract_missing"
-    assert analysis["status"] != "passed"
-    assert analysis["findings"] == []
-    # And it must not block completion: proof_contract_receipt should not record a
-    # blocking failure for a task the analyzers have no opinion on.
-    receipt = proof_contract_receipt(compiled, ledger, step=0)
-    assert receipt is None or receipt.success
-
-
-def test_openssl_cert_findings_require_permission_and_inspection_evidence() -> None:
-    runtime = _runtime(
-        success_definition="Generate a private key and self-signed certificate with openssl.",
-        evidence_requirements=("key file permissions", "certificate subject and validity"),
-    )
-    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(_env())).compile(
-        runtime, _env("Generate an openssl self-signed certificate and key at /app/ssl/."),
-    )
-
-    empty_ledger = ExecutionLedger()
-    analysis = analyze_proof_contract(compiled, empty_ledger)
-    assert analysis["status"] == "failed"
-    codes = {f["code"] for f in analysis["findings"]}
-    assert "missing_key_permission_evidence" in codes
-    assert "missing_openssl_inspection_evidence" in codes
-
-    evidenced_ledger = ExecutionLedger()
-    evidenced_ledger.record(Receipt(
-        "perm-check", 0, "run_command", True, "checked perms",
-        payload={"command": "stat -c '%a %n' /app/ssl/server.key", "stdout": "600 server.key"},
-    ))
-    evidenced_ledger.record(Receipt(
-        "cert-check", 1, "run_command", True, "inspected cert",
-        payload={"command": "openssl x509 -in /app/ssl/server.crt -noout -subject -dates", "stdout": "subject=CN=localhost"},
-    ))
-    analysis2 = analyze_proof_contract(compiled, evidenced_ledger)
-    assert analysis2["status"] == "passed"
-
-
 def test_act_only_loops_do_not_trigger_verifier_without_solver_submit() -> None:
     executor = MemoryExecutor(workspace_root="/app", files={"out.txt": "TODO"})
     runtime = _runtime()
@@ -406,40 +314,6 @@ def test_stale_active_finding_is_not_resolved_by_runtime_proof_contract() -> Non
     assert "missing-key-mode-proof" in ledger.findings.active
     assert ledger.findings.active["missing-key-mode-proof"].stale_cycles == 2
     assert ledger.active_finding_context(step=15)
-
-
-def test_sparql_turtle_proof_contract_catches_invented_predicates_and_missing_execution() -> None:
-    runtime = _runtime(
-        architect_summary="SPARQL over Turtle graph",
-        success_definition="solution.sparql must query the actual Turtle graph predicates.",
-        evidence_requirements=("Execute the SPARQL query against university_graph.ttl.",),
-        false_positive_risks=("A syntactically correct SPARQL file can still use wrong ontology predicates.",),
-    )
-    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(_env())).compile(runtime, _env())
-    ledger = ExecutionLedger()
-    ledger.record(Receipt(
-        "graph-read",
-        0,
-        "read_file",
-        True,
-        "read graph",
-        payload={"path": "university_graph.ttl", "excerpt": "uni:Person uni:role uni:worksIn uni:belongsTo uni:teaches uni:isEnrolledIn ."},
-    ))
-    ledger.record(Receipt(
-        "query-read",
-        1,
-        "read_file",
-        True,
-        "read query",
-        payload={"path": "solution.sparql", "excerpt": "SELECT * WHERE { ?p a uni:Professor ; uni:hasRank 'Full Professor' ; uni:worksInDepartment ?d . }"},
-    ))
-
-    analysis = analyze_proof_contract(compiled, ledger)
-
-    codes = {finding["code"] for finding in analysis["findings"]}
-    assert "declared_query_terms_absent_from_graph" in codes
-    assert "missing_semantic_query_execution" in codes
-    assert analysis["status"] == "failed"
 
 
 def test_verifier_packet_exposes_runtime_signals_without_static_verifier_governance_prompt() -> None:

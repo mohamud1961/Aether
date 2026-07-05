@@ -190,5 +190,4 @@ class TestCertifiedArchitectModeQuarantine:
         assert record["status"] == "error"
         assert record["error"] == "invalid_architect_mode"
         assert record["architect_mode"] == "ir"
-        assert record["reference_architect_mode"] is True
-        assert "reference architect modes are quarantined" in record["error_detail"]
+        assert "quarantined in reference_legacy" in record["error_detail"]

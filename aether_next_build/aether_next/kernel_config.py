@@ -1,8 +1,7 @@
 """Config resolution logic extracted from kernel.run().
 
 Pure function that resolves a RuntimeConfigIR into a fully-compiled runtime,
-    handling the architect/validate/repair/fail-closed pipeline.  When a
-ContractArchitect is supplied, uses contract-derived structures instead.
+handling the architect/validate/repair/fail-closed pipeline.
 The kernel records trace/receipts from the returned ``ResolvedRuntime``.
 """
 from __future__ import annotations
@@ -11,11 +10,6 @@ from dataclasses import dataclass, replace
 from typing import Any, Mapping, TYPE_CHECKING
 
 from .compiler import ConfigCompiler
-from .contract_compile import (
-    contract_to_eval_index,
-    contract_to_objective_graph,
-    contract_to_runtime_ir,
-)
 from .kernel_messages import build_architect_request
 from .repair import repair_config
 from .runtime_ir import (
@@ -29,8 +23,6 @@ from .smoke_compile import compile_visible_smoke_tests
 from .workbench_compile import harness_config_to_runtime_ir
 
 if TYPE_CHECKING:
-    from .contract_hooks import ContractArchitect
-    from .model_hooks import ModelCallable
     from .workbench_hooks import WorkbenchArchitect
 
 
@@ -48,7 +40,6 @@ class ResolvedRuntime:
     eval_index: EvalIndex
     repair_codes: tuple[str, ...]
     fallback_codes: tuple[str, ...]
-    contract: Any | None
     config_invalid_blockers: tuple[str, ...]
     workbench_config: Any | None = None
 
@@ -76,7 +67,6 @@ def _baseline_resolve(
             eval_index=eval_index,
             repair_codes=(),
             fallback_codes=blockers,
-            contract=None,
             config_invalid_blockers=blockers,
         )
 
@@ -111,7 +101,6 @@ def _baseline_resolve(
                 eval_index=eval_index,
                 repair_codes=repair_codes,
                 fallback_codes=fallback_codes,
-                contract=None,
                 config_invalid_blockers=fallback_codes,
             )
 
@@ -126,62 +115,6 @@ def _baseline_resolve(
         eval_index=eval_index,
         repair_codes=repair_codes,
         fallback_codes=fallback_codes,
-        contract=None,
-        config_invalid_blockers=(),
-    )
-
-
-def _contract_resolve(
-    envmap: EnvMap,
-    compiler: ConfigCompiler,
-    hooks: Any,
-    contract_architect: ContractArchitect,
-) -> ResolvedRuntime:
-    """Resolve runtime using a contract architect for objective/check extraction."""
-    request = build_architect_request(envmap, compiler)
-    contract, errors = contract_architect.extract(request)
-
-    if contract is None:
-        # Extraction failed: fall back to the baseline path.
-        return _baseline_resolve(envmap, compiler, hooks)
-
-    objective_graph = contract_to_objective_graph(contract, envmap)
-    eval_index = contract_to_eval_index(contract, envmap)
-    runtime_ir, repair_codes = contract_to_runtime_ir(contract, compiler, envmap)
-
-    issues = compiler.validate(
-        runtime_ir, envmap,
-        objective_graph=objective_graph, eval_index=eval_index,
-    )
-    fatal_issues = [issue for issue in issues if issue.fatal]
-    fallback_codes: tuple[str, ...] = ()
-
-    if fatal_issues:
-        fallback_codes = tuple(issue.code for issue in fatal_issues)
-        runtime_ir = _invalid_runtime_ir("contract config validation failed")
-        return ResolvedRuntime(
-            runtime_ir=runtime_ir,
-            compiled=None,
-            objective_graph=objective_graph,
-            eval_index=eval_index,
-            repair_codes=repair_codes,
-            fallback_codes=fallback_codes,
-            contract=contract,
-            config_invalid_blockers=fallback_codes,
-        )
-
-    compiled = compiler.compile(
-        runtime_ir, envmap,
-        objective_graph=objective_graph, eval_index=eval_index,
-    )
-    return ResolvedRuntime(
-        runtime_ir=runtime_ir,
-        compiled=compiled,
-        objective_graph=objective_graph,
-        eval_index=eval_index,
-        repair_codes=repair_codes,
-        fallback_codes=fallback_codes,
-        contract=contract,
         config_invalid_blockers=(),
     )
 
@@ -236,7 +169,6 @@ def _workbench_resolve(
             eval_index=eval_index,
             repair_codes=(),
             fallback_codes=blockers,
-            contract=None,
             config_invalid_blockers=blockers,
             workbench_config=None,
         )
@@ -291,7 +223,6 @@ def _workbench_resolve(
                 eval_index=eval_index,
                 repair_codes=repair_codes,
                 fallback_codes=fallback_codes,
-                contract=None,
                 config_invalid_blockers=fallback_codes,
                 workbench_config=config,
             )
@@ -307,7 +238,6 @@ def _workbench_resolve(
         eval_index=eval_index,
         repair_codes=repair_codes,
         fallback_codes=fallback_codes,
-        contract=None,
         config_invalid_blockers=(),
         workbench_config=config,
     )
@@ -322,15 +252,13 @@ def resolve_runtime(
     compiler: ConfigCompiler,
     hooks: Any,
     *,
-    contract_architect: ContractArchitect | None = None,
     workbench_architect: "WorkbenchArchitect | None" = None,
     reconfigure_context: Mapping[str, Any] | None = None,
 ) -> ResolvedRuntime:
     """Resolve a full runtime configuration from an envmap.
 
     When no architect override is provided, reproduces the original kernel
-    baseline path exactly.  ``contract_architect`` keeps the legacy contract
-    extraction path.  ``workbench_architect`` enables the vNext
+    baseline path exactly.  ``workbench_architect`` enables the vNext
     HarnessConfigIR path and fails closed on configuration failure.
     ``reconfigure_context``, when set, marks this as a mid-run reconfiguration
     and is folded into the workbench architect request (see
@@ -341,6 +269,4 @@ def resolve_runtime(
             envmap, compiler, hooks, workbench_architect,
             reconfigure_context=reconfigure_context,
         )
-    if contract_architect is not None:
-        return _contract_resolve(envmap, compiler, hooks, contract_architect)
     return _baseline_resolve(envmap, compiler, hooks)

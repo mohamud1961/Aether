@@ -10,7 +10,7 @@ import shlex
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any, Mapping
 
-from .runtime_ir import (
+from aether_next.runtime_ir import (
     WORKFLOW_MODES,
     CheckSpec,
     DeliverableSpec,
@@ -32,7 +32,7 @@ from .task_contract import (
 
 if TYPE_CHECKING:
     from .compiler import ConfigCompiler
-    from .repair import repair_config as _repair_sig  # noqa: F401
+    from aether_next.repair import repair_config as _repair_sig  # noqa: F401
     from .runtime_ir import EnvMap
 
 
@@ -277,7 +277,7 @@ def contract_to_runtime_ir(
 
     Returns ``(ir, repair_codes)``.
     """
-    from .repair import repair_config
+    from aether_next.repair import repair_config
 
     workspace_root = envmap.workspace_root
 

@@ -22,7 +22,7 @@ if _BUILD_DIR not in sys.path:
 
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler  # noqa: E402
 from aether_next.architect_quality import score_architect_config  # noqa: E402
-from aether_next.contract_hooks import ContractArchitect  # noqa: E402
+from reference_legacy.contract_hooks import ContractArchitect  # noqa: E402
 from aether_next.envmap_builder import build_envmap_from_task  # noqa: E402
 from aether_next.kernel_messages import build_architect_request  # noqa: E402
 from aether_next.providers.azure_model import make_azure_callable  # noqa: E402

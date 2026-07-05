@@ -99,10 +99,19 @@ EnvMap and tooling are capability-class shaped (task_capability.CapabilityNeed; 
 
 Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solution (summaries/artifact text containing scary words like "failed"/"error" in benign context) must not trip FailureParser on successful commands, must not trip automatic-memory/no-progress blocks, and CompletionGate must stay state-based.
 
+## P1a — Physical legacy quarantine (2026-07-05) — DONE
+
+- Created top-level `reference_legacy/` package; moved `proof_contract.py`, `contract_compile.py`, `contract_hooks.py`, `task_contract.py` (absolute `aether_next.*` imports — reference may depend on certified, never the reverse). Moved `run_stage1_replay_acceptance.py` (legacy-analyzer replay harness) there too.
+- Certified surgery: kernel_config lost `_contract_resolve`/contract imports/`contract` field; kernel lost `contract_architect` param, "contract" realization branch, and the **auto-submit branch** (+ dead `cheap_checks_all_passed`); run_adapter and docker_runner are workbench-only (`ensure_certified_architect_mode` fail-closes ir/contract with no bypass flag; `architect_overrides_for_mode` replaced by `workbench_architect_for`); `reference_architect_mode` result field removed everywhere (run_pilot included).
+- Correction to Phase 0 notes: `alignment_board.py` is NOT orphaned (used by `run_alignment_board.py` post-run audit); kept. `architect_quality.py` kept (offline architect-eval scorer used by run_architect_only_eval.py; not in the run loop).
+- Tests: deleted blessing tests (`test_auto_submit.py`, `test_contract.py`, proof-contract analyzer tests in test_runtime_enforcement, contract-resolve tests in test_kernel_config/test_kernel, `test_stage1_replay_acceptance.py`); rewrote test_live_checks obligation test onto the baseline envmap-hints path; added `tests/test_legacy_quarantine.py` (5 falsifiable exclusion gates: no static import, no module files, subprocess-clean transitive import, adapter rejects legacy modes, reference stays importable).
+- Suite: **279 passed, 0 failed**. Note: kernel.py now 838 LOC (auto-submit removal) — still >500, shrink continues in P1b.
+- Watch item: `EnvMap.grader_hints` is a model-visible field name fed to the architect (kernel_messages.py:37); populated from public task surfaces (analysis.py builds checks from it). Verify at P2i/Ext-j that nothing grader-derived ever lands there in the docker runner path.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-Drift-correction slice (no_progress regex, dead code, sentinel test) → commit → P1a.
+P1b: delete solver `request_reconfigure` turn kind + legacy `hooks.reconfigure` path.

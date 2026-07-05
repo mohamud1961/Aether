@@ -9,8 +9,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .ledger import ExecutionLedger, Receipt
-from .runtime_ir import CompiledRuntime
+from aether_next.ledger import ExecutionLedger, Receipt
+from aether_next.runtime_ir import CompiledRuntime
 
 
 _RDF_TERM_RE = re.compile(r"\b[a-zA-Z][\w-]*:[A-Za-z_][\w-]*\b")

@@ -26,10 +26,6 @@ from aether_next.runtime_ir import (
     RuntimeConfigIR,
     SolverTurn,
 )
-from aether_next.task_contract import (
-    ContractDeliverable,
-    TaskContract,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +149,6 @@ class TestObligationFlipsSatisfiedAcrossSteps:
     the submit."""
 
     def test_obligation_flips_satisfied_across_steps(self) -> None:
-        envmap = _make_envmap()
         executor = MemoryExecutor(workspace_root="/app")
 
         # Register a handler so `test -e out.txt` passes after the file is
@@ -165,21 +160,20 @@ class TestObligationFlipsSatisfiedAcrossSteps:
 
         executor.register_command("test -e out.txt", existence_handler)
 
-        # Build a contract with a deliverable so the contract architect
-        # generates the existence check and obligation.
-        contract = TaskContract(
-            task_understanding="Create out.txt.",
-            deliverables=(
-                ContractDeliverable(path="/app/out.txt", description="output"),
-            ),
-            capabilities=("shell", "filesystem"),
+        # Envmap hints declare the deliverable and the existence check, so the
+        # baseline analyzer generates the obligation and planned check.
+        envmap = _make_envmap(
+            grader_hints={
+                "required_artifacts": ["out.txt"],
+                "verify_commands": ["test -e out.txt"],
+            },
         )
-
-        class FakeContractArchitect:
-            def extract(
-                self, request: Any, *, workspace_root: str = "/app",
-            ) -> tuple[TaskContract | None, list[str]]:
-                return contract, []
+        from aether_next.compiler import CapabilityRegistry, ConfigCompiler
+        _, eval_index = ConfigCompiler(
+            CapabilityRegistry.from_envmap(envmap)
+        ).analyze_envmap(envmap)
+        check_ids = tuple(check.check_id for check in eval_index.checks)
+        assert check_ids, "analyzer should compile the hinted existence check"
 
         # The solver writes out.txt in step 0, then submits in step 1.
         write_action = _action(
@@ -189,6 +183,7 @@ class TestObligationFlipsSatisfiedAcrossSteps:
             capability_id="filesystem",
         )
         ir = _make_ir(
+            check_plan=check_ids,
             completion_policy=CompletionPolicy(
                 require_authoritative_check=True,
                 allow_evidence_fallback=False,
@@ -198,7 +193,7 @@ class TestObligationFlipsSatisfiedAcrossSteps:
             ),
         )
         hooks = FakeHooks(ir, [_act_turn(write_action), _submit_turn()])
-        kernel = AetherNextKernel(max_steps=5, contract_architect=FakeContractArchitect())
+        kernel = AetherNextKernel(max_steps=5)
         result = kernel.run(envmap, executor, hooks)
 
         # 1. A probe check_result receipt should exist from step 0.

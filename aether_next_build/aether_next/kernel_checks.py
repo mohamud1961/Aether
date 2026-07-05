@@ -98,37 +98,6 @@ def probe_checks(
     return probe_receipts
 
 
-def cheap_checks_all_passed(
-    compiled: CompiledRuntime,
-    ledger: ExecutionLedger,
-) -> bool:
-    """Return True when every *cheap* planned check has a passing latest result.
-
-    Considers only the planned checks whose command satisfies
-    ``_is_cheap_check``.  Returns False when there are no planned checks, no
-    cheap checks among them, or any cheap check lacks a passing latest result.
-    Non-cheap checks are intentionally ignored here -- they are evaluated later
-    by ``_run_submit_turn`` when auto-submit fires.
-    """
-    planned = compiled.planned_checks()
-    if not planned:
-        return False
-    cheap_ids: list[str] = [
-        check.check_id for check in planned if _is_cheap_check(check.command)
-    ]
-    if not cheap_ids:
-        return False
-    latest_by_id = {
-        outcome.check_id: outcome
-        for outcome in ledger.latest_checks(compiled.check_plan_ids)
-    }
-    for cid in cheap_ids:
-        outcome = latest_by_id.get(cid)
-        if outcome is None or not outcome.passed:
-            return False
-    return True
-
-
 def run_planned_check(
     step: int,
     compiled: CompiledRuntime,

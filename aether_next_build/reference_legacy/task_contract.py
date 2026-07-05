@@ -10,8 +10,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from .model_hooks import ModelOutputError, _extract_json_object
-from .runtime_ir import WORKFLOW_MODES, normalize_relpath
+from aether_next.model_hooks import ModelOutputError, _extract_json_object
+from aether_next.runtime_ir import WORKFLOW_MODES, normalize_relpath
 
 
 # ---------------------------------------------------------------------------
