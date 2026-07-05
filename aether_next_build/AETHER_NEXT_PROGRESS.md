@@ -267,3 +267,24 @@ Ext-k: ONE model-backed sentinel batch managed with 5.4 mini, preceded by focuse
 ## Ext-k verdict
 
 The measured batch is interpreted; per the one-batch constraint, no further model runs launched this session. The next approved run should confirm openssl completes internally with the metadata probe (log-summary already passes clean: reward 1.0, 3 steps, no defect).
+
+
+## Batch5 audit execution (2026-07-05, Fable session 3)
+
+Committed slices `e60d59fb` (batch5 root-cause fixes, Fable+codex verified together) and `221b158a` (vision lane + ergonomics + evidence discipline). Suite: **345 passed** (docker tests included while the daemon was up).
+
+Fix → measured failure mapping:
+- **Grade-after-timeout** (headless-terminal, kv-store-grpc: gate-ready workspaces recorded as reward 0.0 without grading): wall timeout now proceeds to snapshot + official grading; grader pass after timeout → label `none` ("solved but step/time inefficient"), else `timeout_resource_failure`; `graded_after_timeout` provenance.
+- **probe_service TCP semantics** (kv-store poison): host:port/port targets get a real in-container TCP connect; process names keep pgrep.
+- **Layout-aware grader reward**: official YAML tasks score by run-tests.sh exit code; reward.txt stays authoritative for mirrored tasks.
+- **Durable evidence findings** (headless: 20 free uncertain rounds): `uncertain_missing_evidence` with only string requests materializes blocking findings → submit-stalemate pressure applies.
+- **Turn protocol ergonomics** (code-from-image: 48/120 steps on parse retries): kind inferred as act when actions present (submission never inferred); summary/action_id autofilled; capability_id/intent/expected_observation/if_fail_next demoted to audit metadata.
+- **Vision perception lane** (code-from-image unreachable): optional vision model → inspect_artifact transcription with `extraction_authority=model_transcription_not_ground_truth`; honest failed inspection when absent; Azure multimodal callable; `run_pilot --vision-deploy-env`; executors gain read_file_bytes; metadata-only image inspections now FAIL instead of luring loops; no-progress covers repeated inspections.
+- **Transcript-evidence discipline** (headless: OK-only self-tests starved the verifier): architect must require self-checks that print observed transcripts/values; verifier treats bare-OK as non-evidence.
+- **Evidence bundles auto-persist** under trace_dir when env var unset (two batches lost all verifier packets).
+
+## BLOCKED
+
+- **Validation rerun** (headless-terminal, kv-store-grpc, code-from-image with vision): Docker daemon on this Mac is down/flapping (`docker ps` cannot connect; it was up minutes earlier during the test suite). Start Docker Desktop, then:
+  `python3.11 run_pilot.py --tasks headless-terminal,kv-store-grpc,code-from-image --vision-deploy-env AZURE_OPENAI_GPT54_MINI_DEPLOYMENT --max-steps 40 --trace-dir local_goal_runs/<stamp>/traces --out local_goal_runs/<stamp>/results.json`
+- Size-cap debt: docker_runner 965, compiler 664, model_hooks 619.
