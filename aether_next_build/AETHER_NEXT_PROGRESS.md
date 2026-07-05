@@ -117,10 +117,16 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - kernel.py 889 → 730 LOC (still >500; P1c/P2 continue the shrink).
 - Suite: **279 passed**.
 
+## P1c — Prompt-cache stability (2026-07-05) — DONE
+
+- Verified the split already exists structurally and carries the required content: stable prefix = protocol card (`kernel_contract`, `tool_semantics`, `solver_turn_contract`), architect solver prompt (`solver_identity`), tool schema (`action_schema`, `selected_capabilities`), task/world facts (`task_prompt`, `envmap`, file tree, `objective_graph`, `eval_index`, `environment_probe`) — compiler.py:532-617; volatile part is the single trailing `[context_packet]` message (kernel_messages.py:69-87) serialized with sorted keys.
+- Added `tests/test_prompt_cache_stability.py` (3 tests): byte-identical prefix across all steps of a 4-step mutating run with exactly one trailing volatile message (with a self-guard that the packet actually varies), required-section presence, deterministic packet serialization.
+- Suite: **282 passed**. P1 complete.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P1c: prompt-cache-stability test + verify prefix/volatile split byte-stability.
+P2f first (executor output truthfulness — substrate fix that P2d overlay execution will also depend on), then P2d/P2e.
