@@ -20,6 +20,10 @@ from .runtime_ir import EnvMap, CapabilityDescriptor, normalize_relpath
 
 _STDOUT_CAP = 20_000
 _STDERR_CAP = 20_000
+# Full streams are kept inline up to this bound; beyond it the complete
+# stream is spooled to disk and the inline text is a marked head+tail.
+# Nothing is ever destroyed.
+_INLINE_STREAM_CAP = 1_000_000
 _SKIP_DIRS = {".git", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cache"}
 _MAX_SCAN_ENTRIES = 5_000
 
@@ -41,6 +45,54 @@ def _truncate(text: str, cap: int) -> str:
     if len(text) <= cap:
         return text
     return text[:cap] + f"\n... [truncated at {cap} chars]"
+
+
+def _decode_partial(raw: Any) -> str:
+    """Decode partial output captured by TimeoutExpired (bytes even in text mode)."""
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", "replace")
+    return str(raw)
+
+
+class StreamSpooler:
+    """Truthful stream retention: full inline up to a cap, full spool beyond.
+
+    ``finalize(stream_text, tag)`` returns ``(inline_text, overflow_path)``.
+    When the stream fits the inline cap, it is returned verbatim with no
+    overflow file.  When it exceeds the cap, the COMPLETE stream is written to
+    a spool file and the inline text is a clearly marked head+tail excerpt.
+    """
+
+    def __init__(self, *, inline_cap: int = _INLINE_STREAM_CAP) -> None:
+        self._inline_cap = max(1_000, int(inline_cap))
+        self._spool_dir: str | None = None
+        self._counter = 0
+
+    def _ensure_dir(self) -> str:
+        if self._spool_dir is None:
+            import tempfile
+            self._spool_dir = tempfile.mkdtemp(prefix="aether_output_spool_")
+        return self._spool_dir
+
+    def finalize(self, stream_text: str, tag: str) -> tuple[str, str]:
+        if len(stream_text) <= self._inline_cap:
+            return stream_text, ""
+        directory = self._ensure_dir()
+        self._counter += 1
+        safe_tag = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in tag)[:60]
+        path = os.path.join(directory, f"{self._counter:06d}_{safe_tag}.txt")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(stream_text)
+        half = self._inline_cap // 2
+        omitted = len(stream_text) - (half * 2)
+        inline = (
+            stream_text[:half]
+            + f"\n... [omitted {omitted} chars inline; full {len(stream_text)}-char stream spooled to {path}]\n"
+            + stream_text[-half:]
+        )
+        return inline, path
 
 
 def _snapshot_mtimes(root: str) -> dict[str, float]:
@@ -74,6 +126,7 @@ class SubprocessExecutor:
         self._default_timeout_s = max(1, default_timeout_s)
         self._processes: dict[str, subprocess.Popen[str]] = {}
         self._process_meta: dict[str, ProcessHandle] = {}
+        self._spooler = StreamSpooler()
         os.makedirs(self._root, exist_ok=True)
 
     # ---- Filesystem --------------------------------------------------------
@@ -138,6 +191,7 @@ class SubprocessExecutor:
 
         before = _snapshot_mtimes(self._root)
 
+        timed_out = False
         try:
             proc = subprocess.run(
                 ["bash", "-lc", command],
@@ -147,15 +201,20 @@ class SubprocessExecutor:
                 timeout=effective_timeout,
             )
             exit_code = proc.returncode
-            stdout = _truncate(proc.stdout, _STDOUT_CAP)
-            stderr = _truncate(proc.stderr, _STDERR_CAP)
-        except subprocess.TimeoutExpired:
-            return CommandResult(
-                command=command,
-                exit_code=124,
-                stdout="",
-                stderr=f"command timed out after {effective_timeout}s",
+            raw_stdout, raw_stderr = proc.stdout, proc.stderr
+        except subprocess.TimeoutExpired as exc:
+            # Preserve partial output truthfully; never destroy what ran.
+            timed_out = True
+            exit_code = 124
+            raw_stdout = _decode_partial(exc.stdout)
+            raw_stderr = _decode_partial(exc.stderr) + (
+                f"\n[harness] command timed out after {effective_timeout}s; "
+                "partial output above is preserved"
             )
+
+        stdout_total, stderr_total = len(raw_stdout), len(raw_stderr)
+        stdout, stdout_overflow = self._spooler.finalize(raw_stdout, "stdout")
+        stderr, stderr_overflow = self._spooler.finalize(raw_stderr, "stderr")
 
         after = _snapshot_mtimes(self._root)
 
@@ -175,6 +234,11 @@ class SubprocessExecutor:
             modified_paths=tuple(sorted(modified)),
             produced_artifacts=tuple(sorted(produced)),
             metrics={},
+            stdout_overflow_path=stdout_overflow,
+            stderr_overflow_path=stderr_overflow,
+            stdout_bytes_total=stdout_total,
+            stderr_bytes_total=stderr_total,
+            timed_out=timed_out,
         )
 
     # ---- Process management ------------------------------------------------

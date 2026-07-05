@@ -123,10 +123,19 @@ Added `tests/test_wording_sentinel.py`: a correct-but-differently-worded solutio
 - Added `tests/test_prompt_cache_stability.py` (3 tests): byte-identical prefix across all steps of a 4-step mutating run with exactly one trailing volatile message (with a self-guard that the packet actually varies), required-section presence, deterministic packet serialization.
 - Suite: **282 passed**. P1 complete.
 
+## P2f — Truthful full-output capture (2026-07-05) — DONE
+
+- Substrate fix in both executors (SubprocessExecutor + DockerExecExecutor): the old silent 20k truncation is gone. Streams ≤1MB are kept verbatim inline; beyond 1MB the COMPLETE stream is spooled to disk (`StreamSpooler`, tempdir per executor) and the inline text is a clearly marked head+tail naming the spool path. `CommandResult` gains `stdout/stderr_overflow_path`, `stdout/stderr_bytes_total`, `timed_out`.
+- Timeout no longer destroys output: partial stdout/stderr from `TimeoutExpired` is preserved with an explicit `[harness] ... partial output above is preserved` marker; exit 124 + `timed_out=True`.
+- Kernel `read_output`/`grep_output` transparently page/grep over the spool file when present; receipts carry overflow paths and true byte totals.
+- **Invariant repair found during testing:** `read_output`/`grep_output`/`read_file_page` were NOT in `ALWAYS_AVAILABLE_ACTION_KINDS` — a config that didn't grant them made handles unretrievable. Now always available (runtime_ir.py:68) with a comment pinning the invariant.
+- Tests: `tests/test_truthful_output_capture.py` (4): 100k verbatim (old cap would destroy), >1MB spool completeness + marked inline, timeout partial preservation, kernel page+grep across spooled stream by handle.
+- Suite: **286 passed**. Invariant 3 (no information destruction) now HOLDS at the substrate.
+
 ## BLOCKED
 
 (none)
 
 ## Next step
 
-P2f first (executor output truthfulness — substrate fix that P2d overlay execution will also depend on), then P2d/P2e.
+P2d: sandboxed verifier overlay execution.

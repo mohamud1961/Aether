@@ -19,6 +19,14 @@ class CommandResult:
     produced_artifacts: tuple[str, ...] = ()
     metrics: Mapping[str, float] = None  # type: ignore[assignment]
     provenance: tuple[str, ...] = ()
+    # Truthful capture beyond the inline cap: when a stream exceeds the
+    # inline retention bound, the FULL stream is spooled to this path and the
+    # inline field holds a marked head+tail.  Empty string = inline is full.
+    stdout_overflow_path: str = ""
+    stderr_overflow_path: str = ""
+    stdout_bytes_total: int = -1
+    stderr_bytes_total: int = -1
+    timed_out: bool = False
 
     @property
     def success(self) -> bool:
@@ -26,6 +34,10 @@ class CommandResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "metrics", dict(self.metrics or {}))
+        if self.stdout_bytes_total < 0:
+            object.__setattr__(self, "stdout_bytes_total", len(self.stdout))
+        if self.stderr_bytes_total < 0:
+            object.__setattr__(self, "stderr_bytes_total", len(self.stderr))
 
 
 @dataclass(frozen=True)

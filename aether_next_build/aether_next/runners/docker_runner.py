@@ -26,12 +26,11 @@ from ..execution import (
 from ..kernel import AetherNextKernel, KernelResult
 from ..model_hooks import ModelCallable, ModelHooks
 from ..real_executor import (
+    StreamSpooler,
     SubprocessExecutor,
+    _decode_partial,
     _resolve_safe,
     _snapshot_mtimes,
-    _truncate,
-    _STDOUT_CAP,
-    _STDERR_CAP,
     _SKIP_DIRS,
     _MAX_SCAN_ENTRIES,
 )
@@ -85,6 +84,7 @@ class DockerExecExecutor:
         self._host_exec = SubprocessExecutor(
             self._host_root, default_timeout_s=default_timeout_s,
         )
+        self._spooler = StreamSpooler()
 
     # ---- Filesystem (host-side, bind-mounted) --------------------------------
 
@@ -125,6 +125,7 @@ class DockerExecExecutor:
             self._container_id,
             "bash", "-lc", command,
         ]
+        timed_out = False
         try:
             proc = subprocess.run(
                 docker_cmd,
@@ -133,15 +134,19 @@ class DockerExecExecutor:
                 timeout=effective_timeout,
             )
             exit_code = proc.returncode
-            stdout = _truncate(proc.stdout, _STDOUT_CAP)
-            stderr = _truncate(proc.stderr, _STDERR_CAP)
-        except subprocess.TimeoutExpired:
-            return CommandResult(
-                command=command,
-                exit_code=124,
-                stdout="",
-                stderr=f"docker exec timed out after {effective_timeout}s",
+            raw_stdout, raw_stderr = proc.stdout, proc.stderr
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            exit_code = 124
+            raw_stdout = _decode_partial(exc.stdout)
+            raw_stderr = _decode_partial(exc.stderr) + (
+                f"\n[harness] docker exec timed out after {effective_timeout}s; "
+                "partial output above is preserved"
             )
+
+        stdout_total, stderr_total = len(raw_stdout), len(raw_stderr)
+        stdout, stdout_overflow = self._spooler.finalize(raw_stdout, "stdout")
+        stderr, stderr_overflow = self._spooler.finalize(raw_stderr, "stderr")
 
         after = _snapshot_mtimes(self._host_root)
 
@@ -161,6 +166,11 @@ class DockerExecExecutor:
             modified_paths=tuple(sorted(modified)),
             produced_artifacts=tuple(sorted(produced)),
             metrics={},
+            stdout_overflow_path=stdout_overflow,
+            stderr_overflow_path=stderr_overflow,
+            stdout_bytes_total=stdout_total,
+            stderr_bytes_total=stderr_total,
+            timed_out=timed_out,
         )
 
     # ---- Process management (inside Docker container) ------------------------

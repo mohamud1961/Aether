@@ -573,12 +573,31 @@ class AetherNextKernel:
             full = ""
             source_receipt = ""
             stream = ""
+            overflow = ""
             for receipt in ledger.all_receipts():
                 payload = receipt.payload or {}
                 if payload.get("stdout_handle") == handle:
-                    full = str(payload.get("stdout_full", "")); source_receipt = receipt.receipt_id; stream = "stdout"; break
+                    full = str(payload.get("stdout_full", "")); source_receipt = receipt.receipt_id; stream = "stdout"
+                    overflow = str(payload.get("stdout_overflow_path", ""))
+                    break
                 if payload.get("stderr_handle") == handle:
-                    full = str(payload.get("stderr_full", "")); source_receipt = receipt.receipt_id; stream = "stderr"; break
+                    full = str(payload.get("stderr_full", "")); source_receipt = receipt.receipt_id; stream = "stderr"
+                    overflow = str(payload.get("stderr_overflow_path", ""))
+                    break
+            if source_receipt and overflow:
+                # The complete stream was spooled to disk; serve from the spool
+                # so paging/grep operate on the full untruncated output.
+                try:
+                    with open(overflow, encoding="utf-8", errors="replace") as fh:
+                        full = fh.read()
+                except OSError as exc:
+                    return [Receipt(
+                        receipt_id=f"step-{step}:{action.action_id}:output", step=step,
+                        kind=kind, success=False,
+                        summary=f"output spool unreadable for handle {handle}: {exc}",
+                        failure_class="missing_context_handle",
+                        payload={"handle": handle, "overflow_path": overflow},
+                    )]
             if not source_receipt:
                 return [Receipt(
                     receipt_id=f"step-{step}:{action.action_id}:output", step=step,
@@ -667,8 +686,11 @@ class AetherNextKernel:
                 "stderr_full": result.stderr,
                 "stdout_handle": f"{step}:{action.action_id}:stdout",
                 "stderr_handle": f"{step}:{action.action_id}:stderr",
-                "stdout_bytes": len(result.stdout),
-                "stderr_bytes": len(result.stderr),
+                "stdout_bytes": result.stdout_bytes_total,
+                "stderr_bytes": result.stderr_bytes_total,
+                "stdout_overflow_path": result.stdout_overflow_path,
+                "stderr_overflow_path": result.stderr_overflow_path,
+                "timed_out": result.timed_out,
                 "modified_paths": tuple(
                     normalize_relpath(p, envmap.workspace_root) for p in result.modified_paths
                 ),

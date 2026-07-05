@@ -73,6 +73,12 @@ ALWAYS_AVAILABLE_ACTION_KINDS = frozenset({
     "report_blocker",
     "inspect_checks",
     "run_check",
+    # Information-retrieval primitives: full outputs and files must always be
+    # retrievable by handle regardless of the configured tool subset -- no
+    # configuration may reintroduce information destruction.
+    "read_output",
+    "grep_output",
+    "read_file_page",
 })
 KERNEL_INTERNAL_ACTION_KINDS = frozenset({"register_candidate", "run_experiment"})
 
