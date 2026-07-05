@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: launch canonical Aether-Next 10-task VM batch with gpt-5.4-mini
+- event_type: experiment
+- summary: Launched a fresh canonical Aether-Next VM batch across three parallel lanes covering 10 official TerminalBench tasks, excluding the three already-run calibration tasks.
+- observations: VM preflight passed for Docker, Python 3.11, official_tasks checkout, and model env file. The VM initially had only 7 eligible non-current tasks; I synced configure-git-webserver, video-processing, and install-windows-3.11 from the local official_tasks tree to restore a full 10-task set. Launched three detached canonical run_pilot lanes under /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260703T155505Z_canonical_aether_10task_vm_54mini_highcap with lane_a pid 1432906, lane_b pid 1432907, lane_c pid 1432908. Launch sanity check showed lane_a started fix-git, lane_b started constraints-scheduling, and lane_c started configure-git-webserver.
+- inference: The batch is live with controlled parallelism rather than a single sequential sweep, preserving canonical Aether-Next ownership while increasing throughput. Current runner semantics still require an integer max_steps, so this batch uses a raised ceiling of 200 instead of the prior short calibration cap.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/official_tasks/configure-git-webserver ; /Users/mohamud/Downloads/harnesseng/official_tasks/video-processing ; /Users/mohamud/Downloads/harnesseng/official_tasks/install-windows-3.11 ; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260703T155505Z_canonical_aether_10task_vm_54mini_highcap/launch_manifest.json ; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260703T155505Z_canonical_aether_10task_vm_54mini_highcap/lane_a/runner.log ; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260703T155505Z_canonical_aether_10task_vm_54mini_highcap/lane_b/runner.log ; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260703T155505Z_canonical_aether_10task_vm_54mini_highcap/lane_c/runner.log
+- affected_components: official_tasks VM checkout ; aether_next_build/run_pilot.py ; VM canonical run orchestration ; tracking/ledger/inbox
+- decision_change: none
+- unresolved_questions: Whether any lane fails early on environment/task pressure; whether the 200-step ceiling is materially hit on any task; how many of the newly-synced heavy/service tasks produce valid rows versus environment failures.
+- confidence: high
+- commit_message: HOLD - 10-task canonical VM batch is still running

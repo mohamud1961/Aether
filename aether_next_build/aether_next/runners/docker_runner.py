@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import json as _json
 import os
+import re
 import shutil
 import signal
 import subprocess
 import tempfile
 import uuid
-import tomllib
 from contextlib import contextmanager
 from pathlib import Path
 import logging
@@ -36,6 +36,7 @@ from ..real_executor import (
 )
 from ..run_adapter import ensure_certified_architect_mode, workbench_architect_for
 from ..runtime_ir import EnvMap, normalize_relpath
+from ..task_metadata_loader import load_task_instruction, load_task_metadata
 from .docker_helpers import detect_grader_command, ensure_image_available, seed_workspace_from_image
 
 # Prevent git "dubious ownership" on bind-mounted workspaces (uid mismatch).
@@ -43,13 +44,7 @@ _GIT_SAFE_DIR_CMD = "git config --global --add safe.directory '*' || true"
 
 
 def _load_task_toml(task_dir: str) -> dict[str, Any]:
-    path = Path(task_dir) / "task.toml"
-    if not path.exists():
-        return {}
-    try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+    return load_task_metadata(task_dir)
 
 
 class KernelRunTimeout(TimeoutError):
@@ -76,6 +71,46 @@ def _effective_run_timeout_s(run_timeout_s: int, task_toml: dict[str, Any]) -> t
         f"task_declared={declared}; runner_floor={run_timeout_s}; "
         f"cap={_MAX_RUN_TIMEOUT_S}; effective={effective}"
     )
+
+
+def _resolve_grader_reward(
+    *,
+    container_id: str,
+    task_dir: str,
+    grader_exit: int,
+    grader_error: str | None,
+) -> tuple[float, str | None, str]:
+    """Resolve the official grader reward for supported task layouts.
+
+    Mirrored ``task.toml`` tasks may write ``/logs/verifier/reward.txt``.
+    Official YAML tasks commonly expose pass/fail through ``run-tests.sh``'s
+    exit code and do not write a reward file.  Treating that missing file as a
+    grader failure turns genuine passes into invalid rows, so the fallback is
+    layout-specific rather than global.
+    """
+    if grader_error is not None:
+        return 0.0, grader_error, "grader_error"
+
+    try:
+        rp = subprocess.run(
+            ["docker", "exec", container_id, "cat", "/logs/verifier/reward.txt"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=10,
+        )
+    except Exception:
+        rp = None
+
+    if rp is not None and rp.returncode == 0 and rp.stdout.strip():
+        return (1.0 if rp.stdout.strip() == "1" else 0.0), None, "reward_txt"
+
+    if (Path(task_dir) / "run-tests.sh").exists():
+        return (1.0 if grader_exit == 0 else 0.0), None, "official_run_tests_exit_code"
+
+    if rp is None:
+        return 0.0, "reward.txt unreadable", "reward_txt_error"
+    return 0.0, "reward.txt missing or empty", "reward_txt_missing"
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +285,18 @@ class DockerExecExecutor:
         )
 
     def probe_process(self, target: str) -> ProbeResult:
+        """Probe a live service endpoint or named process inside the container.
+
+        ``probe_service`` is the solver-visible affordance for service liveness.
+        A target shaped like ``host:port`` or ``port`` must test the TCP endpoint,
+        not look for a process command line containing that literal string.
+        """
+        tcp_target = _parse_tcp_probe_target(target)
+        if tcp_target is not None:
+            return self._probe_tcp_endpoint(target, *tcp_target)
+        return self._probe_process_name(target)
+
+    def _probe_process_name(self, target: str) -> ProbeResult:
         """Probe whether a named process is running inside the container."""
         docker_cmd = [
             "docker", "exec", self._container_id,
@@ -274,6 +321,43 @@ class DockerExecExecutor:
                 target=target,
                 live=False,
                 detail="probe timed out",
+                service_name=target,
+            )
+
+    def _probe_tcp_endpoint(self, target: str, host: str, port: int) -> ProbeResult:
+        code = (
+            "import socket,sys\n"
+            "s=socket.socket()\n"
+            "s.settimeout(5)\n"
+            f"rc=s.connect_ex(({host!r},{port}))\n"
+            "s.close()\n"
+            "print('open' if rc == 0 else f'closed rc={rc}')\n"
+            "sys.exit(0 if rc == 0 else 1)\n"
+        )
+        docker_cmd = [
+            "docker", "exec", self._container_id,
+            "python3", "-c", code,
+        ]
+        try:
+            proc = subprocess.run(
+                docker_cmd,
+                capture_output=True,
+                text=True, errors="replace",
+                timeout=10,
+            )
+            alive = proc.returncode == 0
+            detail = (proc.stdout or proc.stderr).strip()
+            return ProbeResult(
+                target=target,
+                live=alive,
+                detail=detail or ("open" if alive else "closed"),
+                service_name=target,
+            )
+        except subprocess.TimeoutExpired:
+            return ProbeResult(
+                target=target,
+                live=False,
+                detail="tcp probe timed out",
                 service_name=target,
             )
 
@@ -320,6 +404,59 @@ def _latest_model_verifier_verdict(result: KernelResult) -> str:
             return str(receipt.failure_class)
         return ""
     return ""
+
+
+def _classification_fields_for_record(
+    *,
+    classification: Any,
+    result: KernelResult,
+    reward: float,
+    grader_error: str | None,
+    kernel_timed_out: bool,
+) -> tuple[str, str, str, str]:
+    record_status = result.status
+    classifier_label = classification.label
+    classifier_confidence = classification.confidence
+    classifier_detail = classification.detail
+    if grader_error is not None:
+        record_status = "grader_error"
+        classifier_label = "timeout_resource_failure" if "timeout" in grader_error else "grader_failure"
+        classifier_confidence = "high"
+        classifier_detail = grader_error
+    elif kernel_timed_out and reward >= 1.0:
+        classifier_label = "none"
+        classifier_confidence = "high"
+        classifier_detail = (
+            "official grader passed after kernel timeout; task state was solved, "
+            "but the agent loop remained step/time inefficient"
+        )
+    return record_status, classifier_label, classifier_confidence, classifier_detail
+
+
+def _parse_tcp_probe_target(target: str) -> tuple[str, int] | None:
+    raw = str(target or "").strip()
+    if not raw:
+        return None
+    if raw.isdigit():
+        port = int(raw)
+        if 0 < port <= 65535:
+            return ("127.0.0.1", port)
+        return None
+    # Keep process names such as "python3 server.py" on the process-probe path.
+    if any(ch.isspace() for ch in raw):
+        return None
+    host, sep, port_text = raw.rpartition(":")
+    if not sep or not port_text.isdigit():
+        return None
+    # Avoid treating arbitrary labels with colons as TCP unless the endpoint is
+    # plausibly host-like. This remains generic and task-agnostic.
+    clean_host = host.strip() or "127.0.0.1"
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", clean_host):
+        return None
+    port = int(port_text)
+    if not 0 < port <= 65535:
+        return None
+    return clean_host, port
 
 
 def _docker_snapshot(container_id: str, dest: str) -> None:
@@ -421,11 +558,7 @@ def run_tbench_task(
         )
 
         # -- 3. Build kernel inputs and run -----------------------------------
-        instruction_path = Path(task_dir) / "instruction.md"
-        if instruction_path.exists():
-            instruction_text = instruction_path.read_text(encoding="utf-8")
-        else:
-            instruction_text = f"Complete the task described in /task/."
+        instruction_text = load_task_instruction(task_dir)
 
         envmap = build_envmap_from_task(
             workspace_dir,
@@ -476,29 +609,29 @@ def run_tbench_task(
         if trace_dir is not None:
             from ..tracing import RunTrace
             run_trace = RunTrace()
+        kernel_timed_out = False
+        kernel_timeout_detail = ""
 
         try:
             with _scoped_verifier_evidence_dir(task_name), _kernel_wall_timeout(run_timeout_s):
                 result = kernel.run(envmap, executor, hooks, trace=run_trace)
         except KernelRunTimeout as exc:
-            record = _timeout_record(
-                task_name,
-                image,
-                f"kernel_timeout_after_{run_timeout_s}s",
-                str(exc),
-                trace_dir=trace_dir,
+            # The agent phase has TERMINATED (by wall clock).  The official
+            # grader runs after termination regardless of the reason -- a
+            # timeout must never discard real completed state as reward 0.0
+            # without scoring it (observed live: headless-terminal and
+            # kv-store-grpc timed out with gate-ready workspaces and were
+            # recorded as failures without ever being graded).
+            timeout_steps = len(run_trace.steps) if run_trace is not None and hasattr(run_trace, "steps") else 0
+            result = KernelResult(
+                status="timeout",
+                step=timeout_steps,
+                reconfigurations=0,
+                blockers=(f"kernel_timeout_after_{run_timeout_s}s",),
+                receipts=(),
             )
-            if trace_dir is not None and run_trace is not None:
-                _write_trace_file_to_record(
-                    record,
-                    trace_dir,
-                    task_name,
-                    image,
-                    reward=0.0,
-                    status="timeout",
-                    run_trace=run_trace,
-                )
-            return record
+            kernel_timed_out = True
+            kernel_timeout_detail = str(exc)
 
         # Capture final workspace snapshot if requested.
         if snapshot_dir and container_id:
@@ -540,19 +673,12 @@ def run_tbench_task(
             grader_stderr = str(exc.stderr or "")[-4000:]
             grader_error = f"grader_timeout_after_{run_timeout_s}s"
 
-        # Read authoritative reward (grader exit code is unreliable).
-        reward = 0.0
-        if grader_error is None:
-            try:
-                rp = subprocess.run(
-                    ["docker", "exec", container_id, "cat", "/logs/verifier/reward.txt"],
-                    capture_output=True, text=True, errors="replace", timeout=10)
-                if rp.returncode == 0 and rp.stdout.strip():
-                    reward = 1.0 if rp.stdout.strip() == "1" else 0.0
-                else:
-                    grader_error = "reward.txt missing or empty"
-            except Exception:
-                grader_error = "reward.txt unreadable"
+        reward, grader_error, reward_source = _resolve_grader_reward(
+            container_id=container_id,
+            task_dir=task_dir_abs,
+            grader_exit=grader_exit,
+            grader_error=grader_error,
+        )
 
         # Capture CTRF detail if present (optional).
         grader_detail: dict[str, Any] | None = None
@@ -573,15 +699,18 @@ def run_tbench_task(
         # -- 5. Classify -------------------------------------------------------
         classifier = HarnessLimiterClassifier()
         classification = classifier.classify(result)
-        record_status = result.status
-        classifier_label = classification.label
-        classifier_confidence = classification.confidence
-        classifier_detail = classification.detail
-        if grader_error is not None:
-            record_status = "grader_error"
-            classifier_label = "timeout_resource_failure" if "timeout" in grader_error else "grader_failure"
-            classifier_confidence = "high"
-            classifier_detail = grader_error
+        (
+            record_status,
+            classifier_label,
+            classifier_confidence,
+            classifier_detail,
+        ) = _classification_fields_for_record(
+            classification=classification,
+            result=result,
+            reward=reward,
+            grader_error=grader_error,
+            kernel_timed_out=kernel_timed_out,
+        )
         verifier_verdict = _latest_model_verifier_verdict(result)
 
         record: dict[str, Any] = {
@@ -601,6 +730,7 @@ def run_tbench_task(
             "classifier_detail": classifier_detail,
             "model_parse_errors": list(hooks.last_parse_errors),
             "grader_exit": grader_exit,
+            "reward_source": reward_source,
             "grader_stdout_tail": grader_stdout, "grader_stderr_tail": grader_stderr,
             "receipt_summary": _receipt_summary(result),
             "run_provenance": dict(run_provenance or {}),
@@ -617,6 +747,10 @@ def run_tbench_task(
             record["grader_error"] = grader_error
         if grader_detail is not None:
             record["grader_detail"] = grader_detail
+        if kernel_timed_out:
+            record["error"] = f"kernel_timeout_after_{run_timeout_s}s"
+            record["error_detail"] = kernel_timeout_detail
+            record["graded_after_timeout"] = True
 
         # Write trace file when trace capture is enabled.
         if trace_dir is not None and run_trace is not None:

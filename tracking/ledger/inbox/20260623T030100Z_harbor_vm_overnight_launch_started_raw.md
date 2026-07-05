@@ -1,0 +1,28 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor VM overnight board launch
+- event_type: experiment
+- summary: Launched the VM-resident Harbor overnight supervisor for the approved two-board Aether Harbor sequence on `harnesseng-regular-01`.
+- observations:
+  - Supervisor launched under `nohup` with run prefix `20260623T0300Z_aether2_harbor_overnight`.
+  - Supervisor PID observed: `5049`.
+  - Active board runner PID observed: `5060`.
+  - Active Harbor child observed running `qemu-startup/off/rep1` for board 1 under the official Harbor binary and `--agent-import-path runner.adapters.harbor_agent:Aether2HarborAgent`.
+  - Supervisor state file `/tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_overnight_supervisor/state.json` reports `running:board1_gpt53codex`.
+  - Board 1 output root and manifest were created before handoff, with `model_tier=gpt53-codex`, conditions `off,receipt_driven_full`, and the approved 5-task sentinel list.
+- inference: The overnight lane is now durable and no longer depends on the Mac staying connected; board 2 will queue from the VM-local supervisor after board 1 completes.
+- evidence_paths:
+  - `/tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_overnight_supervisor/state.json`
+  - `/tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_overnight_supervisor/nohup.log`
+  - `/tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_overnight_supervisor/board1_gpt53codex.log`
+  - `/tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_board1_gpt53codex/board_manifest.json`
+  - `tracking/collab/opus_codex_harbor_vm/live_state.md`
+- affected_components:
+  - Harbor VM overnight supervisor
+  - Harbor board launch evidence
+- decision_change: Transition from pre-launch validation to unattended VM monitoring and row-by-row audit of the live Harbor board outputs.
+- unresolved_questions:
+  - Whether the first qemu row stays valid through grading.
+  - Whether any heavy board-2 tasks should later be split into a separate shard for runtime stability.
+- confidence: high
+- commit_message: HOLD - active overnight Harbor VM boards still running

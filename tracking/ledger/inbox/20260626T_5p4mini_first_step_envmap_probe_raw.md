@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: assess whether 5.4 mini can be probed for first-step task understanding on hard TBench tasks using envmap + prompt
+- event_type: source_analysis
+- summary: The repo already supports the exact shape needed for a first-step understanding probe: model-authored task operating contracts, solver-visible orientation/env snapshots, bounded worker packets with explicit scope/evidence expectations, and a model-authored runtime compiler hypothesis built around task_prompt + envmap.
+- observations: task_operating_contract.py requests a short contract from visible task context only; prompts.py requires early task-contract authoring, evidence-first completion, and no blind repeats; agents/task.py defines WorkerTaskPacket with objective, prompt, scope, exit criteria, evidence expectations, ownership, and max_turns; the Aether-Next hypothesis doc explicitly states the first model call receives task prompt + envmap and should output semantic analysis, config, system prompt, evidence plan, and first context request.
+- inference: A clean way to test 5.4 mini is to run a bounded one-turn or near-one-turn subagent against a hard task, feed it the full solver-visible envmap, and score whether its first response correctly extracts the task contract, identifies true risks, avoids proxy evidence, and chooses a sensible initial evidence plan. This probes first-step orientation, not full task completion.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/harness/aether2/control/task_operating_contract.py; /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/prompts.py; /Users/mohamud/Downloads/harnesseng/harness/aether2/agents/task.py; /Users/mohamud/Downloads/harnesseng/tracking/collab/aether_next_pro_build/AETHER_NEXT_MODEL_AUTHORED_RUNTIME_COMPILER_HYPOTHESIS.md
+- affected_components: Aether-2 prompting, worker task packets, env/orientation snapshots, Aether-Next architecture hypothesis
+- decision_change: Treat this as a first-step comprehension eval rather than evidence of full solve capability.
+- unresolved_questions: Which exact hard task should serve as the probe row; whether the scoring rubric should reward contract extraction, envmap use, risk detection, and evidence-plan quality separately; whether to cap the worker at one turn or allow one repair turn.
+- confidence: high
+- commit_message: HOLD - research synthesis only, no tracked file changes

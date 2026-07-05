@@ -1,0 +1,33 @@
+RAW_LEDGER_UPDATE
+- actor: 5.4-mini VM monitor
+- task: Monitor Aether-Next batch vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix on azureuser@20.106.35.151
+- event_type: experiment
+- summary: Monitored the three launched lane runs until all produced terminal result rows.
+- observations:
+  - video-processing ended with `status=grader_error`, `reward=0.0`, `kernel_status=solver_submit_stalemate`, `classifier_label=grader_failure`, `grader_exit=1`, and `trace_path=vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/video-processing/traces/video-processing.trace.json`.
+  - nginx-request-logging ended with `status=grader_error`, `reward=0.0`, `kernel_status=solver_submit_stalemate`, `classifier_label=grader_failure`, `grader_exit=0`, and `trace_path=vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/nginx-request-logging/traces/nginx-request-logging.trace.json`.
+  - log-summary-date-ranges ended with `status=grader_error`, `reward=0.0`, `kernel_status=solver_submit_stalemate`, `classifier_label=grader_failure`, `grader_exit=0`, and `trace_path=vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/log-summary-date-ranges/traces/log-summary-date-ranges.trace.json`.
+  - All three lanes wrote `results.json`, `runner.log`, and one trace JSON each; no active trace/snapshot generation was still running at closeout.
+  - Remote process checks showed no tracked PID or `run_pilot.py` process remained active at handoff.
+- inference:
+  - This was a real VM attempt batch, not a launch detach failure. The runs progressed into solver/verifier/grader work and reached terminal rows.
+  - Failure modes were task-specific: video-processing hit a TypeError in the test suite; nginx-request-logging and log-summary-date-ranges both passed their visible tests but still failed overall because `reward.txt` was missing or empty.
+- evidence_paths:
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/video-processing/results.json
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/video-processing/runner.log
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/video-processing/traces/video-processing.trace.json
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/nginx-request-logging/results.json
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/nginx-request-logging/runner.log
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/nginx-request-logging/traces/nginx-request-logging.trace.json
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/log-summary-date-ranges/results.json
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/log-summary-date-ranges/runner.log
+  - /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix/log-summary-date-ranges/traces/log-summary-date-ranges.trace.json
+- affected_components:
+  - VM monitoring
+  - lane result capture
+  - raw ledger inbox
+- decision_change: None
+- unresolved_questions:
+  - Whether upstream wants a deeper trace audit of the video-processing TypeError or a follow-on repair Goal for the failing lane.
+- confidence: high
+- commit_message: HOLD - monitoring handoff only

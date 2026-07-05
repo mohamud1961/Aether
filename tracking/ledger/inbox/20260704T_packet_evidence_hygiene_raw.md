@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next verifier packet evidence hygiene and legacy proof-contract demotion
+- event_type: implementation
+- summary: Updated the active reset/canonical plans with verifier packet evidence-hygiene requirements, removed proof_contract_analysis from active verifier packets, moved solver command/check history under solver_authored_evidence with authority=audit_trail_only, and added regression coverage forbidding solver_claim, submit_summary, proof_contract_analysis, and privileged solver-proof fields in verifier packets.
+- observations: The packet now keeps raw state fields such as artifact_evidence and latest_file_reads top-level, while solver actions, command output, and failed/empty local checks are grouped under solver_authored_evidence. The proof_contract module still exists for legacy/reference tests, but its analysis is no longer injected into the verifier packet. Focused verifier/runtime tests passed: `python3 -m pytest -q tests/test_vnext_memory_context_verifier.py tests/test_runtime_enforcement.py tests/test_model_hooks.py` -> 71 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 284 passed.
+- inference: This removes the most dangerous remaining active packet contamination path without starving the verifier of useful solver history. It does not finish legacy cleanup: proof_contract.py, reference architect modes, safe-default legacy paths, and completion-gate/auto-submit reference surfaces still need quarantine/deletion work.
+- evidence_paths: aether_next_build/aether_next/verifier_packets.py; aether_next_build/aether_next/runtime_manual.py; aether_next_build/tests/test_vnext_memory_context_verifier.py; aether_next_build/tests/test_runtime_enforcement.py; tracking/collab/aether_next_reset_goal_20260703.md; aether_next_build/AETHER_NEXT_CANONICAL_IMPLEMENTATION_PLAN.md; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: verifier packet schema; verifier evidence hierarchy; proof_contract active verifier exposure; reset goal governance; canonical implementation plan
+- decision_change: Verifier packet hygiene is now a required plan slice. Solver-authored checks/commands are audit trail only, and proof_contract_analysis is removed from verifier judgment context rather than merely treated as evidence.
+- unresolved_questions: Whether proof_contract.py should be physically deleted next or moved to a clearly non-certified reference/archive location; whether reference architect modes should remain importable behind the debug flag or be moved outside the canonical package.
+- confidence: high
+- commit_message: HOLD - packet evidence hygiene implemented but broader legacy quarantine remains active goal work

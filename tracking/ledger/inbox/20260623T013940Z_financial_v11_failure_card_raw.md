@@ -1,0 +1,32 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: post-sprint forensic audit
+- event_type: failure
+- summary: The latest financial `receipt_driven_full` row reached real PDF evidence and correct partial invoice extraction, but failed after moving every file into `/app/invoices/` and still lacking JPG OCR evidence.
+- observations:
+  - `0001_action_run_command` enumerated all 17 files and generated `/inspect` commands for each.
+  - `0002` through `0018` inspected all 17 artifacts.
+  - PDF inspections returned real text for `T0r6Ou8zvqTA.pdf`, `UsN9tVTKskms.pdf`, `dx0AWchV01ZJ.pdf`, and `wIQEB5nR79b2.pdf`.
+  - JPG inspections returned `OCR backend unavailable`.
+  - `0019_action_run_command` moved every file into `invoices/`, not the derived invoice/other split.
+  - `0020_action_run_command` tried `python3` despite orientation showing `python3` missing.
+  - Verifier feedback named `other_folder_not_populated`, `source_directory_emptiness_unconfirmed`, `total_vs_amount_due_unverified`, and `document_classification_incomplete`.
+- inference: The row is no longer blocked on basic Harbor wiring or tool salience. The smallest remaining harness gap is image evidence acquisition; the decisive row-local mistake was a model strategy error after partial proof acquisition.
+- evidence_paths:
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0001_action_run_command/content
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0009_action_inspect_artifact/content
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0018_action_inspect_artifact/content
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0019_action_run_command/content
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0020_action_run_command/content
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/tmp/harbor_workspace_mirror/classification.txt
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/verifier/test-stdout.txt
+- affected_components:
+  - inspect_artifact / OCR path
+  - financial task evidence acquisition
+  - verifier continuation feedback
+- decision_change: Do not broad-board this family yet; patch image evidence first, then rerun narrowly.
+- unresolved_questions:
+  - Is a generic in-container OCR backend enough, or does this family need a task-local image inspection helper?
+  - Should the harness make “do not move before classification split is proven” more explicit in the generated solver prompt?
+- confidence: high
+- commit_message: NONE - no tracked file changes

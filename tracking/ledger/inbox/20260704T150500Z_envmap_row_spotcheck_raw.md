@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: EnvMap row-confidence spot check for Aether-Next reset plan
+- event_type: source_analysis
+- summary: Spot-checked four EnvMap audit rows against live official task workspaces to validate whether the deterministic board is trustworthy beyond aggregate counts.
+- observations: adaptive-rejection-sampler accurately reflects a genuinely sparse workspace; constraints-scheduling accurately flags a prompt-declared output path that is absent from the initial workspace, but this is expected for a deliverable-generation task; schemelike-metacircular-eval accurately reflects a heavy visible test surface; fix-git remains a reasonable no-flag control row.
+- inference: The EnvMap audit board is mechanically trustworthy at the row level for the checked tasks, but prompt_declared_output_not_visible should be interpreted as a task-shape/planning signal rather than automatically as a harness surfacing defect.
+- evidence_paths: aether_next_build/envmap_audit_20260704_goal_v1/envmap_audit_rows.json; aether_next_build/envmap_audit_20260704_goal_v1/ENVMAP_AUDIT_REPORT.md; aether_next_build/ENVMAP_SPOTCHECK_20260704.md; official_tasks/adaptive-rejection-sampler; official_tasks/constraints-scheduling; official_tasks/schemelike-metacircular-eval; official_tasks/fix-git
+- affected_components: aether_next_build/run_envmap_audit.py; aether_next_build/envmap_audit_20260704_goal_v1; EnvMap planning interpretation
+- decision_change: The reset plan should treat the EnvMap board as strong planning evidence, with an explicit caveat on how prompt-output mismatch rows are read.
+- unresolved_questions: Whether additional spot checks are needed on tasks with hidden tooling pressure but no current risk flags.
+- confidence: medium-high
+- commit_message: HOLD - evidence/report slice only, not a commit-ready code change

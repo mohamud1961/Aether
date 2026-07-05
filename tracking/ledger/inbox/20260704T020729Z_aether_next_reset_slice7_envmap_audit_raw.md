@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether-next reset slice 7 envmap deterministic audit and tooling hardening
+- event_type: implementation
+- summary: Added deterministic EnvMap audit coverage across every indexed official task in the active checkout, updated Slice 7 plan ownership to require that audit, and hardened EnvMap/environment probing to surface instruction-derived tool hints into environment probing.
+- observations: `official_tasks/tasks_index.json` is a list with 90 indexed tasks in this checkout; `aether_next_build/run_envmap_audit.py` produced a 90-task deterministic board; latest audit summary shows 59 `sparse_visible_workspace` flags, 58 `deliverable_pressure_with_few_input_hints` flags, 54 tasks with tooling hints, and zero truncated file trees; broader targeted Aether-Next test sweep passed after EnvMap changes; the `tracking/ledger/tools/record_update.py` path named in `AGENTS.md` is absent from the current tree, so this raw update was persisted directly into the inbox.
+- inference: The current dominant deterministic risk is not file-tree truncation but thin structured surfacing for many environment-only workspaces, so later tooling failures should be analyzed first against EnvMap visibility and command probing before attributing them to model incapability.
+- evidence_paths: `tracking/collab/aether_next_reset_goal_20260703.md`; `aether_next_build/run_envmap_audit.py`; `aether_next_build/envmap_audit_20260704_v3/ENVMAP_AUDIT_REPORT.md`; `aether_next_build/envmap_audit_20260704_v3/envmap_audit_summary.json`; `aether_next_build/aether_next/envmap_builder.py`; `aether_next_build/aether_next/environment_probe.py`; `aether_next_build/aether_next/runners/docker_runner.py`
+- affected_components: `aether_next_build/aether_next/envmap_builder.py`; `aether_next_build/aether_next/environment_probe.py`; `aether_next_build/aether_next/runners/docker_runner.py`; `tracking/collab/aether_next_reset_goal_20260703.md`
+- decision_change: Slice 7 explicitly includes deterministic EnvMap audit across every indexed official task before broader tooling conclusions are trusted.
+- unresolved_questions: whether additional deterministic hints beyond tool/language/output-path extraction are needed; whether EnvMap should surface stronger likely-input/deliverable structure for sparse workspace tasks.
+- confidence: high
+- commit_message: HOLD - slice 7 envmap audit and tooling hardening still in progress

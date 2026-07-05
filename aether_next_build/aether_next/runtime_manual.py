@@ -231,6 +231,39 @@ def build_runtime_manual() -> dict[str, Any]:
                 "Completion must not be provable only by source-text or syntax checks when the task requires semantic, executable, visual, service, cryptographic, data, or artifact behavior.",
             ],
         },
+        "perception_and_artifact_extraction": {
+            "metadata_is_not_semantics": True,
+            "inspect_artifact_metadata_fields": [
+                "existence",
+                "file_type",
+                "size",
+                "sha256",
+                "permissions",
+                "owner",
+                "image_dimensions_when_tooling_exists",
+            ],
+            "semantic_extraction_rule": (
+                "For image, OCR, video, chart, screenshot, or code-from-image tasks, "
+                "architect guidance must name a real extraction route grounded in "
+                "envmap.environment_probe or state that semantic extraction is unavailable."
+            ),
+            "not_completion_evidence": [
+                "file dimensions",
+                "MIME type",
+                "file size",
+                "metadata-only inspect_artifact success",
+                "same-method recomputation",
+            ],
+            "solver_guidance_requirement": (
+                "Require raw semantic content extraction, independent validation of the "
+                "transcribed/derived artifact, and preservation of extraction evidence."
+            ),
+            "verifier_guidance_requirement": (
+                "Before completed on visual/OCR/media tasks, inspect current state for "
+                "fresh extraction evidence and do not accept metadata-only probes as "
+                "semantic proof."
+            ),
+        },
         "solver_prompt_requirements": {
             "quality_target": "Elite task-specific prompt, typically 600-1200 words for non-trivial tasks.",
             "verification_first_style": [

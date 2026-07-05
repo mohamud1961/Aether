@@ -1,0 +1,23 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: post-upgrade Harbor validation lane phase 0 evidence preservation
+- event_type: implementation
+- summary: Preserved the surviving overnight Harbor board evidence locally before further validation work.
+- observations:
+  - VM `20.106.35.151` still retained `/tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_board1_gpt53codex`, `...board2_gpt54mini`, and the overnight supervisor root.
+  - Mirrored those roots into `tracking/local_runs/20260623T0300Z_aether2_harbor_overnight_board1_gpt53codex`, `tracking/local_runs/20260623T0300Z_aether2_harbor_overnight_board2_gpt54mini`, and `tracking/local_runs/20260623T0300Z_aether2_harbor_overnight_supervisor`.
+  - Local mirrors now contain `board_manifest.json`, `board_rows.jsonl`, `board_summary.json`, row-isolation receipts, and supervisor state/logs.
+- inference: The overnight board evidence surface is no longer dependent on the VM staying alive.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/tracking/local_runs/20260623T0300Z_aether2_harbor_overnight_board1_gpt53codex
+  - /Users/mohamud/Downloads/harnesseng/tracking/local_runs/20260623T0300Z_aether2_harbor_overnight_board2_gpt54mini
+  - /Users/mohamud/Downloads/harnesseng/tracking/local_runs/20260623T0300Z_aether2_harbor_overnight_supervisor
+  - /Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/harbor_vm_forensic_audit_20260623T0300Z_aether2_harbor_overnight.md
+- affected_components:
+  - tracking/local_runs
+  - tracking/collab/opus_codex_harbor_vm
+- decision_change: None; this preserves evidence only and does not reclassify the overnight board.
+- unresolved_questions:
+  - None for preservation; later audit still decides what remains usable as diagnostic evidence.
+- confidence: high
+- commit_message: HOLD - evidence preservation only, no commit requested

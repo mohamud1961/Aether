@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: 5.4-mini measurement worker
+- task: rerun targeted original_repo_recovery_flagship eval after trace-enrichment event-type repair
+- event_type: experiment
+- summary: Single targeted rerun completed successfully after the trace event typing fix. The synthetic trace now counts reasoning-derived tool activity as event_type=tool_call with source_event_type=reasoning_tool_call, and the visible verifier and grader both passed.
+- observations: The run produced 26 synthetic trace events total: 1 model_attempt, 7 reasoning_step, 17 tool_call, and 1 visible_verifier. attempt_rows.jsonl reports execution_status=completed, model_calls=13, steps=8, visible_verifier passed, grader passed, and official_score=1.0. run_result.json shows verifier_clean=false despite the external verifier/grader pass. The visible verifier output contained VISIBLE_PASS.
+- inference: The event-type repair fixed the measurement issue that previously undercounted reasoning-tool events; this rerun is a valid pass rather than a false negative caused by trace labeling.
+- evidence_paths: tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/run_summary.json; tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/scoreboard.json; tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/attempt_rows.jsonl; tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/attempts/original_repo_recovery_flagship/artifacts/synthetic_trace.json; tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/attempts/original_repo_recovery_flagship/artifacts/visible_verifier_output.txt; tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/attempts/original_repo_recovery_flagship/artifacts/grader_output.json; tracking/local_runs/custom_eval_targeted/20260620T170813Z_original_repo_tool_call_trace_rerun/attempts/original_repo_recovery_flagship/artifacts/model_run/run_result.json
+- affected_components: tools/run_custom_eval_board.py measurement path; synthetic trace emission; task-pack eval row accounting
+- decision_change: Keep the trace-enrichment repair as a valid measurement fix; no new capability failure was exposed by this rerun.
+- unresolved_questions: The row metadata still carries verifier_acceptance=false / verifier_feedback="Pending visible verifier run." even though the visible verifier artifact and grader both pass; confirm whether that field is intentionally stale or just non-authoritative.
+- confidence: high
+- commit_message: NONE - no tracked file changes

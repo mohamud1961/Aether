@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Tier 0.5 Harbor durability, sanitization, and instrumentation seam
+- event_type: implementation
+- summary: Completed the local Tier 0.5 slice for Harbor reruns by adding durable artifact mirroring, output-root preflight, dynamic metadata sanitization across all model-visible surfaces, and cheap telemetry/RUN_DECISION seams for later analysis.
+- observations: scripts/run_harbor_ab_board_vm.sh now performs a write/delete probe on the board output root and mirrors board artifacts after summary generation. scripts/mirror_harbor_vm_artifacts.sh supports selective local trace-tree mirroring plus an Azure run-command archive fetch path. harness/aether2/runtime/context.py now redacts dynamic task/run/condition/suite/row/output/source literals beyond the static denylist, and harness/aether2/traces/receipt_store.py now routes receipt-context sanitization through the same chokepoint. harness/aether2/control/loop.py records run_telemetry receipts at closeout, and harness/aether2/runtime/harbor_backend.py now emits RUN_DECISION.md with telemetry plus terminal model-limited failure classes.
+- inference: The rerun lane now has durable evidence plumbing, a stronger model-visible metadata gate, and enough cheap telemetry to analyze future efficiency/proof-progress regressions without retrofitting the trace format later.
+- evidence_paths: scripts/run_harbor_ab_board_vm.sh; scripts/mirror_harbor_vm_artifacts.sh; harness/aether2/runtime/context.py; harness/aether2/traces/receipt_store.py; harness/aether2/control/loop.py; harness/aether2/runtime/harbor_backend.py; tests/test_receipt_driven_full_build.py; tests/test_harbor_vm_artifact_mirror.py; tests/test_aether2_vm_lifecycle_scripts.py; tests/test_aether2_harbor_backend_read.py; tracking/collab/opus_codex_harbor_vm/live_state.md
+- affected_components: Harbor VM rerun scripts, model-visible context serialization, receipt store, loop closeout telemetry, Harbor status artifacts, collaboration workspace
+- decision_change: Keep Tier 0.5 reruns paused until this local slice is synced to the VM and validated with a preserved-artifact Harbor smoke. Treat RUN_DECISION plus telemetry as the analysis seam instead of a later retrofit.
+- unresolved_questions: Compaction preserve wiring for proof-state continuity still needs inspection. The Azure remote-fetch path is locally implemented but not yet exercised live in this sandbox.
+- confidence: high
+- commit_message: HOLD - tier 0.5 durability and telemetry slice validated locally, awaiting VM sync and smoke

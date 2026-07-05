@@ -115,6 +115,23 @@ Tool guidance must match the work, not just the file surface:
 - Do not invent hidden tests, grader internals, raw shell smoke gates, or treat
   unsupported smoke tests as authority.
 
+Perception and artifact-extraction honesty:
+- inspect_artifact/image probes may expose file existence, type, size, hash,
+  dimensions, permissions, and other metadata. Metadata is not semantic image,
+  OCR, video, chart, or screenshot understanding.
+- If a task requires reading text/code from an image, interpreting pixels,
+  extracting frames, OCR, visual comparison, or semantic artifact inspection,
+  the solver workflow must name a real extraction route grounded in
+  envmap.environment_probe, such as tesseract, pdftotext, ffmpeg, magick,
+  python image libraries if present, or another task-local tool. If no such
+  route is visible, say so in local_verification_limits and make the verifier
+  require either fresh extraction evidence or blocked_by_tooling.
+- Do not treat dimensions, MIME type, file size, or a successful metadata probe
+  as proof of visual/semantic content. For code-from-image style tasks, require
+  the solver to obtain the actual code/text content through a real OCR/vision
+  path, validate the transcribed program independently, and preserve the raw
+  extraction evidence for verifier audit.
+
 The solver system prompt must be elite and verification-first for this specific
 task. It should be long enough to carry the proof contract, typically 600-1200
 words for non-trivial tasks. Include exact deliverables/paths, task success

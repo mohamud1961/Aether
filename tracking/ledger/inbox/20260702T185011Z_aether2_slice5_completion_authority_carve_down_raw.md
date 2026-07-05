@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 carve-down Slice 5 completion authority carve-down
+- event_type: implementation
+- summary: Demoted the no-evidence task_done completion gate into verifier-visible runtime-floor evidence instead of a harness-side pre-verifier rejection.
+- observations: _run_verification_rounds now adds completion_runtime_floor to action_digest when task_done lacks replayed checks or independent runtime evidence. The verifier is called and receives that warning as evidence. A focused regression test proves completion_precheck_rejections remains 0 for this path and the verifier sees reason code completion_evidence_gate_rejected. Existing loop-order test now expects normal -> verifier -> normal after premature task_done.
+- inference: Completion authority moved closer to the target model: harness instruments a generic evidence-floor concern, while verifier owns the semantic readiness judgement.
+- evidence_paths: docs/AETHER2_SLICE5_COMPLETION_AUTHORITY_CARVE_DOWN.md; harness/aether2/control/verification_rounds.py; tests/test_aether2_verification_feedback.py; tests/test_aether2_hooks.py
+- affected_components: Aether-2 verification rounds; task_done completion authority; verifier action digest; completion precheck metrics
+- decision_change: No-evidence task_done is no longer a harness-side pre-verifier veto in the active path; it is evidence for the verifier.
+- unresolved_questions: Rename/delete _build_completion_evidence_gate_report or completion_precheck_rejections in a cleanup slice; decide whether non-task_done blocker suppression remains acceptable as a generic optimization.
+- confidence: high
+- commit_message: Demote completion evidence gate to verifier evidence

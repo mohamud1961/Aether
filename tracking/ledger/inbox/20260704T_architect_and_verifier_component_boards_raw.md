@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next architect/verifier component validation after packet hygiene
+- event_type: experiment
+- summary: Ran fresh model-backed component boards before any full VM task attempt: a 15-task architect-only board and a six-case verifier-only 5.4-mini packet-hygiene board.
+- observations: Architect-only board `architect_only_eval_20260704_packet_hygiene_15` produced 15 records with min/avg workbench score 10.0/10; every row had solver prompt 10/10, verifier prompt 10/10, config contract 10/10, no workbench errors, no warnings, no rejected config items, and `model_verifier_policy.runs_on == ["solver_submit"]`. Verifier-only 5.4-mini board `verifier_only_eval_20260704_packet_hygiene_54mini_v2` produced 6/6 parseable, actionable, evidence-bound rows. The new `solver_claim_conflicts_with_raw_state` case returned `uncertain_missing_evidence` and requested inspection of `data/events.log` / `summary.csv` rather than accepting the solver-authored command claim. Offline validator passed with `ok: true`. Focused tests passed: 74 passed.
+- inference: Component evidence now supports the desired ownership boundary: architect produces strong task-specific prompts/configs, verifier is prompted/behaves as a raw-state inspector, and solver-authored evidence is audit trail rather than completion proof. This still does not prove end-to-end task success until the planned single full task attempt.
+- evidence_paths: aether_next_build/architect_only_eval_20260704_packet_hygiene_15/architect_only_eval.json; aether_next_build/architect_only_eval_20260704_packet_hygiene_15/ARCHITECT_EVAL_REPORT.md; aether_next_build/verifier_only_eval_20260704_packet_hygiene_54mini_v2/summary.json; aether_next_build/VERIFIER_ONLY_PACKET_HYGIENE_54MINI_V2_VALIDATION.md; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: WorkbenchArchitect; verifier packet hygiene; verifier-only eval substrate; model-backed component validation
+- decision_change: Component gates are green enough to proceed toward the remaining pre-run checks, then one proper VM task attempt, without yet claiming end-to-end promotion.
+- unresolved_questions: Whether the next final VM task should target the prior false-clean family (`log-summary-date-ranges`) or a different stressor; whether verifier-owned rerun/check execution is needed after observing the next real task.
+- confidence: high for component gates; medium for live end-to-end outcome.
+- commit_message: HOLD - model-backed component boards recorded during larger active goal

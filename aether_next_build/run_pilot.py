@@ -36,6 +36,7 @@ if _BUILD_DIR not in sys.path:
 from aether_next.providers.azure_model import make_azure_callable  # noqa: E402
 from aether_next.run_adapter import ensure_certified_architect_mode  # noqa: E402
 from aether_next.runners.docker_runner import run_tbench_task  # noqa: E402
+from aether_next.task_metadata_loader import declared_docker_image  # noqa: E402
 
 
 _OFFICIAL_TASKS_DIR = str(
@@ -104,19 +105,54 @@ def _task_hash(task_dir: str) -> str:
     return _tree_hash(Path(task_dir), include_suffixes=())
 
 
+def _task_image_tag(task_dir: str) -> str:
+    task_path = Path(task_dir).resolve()
+    safe_name = "".join(ch if ch.isalnum() else "-" for ch in task_path.name.lower()).strip("-")
+    return f"aether-next-task-{safe_name}-{_task_hash(str(task_path))[:12]}"
+
+
+def _build_task_image(task_dir: str, image_tag: str) -> None:
+    task_path = Path(task_dir).resolve()
+    dockerfile = task_path / "Dockerfile"
+    if not dockerfile.exists():
+        raise FileNotFoundError(
+            f"no declared docker image and no Dockerfile found in {task_dir}"
+        )
+    inspect = subprocess.run(
+        ["docker", "image", "inspect", image_tag],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=60,
+    )
+    if inspect.returncode == 0:
+        return
+    build_timeout_s = int(os.environ.get("AETHER_TASK_IMAGE_BUILD_TIMEOUT_S", "1800"))
+    build = subprocess.run(
+        ["docker", "build", "-t", image_tag, str(task_path)],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=max(1, build_timeout_s),
+    )
+    if build.returncode != 0:
+        detail = (build.stdout + build.stderr).strip()[-4000:]
+        raise RuntimeError(f"docker build failed for {task_path}: {detail}")
+
+
+def _resolve_task_image(task_dir: str) -> str:
+    """Resolve a real runnable image for TOML/YAML task layouts."""
+    declared = declared_docker_image(task_dir)
+    if declared:
+        return declared
+    image_tag = _task_image_tag(task_dir)
+    _build_task_image(task_dir, image_tag)
+    return image_tag
+
+
 def _read_docker_image(task_dir: str) -> str:
-    """Read ``docker_image`` from ``task.toml`` in the task directory."""
-    toml_path = Path(task_dir) / "task.toml"
-    if not toml_path.exists():
-        raise FileNotFoundError(f"task.toml not found in {task_dir}")
-    text = toml_path.read_text(encoding="utf-8")
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("docker_image"):
-            # Parse: docker_image = "user/repo:tag"
-            _, _, value = line.partition("=")
-            return value.strip().strip('"').strip("'")
-    raise ValueError(f"docker_image not found in {toml_path}")
+    """Compatibility wrapper for tests and older callers."""
+    return _resolve_task_image(task_dir)
 
 
 def _print_summary(records: list[dict[str, Any]]) -> None:
@@ -299,15 +335,15 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         try:
-            docker_image = _read_docker_image(task_dir)
-        except (FileNotFoundError, ValueError) as exc:
+            docker_image = _resolve_task_image(task_dir)
+        except (FileNotFoundError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
             print(f"[{i}/{len(task_names)}] SKIP {task_name}: {exc}", flush=True)
             records.append({
                 "task": task_name,
                 "image": "",
                 "reward": 0.0,
                 "status": "error",
-                "error": "task_toml_error",
+                "error": "task_image_resolution_error",
                 "error_detail": str(exc),
                 "classifier_label": "environment_runner_failure",
                 "classifier_confidence": "high",

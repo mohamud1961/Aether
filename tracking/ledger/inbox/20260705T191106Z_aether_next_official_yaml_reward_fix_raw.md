@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Fix Aether-Next reward handling for official Terminal-Bench YAML run-tests.sh tasks.
+- event_type: implementation
+- summary: Audited the three VM rows from vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix and confirmed two rows passed pytest but were invalidated because the runner required /logs/verifier/reward.txt. Patched docker_runner.py so mirrored reward-file layouts still require reward.txt, while official run-tests.sh layouts fall back to grader exit code when reward.txt is absent.
+- observations: nginx-request-logging had grader_exit=0 and 8/8 visible tests passed but reward.txt missing/empty. log-summary-date-ranges had grader_exit=0 and 2/2 visible tests passed but reward.txt missing/empty. video-processing had grader_exit=1 and visible pytest failures, so it remains a real task/test failure. Local tests passed: tests/test_aether_next_runtime_integrity.py 16 passed; aether_next_build/tests 307 passed, 12 skipped. VM tests passed: runtime integrity 16 passed; aether_next_build/tests 319 passed.
+- inference: The two reward-0 grader_error rows were runner_grader_isolation failures, not model failures. Under the official YAML exit-code reward policy they rescore to reward=1.0. The video-processing failure is not fixed by this patch and needs trace-level model/verifier audit separately.
+- evidence_paths: aether_next_build/aether_next/runners/docker_runner.py; tests/test_aether_next_runtime_integrity.py; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T191030Z_aether_next_rewardfix_1task
+- affected_components: Aether-Next Docker runner; official grader reward interpretation; result-row validity.
+- decision_change: Official YAML tasks with run-tests.sh and no reward.txt now score from grader exit code; mirrored tasks without reward.txt still report grader_failure.
+- unresolved_questions: Terminal result of the one-task validation rerun; full trace audit of video-processing; whether any additional official layouts need explicit score-source handling.
+- confidence: high
+- commit_message: Use official run-tests exit code when reward file is absent

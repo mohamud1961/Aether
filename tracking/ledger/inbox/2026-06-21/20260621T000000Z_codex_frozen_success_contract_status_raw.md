@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: repair frozen success-contract mechanism so it never freezes broad fallback context, then rerun targeted evals
+- event_type: failure
+- summary: Status check revealed the frozen-contract slice is still live in the repo and still falls back to task_instruction text when no explicit contract payload is passed. I stopped before making further edits.
+- observations: ContextManager._normalize_frozen_success_contract still uses fallback_text=task_instruction for None and string payloads; tests/test_aether2_frozen_success_contract.py still constructs the contract from task_instruction; related receipt/trace plumbing still records a frozen_success_contract block when present.
+- inference: The requested safety change is not complete yet. The current tree still risks freezing broad task material rather than only an admitted structured contract.
+- evidence_paths: harness/aether2/runtime/context.py; harness/aether2/runtime/compactor.py; harness/aether2/runtime/prompts.py; harness/aether2/traces/receipts.py; harness/aether2/control/reasoning_trace.py; harness/aether2/control/requirements.py; tests/test_aether2_hooks.py; tests/test_aether2_compactor.py; tests/test_aether2_frozen_success_contract.py; prior run roots from user context: tracking/local_runs/custom_eval_full_board_model_eligible/20260620T201016Z_frozen_contract_normal_full_board and tracking/local_runs/custom_eval_targeted/20260620T200535Z_fsent04_frozen_contract_ablation
+- affected_components: Aether-2 context prefix construction, compaction/rebase, receipts, reasoning trace, frozen-contract tests, frozen contract builder
+- decision_change: Stop work and hand off as partial/blocked; do not claim the fallback was removed safely.
+- unresolved_questions: Whether the next fix should delete fallback entirely and require an explicit structured contract input, or introduce a separate admission API with no implicit extraction from task text.
+- confidence: high
+- commit_message: HOLD - frozen success-contract fallback still needs removal

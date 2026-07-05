@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Aether-Next vNext Phase 5 narrow real task validation
+- event_type: failure
+- summary: Attempted the exact approved three-task Workbench real-task run after Docker was started, but all rows failed before workspace seeding because approved task images were not locally available and Docker image acquisition/credential access stalled.
+- observations: First attempt failed with Docker daemon socket unavailable. After Docker started, Docker server 29.0.1 was reachable. The second run attempted filter-js-from-html, sparql-university, and openssl-selfsigned-cert with architect_mode=workbench, but each row failed at step 0 with TimeoutExpired from `docker create <alexgshaw/...:20251031>` after 300 seconds. No receipts, traces, snapshots, solver steps, verifier packets, or grader outputs were emitted. `docker images` showed none of the three approved images locally. A diagnostic `docker pull alexgshaw/filter-js-from-html:20251031` hung without progress for more than two minutes and, when interrupted, returned `error getting credentials - err: signal: interrupt`.
+- inference: Phase 5 is blocked_external_dependency at Docker image acquisition/credential access. It provides environment failure evidence only, not harness performance or task success evidence.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/NARROW_REAL_TASK_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/narrow_real_task_phase5_summary.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/narrow_real_task_results_20260629_221558.json
+- affected_components: narrow real task validation gate; Docker/image acquisition environment
+- decision_change: Continue to Phase 6 pure sentinel/regression gate; do not claim real-task validation passed until image acquisition is fixed and rerun.
+- unresolved_questions: Whether Docker credential helper or registry access needs manual setup before real task validation can run.
+- confidence: high
+- commit_message: HOLD - continue through Phase 6 before preparing a coherent commit slice

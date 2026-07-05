@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether-next reset goal slice 0 baseline snapshot
+- event_type: implementation
+- summary: Created the governed Aether-Next reset goal file and executed Slice 0 baseline instrumentation, producing fresh current-behavior artifacts for prompt ownership, verifier trigger ownership, and solver context visibility.
+- observations: Added `tracking/collab/aether_next_reset_goal_20260703.md` with objective, scope, exit criteria, slice order, and eval ladder. Added `tools/capture_aether_next_slice0_snapshot.py` and executed it to write artifacts under `tracking/collab/aether_next_reset_slice0_snapshot_20260703/`. The snapshot shows competing harness behavior sections still appear alongside architect prompts, verifier message assembly still prepends a static verifier system prompt, verifier fires on `deterministic_success_candidate` and `deterministic_failure`, and next-turn solver context does not expose a dedicated `command_results` section by default.
+- inference: The baseline confirms the first active implementation slices should remain prompt ownership reset followed by verifier trigger reset, with solver context invariants still needed after that.
+- evidence_paths: tracking/collab/aether_next_reset_goal_20260703.md; tools/capture_aether_next_slice0_snapshot.py; tracking/collab/aether_next_reset_slice0_snapshot_20260703/README.md; tracking/collab/aether_next_reset_slice0_snapshot_20260703/summary.json
+- affected_components: Aether-Next planning/governance; slice-0 instrumentation; prompt ownership baseline; verifier trigger baseline; solver context baseline
+- decision_change: none
+- unresolved_questions: How aggressively to strip harness prefix prose in Slice 1 without weakening schema/runtime invariants; whether solver context floor should expose full command outputs inline or as a dedicated bounded recent-command section.
+- confidence: high
+- commit_message: HOLD - slice 0 baseline captured; slice 1 prompt ownership reset not implemented yet

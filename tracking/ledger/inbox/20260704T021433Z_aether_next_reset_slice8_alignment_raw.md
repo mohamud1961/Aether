@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether-next reset slice 8 verifier/grader alignment board
+- event_type: implementation
+- summary: Completed Slice 8 by lifting the latest internal verifier verdict into result rows, making verifier/grader reconciliation prefer explicit verifier verdicts when present, and generating a fresh canonical alignment board artifact with backward-compatible row loading.
+- observations: `docker_runner.py` now writes `model_verifier_final_verdict`; `classifier.reconcile_grader_alignment` now accepts optional explicit verifier verdict input and falls back to `kernel_status` only when absent; targeted classifier/alignment board tests passed; broader Aether-Next runtime/config/model sweep passed; `aether_next_build/alignment_boards/20260704_canonical_aether_alignment_board_v2.json` was generated successfully with 7 rows and preserved existing historical row semantics.
+- inference: The alignment surface now better matches the target architecture because post-run analysis can compare verifier and grader more directly without reintroducing grader authority into the agent loop.
+- evidence_paths: `tracking/collab/aether_next_reset_slice8_alignment_board_20260704.md`; `aether_next_build/alignment_boards/20260704_canonical_aether_alignment_board_v2.json`; `aether_next_build/alignment_boards/20260704_canonical_aether_alignment_board_v2.md`; `aether_next_build/aether_next/classifier.py`; `aether_next_build/aether_next/alignment_board.py`; `aether_next_build/aether_next/runners/docker_runner.py`; `aether_next_build/tests/test_classifier.py`; `aether_next_build/tests/test_alignment_board.py`
+- affected_components: `aether_next_build/aether_next/classifier.py`; `aether_next_build/aether_next/alignment_board.py`; `aether_next_build/aether_next/runners/docker_runner.py`
+- decision_change: Slice 8 is complete and the plan can advance to Slice 9 legacy-path deletion/quarantine.
+- unresolved_questions: how many future fresh result rows will carry `model_verifier_final_verdict` immediately after the next run-backed board; whether any legacy row writer outside the canonical docker runner still needs the same field.
+- confidence: high
+- commit_message: HOLD - slice 8 alignment recorded but full reset goal still active

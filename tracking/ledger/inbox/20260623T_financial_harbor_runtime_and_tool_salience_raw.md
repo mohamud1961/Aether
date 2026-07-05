@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor-native Aether-2 VM financial narrow lane
+- event_type: implementation
+- summary: Repaired Harbor's live runtime env in-place for real Harbor rows, then tightened inspect_artifact salience and reran the financial narrow row.
+- observations: Harbor's tool Python initially lacked fitz and rapidocr_onnxruntime even though the VM test venv had them. The launcher now repairs Harbor's own env before row launch. A repaired financial rerun still scored 0.0, but the later v11 rerun changed the model trajectory: it used inspect_artifact mode=auto across all 17 documents and extracted invoice-like PDF text/totals from four PDFs. The row remained an honest fail because JPG content evidence was still not usable and the model mishandled invoice/other placement.
+- inference: Harbor wiring/runtime repair is no longer the active blocker for financial. Tool salience improved the live behavior materially. The remaining failure is narrower: image/JPG evidence availability and/or model follow-through after partial evidence, not Harbor agent loading.
+- evidence_paths: tracking/local_runs/20260623T_financial_receipt_probe_v10_harbor_repair; tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience; tracking/collab/opus_codex_harbor_vm/live_state.md; scripts/run_harbor_ab_board_vm.sh; harness/aether2/runtime/prompts.py; harness/aether2/tools/native.py
+- affected_components: scripts/run_harbor_ab_board_vm.sh; harness/aether2/runtime/prompts.py; harness/aether2/tools/native.py; tracking/collab/opus_codex_harbor_vm/live_state.md
+- decision_change: Keep Harbor as the canonical runtime surface. Stop treating the financial row as blocked on Harbor packaging. Next fixes should target document-evidence behavior or repair/follow-through, not Harbor loading.
+- unresolved_questions: Why were JPG artifacts still not yielding usable content evidence on the live row despite rapidocr importability? Is the next smallest harness-responsible fix image-inspection output handling, or is the remaining gap primarily model decision quality after partial PDF evidence?
+- confidence: medium-high
+- commit_message: HOLD - financial lane still needs one more narrowed fix before commit

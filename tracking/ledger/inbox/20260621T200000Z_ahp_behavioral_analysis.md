@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: overnight-analysis-agent
+- task: AHP behavioral analysis across all tbench A/B run pairs
+- event_type: source_analysis
+- summary: Completed rigorous behavioral analysis of AHP variant across 14 baseline-vs-AHP task pairs (42 total runs including N=4 reproducibility). Separated AHP-attributable effects from base-harness behavior using artifact evidence (adaptation_contract.json, completion_contract.json, verifier_payload_preview.json, flag_off_baseline_diff.txt, result.json).
+- observations: (1) AHP prevents premature task_done on 3/14 tasks via completion precheck with structured contract. (2) AHP reduces model calls ~18% on passing tasks. (3) AHP improves log-summary-date-ranges solve rate from 25% to 75% at N=4 via requirement amplification. (4) Zero regressions across all tasks. (5) AHP does not change verification outcomes (verifier_clean=false on all tasks both conditions). (6) System prompt is IDENTICAL between conditions; AHP injects via extra_prefix_messages only. (7) The repro2_baseline runs (6/6 pass) complicate the log-summary attribution.
+- inference: AHP's addressable surface with gpt-5.4-mini is narrow (~8% of headroom tasks). Most failures are capability-ceiling or env/infra, which AHP cannot address. AHP's value would likely increase with a more capable model. The win mechanism (requirement amplification) generalizes to format/precision-sensitive tasks within model capability. Premature-done prevention is the most reliable behavioral effect.
+- evidence_paths: tracking/collab/ahp_behavioral_analysis_20260621.md, tracking/local_runs/tbench_ahp_ab/ (all run directories)
+- affected_components: AHP variant (adaptive_profile_enabled flag), harness loop (completion precheck), verifier (stated_requirements injection)
+- decision_change: None proposed. AHP remains a net-positive variant suitable for continued testing with more tasks and stronger models.
+- unresolved_questions: (1) Do the repro2_baseline runs passing indicate environmental variance rather than AHP effect on log-summary? (2) What is AHP's effect with a more capable model? (3) Are there additional HARNESS-ADDRESSABLE tasks in the full TerminalBench catalog?
+- confidence: HIGH for behavioral effects (premature-done prevention, efficiency). MODERATE for solve-rate improvement (probabilistic, small N, environmental variance confounds). HIGH for the capability-ceiling limitation.
+- commit_message: NONE - no tracked file changes (read-only analysis)

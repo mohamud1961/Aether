@@ -1,0 +1,33 @@
+RAW_LEDGER_UPDATE
+- actor: Worker A
+- task: Aether-2 Harbor canonical integration - Harbor-native runtime backend
+- event_type: implementation
+- summary: Added a Harbor-native execution backend that runs foreground commands and file I/O through Harbor BaseEnvironment, maintains a downloaded mirror only for truthful delta snapshots, and exposes an adapter-discoverable backend entrypoint with model-client preflight blocking.
+- observations:
+  - Added harness/aether2/runtime/harbor_backend.py with HarborWorkspaceProbe, HarborExecutor, snapshot mirroring, and run_aether2_harbor_agent.
+  - ExecutionContext now delegates read/write to executor-provided remote file helpers when present and refreshes snapshots through executor.prepare_snapshot before diff capture.
+  - Added focused Harbor backend tests plus adapter test updates covering remote command execution, remote file authority, out-of-band delta refresh, adapter discovery, and truthful preflight blocking.
+  - The documented ledger recorder path tracking/ledger/tools/record_update.py is absent in this checkout, so this raw update was persisted manually under tracking/ledger/inbox/.
+  - On this machine the Harbor backend preflight blocks before live model use because the local model stack is not ready for a truthful Harbor run (missing tenacity and gpt-5 temperature incompatibility in current route settings).
+- inference:
+  - Aether now has a real Harbor-backed runtime seam that keeps Harbor as workspace authority while preserving local evidence deltas via an explicit mirror.
+  - Canonical Harbor runs still depend on follow-up work outside this slice, especially model-route/runtime readiness and Worker B's adapter-side end-to-end wiring choices.
+- evidence_paths:
+  - harness/aether2/runtime/harbor_backend.py
+  - harness/aether2/control/execution_context.py
+  - harness/aether2/runtime/__init__.py
+  - tests/test_aether2_harbor_executor.py
+  - tests/test_harbor_agent_adapter.py
+- affected_components:
+  - harness/aether2/runtime
+  - harness/aether2/control
+  - runner/adapters/harbor_agent.py integration surface
+  - Harbor adapter/backend tests
+- decision_change:
+  - Harbor backend discovery now resolves to a concrete backend entrypoint instead of adapter-side "backend unavailable", and backend startup truthfully blocks on local model-client preflight rather than crashing later in the loop.
+- unresolved_questions:
+  - Should Harbor canonical runs keep AHP enabled by default in the adapter entrypoint, or should Worker B force baseline/off until broader Harbor loop validation is complete?
+  - Should start_job/session tools remain exposed and truthfully error under backend.kind=harbor, or should the adapter/backend narrow the visible tool set for first canonical runs?
+  - Should _build_model_client be updated separately to produce a Harbor-safe gpt-5 route on this machine without the current preflight block?
+- confidence: medium-high
+- commit_message: HOLD - no commit requested for Worker A Harbor backend slice

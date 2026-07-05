@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: no-visible-verifier ablation runner support
+- event_type: implementation
+- summary: Added a runner-level `--ablate-visible-verifier` mode that strips visible verifier material from the model-reachable staged tree, redacts visible-verifier guidance from model instructions, and reroutes diagnostic visible verifier execution to a grader-only copy.
+- observations: Focused pytest suite passed after the patch; the Aether-2 genericity check passed; the full ablated board run was launched and was still in progress at handoff time.
+- inference: The ablation contract is enforced at staging/instruction time rather than by mutating canonical packs, so source packs remain intact while model-visible verifier exposure is reduced.
+- evidence_paths: [/Users/mohamud/Downloads/harnesseng/tools/run_custom_eval_board.py, /Users/mohamud/Downloads/harnesseng/tests/test_run_custom_eval_board.py, /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation]
+- affected_components: [tools/run_custom_eval_board.py, tests/test_run_custom_eval_board.py, tracking/local_runs/custom_eval_full_board_model_eligible]
+- decision_change: Adopt runner-local ablation plumbing for visible verifier material without changing canonical eval packs.
+- unresolved_questions: The 14-row model-backed board had not finished when this update was recorded, so its final pass/fail and artifact table were still pending.
+- confidence: medium
+- commit_message: HOLD - awaiting completion of the ablated 14-row board run

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 carve-down Slice 3 context and tool-output invariants
+- event_type: implementation
+- summary: Added an invariant context floor so architect context policy cannot silently remove recent tool outputs, verifier feedback, artifact observations, recent failures, or evidence refs.
+- observations: validate_context_pack_policy now restores current_plan, recent_steps, recent_failures, verifier_feedback, artifact_observations, and evidence_refs even when architect policy tries to exclude them. Minimum compact budgets now preserve at least six recent receipt events, one recent failure, two raw-log evidence refs, one verifier feedback item, and one artifact observation. Receipt evidence refs now expose event IDs and raw_log_available instead of model-visible host raw_log_path values.
+- inference: Recent evidence is now harness-owned substrate/context mechanics while architect context policy remains a prioritization layer above that floor. This should reduce repeated-action risk caused by hidden tool outputs without adding harness-side semantic judgement.
+- evidence_paths: docs/AETHER2_SLICE3_CONTEXT_TOOL_OUTPUT_INVARIANTS.md; harness/aether2/runtime/run_config.py; harness/aether2/traces/receipt_store.py; tests/test_aether2_run_config.py; tests/test_compaction_receipt_continuity.py
+- affected_components: Aether-2 context pack policy; receipt continuity; model-visible evidence references; compaction regression tests
+- decision_change: Architect context policy may compress/prioritize but may not remove invariant recent-evidence sections or zero their budgets.
+- unresolved_questions: The exact recent-event budget should be revisited after repeated-action model-backed eval rows; no-progress/repeat guidance deletion remains deferred until those evals prove the context floor is sufficient.
+- confidence: high
+- commit_message: Preserve recent evidence in Aether-2 context policy

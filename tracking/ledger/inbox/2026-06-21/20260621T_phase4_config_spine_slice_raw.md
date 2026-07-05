@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Worker Harness Cleanup Lane B
+- task: Phase 4 HarnessRunConfig config-spine slice for Aether-2 cleanup plan
+- event_type: implementation
+- summary: Ported the typed HarnessRunConfig spine into the live repo, mapped adaptive_context onto it, wired baseline-first loop/config consumers for completion/verifier/tool selection/repeat guidance, and added 10 focused Phase 4 acceptance tests.
+- observations: Added harness/aether2/runtime/run_config.py; loop now accepts run_config and builds a baseline config when absent; completion now surfaces required_final_evidence as guidance; verifier payload now carries focus/do_not_assume/required_final_evidence; blind-retry envelopes now include repeat guidance; pytest passed 10/10 new Phase 4 acceptance tests plus adjacent focused suites and the genericity check.
+- inference: The config spine is now a real runtime contract instead of a chat-only design artifact, and the Phase 4 slice can be validated without mixing Harbor or broader AHP expansion.
+- evidence_paths: harness/aether2/runtime/run_config.py; harness/aether2/runtime/adaptive_context.py; harness/aether2/control/loop.py; harness/aether2/control/completion.py; harness/aether2/control/verification_rounds.py; harness/aether2/runtime/verify.py; harness/aether2/control/action_helpers.py; harness/aether2/control/tool_dispatch.py; harness/aether2/control/ahp_startup.py; tests/test_aether2_run_config.py
+- affected_components: Aether-2 runtime config spine; adaptive context mapping; loop completion/verifier/tool-selection consumers; repeat guidance; Phase 4 acceptance coverage
+- decision_change: Implement Phase 4 as a narrow config-spine slice with baseline-first consumption and advisory-only required_final_evidence, deferring Harbor and broader AHP/tool-contract work.
+- unresolved_questions: End-to-end AHP-through-loop verification remains coupled to broader cleanup/runtime setup; Harbor-facing rerun proof stays out of scope for this slice.
+- confidence: high
+- commit_message: HOLD - no commits requested for Phase 4 config-spine slice

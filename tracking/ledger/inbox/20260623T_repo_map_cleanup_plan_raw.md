@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: repo map and cleanup plan for single-repo consolidation
+- event_type: source_analysis
+- summary: Mapped the repository into canonical runtime, eval, variants, workflow, research, docs, and baggage surfaces; identified `harness/aether2` as the richest live implementation tree and `runner/` as a mix of CLI, compatibility shims, and legacy duplicate modules.
+- observations: Root docs already describe `harness/aether2` as the active harness line. `runner/cli.py` is an offline stub CLI. `runner/aether2/*` are compatibility aliases back to `harness.aether2.*`. `eval_suite/` contains the custom eval substrate plus benchmark-equivalent adapters and whole-harness boards. `variants/` contains experiment families, hypotheses, decision history, and scoreboards. `workflows/` contains the operating-system docs and skills. `research/` contains promoted synthesis and case studies. Large baggage surfaces remain in `official_tasks/`, `tracking/`, `blocks/`, `website/`, `build/`, `jobs/`, and multiple cache/output trees.
+- inference: A clean final repo should preserve one canonical implementation tree, one eval substrate, one variants/experiments tree, and one workflow/storytelling tree, while collapsing legacy runner/kernel copies and moving raw run artifacts and vendored benchmark corpora out of the main source surface.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/README.md; /Users/mohamud/Downloads/harnesseng/runner/cli.py; /Users/mohamud/Downloads/harnesseng/runner/aether2/__init__.py; /Users/mohamud/Downloads/harnesseng/harness/aether2/__init__.py; /Users/mohamud/Downloads/harnesseng/eval_suite/README.md; /Users/mohamud/Downloads/harnesseng/variants/README.md; /Users/mohamud/Downloads/harnesseng/workflows/README.md; /Users/mohamud/Downloads/harnesseng/research/README.md; /Users/mohamud/Downloads/harnesseng/official_tasks/README.md; /Users/mohamud/Downloads/harnesseng/tracking/collab; /Users/mohamud/Downloads/harnesseng/build/lib; /Users/mohamud/Downloads/harnesseng/jobs/aether2-tb2-oracle-smoke-v2/job.log
+- affected_components: harness/aether2; runner; eval_suite; variants; workflows; research; official_tasks; tracking; blocks; website; build artifacts; jobs artifacts
+- decision_change: Recommend canonicalizing on harness/aether2 as the implementation source and reducing runner to a thin entrypoint/compat layer; keep eval_suite custom rows and workflows/research as the storytelling surface; archive or externalize benchmark mirrors and run logs.
+- unresolved_questions: Whether the user wants to preserve the public website and the vendored official task corpus in-repo or move them to a separate archive/submodule.
+- confidence: high
+- commit_message: NONE - no tracked file changes

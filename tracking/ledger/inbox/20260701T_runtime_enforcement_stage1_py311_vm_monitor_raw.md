@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex replacement vm monitor
+- task: monitor active Aether-Next Stage 1 VM run 20260701T_runtime_enforcement_stage1_py311
+- event_type: failure
+- summary: Existing run remained alive past the configured 900s timeout with no terminal results.json update; task 1 stayed incomplete and tasks 2-3 did not complete.
+- observations: Remote run_pilot pid 1306595 was still running at 2026-07-01T16:10:17Z and again at 2026-07-01T16:12:xxZ / 16:13:xxZ with etime > 20m; results.json contained a single incomplete row for filter-js-from-html; runner.log and trace timestamps stayed at 2026-07-01 16:07:05Z / 16:07:03Z; docker ps showed only an active sparql-university container (aec46cff8fc2); verifier_evidence contained step_0000_deterministic_success_candidate, step_0001_no_progress, and step_0030_max_steps receipts.
+- inference: The run is stalled/over-time rather than terminally completed; filter-js-from-html hit max steps and the remaining tasks have not started.
+- evidence_paths: /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/results.json; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/runner.log; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/traces/filter-js-from-html.trace.json; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/verifier_evidence/step_0001_no_progress/parsed_verifier_result.json; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/verifier_evidence/step_0030_max_steps/parsed_verifier_result.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/results.json
+- affected_components: runner monitoring, task timeout handling, verifier evidence capture, trace persistence
+- decision_change: Recommend follow-up monitoring or explicit timeout handling; do not start a duplicate Stage 1 run.
+- unresolved_questions: Whether the live process will eventually exit on its own; whether the open sparql container is still progressing; whether openssl-selfsigned-cert has started.
+- confidence: medium
+- commit_message: HOLD - Stage 1 run stalled past timeout with partial artifacts preserved

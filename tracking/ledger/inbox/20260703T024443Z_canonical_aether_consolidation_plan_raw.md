@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: canonical Aether consolidation planning and governance correction
+- event_type: decision
+- summary: Accepted Aether-Next as the canonical agent/harness line and Aether-2 as reference/compatibility, then persisted a full consolidation plan and corrected stale governance docs that had routed new work to Aether-2.
+- observations: `docs/PRODUCTION_HARNESS_DECISION_BRIEF.md` identified Aether-Next as the stronger production candidate; the Aether-2 closeout audit explicitly made no promotion claim and deferred the production-target decision; stale `AGENTS.md`, `CLAUDE.md`, and the old Aether-2 build plan contained active-target language that could redirect future agents. The configured ledger recorder path `tracking/ledger/tools/record_update.py` was absent in this checkout, so this raw update was persisted directly under `tracking/ledger/inbox/`.
+- inference: The next safe step is not more Aether-2 implementation but a controlled canonical Aether consolidation: package/import map, docs sweep, port only generic Aether-2 fixes into Aether-Next, wire result rows, and prove verifier/grader alignment with a confusion-matrix board.
+- evidence_paths: docs/CANONICAL_AETHER_CONSOLIDATION_PLAN.md; docs/PRODUCTION_HARNESS_DECISION_BRIEF.md; docs/AETHER2_CARVE_DOWN_BUILD_PLAN.md; AGENTS.md; CLAUDE.md; docs/AETHER2_CARVE_DOWN_GOAL_CLOSEOUT_AUDIT.md
+- affected_components: governance docs; Aether-Next planning; Aether-2 reference status; verifier/grader alignment evidence; eval substrate integration plan
+- decision_change: Aether-Next is canonical; Aether-2 is reference/compatibility; no new active-harness slices should target Aether-2 unless a future scored-evidence decision reverses this.
+- unresolved_questions: Exact package migration shape for `aether/`; which Aether-2 generic fixes are missing in Aether-Next; first real alignment-board row set; whether to move files or add a canonical shim first.
+- confidence: high for target decision and planning baseline; medium for exact migration mechanics until Slice 1 import/entry-point inventory is complete.
+- commit_message: Record canonical Aether consolidation plan

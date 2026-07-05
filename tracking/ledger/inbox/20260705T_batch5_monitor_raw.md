@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex 5.4-mini monitor
+- task: monitor batch5 live Aether-Next TerminalBench attempts
+- event_type: experiment
+- summary: Observed five live runs under local_goal_runs/20260705T131133Z_batch5_* and captured current terminal/verifier state without modifying code or starting new runs.
+- observations: fix-git reached terminal completion in traces/fix-git.trace.json with reward 1.0, status completed, kernel_status completed, step 12, classifier_label none. sparql-university, headless-terminal, and kv-store-grpc remain running with outer result rows at attempt_in_progress and latest verifier verdict uncertain_missing_evidence. code-from-image has no trace or verifier evidence and no new file growth beyond the initial results row, making it the clearest stall candidate. Docker shows fix-git container exited; the other four containers are still up.
+- inference: The batch is mixed-state: one completed, three active-but-incomplete, and one likely stalled. The active runs are still mutating verifier evidence, so they are not yet clearly stuck. code-from-image has the weakest progress signal and should be watched for timeout or eventual terminal output.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260705T131133Z_batch5_MONITOR_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260705T131133Z_batch5_fix_git/traces/fix-git.trace.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260705T131133Z_batch5_headless_terminal/verifier_evidence/headless-terminal/step_0005_solver_submit/parsed_verifier_result.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260705T131133Z_batch5_sparql/verifier_evidence/sparql-university/step_0016_solver_submit/parsed_verifier_result.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260705T131133Z_batch5_kv_store_grpc/verifier_evidence/kv-store-grpc/step_0009_solver_submit/parsed_verifier_result.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260705T131133Z_batch5_code_from_image/results.json
+- affected_components: local_goal_runs monitoring artifacts; no code paths changed
+- decision_change: none
+- unresolved_questions: Whether code-from-image will eventually emit trace/verifier evidence or time out; whether the outer running rows will be replaced by terminal result rows for the three active runs.
+- confidence: high
+- commit_message: HOLD - monitor snapshot only

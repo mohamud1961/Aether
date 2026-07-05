@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker 5.4-mini
+- task: targeted service-lifecycle custom eval rerun preflight
+- event_type: failure
+- summary: Preflight found 127.0.0.1:18923 still held by Python pid 12246. A normal `kill 12246` attempt failed with `operation not permitted`, so the environment could not be cleaned safely and no model eval was run.
+- observations: `lsof -nP -iTCP:18923 -sTCP:LISTEN` reported `Python 12246 mohamud ... TCP 127.0.0.1:18923 (LISTEN)` before and after the cleanup attempt. The cleanup command returned `zsh:kill:1: kill 12246 failed: operation not permitted`.
+- inference: This run is invalid_due_to_environment, not a benchmark or harness capability result. The stale listener remains active outside this sandbox's permission boundary.
+- evidence_paths: command outputs from `lsof -nP -iTCP:18923 -sTCP:LISTEN || true` and `kill 12246 && sleep 2 && lsof -nP -iTCP:18923 -sTCP:LISTEN || true`
+- affected_components: local service lifecycle preflight; targeted eval launch path
+- decision_change: Do not attempt the service lifecycle rerun in this environment until pid 12246 is cleared by a permitted host/session with process-kill authority.
+- unresolved_questions: Whether the orchestrator or a different host session can clear pid 12246 and free 127.0.0.1:18923.
+- confidence: high
+- commit_message: NONE - no tracked file changes

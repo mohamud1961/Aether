@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next verifier raw-state forced inspection improvement
+- event_type: implementation
+- summary: Improved the verifier forced-inspection path so an uninspected `completed` verdict triggers bounded read-only inspection of both the final artifact and a recently read raw/source file before generic receipt/history context. Added a verifier-only regression where raw source contradicts solver-authored recomputation and the verifier returns `needs_repair`.
+- observations: `_default_completion_inspection_requests()` now reads one artifact path and one latest-file-read path when available, then fills remaining budget with receipts/history. Solver-authored command results stay packet-visible only as audit trail. Focused tests passed: `python3 -m pytest -q tests/test_model_hooks.py tests/test_vnext_memory_context_verifier.py tests/test_runtime_enforcement.py` -> 73 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 287 passed.
+- inference: This moves verifier behavior closer to the target state inspector model without adding harness-side task judgment: the harness supplies raw observations, and the verifier still decides. It specifically targets the false-clean family where solver-authored recomputation looked plausible but raw source semantics were wrong.
+- evidence_paths: aether_next_build/aether_next/model_hooks.py; aether_next_build/tests/test_model_hooks.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: model verifier runtime; forced read-only inspection; solver-authored evidence hygiene
+- decision_change: Automatic verifier completion inspection should prioritize raw state, not only final artifact and receipts.
+- unresolved_questions: Whether to expose more raw-source candidates from EnvMap/visible_files in verifier packets, and whether verifier-owned rerun checks need overlay/sandbox execution before the next VM attempt.
+- confidence: high
+- commit_message: HOLD - verifier raw-state forced inspection improved; broader verifier eval and VM run remain

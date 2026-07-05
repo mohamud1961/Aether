@@ -1,0 +1,40 @@
+RAW_LEDGER_UPDATE
+- actor: codex repair thread
+- task: repair three narrow failure lanes from custom full-board run 20260621T011705Z_post_task_done_dispatch_repair
+- event_type: implementation
+- summary: Repaired generic heredoc boundary scanning, added task_blocked runtime support, and classified deadline-before-first-turn runs as invalid launch evidence instead of scored model failures; targeted model-backed validation then hit a shared Azure GPT-5.4-mini route blocker unrelated to the three lane fixes.
+- observations:
+  - harness/aether2/runtime/executor.py now strips heredoc bodies before boundary token scanning, which preserves workspace boundary enforcement for command arguments while allowing literal artifact content like /workspace/runtime inside heredocs.
+  - harness/aether2/control/execution_context.py now implements task_blocked, matching the advertised native tool schema instead of raising AttributeError on honest blocked closeout.
+  - harness/aether2/control/loop.py now emits deadline_before_first_turn when wall-clock budget expires before any normal model turn, and tools/run_custom_eval_board.py maps that case to invalid_launch with timed_out=true and infrastructure_timeout=true in synthetic traces.
+  - eval_suite/families/environment/environment_bootstrap_runner_repair/solver_pack/visible_prompt.md now explicitly requires runner_command to be the full test_runner + test_target command.
+  - Focused regression validation passed under Python 3.11: PYTHONPATH=. python3.11 -m pytest tests/test_aether2_executor.py tests/test_aether2_hooks.py tests/test_run_custom_eval_board.py -q => 67 passed in 55.82s; PYTHONPATH=. python3 tools/aether2_genericity_check.py --repo-root /Users/mohamud/Downloads/harnesseng exited 0.
+  - Targeted model-backed reruns could not validate the repaired rows because azure_gpt54_mini_env first failed on missing tenacity, then after supplying tenacity via /private/tmp/harnesseng_pydeps failed with ModelClientError: gpt-5 models don't support temperature=0.
+  - The same temperature=0 setting is hardcoded in harness/aether2/runtime/bridge_harbor.py for both the Aether2 local Harbor path and the selected Azure GPT-5.4-mini route.
+- inference:
+  - The three requested harness/eval-contract repairs are implemented and locally regression-tested, but model-backed proof is blocked by a shared provider-route/runtime config issue outside the approved scope.
+  - TerminalBench readiness for real model-backed task runs is currently blocked at route construction, not at the individual custom rows.
+- evidence_paths:
+  - harness/aether2/runtime/executor.py
+  - harness/aether2/control/execution_context.py
+  - harness/aether2/control/loop.py
+  - tools/run_custom_eval_board.py
+  - eval_suite/families/environment/environment_bootstrap_runner_repair/solver_pack/visible_prompt.md
+  - tests/test_aether2_executor.py
+  - tests/test_aether2_hooks.py
+  - tests/test_run_custom_eval_board.py
+  - tracking/local_runs/custom_eval_targeted/20260621T021033Z_environment_bootstrap_runner_repair/attempts/environment_bootstrap_runner_repair/artifacts/model_run/model_run_error.json
+  - tracking/local_runs/custom_eval_targeted/20260621T021200Z_environment_bootstrap_runner_repair_retry/attempts/environment_bootstrap_runner_repair/artifacts/model_run/model_run_error.json
+  - harness/aether2/runtime/bridge_harbor.py
+- affected_components:
+  - aether2 runtime executor
+  - aether2 control loop
+  - custom eval board runner classification
+  - environment bootstrap repair prompt
+- decision_change:
+  - Do not treat the blocked targeted reruns as row failures; classify them as shared model-route invalidity until the GPT-5 temperature contract is repaired.
+- unresolved_questions:
+  - Whether the Azure GPT-5 route should switch to temperature=1 or drop unsupported params generically for GPT-5-family deployments.
+  - Whether a separate provider/runtime goal should own Harbor and custom-board route normalization before any new model-backed board or TerminalBench attempts.
+- confidence: high
+- commit_message: HOLD - narrow custom-board repair lane implemented, model-backed validation blocked by GPT-5 temperature route config

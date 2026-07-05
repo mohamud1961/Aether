@@ -1,0 +1,28 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor-native Aether-2 post-upgrade VM validation lane
+- event_type: implementation
+- summary: Added a generic post-tool-call recovery warning for interactive start_job contract failures after live Harbor qemu evidence showed repeated detached interactive launches instead of pivoting to session_start.
+- observations:
+  - Repaired gpt53 Harbor rerun is valid and executing inside /app, but the live qemu row keeps exploring start_job launch shapes that return interactive-tool contract failures or exit 126.
+  - The existing tool result message alone was not sufficient to reliably steer the next action under pressure.
+  - The new slice appends an interactive_tool_recovery warning through the existing warning_event/system-message path when reason_code=interactive_job_requires_session_start.
+  - Focused local validation passed: 44 tests including the new post-upgrade behavior regression.
+  - VM sync validation passed: tests/test_aether2_post_upgrade_behaviors.py -> 3 passed.
+- inference: A passive, model-visible recovery nudge at the tool-dispatch chokepoint is a generic harness improvement for interactive-process tasks and should reduce repeated detached-launch mistakes without introducing task-specific logic or a harness-side completion veto.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/completion.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/tool_dispatch.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_aether2_post_upgrade_behaviors.py
+  - /Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/live_state.md
+  - /tmp/harbor-jobs/20260623T135100Z_harbor_receipt_gpt53codex_toolshape_rerun/20260623T135100Z_harbor_receipt_gpt53codex_toolshape_rerun-qemu-startup-receipt_driven_full-rep1/20260623T135100Z_harbor_receipt_gpt53codex_toolshape_rerun-qemu-startup-receipt_driven_full-rep1/qemu-startup__PYdRjwj/agent/aether2_harbor_runtime/host_state/.aether2/receipt_store/events.jsonl
+- affected_components:
+  - harness/aether2/control/completion.py
+  - harness/aether2/control/tool_dispatch.py
+  - tests/test_aether2_post_upgrade_behaviors.py
+- decision_change: Keep the provider/tool-shape repair and add the smallest generic recovery hint before opening any broader service-family mechanism.
+- unresolved_questions:
+  - Whether the recovery warning alone is enough to improve the next targeted qemu/service rerun.
+  - Whether additional generic guidance is needed for non-interactive exit-126 launch failures after the interactive pivot is fixed.
+- confidence: medium-high
+- commit_message: HOLD - waiting for the repaired Harbor gpt53 board to finish before deciding the next narrow rerun slice

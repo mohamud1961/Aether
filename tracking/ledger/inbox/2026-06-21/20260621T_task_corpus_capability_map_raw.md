@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: terminalbench-official-tasks-capability-mapping
+- event_type: source_analysis
+- summary: Mapped the official TerminalBench 2.0 task corpus structure and derived a capability taxonomy from the 89 real tasks, excluding the separate harness toy directory.
+- observations: official_tasks/ contains 90 task directories total. execution-gate-toy has harness metadata and a toy objective, so it is not part of the 89 real benchmark tasks. task.toml exposes category/tags/difficulty and instruction.md provides the modality cues needed to infer tooling requirements.
+- inference: The corpus needs a broad agent toolset beyond read/write, including image/OCR, video processing, VM/QEMU/VNC control, browser/network access, git/VCS, compilation/build toolchains, database/SQL/SPARQL, ML frameworks, statistical computing, reverse engineering, security/forensics, bioinformatics, game solvers, and text-editor automation.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/official_tasks/README.md; /Users/mohamud/Downloads/harnesseng/official_tasks/execution-gate-toy/task.toml; /Users/mohamud/Downloads/harnesseng/official_tasks/execution-gate-toy/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/query-optimize/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/video-processing/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/install-windows-3.11/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/financial-document-processor/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/protein-assembly/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/fix-code-vulnerability/instruction.md; /Users/mohamud/Downloads/harnesseng/official_tasks/password-recovery/instruction.md
+- affected_components: tracking/ledger/inbox
+- decision_change: None
+- unresolved_questions: Some tasks are network-dependent only if assets or models are uncached, so per-run harness policy should distinguish required local capabilities from contingent network fetches.
+- confidence: high
+- commit_message: NONE - no tracked file changes

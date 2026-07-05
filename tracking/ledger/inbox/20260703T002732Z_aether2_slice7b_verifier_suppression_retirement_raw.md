@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether2_architect_owned_workbench_carve_down / Slice 7B verifier suppression retirement
+- event_type: implementation
+- summary: Removed the remaining Aether-2 verifier suppression path. Active blockers now remain verifier-visible evidence instead of allowing deterministic blocker-relevance logic to synthesize a verifier-shaped rejection or skip verifier judgement.
+- observations: `_run_verification_rounds` now always calls `verify_fresh_context` for verification rounds. Deleted `_build_suppressed_blocker_report`, `_active_blockers`, and exported `should_suppress_verifier_call`. Removed zero-only `suppressed_verifier_calls` and `completion_precheck_rejections` telemetry from `RunResult`, Harbor result summaries, and `tools/run_tbench_model_backed.py`. Added regression coverage for active blockers reaching the verifier.
+- inference: This resolves the Slice 7B shared-ownership issue inside Aether-2: blocker records are ledger/context evidence, while verifier remains the semantic task-state judge. The change may increase verifier calls, but avoids harness-owned readiness decisions.
+- evidence_paths: harness/aether2/control/verification_rounds.py; harness/aether2/control/completion.py; harness/aether2/traces/blockers.py; harness/aether2/traces/delta.py; harness/aether2/control/execution_context.py; harness/aether2/runtime/bridge_harbor.py; tools/run_tbench_model_backed.py; tests/test_aether2_verification_feedback.py; docs/AETHER2_SLICE7B_VERIFIER_SUPPRESSION_RETIREMENT.md
+- affected_components: Aether-2 verifier loop; completion authority; blocker ledger lifecycle; result serialization; model-backed runner output
+- decision_change: Aether-2 no longer suppresses verifier calls based on active blocker relevance. Retired suppression telemetry is removed rather than preserved as fake zero-valued output.
+- unresolved_questions: Production target remains unresolved between Aether-2 and Aether-Next. Aether-Next duplicate judgement paths were not touched. Stage 1/sentinel validation remains required before promotion. Proof-state and repeat-guidance cleanup remains deferred pending eval evidence.
+- confidence: high for code/test-backed Aether-2 suppression retirement; medium for system-level promotion pending certified eval evidence
+- commit_message: HOLD - retire Aether-2 verifier suppression before target promotion evidence

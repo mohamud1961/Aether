@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next certified workbench safe-default placeholder removal
+- event_type: implementation
+- summary: Removed `compiler.guaranteed_default_ir()` from certified workbench architect/config failure handling. Workbench configure failure and unrepaired workbench validation failure now return an explicit non-executable invalid-workbench RuntimeConfigIR with `compiled=None` and `config_invalid_blockers`, instead of carrying a generic "guaranteed safe default" artifact.
+- observations: `_workbench_resolve()` now uses `_invalid_workbench_runtime_ir(...)` for failed initialization paths. The public resolver docstring now says workbench fails closed on configuration failure instead of falling back to baseline. Baseline/contract reference modes still retain their old guaranteed-default fallback behavior and remain a separate legacy cleanup item. Focused tests passed: `python3 -m pytest -q tests/test_kernel_config.py tests/test_vnext_configurability.py tests/test_kernel.py tests/test_features.py tests/test_model_hooks.py` -> 79 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 284 passed.
+- inference: Certified workbench config failure is now more honest: it cannot be mistaken for a model/task attempt and does not carry a fake-generic solver prompt or capability set. This advances the user's "no silent fallback / no fake configurability" harness vision while keeping reference-mode cleanup scoped for a later slice.
+- evidence_paths: aether_next_build/aether_next/kernel_config.py; aether_next_build/tests/test_kernel_config.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: workbench config resolution; architect initialization failure handling; certified-path fallback hygiene
+- decision_change: Certified workbench failure artifacts must be explicit invalid initialization artifacts, not generic safe defaults. Baseline/contract fallback behavior is acknowledged as legacy/reference-only remaining work.
+- unresolved_questions: Whether to physically move or delete baseline/contract fallback code next, or keep it behind a stronger reference/archive boundary until historical tests are rewritten.
+- confidence: high
+- commit_message: HOLD - certified workbench fallback cleanup complete; reference fallback cleanup remains

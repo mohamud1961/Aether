@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: overnight-ab-agent
+- task: tbench AHP A/B extension + headroom failure classification
+- event_type: experiment
+- summary: Extended AHP vs baseline A/B to 8 tasks (6 new). Result: 0 wins, 0 regressions, 8 unchanged. All 6 headroom failures classified: 2 ENV/INFRA (kv-store-grpc, configure-git-webserver — grading pipeline cannot test running services), 4 CAPABILITY-CEILING (db-wal-recovery, gcode-to-text, financial-document-processor, build-cython-ext — model lacks domain skills). Zero HARNESS-PREVENTABLE failures found — AHP's no-win is expected, not a real negative.
+- observations: AHP uses fewer model calls on passing tasks (avg 10.5 vs 13.0) but this does not translate to solving harder tasks. kv-store-grpc is a false negative — model did 100% of the work but grading runs in a fresh container that lacks pip installs and running processes. db-wal-recovery failure is model opening sqlite3 DB before copying WAL file, destroying the WAL via auto-checkpoint.
+- inference: The current task pool has no harness-preventable failures for AHP to exploit. To demonstrate AHP value, need tasks where the model does most work but fails on finalization/format/verification/premature-done.
+- evidence_paths: tracking/local_runs/tbench_ahp_ab/20260621_diverse/, tracking/collab/overnight_handoff.md
+- affected_components: tools/run_tbench_model_backed.py (generic workspace root detection), eval_suite/adapters/terminalbench_native.py (generic /workspace fallback)
+- decision_change: AHP A/B inconclusive — no promotion evidence. Runner needs grading-in-same-container for service tasks.
+- unresolved_questions: Are there any cached tbench tasks where gpt-5.4-mini gets 80-90% done but fails on finalization? That is the AHP sweet spot.
+- confidence: high for classifications, medium for AHP-has-no-surface conclusion (limited to 8 tasks)
+- commit_message: HOLD - overnight A/B results and runner generic workspace fix, pending review

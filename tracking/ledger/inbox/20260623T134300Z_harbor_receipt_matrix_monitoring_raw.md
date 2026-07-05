@@ -1,0 +1,32 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor receipt-driven full 5-task x 2-tier post-upgrade validation lane monitoring
+- event_type: experiment
+- summary: Confirmed the 10-row Harbor VM lane is live; gpt53-codex board is fully invalid before model work due to LiteLLM Azure Responses tool-conversion failure, while gpt54-mini is producing valid Harbor/Aether rows inside /app.
+- observations:
+  - Run roots `/tmp/harbor-jobs/20260623T132941Z_harbor_receipt_gpt53codex` and `/tmp/harbor-jobs/20260623T133041Z_harbor_receipt_gpt54mini` exist on `azureuser@20.106.35.151`.
+  - The gpt53 board completed all 5 rows with `row_validity=invalid` and `invalid_reason=backend_failure_before_model_work`.
+  - Per-row `aether2_harbor_status.json` shows backend error rooted in LiteLLM Responses transformation `_convert_tools_to_responses_format` raising `TypeError: 'NoneType' object is not subscriptable`.
+  - The gpt54 board remains active; `financial-document-processor` completed as a valid Harbor row with `model_work_started=true`, `model_calls=7`, `steps=5`, and `remote_workspace_root=/app`.
+- inference:
+  - The current gpt53-codex VM Harbor lane is contaminated by a provider/tool-schema integration bug on the live LiteLLM/Harbor surface rather than by task behavior or post-step agent reasoning.
+  - The gpt54-mini lane is suitable for continued behavior audit.
+- evidence_paths:
+  - `/tmp/harbor-jobs/20260623T132941Z_harbor_receipt_gpt53codex/board_rows.jsonl`
+  - `/tmp/harbor-jobs/20260623T132941Z_harbor_receipt_gpt53codex/launcher.log`
+  - `/tmp/harbor-jobs/20260623T132941Z_harbor_receipt_gpt53codex/*/*/*/agent/aether2_harbor_status.json`
+  - `/tmp/harbor-jobs/20260623T133041Z_harbor_receipt_gpt54mini/board_rows.jsonl`
+  - `/Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/live_state.md`
+- affected_components:
+  - `runner/board_row_validity.py`
+  - `runner/adapters/harbor_agent.py`
+  - `harness/aether2/runtime/model_routes.py`
+  - VM Harbor runtime and LiteLLM surface
+- decision_change:
+  - Treat gpt53-codex rows from this board as invalid provider-surface contamination unless a live route/schema fix is applied and rerun.
+- unresolved_questions:
+  - Which specific tool schema entry reaches LiteLLM as `None` on the gpt53-codex Responses path
+  - Whether the same fault can be reproduced locally against the VM runtime stack
+  - Whether gpt54-mini completes the remaining four rows without contamination
+- confidence: high
+- commit_message: HOLD - monitoring evidence only, no code changes in this slice

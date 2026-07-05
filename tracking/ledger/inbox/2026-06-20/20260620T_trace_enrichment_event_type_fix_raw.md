@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Fix original-repo trace-enrichment event naming mismatch in custom eval board synthetic traces
+- event_type: implementation
+- summary: Changed reasoning trace tool-call summaries to emit `event_type: tool_call` with `source_event_type: reasoning_tool_call` so generic graders count them, while preserving step, tool, command, cwd, path, timeout, exit_code, status, and files_changed summaries.
+- observations: The hidden verifier for original_repo_recovery_flagship counts only `tool_call`, `visible_verifier`, and `model_attempt`; the prior synthetic trace emitted only `reasoning_tool_call` for summarized tool actions. Updated the focused trace artifact test to require a generic `tool_call` event and to keep `model_attempt` and `visible_verifier` present.
+- inference: The trace enrichment was mechanically successful but semantically mismatched with grader expectations; aligning the emitted event type restores long-horizon trace counting without exposing private verifier content.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/tools/run_custom_eval_board.py:927-960, /Users/mohamud/Downloads/harnesseng/tests/test_run_custom_eval_board.py:605-732, /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_targeted/20260620T162840Z_original_repo_trace_rerun/synthetic_trace.json, /Users/mohamud/Downloads/harnesseng/eval_suite/families/filesystem/original_repo_recovery_flagship/reviewer_pack/hidden_verifier.py:107-114
+- affected_components: custom eval trace enrichment, synthetic trace artifact schema, trace-enrichment regression test
+- decision_change: Preserve reasoning provenance via `source_event_type` while making the emitted event compatible with generic graders that expect `tool_call`.
+- unresolved_questions: None for this repair; the next targeted rerun should confirm the original-repo hidden verifier now counts the enriched tool-call events.
+- confidence: high
+- commit_message: HOLD - trace enrichment naming fix validated but not committed

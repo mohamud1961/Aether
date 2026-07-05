@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: pro_micro_workspace_task_docs_and_hypothesis_update
+- event_type: implementation
+- summary: Expanded the Pro micro-workspace to include official Terminal-Bench 2.0 task-doc summaries, added IR/monitors and model-authored runtime compiler hypothesis notes, sharpened the final Pro instruction stack, and rebuilt stable token-budget reports under the hard cap.
+- observations: official_tasks/task_docs existed locally; the workspace builder now copies README plus summary markdown files into 09b_official_task_docs; FINAL_PRO_INSTRUCTION.md now states the TB2.0 objective and one-run internal staging; rebuilt workspace totals are 197200 full, 153708 first-pass, and 43492 optional second-pass tokens.
+- inference: Pro now has a much stronger first-pass architecture evidence pack showing both the breadth of Terminal-Bench 2.0 task shapes and the competing architecture hypotheses without requiring broad repo scans.
+- evidence_paths: tools/prepare_pro_workspace.py; tracking/collab/aether_next_pro_build/FINAL_PRO_INSTRUCTION.md; tracking/collab/aether_next_pro_build/PRO_WORK_ORDER.md; tracking/collab/aether_next_pro_build/PRO_READ_ORDER.md; tracking/collab/aether_next_pro_build/PRO_CONTEXT_MANIFEST.md; tracking/collab/aether_next_pro_build/AETHER_NEXT_IR_AND_MONITORS_NOTE.md; tracking/collab/aether_next_pro_build/AETHER_NEXT_MODEL_AUTHORED_RUNTIME_COMPILER_HYPOTHESIS.md; pro_workspace_aether_next/WORKSPACE_TOKEN_BUDGET_REPORT.md; pro_workspace_aether_next/WORKSPACE_READ_BUDGET.md; tracking/collab/pro_route_readiness/PRO_ROUTE_READINESS_REPORT.md
+- affected_components: pro micro-workspace builder; pro instruction stack; readiness reporting
+- decision_change: The curated Pro workspace should include official TB2.0 task-doc summaries as mandatory first-pass architecture evidence, plus the IR/monitors and model-authored runtime compiler hypotheses as evaluated options rather than commands.
+- unresolved_questions: Live Azure Pro route still unproven until deployment and key env vars are set and the workspace smoke is run.
+- confidence: high
+- commit_message: HOLD - waiting for user review before commit

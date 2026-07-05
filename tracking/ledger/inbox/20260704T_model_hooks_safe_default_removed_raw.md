@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next ModelHooks safe-default config removal
+- event_type: implementation
+- summary: Removed `ModelHooks` architect/reconfigure safe-default IR fabrication. Bad architect or reconfigure model output now raises `ModelOutputError`; the baseline resolver catches architect parse failure and returns a visible `config_invalid` result with an explicit invalid config artifact instead of a generic runtime config.
+- observations: `ModelHooks.architect()` no longer returns `[safe default -- architect parse failed]`. `ModelHooks.reconfigure()` no longer returns `[safe default -- reconfigure parse failed]`. The helper methods that created those fake configs were deleted. Focused tests passed: `python3 -m pytest -q tests/test_model_hooks.py tests/test_kernel_config.py tests/test_vnext_configurability.py tests/test_kernel.py` -> 63 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 285 passed.
+- inference: This closes another legacy fallback surface and makes config/model-output failure visible rather than pretending the architect produced a usable workbench. Remaining `guaranteed_default_ir()` calls are baseline/contract reference validation fallback branches and should be handled in a later reference-mode quarantine/deletion slice.
+- evidence_paths: aether_next_build/aether_next/model_hooks.py; aether_next_build/aether_next/kernel_config.py; aether_next_build/tests/test_model_hooks.py; aether_next_build/tests/test_kernel_config.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: ModelHooks architect path; ModelHooks reconfigure path; baseline resolver failure classification; config fallback hygiene
+- decision_change: Model-backed architect/reconfigure parse failure is a visible model-output/config failure, not a safe-default runtime configuration.
+- unresolved_questions: Whether to delete the remaining baseline/contract reference fallback branches entirely or move those modes out of the canonical package first.
+- confidence: high
+- commit_message: HOLD - ModelHooks safe-default cleanup complete; reference-mode fallback cleanup remains

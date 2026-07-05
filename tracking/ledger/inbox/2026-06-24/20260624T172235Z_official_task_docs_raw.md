@@ -1,0 +1,25 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Generate markdown summaries for all official TerminalBench task folders
+- event_type: implementation
+- summary: Added a generator that writes one markdown summary per official task plus an index under `official_tasks/task_docs/`.
+- observations:
+  - The local corpus contains 90 task folders with both `task.toml` and `instruction.md`.
+  - The generator captures prompt text, environment metadata from `task.toml`, environment file inventories, and test-derived success cues from `tests/test_outputs.py` and related test files.
+  - The documented recorder helper path from AGENTS was not present in this checkout, so the raw handoff was persisted directly into `tracking/ledger/inbox/`.
+- inference: This gives the official task corpus a consistent browseable reference layer without changing any benchmark task behavior.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/scripts/generate_official_task_docs.py
+  - /Users/mohamud/Downloads/harnesseng/official_tasks/task_docs/README.md
+  - /Users/mohamud/Downloads/harnesseng/official_tasks/task_docs/chess-best-move.md
+  - /Users/mohamud/Downloads/harnesseng/official_tasks/task_docs/financial-document-processor.md
+- affected_components:
+  - official_tasks documentation layer
+  - task corpus browsing workflow
+  - benchmark reference ergonomics
+- decision_change: None
+- unresolved_questions:
+  - User mentioned 89 tasks, but the local corpus contains 90 task folders with `task.toml`.
+  - Future updates may want a smaller environment summary if any task directories become much larger than the current corpus.
+- confidence: high
+- commit_message: Add generated markdown docs for official TerminalBench tasks

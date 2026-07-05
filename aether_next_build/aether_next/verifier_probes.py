@@ -200,6 +200,10 @@ def inspect_artifact_probe(executor: Any, path: str) -> dict[str, Any]:
             f"identify {q} 2>/dev/null | head -3 || python3 -c \"import struct,sys;print('no_image_tool')\"",
         )
         row["image_metadata"] = dims.stdout.strip()[:500] or "tool_missing:identify"
+        row["semantic_content_available"] = False
+        row["semantic_content_status"] = (
+            "metadata_only: verifier artifact probe does not extract image semantics"
+        )
     else:
         head = _run(executor, f"head -c 4000 {q} | tr -d '\\000' | head -40")
         row["content_head"] = head.stdout[:2000]

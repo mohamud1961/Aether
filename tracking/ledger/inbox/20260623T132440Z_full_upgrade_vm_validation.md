@@ -1,0 +1,28 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: post-upgrade Harbor validation lane VM gate
+- event_type: implementation
+- summary: Synced the narrowed harness-upgrade slice to the durable VM checkout, repaired the plain `python3.11` runtime substrate, and cleared the VM validation gate including both provider tiers.
+- observations:
+  - Synced the changed harness/runner/tests slice to `/home/azureuser/harnesseng_vm` on `azureuser@20.106.35.151`.
+  - Repaired VM `python3.11` runtime imports by installing user-site dependencies needed by the real Harbor path: `litellm`, `tenacity`, `pymupdf`, `rapidocr-onnxruntime`, `cffi`.
+  - VM validation commands passed:
+    - focused pytest suite -> `105 passed`
+    - `python3.11 -m harness.aether2.control.ahp_preflight` -> `40/40 checks passed`
+    - `python3.11 tools/aether2_genericity_check.py` -> passed
+    - `python3.11 -m runner.board_preflight --model-tier gpt54-mini --model-env-file /home/azureuser/.aether2/model.env` -> passed
+    - `python3.11 -m runner.board_preflight --model-tier gpt53-codex --model-env-file /home/azureuser/.aether2/model.env` -> passed
+  - Harbor binary is present on the VM and `docker ps` succeeds after the validation repair.
+- inference: The durable VM surface is now ready for the 10-row Harbor `receipt_driven_full` validation matrix.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/live_state.md
+  - /tmp/aether2_vm_preflight_gpt54mini.json
+  - /tmp/aether2_vm_preflight_gpt53codex.json
+- affected_components:
+  - VM checkout `/home/azureuser/harnesseng_vm`
+  - VM Python user-site runtime
+- decision_change: None; VM gate cleared, but no promotion claim is made.
+- unresolved_questions:
+  - Need the 10-row Harbor worker lane and per-row audit to decide the next patch queue.
+- confidence: high
+- commit_message: HOLD - VM validation complete, Harbor run matrix still pending

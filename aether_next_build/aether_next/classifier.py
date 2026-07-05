@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 LIMITER_LABELS = (
     "none",
+    "timeout_resource_failure",
     "model_limit",
     "harness_runtime_failure",
     "harness_tooling_failure",
@@ -50,6 +51,17 @@ class HarnessLimiterClassifier:
                 confidence="high",
                 evidence=tuple(result.blockers),
                 detail=f"config_invalid: {', '.join(result.blockers)}",
+            )
+
+        if result.status == "timeout":
+            return LimiterClassification(
+                label="timeout_resource_failure",
+                confidence="high",
+                evidence=tuple(result.blockers),
+                detail=(
+                    "agent phase terminated by wall clock; final state was still "
+                    "scored by the official grader (graded_after_timeout)"
+                ),
             )
 
         if result.status == "verifier_stalemate":

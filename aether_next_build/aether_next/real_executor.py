@@ -376,20 +376,34 @@ class SubprocessExecutor:
                     detail=f"read error: {exc}",
                 )
 
-        # Binary / unknown mode: size + first-bytes preview.
+        # Binary / unknown mode: size + first-bytes preview. This is useful
+        # metadata, not semantic content. If the caller asked for an image/OCR
+        # style preview, report the semantic capability gap explicitly so the
+        # solver does not loop on a "successful" non-observation.
         metadata["backend"] = "basic"
         try:
             with open(resolved, "rb") as fh:
                 head = fh.read(256)
             preview = head.hex(" ", 1)[:200]
             metadata["head_hex"] = preview
+            metadata["semantic_content_available"] = False
+            metadata["semantic_content_status"] = (
+                "metadata_only: no semantic extractor is wired for this mode"
+            )
+            metadata_only_modes = {"auto", "preview", "image", "ocr", "pdf", "frames"}
+            metadata_only = (mode or "").strip().lower() in metadata_only_modes
             return ArtifactInspection(
                 path=path,
                 mode=mode,
-                success=True,
+                success=not metadata_only,
                 extracted_text="",
                 metadata=metadata,
-                detail=f"binary preview of {path} ({metadata.get('size_bytes', '?')} bytes)",
+                detail=(
+                    f"metadata-only inspection of {path} "
+                    f"({metadata.get('size_bytes', '?')} bytes); semantic content unavailable"
+                    if metadata_only
+                    else f"binary metadata for {path} ({metadata.get('size_bytes', '?')} bytes)"
+                ),
             )
         except OSError as exc:
             return ArtifactInspection(

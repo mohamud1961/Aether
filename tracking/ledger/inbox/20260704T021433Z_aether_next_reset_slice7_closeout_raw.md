@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether-next reset slice 7 envmap/tooling hardening closeout
+- event_type: implementation
+- summary: Completed Slice 7 by hardening EnvMap prompt-path surfacing, adding expanded task-hinted command probing, rerunning deterministic EnvMap audit across all 90 indexed official tasks, and validating the slice with focused and broader Aether-Next tests.
+- observations: `aether_next_build/envmap_audit_20260704_v8/envmap_audit_summary.json` reports 90 indexed tasks, 0 truncated file trees, 54 tasks with tooling hints, 59 sparse visible workspaces, 55 deliverable_pressure_with_few_input_hints flags, and 2 prompt_declared_output_not_visible flags; focused EnvMap/config tests passed; broader runtime sweep across config/workbench/runtime/model hooks passed; naming was corrected from `prompt_deliverables` to `prompt_declared_output_paths` to keep the new surface descriptive rather than model-leading.
+- inference: Slice 7 is ready to hand off into verifier/grader alignment work because the deterministic environment surface is stronger, less brittle, and still evidence-only rather than authoritative.
+- evidence_paths: `tracking/collab/aether_next_reset_slice7_envmap_hardening_20260704.md`; `aether_next_build/envmap_audit_20260704_v8/ENVMAP_AUDIT_REPORT.md`; `aether_next_build/envmap_audit_20260704_v8/envmap_audit_summary.json`; `aether_next_build/aether_next/envmap_builder.py`; `aether_next_build/aether_next/environment_probe.py`; `aether_next_build/run_envmap_audit.py`; `aether_next_build/tests/test_vnext_configurability.py`
+- affected_components: `aether_next_build/aether_next/envmap_builder.py`; `aether_next_build/aether_next/environment_probe.py`; `aether_next_build/run_envmap_audit.py`; `tracking/collab/aether_next_reset_slice7_envmap_hardening_20260704.md`
+- decision_change: Slice 7 is complete and the plan can advance to Slice 8 verifier/grader alignment.
+- unresolved_questions: whether later Slice 8 verifier/grader mismatches still reveal missing deterministic environment surfacing for a small subset of tasks; whether additional read-only environment probes will be needed after alignment evidence exists.
+- confidence: high
+- commit_message: HOLD - slice 7 closeout recorded but full reset goal still active

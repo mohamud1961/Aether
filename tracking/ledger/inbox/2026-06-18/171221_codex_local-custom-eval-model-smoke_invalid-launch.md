@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex runner/operator
+- task: first bounded model-backed local custom eval smoke for Aether-2 on the prepared two-row board
+- event_type: failure
+- summary: The smoke command failed before any model execution or scoring because harness/aether2/runtime/model_routes.py raises NameError: hashlib is not defined while computing request_settings_fingerprint for the Azure gpt-5.4-mini route.
+- observations: Command run was `python3 tools/run_custom_eval_board.py --board eval_suite/whole_harness/final_harness_v1/local_custom_eval_model_smoke_v1.yaml --output-root tracking/local_runs/custom_eval_model_smoke/$(date -u +%Y%m%dT%H%M%SZ) --harness aether2 --run-attempts --model-route azure_gpt54_mini_env --max-model-rows 2 --list`. The only output artifact created was `tracking/local_runs/custom_eval_model_smoke/20260618T171221Z/launch_integrity.json`, which reports import checks and the genericity check as ok. The command stderr contains the traceback ending at `hashlib.sha256(...)`. No run_summary.json, scoreboard.json, attempt_rows.jsonl, verifier outputs, grader outputs, or model traces were produced.
+- inference: This is an invalid_launch / launch_failure result, not capability evidence. The model never got a chance to explore, plan, act, verify, or finalize.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_model_smoke/20260618T171221Z/launch_integrity.json; /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/model_routes.py; command stderr from tools/run_custom_eval_board.py
+- affected_components: harness/aether2/runtime/model_routes.py; tools/run_custom_eval_board.py; local custom eval smoke launch path
+- decision_change: Do not classify this smoke as scored model capability evidence. The exact next action should be a minimal harness repair for the missing hashlib import, then a fresh one-shot rerun only after that fix exists.
+- unresolved_questions: None for this run. The decisive failure is directly evidenced by the traceback and the missing import in source.
+- confidence: high
+- commit_message: HOLD - local custom eval smoke blocked by missing hashlib import in route fingerprinting

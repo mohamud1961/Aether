@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 architect-owned workbench carve-down, Slice 8 official grader/result-row separation
+- event_type: implementation
+- summary: Completed Slice 8 boundary clarification. Custom eval rows now separate invalid attempts from task pass/fail truth and do not count invalid verifier/model attempts as scored model capability runs even when an official grader artifact exists. Harbor completed manifests now mark grader attribution as post-agent, non-agent-visible external measurement.
+- observations: `tools/run_custom_eval_board.py` now gates `scored_model_run_occurred` on completed attempts and adds `task_truth_status`, explicit grader authority, agent visibility, and model capability status/counts. `harness/aether2/runtime/bridge_harbor.py` now emits `official_grader_phase: post_agent`, `official_grader_agent_visible: false`, and `official_grader_authority: external_measurement` in completed result attribution. Regression tests cover invalid visible-verifier attempts with passing grader artifacts and Harbor reward attachment from `logs/verifier/reward.txt`.
+- inference: This preserves the ownership boundary that the official grader measures only after agent termination. Invalid launch/verifier/initialization conditions remain invalid substrate or setup outcomes, not model task pass/fail capability evidence.
+- evidence_paths: docs/AETHER2_SLICE8_GRADER_RESULT_ROW_SEPARATION.md; docs/AETHER2_CARVE_DOWN_BUILD_PLAN.md; tools/run_custom_eval_board.py; tests/test_run_custom_eval_board.py; harness/aether2/runtime/bridge_harbor.py; tests/test_aether2_harbor_executor.py
+- affected_components: Aether-2 Harbor result manifest attribution; custom eval board result-row semantics; model capability scoreboard counts; Slice 8 documentation
+- decision_change: Slice 8 is marked completed as a boundary clarification and row-semantics fix. Official grader artifacts can be recorded for invalid attempts but cannot score model capability unless the attempt itself completed validly.
+- unresolved_questions: Stage 1/sentinel validation remains next. Broader result-row schema consolidation is deferred unless downstream consumers require migration.
+- confidence: high
+- commit_message: Clarify Aether-2 grader result-row separation

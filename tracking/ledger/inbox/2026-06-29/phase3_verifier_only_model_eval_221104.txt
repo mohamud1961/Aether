@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Aether-Next vNext Phase 3 verifier-only model experiments
+- event_type: experiment
+- summary: Ran verifier-only model experiments on five fixed packets with 5.4-mini, validated them offline, then ran a 5.3-codex comparison on the same packet set.
+- observations: 5.4-mini produced 5/5 parseable verifier outputs, all rows evidence_bound=true and actionable=true. Expected verdicts matched: semantic_wrong/missing_artifact/schema_mismatch/repeated_no_progress all needs_repair, insufficient_evidence uncertain_missing_evidence. Validator reported PASS. 5.3-codex also produced 5/5 parseable outputs and validator PASS; it attached an active finding to insufficient_evidence while retaining the uncertain_missing_evidence verdict.
+- inference: The hardened verifier packet and parser boundary are stable enough to proceed to controlled replay; 5.4-mini is acceptable for verifier-only packets under the current validation gate.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/VERIFIER_ONLY_MODEL_EXPERIMENT_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/verifier_only_model_phase3_summary.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/verifier_only_eval_54mini_20260629_220014/summary.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/VERIFIER_ONLY_54MINI_VALIDATION.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/verifier_only_eval_53codex_20260629_220134/summary.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/VERIFIER_ONLY_53CODEX_VALIDATION.md
+- affected_components: verifier-only eval runner; verifier packet policy; active finding lifecycle
+- decision_change: Proceed to controlled replay, still without full benchmark/task attempts.
+- unresolved_questions: Whether active findings should be permitted for uncertain_missing_evidence remains a policy-quality question; current validator allows it if verdict/actionability/evidence-bound checks pass.
+- confidence: high
+- commit_message: HOLD - continue through Phase 6 before preparing a coherent commit slice

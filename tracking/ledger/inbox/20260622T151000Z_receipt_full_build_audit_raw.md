@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Receipt-driven full variant build continuation and trace audit
+- event_type: experiment
+- summary: Continued safe generic full-build work behind flags and generated deep audit/failure-card deliverables for the 4-row Harbor run `/tmp/harbor-jobs/20260622T1438Z_receipt_driven_full_vm`.
+- observations: Added PLAN_UPDATE parsing/persistence with done-without-evidence flags, receipt-store/local-tool query_evidence, task-local helper trust metadata, conservative inspect_artifact tool, split verifier immediate/final round policy, and failure-card classification/generation. Local focused tests passed (`28 passed`), broader focused suite passed (`53 passed`), py_compile passed, and genericity passed. VM focused tests/genericity/py_compile passed. Post-build Harbor smoke `/tmp/harbor-jobs/20260622T_receipt_build_smoke` completed with no Harbor exceptions.
+- inference: The variant remains experimental, but the generic infrastructure is materially more complete. The qemu regression is not a reason to stop full build; it is a service lifecycle/candidate preservation failure. The active candidate `qemu6665` had listening evidence (`LISTEN_OK`) before the model sent Ctrl-C and invalidated it without replacement.
+- evidence_paths: RECEIPT_DRIVEN_FULL_VARIANT_TRACE_AUDIT.md; RECEIPT_DRIVEN_FULL_VARIANT_BUILD_REPORT.md; RECEIPT_DRIVEN_FULL_VARIANT_TEST_REPORT.md; RECEIPT_DRIVEN_FULL_VARIANT_FAILURE_CARDS.jsonl; tracking/collab/receipt_driven_full_audit_20260622/row_bundles_compact.json; /tmp/harbor-jobs/20260622T_receipt_build_smoke
+- affected_components: harness/aether2/traces/receipt_store.py; harness/aether2/control/execution_context.py; harness/aether2/traces/task_local_tools.py; harness/aether2/tools/native.py; harness/aether2/runtime/run_config.py; harness/aether2/runtime/adaptive_context.py; harness/aether2/runtime/adaptive_profile.py; harness/aether2/traces/failure_cards.py; tests/test_receipt_driven_full_build.py
+- decision_change: Do not make qemu-specific behavior changes. Next generic fix target is FirstSuccessLock/candidate preservation for active services/processes.
+- unresolved_questions: How to enforce candidate preservation generically without preventing legitimate replacement attempts?
+- confidence: high for audit facts and wiring, medium for exact responsible-layer weighting until a structured trace-diff workbench exists.
+- commit_message: HOLD - receipt-driven full build/audit slice pending service lifecycle preservation follow-up

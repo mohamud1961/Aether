@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex 5.4-mini VM run manager
+- task: Aether-Next VM stage-1 rerun management on harnesseng-regular-01
+- event_type: experiment
+- summary: Synced the updated aether_next_build implementation to the Azure VM, completed the requested python3.11/Docker preflight chain, and launched the stage-1-only rerun with verifier evidence capture enabled. The rerun is still active and has not yet produced final row results.
+- observations: Remote VM at azureuser@20.106.35.151 was reachable; /home/azureuser/harnesseng_vm/aether_next_build existed; python3.11 3.11.15 and Docker 29.1.3 were present. Local rsync of aether_next and the build-root scripts completed. Preflight on the VM passed compileall, pytest -q --ignore=tests/test_docker_runner.py (226 passed in 3.06s), and run_stage1_replay_acceptance.py --out-dir stage1_replay_acceptance_runtime_enforcement_vm. The stage-1 rerun was started under run id 20260701T_runtime_enforcement_stage1_py311 with trace/snapshot output rooted in vm_goal_runs/20260701T_runtime_enforcement_stage1_py311 and verifier bundles under verifier_evidence. After several minutes, runner.log still showed the first task launch line and no results.json had been written yet. docker ps showed one live filter-js-from-html container.
+- inference: The VM plumbing, environment contract, and preflight are healthy. The stage-1 rerun is executing but is slower than expected or waiting on model/task progress; completion is not yet observable from current evidence.
+- evidence_paths: /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/runner.log; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/runner.pid; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/verifier_evidence/step_0000_deterministic_success_candidate/; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260701T_runtime_enforcement_stage1_py311/results.json (not yet present); /home/azureuser/harnesseng_vm/aether_next_build/stage1_replay_acceptance_runtime_enforcement_vm/stage1_replay_acceptance.json
+- affected_components: VM sync, preflight, stage1 pilot launch, verifier evidence capture
+- decision_change: Keep the rerun live and report partial rather than inventing final row results. No stage 2 was started.
+- unresolved_questions: Whether the first row will complete normally or is stalled inside the model/task loop; whether OpenSSL still hits the prior verifier permission failure once the run reaches it; whether the rerun will produce final results.json and trace files without intervention.
+- confidence: medium
+- commit_message: HOLD - stage1 VM rerun still active

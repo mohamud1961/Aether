@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex-subagent
+- task: inventory eval surfaces in harnesseng checkout
+- event_type: source_analysis
+- summary: Mapped the live eval surface universe across eval_suite, whole-harness registries, benchmark adapters, custom smoke packs, generated scoreboards, and collab/history artifacts.
+- observations: eval_suite contains six public smoke family packs, four pressure-family certified task packs, five fsent whole-harness rows, three custom wrapper packs, public calibration and pressure boards, and example scoreboards. runner/tools include benchmark adapter code for BFCL, ContextBench, Letta, TerminalBench, and ACEBench plus eval substrate planners and smoke runners. tracking/collab contains the final_harness_eval_suite run bundle, baseline public registry, and staged planning cards. variants/scoreboards holds historical summaries only.
+- inference: The previous short list missed several live surfaces, especially whole-harness registries, custom wrapper packs, benchmark adapters, and synthetic/example scoreboards. Most tracking/collab artifacts are historical evidence rather than runnable source.
+- evidence_paths: eval_suite/families/index.json; eval_suite/boards/public_eval_harness_v1.json; eval_suite/whole_harness/final_harness_v1/final_suite_registry.yaml; eval_suite/whole_harness/runtime_control_harness_v1/runtime_control_harness_v1.json; eval_suite/custom/runtime_policy_hook_smoke/task_pack.json; eval_suite/adapters/README.md; tools/run_benchmark_adapter_contextbench_smoke.py; tracking/collab/final_harness_eval_suite/runs/20260529T184245Z/common/trace.json; tracking/collab/eval_suite_v1_certification_baseline/public_registry.yaml; variants/scoreboards/attribution_guard_tournament_v1.json
+- affected_components: eval_suite families, boards, scoreboards, whole_harness registries, custom wrappers, benchmark adapters, tracking/collab historical evidence, variants scoreboards
+- decision_change: None; inventory only
+- unresolved_questions: Whether the baseline public_registry.yaml should be treated as live current source or collab-only historical input for planning.
+- confidence: high
+- commit_message: NONE - no tracked file changes

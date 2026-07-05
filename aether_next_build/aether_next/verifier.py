@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
+import hashlib
 import json
+import re
 from typing import Any
 
 VERIFIER_VERDICTS = frozenset({
@@ -168,6 +170,8 @@ def parse_model_verifier_result(value: Any) -> ModelVerifierResult:
         raise ValueError("needs_repair verifier verdict requires at least one finding")
     if verdict == "uncertain_missing_evidence" and not missing:
         raise ValueError("uncertain_missing_evidence requires missing_evidence_requests")
+    if verdict == "uncertain_missing_evidence" and missing and not findings:
+        findings = _findings_from_missing_evidence_requests(missing)
     return ModelVerifierResult(
         verdict=verdict,
         confidence=str(data.get("confidence", "medium")).strip() or "medium",
@@ -249,6 +253,29 @@ def _parse_findings(data: dict[str, Any], *, default_verdict: str) -> tuple[Veri
             keep_until=str(item.get("keep_until", "resolved_or_superseded")).strip() or "resolved_or_superseded",
         ))
     return tuple(parsed)
+
+
+def _findings_from_missing_evidence_requests(
+    missing: tuple[str, ...],
+) -> tuple[VerifierFinding, ...]:
+    findings: list[VerifierFinding] = []
+    for idx, request in enumerate(missing):
+        clean = re.sub(r"\s+", " ", request).strip()
+        digest = hashlib.sha256(clean.encode("utf-8")).hexdigest()[:12]
+        findings.append(VerifierFinding(
+            finding_id=f"vf-missing-evidence-{idx}-{digest}",
+            created_step=0,
+            verdict="uncertain_missing_evidence",
+            priority="blocking",
+            summary=f"Missing verifier evidence: {clean}",
+            evidence=(clean,),
+            repair_instruction=(
+                "Produce fresh current-state evidence that directly satisfies "
+                "this verifier request before submitting again."
+            ),
+            applies_to=("verifier_evidence", f"missing_request:{digest}"),
+        ))
+    return tuple(findings)
 
 
 def _has_completion_evidence(data: dict[str, Any], findings: tuple[VerifierFinding, ...]) -> bool:

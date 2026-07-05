@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex GPT-5.4-mini worker
+- task: repair remaining TerminalBench native benchmark readiness and BFCL native blocker triage
+- event_type: implementation
+- summary: Patched the native TerminalBench adapter to seed each writable /app workspace from the task image before running the official solution/tests. This fixed the missing /app/documents and /app/repo failures without task-specific logic. BFCL native remains blocked by missing runtime dependencies and absent official grader source in the checkout.
+- observations: eval_suite/adapters/terminalbench_native.py previously mounted an empty host workspace over /app, masking image-provided task state. Fresh reruns now pass financial-document-processor, git-leak-recovery, and regex-log with reward 1 and verifier_exit_code 0. BFCL preflight still reports missing_bfcl_native_runtime_dependencies, missing deepagents/langchain_core/langgraph/langsmith imports, and official_grader_source_present=false.
+- inference: The two TerminalBench native failures were a workspace overlay bug, not a task-contract or verifier bug. BFCL native is not locally repairable from repo assets alone; it needs external runtime/source material.
+- evidence_paths: eval_suite/adapters/terminalbench_native.py; tracking/local_runs/benchmark_adapter_terminalbench_native/financial-document-processor_20260619T202425Z_repair_check/native_static_result.json; tracking/local_runs/benchmark_adapter_terminalbench_native/git-leak-recovery_20260619T202943Z_repair_check/native_static_result.json; tracking/local_runs/benchmark_adapter_terminalbench_native/regex-log_20260619T203053Z_repair_check/native_static_result.json; tests/test_benchmark_adapter_readiness.py; tests/test_benchmark_adapter_contracts.py; tracking/local_runs/benchmark_adapter_bfcl/20260619T192827Z/bfcl_readiness.json; tracking/local_runs/benchmark_adapter_bfcl/20260619T191200Z/bfcl_readiness.json
+- affected_components: terminalbench native adapter; benchmark adapter readiness tests; local benchmark adapter evidence roots
+- decision_change: Promote TerminalBench native readiness fix as a generic image-to-workspace seeding change. Keep BFCL native in blocked_external_dependency status until the missing external runtime/source is supplied.
+- unresolved_questions: None for TerminalBench native. BFCL native still needs the official grader source and Python runtime dependencies before any native readiness claim is valid.
+- confidence: high
+- commit_message: Seed TerminalBench native workspaces from image /app contents

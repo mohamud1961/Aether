@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: audit the current 14-row custom full-board GPT-5.4-mini N=3 failures, classify eval bug vs genuine harness/model failure, and implement the smallest justified generic repair
+- event_type: implementation
+- summary: Added a narrow prompt-layer reminder that task_done should re-check literal artifact fidelity for exact-format outputs, plus a regression test and genericity check coverage.
+- observations: Stable hidden-grader failures on fsent_06_exact_serialization_contract and seed-sensitive runner_command_mismatch runs show exact-output drift despite visible-verifier passes; original_repo_recovery_flagship and service_lifecycle_readiness_flagship remain honest failures with insufficient long-horizon/service evidence.
+- inference: A small generic completion reminder is the lowest-risk repair with evidence support because it targets literal artifact self-checks without task-name branches or grader-specific logic.
+- evidence_paths: tracking/local_runs/custom_eval_full_board_model_eligible/20260619T192427Z_seed1/attempt_rows.jsonl; tracking/local_runs/custom_eval_full_board_model_eligible/20260619T193625Z_seed2/attempt_rows.jsonl; tracking/local_runs/custom_eval_full_board_model_eligible/20260619T194605Z_seed3/attempt_rows.jsonl; harness/aether2/runtime/prompts.py; tests/test_aether2_prompts.py; `python3 -m pytest tests/test_aether2_prompts.py tests/test_aether2_genericity.py -q`; `python3 tools/aether2_genericity_check.py --repo-root /Users/mohamud/Downloads/harnesseng`
+- affected_components: harness/aether2/runtime/prompts.py; tests/test_aether2_prompts.py
+- decision_change: Introduced a stricter exact-artifact self-check reminder at completion time; no board/eval weakening.
+- unresolved_questions: Whether this prompt-only nudge materially improves the stable exact-output failures in fresh end-to-end reruns remains unproven.
+- confidence: medium
+- commit_message: HOLD - prompt-only exact-artifact self-check tweak pending end-to-end validation

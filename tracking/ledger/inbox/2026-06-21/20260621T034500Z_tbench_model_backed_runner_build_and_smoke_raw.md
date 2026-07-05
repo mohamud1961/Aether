@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: overnight-agent
+- task: build generic model-backed TerminalBench runner + one-task smoke baseline vs AHP
+- event_type: experiment
+- summary: Built tools/run_tbench_model_backed.py (generic model-backed TerminalBench runner), replacing the cut run_aether2_g3_official.py. Smoked git-leak-recovery baseline vs AHP. Both solve (reward=1.0). AHP used fewer model calls (11 vs 14) and less wall time (80s vs 90s). N=1, not promotion evidence.
+- observations: (1) Old entrypoint tools/run_aether2_g3_official.py was cut in public-release leakage cleanup; scripts/run_aether2_tournament.sh still references it. (2) New runner stages workspace from docker image via _seed_workspace_from_image, runs run_aether2_loop with real model client + ContainerExecutor, grades with official test.sh. (3) Baseline: 14 model_calls, 9 steps, 90.3s, reward=1.0, finalize_reason=task_done. (4) AHP: 11 model_calls, 6 steps, 80.4s, reward=1.0, finalize_reason=task_done. (5) AHP produced full contract artifacts (adaptation_contract.json, completion_contract.json, authority_mapping.json, etc).
+- inference: Runner unlock is complete. AHP shows modest efficiency advantage on this easy task (both solve). Need diverse harder tasks to see differentiation.
+- evidence_paths: tracking/local_runs/tbench_ahp_ab/20260621_smoke/git-leak-recovery/baseline/result.json, tracking/local_runs/tbench_ahp_ab/20260621_smoke/git-leak-recovery/ahp/result.json, tools/run_tbench_model_backed.py, tracking/collab/overnight_handoff.md
+- affected_components: tools/run_tbench_model_backed.py (new), tracking/collab/overnight_handoff.md (updated)
+- decision_change: Runner unlock blocker resolved. Diverse A/B is now unblocked.
+- unresolved_questions: Does AHP help on harder tasks where baseline fails? Need N>1 and diverse tasks for valid comparison.
+- confidence: high (both runs produced real artifacts, official reward verified)
+- commit_message: HOLD - overnight work, no commits per instructions

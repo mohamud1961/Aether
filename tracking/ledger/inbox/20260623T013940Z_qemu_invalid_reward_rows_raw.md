@@ -1,0 +1,26 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: post-sprint forensic audit
+- event_type: failure
+- summary: Latest qemu smoke reward-1 rows are not clean wins; the agent blocked honestly on an occupied or externally held 127.0.0.1:6665 endpoint while the official grader still passed against pre-existing service state.
+- observations:
+  - `tracking/local_runs/20260623T_qemu_service_smoke_v2/.../RUN_DECISION.md` says the row is blocked by image lock and stale holder state.
+  - `tracking/local_runs/20260623T_qemu_service_smoke_v2_sanitized/.../RUN_DECISION.md` says the row is blocked because 6665 is already occupied.
+  - Raw receipts show `session_read` returning `Failed to find an available port: Address already in use` and `task_blocked` recording the occupied-port blocker.
+  - `verifier/reward.txt` is `1` for both rows.
+- inference: These rows should be treated as invalid comparison rows or measurement-corrupted successes until service ownership is tied to the active candidate.
+- evidence_paths:
+  - tracking/local_runs/20260623T_qemu_service_smoke_v2/20260623T_qemu_service_smoke_v2-qemu-startup-receipt_driven_full-rep1/20260623T_qemu_service_smoke_v2-qemu-startup-receipt_driven_full-rep1/qemu-startup__VyjoD48/agent/aether2_harbor_runtime/artifacts/RUN_DECISION.md
+  - tracking/local_runs/20260623T_qemu_service_smoke_v2_sanitized/20260623T_qemu_service_smoke_v2_sanitized-qemu-startup-receipt_driven_full-rep1/20260623T_qemu_service_smoke_v2_sanitized-qemu-startup-receipt_driven_full-rep1/qemu-startup__NrB3TfR/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0010_action_session_read/content
+  - tracking/local_runs/20260623T_qemu_service_smoke_v2_sanitized/20260623T_qemu_service_smoke_v2_sanitized-qemu-startup-receipt_driven_full-rep1/20260623T_qemu_service_smoke_v2_sanitized-qemu-startup-receipt_driven_full-rep1/qemu-startup__NrB3TfR/agent/aether2_harbor_runtime/.aether2/host_receipts/raw/0015_action_task_blocked/content
+  - tracking/local_runs/20260623T_qemu_service_smoke_v2_sanitized/20260623T_qemu_service_smoke_v2_sanitized-qemu-startup-receipt_driven_full-rep1/20260623T_qemu_service_smoke_v2_sanitized-qemu-startup-receipt_driven_full-rep1/qemu-startup__NrB3TfR/verifier/reward.txt
+- affected_components:
+  - harness/aether2/control/runtime_support.py
+  - harness/aether2/control/loop.py
+  - service monitoring / candidate ownership logic
+- decision_change: Do not treat these qemu reward-1 rows as promotion evidence.
+- unresolved_questions:
+  - Should contaminated service rows be marked `INVALID_ROW` at row synthesis time or only at audit time?
+  - What is the narrowest ownership proof that is benchmark-generic?
+- confidence: high
+- commit_message: NONE - no tracked file changes

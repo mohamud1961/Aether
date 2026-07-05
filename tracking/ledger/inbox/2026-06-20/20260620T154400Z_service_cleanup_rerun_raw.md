@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: targeted service lifecycle eval rerun for service_cleanup_rerun
+- event_type: experiment
+- summary: Ran the single targeted service lifecycle eval with gpt-5.4-mini after confirming port 18923 was free at preflight; model attempt executed, visible verifier passed, grader failed with service_crashed_before_second_observation, and cleanup left a listener bound to 127.0.0.1:18923 at closeout.
+- observations: Preflight lsof returned empty; sanity pytest suite passed (57 passed); output root was tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun; attempt row_count was 1; model_calls 14; steps 9; verifier_status passed; grader_status failed; post_model_cleanup.json reported job svc pid 30410 dead; lsof after run showed Python pid 30453 still listening on 127.0.0.1:18923; kill -TERM 30453 failed with operation not permitted.
+- inference: This is a valid capability failure for the attempted row, not a pre-run environment block, but it leaves a cleanup leak that should be tracked separately because the port was not free at closeout.
+- evidence_paths: tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/run_summary.json; tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/scoreboard.json; tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/attempt_rows.jsonl; tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/attempts/service_lifecycle_readiness_flagship/artifacts/post_model_cleanup.json; tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/attempts/service_lifecycle_readiness_flagship/artifacts/grader_output.json; tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/attempts/service_lifecycle_readiness_flagship/artifacts/model_run/run_result.json; tracking/local_runs/custom_eval_targeted/20260620T154400Z_service_cleanup_rerun/attempts/service_lifecycle_readiness_flagship/artifacts/visible_verifier_output.txt
+- affected_components: eval runner; service lifecycle task pack; post-model cleanup reporting; closeout cleanup handling
+- decision_change: Keep the repair under evaluation; no mechanism changes were made in this measurement slice.
+- unresolved_questions: Why pid 30453 remained listening after post_model_cleanup reported job svc pid 30410 dead; why the sandbox could not signal the live listener; whether this represents a runner cleanup leak or a residual process owned by the spawned service environment.
+- confidence: medium
+- commit_message: NONE - no tracked file changes

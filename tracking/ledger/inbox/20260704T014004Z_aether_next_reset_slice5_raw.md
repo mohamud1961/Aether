@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: aether-next reset slice 5 completion-authority carve-down
+- event_type: implementation
+- summary: Canonical workbench submit flow now requires verifier authority for completion and no longer auto-reconfigures from completion-gate recommendations.
+- observations: In `AetherNextKernel.run`, canonical workbench runs no longer complete from `decision.ready` when the verifier returns no verdict. Completion-gate `recommend_reconfigure` is ignored in canonical workbench submit flow. Added focused workbench tests for verifier-required completion and no auto-reconfigure on deterministic gate signals. Broader submit/verifier/context suites passed.
+- inference: This removes the remaining deterministic completion backdoor in the canonical Aether-Next line while preserving reference-path auto-submit behavior for non-workbench flows.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/aether_next/kernel.py; /Users/mohamud/Downloads/harnesseng/aether_next_build/tests/test_vnext_configurability.py
+- affected_components: AetherNextKernel submit_outcome control flow; canonical workbench completion ownership; completion-gate reconfigure behavior
+- decision_change: Canonical workbench completion is verifier-owned on solver submit; deterministic gate output is evidence only in that path.
+- unresolved_questions: Whether proof-contract analyzers should remain as evidence generators only or be further retired from reference paths during legacy cleanup.
+- confidence: high
+- commit_message: HOLD - continue reset slices before commit

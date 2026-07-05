@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: 5.4-mini VM monitor
+- task: monitor one-task Aether-Next validation run for log-summary-date-ranges
+- event_type: experiment
+- summary: Observed terminal reward-fix validation on VM run_root 20260705T191030Z_aether_next_rewardfix_1task; runner completed with reward_source=official_run_tests_exit_code and reward=1.0, but final classifier remained harness_context_failure with solver_submit_stalemate status.
+- observations: Leaf results.json under log-summary-date-ranges recorded status=solver_submit_stalemate, kernel_status=solver_submit_stalemate, model_verifier_final_verdict=uncertain_missing_evidence, grader_exit=0, reward_source=official_run_tests_exit_code, reward=1.0. Runner.log ended with DONE log-summary-date-ranges reward=1.0 status=solver_submit_stalemate classifier=harness_context_failure. Trace file exists at traces/log-summary-date-ranges.trace.json; snapshot directory exists but contains no files. No PID remained active at final liveness check.
+- inference: The reward-source patch appears to have worked for the official run-tests layout, but the task still closed with a harness-context stalemate rather than a clean verified completion.
+- evidence_paths: /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T191030Z_aether_next_rewardfix_1task/log-summary-date-ranges/results.json; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T191030Z_aether_next_rewardfix_1task/log-summary-date-ranges/runner.log; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T191030Z_aether_next_rewardfix_1task/log-summary-date-ranges/traces/log-summary-date-ranges.trace.json; /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T191030Z_aether_next_rewardfix_1task/log-summary-date-ranges/snapshots/
+- affected_components: reward source selection; VM run monitoring; result-row interpretation
+- decision_change: Keep the reward-fix evidence as successful for official_run_tests_exit_code, but do not promote overall task completion without resolving the solver_submit_stalemate/model_verifier evidence gap.
+- unresolved_questions: Why the solver submit stalemate occurred despite a successful grader exit-code reward; whether the missing evidence is a harness feedback-delivery issue or a task-specific verifier contract issue.
+- confidence: high
+- commit_message: HOLD - monitor evidence only; no code changes

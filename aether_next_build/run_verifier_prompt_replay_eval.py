@@ -35,8 +35,8 @@ from aether_next.verifier_packets import build_verifier_packet
 ARCHITECT_VERIFIER_PROMPT = """\
 You are verifying a file-repair task. Judge only packet evidence.
 Success requires out.txt to exist, contain DONE, and have fresh evidence after
-the latest blocking finding. Treat repeated reads or automatic-memory findings
-without a later write/check as non-progress. Feedback must cite packet evidence
+the latest blocking finding. Treat unresolved active findings or open obligations
+without a later state-changing write/check as non-progress. Feedback must cite packet evidence
 and give the solver a concrete next action.
 """
 
@@ -143,14 +143,14 @@ def _fake_verifier_output(packet: dict[str, Any]) -> dict[str, Any]:
     return {
         "verdict": "needs_repair",
         "confidence": "high",
-        "summary": "out.txt still contains TODO, grep failed, and automatic memory shows the solver repeated the same read without a repair.",
+        "summary": "The packet still has an active finding that out.txt lacks DONE, the out.txt obligation is open, and no fresh post-repair evidence is present.",
         "findings": [{
             "finding_id": "vf-architect-repeat-no-repair",
             "summary": "The active repair finding is unresolved: out.txt lacks DONE and no later write/change is present.",
             "evidence": [
-                "latest_file_reads excerpt TODO",
-                "automatic_memory_findings target out.txt same_content_hash=true",
-                "deterministic check grep -q DONE out.txt failed",
+                "active_findings: out.txt still lacks DONE with evidence 'out.txt excerpt TODO'",
+                "open_obligations: artifact:out.txt remains open",
+                "minimum_completion_evidence requires a write/change and passing DONE check",
             ],
             "repair_instruction": "Write DONE to out.txt, rerun grep -q DONE out.txt, then submit only if that check passes.",
             "applies_to": ["out.txt"],
@@ -161,7 +161,7 @@ def _fake_verifier_output(packet: dict[str, Any]) -> dict[str, Any]:
 def _judge(parsed: ModelVerifierResult) -> dict[str, Any]:
     text = json.dumps(parsed.as_dict(), sort_keys=True).lower()
     return {
-        "evidence_bound": all(term in text for term in ("out.txt", "done")) and any(term in text for term in ("grep", "automatic", "excerpt")),
+        "evidence_bound": all(term in text for term in ("out.txt", "done")) and any(term in text for term in ("grep", "active_findings", "open_obligations", "excerpt")),
         "actionable": bool(parsed.findings and parsed.findings[0].repair_instruction) or bool(parsed.missing_evidence_requests),
         "specific_repair": bool(parsed.findings and "grep -q done" in parsed.findings[0].repair_instruction.lower()),
     }
@@ -196,7 +196,9 @@ def run(out_dir: Path) -> dict[str, Any]:
         "mode": "fake_replay",
         "rows": rows,
         "architect_prompt_improved_actionability": (
-            rows[1]["specific_repair"] and rows[1]["finding_count"] > rows[0]["finding_count"]
+            rows[1]["specific_repair"]
+            and rows[1]["verdict"] == "needs_repair"
+            and not rows[0]["specific_repair"]
         ),
     }
     (out_dir / "verifier_prompt_replay_eval.json").write_text(json.dumps(summary, indent=2, sort_keys=True))

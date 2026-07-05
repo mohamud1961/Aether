@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Aether-Next VM Stage 1 deep architect/solver/verifier audit
+- event_type: source_analysis
+- summary: Audited VM Stage 1 traces for filter-js-from-html, sparql-university, and openssl-selfsigned-cert by architect config/prompt quality, solver behavior, memory behavior, verifier triggering/alignment, and grader outcome.
+- observations: Workbench prompts/config reached solver for traceable rows; stable-core tools were visible; filter false-cleaned with model verifier completed but official grader failed both tests; SPARQL reached model limit after repeated evidence-view commands and final query used invented predicates; OpenSSL row was invalid before trace due PermissionError writing verification.txt.
+- inference: The prompt boundary is improved but not sufficient; verifier evidence classification and no-progress control remain weak; automatic memory was advisory and surfaced repeats but did not change solver behavior enough; OpenSSL must be treated as runner/environment invalid, not capability evidence.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/VM_STAGE1_AUDIT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/vm_goal_runs/20260701T144500Z_aether_next_vm_stage1_py311/results.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/vm_goal_runs/20260701T144500Z_aether_next_vm_stage1_py311/traces/filter-js-from-html.trace.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/vm_goal_runs/20260701T144500Z_aether_next_vm_stage1_py311/traces/sparql-university.trace.json
+- affected_components: aether_next workbench architect; solver context realization; automatic memory; model verifier; VM runner/grader boundary
+- decision_change: Do not proceed to broad Stage 2 parallel full runs until OpenSSL invalid environment failure is repaired or isolated and Stage 1 harness repair candidates are addressed or explicitly deferred.
+- unresolved_questions: Full raw verifier packets/outputs were not persisted, so verifier reasoning quality cannot be fully audited from this bundle; need determine exact OpenSSL permission root cause on VM.
+- confidence: high for row outcomes and trace-backed component findings; medium for verifier reasoning due missing raw verifier body.
+- commit_message: HOLD - stage 1 audit only, no implementation fix yet

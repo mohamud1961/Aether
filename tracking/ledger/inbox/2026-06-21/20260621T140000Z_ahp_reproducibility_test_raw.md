@@ -1,0 +1,24 @@
+RAW_LEDGER_UPDATE
+- actor: overnight-agent (claude-sonnet-4-6)
+- task: AHP reproducibility test + sweet-spot expansion
+- event_type: experiment
+- summary: Ran 4x reproducibility test on log-summary-date-ranges (the claimed AHP win). Baseline passes 1/4 (25%), AHP passes 3/4 (75%). The AHP advantage is real (3x pass rate) but the original N=1 claim of deterministic win was too strong -- it is a probabilistic advantage. Also tested build-pmars (both fail, capability-ceiling). Part B expansion BLOCKED: DockerHub rate limiting prevents pulling new images for query-optimize, raman-fitting, large-scale-text-editing, overfull-hbox, nginx-request-logging, count-dataset-tokens.
+- observations:
+  - Baseline consistently gets today's ERROR count as 414 instead of 370 when it fails -- off by exactly 44, likely a date boundary interpretation error
+  - AHP's one failure (run 2) was qualitatively different: wrote 0 instead of 370, a different failure mode
+  - Baseline run 3 passed, proving the model CAN solve this task without AHP
+  - build-pmars: AHP prevented premature task_done (implicit_stop vs task_done) but neither condition could do the core build work
+  - Temperature=0 does NOT make this task deterministic -- model variance is significant
+- inference: AHP's contract extraction provides a probabilistic advantage on format-sensitive counting tasks by anchoring the model to precise requirements. The effect is real but not deterministic -- model variance dominates. The addressable surface for 5.4-mini remains narrow (1/12 headroom tasks = 8.3%) because most failures are capability-ceiling. Zero regressions across 15 tasks confirms AHP safety.
+- evidence_paths:
+  - tracking/local_runs/tbench_ahp_ab/repro_20260621/run1/ through run4/
+  - tracking/local_runs/tbench_ahp_ab/repro_20260621/partb/build-pmars/
+  - tracking/collab/overnight_handoff.md (Checkpoint 8)
+- affected_components: runner/aether2 (AHP variant), tools/run_tbench_model_backed.py
+- decision_change: Downgrade AHP win claim from "confirmed deterministic" to "confirmed probabilistic advantage (3x pass rate, N=4)". Previous N=1 claim was directionally correct but overstated.
+- unresolved_questions:
+  - Would N=10 give statistical significance?
+  - Does the AHP advantage grow with a stronger model?
+  - Are query-optimize/raman-fitting/large-scale-text-editing in AHP's sweet spot? (blocked on DockerHub)
+- confidence: high (reproducibility data is unambiguous)
+- commit_message: NONE - no tracked file changes (artifacts only)

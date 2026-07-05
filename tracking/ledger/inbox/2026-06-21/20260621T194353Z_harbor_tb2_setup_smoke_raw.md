@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor official setup first two steps for Aether-2 / TB2.0
+- event_type: experiment
+- summary: Verified local Harbor CLI and Docker, then completed an official Harbor Terminal-Bench 2.0 oracle smoke using the installed Harbor registry dataset name `terminal-bench@2.0`.
+- observations: `harbor --help` and `harbor --version` worked with Harbor 0.1.43. Docker daemon was reachable after Docker Desktop was running, reporting server version 29.0.1. The official docs command `harbor run -d terminal-bench/terminal-bench-2 -a oracle -l 5` failed locally because this Harbor registry returned `Dataset terminal-bench/terminal-bench-2 not found`. `harbor datasets list` showed `terminal-bench` version `2.0` with 89 tasks. A first retry with `terminal-bench@2.0` was blocked by sandbox write permissions to `~/.cache/harbor/tasks`; using a config with `download_dir: /private/tmp/harbor-task-cache` and `jobs_dir: /private/tmp/harbor-jobs` completed 5/5 oracle trials with 0 errors and mean reward 1.000.
+- inference: The local machine can run Harbor TB2.0 under Docker when task cache/jobs are redirected to writable paths. For this Harbor version, canonical dataset invocation should use `terminal-bench@2.0` or a registry/config equivalent, despite the TB2 docs showing `terminal-bench/terminal-bench-2`.
+- evidence_paths: /private/tmp/harbor-jobs/aether2-tb2-oracle-smoke-config/result.json; /private/tmp/harbor-jobs/aether2-tb2-oracle-smoke-config/config.json; https://www.tbench.ai/docs/run-terminal-bench-2-0
+- affected_components: Harbor local setup; Docker Desktop; Terminal-Bench 2.0 registry access; future Aether-2 Harbor adapter smoke commands
+- decision_change: Treat Harbor/Docker setup as locally verified; use a config or writable download directory for sandboxed Codex runs; prefer `terminal-bench@2.0` with Harbor 0.1.43 unless the registry alias changes.
+- unresolved_questions: Whether a user-level Harbor upgrade outside the Codex sandbox exposes the docs alias `terminal-bench/terminal-bench-2`; whether future Aether-2 custom-agent runs should standardize a repo-owned Harbor config template for writable task cache and job artifacts.
+- confidence: high
+- commit_message: HOLD - raw Harbor setup smoke evidence only

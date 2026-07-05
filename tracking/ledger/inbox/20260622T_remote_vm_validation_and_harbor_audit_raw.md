@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: validate latest local harness slice on remote VM
+- event_type: experiment
+- summary: Remote VM validation succeeded on the regular Azure VM after a control-plane start; focused compile/tests passed, the receipt-driven qemu smoke passed, the prompt audit was clean, and the small qemu-startup A/B rerun completed.
+- observations: VM started from deallocated state via Azure control plane; `python3.11` from `/tmp/aether2-test-venv/bin/python3.11` compiled 43 synchronized files and 59 pytest cases passed on the guest; smoke run `20260622T181313Z_qemu_smoke_receipt` completed with qemu-startup/receipt_driven_full reward 1.0; prompt-audit counts over model-visible `model_exchange_*.json` contents were zero for qemu-startup, financial-document-processor, video-processing, terminal-bench, official_tasks, harbor-jobs, and receipt_driven_full; A/B run `20260622T182004Z_qemu_ab_receipt` completed with 4 rows, off mean 0.0 and receipt_driven_full mean 1.0 across two reps each; VM was deallocated at handoff.
+- inference: The latest local harness slice is runnable on the regular VM, the receipt-driven qemu prompt surface is sanitized for the forbidden metadata terms checked here, and the receipt_driven_full qemu condition currently outperforms off on this small A/B slice.
+- evidence_paths: /tmp/harbor-jobs/20260622T174757Z_vm_validation; /tmp/harbor-jobs/20260622T181313Z_qemu_smoke_receipt; /tmp/harbor-jobs/20260622T182004Z_qemu_ab_receipt; Azure control-plane instance view showed `VM running` before the runs and `VM deallocated` after deallocation.
+- affected_components: harness/aether2/runtime/context.py; tests/test_aether2_hooks.py; tests/test_aether2_run_config.py; tests/test_receipt_driven_full_build.py; tests/test_aether2_verification_feedback.py; Harbor qemu-startup receipt-driven path; prompt sanitization gating; Azure VM lifecycle.
+- decision_change: Proceed with the regular VM path for broader reruns only after the smaller smoke/A-B result has been reviewed; keep the deallocation discipline when no active job remains.
+- unresolved_questions: None for this validation slice; a broader rerun could still expose other task families or other prompt leaks outside the checked token set.
+- confidence: high
+- commit_message: HOLD - validation evidence only

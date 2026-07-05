@@ -1,0 +1,26 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether2 task-corpus capability map
+- event_type: source_analysis
+- summary: Mapped the official TerminalBench 2.0 task corpus against the current Aether-2 tool surface and split the 90 task directories into 89 real benchmark rows plus one toy/harness row. Identified 13 benchmark rows that are bootstrap-heavy for the current terminal-first surface because they depend on image, video, browser/HTML, or QEMU/VNC/desktop-style control.
+- observations:
+  - The official_tasks tree contains 90 task.toml-backed directories, but execution-gate-toy is a harness/toy row rather than part of the 89 real benchmark tasks.
+  - Aether-2's model-visible tool set is still terminal-centric: run_command, start_job, job_status, session_start, session_send, session_read, read_file, write_file, wait, and task_done are the intended 10-tool surface, while native.py currently also exposes task_blocked and query_history.
+  - The hardest rows for the current surface are the multimodal and VM/desktop tasks: code-from-image, chess-best-move, extract-moves-from-video, financial-document-processor, break-filter-js-from-html, filter-js-from-html, path-tracing, path-tracing-reverse, sam-cell-seg, video-processing, install-windows-3.11, qemu-startup, and qemu-alpine-ssh.
+- inference: The harness can likely bootstrap many missing CLIs from bash, but the lack of first-class visual/video/browser/VM affordances makes the benchmark unevenly supported and materially increases solve risk on the 13 bootstrap-heavy rows.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/tools/native.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/prompts.py
+  - /Users/mohamud/Downloads/harnesseng/research/phases/build_orchestration_handoffs/hour0_contracts.md
+  - /Users/mohamud/Downloads/harnesseng/official_tasks/README.md
+  - /Users/mohamud/Downloads/harnesseng/official_tasks/install-windows-3.11/tests/test_outputs.py
+- affected_components:
+  - harness/aether2/tools
+  - harness/aether2/runtime
+  - official_tasks corpus analysis
+- decision_change: Treat Aether-2 as adequate for most terminal-centric rows but only partial for the full 89-task benchmark because the current tool surface does not natively cover the multimodal and desktop-control cluster.
+- unresolved_questions:
+  - Which subset of the 13 bootstrap-heavy tasks are reliably solvable through CLI bootstrapping versus only intermittently solvable?
+  - Would a first-class image/video/browser/desktop tool surface reduce variance enough to justify a broader harness change?
+- confidence: medium
+- commit_message: HOLD - analysis only, no code changes

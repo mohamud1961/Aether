@@ -1,0 +1,30 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next harness-focused full plan slice: architect quality and automatic memory config realization
+- event_type: implementation
+- summary: Made Workbench Architect memory_policy.automatic_repeat_mode a validated and compiled HarnessConfigIR field, updated architect/manual guidance, added tests, ran a 15-task architect-only eval with targeted repair reruns, and prepared a VM-only task-run packet.
+- observations:
+  - `memory_policy.automatic_repeat_mode` now accepts off/advisory/require_justification/soft_block_exact_repeat and compiles into RuntimeConfigIR.automatic_memory_policy.
+  - Config realization/audit now reports the selected runtime automatic memory policy.
+  - Architect-only merged result after repair reruns: 15/15 parseable HarnessConfigIR; average overall score 9.96/10; every config contract scored 10/10.
+  - Primary non-quality failure mode in architect-only eval was provider/token ceiling behavior; targeted reruns repaired OpenSSL, HF model inference, and SPARQL.
+  - Full local non-Docker suite passed: 221 tests.
+- inference: The architect-as-skill path is now producing consistently high-quality task-specific solver/verifier prompts and config locally. The next evidence surface should be VM-only full task attempts, not local runs.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/HARNESS_FULL_PLAN_PROGRESS_AUDIT.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/VM_ONLY_AETHER_NEXT_RUN_PACKET.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_harness_goal_20260701_023005/architect_only_eval.json
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_harness_goal_20260701_023005_repair3/architect_only_eval.json
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_harness_goal_20260701_023005_sparql_retry/architect_only_eval.json
+- affected_components:
+  - aether_next/workbench_config.py
+  - aether_next/workbench_compile.py
+  - aether_next/workbench_hooks.py
+  - aether_next/runtime_manual.py
+  - tests/test_vnext_workbench_ir.py
+  - tests/test_vnext_configurability.py
+- decision_change: Full task attempts must be VM-only; local work remains implementation, deterministic tests, replay, architect-only generation, and audit.
+- unresolved_questions: Will VM runs show that higher architect prompt/config quality improves solver behavior and verifier feedback? Should advisory remain the default memory mode after live evidence, or should selected tasks use stricter modes?
+- confidence: high for implementation/tests/architect-only quality; no claim on benchmark task improvement until VM rows exist.
+- commit_message: HOLD - aether_next_build remains untracked baseline; split automatic memory config realization, architect-only eval artifacts, and VM packet before commit
+

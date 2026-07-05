@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Refine Pro preparation with Aether-Next harness-compiler work order
+- event_type: decision
+- summary: Added a gated Aether-Next Pro work order that frames the target architecture as a configurable harness compiler rather than merely a configurable harness.
+- observations: The new work order requires `task_prompt + envmap` as the first model input, a typed harness configuration API, a capability registry, task-local tool creation, structured receipt memory, a context compiler, a config verifier, evidence-driven reconfiguration, and a strict split between trusted kernel, model-authored config, and model-authored task-local code.
+- inference: This refinement sharpens the clean-room target for Pro and reduces the risk of rebuilding Aether-2 semantics into the kernel. It also clarifies that Aether-2 should be mined for laws and evidence, not preserved for incumbency.
+- evidence_paths: `tracking/collab/aether_next_pro_build/PRO_WORK_ORDER.md`; `tracking/collab/pro_route_readiness/PRO_ROUTE_READINESS_REPORT.md`
+- affected_components: Aether-Next architecture direction; Pro bootstrap preparation; repo-local clean-room build framing
+- decision_change: The prepared Pro work order now explicitly targets a compiler architecture with typed runtime configuration and stable kernel boundaries.
+- unresolved_questions: Whether the live Pro route will need Azure Responses API mode once the deployment env vars are present.
+- confidence: high
+- commit_message: Refine Aether-Next Pro work order around harness compiler design

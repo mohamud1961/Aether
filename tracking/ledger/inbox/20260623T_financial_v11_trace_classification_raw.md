@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor-native Aether-2 VM financial v11 trace audit
+- event_type: experiment
+- summary: Audited the v11 financial rerun after the inspect_artifact salience fix and classified the remaining failure precisely.
+- observations: The model used inspect_artifact mode=auto across all 17 documents immediately. PDF inspect_artifact raw logs returned content_available text excerpts and exposed invoice totals for four PDFs. JPG inspect_artifact raw logs returned metadata_only with note OCR backend unavailable. The model then moved everything into invoices first, later produced a weak classification file, and left the invoice/other placement requirement unsatisfied. Post-hoc VM inspection also showed that row-local /tmp harbor workspace mirrors are not durable after closeout, so trace analysis must use mirrored local artifacts and raw logs.
+- inference: The active financial blocker is no longer Harbor setup or tool invisibility. Remaining issues are image/JPG evidence acquisition plus model follow-through after partial evidence. The live harness now gives materially better PDF evidence, but image-side evidence is still too weak for truthful completion.
+- evidence_paths: tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience; tracking/collab/opus_codex_harbor_vm/live_state.md
+- affected_components: harness/aether2/runtime/prompts.py; harness/aether2/tools/native.py; tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience
+- decision_change: Future narrow fixes for the financial lane should target the image-side inspect_artifact path or the repair/follow-through behavior after partial evidence, not Harbor runtime setup.
+- unresolved_questions: Why does the live image path still produce OCR backend unavailable even when Harbor Python imports rapidocr successfully? Is the next smallest fix in OCR backend initialization/error reporting, or in how the model is instructed to recover when only partial document evidence is available?
+- confidence: high
+- commit_message: HOLD - financial lane diagnosis refined but not fully repaired

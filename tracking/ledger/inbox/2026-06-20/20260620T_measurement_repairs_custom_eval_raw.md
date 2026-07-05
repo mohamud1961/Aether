@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex worker
+- task: measurement repairs for environment_bootstrap runner parity and synthetic trace enrichment
+- event_type: implementation
+- summary: Tightened the environment bootstrap visible check to compare the canonical runner command from config/toolchain_contract.json after whitespace normalization, and enriched synthetic grader traces with bounded reasoning-trace step/tool summaries when a model run produced reasoning_trace_ref.
+- observations: Focused pytest slice passed; full tests/test_run_custom_eval_board.py passed (49 tests); tools/aether2_genericity_check.py passed; py_compile passed for the touched files.
+- inference: The visible-check gap was real, and the trace artifact now carries actionable model activity without exposing assistant prose or hidden verifier content.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/eval_suite/families/environment/environment_bootstrap_runner_repair/solver_pack/workspace/bootstrap/checks/visible_check.py; /Users/mohamud/Downloads/harnesseng/tools/run_custom_eval_board.py; /Users/mohamud/Downloads/harnesseng/tests/test_run_custom_eval_board.py; /Users/mohamud/Downloads/harnesseng/tracking/ledger/inbox/2026-06-20/20260620T_measurement_repairs_custom_eval_raw.md; /Users/mohamud/Downloads/harnesseng
+- affected_components: environment_bootstrap visible verifier; custom eval board trace writer; test coverage for both repairs
+- decision_change: Promote the bootstrap visible check from field-presence validation to canonical command validation; add reasoning-trace-driven synthetic events to the grader-visible trace artifact.
+- unresolved_questions: None in this slice.
+- confidence: high
+- commit_message: Harden bootstrap visible checks and enrich reasoning traces

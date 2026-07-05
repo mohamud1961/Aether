@@ -1,0 +1,39 @@
+RAW_LEDGER_UPDATE
+- actor: claude-sonnet-4-6 (Claude Code session)
+- task: AHP Stage 0 + Stage 1 profile-only experiment
+- event_type: experiment
+- summary: Built AHP adaptive_profile.py as standalone module (493 LOC), wrote Stage 0 insertion map, and ran profile-only experiment on all 14 board rows with real gpt-5.4-mini model calls. 12/14 rows produced real model-generated profiles; 2 fell back to conservative defaults due to validation failures. 6/14 profiles were lint-clean; 8 had regex-based lint findings (mostly false positives from negated instructions like "do not disable verification"). Total cost: $0.031. No solver loop integration, no task solving, no baseline modifications.
+- observations:
+  - 14/14 rows produced valid profiles (12 model-generated, 2 fallback)
+  - Model-generated profiles consistently selected 3-6 primary tools (mostly read_file, run_command, write_file)
+  - Service lifecycle row uniquely selected start_job, job_status, and wait tools
+  - 8/14 profiles had lint findings; most were false-positive regex matches on negated instructions ("do not disable verification" matching "disable verif" pattern)
+  - 2 fallback rows (fsent_03, fsent_08) had validation failures due to unknown tools in primary_tools (model hallucinated tool names not in the catalogue)
+  - Average model call duration: ~7.5 seconds per row
+  - Total tokens: 18,007 input + 15,140 output = 33,147 total
+  - Cost: $0.031 for all 14 rows
+- inference:
+  - The profile generator works end-to-end with real model calls
+  - The lint has high false-positive rate on negated instructions; needs semantic analysis or pattern refinement
+  - The model occasionally hallucinated tool names outside the provided catalogue (2/14 rows)
+  - Tool selection shows task-appropriate variation across row types
+  - The fallback path works correctly when validation fails
+- evidence_paths:
+  - tracking/collab/ahp_stage0_insertion_map.md
+  - harness/aether2/runtime/adaptive_profile.py
+  - tools/run_ahp_profile_experiment.py
+  - tracking/local_runs/ahp_profile_experiment/20260620_192424/experiment_index.json
+  - tracking/local_runs/ahp_profile_experiment/20260620_192424/*/profile.json
+  - tracking/local_runs/ahp_profile_experiment/20260620_192424/*/prompt_lint.json
+- affected_components:
+  - harness/aether2/runtime/adaptive_profile.py (NEW, standalone, not wired into loop)
+  - tools/run_ahp_profile_experiment.py (NEW, experiment runner)
+  - tracking/collab/ahp_stage0_insertion_map.md (NEW, reconnaissance document)
+- decision_change: None. This is a premise-test experiment only. No loop integration, no baseline changes.
+- unresolved_questions:
+  - Should the lint be semantic-aware to reduce false positives on negated instructions?
+  - The 2 fallback rows suggest the startup prompt may need stronger instruction to use only catalogue tools
+  - How will real orientation (from orient()) differ from synthetic orientation for profile quality?
+  - What is the profile quality as judged by independent human/stronger-model review?
+- confidence: high (real model calls, real artifacts, no stubs, no fake work)
+- commit_message: HOLD - working tree only, no commits per task specification

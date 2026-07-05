@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: no-visible-verifier ablation runner support
+- event_type: experiment
+- summary: Completed the 14-row custom board in `--ablate-visible-verifier` mode with all rows recorded as `visible_verifier_mode: ablated`.
+- observations: Board output root `tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation` contains 14 attempt rows, 14 model attempts, 14 scored model runs, 3 passing rows, and 11 failing rows. Representative diagnostic rows show visible verifier execution from `grader_only` with trace events tagged `mode: ablated`, and the service row cleaned up its listener on port 18923 after the post-model cleanup phase.
+- inference: The ablation is preserving deterministic grading and post-hoc diagnostics without exposing visible-verifier guidance or files to the model-reachable staged tree.
+- evidence_paths: [/Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation/run_summary.json, /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation/scoreboard.json, /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation/attempt_rows.jsonl, /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation/attempts/original_repo_recovery_flagship/artifacts/synthetic_trace.json, /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T190833Z_no_visible_verifier_ablation/attempts/service_lifecycle_readiness_flagship/artifacts/post_model_cleanup.json]
+- affected_components: [tracking/local_runs/custom_eval_full_board_model_eligible, tracking/ledger/inbox]
+- decision_change: Keep the ablation mode as a runner-local diagnostic surface rather than mutating source packs or benchmark adapters.
+- unresolved_questions: None blocking for this slice; future work can decide whether the ablation should become a named calibration surface.
+- confidence: high
+- commit_message: HOLD - diagnostic board evidence captured without a commit

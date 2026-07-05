@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: full custom eval board confirmation after fsent_02 task_done dispatch repair
+- event_type: experiment
+- summary: Ran one full 14-row custom eval board without code edits and confirmed the repaired fsent_02 row now passes inside the full board.
+- observations: Output root tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair; run_summary.json reports 14/14 valid rows with 11 passed and 3 failed graders; attempt_rows.jsonl shows fsent_02_runtime_workspace_contract completed under the full board; remaining failures were filesystem_decoy_target_selection and environment_bootstrap_runner_repair in addition to fsent_02 on this run.
+- inference: The prior fsent_02 red row is cleared by the full board confirmation, but the board is not yet globally green because two other rows still fail mechanically/capability-wise.
+- evidence_paths: tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/run_summary.json; tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/scoreboard.json; tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempt_rows.jsonl; tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/fsent_02_runtime_workspace_contract/artifacts/grader_output.json; tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/filesystem_decoy_target_selection/artifacts/grader_output.json; tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/environment_bootstrap_runner_repair/artifacts/grader_output.json
+- affected_components: eval board execution, row grading, task_done dispatch repair validation
+- decision_change: Promote fsent_02 dispatch repair as confirmed by full-board evidence; keep the overall board in non-promotion status because two other failure rows remain.
+- unresolved_questions: Whether the remaining two failing rows are next mechanism targets or environment/toolchain follow-ups.
+- confidence: high
+- commit_message: NONE - no tracked file changes

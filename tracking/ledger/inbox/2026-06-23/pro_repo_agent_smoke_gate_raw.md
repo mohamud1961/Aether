@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Add guarded repo-local Azure Pro smoke bootstrap
+- event_type: implementation
+- summary: Added `scripts/run_pro_repo_agent.sh`, a tiny Pro repo-agent smoke prompt, and updated the Pro route readiness report to gate Aether-Next work on a live Azure Pro smoke.
+- observations: The helper defaults to `azure_gpt54_pro_env`, accepts an instruction file, loads optional local env files without printing values, prints only workspace root, instruction file, and model route, and fails before provider launch when required Pro env vars are missing. Current shell has `AZURE_OPENAI_ENDPOINT` but is missing `AZURE_OPENAI_GPT54_PRO_DEPLOYMENT` and `AZURE_OPENAI_GPT54_PRO_KEY`.
+- inference: The repo-local Pro bootstrap path is structurally ready but not live-proven; Aether-Next build work should not start until the smoke passes with real Pro Azure env values.
+- evidence_paths: `scripts/run_pro_repo_agent.sh`; `tracking/collab/pro_route_readiness/PRO_REPO_AGENT_SMOKE_PROMPT.md`; `tracking/collab/pro_route_readiness/PRO_ROUTE_READINESS_REPORT.md`
+- affected_components: Azure Pro repo-agent bootstrap; Pro route readiness documentation; Aether-Next work gating
+- decision_change: Pro remains a bootstrap architect-builder route only, not a production solver tier. The final recommendation is not ready for Aether-Next build until live smoke passes.
+- unresolved_questions: Whether the configured Azure Pro deployment supports the default deployment chat-completions surface or requires `AZURE_OPENAI_GPT54_PRO_API_SURFACE=v1_responses`.
+- confidence: high for local bootstrap behavior; unproven for live provider/tool compatibility until env vars are present and smoke is run.
+- commit_message: Add guarded Pro repo-agent smoke bootstrap

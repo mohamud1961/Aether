@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next proof_contract active-path quarantine
+- event_type: implementation
+- summary: Removed proof_contract from active certified runtime paths by deleting the kernel proof_contract receipt hook and removing proof_contract_status from solver context compilation. The proof_contract module itself remains present only as legacy/reference analyzer code until the physical delete/archive slice.
+- observations: Active code search now finds no proof_contract import/use in kernel, context compiler, or verifier packet construction. Remaining references are in proof_contract.py and tests that exercise the legacy analyzer directly. Focused runtime/kernel/context tests passed: `python3 -m pytest -q tests/test_runtime_enforcement.py tests/test_vnext_memory_context_verifier.py tests/test_kernel.py tests/test_completion.py` -> 72 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 284 passed.
+- inference: This completes the practical demotion of proof_contract from active model context/control paths without taking on a broader physical deletion/refactor in the same slice. The harness is closer to the user's desired ownership split: verifier inspects state, harness records substrate, and task-family semantic analysis is not fed as privileged runtime truth.
+- evidence_paths: aether_next_build/aether_next/kernel.py; aether_next_build/aether_next/context_compiler.py; aether_next_build/tests/test_runtime_enforcement.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: Aether-Next kernel; solver context compiler; proof_contract legacy surface; verifier evidence hierarchy
+- decision_change: proof_contract is quarantined from active certified runtime paths. Physical deletion/archive remains a follow-up legacy cleanup step.
+- unresolved_questions: Whether to delete proof_contract.py outright, move it to a reference/archive package, or retain it only in historical replay tests until those are rewritten.
+- confidence: high
+- commit_message: HOLD - active proof_contract quarantine complete; broader legacy deletion remains

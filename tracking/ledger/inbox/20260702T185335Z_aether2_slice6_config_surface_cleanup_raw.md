@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 carve-down Slice 6 config surface cleanup
+- event_type: implementation
+- summary: Made architect profile config strict for unsupported fields and added a config realization audit artifact.
+- observations: validate_profile now rejects unsupported top-level profile fields and unsupported nested fields in tool_configuration, context_configuration, compaction_recommendation, and verification_configuration. AHP artifact writing now emits config_realization_audit.json with realized field mappings, selected tools, reserve capabilities, verifier focus, context invariants, and rejected/unsupported warnings. Tests cover fake tool_policy/helper_script_policy surfaces and realization-audit output.
+- inference: Architect-owned config surfaces are now either realized, warned/rejected, or initialization-failing after bounded repair. This removes silent fake knobs without adding new harness judgement.
+- evidence_paths: docs/AETHER2_SLICE6_CONFIG_SURFACE_CLEANUP.md; harness/aether2/runtime/adaptive_profile.py; harness/aether2/runtime/adaptive_artifacts.py; tests/test_aether2_run_config.py
+- affected_components: Aether-2 architect profile validation; AHP artifact capture; run-config tests
+- decision_change: Unsupported architect config fields fail clearly instead of being silently ignored.
+- unresolved_questions: Slice 7 still needs duplicate judgement path inventory/retirement; strict validation may require compatibility handling for historical profile traces if replay depends on them.
+- confidence: high
+- commit_message: Reject unsupported architect config fields

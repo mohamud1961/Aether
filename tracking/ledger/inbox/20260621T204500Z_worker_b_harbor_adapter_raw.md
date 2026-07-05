@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: worker_b
+- task: aether2 harbor canonical integration
+- event_type: implementation
+- summary: Replaced the Harbor adapter entrypoint with a real Harbor BaseAgent subclass that probes Harbor-managed environments, logs setup/trace/status artifacts under logs_dir, and delegates to an optional Harbor-native backend when present.
+- observations: Local Harbor CLI is installed and `harbor run --help` exposes `--agent-import-path` plus repeated `--agent-kwarg` entries. The repo's current python3.11 environment does not import `harbor`, so local tests had to monkeypatch Harbor modules, while Harbor's own venv could import the adapter when PYTHONPATH pointed at the repo.
+- inference: The adapter is ready for a future Harbor-native backend module without falling back to local task solving. When no backend module is available, it now records a machine-readable blocked state instead of pretending the run succeeded.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/runner/adapters/harbor_agent.py; /Users/mohamud/Downloads/harnesseng/tests/test_harbor_agent_adapter.py; python3.11 -m pytest tests/test_harbor_agent_adapter.py -q; python3.11 -m py_compile runner/adapters/harbor_agent.py tests/test_harbor_agent_adapter.py; harbor --help; harbor run --help; PYTHONPATH=/Users/mohamud/Downloads/harnesseng /Users/mohamud/.local/share/uv/tools/harbor/bin/python -c 'from runner.adapters.harbor_agent import HARBOR_AGENT_IMPORT_PATH, build_harbor_run_command, Aether2HarborAgent'
+- affected_components: runner/adapters/harbor_agent.py; tests/test_harbor_agent_adapter.py
+- decision_change: The Harbor adapter no longer hardcodes a missing-workspace explanation; it now resolves backend availability via candidate module/public-entrypoint probing and only blocks when that backend is absent or fails.
+- unresolved_questions: The actual Harbor-native backend module still needs to land in the tree for end-to-end canonical runs. This slice only prepares the adapter boundary and verifies the blocked/delegated paths locally.
+- confidence: medium
+- commit_message: HOLD - wire Harbor adapter to optional backend loader and test blocked plus delegated paths

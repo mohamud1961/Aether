@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether2_architect_owned_workbench_carve_down / Slice 7 duplicate judgement path inventory
+- event_type: decision
+- summary: Completed Slice 7 as a non-destructive inventory/guardrail slice after the post-Slice-6 audit challenged the production target assumption. Aether-2 Slices 0-6 remain real tested work, but Aether-Next is not deleted or labeled dead while production ownership is unsettled.
+- observations: Added `docs/AETHER2_SLICE7_DUPLICATE_JUDGEMENT_PATH_INVENTORY.md`; updated `docs/AETHER2_CARVE_DOWN_BUILD_PLAN.md` with a post-Slice-6 target audit guardrail. Inventory found Aether-2 is the repo-integrated runner/eval-suite path via `harness.aether2` and `runner.aether2`, while `aether_next_build/aether_next` is a standalone-active line with its own tests, run scripts, VM evidence, completion/proof/no-progress judgement surfaces, and historical artifacts.
+- inference: Slice 7 should not perform cross-tree deletion until the production harness decision is explicit. Future cleanup should classify paths as active, standalone-active, historical-evidence, reference, or safe-to-delete-candidate before removing anything.
+- evidence_paths: docs/AETHER2_CARVE_DOWN_BUILD_PLAN.md; docs/AETHER2_SLICE7_DUPLICATE_JUDGEMENT_PATH_INVENTORY.md; docs/PRODUCTION_HARNESS_DECISION_BRIEF.md
+- affected_components: docs; Aether-2 build plan; Aether-Next/Aether-2 target decision; duplicate judgement cleanup
+- decision_change: Slice 7 is non-destructive inventory/quarantine only; no Aether-Next deletion or prototype-only relabeling is allowed solely from the earlier Aether-2 target choice.
+- unresolved_questions: Which harness is the production target: Aether-2, Aether-Next, or a converged line? Is Aether-2 non-task_done verifier suppression a generic runtime optimization or remaining shared semantic authority? When will Slices 1-6 get certified Stage 1/sentinel evidence?
+- confidence: high for inventory/guardrail; medium for production-target implications pending owner decision
+- commit_message: HOLD - record non-destructive Slice 7 target guardrail before production harness decision

@@ -1,0 +1,38 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Check whether gpt-5.4-pro can be called as a repo-local Azure agent and add a clean route if needed
+- event_type: implementation
+- summary: Added a clean Azure route for gpt-5.4-pro alongside existing gpt-5.4-mini and gpt-5.3-codex routes, wired it into the Harbor bridge, board preflight, and generic model-route CLIs, and wrote a readiness report. The route supports both Azure chat-completions and responses surfaces via explicit env override.
+- observations:
+  - Repo text search found no existing gpt-5.4-pro / gpt54-pro route alias before the change.
+  - Local shell env exposed AZURE_OPENAI_GPT54_MINI_* and AZURE_OPENAI_GPT53_CODEX_* names, but no AZURE_OPENAI_GPT54_PRO_* names.
+  - ~/.aether2/model.env was missing.
+  - Focused pytest slice passed after the change.
+  - Live board preflight for gpt54-pro failed before any provider call because AZURE_OPENAI_GPT54_PRO_DEPLOYMENT is not set.
+- inference: The repo-side routing and tool-shape plumbing are now ready for a pro deployment, but the current environment cannot use Pro as a live repo-local agent until the actual Azure deployment alias and key are supplied.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/model_routes.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/azure_openai_env.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/bridge_harbor.py
+  - /Users/mohamud/Downloads/harnesseng/runner/board_preflight.py
+  - /Users/mohamud/Downloads/harnesseng/tools/run_custom_eval_board.py
+  - /Users/mohamud/Downloads/harnesseng/tools/run_tbench_model_backed.py
+  - /Users/mohamud/Downloads/harnesseng/runner/adapters/harbor_agent.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_model_routes_response_api.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_tier0_measurement_integrity.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_harbor_agent_adapter.py
+  - /Users/mohamud/Downloads/harnesseng/tracking/collab/pro_route_readiness/PRO_ROUTE_READINESS_REPORT.md
+  - /tmp/gpt54_pro_preflight.json
+- affected_components:
+  - Azure route builders
+  - Harbor bridge route selection
+  - board preflight
+  - custom eval and tbench route CLIs
+  - Harbor env discovery/status reporting
+  - route/tool-shape tests
+- decision_change: Keep the repo-local Pro route support; do not switch to the chat-playground fallback yet, but mark the live provider path blocked until the pro deployment env exists.
+- unresolved_questions:
+  - What is the real Azure pro deployment name/alias?
+  - Does the deployment require Azure Responses or Chat Completions by default?
+- confidence: 0.89
+- commit_message: Add gpt54-pro Azure route support and readiness report

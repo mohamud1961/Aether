@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex rerun monitor worker
+- task: launch and monitor a small Harbor canonical rerun board for Aether-2 using the current worktree
+- event_type: experiment
+- summary: Attempted two Harbor reruns on terminal-bench@2.0 with the required agent import path and -n 1. Both tasks failed before model execution because Harbor's Docker environment startup issued `docker compose -p ... up -d`, and the local Docker CLI rejected `-p` under `docker compose`.
+- observations: qemu-startup rerun wrote `result.json` with `n_errors: 1`, `mean: 0.0`, and a RuntimeError keyed to `qemu-startup__c6KpgiP`. path-tracing-reverse rerun wrote `result.json` with `n_errors: 1`, `mean: 0.0`, and a RuntimeError keyed to `path-tracing-reverse__dAJEuEC`. Both exception.txt files contain the same compose failure. No `aether2_harbor_status.json` file was produced in either job directory. `docker ps` showed no active containers from these runs.
+- inference: This is a Harbor/harness environment failure, not a task/model failure. The blocker is the compose invocation path in the local Docker environment; the reruns never reached task-level execution.
+- evidence_paths: /private/tmp/harbor-jobs/aether2-rerun-qemu-startup-qstart1/aether2-rerun-qemu-startup-qstart1/result.json; /private/tmp/harbor-jobs/aether2-rerun-qemu-startup-qstart1/aether2-rerun-qemu-startup-qstart1/qemu-startup__c6KpgiP/exception.txt; /private/tmp/harbor-jobs/aether2-rerun-qemu-startup-qstart1/aether2-rerun-qemu-startup-qstart1/job.log; /private/tmp/harbor-jobs/aether2-rerun-path-tracing-reverse-ptrrev1/aether2-rerun-path-tracing-reverse-ptrrev1/result.json; /private/tmp/harbor-jobs/aether2-rerun-path-tracing-reverse-ptrrev1/aether2-rerun-path-tracing-reverse-ptrrev1/path-tracing-reverse__dAJEuEC/exception.txt; /private/tmp/harbor-jobs/aether2-rerun-path-tracing-reverse-ptrrev1/aether2-rerun-path-tracing-reverse-ptrrev1/job.log
+- affected_components: Harbor job launcher; Harbor Docker environment startup; terminal-bench@2.0 rerun board execution path
+- decision_change: Keep the rerun board blocked until the local Docker/compose command path is repaired or Harbor is pointed at a compatible environment; no solve-rate claims are warranted from these runs.
+- unresolved_questions: Whether Harbor should be patched to use the current Docker CLI shape, or whether reruns should move to a Docker-compatible host/environment. No status artifact fields were available because the jobs failed before agent startup.
+- confidence: high
+- commit_message: NONE - no tracked file changes

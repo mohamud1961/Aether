@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Extract receipt_driven_full Harbor prompt artifacts
+- event_type: experiment
+- summary: Generated prompt-audit artifacts for the 20260622T1438Z receipt-driven full Harbor board, covering off and receipt_driven_full rows for financial-document-processor and qemu-startup.
+- observations: The persisted row bundle under tracking/collab/receipt_driven_full_audit_20260622 contains the AHP-generated solver_system_prompt strings, context_pack_policy values, receipt-event streams, and system_prompt digests for all four rows. The live /tmp/harbor-jobs tree was not present anymore, so the exact raw model_exchange_1.json bodies were reconstructed from harness serialization code plus the archived row bundle and receipt events. Generated artifacts were written as PROMPT_AUDIT_*.md/json and parse cleanly.
+- inference: The off rows share the stable kernel prompt; the receipt_driven_full rows use the AHP-generated solver prompt as the solver system prompt, and [ahp_task_block] does not appear in any normal solver call for any row.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/PROMPT_AUDIT_BASELINE_SYSTEM_PROMPT.md; /Users/mohamud/Downloads/harnesseng/PROMPT_AUDIT_AHP_STARTUP_PROMPTS.md; /Users/mohamud/Downloads/harnesseng/PROMPT_AUDIT_GENERATED_SOLVER_PROMPTS.md; /Users/mohamud/Downloads/harnesseng/PROMPT_AUDIT_FIRST_MODEL_MESSAGES.json; /Users/mohamud/Downloads/harnesseng/PROMPT_AUDIT_RECEIPT_CONTEXTS.md; /Users/mohamud/Downloads/harnesseng/PROMPT_AUDIT_SUMMARY.md; /Users/mohamud/Downloads/harnesseng/tracking/collab/receipt_driven_full_audit_20260622/row_bundles_compact.json; /Users/mohamud/Downloads/harnesseng/tracking/collab/receipt_driven_full_audit_20260622/RECEIPT_DRIVEN_FULL_VARIANT_TRACE_AUDIT.md
+- affected_components: tracking/collab/receipt_driven_full_audit_20260622/row_bundles_compact.json; harness/aether2/runtime/prompts.py; harness/aether2/runtime/adaptive_profile.py; harness/aether2/runtime/context.py; harness/aether2/runtime/adaptive_context.py; harness/aether2/control/loop.py; harness/aether2/control/receipt_driven_variant.py; harness/aether2/traces/receipt_store.py
+- decision_change: Preserve the extracted prompt audit as a reconstruction-backed artifact set; do not claim exact raw exchange replay unless the source tree is recovered.
+- unresolved_questions: Whether a future archive will preserve the raw model_exchange_1.json bodies and exact dynamic tail telemetry for the first normal call.
+- confidence: medium-high
+- commit_message: HOLD - export prompt audit artifacts for receipt-driven Harbor board

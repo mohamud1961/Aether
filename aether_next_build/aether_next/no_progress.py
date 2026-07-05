@@ -52,6 +52,10 @@ class NoProgressController:
     max_evidence_display_repeats = 2
 
     def evaluate(self, action: ActionRequest, ledger: ExecutionLedger) -> NoProgressDecision | None:
+        if action.kind == "inspect_artifact":
+            return self._evaluate_repeated_artifact_inspection(action, ledger)
+        if action.kind == "probe_service":
+            return self._evaluate_repeated_service_probe(action, ledger)
         if action.kind != "run_command":
             return None
         command = str(action.arguments.get("command", "")).strip()
@@ -95,6 +99,73 @@ class NoProgressController:
             repeat_count=len(prior) + 1,
             prior_receipt_ids=tuple(receipt.receipt_id for receipt in prior[-4:]),
             message=message,
+        )
+
+    def _evaluate_repeated_artifact_inspection(
+        self,
+        action: ActionRequest,
+        ledger: ExecutionLedger,
+    ) -> NoProgressDecision | None:
+        path = str(action.arguments.get("path", "")).strip().removeprefix("/app/")
+        mode = str(action.arguments.get("mode", "")).strip() or "default"
+        if not path:
+            return None
+        prior = [
+            receipt for receipt in ledger.all_receipts()
+            if receipt.kind == "artifact_inspection"
+            and str((receipt.payload or {}).get("path", "")).strip().removeprefix("/app/") == path
+            and str((receipt.payload or {}).get("mode", "")).strip() in {mode, ""}
+        ]
+        if len(prior) < self.max_evidence_display_repeats:
+            return None
+        reference_step = prior[-1].step
+        if _state_changed_after(ledger, reference_step):
+            return None
+        return NoProgressDecision(
+            consequence="advisory",
+            reason_code="repeated_artifact_inspection_no_state_change",
+            target=f"{path}:{mode}",
+            action_family="artifact_inspection",
+            repeat_count=len(prior) + 1,
+            prior_receipt_ids=tuple(receipt.receipt_id for receipt in prior[-4:]),
+            message=(
+                "Repeated artifact inspection targeted the same unchanged artifact. "
+                "Use the surfaced metadata/text, inspect a different region/artifact, "
+                "switch capability, produce a new semantic extraction, or declare a concrete blocker."
+            ),
+        )
+
+    def _evaluate_repeated_service_probe(
+        self,
+        action: ActionRequest,
+        ledger: ExecutionLedger,
+    ) -> NoProgressDecision | None:
+        target = str(action.arguments.get("target", "")).strip()
+        if not target:
+            return None
+        prior = [
+            receipt for receipt in ledger.all_receipts()
+            if receipt.kind == "service_probe"
+            and str((receipt.payload or {}).get("target", "")).strip() == target
+        ]
+        failed_prior = [receipt for receipt in prior if not receipt.success]
+        if len(failed_prior) < self.max_evidence_display_repeats:
+            return None
+        reference_step = failed_prior[-1].step
+        if _state_changed_after(ledger, reference_step):
+            return None
+        return NoProgressDecision(
+            consequence="advisory",
+            reason_code="repeated_service_probe_no_state_change",
+            target=target,
+            action_family="service_probe",
+            repeat_count=len(failed_prior) + 1,
+            prior_receipt_ids=tuple(receipt.receipt_id for receipt in failed_prior[-4:]),
+            message=(
+                "Repeated service probes targeted the same endpoint without a state change. "
+                "Inspect process/log evidence, relaunch or repair the service, run a semantic client check, "
+                "or declare a concrete blocker instead of probing again."
+            ),
         )
 
     @staticmethod

@@ -1,0 +1,15 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor-native Aether-2 VM autoresearch loop
+- event_type: experiment
+- summary: Migrated durable Harbor VM execution from Spot harnesseng-dev to Regular harnesseng-regular-01, repaired regular VM Docker/Compose/Python/Harbor setup, and completed a valid qemu-startup baseline-vs-AHP sentinel that scored 0.0 in both conditions.
+- observations: Spot VM rows were invalidated by eviction. Regular-01 initially lacked working Docker/containerd, Docker Compose, Harbor, uv, Python 3.11, and model env. Docker was repaired by creating missing /mnt/containerd for the existing /var/lib/containerd symlink; docker-compose-v2 was installed. Harbor 0.15.0 and uv-managed CPython 3.11.15 were installed; focused VM tests passed 61 tests and genericity check exited cleanly. Pre-Compose qemu-startup sentinel failed before Aether and is environment-invalid. Post-Compose qemu-startup sentinel 20260622T_regular01_qemu_startup_compose_sentinel completed two Harbor rows: off reward 0.0 with 20 model calls/17 steps; on reward 0.0 with 21 model calls/18 steps; no Harbor errors. The interactive start_job guard fired and the model pivoted to session_start. Both rows connected to telnet 127.0.0.1:6665 but did not observe a login prompt; official verifier captured only `uname -r\n` rather than kernel response 6.6.4-1-lts.
+- inference: Regular-01 is now the preferred durable Harbor backend. The structural interactive-job guard should be kept pending wider sentinel evidence. qemu-startup remains unsolved; current failure class is evidence_acquisition/service_monitoring rather than Harbor setup or the prior session tool wiring gap. This single row does not justify a new generic harness mechanism yet.
+- evidence_paths: tracking/collab/opus_codex_harbor_vm/live_state.md; tracking/collab/opus_codex_harbor_vm/decision_log.md; /tmp/harbor-jobs/20260622T_regular01_qemu_startup_compose_sentinel on azureuser@20.106.35.151
+- affected_components: Azure VM backend; Harbor VM setup; Docker/containerd/Compose environment; Aether Harbor runtime; start_job/session_start tool contract; service readiness evidence loop
+- decision_change: Use regular-01 instead of Spot harnesseng-dev for durable VM Harbor rows; keep interactive-job guard; do not promote qemu-startup; gather a second failure-family row before proposing a multi-family harness mechanism.
+- unresolved_questions: Is qemu-startup primarily model boot-configuration capability, insufficient readiness patience, or a generic service evidence loop weakness? Does a different task family show the same premature blocked/semantic-readiness pattern?
+- confidence: high for VM setup and row validity; high for qemu-startup reward/status facts; medium for failure classification pending deeper cross-family comparison.
+- commit_message: HOLD - configure regular Harbor VM backend and record qemu-startup sentinel evidence
+
+Recorder note: `tracking/ledger/tools/record_update.py` was not present in this checkout when attempted, so this raw inbox file was persisted directly.

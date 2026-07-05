@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: overnight Harbor VM forensic audit for prefix 20260623T0300Z_aether2_harbor_overnight
+- event_type: analysis
+- summary: Completed row-level forensic audit of both Harbor boards from the overnight run, with board1 classified as invalid due to pre-model provider/backend failure and board2 classified as mostly valid-but-failing with 4 scored passes and multiple hidden-contract / proxy-target misses.
+- observations: Board1 had 20/20 rows blocked before usable model work, split evenly between litellm NoneType transform errors on off rows and Azure OpenAI Responses API preview-version bad requests on receipt_driven_full rows. Board2 had 40/40 rows reaching complete, with only fix-code-vulnerability/receipt_driven_full, headless-terminal/receipt_driven_full, and both modernize-scientific-stack rows scoring 1.0; break-filter-js-from-html, filter-js-from-html, sqlite-db-truncate, code-from-image, and several environment tasks showed local-visible success but hidden scoring failure or incomplete proof.
+- inference: The overnight Harbor run is not promotion-grade. The dominant failure modes are backend/provider instability on board1, hidden-contract/proxy-target false positives on board2, and evidence/proof insufficiency on environment and reconstruction tasks.
+- evidence_paths: /tmp/harbor_audit/overnight_rows.jsonl; /Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/harbor_vm_forensic_audit_20260623T0300Z_aether2_harbor_overnight.md; /tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_board1_gpt53codex; /tmp/harbor-jobs/20260623T0300Z_aether2_harbor_overnight_board2_gpt54mini
+- affected_components: runner/aether2 Harbor backend routing; eval verifier/grader contract fidelity; environment/proof capture for VM, browser, and reconstruction tasks
+- decision_change: Keep board1 marked invalid and board2 as mostly failed; prioritize backend preflight, hidden-contract sentinels, contamination guards, and explicit proof-capture evals.
+- unresolved_questions: Exact hidden-criterion shape remains unclear for chess-best-move, regex-log, and custom-memory-heap-crash; those rows need contract-level follow-up only if they become active targets.
+- confidence: high
+- commit_message: HOLD - analysis artifact only, no product code changes

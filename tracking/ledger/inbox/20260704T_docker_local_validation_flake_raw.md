@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next local validation after verifier component board
+- event_type: failure
+- summary: Full local Aether-Next suite encountered a Docker Desktop API 500 during container creation, then the isolated Docker test passed and the non-Docker suite passed.
+- observations: After the verifier-only model-board rubric patch, focused tests passed (74 passed). Full suite `python3 -m pytest -q tests` produced `288 passed, 1 error`; the error was setup for `tests/test_docker_runner.py::TestDockerExecExecutor::test_write_and_read_file`, where `docker run` returned `500 Internal Server Error` for the Docker socket API route. `docker version --format '{{.Server.Version}}'` returned `29.0.1`. Isolated rerun of the failed Docker test passed (`1 passed`). Non-Docker suite passed: `python3 -m pytest -q tests -k 'not DockerExecExecutor and not docker'` -> 279 passed, 10 deselected.
+- inference: The failure is best classified as local Docker lifecycle instability, not a regression in the verifier packet/rubric changes. Future full validation should prefer VM/native Docker backend when certifying task attempts.
+- evidence_paths: aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: local Docker validation; test evidence interpretation
+- decision_change: Treat this full-suite error as invalid_due_to_environment for the local run, with isolated Docker rerun and non-Docker suite used as supporting evidence.
+- unresolved_questions: Whether Docker Desktop needs restart before the final local/VM handoff, or whether the final attempt should only run on the VM backend as requested.
+- confidence: high
+- commit_message: NONE - environment flake recorded as evidence

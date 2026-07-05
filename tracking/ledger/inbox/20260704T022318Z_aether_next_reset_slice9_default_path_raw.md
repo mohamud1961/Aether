@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether-next reset slice 9 legacy-path cleanup partial progress
+- event_type: implementation
+- summary: Began Slice 9 by fixing executable governance drift: canonical Aether-Next defaults now point to workbench mode instead of ir mode, and the offline run adapter was repaired so workbench-mode verifier calls no longer route to the architect config emitter.
+- observations: `run_adapter.py`, `docker_runner.py`, and `run_pilot.py` previously defaulted `architect_mode` to `ir`; after flipping those defaults to `workbench`, `test_run_adapter` exposed a real adapter bug where workbench-mode verifier calls still used the architect model; `run_task()` now accepts `verifier_model`, the offline CLI wires a stub verifier for workbench mode, targeted adapter tests passed, and a broader sweep across run_adapter/config/workbench/runtime/model/alignment tests passed.
+- inference: The highest-risk reachable legacy drift point was stale default-path governance, and it is now repaired without deleting explicit reference modes yet. Slice 9 remains in progress for broader legacy-path quarantine/deletion.
+- evidence_paths: `tracking/collab/aether_next_reset_slice9_legacy_inventory_20260704.md`; `aether_next_build/aether_next/run_adapter.py`; `aether_next_build/aether_next/runners/docker_runner.py`; `aether_next_build/run_pilot.py`; `aether_next_build/tests/test_run_adapter.py`
+- affected_components: `aether_next_build/aether_next/run_adapter.py`; `aether_next_build/aether_next/runners/docker_runner.py`; `aether_next_build/run_pilot.py`
+- decision_change: Canonical Aether-Next executable defaults are now workbench-first; `ir` and `contract` remain explicit reference modes only.
+- unresolved_questions: which remaining reachable non-canonical paths in the certified runtime should be deleted versus quarantined; whether additional CLI/docs surfaces still imply ir-first operation.
+- confidence: high
+- commit_message: HOLD - slice 9 legacy cleanup started but not complete

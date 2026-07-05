@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next reference architect mode quarantine metadata
+- event_type: implementation
+- summary: Tightened reference architect mode surfacing by removing duplicated Docker mode-selection logic, passing `--allow-reference-architect-mode` from `run_pilot.py` into the Docker runner, and adding `architect_mode` plus `reference_architect_mode` fields to adapter, Docker, in-progress, and error result rows.
+- observations: Certified/default runs still require `workbench`; reference `ir`/`contract` modes remain rejected unless explicitly allowed. Docker runner now imports the shared `architect_overrides_for_mode` helper from `run_adapter` instead of maintaining a duplicate implementation. Invalid-mode Docker error rows now record the attempted architecture mode and reference flag. Focused tests passed: `python3 -m pytest -q tests/test_run_pilot.py tests/test_run_adapter.py tests/test_docker_runner.py tests/test_kernel_config.py` -> 22 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 285 passed.
+- inference: This does not physically delete reference modes, but it reduces duplicated slop and makes any opt-in reference use explicit in evidence rows. The next cleanup decision is whether to archive/remove the `ir` and `contract` mode code entirely or keep it only behind a more obviously named reference/debug API.
+- evidence_paths: aether_next_build/aether_next/run_adapter.py; aether_next_build/aether_next/runners/docker_runner.py; aether_next_build/run_pilot.py; aether_next_build/tests/test_run_adapter.py; aether_next_build/tests/test_docker_runner.py; aether_next_build/tests/test_run_pilot.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: run adapter; Docker runner; pilot result rows; reference architect mode governance
+- decision_change: Any non-workbench architect mode must be visible as reference mode in result rows; Docker runner uses the shared adapter selector instead of duplicating reference-mode wiring.
+- unresolved_questions: Whether to remove `ir` and `contract` modes from CLI choices/API entirely or keep them as explicit reference/debug affordances until historical tests and docs are migrated.
+- confidence: high
+- commit_message: HOLD - reference mode quarantine metadata complete; physical reference-mode removal remains

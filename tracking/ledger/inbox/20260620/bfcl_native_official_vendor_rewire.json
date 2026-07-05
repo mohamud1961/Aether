@@ -1,0 +1,35 @@
+{
+  "ledger_event": "RAW_LEDGER_UPDATE",
+  "timestamp": "2026-06-20T16:12:00Z",
+  "event_type": "bfcl_native_official_vendor_rewire",
+  "summary": "Rewired BFCL native adapter from synthetic ping()-only stubs to REAL official BFCL v4 vendored assets",
+  "changes": {
+    "bfcl_assets.py": "Added official_vendor paths as primary, load_official_cases(), official_vendor_available(), _is_synthetic_asset_path() detection. Legacy paths retained for backward compat.",
+    "bfcl_native.py": "Rewired to official_vendor func_source_code (all 9 API classes), official v4 data+ground_truth. Hardened native_grader_preflight() to require official assets and reject synthetic. Created bfcl_eval package shim for internal import resolution.",
+    "test_benchmark_adapter_readiness.py": "Updated BFCL tests to require official_vendor_available=True. Added falsifiability test: synthetic path detection must return True on old stubs.",
+    "quarantine": "Added NON_OFFICIAL_STUB_WARNING.txt to eval_suite/fixtures/bfcl/bfcl/ and research/sources/bfcl_native_vendor/"
+  },
+  "faithfulness_check": {
+    "official_vendor_checker": "REAL - 314 lines, multi_turn_checker with execute_multi_turn_func_call, state_checker, response_checker. Depends on bfcl_eval package (external dep not installed).",
+    "official_vendor_func_source_code": "REAL - 15 API files with genuine method implementations (create_ticket, resolve_ticket, etc.). Zero ping() stubs.",
+    "official_vendor_data": "REAL - 600 BFCL v4 multi-turn cases (200 base + 200 miss_func + 200 miss_param) with ground truth. JSONL format.",
+    "synthetic_detection": "_is_synthetic_asset_path() correctly identifies old ping()-only stubs"
+  },
+  "bounded_run": {
+    "run_id": "bfcl_native_bounded_20260620T161142Z",
+    "model_route": "azure_gpt54_mini_env",
+    "deployment": "gpt-5.4-mini",
+    "case_count": 5,
+    "model_backed_run_count": 18,
+    "pass": 0,
+    "fail": 5,
+    "estimated_cost_usd": 0.0007,
+    "validity": "valid - all cases graded, all failures are real state mismatches (model output without proper function-calling context)",
+    "note": "BFCL is calibration sentinel, NOT optimization target. 0/5 pass is expected for naive text-only prompting without structured tool-use."
+  },
+  "test_suite": {
+    "pytest_result": "133 passed",
+    "genericity_check": "clean"
+  },
+  "trusted_promotion_evidence": false
+}

@@ -1,0 +1,29 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: organize adaptive harness research into a dedicated adaptable source pack
+- event_type: implementation
+- summary: Created research/adaptable with copied raw notes, downloaded paper PDFs for the main adaptive-harness papers, and added a curated source index with repo links where the papers exposed them.
+- observations:
+  - The workspace now contains `research/adaptable/README.md`, `research/adaptable/sources.md`, 4 raw note files, 11 downloaded PDFs, and placeholder subfolder READMEs for repos/docs.
+  - The recorder helper path referenced in AGENTS.md is absent in this checkout, so the raw ledger update is being written directly into the inbox file.
+  - The selected paper set includes Voyager, Darwin Gödel Machine, Hyperagents, Live-SWE-agent, SkillWeaver, ToolMaker, DynaSaur, AgentSquare, AFlow, MUSE-Autoskill, and SkillOpt.
+  - Repo/source links captured in the index include `voyager.minedojo.org`, `github.com/jennyzzt/dgm`, `github.com/facebookresearch/Hyperagents`, `github.com/OpenAutoCoder/live-swe-agent`, `github.com/OSU-NLP-Group/SkillWeaver`, `github.com/KatherLab/ToolMaker`, `github.com/adobe-research/dynasaur`, `github.com/tsinghua-fib-lab/AgentSquare`, and `github.com/FoundationAgents/AFlow`.
+- inference: The folder is now usable as a local source library for the adaptive-harness thesis instead of a loose collection of pasted notes.
+- evidence_paths:
+  - `research/adaptable/README.md`
+  - `research/adaptable/sources.md`
+  - `research/adaptable/notes/research-brief-1.txt`
+  - `research/adaptable/papers/voyager_2305.16291.pdf`
+  - `research/adaptable/papers/dgm_2505.22954.pdf`
+  - `research/adaptable/papers/live_swe_agent_2511.13646.pdf`
+  - `research/adaptable/repos/README.md`
+  - `research/adaptable/docs/README.md`
+- affected_components:
+  - research organization
+  - source intake
+  - adaptive-harness bibliography
+- decision_change: Added a dedicated adaptable research bucket under research with offline PDFs and source links.
+- unresolved_questions:
+  - Whether to mirror any repos locally and whether to add official docs snapshots for productized adaptive substrates.
+- confidence: high
+- commit_message: HOLD - add adaptable research source pack

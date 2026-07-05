@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: aether-harbor-vm-backup-09-25
+- event_type: regression
+- summary: Closed out the Harbor VM backup lane after verifying no active board artifacts remained and deallocating the Azure VM.
+- observations: /tmp/harbor-jobs/20260622T234939Z_aether2_harbor_ab_vm had no files, no runner.pid, and no Docker containers on recheck; scripts/deallocate_harnesseng_vm.sh returned success; a final SSH reachability check timed out.
+- inference: The Azure VM is no longer running this Harbor lane, so further polling would waste effort.
+- evidence_paths: tracking/collab/opus_codex_harbor_vm/live_state.md; tracking/ledger/inbox/20260622T082700Z_aether_harbor_vm_backup_closeout.md
+- affected_components: Harbor VM lifecycle; collaboration state; automation memory
+- decision_change: Marked the lane closed out and stopped monitoring.
+- unresolved_questions: None for this lane unless a follow-up board is launched.
+- confidence: high
+- commit_message: HOLD - no commit requested

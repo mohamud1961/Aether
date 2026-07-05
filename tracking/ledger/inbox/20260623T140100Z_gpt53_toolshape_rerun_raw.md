@@ -1,0 +1,32 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor receipt-driven full gpt53-codex rerun after tool-shape repair
+- event_type: implementation
+- summary: Repaired the Aether model-client tool-shape mismatch for Azure Responses routes, validated locally and on the VM, and relaunched the gpt53-codex Harbor 5-task board. The rerun advanced past the prior backend_failure_before_model_work class and produced at least one valid Harbor row.
+- observations:
+  - Prior live Harbor traceback showed LiteLLM Responses conversion expecting nested `function` payloads and crashing on a `None` function_tool.
+  - Aether2ModelClient had been flattening nested tool specs unconditionally before all provider calls.
+  - Patch now preserves nested tool specs for routes whose request_settings report `azure_api_surface=v1_responses` and still flattens for chat-completions routes.
+  - Local validation passed: focused pytest plus wrapper smoke with the full native tool registry on gpt53-codex.
+  - VM validation passed: focused pytest plus wrapper smoke with the full native tool registry on gpt53-codex.
+  - Fresh Harbor rerun `20260623T135100Z_harbor_receipt_gpt53codex_toolshape_rerun` produced a valid `financial-document-processor` row with `model_work_started=true`, `model_calls=71`, `steps=56`, and remote workspace `/app`.
+- inference:
+  - The old gpt53 board was invalid due to a real harness/provider tool-shape mismatch, not inherent model incapacity on the Harbor surface.
+  - The repair is generic to Azure Responses routes and is now proven on the actual VM Harbor path.
+- evidence_paths:
+  - `/Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/model_client.py`
+  - `/Users/mohamud/Downloads/harnesseng/tests/test_model_routes_response_api.py`
+  - `/tmp/harbor-jobs/20260623T132941Z_harbor_receipt_gpt53codex/board_rows.jsonl`
+  - `/tmp/harbor-jobs/20260623T135100Z_harbor_receipt_gpt53codex_toolshape_rerun/board_rows.jsonl`
+  - `/Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/live_state.md`
+- affected_components:
+  - `harness/aether2/runtime/model_client.py`
+  - `tests/test_model_routes_response_api.py`
+  - Harbor VM gpt53-codex board lane
+- decision_change:
+  - Treat the original gpt53 board as preserved invalid evidence and use the rerun as the current meaningful gpt53 validation lane.
+- unresolved_questions:
+  - Whether the remaining four gpt53 rerun tasks complete as valid rows
+  - Whether gpt53 shows materially different step efficiency or repair behavior than gpt54 on the same tasks
+- confidence: high
+- commit_message: HOLD - no commit, active validation lane still running

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: run_architect_only_eval.py CLI token limit threading
+- event_type: implementation
+- summary: Added a CLI option to set WorkbenchArchitect max_output_tokens for isolated architect eval runs and threaded it through _run_task without changing the output schema.
+- observations: run_architect_only_eval.py now accepts --max-output-tokens with a default of 16000 and passes the value into WorkbenchArchitect(model, max_output_tokens=...).
+- inference: The isolated architect eval entrypoint can now tune architect response budget independently while preserving existing default behavior.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/run_architect_only_eval.py; command: python3 -m py_compile /Users/mohamud/Downloads/harnesseng/aether_next_build/run_architect_only_eval.py
+- affected_components: aether_next_build/run_architect_only_eval.py
+- decision_change: None
+- unresolved_questions: None
+- confidence: high
+- commit_message: Add max_output_tokens CLI to architect-only eval

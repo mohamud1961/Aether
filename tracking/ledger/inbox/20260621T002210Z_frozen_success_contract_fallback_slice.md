@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex-worker
+- task: repair frozen success-contract fallback slice to fail closed / explicit-only
+- event_type: implementation
+- summary: Removed the loop's implicit raw-task frozen-success-contract fallback and changed context prefix construction to omit the solver-visible frozen block unless an explicit admitted payload is supplied.
+- observations: `ContextManager.build_prefix` previously normalized missing frozen success contracts by copying `task_instruction` into a solver-visible `[frozen_success_contract]` block; `run_aether2_loop` also passed `_build_frozen_success_contract(task.instruction)` on the default path. After the patch, missing payloads normalize to `{}`/empty text, the prefix omits the block entirely when absent, and explicit payloads still survive rebase/receipts.
+- inference: The default Aether-2 core path now fails closed for frozen success contracts and no longer upgrades raw task text into authoritative solver-visible contract state.
+- evidence_paths: harness/aether2/runtime/context.py; harness/aether2/control/loop.py; harness/aether2/runtime/prompts.py; tests/test_aether2_frozen_success_contract.py; tests/test_aether2_compactor.py
+- affected_components: harness/aether2 runtime context/prompt path; Aether-2 core loop; focused frozen-contract/compactor tests
+- decision_change: Enforce explicit-only admission for solver-visible frozen success contracts; absence remains absent.
+- unresolved_questions: Whether later cleanup wants a non-authoritative `not_admitted` marker instead of omission remains open, but this slice intentionally chooses omission-only for the default path.
+- confidence: high
+- commit_message: HOLD - worker slice only, no commit requested

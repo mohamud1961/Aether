@@ -1,0 +1,28 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor VM overnight board launch infrastructure
+- event_type: implementation
+- summary: Added VM-resilient Harbor board launch plumbing and a detached overnight supervisor for the approved two-board Harbor-native Aether run sequence.
+- observations:
+  - `scripts/run_harbor_ab_board_vm.sh` now resolves Harbor from `~/.local/bin/harbor` for non-interactive VM shells, accepts `--model-tier`, and emits `board_manifest.json`.
+  - `scripts/launch_harbor_overnight_vm.sh` now supervises the approved `gpt53-codex` 5-task board followed by the `gpt54-mini` 20-task board on the VM itself.
+  - Local validation passed: `tests/test_harbor_vm_artifact_mirror.py` (`4 passed`), focused harness suite (`59 passed`), `ahp_preflight` (`40/40`), and genericity.
+  - VM validation passed on `/home/azureuser/harnesseng_vm`: combined launcher/focused suite (`63 passed`), `ahp_preflight` (`40/40`), and genericity.
+- inference: The Harbor-native overnight lane can now be launched in a durable unattended form without depending on the Mac staying online, while keeping Harbor as the canonical execution harness and the model split environment-driven.
+- evidence_paths:
+  - `scripts/run_harbor_ab_board_vm.sh`
+  - `scripts/launch_harbor_overnight_vm.sh`
+  - `tests/test_harbor_vm_artifact_mirror.py`
+  - `tracking/collab/opus_codex_harbor_vm/live_state.md`
+  - `tracking/collab/opus_codex_harbor_vm/runbook.md`
+  - `tracking/collab/opus_codex_harbor_vm/decision_log.md`
+- affected_components:
+  - Harbor VM launch tooling
+  - Harbor VM collaboration workspace
+  - launch-script validation coverage
+- decision_change: Use the new overnight supervisor on `harnesseng-regular-01` for the approved two-board sequence instead of ad hoc single-board SSH launch commands.
+- unresolved_questions:
+  - Whether the full board-2 task mix completes within the available VM wall-clock window without further sharding.
+  - Whether any individual heavy row triggers a Harbor/runtime invalid row that should be split into its own follow-up lane.
+- confidence: high
+- commit_message: HOLD - waiting for detached VM board launch evidence

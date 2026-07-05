@@ -1,0 +1,34 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next verifier replay, automatic-memory diagnostic, completion hardening, and bounded rerun admission
+- event_type: implementation
+- summary: Added trace verifier replay A/B, automatic memory policy modes, automatic-memory diagnostic eval, and completion blockers for active verifier findings and automatic-memory repeat blocks. Full non-Docker pytest passed. The admitted three-task live rerun was invalid due to provider/Docker instability before any trace/result row was emitted.
+- observations:
+  - `run_trace_verifier_replay_ab.py --mode model` produced 3/3 usable replay rows; architect verifier prompts improved specificity on 2/3 prior failed traces.
+  - `run_automatic_memory_diagnostic_eval.py` produced 12/12 passing rows across off/advisory/require_justification/soft_block_exact_repeat modes.
+  - `python3 -m pytest -q --ignore=tests/test_docker_runner.py` passed 219 tests.
+  - The live rerun command for filter-js-from-html,sparql-university,openssl-selfsigned-cert started but hung on the first task with open Azure HTTPS connections and no trace/result file; after termination, `docker info` timed out after 15 seconds.
+- inference: The deterministic/replay harness gates are materially stronger, but real-task reruns need provider timeout rowing, early trace flushing, and bounded Docker health gating before further evidence can be trusted.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/FULL_PLAN_VERIFIER_MEMORY_GOAL_AUDIT.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/trace_verifier_replay_ab_54mini_v1/trace_verifier_replay_ab.json
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/trace_verifier_replay_ab_54mini_v1/TRACE_VERIFIER_REPLAY_AB_REPORT.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/automatic_memory_diagnostic_eval_v2/automatic_memory_diagnostic_eval.json
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/automatic_memory_diagnostic_eval_v2/AUTOMATIC_MEMORY_DIAGNOSTIC_REPORT.md
+- affected_components:
+  - aether_next/runtime_ir.py
+  - aether_next/compiler.py
+  - aether_next/kernel.py
+  - aether_next/completion.py
+  - run_trace_verifier_replay_ab.py
+  - run_automatic_memory_diagnostic_eval.py
+  - tests/test_completion.py
+  - tests/test_memory_loop_fixes.py
+  - tests/test_trace_verifier_replay_ab.py
+  - tests/test_automatic_memory_diagnostic_eval.py
+  - tests/test_chatgpt_integration_scenarios.py
+- decision_change: Do not run further live real-task attempts until runner/provider timeouts, early trace flushing, and Docker preflight rowing are repaired.
+- unresolved_questions: Does architect-generated verifier prompting improve real task pass rate after provider/Docker reliability is fixed? Which automatic-memory mode should be promoted for live tasks: advisory or soft_block_exact_repeat?
+- confidence: high for local/replay diagnostics; low for live real-task impact because the rerun was invalid before producing a row.
+- commit_message: HOLD - aether_next_build is untracked baseline; split verifier replay, automatic memory policy, completion hardening, and audit artifacts before commit
+

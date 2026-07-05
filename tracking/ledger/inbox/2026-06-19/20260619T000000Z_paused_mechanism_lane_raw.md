@@ -1,0 +1,42 @@
+RAW_LEDGER_UPDATE
+- actor: codex-mechanism-repair-thread
+- task: first bounded closure/proof-artifact/verifier-pass mechanism lane against frozen six-row local custom baseline
+- event_type: failure
+- summary: Mechanism lane was paused by orchestrator after material baseline analysis. No code was edited and no candidate comparison was run. The repeated three-row failure family was classified as a custom eval contract mismatch rather than a justified Aether runtime repair.
+- observations: |
+    - OBSERVED: `fsent_03_filesystem_verifier_repair`, `fsent_04_retrieval_reduction_closure`, and `fsent_05_long_handoff_composition_smoke` each had solver-written artifacts under `pack/solver_pack/workspace/<task>/out/`, while `artifacts/visible_verifier_output.txt` invoked the visible checker against `pack/solver_pack/workspace/out/final_submission.json` and failed with `missing candidate`.
+    - OBSERVED: The corresponding live task packs declare `expected_outputs.candidate_json: /workspace/out/final_submission.json`, but the solver-visible prompts say `You are in /workspace/<task>` and instruct `python3 checks/visible_check.py --candidate out/final_submission.json`, which resolves to `/workspace/<task>/out/final_submission.json` from the stated cwd.
+    - OBSERVED: `fsent_02_runtime_workspace_contract` was a separate one-row lane. Its receipts show repeated `workspace_boundary_violation` errors from `run_command` and a `session_start` failure with `tmux is unavailable`, after which no `out/final_submission.json` existed.
+    - OBSERVED: `task_done` dispatch errors on unexpected `requirements` arguments appeared on passing and failing rows in this frozen run, so they were not the first decisive divergence for the repeated three-row failure family.
+- inference: |
+    - INFERRED: The first decisive repeated failure family is `visible verifier path/candidate path mismatch` in the custom eval contract surface, not a justified generic Aether runtime repair.
+    - INFERRED: A runtime-side normalization patch would risk compensating for broken eval fixtures and would not be honest promotion evidence.
+    - HYPOTHESIS (not executed): a runtime normalization from `<canonical_workspace_root>/out/final_submission.json` to `/workspace/out/final_submission.json` might recover up to three rows, but it would mask the contract mismatch instead of repairing it.
+- evidence_paths:
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempt_rows.jsonl
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_03_filesystem_verifier_repair/artifacts/visible_verifier_output.txt
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_03_filesystem_verifier_repair/pack/solver_pack/workspace/fsverify/out/final_submission.json
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_04_retrieval_reduction_closure/artifacts/visible_verifier_output.txt
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_04_retrieval_reduction_closure/pack/solver_pack/workspace/retrieval/out/final_submission.json
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_05_long_handoff_composition_smoke/artifacts/visible_verifier_output.txt
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_05_long_handoff_composition_smoke/pack/solver_pack/workspace/handoff/out/final_submission.json
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_02_runtime_workspace_contract/task/.aether2/host_receipts/receipts/0005_action_run_command.json
+  - tracking/local_runs/custom_eval_model_eligible/20260619T012233Z/attempts/fsent_02_runtime_workspace_contract/task/.aether2/host_receipts/receipts/0008_action_session_start.json
+  - eval_suite/families/environment/fsent_02_runtime_workspace_contract/task_pack.yaml
+  - eval_suite/families/environment/fsent_02_runtime_workspace_contract/solver_pack/visible_prompt.md
+  - eval_suite/families/filesystem/fsent_03_filesystem_verifier_repair/task_pack.yaml
+  - eval_suite/families/filesystem/fsent_03_filesystem_verifier_repair/solver_pack/visible_prompt.md
+  - eval_suite/families/retrieval/fsent_04_retrieval_reduction_closure/task_pack.yaml
+  - eval_suite/families/retrieval/fsent_04_retrieval_reduction_closure/solver_pack/visible_prompt.md
+  - eval_suite/families/orchestration/fsent_05_long_handoff_composition_smoke/task_pack.yaml
+  - eval_suite/families/orchestration/fsent_05_long_handoff_composition_smoke/solver_pack/visible_prompt.md
+- affected_components:
+  - custom eval task-pack expected output contracts for fsent_02/fsent_03/fsent_04/fsent_05
+  - local custom board validity interpretation for repeated verifier-pass failures
+  - separate runner/tool-contract lane for fsent_02 workspace-boundary/session-start behavior
+- decision_change: Paused by orchestrator before any repair. No code edits, no tests, and no candidate board rerun were performed.
+- unresolved_questions:
+  - Should the affected rows standardize on `/workspace/<task>/out/...` in `expected_outputs`, or should their visible prompts/canonical cwd be changed to make `/workspace/out/...` the truthful contract?
+  - Is the fsent_02 workspace-boundary guard rejecting literal `/workspace/...` tokens generically, and should that be handled in a separate runner/tool-contract lane after eval repair?
+- confidence: high
+- commit_message: NONE - no tracked file changes

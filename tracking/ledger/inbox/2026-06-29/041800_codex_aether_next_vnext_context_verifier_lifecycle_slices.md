@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next vNext Context Policy and Verifier Lifecycle hardening slices
+- event_type: implementation
+- summary: Added exact context policy include/exclude tests, compression boundary tests at the 60% trigger, and fake-verifier lifecycle tests covering packet evidence, active finding persistence/age, since-finding memory query, resolve, supersede, invalidate, non-completed verifier failure classes, and internal completion gating.
+- observations: Supported context modes now have contractual tests: default_bounded, retrieval_augmented, latest_tool_result_only, rolling_recent, and failure_focused. Compression tests prove trigger behavior and preservation of active findings/pending checks. Verifier lifecycle tests prove deterministic plumbing before model verifier experiments. Non-Docker validation passed with 156 tests.
+- inference: Deterministic harness gates through context and verifier lifecycle are strong enough to proceed to architect-only and verifier-only model experiments, subject to model credential availability and the instruction to use official tasks/graders for review context without benchmark-specific harness logic.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/CONTEXT_POLICY_AUDIT.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/VERIFIER_LIFECYCLE_AUDIT.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/CURRENT_STATE.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/aether_next_vnext_slice2_hardened.zip; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_memory_context_verifier.py
+- affected_components: context compiler behavior contract; verifier packet/lifecycle; active finding store; memory query after verifier finding
+- decision_change: Proceed next to architect-only model experiments if credentials are available; otherwise prepare deterministic experiment harness and mark external model access as the blocker.
+- unresolved_questions: full_trace_summary remains unsupported. model_verifier_policy.runs_on remains not enforced. Natural-language verifier verdict parser is not implemented. Docker-backed tests remain unverified in this environment due prior debian:stable-slim pull/run timeout.
+- confidence: high for deterministic non-Docker context/verifier lifecycle behavior; medium for next model-experiment phase pending live model credentials and official task artifact availability.
+- commit_message: HOLD - context/verifier lifecycle hardening isolated under takeover working copy, not ready as repo-root commit

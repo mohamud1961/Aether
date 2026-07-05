@@ -1,0 +1,37 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: post-upgrade Harbor validation lane local gate
+- event_type: implementation
+- summary: Implemented the remaining Tier 0/Tier 1 harness slice for the narrowed validation lane and cleared the full local gate.
+- observations:
+  - Added model-authored `TASK_OPERATING_CONTRACT` parsing/storage and exposed it through receipt context.
+  - Expanded proof-state with proof items, proxy warnings, blocker/action summaries, richer artifact observations, repeated-action progress notes, and first-attempt warning deferrals for premature `task_done` and risky mutation.
+  - Fixed `gpt-5.3-codex` Azure route compatibility: Responses API version floor plus chat-shaped payload normalization on the provider boundary.
+  - Local validation commands passed:
+    - focused pytest suite -> `105 passed`
+    - `python3.11 -m harness.aether2.control.ahp_preflight` -> `40/40 checks passed`
+    - `python3.11 tools/aether2_genericity_check.py` -> passed
+    - `python3.11 -m runner.board_preflight --model-tier gpt54-mini` -> passed
+    - `python3.11 -m runner.board_preflight --model-tier gpt53-codex` -> passed
+- inference: The narrowed post-upgrade lane is locally ready for VM validation and Harbor reruns.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/task_operating_contract.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/completion.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/execution_context.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/loop.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/model_routes.py
+  - /Users/mohamud/Downloads/harnesseng/runner/board_preflight.py
+  - /Users/mohamud/Downloads/harnesseng/runner/board_row_validity.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_aether2_post_upgrade_behaviors.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_model_routes_response_api.py
+- affected_components:
+  - harness/aether2/control
+  - harness/aether2/runtime
+  - harness/aether2/traces
+  - runner
+  - tests
+- decision_change: None yet; this is a validation gate, not a promotion decision.
+- unresolved_questions:
+  - Need VM confirmation on the same slice before launching the 10-row Harbor matrix.
+- confidence: high
+- commit_message: HOLD - local validation complete but VM/run lane still pending

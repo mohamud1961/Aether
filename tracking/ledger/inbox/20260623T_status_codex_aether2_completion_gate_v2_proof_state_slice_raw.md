@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: bounded Completion Gate V2 / proof-state slice for Aether-2
+- event_type: implementation
+- summary: Added receipt-backed proof-state computation, receipt-driven telemetry continuity, and untrusted task-local helper surfacing across control, runtime, trace, and test paths.
+- observations: Proof-state now derives from receipts, local tool trust state, and evidence records; receipt-driven variant only adds proof_state continuity when enabled; baseline/off behavior remains byte-stable in compaction tests; task-local helper successes remain untrusted for completion.
+- inference: The slice satisfies the bounded continuity requirement without turning proof-state into a hard completion veto.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/harness/aether2/control/completion.py, /Users/mohamud/Downloads/harnesseng/harness/aether2/control/loop.py, /Users/mohamud/Downloads/harnesseng/harness/aether2/control/verification_rounds.py, /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/compactor.py, /Users/mohamud/Downloads/harnesseng/harness/aether2/traces/receipt_store.py, /Users/mohamud/Downloads/harnesseng/harness/aether2/traces/task_local_tools.py, /Users/mohamud/Downloads/harnesseng/tests/test_receipt_driven_full_build.py, /Users/mohamud/Downloads/harnesseng/tests/test_compaction_receipt_continuity.py, /Users/mohamud/Downloads/harnesseng/tests/test_aether2_harbor_backend_read.py
+- affected_components: harness/aether2/control, harness/aether2/runtime, harness/aether2/traces, tests
+- decision_change: proof-state continuity is advisory feedback only; it does not add a new hard veto beyond existing discrepancy-report flow.
+- unresolved_questions: Review tool could not run because local config requested an unsupported service_tier value.
+- confidence: medium
+- commit_message: Add receipt-backed proof-state continuity and untrusted helper surfacing

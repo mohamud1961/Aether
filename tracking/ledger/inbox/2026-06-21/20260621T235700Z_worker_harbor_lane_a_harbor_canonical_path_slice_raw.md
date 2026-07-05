@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Worker Harbor Lane A
+- task: Implement Harbor canonical path slice Phase 1/2 without HarnessRunConfig cleanup
+- event_type: implementation
+- summary: Added a Harbor-importable Aether-2 adapter skeleton that records a truthful blocked state when Harbor does not expose a host-visible mutable task workspace, moved TaskSpec into a neutral runtime module, demoted the custom TerminalBench model-backed/native paths to diagnostic-only markers, and made the tournament launcher require an explicit entrypoint instead of a deleted faux-official default.
+- observations: Harbor's BaseAgent contract is real and import-path based, but the current BaseEnvironment surface only guarantees exec/upload/download plus mounted log directories; the existing Aether-2 filesystem tools require a host-visible workspace mirror. Python 3.11 tests passed for the new adapter, launcher, demotion markers, TaskSpec import rewires, and MCP/hooks coverage. Genericity check passed.
+- inference: The canonical Harbor lane can now hand Harbor a real adapter module without claiming unsupported execution. A future lane still needs a benchmark-native workspace bridge or Harbor-native executor/filesystem port before Aether-2 can run truthfully inside Harbor-managed task state.
+- evidence_paths: runner/adapters/harbor_agent.py; harness/aether2/runtime/task_spec.py; scripts/run_aether2_tournament.sh; tools/run_tbench_model_backed.py; eval_suite/adapters/terminalbench_native.py; tests/test_harbor_agent_adapter.py; tests/test_run_aether2_tournament.py; tests/test_benchmark_adapter_readiness.py
+- affected_components: Harbor adapter surface; neutral task metadata import path; debug-only TerminalBench runner/native adapter markers; tournament launcher contract; focused Harbor/tournament/readiness tests
+- decision_change: Harbor canonical-path work now exposes an honest importable adapter and explicitly demotes the old custom TerminalBench paths from canonical status signals.
+- unresolved_questions: What benchmark-native workspace contract should Harbor expose to let Aether-2 file tools operate safely against the mutable task workspace without inventing a second staging layer?
+- confidence: medium-high
+- commit_message: HOLD - Harbor adapter is truthful but still blocked on workspace bridge for real Harbor execution

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Adversarial closeout of Claude Tasks 1/3/4 and architect prompt/config audit
+- event_type: source_analysis
+- summary: Wrote current-state closeout reports showing that Claude Task 1 and Task 3 are independently re-proved in the live tree, Task 4 is fixed on certified/default run surfaces but legacy/reference internals remain, and architect prompt/config quality is strong in isolated evaluation but unevenly realized in live runs.
+- observations: Live tests and code now prove solver command outputs appear in the real kernel loop and workbench reconfigure failures surface as explicit config_invalid without fake generic recovery. Certified/default entry points now quarantine reference architect modes. Architect-only reports score the sampled prompt/config outputs at 9.67-10/10, but Stage 1 live evidence shows sparql received a rich contract while filter and openssl often ran with effectively empty/default-like proof contracts.
+- inference: The canonical Aether-Next line has materially improved on the targeted reset issues, but runtime realization consistency remains weaker than isolated architect quality. The remaining work is less about raw prompt wording and more about consistent contract realization and continued legacy/reference carve-down.
+- evidence_paths: aether_next_build/CLAUDE_TASKS_1_3_4_ADVERSARIAL_CLOSEOUT_20260704.md; aether_next_build/ARCHITECT_PROMPT_CONFIG_AUDIT_20260704.md; aether_next_build/STAGE1_TERMINAL_RUN_FULL_AUDIT.md; aether_next_build/architect_only_eval_20260704_slice6_prompt_upgrade_final/ARCHITECT_EVAL_REPORT.md; aether_next_build/tests/test_vnext_configurability.py; aether_next_build/tests/test_vnext_memory_context_verifier.py; aether_next_build/tests/test_run_adapter.py; aether_next_build/tests/test_docker_runner.py
+- affected_components: aether_next_build canonical governance; workbench reconfigure path; solver context visibility; architect prompt/config evaluation; reset-plan evidence package
+- decision_change: The plan can treat Tasks 1 and 3 as closed, Task 4 as partially closed with remaining legacy-quarantine work, and the architect as strong enough that further progress should prioritize realization/propagation rather than prompt-length expansion.
+- unresolved_questions: Which remaining reference/debug internals should be deleted versus retained as explicit non-certified tooling, and whether the single planned VM run will show a corresponding task-success gain beyond unit-level truthfulness improvements.
+- confidence: medium-high
+- commit_message: HOLD - analysis/report slice only, not a commit-ready code change

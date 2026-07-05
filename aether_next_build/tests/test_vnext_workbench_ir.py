@@ -95,6 +95,9 @@ def test_workbench_architect_prompt_states_runtime_config_role() -> None:
     assert "blocked_by_harness_config" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "completed, needs_repair,\nuncertain_missing_evidence, blocked_by_tooling, and blocked_by_harness_config" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "if a local check fails or the verifier returns needs_repair" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Metadata is not semantic image" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "code-from-image style tasks" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "fresh extraction evidence or blocked_by_tooling" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
 
 
 def test_runtime_manual_allowed_smoke_enum_matches_parser_enum() -> None:
@@ -121,6 +124,10 @@ def test_runtime_manual_allowed_smoke_enum_matches_parser_enum() -> None:
     assert "how to respond when local checks fail or verifier findings arrive" in solver_style
     assert "read-only current-state inspection role" in verifier_requirements
     assert "verdict meanings for completed/needs_repair/uncertain_missing_evidence/blocked_by_tooling/blocked_by_harness_config" in verifier_requirements
+    perception = manual["perception_and_artifact_extraction"]
+    assert perception["metadata_is_not_semantics"] is True
+    assert "metadata-only inspect_artifact success" in perception["not_completion_evidence"]
+    assert "semantic extraction is unavailable" in perception["semantic_extraction_rule"]
 
 
 def test_architect_quality_rewards_verifier_state_inspector_and_repair_guidance() -> None:
@@ -157,6 +164,32 @@ def test_architect_quality_rewards_verifier_state_inspector_and_repair_guidance(
     assert "verifier_prompt_mentions_read-only" not in scored["verifier_prompt"]["missing"]
     assert "verifier_prompt_mentions_blocked_by_tooling" not in scored["verifier_prompt"]["missing"]
     assert "verifier_prompt_mentions_blocked_by_harness_config" not in scored["verifier_prompt"]["missing"]
+
+
+def test_architect_quality_penalizes_visual_task_without_extraction_boundary() -> None:
+    raw = json.loads(_raw_config())
+    raw["task_understanding"] = "Read code from image.png and write the recovered program."
+    raw["success_definition"] = "The recovered program from the image is correct."
+    raw["solver_system_prompt"]["workflow"] = [
+        "inspect image.png metadata",
+        "write recovered.py",
+    ]
+    raw["solver_system_prompt"]["self_verification"] = [
+        "run recovered.py",
+    ]
+    raw["verifier_system_prompt"]["required_evidence"] = [
+        "current state of recovered.py",
+    ]
+    raw["evidence_requirements"] = ["image.png was inspected and recovered.py exists"]
+    raw["minimum_completion_evidence"] = ["metadata for image.png and recovered.py"]
+    raw["false_positive_risks"] = ["file exists but content is wrong"]
+    raw["local_verification_limits"] = ["metadata checks cannot prove hidden expectations"]
+    config = parse_harness_config_ir(json.dumps(raw))
+
+    scored = score_architect_config(config)
+
+    assert "visual_task_missing_semantic_extraction_or_metadata_limit" in scored["config_contract"]["missing"]
+    assert "visual_task_missing_extraction_workflow" in scored["config_contract"]["missing"]
 
 
 def test_fake_architect_execution_pressure_config_realizes_shell_tool() -> None:

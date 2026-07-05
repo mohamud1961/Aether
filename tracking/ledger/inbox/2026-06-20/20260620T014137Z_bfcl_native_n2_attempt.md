@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: create and exercise a real two-row BFCL-local board attempt
+- event_type: experiment
+- summary: Added a minimal two-row BFCL-native local board under eval_suite/custom/bfcl_native_n2 and ran a model-backed attempt with --max-model-rows 2.
+- observations: Board validation passed for both rows before execution. The actual run completed with 2 valid rows, 0 invalid rows, 2 scored model-backed attempts, and 0 grader passes. Both rows failed because the model did not produce out/tool_call_log.json; visible verifier and grader both reported candidate_missing. The model traces show repeated file_not_found behavior while trying to inspect the visible workspace. model_calls were 11 for multi_turn_composite_97 and 14 for multi_turn_composite_116. No provider or grader infrastructure invalidity occurred.
+- inference: The board wiring is sound, but the current prompt/workspace contract is not yet enough to get the model to materialize the BFCL call log. This is a capability/instruction-following miss rather than an environment failure.
+- evidence_paths: eval_suite/custom/bfcl_native_n2/local_bfcl_native_n2_board.yaml; eval_suite/custom/bfcl_native_n2/multi_turn_composite_97/task_pack.yaml; eval_suite/custom/bfcl_native_n2/multi_turn_composite_116/task_pack.yaml; tracking/local_runs/bfcl_native_n2_validate/20260620T014021Z/run_summary.json; tracking/local_runs/bfcl_native_n2_attempt/20260620T014137Z/run_summary.json; tracking/local_runs/bfcl_native_n2_attempt/20260620T014137Z/scoreboard.json; tracking/local_runs/bfcl_native_n2_attempt/20260620T014137Z/attempt_rows.jsonl; tracking/local_runs/bfcl_native_n2_attempt/20260620T014137Z/attempts/bfcl_native_multi_turn_composite_97/artifacts/grader_output.json; tracking/local_runs/bfcl_native_n2_attempt/20260620T014137Z/attempts/bfcl_native_multi_turn_composite_116/artifacts/grader_output.json
+- affected_components: BFCL-local board config, BFCL-local task packs, local model-backed board execution
+- decision_change: keep the BFCL-local board as a valid harness exercise, but do not count this run as success or promotion evidence; a follow-up prompt/path refinement would be needed to improve solve rate
+- unresolved_questions: whether the model needs a more explicit workspace path hint or a different BFCL visible prompt structure to avoid the file_not_found loop
+- confidence: medium
+- commit_message: NONE - no tracked file changes

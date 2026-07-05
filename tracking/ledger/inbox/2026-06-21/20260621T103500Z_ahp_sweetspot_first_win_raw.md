@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: overnight-agent (session 2, sweet-spot search)
+- task: AHP variant sweet-spot A/B testing
+- event_type: experiment
+- summary: Ran 5 new sweet-spot candidate tasks (log-summary-date-ranges, regex-log, sqlite-db-truncate, sanitize-git-repo, multi-source-data-merger) as A/B baseline vs AHP with gpt-5.4-mini. FIRST AHP WIN found: log-summary-date-ranges baseline=0.0 / AHP=1.0. Model had the capability but baseline miscounted log severities; AHP's structured completion contract anchored the counting logic. Total across 13 tasks (8 prior + 5 new): 1 AHP win, 0 regressions, 12 unchanged. Behavioral analysis shows AHP prevents premature task_done on 2 tasks (financial-document-processor, build-cython-ext) and reduces model calls ~19% on passing tasks.
+- observations: 1) AHP win is on a FORMAT-SENSITIVE counting task — exactly AHP's predicted sweet spot. 2) AHP's completion_contract explicitly captured "Use current date 2025-08-12" and "Count severities exactly ERROR/WARNING/INFO" — these anchored the model. 3) Baseline CSV had wrong ERROR/WARNING counts (e.g., today ERROR 414 vs correct 370) while INFO was correct for all periods. 4) AHP changed behavior on 2 failing tasks: financial-doc-processor (AHP said "I'll stop rather than fabricate data"), build-cython-ext (AHP said "I'm not done yet" at step 14). 5) Docker images built locally from environment/Dockerfile using retagged python:3.12-slim — DockerHub pull rate-limited.
+- inference: AHP's addressable surface for gpt-5.4-mini is real but small. The win pattern requires: (a) task within model capability ceiling, (b) format/precision sensitivity, (c) baseline fails due to imprecise requirement anchoring. Most failures are capability-ceiling or env/infra, limiting AHP's impact to the narrow middle ground.
+- evidence_paths: tracking/local_runs/tbench_ahp_ab/20260621_sweetspot/, tracking/collab/overnight_handoff.md (checkpoints 6-7)
+- affected_components: harness/aether2 (AHP variant), tools/run_tbench_model_backed.py (runner)
+- decision_change: AHP has demonstrated one real solve-rate win. Not yet promotion-grade (N=1), but the addressable surface is confirmed non-zero.
+- unresolved_questions: Is the log-summary-date-ranges win reproducible at N>1? How many more HARNESS-PREVENTABLE tasks exist in the full TerminalBench catalog? Can the AHP contract be strengthened for regex-log or sanitize-git-repo near-misses?
+- confidence: HIGH for the win being real (official grading, file-based, deterministic). MEDIUM for the win being reproducible (temperature=0 should help). LOW for AHP having broad impact (1/13 win rate suggests narrow surface).
+- commit_message: NONE - no tracked file changes (run artifacts only)

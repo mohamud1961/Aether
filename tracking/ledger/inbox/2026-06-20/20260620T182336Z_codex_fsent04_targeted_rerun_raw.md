@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: fsent_04_retrieval_reduction_closure targeted rerun after visible verifier repair
+- event_type: experiment
+- summary: Ran exactly one targeted model eval for fsent_04_retrieval_reduction_closure under the repaired visible verifier. The row completed with the visible verifier and grader both passing.
+- observations: Output root tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun; run_summary.json reports row_count=1, valid_row_count=1, no_model_run_performed=false. visible_verifier_output.txt reports passed=true. grader_output.json reports verdict=pass, score=1.0, failure_class=none. final_submission.json contains final_value 7421, evidence_ids [row-17,row-22], rejected_stale_ids [row-03], and a justification_trace covering selected and rejected IDs.
+- inference: The visible verifier repair now aligns with the grader on the previously failing semantic contract for this row, so the row is a valid pass in the targeted rerun.
+- evidence_paths: tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun/run_summary.json; tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun/scoreboard.json; tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun/attempts/fsent_04_retrieval_reduction_closure/artifacts/visible_verifier_output.txt; tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun/attempts/fsent_04_retrieval_reduction_closure/artifacts/grader_output.json; tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun/attempts/fsent_04_retrieval_reduction_closure/artifacts/model_run/run_result.json; tracking/local_runs/custom_eval_targeted/20260620T182336Z_fsent04_visible_gate_rerun/attempts/fsent_04_retrieval_reduction_closure/pack/solver_pack/workspace/retrieval/out/final_submission.json
+- affected_components: custom_eval runner, visible verifier contract, grader result interpretation, targeted retrieval row fsent_04_retrieval_reduction_closure
+- decision_change: Promote this row from previously failed to valid_pass for the targeted rerun evidence set; no broader board rerun was performed.
+- unresolved_questions: None for this targeted rerun; the remaining question is whether the broader board should be rerun separately, which was out of scope here.
+- confidence: high
+- commit_message: NONE - no tracked file changes

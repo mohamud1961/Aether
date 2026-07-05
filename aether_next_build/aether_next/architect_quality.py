@@ -152,6 +152,22 @@ def score_config_contract(config: HarnessConfigIR | None, realization_preview: d
     if smoke_tests and all(str(item.get("type", "")) in {"content_assertion", "syntax_check"} for item in smoke_tests):
         if any(word in text for word in ("run", "execute", "semantic", "behavior", "browser", "service", "certificate", "query")):
             missing.append("behavioral_task_has_only_source_or_syntax_smoke")
+    all_contract_text = "\n".join([
+        config.task_understanding,
+        config.success_definition,
+        config.solver_system_prompt.render(),
+        config.verifier_system_prompt.render(),
+        _joined(config.evidence_requirements),
+        _joined(config.false_positive_risks),
+        _joined(config.minimum_completion_evidence),
+        _joined(config.local_verification_limits),
+    ]).lower()
+    visual_terms = ("image", "ocr", "screenshot", "pixel", "visual", "png", "jpg", "jpeg", "video", "frame")
+    if any(term in all_contract_text for term in visual_terms):
+        if not any(term in all_contract_text for term in ("metadata-only", "metadata only", "semantic extraction", "tesseract", "ffmpeg", "pdftotext", "ocr", "vision")):
+            missing.append("visual_task_missing_semantic_extraction_or_metadata_limit")
+        if not any(term in all_contract_text for term in ("extract", "transcribe", "ocr", "semantic", "pixel", "frame")):
+            missing.append("visual_task_missing_extraction_workflow")
     return _score(10, missing, warnings)
 
 

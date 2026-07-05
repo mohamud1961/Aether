@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next EnvMap raw-state candidates for verifier inspection
+- event_type: implementation
+- summary: Surfaced bounded non-authoritative `raw_state_candidates` from EnvMap into verifier packets and taught forced verifier inspection to use those candidates when solver file-read evidence is absent.
+- observations: Compiler realization now includes `verifier_raw_state_candidates` from generic file-map hints: likely inputs and instruction-referenced visible paths, excluding declared outputs and likely tests/checkers. Verifier packets expose these as `raw_state_candidates` with `authority: candidate_only`. `_default_completion_inspection_requests()` now considers `raw_state_candidates` after `latest_file_reads`, while still reading the final artifact first. Focused tests passed: `python3 -m pytest -q tests/test_model_hooks.py tests/test_vnext_memory_context_verifier.py tests/test_vnext_configurability.py` -> 86 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 289 passed.
+- inference: This advances verifier-as-state-inspector behavior without adding harness-side judgment. The harness surfaces raw input candidates; the verifier decides whether and how they matter. This should reduce false-clean risk when the solver never reads the raw source before submitting.
+- evidence_paths: aether_next_build/aether_next/compiler.py; aether_next_build/aether_next/verifier_packets.py; aether_next_build/aether_next/model_hooks.py; aether_next_build/tests/test_vnext_memory_context_verifier.py; aether_next_build/tests/test_model_hooks.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: EnvMap compile realization; verifier packet schema; forced verifier inspection; raw-state evidence hierarchy
+- decision_change: EnvMap may surface bounded raw-state candidates to the verifier as candidate-only instrumentation, not proof or task judgment.
+- unresolved_questions: Whether to add verifier-owned overlay/rerun execution before the final VM attempt, and which verifier-only eval board should be promoted as the pre-run gate.
+- confidence: high
+- commit_message: HOLD - EnvMap raw-state candidates surfaced; verifier eval board and VM run remain

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harden Azure Pro bootstrap into curated Aether-Next micro-workspace
+- event_type: implementation
+- summary: Reworked the Pro preparation path so Azure Pro is launched only inside a physically curated `pro_workspace_aether_next` micro-workspace, not the full repo, and added the supporting work order/read order/manifest/instruction docs plus reproducible workspace builder and launcher scripts.
+- observations: Added `tools/prepare_pro_workspace.py`, `scripts/prepare_pro_workspace.sh`, and `scripts/run_pro_workspace_agent.sh`. Added `PRO_READ_ORDER.md`, `PRO_CONTEXT_MANIFEST.md`, `PRO_PRIOR_ATTEMPTS_LEDGER.md`, `AETHER_NEXT_CONFIGURABLE_COMPILER_NOTE.md`, `USER_TASTE_AND_CONSTRAINTS.md`, and `FINAL_PRO_INSTRUCTION.md`. Updated `PRO_WORK_ORDER.md` with hard context discipline, taste-vs-decision framing, Aether-2-not-foundation language, no-architecture-theatre, enforceable/prompt/advisory split, structured receipt memory, verifier classification, and launch gating. Built `pro_workspace_aether_next` and generated `WORKSPACE_TOKEN_BUDGET_REPORT.md`. First build was over cap (~300102 est tokens) due to copied raw `model_exchange_*.json`; trimmed those to selected exchange excerpts and rebuilt to ~146039 est tokens, under the 250k hard cap.
+- inference: The bootstrap path is now materially safer and more aligned with the intended Pro usage model. Physical workspace restriction plus budget reporting is the correct guardrail; "please don't scan" is not.
+- evidence_paths: `tools/prepare_pro_workspace.py`; `scripts/prepare_pro_workspace.sh`; `scripts/run_pro_workspace_agent.sh`; `tracking/collab/aether_next_pro_build/PRO_WORK_ORDER.md`; `tracking/collab/aether_next_pro_build/PRO_CONTEXT_MANIFEST.md`; `tracking/collab/aether_next_pro_build/PRO_READ_ORDER.md`; `tracking/collab/aether_next_pro_build/FINAL_PRO_INSTRUCTION.md`; `pro_workspace_aether_next/WORKSPACE_TOKEN_BUDGET_REPORT.md`; `tracking/collab/pro_route_readiness/PRO_ROUTE_READINESS_REPORT.md`
+- affected_components: Pro bootstrap preparation; Aether-Next work-order surface; workspace budgeting and launch discipline
+- decision_change: Pro must not be pointed at the full repo or full package. The approved bootstrap path is now curated micro-workspace only.
+- unresolved_questions: Live Azure Pro route remains unproven until `AZURE_OPENAI_GPT54_PRO_DEPLOYMENT` and `AZURE_OPENAI_GPT54_PRO_KEY` are present and the workspace smoke passes.
+- confidence: high for local workspace preparation and budget facts; unproven for live provider/tool compatibility until env is present
+- commit_message: Build curated Pro micro-workspace and launch path

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex run-handling worker
+- task: Harbor validation lane launch/monitor bookkeeping on durable VM
+- event_type: experiment
+- summary: Launched the receipt_driven_full Harbor validation matrix on the VM as two durable board roots, one for gpt53-codex and one for gpt54-mini.
+- observations: VM prelaunch recheck passed for docker, Harbor, and /home/azureuser/.aether2/model.env. gpt53 board run id 20260623T132941Z_harbor_receipt_gpt53codex launched with launcher PID 620578 and entered Harbor preflight/row execution. gpt54 board run id 20260623T133041Z_harbor_receipt_gpt54mini launched with launcher PID 625086.
+- inference: The approved 10-row matrix is in flight on the durable VM using the existing Harbor launcher path; no harness code edits were required.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/live_state.md, /tmp/harbor-jobs/20260623T132941Z_harbor_receipt_gpt53codex/launcher.log, /tmp/harbor-jobs/20260623T133041Z_harbor_receipt_gpt54mini/launcher.log
+- affected_components: scripts/run_harbor_ab_board_vm.sh, tracking/collab/opus_codex_harbor_vm/live_state.md
+- decision_change: Continue monitoring both durable board roots; mirror completed run roots into tracking/local_runs when they close.
+- unresolved_questions: Whether both boards finish within the work window and whether any row classifications come back invalid.
+- confidence: medium
+- commit_message: HOLD - Harbor receipt_driven_full matrix still running

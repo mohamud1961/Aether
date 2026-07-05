@@ -1,0 +1,48 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next full harness reset execution with targeted gates and bounded live attempts
+- event_type: implementation
+- summary: Strengthened canonical Aether-Next ownership boundaries, architect config quality, verifier inspection protocol, submit throttling, and run evidence durability; targeted gates passed, but live evidence exposed a remaining verifier false-clean on semantic count validation.
+- observations:
+  - Full Aether-Next test suite passed after changes: `283 passed`.
+  - Post-fix 10-task architect-only eval scored 10/10 across solver prompt, verifier prompt, and config contract for all 10 rows.
+  - Verifier-only fake eval remained parseable, evidence-bound, and actionable across 5 cases.
+  - Trace verifier replay remained improved by architect-authored prompts across 3 cases.
+  - EnvMap audit indexed 90 tasks; spot checks supported row-level mechanical accuracy with interpretation caveats.
+  - `raman-fitting` local run was invalid due image acquisition / no container evidence.
+  - `filter-js-from-html` reached solver submit at step 23 and exposed verifier protocol/timeout opacity.
+  - `log-summary-date-ranges` throttle run showed verifier call spam was reduced; official grader passed but kernel stayed incomplete before forced inspection.
+  - `log-summary-date-ranges` forced-inspection run had one verifier call with read-only inspection and kernel completed, but official grader failed (`today ERROR expected 370, got 414`), yielding a verifier false-clean.
+  - Follow-up prompt/runtime repair now tells the verifier to treat solver-authored validation/recomputation as evidence to audit, not proof; targeted architect-only rerun on `log-summary-date-ranges` scored 10/10 with this distinction present.
+- inference:
+  - Core ownership/trigger mechanics are much closer to the target harness: architect owns prompts/config, solver-submit-only verifier trigger is enforced, and deterministic proof-contract no longer owns completion.
+  - The next bottleneck is verifier evidence selection and semantic inspection depth, not completion gating; the latest prompt/rubric repair is plausible but still needs a fresh live validation row.
+  - Forced read-only inspection supplies state evidence but can still over-trust solver-authored recomputation receipts unless the verifier independently checks raw source semantics.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_20260704_goal_postfix_10_v2/ARCHITECT_EVAL_REPORT.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/verifier_only_eval_20260704_goal_postfix_after_forced_inspection/
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/verifier_prompt_replay_eval_20260704_goal_postfix_after_forced_inspection/
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/trace_verifier_replay_ab_20260704_goal_postfix_after_uninspected_fix/
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/envmap_audit_20260704_goal_postfix/ENVMAP_AUDIT_REPORT.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/ENVMAP_SPOTCHECK_20260704.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260704T212830Z_goal_local_logsummary_throttle/
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/local_goal_runs/20260704T213739Z_goal_local_logsummary_forcedinspect/
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_20260704_goal_postfix_solver_validation_audit/
+- affected_components:
+  - aether_next_build/aether_next/workbench_config.py
+  - aether_next_build/aether_next/workbench_hooks.py
+  - aether_next_build/aether_next/model_hooks.py
+  - aether_next_build/aether_next/kernel.py
+  - aether_next_build/aether_next/completion.py
+  - aether_next_build/aether_next/ledger.py
+  - aether_next_build/run_pilot.py
+  - aether_next_build/run_trace_verifier_replay_ab.py
+  - aether_next_build/tests/
+- decision_change: Do not proceed to broad full-task runs as promotion evidence yet; first rerun a narrow live validation after the solver-authored-validation audit repair, then build a verifier/grader diagnostic family for flawed recomputation if false-clean persists.
+- unresolved_questions:
+  - How should the architect express verifier inspection priorities so they become read-only evidence hints without turning into deterministic task judgement?
+  - Should live traces flush per step for better monitoring and crash/timeout evidence?
+  - How should result rows distinguish verifier false-clean from model capability when official grader fails after inspected verifier completion?
+- confidence: high for targeted mechanics and live-run observations; medium for generalization beyond sampled tasks until verifier/grader diagnostic evals are built.
+- commit_message: HOLD - aether_next_build is untracked in this checkout; preserve evidence and split canonical harness changes before commit

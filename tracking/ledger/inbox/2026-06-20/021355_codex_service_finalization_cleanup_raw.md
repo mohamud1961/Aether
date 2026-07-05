@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: service monitoring/finalization cleanup repair
+- event_type: implementation
+- summary: Added generic attempt-local job cleanup before post-hoc visible verifier/grader execution so model-launched validation services cannot keep occupying ports and contaminate independent grading. Added JobRegistry.stop() and recorded post_model_cleanup artifacts. Service rerun is blocked by a pre-existing localhost:18923 listener that the sandbox cannot terminate.
+- observations: Prior service run showed grader failure service_crashed_before_second_observation. Receipts showed model start_job attempts failed with OSError address already in use, and lsof showed Python pid 12246 listening on 127.0.0.1:18923. Attempted sandbox termination failed with PermissionError. Focused tests passed with one service-port-dependent test skipped because port 18923 is occupied.
+- inference: The service failure is at least partly a lifecycle cleanup/finalization defect: model validation jobs can contaminate later independent grader startup. The new cleanup should prevent future attempt-local leakage, but the current machine still needs the stale listener removed before an honest service rerun.
+- evidence_paths: harness/aether2/runtime/jobs.py; tools/run_custom_eval_board.py; tests/test_run_custom_eval_board.py; tracking/local_runs/custom_eval_targeted/20260620T012816Z_verifier_guidance_service; python3 -m pytest -q tests/test_run_custom_eval_board.py tests/test_aether2_verification_feedback.py tests/test_aether2_genericity.py
+- affected_components: Aether job registry, custom eval runner, service lifecycle eval execution hygiene
+- decision_change: Do not interpret service reruns while localhost:18923 is occupied as model capability. Clear stale listener, then rerun service_lifecycle_readiness_flagship targeted row.
+- unresolved_questions: Whether the candidate model will pass service_lifecycle once attempt-local cleanup is active and the stale external listener is removed; whether service_impl signal handling still needs model-side correction.
+- confidence: high for cleanup contamination diagnosis; medium for expected service rerun improvement pending clean port.
+- commit_message: HOLD - service cleanup repair needs clean-port rerun

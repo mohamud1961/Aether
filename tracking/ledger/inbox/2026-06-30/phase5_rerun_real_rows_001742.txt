@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Rerun Aether-Next vNext Phase 5 narrow real-task validation after Docker/image preload
+- event_type: experiment
+- summary: Docker and the three approved task images were available. Reran the exact approved Workbench-mode Phase 5 tasks under bounded settings and produced real row/trace evidence. All three rows failed; no performance claim is supported.
+- observations: Pulled alexgshaw/filter-js-from-html:20251031, alexgshaw/sparql-university:20251031, and alexgshaw/openssl-selfsigned-cert:20251031. Initial full max-step reruns showed long waits in solver/grader paths, so a bounded diagnostic run used architect_mode=workbench, effort=low, max_steps=8, run_timeout_s=30. Results: filter-js-from-html status=incomplete reward=0.0 classifier=model_limit step=8 reconfigurations=1 grader_timeout_after_30s; sparql-university status=incomplete reward=0.0 classifier=harness_context_failure step=8; openssl-selfsigned-cert status=incomplete reward=0.0 classifier=harness_context_failure step=8. Traces were written for all three tasks and final snapshots for available artifacts.
+- inference: The previous Docker/image-acquisition blocker is resolved. The remaining Phase 5 evidence points to real model/harness failure modes, especially context/action progression failures, not environment setup. This should become a targeted diagnostic/eval lane before mechanism changes.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/NARROW_REAL_TASK_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/narrow_real_task_results_20260630_001742.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/narrow_real_task_traces_20260630_001742/filter-js-from-html.trace.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/narrow_real_task_traces_20260630_001742/sparql-university.trace.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/narrow_real_task_traces_20260630_001742/openssl-selfsigned-cert.trace.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/FINAL_PHASE_1_TO_6_STATE.md
+- affected_components: Phase 5 narrow real-task validation; Workbench-mode Docker runner; trace evidence for failure diagnosis
+- decision_change: Replace earlier Phase 5 external-blocker state with completed failed real rows. Do not promote; open targeted diagnosis on model_limit/harness_context_failure traces.
+- unresolved_questions: Why solver/context path fails to progress within bounded rows; whether grader timeout is caused by missing reward protocol, task state, or grader invocation behavior after incomplete runs.
+- confidence: high
+- commit_message: HOLD - Phase 5 rerun evidence added; diagnose failure classes before promotion

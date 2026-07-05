@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 architect-owned workbench carve-down goal closeout
+- event_type: decision
+- summary: Completed the local goal closeout audit for the Aether-2 carve-down plan through Slice 9. The scoped Aether-2 path has slice docs, raw ledger updates, validation results, local sentinel evidence, and an adversarial closeout fix for solver proof-object ownership. The closeout makes no official benchmark promotion claim.
+- observations: `docs/AETHER2_CARVE_DOWN_GOAL_CLOSEOUT_AUDIT.md` maps each slice requirement to evidence. Final local model-backed evidence at `tracking/local_runs/20260703T004622Z_aether2_slice9_closeout_gpt54mini_one_rerun3/` has one scored GPT-5.4-mini sentinel pass (`fsent_02_runtime_workspace_contract`, score 1.0) and one non-model fail control. Validation passed: 80 custom/adapter tests, 24 Harbor tests, 96 Aether-2 tests, 11 public tests, genericity, and py_compile. A targeted `codex review` CLI attempt was invalid due sandboxed Codex state DB write failure under `/Users/mohamud/.codex/state_5.sqlite`.
+- inference: The approved local Aether-2 carve-down execution is complete enough for handoff to the next decision. Remaining work is not hidden implementation inside this goal; it is a follow-up decision about promotion policy and certified Linux/container sentinel execution.
+- evidence_paths: docs/AETHER2_CARVE_DOWN_GOAL_CLOSEOUT_AUDIT.md; docs/AETHER2_CARVE_DOWN_BUILD_PLAN.md; docs/AETHER2_SLICE9_STAGE1_SENTINEL_VALIDATION.md; tracking/local_runs/20260703T004622Z_aether2_slice9_closeout_gpt54mini_one_rerun3/; tracking/ledger/inbox/20260703T011612Z_aether2_slice9_adversarial_closeout_raw.md
+- affected_components: Aether-2 carve-down governance; closeout evidence; review gate record; next-step decision boundary
+- decision_change: Treat the carve-down goal as locally closed through Slice 9, with no promotion claim. Next action should be a new decision/goal: decide whether internal `verifier_clean` must align with external verifier/grader pass, then run a broader certified Linux/container sentinel board if promotion is desired.
+- unresolved_questions: Should promotion require internal verifier alignment? Should Aether-Next be deleted, ported, or retained after the production target decision? Can formal Codex review be rerun from a less restricted environment or clean branch?
+- confidence: high
+- commit_message: Close out Aether-2 carve-down goal evidence

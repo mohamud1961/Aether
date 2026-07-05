@@ -1,0 +1,31 @@
+RAW_LEDGER_UPDATE
+- actor: codex diagnosis thread
+- task: diagnose three failing rows from full custom board run 20260621T011705Z_post_task_done_dispatch_repair
+- event_type: source_analysis
+- summary: Classified the three remaining failing rows into two narrow repair lanes: fsent_02 is a brittle artifact-write/dispatch lane that regressed relative to a targeted pass, filesystem_decoy_target_selection is a deadline-before-first-turn harness failure, and environment_bootstrap_runner_repair is an artifact contract mismatch rather than a script-repair miss.
+- observations:
+  - fsent_02 targeted run 20260621T011100Z_fsent02_task_done_mechanical_repair passed by switching from blocked here-doc run_command writes to write_file actions, then readback plus visible check passed.
+  - fsent_02 full-board failure never created out/final_submission.json or out/aether2_proof_object.json; repeated run_command-based write attempts exited 126 and task_blocked also failed because context does not implement task_blocked.
+  - filesystem_decoy_target_selection received no normal action turn; its first and only model exchange is call_role=closing with system message "Wall-clock deadline reached. Here are the results of replaying your most recently declared checks (if any). This is your final turn."
+  - environment_bootstrap_runner_repair repaired scripts and passed pytest, but wrote runner_command="python3 -m pytest" in out/toolchain_repair_report.json while visible_check.py expects the full normalized command "python3 -m pytest tests/test_runner_contract.py -q".
+- inference:
+  - fsent_02 is not robustly closed; the pass depends on the model discovering the write_file fallback after shell/path-guard failures.
+  - filesystem_decoy_target_selection should not be treated as capability evidence because the harness closed the row before any inspection/action loop began.
+  - environment_bootstrap_runner_repair needs a narrow report-contract repair lane, not broader verifier-repair or environment work.
+- evidence_paths:
+  - tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/fsent_02_runtime_workspace_contract/task/.aether2/host_receipts/traces/reasoning_trace.json
+  - tracking/local_runs/custom_eval_targeted/20260621T011100Z_fsent02_task_done_mechanical_repair/attempts/fsent_02_runtime_workspace_contract/task/.aether2/host_receipts/traces/reasoning_trace.json
+  - tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/filesystem_decoy_target_selection/task/.aether2/host_receipts/receipts/model_exchange_1.json
+  - tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/environment_bootstrap_runner_repair/pack/solver_pack/workspace/bootstrap/checks/visible_check.py
+  - tracking/local_runs/custom_eval_full_board_model_eligible/20260621T011705Z_post_task_done_dispatch_repair/attempts/environment_bootstrap_runner_repair/pack/solver_pack/workspace/bootstrap/out/toolchain_repair_report.json
+- affected_components:
+  - harness closing/deadline control
+  - runtime tool dispatch / artifact write fallback behavior
+  - custom eval environment_bootstrap_runner_repair artifact contract
+- decision_change:
+  - Prefer three narrow next actions: isolate a generic workspace-relative artifact-write path for fsent_02-style rows, reproduce and fix deadline-before-first-turn closing on filesystem_decoy_target_selection, and patch the bootstrap report generation to emit the full expected runner command.
+- unresolved_questions:
+  - Why did filesystem_decoy_target_selection hit the wall-clock deadline before any normal action turn while neighboring rows completed within the same board?
+  - Should fsent_02 be repaired by harness-side command/path handling, or by making workspace-relative file writes the more reliable default after repeated shell/path-guard failures?
+- confidence: high
+- commit_message: NONE - no tracked file changes

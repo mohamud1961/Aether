@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: verifier continuation feedback repair and targeted custom-eval reruns
+- event_type: experiment
+- summary: Added operational verifier-continuation feedback, filtered non-task process/meta blockers from internal readiness, and ran targeted 5.4-mini custom eval rows. The exact-serialization target now passes both deterministic grader and Aether internal verifier_clean; the service-lifecycle target still fails deterministic grading and internal verifier_clean due to missing/crashing bounded survival behavior.
+- observations: Focused tests passed with 11 assertions and aether2_genericity_check passed. fsent_06 targeted run at tracking/local_runs/custom_eval_targeted/20260620T012709Z_verifier_guidance_fsent06_v4 completed with visible verifier pass, grader pass score 1.0, and model_run verifier_clean true. service_lifecycle_readiness_flagship targeted run at tracking/local_runs/custom_eval_targeted/20260620T012816Z_verifier_guidance_service completed with visible verifier pass but grader failed score 0.0 reason service_crashed_before_second_observation and model_run verifier_clean false. Service trace shows the verifier gave concrete missing evidence feedback for 2-second survival and clean SIGTERM exit; the model attempted repair but did not produce a grader-clean service state.
+- inference: The generic verifier-feedback/readiness fix is a keep candidate for exact-artifact finalization, but it is not sufficient for service lifecycle tasks. Service likely needs a separate service monitoring/finalization mechanism or stronger job/session lifecycle handling, not more generic wording.
+- evidence_paths: harness/aether2/control/completion.py; harness/aether2/control/verification_rounds.py; harness/aether2/runtime/verify.py; tests/test_aether2_verification_feedback.py; tracking/local_runs/custom_eval_targeted/20260620T012709Z_verifier_guidance_fsent06_v4; tracking/local_runs/custom_eval_targeted/20260620T012816Z_verifier_guidance_service
+- affected_components: Aether internal verifier feedback, verifier blocker handling, local custom eval targeted runs
+- decision_change: Keep verifier operational-guidance repair for targeted exact-artifact evidence; open a separate service-lifecycle mechanism lane before expecting service_lifecycle_readiness_flagship to pass.
+- unresolved_questions: Whether the exact-artifact repair holds on a broader sentinel set; whether service failure is due to model code, process/job handling, or the eval service fixture expectations.
+- confidence: high for fsent_06 targeted improvement; medium for service-lifecycle diagnosis pending trace diff against a passing ceiling.
+- commit_message: HOLD - verifier guidance targeted repair needs review and service follow-up

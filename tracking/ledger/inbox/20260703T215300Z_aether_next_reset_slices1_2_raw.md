@@ -1,0 +1,38 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether_next_reset slices 1 and 2
+- event_type: implementation
+- summary: Reset prompt ownership so architect-authored prompts lead solver/verifier behavior, and restricted verifier invocation to solver submit in canonical Aether-Next flow.
+- observations:
+  - ModelHooks no longer appends a static solver behavior prompt.
+  - ModelHooks verifier path now uses the architect verifier prompt as the only verifier system message and moves the verifier contract into user-visible runtime payload data.
+  - Compiler prefix sections still exist, but their content was rewritten as mechanical runtime facts and a new solver_turn_contract was added.
+  - Kernel verifier calls were removed from act-turn success, no-progress, invalid reconfigure, and incomplete/max-steps paths.
+  - Canonical workbench runs now invoke verifier only on submit_outcome, and verifier-completed on submit now completes the run.
+  - Canonical workbench auto-submit was disabled so verifier-enabled workbench runs cannot bypass solver submit.
+- inference:
+  - Prompt ownership drift was real and is now materially reduced.
+  - Verifier ownership drift was also real; the runtime had multiple verifier trigger paths, and the canonical workbench path now has one.
+  - Deterministic completion authority is partially demoted in practice for canonical workbench submit flow, though additional carve-down remains.
+- evidence_paths:
+  - aether_next_build/aether_next/model_hooks.py
+  - aether_next_build/aether_next/compiler.py
+  - aether_next_build/aether_next/kernel.py
+  - aether_next_build/aether_next/integration_scenarios.py
+  - aether_next_build/run_verifier_only_eval.py
+  - tracking/collab/aether_next_reset_slice1_2_validation_20260703.md
+  - tracking/collab/aether_next_reset_slice0_snapshot_20260703/summary.json
+- affected_components:
+  - model_hooks
+  - compiler prefix assembly
+  - kernel verifier trigger flow
+  - workbench verifier-only eval helper
+  - integration scenarios
+- decision_change:
+  - Canonical Aether-Next now treats solver submit as the only verifier trigger path.
+- unresolved_questions:
+  - Solver context still lacks a dedicated command_results section by default.
+  - Verifier is still packet-oriented; the next slice should convert it toward a bounded read-only state inspector.
+  - Some reference/contract-path auto-submit behavior remains and should be reconsidered during later carve-down.
+- confidence: high
+- commit_message: HOLD - slices 1 and 2 complete locally, broader reset plan still in progress

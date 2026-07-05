@@ -1,0 +1,22 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Expand Aether-Next VM-only run packet to 10 tasks
+- event_type: decision
+- summary: Expanded the VM-only execution packet from the prior 7-task plan to exactly 10 staged tasks while preserving the rule that full attempts are VM-only.
+- observations:
+  - `VM_ONLY_AETHER_NEXT_RUN_PACKET.md` now contains a staged 10-task plan: 3-task narrow calibration, 4-task first expansion, and 3-task second expansion.
+  - Added `extract-moves-from-video`, `git-multibranch`, and `qemu-alpine-ssh`.
+  - Local artifact check confirmed exactly 10 tasks are named in the packet.
+  - No local full task attempts were run.
+- inference: The VM run plan now covers a broader capability surface while keeping evidence staged and auditable.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/VM_ONLY_AETHER_NEXT_RUN_PACKET.md
+  - /Users/mohamud/Downloads/harnesseng/aether_next_build/HARNESS_FULL_PLAN_PROGRESS_AUDIT.md
+- affected_components:
+  - aether_next_build/VM_ONLY_AETHER_NEXT_RUN_PACKET.md
+  - aether_next_build/HARNESS_FULL_PLAN_PROGRESS_AUDIT.md
+- decision_change: VM-only live evidence scope is now exactly 10 tasks, staged as 3 + 4 + 3.
+- unresolved_questions: After the VM runs, determine whether added media/service/QEMU tasks expose new solver, verifier, context, or automatic-memory failure modes.
+- confidence: high
+- commit_message: HOLD - documentation/artifact expansion only; aether_next_build remains untracked baseline
+

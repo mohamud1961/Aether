@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next baseline/contract safe-default fallback removal
+- event_type: implementation
+- summary: Removed the remaining baseline/contract `compiler.guaranteed_default_ir()` fallback branches, deleted the unused `ConfigCompiler.guaranteed_default_ir()` method, and removed the dead kernel `config_fallback` receipt emitter. Unrepaired fatal config now fails closed as `config_invalid`; genuine generic repair still emits `config_repair`.
+- observations: `rg` finds no remaining `guaranteed_default_ir`, `guaranteed safe default`, or live `config_fallback` emitter in Aether-Next code. Remaining `config_fallback` mentions are negative test assertions or trace field naming. Focused tests passed: `python3 -m pytest -q tests/test_kernel_config.py tests/test_features.py tests/test_kernel.py tests/test_repair.py tests/test_model_hooks.py` -> 58 passed. Full Aether-Next tests passed: `python3 -m pytest -q tests` -> 285 passed.
+- inference: The canonical package no longer contains the core fake-default config mechanism. This aligns the harness with the user's no-silent-fallback vision: bad config is visible initialization/config failure, not a generic solver run.
+- evidence_paths: aether_next_build/aether_next/kernel_config.py; aether_next_build/aether_next/compiler.py; aether_next_build/aether_next/kernel.py; aether_next_build/tests/test_features.py; aether_next_build/tests/test_kernel.py; aether_next_build/AETHER_NEXT_GOAL_EVIDENCE_20260704.md
+- affected_components: config resolution; compiler; kernel config receipt path; legacy fallback tests
+- decision_change: Unrepaired fatal architect/config output fails closed. Safe-default config fallback is no longer available in active Aether-Next code.
+- unresolved_questions: Whether to rename or remove trace fields named `architect_fallback_codes`, and whether to physically move reference architect modes out of the canonical package.
+- confidence: high
+- commit_message: HOLD - safe-default config fallback removed; reference-mode quarantine remains

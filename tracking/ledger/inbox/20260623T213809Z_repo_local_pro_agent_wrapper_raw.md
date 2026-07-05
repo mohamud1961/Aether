@@ -1,0 +1,26 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Add a repo-local wrapper for using gpt-5.4-pro as the working agent inside the checkout
+- event_type: implementation
+- summary: Added tools/run_repo_agent.py so Pro can run directly against the repo workspace with the normal Aether-2 tool loop for file reads, shell commands, and file writes. Updated the readiness report to point at the new entrypoint.
+- observations:
+  - The wrapper defaults to the Azure Pro route and uses the repo root as workspace_root.
+  - It accepts instruction text from --instruction, --instruction-file, or stdin.
+  - The wrapper writes task artifacts under tracking/local_runs/repo_agent/<timestamp>/.
+  - Focused tests for the wrapper passed.
+- inference: The remaining blocker for actual repo-local Pro use is still the missing Azure pro deployment env in this environment, not the repo wiring.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/tools/run_repo_agent.py
+  - /Users/mohamud/Downloads/harnesseng/tests/test_run_repo_agent.py
+  - /Users/mohamud/Downloads/harnesseng/tracking/collab/pro_route_readiness/PRO_ROUTE_READINESS_REPORT.md
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/loop.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/runtime/executor.py
+- affected_components:
+  - repo-local agent entrypoint
+  - task artifact layout
+  - repo workspace tool access
+- decision_change: Recommend using tools/run_repo_agent.py for direct repo-local Pro work once the Azure pro deployment env exists.
+- unresolved_questions:
+  - Which exact Azure deployment alias should be set for the pro route in this environment?
+- confidence: 0.95
+- commit_message: Add repo-local Pro agent wrapper

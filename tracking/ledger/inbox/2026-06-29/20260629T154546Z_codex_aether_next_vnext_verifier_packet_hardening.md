@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex-worker
+- task: verifier packet/success-definition hardening in aether_next_vnext_takeover slice2 work copy
+- event_type: implementation
+- summary: Hardened verifier packets so they carry first-class success-definition, local-verification-limit, solver prompt, and config realization metadata, including workbench repair metadata.
+- observations: RuntimeConfigIR and CompiledRuntime now carry explicit success_definition/local_verification_limits metadata; compiler config_realization now records structured local verification limits, solver prompt summary/hash, and external official grader authority; verifier packets now merge compiled config metadata with the latest config_realization receipt and expose structured success_definition/local_verification_limits/solver_system_prompt/config_realization fields; deterministic verifier gating behavior remained unchanged and targeted packet tests passed, including repaired workbench metadata coverage.
+- inference: The verifier-only experiment lane can now rely on structured architect/runtime intent and realization metadata without scraping prompt prose, while still keeping official grader authority external to the agent.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/runtime_ir.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/compiler.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/verifier_packets.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_memory_context_verifier.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/VERIFIER_PACKET_AUDIT.md
+- affected_components: aether_next runtime metadata; workbench compile path; contract compile path; verifier packet builder; verifier packet tests; verifier packet audit artifact
+- decision_change: Verifier packets should consume explicit runtime/config realization fields rather than depending on prompt-section reconstruction for architect success semantics and local verification limits.
+- unresolved_questions: None within this slice; success_definition is verifier-visible metadata but not yet a standalone deterministic completion rule.
+- confidence: high
+- commit_message: HOLD - harden verifier packet runtime metadata fields

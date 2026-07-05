@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex worker
+- task: fsent_04_retrieval_reduction_closure visible verifier repair
+- event_type: implementation
+- summary: Strengthened the fsent_04 visible check to validate the exact scalar, required active evidence IDs, stale rejection, and justification coverage from solver-visible evidence rows; added a regression test for the repaired gate.
+- observations: The archived failing candidate wrote final_value=3721 with evidence_ids=[row-22] and rejected_stale_ids=[row-03]; the hidden grader reported final_value_mismatch and missing_required_evidence_id; the previous visible check returned pass on the same shape-only submission.
+- inference: The lone board failure was primarily a weak visible verifier that admitted a semantically wrong retrieval/reduction answer, not a hidden-truth leak or runner issue.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/eval_suite/families/retrieval/fsent_04_retrieval_reduction_closure/solver_pack/workspace/retrieval/checks/visible_check.py; /Users/mohamud/Downloads/harnesseng/tests/test_run_custom_eval_board.py; /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T172053Z_post_measurement_repairs/attempts/fsent_04_retrieval_reduction_closure/artifacts/grader_output.json; /Users/mohamud/Downloads/harnesseng/tracking/local_runs/custom_eval_full_board_model_eligible/20260620T172053Z_post_measurement_repairs/attempts/fsent_04_retrieval_reduction_closure/pack/solver_pack/workspace/retrieval/out/final_submission.json
+- affected_components: fsent_04 visible verifier; fsent_04 regression coverage; solver-visible fixture metadata
+- decision_change: The visible gate now rejects stale partial reductions by comparing against visible evidence rows instead of checking schema only.
+- unresolved_questions: None for this lane; hidden grader remains unchanged and the targeted rerun should be owned by the orchestrator lane.
+- confidence: high
+- commit_message: Strengthen fsent_04 visible check against visible evidence rows

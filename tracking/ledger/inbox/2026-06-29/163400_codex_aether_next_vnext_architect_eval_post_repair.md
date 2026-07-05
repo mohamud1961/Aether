@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Post-repair architect-only 5.4-mini eval for Workbench Architect parseability
+- event_type: experiment
+- summary: Reran the architect-only eval on filter-js-from-html, sparql-university, and openssl-selfsigned-cert after the Workbench parseability repair. All three WorkbenchArchitect outputs parsed without repair warnings or rejected config items.
+- observations: The command completed with 3 records. Workbench parseability was true for all three tasks. workbench_warning_codes was empty and workbench_rejected_config_items count was 0 for all three. Scores were filter-js 9/10, sparql 10/10, openssl 9/10. Generated solver prompts contained task-specific workflow, self-verification, query_memory guidance, and local verification limits. The old ContractArchitect also parsed all three but lacks architect-designed solver prompts by design.
+- inference: The visible_smoke_tests schema/manual mismatch that blocked WorkbenchArchitect parseability on the previous three-task architect-only eval is resolved for this sample. This is not a solver performance or benchmark claim; it only clears the architect-output parseability gate for these inputs.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/ARCHITECT_EVAL_POST_REPAIR_AUDIT.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/architect_only_eval_post_repair/architect_only_eval.json; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/architect_only_eval_post_repair/ARCHITECT_EVAL_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/CURRENT_STATE.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/aether_next_vnext_slice2_hardened.zip
+- affected_components: WorkbenchArchitect; HarnessConfigIR parseability; architect-only eval; solver prompt generation quality
+- decision_change: Proceed next to verifier packet/success-definition hardening before verifier-only model experiments.
+- unresolved_questions: The scoring rubric has a weak lexical check for solver_prompt_mentions_verify that marked two prompts despite clear verification behavior; rubric should be improved before using score deltas as more than directional review.
+- confidence: high for the three architect-only parseability observations; medium for broader model-output robustness until more first-call inputs are sampled.
+- commit_message: HOLD - architect-only eval artifacts isolated in takeover workspace, not ready as repo-root commit

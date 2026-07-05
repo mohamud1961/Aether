@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Audit and correct Claude Task 2 verifier inspection change
+- event_type: implementation
+- summary: Rechecked the verifier inspection slice and corrected it to preserve Aether-Next ownership: read-only inspection is enforced as a verifier protocol requirement, while the harness no longer fabricates a semantic uncertain verdict when the verifier refuses to inspect.
+- observations: `verify_with_inspector()` had correctly added read-only inspection rounds, but returned a harness-authored `uncertain_missing_evidence` result after repeated uninspected `completed` verdicts. Workbench config parsing also allowed a missing `verifier_system_prompt` and filled in a generic role. The correction now raises a protocol `ModelOutputError` for uninspected `completed`, requires `verifier_system_prompt.role` in HarnessConfigIR parsing, and updates tests/stubs to provide explicit architect-authored verifier prompts.
+- inference: Claude's change was partly aligned on inspection capability but crossed the ownership boundary by letting the harness impersonate verifier judgement. The corrected behavior keeps substrate/protocol enforcement in the harness and task-state judgement in the verifier.
+- evidence_paths: aether_next_build/aether_next/model_hooks.py; aether_next_build/aether_next/workbench_config.py; aether_next_build/tests/test_model_hooks.py; aether_next_build/tests/test_vnext_configurability.py; aether_next_build/tests/test_run_adapter.py; aether_next_build/tests/test_kernel_config.py; aether_next_build/tests/test_vnext_memory_context_verifier.py; aether_next_build/tests/test_chatgpt_broad_slice.py
+- affected_components: Aether-Next model verifier hook; HarnessConfigIR parser; canonical workbench verifier prompt ownership; verifier inspection regression tests
+- decision_change: Treat missing architect verifier prompt as invalid workbench config; treat uninspected `completed` as verifier protocol failure rather than a harness-produced task verdict.
+- unresolved_questions: Legacy non-workbench RuntimeConfigIR paths still have a labeled verifier fallback; full legacy deletion/quarantine remains part of cleanup.
+- confidence: high
+- commit_message: HOLD - aether_next_build is untracked in this checkout; verifier correction is validated on disk but not ready for a coherent tracked commit

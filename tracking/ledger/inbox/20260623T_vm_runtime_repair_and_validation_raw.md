@@ -1,0 +1,28 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor-native Aether-2 proof-state / Completion Gate V2 VM sprint
+- event_type: implementation
+- summary: Validated the current proof-state slice on the durable VM, then repaired a host-runtime failure on regular-01 so Harbor can launch real rows again.
+- observations:
+  - Remote focused validation passed with Python 3.11 venv: 47 focused tests green, `ahp_preflight` 40/40, genericity green.
+  - Harbor bootstrap on the VM is confirmed with Python 3.11.15 and Harbor 0.15.0.
+  - First fresh `qemu-startup` sentinel attempt failed before Harbor row creation because `docker daemon is not reachable`.
+  - Host inspection showed `docker.service` failing because `containerd.service` was exiting with `mkdir /var/lib/containerd: file exists`.
+  - `/var/lib/containerd` was a broken symlink to missing `/mnt/containerd`.
+  - Recreating `/mnt/containerd` and restarting `containerd` and `docker` restored both services to `active`; `docker ps` now succeeds.
+- inference: The failed qemu sentinel attempt is environment-limited and invalid as Harbor/Aether evidence. The VM is now back in a usable state for the next preserved-artifact sentinel row.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/tracking/collab/opus_codex_harbor_vm/live_state.md
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/completion.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/control/verification_rounds.py
+  - /Users/mohamud/Downloads/harnesseng/harness/aether2/traces/task_local_tools.py
+- affected_components:
+  - harness/aether2/control
+  - harness/aether2/traces
+  - Harbor VM runtime surface on harnesseng-regular-01
+- decision_change: No change to sprint ordering. Keep qemu as a tiny infrastructure sentinel only, then audit before proceeding to financial.
+- unresolved_questions:
+  - Whether the repaired VM runtime stays stable through a fresh Harbor `qemu-startup` sentinel.
+  - Whether model-visible payload grep on the next fresh row remains clean after the proof-state slice.
+- confidence: high
+- commit_message: HOLD - VM runtime repaired and validated, but live Harbor sentinel/audit still pending

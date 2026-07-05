@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Aether-Next vNext structured-memory context recipe audit
+- event_type: implementation
+- summary: Integrated and audited the gpt-5.4 worker context recipe slice. The takeover build now supports optional deterministic context recipes over existing ExecutionLedger receipts with selected/omitted/rejected/queryable realization metadata.
+- observations: Focused suite passed with 58 tests. Non-Docker suite passed with 169 tests. compileall passed. Recipes can select exact sections, recent receipt selectors, last failures, preserve-exact sections, and queryable-not-inline selectors. Unsupported recipe fields/selectors are quarantined in metadata instead of becoming authoritative sections.
+- inference: Context is now moving from fixed modes toward architect-authored recipes over structured memory, but this remains a bounded deterministic receipt-selection layer. There is still no semantic memory-card compression or separate durable memory database.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/CONTEXT_RECIPE_AUDIT.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/CURRENT_STATE.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/context_compiler.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_memory_context_verifier.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_workbench_ir.py
+- affected_components: aether_next/runtime_ir.py; aether_next/context_compiler.py; aether_next/workbench_config.py; aether_next/workbench_compile.py; aether_next/compiler.py; context recipe tests and audit artifacts
+- decision_change: Proceed next to exposing context recipe support in runtime manual / architect prompt and verifier/config-realization summaries before verifier-only experiments or replay.
+- unresolved_questions: Whether model_verifier_policy.runs_on should be enforced before recipe authoring experiments; how to add semantic compression cards while keeping raw evidence queryable and receipt-linked.
+- confidence: high for deterministic recipe behavior and tests; medium for downstream model-authored recipe quality until architect-facing schema guidance is added and evaluated.
+- commit_message: HOLD - context recipe slice audited in takeover artifact tree, not repository-root commit slice

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: design safest no-visible-verifier ablation lane for local custom evals
+- event_type: decision
+- summary: Identified a runner-flag-based ablation as the least invasive way to suppress model exposure to visible verifier material while preserving hidden grader scoring and diagnostics.
+- observations: tools/run_custom_eval_board.py resolves visible verifier paths in _build_row_metadata, stages whole packs in stage_attempt_workspace, injects prompt text plus verifier-readiness language in _build_model_instruction, executes the visible verifier after the model in _run_visible_verifier, and records visible_verifier events in _write_trace_artifact. The deterministic grader still runs separately in _run_deterministic_grader.
+- inference: A dedicated CLI flag that changes the model-reachable view per attempt is safer than prompt masking alone or canonical-pack mutation because it can keep visible verifier files out of the model view without altering source eval packs.
+- evidence_paths: tools/run_custom_eval_board.py:260-266; tools/run_custom_eval_board.py:348-418; tools/run_custom_eval_board.py:460-463; tools/run_custom_eval_board.py:641-679; tools/run_custom_eval_board.py:769-819; tests/test_run_custom_eval_board.py:370-386; tests/test_run_custom_eval_board.py:781-809; eval_suite/whole_harness/final_harness_v1/local_custom_eval_full_board_v1.yaml:5-10, 12-18, 32-69, 102-129; skills/local-harness-evals/SKILL.md:72-80, 111-129, 145-164, 267-304, 312-329.
+- affected_components: tools/run_custom_eval_board.py; tests/test_run_custom_eval_board.py; skills/local-harness-evals/SKILL.md; optional board metadata/docs only if lane labeling is desired.
+- decision_change: Prefer a new runner flag such as --ablate-visible-verifier that leaves the deterministic grader on, hides visible verifier instructions/files from the model-reachable workspace, and keeps post-hoc visible verifier execution for diagnostics rather than suppressing it entirely.
+- unresolved_questions: Whether the implementation should also add a board metadata toggle for convenience or remain CLI-only.
+- confidence: high
+- commit_message: HOLD - analysis-only ablation design, no code changes

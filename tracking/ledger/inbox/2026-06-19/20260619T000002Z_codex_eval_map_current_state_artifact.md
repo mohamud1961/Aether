@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex-subagent
+- task: prepare eval map current state artifact for handoff
+- event_type: implementation
+- summary: Created a handoff-ready current-state eval map artifact that separates clean custom full packages, repair-needed custom packages, the mixed whole-harness root, and benchmark-derived/native adapter roots.
+- observations: The artifact was written at tracking/collab/eval_map_current_state.md. It records package roots, targets, and state labels while excluding smoke surfaces from the main inventory.
+- inference: The next agent should be able to consume the artifact directly without re-deriving package boundaries from the raw checkout.
+- evidence_paths: tracking/collab/eval_map_current_state.md; tracking/ledger/inbox/2026-06-19/20260619T000001Z_codex_eval_surface_inventory_raw.md
+- affected_components: tracking/collab handoff artifacts, eval map inventory, custom family packages, whole-harness package root, benchmark adapter roots
+- decision_change: None; artifact only
+- unresolved_questions: Whether the harness-as-a-whole root should be split into sub-manifests in a follow-up artifact, or kept as a single mixed package root.
+- confidence: high
+- commit_message: NONE - no tracked file changes

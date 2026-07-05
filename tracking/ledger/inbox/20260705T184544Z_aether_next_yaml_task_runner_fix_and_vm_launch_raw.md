@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Fix Aether-Next VM task launch for official task.yaml/Dockerfile layouts and launch monitored proper VM attempts.
+- event_type: implementation
+- summary: Added public task metadata loading for task.toml and task.yaml, taught the Docker runner to read YAML instructions, added Dockerfile-backed task image resolution in run_pilot.py, validated locally and on the VM, and launched three proper VM lanes with 5.4-mini monitoring.
+- observations: Previous VM rows were launch-invalid because run_pilot.py required task.toml. Official tasks on the VM use task.yaml and Dockerfile. Local focused tests passed: 17 passed. Local aether_next_build suite passed from the correct build root: 307 passed, 12 skipped. VM focused tests passed: runtime integrity 14 passed; run_pilot 3 passed. VM dry check loaded real YAML instructions and agent timeouts for video-processing, nginx-request-logging, and log-summary-date-ranges.
+- inference: The immediate environment-runner failure was a generic runner substrate gap, not architect/solver/verifier capability. The new launch has progressed past the schema mismatch into active in-progress rows.
+- evidence_paths: aether_next_build/aether_next/task_metadata_loader.py; aether_next_build/run_pilot.py; aether_next_build/aether_next/runners/docker_runner.py; aether_next_build/aether_next/run_adapter.py; aether_next_build/tests/test_run_pilot.py; tests/test_aether_next_runtime_integrity.py; VM run root /home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260705T184423Z_aether_next_3task_yamlfix
+- affected_components: Aether-Next pilot runner; Docker runner; EnvMap public metadata; VM run management.
+- decision_change: Official YAML task manifests and Dockerfile-backed images are now supported as certified runner substrate instead of requiring mirrored task.toml.
+- unresolved_questions: Terminal outcome of the three active VM lanes; full trace audit of architect/solver/verifier behavior after terminal rows; whether parallel Dockerfile builds stress VM resources.
+- confidence: high for the launch fix; pending for model/task success.
+- commit_message: Support official YAML task metadata in Aether-Next runner

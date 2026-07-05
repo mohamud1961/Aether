@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: implement and measure a frozen success-contract context pack for Aether/custom eval runs
+- event_type: implementation
+- summary: Added a frozen success-contract prefix block to Aether-2 context construction, preserved it through compaction, and exposed it to receipts and reasoning traces.
+- observations: The new block is carried in every prefix build and rebase; receipts now capture it in request_context; reasoning traces now record the exact frozen contract payload; focused unit tests passed; genericity check passed. Targeted ablation reruns for fsent_04, fsent_02, fsent_03, and environment_bootstrap remained failures; the normal 14-row board regressed from 14/14 to 11/14.
+- inference: The mechanism is real and preserved, but the current frozen block is too intrusive or too broad for the full board and needs a narrower extraction strategy before promotion.
+- evidence_paths: tracking/local_runs/custom_eval_targeted/20260620T200535Z_fsent04_frozen_contract_ablation/attempt_rows.jsonl; tracking/local_runs/custom_eval_targeted/20260620T200642Z_fsent02_frozen_contract_ablation/attempt_rows.jsonl; tracking/local_runs/custom_eval_targeted/20260620T200742Z_fsent03_frozen_contract_ablation/attempt_rows.jsonl; tracking/local_runs/custom_eval_targeted/20260620T200853Z_environment_bootstrap_frozen_contract_ablation/attempt_rows.jsonl; tracking/local_runs/custom_eval_full_board_model_eligible/20260620T201016Z_frozen_contract_normal_full_board/attempt_rows.jsonl; tests/test_aether2_frozen_success_contract.py; harness/aether2/runtime/context.py; harness/aether2/runtime/prompts.py; harness/aether2/traces/receipts.py
+- affected_components: harness/aether2/runtime/context.py; harness/aether2/runtime/prompts.py; harness/aether2/runtime/compactor.py; harness/aether2/control/loop.py; harness/aether2/control/verification_rounds.py; harness/aether2/control/reasoning_trace.py; harness/aether2/traces/receipts.py; harness/aether2/control/requirements.py; tests/test_aether2_frozen_success_contract.py
+- decision_change: Keep the frozen contract mechanism, but treat the current all-text fallback as provisional because it regressed the normal board.
+- unresolved_questions: What narrower exact-contract extraction keeps the contract verbatim without duplicating the entire task prompt? Can the block be synthesized from visible task files/specs rather than the full instruction to avoid prompt bloat?
+- confidence: 0.82
+- commit_message: HOLD - narrow frozen success contract extraction to reduce prompt regressions

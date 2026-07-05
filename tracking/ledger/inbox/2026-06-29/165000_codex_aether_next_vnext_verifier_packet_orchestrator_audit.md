@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: Aether-Next vNext verifier packet success-definition hardening audit
+- event_type: implementation
+- summary: Integrated and audited the gpt-5.4 worker verifier-packet hardening slice. Verifier packets now carry architect/runtime success_definition, structured local_verification_limits, solver prompt rendered/summary/hash evidence, config-realization summary, Workbench repair metadata when present, and official grader authority marked external_benchmark.
+- observations: Focused suite passed with 52 tests. Non-Docker suite passed with 163 tests. compileall passed. The new fields are metadata for the internal verifier and do not claim deterministic completion or benchmark grading authority. The documented ledger recorder path `tracking/ledger/tools/record_update.py` is absent in this checkout, so this update was persisted directly under the ledger inbox.
+- inference: The verifier packet boundary is now sufficiently instrumented for the next structured-memory/custom-context recipe slice, with the caveat that success_definition and local_verification_limits remain advisory/verifier-visible rather than deterministic completion rules.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/VERIFIER_PACKET_AUDIT.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/CURRENT_STATE.md; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/verifier_packets.py; /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_memory_context_verifier.py
+- affected_components: aether_next/runtime_ir.py; aether_next/compiler.py; aether_next/verifier_packets.py; aether_next/workbench_compile.py; aether_next/contract_compile.py; verifier packet audit artifacts
+- decision_change: Proceed next to structured-memory-first custom context recipes; do not start verifier/model replay or benchmark runs yet.
+- unresolved_questions: Whether model_verifier_policy.runs_on should become enforced in the next deterministic slice or remain explicitly advisory until after context recipes; how success_definition should later compile into deterministic and model-verifier packet checks without pretending to replace official graders.
+- confidence: high for packet metadata wiring and tests; medium for downstream verifier quality until verifier-only experiments run later.
+- commit_message: HOLD - verifier packet hardening audited in takeover artifact tree, not repository-root commit slice

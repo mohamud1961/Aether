@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 carve-down Slice 2 architect initialization failure classification
+- event_type: implementation
+- summary: Added typed agent initialization failure handling for architect/workbench configuration failures after the existing bounded repair attempt, and separated those failures from task/model capability failure in eval rows.
+- observations: Invalid JSON architect profiles and schema-invalid architect profiles now raise AgentInitializationFailure with reason codes architect_config_json_invalid_after_retry and architect_config_schema_invalid_after_retry. Custom eval board rows can report execution_status agent_initialization_failure with model_run_attempted false and scored_model_run_occurred false. Harbor backend writes an agent_initialization_failure.json artifact for typed initialization failures. Eval substrate contracts now admit failure_class agent_initialization.
+- inference: Architect configuration failure is now classified as no agent run/task attempt rather than a task result, preserving the architect/solver/verifier/grader ownership split and avoiding hidden fallback.
+- evidence_paths: docs/AETHER2_SLICE2_ARCHITECT_INIT_FAILURE.md; harness/aether2/runtime/adaptive_profile.py; tools/run_custom_eval_board.py; harness/aether2/runtime/harbor_backend.py; eval_suite/schemas/eval_substrate_contracts.py; tests/test_aether2_run_config.py; tests/test_benchmark_adapter_contracts.py; tests/test_run_custom_eval_board.py
+- affected_components: Aether-2 adaptive profile initialization; custom eval board result rows; Harbor backend status reporting; eval substrate failure vocabulary
+- decision_change: Architect init failure is a first-class initialization/status failure after one bounded repair attempt, not a solver/verifier/task failure and not a silently recoverable fallback.
+- unresolved_questions: Who, if anyone, may judge semantically weak but schema-valid architect configurations remains open; scoreboard aggregation policy for initialization-invalid rows remains to be finalized.
+- confidence: high
+- commit_message: Classify architect config failures as initialization failures

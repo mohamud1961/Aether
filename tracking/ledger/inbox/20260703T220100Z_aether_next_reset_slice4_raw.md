@@ -1,0 +1,30 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: aether_next_reset slice 4
+- event_type: implementation
+- summary: Made recent command output a first-class solver context invariant in canonical Aether-Next workbench flow.
+- observations:
+  - `command_results` is now part of the default `ContextPolicy.include_sections`.
+  - `ContextCompiler` now materializes `command_results` from recent `run_command` receipts even when empty.
+  - `workbench_compile._context_sections()` now allows and defaults `command_results` for canonical workbench context realization.
+  - The updated snapshot now reports `next_context_has_command_results_section: true`.
+- inference:
+  - The solver no longer needs to rediscover recent shell output indirectly through other packet fields.
+  - This removes one clear source of repeated actions and blind retries in command-heavy tasks.
+- evidence_paths:
+  - aether_next_build/aether_next/runtime_ir.py
+  - aether_next_build/aether_next/context_compiler.py
+  - aether_next_build/aether_next/workbench_compile.py
+  - tracking/collab/aether_next_reset_slice0_snapshot_20260703/summary.json
+  - tracking/collab/aether_next_reset_slice1_2_validation_20260703.md
+- affected_components:
+  - context compiler
+  - runtime_ir context defaults
+  - workbench compile context realization
+- decision_change:
+  - Solver-visible recent command output is now treated as default substrate rather than optional retrieval.
+- unresolved_questions:
+  - The verifier still needs a deeper state-inspector refactor.
+  - Command-result preservation under more aggressive recipe/queryable configurations should stay on the regression board.
+- confidence: high
+- commit_message: HOLD - slice 4 complete locally, reset plan still in progress

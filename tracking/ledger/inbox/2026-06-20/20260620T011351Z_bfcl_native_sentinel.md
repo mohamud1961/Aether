@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex worker
+- task: run BFCL-local eval after native runtime fix
+- event_type: experiment
+- summary: Executed the repo's BFCL-local sentinel eval surface as a three-row first-eval-core family run.
+- observations: The only BFCL-bearing runnable eval surface in this checkout is the first-eval-core BFCL sentinel family; there is no standalone BFCL runner script. The run completed at tracking/local_runs/bfcl_native_sentinel/20260620T011351Z with 3 valid rows, 1 pass, 2 verification-grading fails, 0 invalid rows, and zero model spend. Baseline and known-bad failed as expected; ceiling passed. No environment/provider/grader invalidity occurred.
+- inference: The BFCL runtime fix is sufficient for local preflight and the repo's BFCL-local sentinel remains structurally healthy. Because this surface is synthetic and debug-local rather than an official BFCL board, it should be treated as a local integration check, not promotion evidence.
+- evidence_paths: tracking/local_runs/bfcl_native_sentinel/20260620T011351Z/run_summary.json; tracking/local_runs/bfcl_native_sentinel/20260620T011351Z/scoreboard.json; tracking/local_runs/bfcl_native_sentinel/20260620T011351Z/result_rows/fec_bfcl_tool_call_sentinel_001__baseline.json; tracking/local_runs/bfcl_native_sentinel/20260620T011351Z/result_rows/fec_bfcl_tool_call_sentinel_001__known_bad.json; tracking/local_runs/bfcl_native_sentinel/20260620T011351Z/result_rows/fec_bfcl_tool_call_sentinel_001__ceiling.json
+- affected_components: BFCL-local sentinel eval surface, first-eval-core synthetic substrate, ledger reporting
+- decision_change: keep BFCL native as fixed; no further BFCL-specific rerun is justified from this local sentinel alone unless a real board runner is added
+- unresolved_questions: whether the repo should grow a standalone BFCL board/runner entrypoint for model-backed scoring
+- confidence: medium
+- commit_message: NONE - no tracked file changes

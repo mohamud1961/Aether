@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: validate latest local harness slice on remote VM
+- event_type: failure
+- summary: Remote VM validation could not start because SSH to azureuser@20.106.35.151 timed out on port 22.
+- observations: rsync/ssh attempts to azureuser@20.106.35.151 failed with 'Operation timed out' before any remote command ran; no files were synced and no VM-side compile/tests/smoke ran.
+- inference: The validation lane is blocked by remote transport reachability, not by the current harness code path.
+- evidence_paths: command output from ssh attempt in this session; command output from rsync attempt in this session.
+- affected_components: remote VM access; validation workflow; evidence capture under /tmp/harbor-jobs.
+- decision_change: Hold the requested VM validation until the VM becomes reachable or an alternate access path is provided.
+- unresolved_questions: Is the VM on a different SSH port, behind a bastion/jump host, or currently powered off?
+- confidence: high
+- commit_message: HOLD - remote VM unreachable via SSH

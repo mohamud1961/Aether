@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -13,17 +12,12 @@ from .envmap_builder import build_envmap_from_task
 from .kernel import AetherNextKernel, KernelResult
 from .model_hooks import ModelHooks, ModelCallable
 from .real_executor import SubprocessExecutor
+from .task_metadata_loader import load_task_metadata
 
 
 
 def _load_task_toml(task_dir: str) -> dict[str, Any]:
-    path = Path(task_dir) / "task.toml"
-    if not path.exists():
-        return {}
-    try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+    return load_task_metadata(task_dir)
 
 def ensure_certified_architect_mode(architect_mode: str) -> None:
     """Fail closed: the certified harness supports only the workbench architect.

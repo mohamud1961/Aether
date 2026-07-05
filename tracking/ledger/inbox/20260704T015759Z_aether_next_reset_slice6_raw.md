@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: aether-next reset slice 6 architect prompt and config hardening
+- event_type: implementation
+- summary: Hardened the Runtime Workbench Architect prompt, retry path, and quality rubric; verified improvements with fresh gpt-5.4-mini architect-only evals on official tasks.
+- observations: Added stricter JSON-output rules, compactness guidance, explicit solver submit semantics, explicit verifier read-only state-inspection semantics, exact verdict-label guidance, and one retry on output-budget exhaustion. Expanded architect-quality checks for solver repair/resubmit guidance and verifier state-inspector/blocker verdict language. Fresh local tests passed, including a new output-budget retry test. Fresh architect-only evals with gpt-5.4-mini on filter-js-from-html, sparql-university, and openssl-selfsigned-cert produced 9.67/10, 10/10, and 10/10 overall respectively; a prior openssl run had failed due to max_output_tokens exhaustion and now succeeds cleanly.
+- inference: Architect fragility moved from a real provider-budget failure on one official task to a mostly-stable prompt/config surface with two 10/10 rows and one residual minor wording miss in the verifier rubric on filter-js-from-html.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/aether_next/workbench_hooks.py; /Users/mohamud/Downloads/harnesseng/aether_next_build/aether_next/runtime_manual.py; /Users/mohamud/Downloads/harnesseng/aether_next_build/aether_next/architect_quality.py; /Users/mohamud/Downloads/harnesseng/aether_next_build/tests/test_vnext_workbench_ir.py; /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_20260704_slice6_prompt_upgrade_final/ARCHITECT_EVAL_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_only_eval_20260704_slice6_prompt_upgrade_openssl_retry/ARCHITECT_EVAL_REPORT.md
+- affected_components: Runtime Workbench Architect system prompt; architect retry behavior; architect quality evaluation; architect-only eval evidence
+- decision_change: Canonical Aether-Next now treats architect output-budget exhaustion as a retriable provider failure once, not an immediate workbench failure, and the architect prompt more explicitly defines solver submit discipline and verifier state-inspector behavior.
+- unresolved_questions: Whether to chase the remaining filter-js-from-html verifier-prompt wording miss or accept it as below-threshold noise and move to tooling/env hardening.
+- confidence: high
+- commit_message: HOLD - continue reset slices before commit

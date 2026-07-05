@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-Next replay/debug safe-default cleanup
+- event_type: implementation
+- summary: Removed the remaining stale `compiler.guaranteed_default_ir()` call from `replay_resume.py` and updated the legacy/reference inventory to reflect that safe-default config fabrication is gone from code.
+- observations: `replay_resume.py` now returns an explicit error with `config_invalid_blockers` when a reconstructed trace config has fatal compiler issues. `rg` finds no code references to `guaranteed_default_ir`, `guaranteed safe default`, `_safe_default_ir`, or `_safe_default_ir_from_compiled` under Aether-Next code/scripts/tests; only the legacy inventory's historical update note mentions the removed method. Focused tests passed: `python3 -m pytest -q tests/test_kernel_config.py tests/test_model_hooks.py tests/test_features.py tests/test_chatgpt_broad_slice.py` -> 52 passed. Compile check passed for `replay_resume.py`, `aether_next/compiler.py`, `aether_next/kernel_config.py`, and `aether_next/model_hooks.py`.
+- inference: This closes a stale replay/debug path that could otherwise reintroduce fake-generic config behavior or confuse future agents. Certified runtime behavior is unchanged except for stronger consistency with the no-safe-default rule.
+- evidence_paths: aether_next_build/replay_resume.py; aether_next_build/LEGACY_REFERENCE_SURFACE_INVENTORY_20260704.md
+- affected_components: replay/debug tooling; legacy inventory; config failure hygiene
+- decision_change: Replay/debug utilities must fail closed on unreplayable configs rather than fabricate a replacement runtime.
+- unresolved_questions: Whether to physically remove or move the remaining proof_contract reference analyzer and reference architect modes after component eval gates, or keep them as explicitly labeled reference/debug code.
+- confidence: high
+- commit_message: HOLD - replay safe-default dead call removed during larger active goal

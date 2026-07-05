@@ -1,0 +1,31 @@
+RAW_LEDGER_UPDATE
+- actor: codex-gpt5.4-worker
+- task: Implement structured-memory-first custom context recipes in the Aether-Next takeover build.
+- event_type: implementation
+- summary: Added an optional typed context recipe path over ExecutionLedger receipts, explicit realization metadata for selected/omitted/rejected/queryable selectors, workbench bridge support, focused recipe tests, and a local audit note.
+- observations:
+  - Existing context modes remained green without a recipe.
+  - Recipe packets now expose `context_recipe_realization` with declared selectors, selected sections, omitted selectors, rejected selectors, queryable-not-inline metadata, and deterministic section/token counts.
+  - Queryable-only selectors remain accessible via `query_memory` metadata rather than inline payload copies.
+  - Unsupported selectors and unsupported recipe fields are quarantined in realization metadata instead of becoming authoritative packet sections.
+- inference: The slice is a deterministic receipt-selection layer only; it improves context configurability without introducing model-authored summaries, new storage, or benchmark-coupled logic.
+- evidence_paths:
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/context_compiler.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/runtime_ir.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/workbench_config.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/workbench_compile.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/aether_next/compiler.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_memory_context_verifier.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/tests/test_vnext_workbench_ir.py
+  - /Users/mohamud/Downloads/harnesseng/aether_next_vnext_takeover/slice2_work/aether_next_build/CONTEXT_RECIPE_AUDIT.md
+- affected_components:
+  - aether_next context packet construction
+  - workbench context-policy parsing/compilation bridge
+  - runtime config realization metadata
+  - context recipe verifier tests
+- decision_change: Context recipes are now optional compiler inputs over structured receipts; unsupported recipe declarations are explicit metadata, not silent authority.
+- unresolved_questions:
+  - Whether future slices should expose recipe support in the runtime manual and verifier-packet summaries.
+  - Whether recipe-aware compression should grow beyond the current preserved-exact guard for large recent selector sections.
+- confidence: high
+- commit_message: HOLD - structured memory context recipe slice not yet committed

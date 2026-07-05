@@ -1,0 +1,25 @@
+RAW_LEDGER_UPDATE
+- actor: codex
+- task: post-sprint forensic audit
+- event_type: failure
+- summary: Model-visible receipt context still leaks host run metadata through derived evidence-ref strings such as `last_evidence_ref`, even though direct orientation fields are sanitized.
+- observations:
+  - Latest financial model exchange shows sanitized `workspace_root` as `[host_run_path]`.
+  - The same model-visible payload still includes strings like `log=/tmp/harbor-jobs/...` inside `last_evidence_ref` and related evidence summaries.
+  - The sanitization boundary exists in `harness/aether2/runtime/context.py`, and `receipt_store.context_view()` uses `_model_visible(...)`, but some already-rendered strings still carry host paths through.
+- inference: Sanitization is partly correct for structured payload fields and incomplete for derived string surfaces. This is still a contamination and genericity risk.
+- evidence_paths:
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/receipts/model_exchange_1.json
+  - tracking/local_runs/20260623T_financial_receipt_probe_v11_tool_salience/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/20260623T_financial_receipt_probe_v11_tool_salience-financial-document-processor-receipt_driven_full-rep1/financial-document-processor__yRWw59e/agent/aether2_harbor_runtime/.aether2/host_receipts/receipts/model_exchange_8.json
+  - harness/aether2/runtime/context.py
+  - harness/aether2/traces/receipt_store.py
+  - harness/aether2/traces/_text_utils.py
+- affected_components:
+  - model-visible context serialization
+  - receipt/evidence ref rendering
+- decision_change: Treat metadata sanitization as still open; do prompt-audit grep before trusting further reruns.
+- unresolved_questions:
+  - Should sanitization happen only at the final context serialization chokepoint, or should evidence-ref builders avoid host-path text entirely?
+  - Which model-visible summaries besides `last_evidence_ref` still need redaction coverage?
+- confidence: high
+- commit_message: NONE - no tracked file changes

@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Aether-2 carve-down Slice 4 bounded read-only verifier
+- event_type: implementation
+- summary: Added an in-round verifier inspection budget and explicit tool responses for over-budget or unknown verifier inspection calls.
+- observations: verify_fresh_context now defaults to MAX_VERIFIER_INSPECTION_CALLS=3. Only the first three read-only verifier inspection calls execute; later calls receive verification_inspection_budget_exhausted tool responses. Unknown verifier tools receive verification_unknown_tool responses. Tests prove every verifier tool call remains paired with a tool response and that mutating verifier commands are rejected/audited by _ReadOnlyVerificationContext.
+- inference: The verifier is now bounded as a read-only inspector inside each verification round, reducing risk that it becomes a second solver or creates invalid provider transcripts.
+- evidence_paths: docs/AETHER2_SLICE4_BOUNDED_READ_ONLY_VERIFIER.md; harness/aether2/runtime/verify.py; tests/test_aether2_verification_feedback.py
+- affected_components: Aether-2 verifier; read-only verifier inspection context; provider transcript validity; verifier evidence reporting
+- decision_change: Verifier inspection is bounded to three executed read-only calls per verifier pass; additional or unknown calls are explicit evidence, not silent behavior.
+- unresolved_questions: The three-call budget should be calibrated with model-backed verifier-loop eval rows before changing it; broader completion authority remains for Slice 5.
+- confidence: high
+- commit_message: Bound verifier inspection calls

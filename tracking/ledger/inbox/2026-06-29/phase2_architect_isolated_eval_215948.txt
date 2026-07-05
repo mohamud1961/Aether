@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator with gpt-5.4-mini codegen worker
+- task: Aether-Next vNext Phase 2 isolated architect evaluation
+- event_type: experiment
+- summary: Ran isolated architect-only evaluations with 5.4-mini on five official prompts and a 5.3-codex comparison on the three required core prompts. Added a runner-only max-output-tokens CLI control after one 5.4-mini provider-boundary failure.
+- observations: The initial 5.4-mini run produced parseable WorkbenchArchitect HarnessConfigIR for 4/5 tasks, with openssl-selfsigned-cert failing due to an Azure incomplete response with no usable text caused by max_output_tokens. A gpt-5.4-mini worker patched run_architect_only_eval.py to expose --max-output-tokens while preserving the 16000 default. A focused openssl-selfsigned-cert rerun at 32000 tokens produced a parseable config with no warnings/rejected items. Consolidated 5.4-mini result after focused repair: 5/5 parseable, warnings=0, rejected_items=0, query_memory_available=5/5. 5.3-codex comparison on the three core tasks: 3/3 parseable, warnings=0, rejected_items=0, query_memory_available=3/3.
+- inference: The Workbench Architect output boundary is stable enough to proceed past architect-only parseability/quality gating, with one documented provider token-limit control now exposed for isolated evals.
+- evidence_paths: /Users/mohamud/Downloads/harnesseng/aether_next_build/ARCHITECT_ISOLATED_EVAL_REPORT.md; /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_isolated_eval_phase2_summary.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_isolated_eval_54mini_20260629_214341/architect_only_eval.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_isolated_eval_54mini_openssl_repair_20260629_215629/architect_only_eval.json; /Users/mohamud/Downloads/harnesseng/aether_next_build/architect_isolated_eval_53codex_20260629_215103/architect_only_eval.json
+- affected_components: run_architect_only_eval.py; WorkbenchArchitect isolated eval flow; HarnessConfigIR model boundary
+- decision_change: Proceed to verifier-only model experiments before replay/real tasks.
+- unresolved_questions: Some accepted 5.4-mini prompts scored 9/10 because the heuristic expected a literal verify word despite check/verification guidance; the scorer may be stricter than semantically necessary.
+- confidence: high
+- commit_message: HOLD - continue through Phase 6 before preparing a coherent commit slice

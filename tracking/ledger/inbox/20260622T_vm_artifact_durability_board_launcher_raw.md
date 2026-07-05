@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Harbor VM artifact durability and board launcher slice
+- event_type: implementation
+- summary: Added a durable Harbor VM artifact mirror helper and wired the board launcher to fail fast on unwritable output roots before launching Harbor work.
+- observations: scripts/run_harbor_ab_board_vm.sh now probes OUTPUT_ROOT with a write/delete temp file before any board work, accepts --mirror-root, and calls scripts/mirror_harbor_vm_artifacts.sh after summary generation. The new helper supports local source-root mirroring and Azure run-command tar/base64 download flow. Focused pytest coverage passed for the helper round-trip, launcher failure path, and launcher success/mirror path.
+- inference: The launcher can now preserve the full run tree into a durable mirror before deallocation, and it will stop early instead of failing later on board_rows.jsonl write permission errors.
+- evidence_paths: scripts/run_harbor_ab_board_vm.sh; scripts/mirror_harbor_vm_artifacts.sh; tests/test_harbor_vm_artifact_mirror.py; command: python3.11 -m pytest tests/test_harbor_vm_artifact_mirror.py -q
+- affected_components: Harbor board launcher shell flow, VM artifact mirroring, output-root writability preflight, local test harness
+- decision_change: Keep the board launcher slice shell-only and avoid touching runtime Python; mirror durability is now a script-level contract instead of an ad hoc manual step.
+- unresolved_questions: None for the implemented slice; remote Azure fetch path is present in the helper but was not exercised in this environment.
+- confidence: high
+- commit_message: HOLD - artifact mirror and output-root preflight are validated locally but not committed
