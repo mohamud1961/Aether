@@ -181,6 +181,7 @@ class AetherNextKernel:
         ]
         verifier_reconfigure_used = False
         verifier_round_finding_sets: list[frozenset[str]] = []
+        verifier_memo: dict[str, Any] = {}
         submit_without_evidence_rounds = 0
         while step < self.max_steps:
             alerts = self.monitor_runner.run(compiled, ledger)
@@ -320,6 +321,7 @@ class AetherNextKernel:
                         reason="solver_submit",
                         executor=executor,
                         envmap=envmap,
+                        memo=verifier_memo,
                     )
                 if verdict is not None and verdict.verdict == "completed":
                     if trace is not None:

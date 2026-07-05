@@ -1,7 +1,10 @@
 """Evidence packet construction for model-led verification."""
 from __future__ import annotations
 
-from typing import Any
+from hashlib import sha256
+from typing import Any, Mapping
+
+from .runtime_ir import stable_json
 
 from .ledger import ExecutionLedger
 from .runtime_ir import CompiledRuntime
@@ -212,3 +215,46 @@ def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *,
     if leaked:
         raise AssertionError(f"verifier packet leaked solver journey fields: {sorted(leaked)}")
     return packet
+
+
+def packet_state_signature(packet: Mapping[str, Any]) -> str:
+    """Stable signature of the packet's MATERIAL state.
+
+    Volatile bookkeeping (step counters, finding ages, handle ids embedding
+    step numbers) is excluded: two packets with the same signature describe
+    the same world, so re-judging the second is pure waste.
+    """
+    handles = []
+    for handle in packet.get("state_inspection_handles") or ():
+        if isinstance(handle, Mapping):
+            handles.append({
+                "kind": handle.get("kind"),
+                "path": handle.get("path", ""),
+                "stream": handle.get("stream", ""),
+                "bytes": handle.get("bytes"),
+                "content_hash": handle.get("content_hash", ""),
+            })
+    material = {
+        "artifacts": sorted(str(a) for a in (packet.get("artifacts_present") or ())),
+        "handles": handles,
+        "obligations": sorted(
+            str(o.get("obligation_id", "")) for o in (packet.get("open_obligations") or ())
+            if isinstance(o, Mapping)
+        ),
+        "findings": sorted(
+            str(f.get("finding_id", "")) for f in (packet.get("active_findings") or ())
+            if isinstance(f, Mapping)
+        ),
+        "blockers": [
+            {
+                "component": b.get("blocked_component", ""),
+                "evidence": b.get("observed_evidence", ""),
+            }
+            for b in (packet.get("solver_reported_blockers") or ())
+            if isinstance(b, Mapping)
+        ],
+        "verifier_prompt_hash": str(
+            (packet.get("architect_verifier_prompt") or {}).get("hash", "")
+        ),
+    }
+    return sha256(stable_json(material).encode("utf-8")).hexdigest()[:16]

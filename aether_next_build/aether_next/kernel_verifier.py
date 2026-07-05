@@ -16,7 +16,7 @@ from .verifier_inspector import (
     execute_verifier_inspection_requests,
 )
 from .verifier_overlay import VerifierOverlay
-from .verifier_packets import build_verifier_packet
+from .verifier_packets import build_verifier_packet, packet_state_signature
 
 def _verifier_command_budget_s(envmap: Any) -> int:
     """Task-declared verifier budget bounds overlay command execution."""
@@ -52,6 +52,7 @@ def run_model_verifier_if_available(
     reason: str,
     executor: Any | None = None,
     envmap: Any | None = None,
+    memo: dict[str, Any] | None = None,
 ) -> ModelVerifierResult | None:
     verify = getattr(hooks, "verify", None)
     if verify is None:
@@ -74,6 +75,34 @@ def run_model_verifier_if_available(
         ))
         return None
     packet = build_verifier_packet(compiled, ledger, step=step, reason=reason)
+    signature = packet_state_signature(packet)
+    if (
+        memo is not None
+        and memo.get("signature") == signature
+        and memo.get("result") is not None
+        and getattr(memo.get("result"), "verdict", "") != "completed"
+    ):
+        # The material state is identical to the last judged packet; the same
+        # deterministic-input judgment applies.  Skipping the model call saves
+        # a full verifier round (observed live: 16 rounds on identical state)
+        # while the repeated identical round still counts toward stalemate.
+        previous = memo["result"]
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:model_verifier_skipped:unchanged_state",
+            step=step,
+            kind="model_verifier_skipped",
+            success=True,
+            summary=(
+                "model verifier not re-invoked: packet state unchanged since the "
+                f"last verdict ({previous.verdict}); produce new evidence or state"
+            ),
+            payload={
+                "reason": "unchanged_state",
+                "signature": signature,
+                "reused_verdict": previous.verdict,
+            },
+        ))
+        return previous
     ledger.record(Receipt(
         receipt_id=f"step-{step}:model_verifier_packet:{reason}",
         step=step,
@@ -133,6 +162,9 @@ def run_model_verifier_if_available(
         parsed_result=result.as_dict(),
         active_findings_after=active_after,
     )
+    if memo is not None:
+        memo["signature"] = signature
+        memo["result"] = result
     return result
 
 
@@ -218,6 +250,7 @@ def _call_verify(
                 executor=executor,
                 envmap=envmap,
                 overlay=overlay,
+                hooks=hooks,
             )
             ledger.record(Receipt(
                 receipt_id=f"step-{step}:model_verifier_inspection:{len(ledger.all_receipts())}",

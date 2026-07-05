@@ -96,7 +96,7 @@ VERIFIER_RUNTIME_CONTRACT = {
             "requests": [
                 {
                     "request_id": "stable id",
-                    "kind": "read_file | rerun_check | inspect_artifact_history | inspect_recent_receipts | overlay_run_command | overlay_write_fixture | probe_port | probe_http | probe_process | inspect_artifact",
+                    "kind": "read_file | rerun_check | inspect_artifact_history | inspect_recent_receipts | overlay_run_command | overlay_write_fixture | probe_port | probe_http | probe_process | inspect_artifact | perceive_artifact",
                     "path": "relative path when needed (fixture target for overlay_write_fixture; artifact for inspect_artifact)",
                     "check_id": "compiled check id when needed",
                     "receipt_kind": "receipt kind filter when needed",
@@ -113,6 +113,7 @@ VERIFIER_RUNTIME_CONTRACT = {
             "read_file, receipt/history inspection, probe_port, probe_http, probe_process, and inspect_artifact never mutate anything; probes observe LIVE services/processes/artifacts.",
             "inspect_artifact returns file metadata including permissions (mode), owner, size, sha256, and type: use it to verify permission/ownership requirements instead of returning blocked_by_tooling.",
             "Artifact extractions labeled model_transcription_not_ground_truth are a model's reading of a binary artifact: audit them against independent evidence (e.g. executing the derived artifact) rather than accepting or dismissing them outright.",
+            "perceive_artifact gives you your OWN vision reading of an image (when a vision route exists): use it to verify image-derived deliverables independently of the solver's transcription.",
             "rerun_check, overlay_run_command, and overlay_write_fixture execute in a disposable copy of the workspace: the solver workspace is never mutated and the copy is destroyed after this verification round.",
             "Use overlay_write_fixture + overlay_run_command to test the deliverable against YOUR OWN inputs, not only the solver's.",
             "For service tasks, judge the live state with probe_port/probe_http/probe_process rather than the solver's captured output.",

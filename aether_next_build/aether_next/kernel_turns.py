@@ -130,6 +130,17 @@ def run_submit_turn(
 ) -> None:
     """Execute submit_outcome logic; stores gate decision on the kernel."""
     for check in compiled.planned_checks():
+        if not _check_inputs_changed(ledger, check.check_id):
+            # Nothing in the workspace changed since this check last ran; the
+            # prior outcome (still held by the ledger's check store) stands.
+            # Re-executing identical checks burned hundreds of receipts live.
+            ledger.record(Receipt(
+                receipt_id=f"step-{step}:check_skipped:{check.check_id}", step=step,
+                kind="check_skipped_unchanged", success=True,
+                summary=f"check {check.label} not re-run: no state change since last execution",
+                payload={"check_id": check.check_id, "command": check.command},
+            ))
+            continue
         result = executor.run_command(check.command, cwd=envmap.workspace_root)
         failure_class = kernel.failure_parser.classify(
             result.stdout + "\n" + result.stderr, exit_code=result.exit_code,
@@ -173,3 +184,15 @@ def run_submit_turn(
     if trace is not None:
         trace.add_gate(step, decision)
     kernel._last_gate_decision = decision
+
+def _check_inputs_changed(ledger: ExecutionLedger, check_id: str) -> bool:
+    """True when the check has never run, or any state change happened after
+    its most recent execution."""
+    receipts = ledger.all_receipts()
+    last_index = -1
+    for index, receipt in enumerate(receipts):
+        if receipt.kind == "check_result" and (receipt.payload or {}).get("check_id") == check_id:
+            last_index = index
+    if last_index < 0:
+        return True
+    return any(r.state_change for r in receipts[last_index + 1:])

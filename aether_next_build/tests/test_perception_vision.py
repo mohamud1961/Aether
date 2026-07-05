@@ -128,3 +128,42 @@ def test_media_type_mapping() -> None:
     assert media_type_for("a/b/code.PNG") == "image/png"
     assert media_type_for("x.jpeg") == "image/jpeg"
     assert media_type_for("archive.tar.gz") == ""
+
+
+def test_verifier_perceive_artifact_inspection() -> None:
+    """The verifier can form its OWN vision reading, independent of any
+    solver-produced transcription."""
+    from aether_next.compiler import CapabilityRegistry, ConfigCompiler
+    from aether_next.ledger import ExecutionLedger
+    from aether_next.verifier_inspector import (
+        VerifierInspectionRequest,
+        execute_verifier_inspection_requests,
+    )
+
+    with tempfile.TemporaryDirectory() as root:
+        Path(root, "code.png").write_bytes(_PNG_BYTES)
+        env = _env(root)
+        ir = RuntimeConfigIR(
+            architect_summary="v", solver_identity_prompt="solver",
+            verifier_identity_prompt="verifier",
+            selected_capabilities=("shell", "filesystem"),
+        )
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(ir, env)
+        hooks = _InspectHooks(_StubVision())
+        results = execute_verifier_inspection_requests(
+            (VerifierInspectionRequest(request_id="v1", kind="perceive_artifact", path="code.png"),),
+            compiled=compiled, ledger=ExecutionLedger(),
+            executor=SubprocessExecutor(root), envmap=env, hooks=hooks,
+        )
+        row = results[0]
+        assert "transcribed code" in row["transcription"]
+        assert row["extraction_authority"] == "model_transcription_not_ground_truth"
+        assert row["read_only"] is True
+
+        # Without a vision route: explicit error, never a fake reading.
+        no_vision = execute_verifier_inspection_requests(
+            (VerifierInspectionRequest(request_id="v2", kind="perceive_artifact", path="code.png"),),
+            compiled=compiled, ledger=ExecutionLedger(),
+            executor=SubprocessExecutor(root), envmap=env, hooks=object(),
+        )
+        assert "error" in no_vision[0]

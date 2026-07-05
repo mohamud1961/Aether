@@ -75,6 +75,7 @@ def execute_verifier_inspection_requests(
     executor: Any,
     envmap: EnvMap,
     overlay: Any | None = None,
+    hooks: Any | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     checks_by_id = {check.check_id: check for check in compiled.planned_checks()}
@@ -129,6 +130,9 @@ def execute_verifier_inspection_requests(
             row.update(overlay.write_fixture(request.path, getattr(request, "content", "")))
             results.append(row)
             continue
+        if request.kind == "perceive_artifact":
+            results.append(_perceive_artifact_result(request, executor, envmap, hooks))
+            continue
         if request.kind in {"probe_port", "probe_http", "probe_process", "inspect_artifact"}:
             target = getattr(request, "target", "") or request.path
             if request.kind == "probe_port":
@@ -180,6 +184,51 @@ def execute_verifier_inspection_requests(
             continue
         results.append(_error_result(request, f"unsupported inspection kind: {request.kind}"))
     return results
+
+
+def _perceive_artifact_result(
+    request: VerifierInspectionRequest, executor: Any, envmap: EnvMap, hooks: Any,
+) -> dict[str, Any]:
+    """Independent verifier perception: transcribe an image artifact through
+    the run's vision model.  The result is the verifier's OWN reading -- it
+    never depends on solver-produced transcriptions -- and is still labeled
+    model-derived, not ground truth."""
+    from .perception_vision import media_type_for
+    import base64 as _b64
+
+    perceive = getattr(hooks, "perceive_image", None)
+    if not callable(perceive):
+        return _error_result(request, "no vision model available for perceive_artifact")
+    path = normalize_relpath(request.path, envmap.workspace_root)
+    media_type = media_type_for(path)
+    if not media_type:
+        return _error_result(request, f"unsupported media type for perceive_artifact: {path}")
+    read_bytes = getattr(executor, "read_file_bytes", None)
+    if not callable(read_bytes):
+        return _error_result(request, "executor lacks binary reads for perceive_artifact")
+    try:
+        raw = read_bytes(path)
+    except (OSError, FileNotFoundError) as exc:
+        return _error_result(request, f"perceive_artifact read failed: {exc}")
+    prompt = (
+        "Transcribe/describe the semantic content of this image exactly and "
+        "completely. Code and text verbatim; labeled elements and values precisely. "
+        "Output only the transcription/description."
+    )
+    try:
+        transcription = str(perceive(prompt, _b64.b64encode(raw).decode("ascii"), media_type))
+    except Exception as exc:
+        return _error_result(request, f"perceive_artifact vision call failed: {exc}")
+    return {
+        "request_id": request.request_id,
+        "kind": request.kind,
+        "path": path,
+        "media_type": media_type,
+        "bytes": len(raw),
+        "transcription": transcription[:8000],
+        "extraction_authority": "model_transcription_not_ground_truth",
+        "read_only": True,
+    }
 
 
 def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap: EnvMap) -> dict[str, Any]:
