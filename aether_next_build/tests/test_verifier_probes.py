@@ -273,3 +273,21 @@ def test_read_file_inspection_supports_offset_paging() -> None:
         assert results[0]["bytes"] == len(content)
         assert results[0]["offset"] == 5000
         assert results[0]["excerpt"].startswith("WINDOW_MARKER")
+
+
+def test_inspect_artifact_probe_reports_file_mode_and_owner() -> None:
+    """Permissions are first-class verifiable state (live gap: a correct
+    openssl run could not be verified because no read-only surface exposed
+    the key file's mode 600)."""
+    import os
+
+    with tempfile.TemporaryDirectory() as root:
+        executor = SubprocessExecutor(root)
+        key = Path(root, "server.key")
+        key.write_text("PRIVATE KEY")
+        os.chmod(key, 0o600)
+        result = inspect_artifact_probe(executor, "server.key")
+        assert result["exists"] is True
+        assert result["mode"] == "600", result
+        assert result["owner"]
+        assert result["mtime_epoch"].isdigit()

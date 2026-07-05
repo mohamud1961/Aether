@@ -160,6 +160,21 @@ def inspect_artifact_probe(executor: Any, path: str) -> dict[str, Any]:
     )
     row["size_bytes"] = size_out.stdout.strip()[:40]
 
+    # File metadata is first-class verifiable state: permissions, owner, and
+    # mtime.  (Observed live: a correct openssl task could not be verified
+    # because no read-only surface exposed the key file's mode.)
+    meta_out = _run(
+        executor,
+        f"stat -c '%a %U %Y' {q} 2>/dev/null || stat -f '%Lp %Su %m' {q} 2>/dev/null || echo unknown",
+    )
+    meta_fields = meta_out.stdout.strip().split()
+    if len(meta_fields) >= 3 and meta_fields[0] != "unknown":
+        row["mode"] = meta_fields[0][:8]
+        row["owner"] = meta_fields[1][:40]
+        row["mtime_epoch"] = meta_fields[2][:20]
+    else:
+        row["mode"] = "unknown"
+
     hash_out = _run(
         executor,
         f"sha256sum {q} 2>/dev/null || shasum -a 256 {q} 2>/dev/null || echo tool_missing",

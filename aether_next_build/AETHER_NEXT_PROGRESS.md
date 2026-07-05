@@ -244,6 +244,26 @@ Ext-k: ONE model-backed sentinel batch managed with 5.4 mini, preceded by focuse
   - `python3.11 -m pytest tests/test_model_hooks.py tests/test_verifier_probes.py -q` → **31 passed**.
   - `python3.11 -m pytest tests -q` → **311 passed**.
 
-## Current open item
+## Post-audit quality slice (2026-07-05, Fable session 2) — DONE
 
-No second real run launched, per the one-run constraint. Next approved real attempt should test whether the structured missing-evidence inspection and submit-stalemate fixes improve step efficiency and verifier completion behavior.
+- Committed the codex working tree in two verified slices (Ext-j smoke + stable-core fix `666b09a1`; verifier realization + submit-stalemate `e7b5d17b`).
+- Anti-self-confirmation slice (`7b36aba8`):
+  - Architect prompt now mandates independent-verification discipline: raw-input inspection before choosing semantics, verification via a genuinely different method, manual raw-sample spot-audit, explicit self-confirmation trap; verifier rules name the same-method trap.
+  - Visible smoke checks compile runnable but `authoritative=False`, labeled "shape-only, not semantic proof"; compiler plan membership decoupled from evidential authority.
+  - `solver_submit_stalemate` reclassified: `model_limit` when verifier feedback was delivered on a clean workbench, `harness_context_failure` otherwise — never `verification_failure` (the verifier did its job).
+  - Verifier feedback legibility confirmed: blocking-first active findings with repair_instruction are an always-include solver context section.
+- Decomposition (`6018397c`): context_compiler 858→366 (context_views, context_recipe_apply), kernel 535→473 (kernel_reconfigure), model_hooks 712→601 (model_prompts); run_pilot CLI certified-only. Remaining size debt: docker_runner 820, compiler 666, model_hooks 601, runtime_ir 547.
+- Suite: **315 passed**.
+
+## Approved rerun (2026-07-05, in progress)
+
+- Batch: `log-summary-date-ranges` (A/B against the failed run) + `openssl-selfsigned-cert` (known-pass sentinel), 5.4-mini, max_steps=40, SHA-stamped at the committed HEAD.
+- **log-summary-date-ranges: completed, reward=1.0, 3 steps, classifier=none, architect_defect=False** (was: reward=0.0, incomplete, 80 steps). The structured-evidence realization + anti-self-confirmation + submit-stalemate fixes converted the exact prior failure into a clean, efficient pass.
+- **openssl-selfsigned-cert: reward=1.0 (official grader: PASS), internal status `solver_submit_stalemate` at step 23, classifier `harness_context_failure`, alignment `verifier_completion_miss`.**
+  - Interpretation (trace-audited): all 19 rounds of visible shape checks passed; the verifier ran 16 rounds + 42 read-only inspections and refused `completed` for ONE unprovable fact — `/app/ssl/server.key` mode 600. Its inspection surface had file contents/sha256/size/type but **no permission metadata**; it honestly escalated `blocked_by_tooling` ("Provide a read-only metadata receipt ... showing mode 600"). The solver, having genuinely finished, had nothing to repair; the submit-stalemate bound then terminated the run at step 23 instead of burning the remaining budget. The classifier correctly refused to blame the model.
+  - This is the system working as designed on every layer except one missing generic capability. **Fix committed:** `inspect_artifact` probe now returns `mode`/`owner`/`mtime_epoch` (GNU+BSD stat), verifier guidance names the surface, regression test with a chmod-600 key file.
+  - Launch note: `AETHER_VERIFIER_EVIDENCE_DIR` was not exported for this batch, so per-round verifier bundles were not persisted (findings recovered from the trace); export it for the next run.
+
+## Ext-k verdict
+
+The measured batch is interpreted; per the one-batch constraint, no further model runs launched this session. The next approved run should confirm openssl completes internally with the metadata probe (log-summary already passes clean: reward 1.0, 3 steps, no defect).
