@@ -199,3 +199,29 @@ def test_packet_signature_ignores_volatile_fields() -> None:
         {"kind": "file", "handle": "9:b:file", "path": "out.txt", "bytes": 9, "content_hash": "zzzz"},
     ]
     assert packet_state_signature(base) != packet_state_signature(changed)
+
+
+def test_prose_missing_evidence_requests_are_realized_as_inspections() -> None:
+    """Live defect: the verifier asked the SOLVER to 'provide the contents of
+    /app/output.txt' -- unsatisfiable, since solver claims never enter the
+    state-only packet.  Path-bearing requests now trigger the verifier's own
+    read-only inspection within the same round."""
+    from aether_next.model_hooks import _inspections_from_missing_evidence
+    from aether_next.verifier import ModelVerifierResult
+
+    result = ModelVerifierResult(
+        verdict="uncertain_missing_evidence",
+        summary="need raw state",
+        missing_evidence_requests=(
+            "Directly inspect and provide the contents of /app/output.txt.",
+            "Please provide the raw transcription in /app/.aether_tools/answer_notes.txt",
+            "Show the code image /app/code.png you read.",
+            "General clarification with no file named.",
+        ),
+    )
+    requests = _inspections_from_missing_evidence(result)
+    by_path = {r.path: r.kind for r in requests}
+    assert by_path.get("output.txt") == "read_file"
+    assert by_path.get(".aether_tools/answer_notes.txt") == "read_file"
+    assert by_path.get("code.png") == "perceive_artifact"
+    assert len(requests) == 3  # the pathless request produces nothing

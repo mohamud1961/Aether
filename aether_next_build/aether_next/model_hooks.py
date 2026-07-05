@@ -80,6 +80,37 @@ def _structured_missing_evidence_requests(raw: str) -> tuple[VerifierInspectionR
     return parse_verifier_inspection_requests({"kind": "inspect", "requests": request_items})
 
 
+_PATH_IN_REQUEST_RE = re.compile(r"(?:/app/|\b)([A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)*\.[A-Za-z0-9]{1,8})")
+
+_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff")
+
+
+def _inspections_from_missing_evidence(result: Any) -> tuple[VerifierInspectionRequest, ...]:
+    """Realize prose missing-evidence requests that name concrete files.
+
+    Observed live: verifiers returned uncertain_missing_evidence asking the
+    SOLVER to "provide the contents of /app/output.txt" -- evidence only
+    verifier-side inspection can produce (solver claims never enter the
+    state-only packet).  When a request names a workspace file, inspect it
+    directly instead of stalling the run on an unsatisfiable ask.
+    """
+    seen: list[str] = []
+    for request in getattr(result, "missing_evidence_requests", ()) or ():
+        for match in _PATH_IN_REQUEST_RE.finditer(str(request)):
+            path = match.group(1)
+            if path not in seen:
+                seen.append(path)
+    requests: list[VerifierInspectionRequest] = []
+    for idx, path in enumerate(seen[:4]):
+        kind = "perceive_artifact" if path.lower().endswith(_IMAGE_EXTENSIONS) else "read_file"
+        requests.append(VerifierInspectionRequest(
+            request_id=f"auto-missing-evidence-{idx}",
+            kind=kind,
+            path=path,
+        ))
+    return tuple(requests)
+
+
 def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[VerifierInspectionRequest, ...]:
     """Minimal generic read-only evidence when a verifier completes uninspected.
 
@@ -280,6 +311,7 @@ class ModelHooks:
         ]
         max_rounds = int(VERIFIER_RUNTIME_CONTRACT["read_only_inspector"]["max_rounds"])
         inspected = False
+        missing_evidence_realized = False
         for round_idx in range(max_rounds + 1):
             try:
                 raw = self._verifier(messages, max_output_tokens=_verifier_max_output_tokens())
@@ -329,6 +361,39 @@ class ModelHooks:
                     ),
                 })
                 continue
+            if (
+                result.verdict == "uncertain_missing_evidence"
+                and round_idx < max_rounds
+                and not missing_evidence_realized
+            ):
+                # Realize once per verification round: inspect, re-judge, and
+                # if the verdict is still uncertain let durable findings and
+                # unchanged-state memoization take over instead of looping.
+                missing_evidence_realized = True
+                auto_requests = _inspections_from_missing_evidence(result)
+                if auto_requests:
+                    results = inspector(auto_requests)
+                    inspected = True
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "verifier_inspection_results": results,
+                                "instruction": (
+                                    "The runtime executed read-only inspections for the files "
+                                    "your missing-evidence requests named: the solver cannot "
+                                    "supply packet evidence, only your own inspection can. "
+                                    "Judge the current state now and return a final verdict; "
+                                    "request further bounded inspections only if these "
+                                    "observations are genuinely insufficient."
+                                ),
+                            },
+                            default=str,
+                            sort_keys=True,
+                        ),
+                    })
+                    continue
             # Runtime-enforced, not prompt-only: a completed verdict must be
             # backed by at least one real independent inspection when the
             # inspector is available -- a model that judges "completed"

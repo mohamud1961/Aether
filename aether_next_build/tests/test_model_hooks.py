@@ -756,7 +756,9 @@ class TestEndToEnd:
 
         assert result.status == "solver_submit_stalemate"
         assert result.step < 10
-        assert verifier_calls["n"] == 1
+        # Round 1 may cost two model calls (judge -> auto-inspect named files
+        # -> re-judge); repeated submits after that never re-invoke the model.
+        assert verifier_calls["n"] <= 2
         skipped = [r for r in result.receipts if r.kind == "model_verifier_skipped"]
         assert any(
             r.payload.get("reason") == "active_findings_without_intervening_evidence"

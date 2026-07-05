@@ -110,6 +110,7 @@ VERIFIER_RUNTIME_CONTRACT = {
         },
         "rules": [
             "Use inspection requests only when the current verifier packet is insufficient to judge safely.",
+            "NEVER return uncertain_missing_evidence asking for file contents, transcripts, or state you can observe yourself: you have read_file, rerun_check, probes, overlay execution, and perceive_artifact -- inspect first, judge second. Solver-provided claims cannot enter the packet.",
             "read_file, receipt/history inspection, probe_port, probe_http, probe_process, and inspect_artifact never mutate anything; probes observe LIVE services/processes/artifacts.",
             "inspect_artifact returns file metadata including permissions (mode), owner, size, sha256, and type: use it to verify permission/ownership requirements instead of returning blocked_by_tooling.",
             "Artifact extractions labeled model_transcription_not_ground_truth are a model's reading of a binary artifact: audit them against independent evidence (e.g. executing the derived artifact) rather than accepting or dismissing them outright.",
