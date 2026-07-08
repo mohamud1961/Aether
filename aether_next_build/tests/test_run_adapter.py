@@ -184,7 +184,12 @@ class _StubVerifierModel:
             "verdict": "completed",
             "confidence": "high",
             "summary": "stub verifier saw enough evidence",
-            "completion_evidence": ["stub_verifier"],
+            "completion_evidence": [{
+                "requirement": "out.txt contains the requested result",
+                "observed": "read_file inspection of out.txt showed the requested content",
+                "inspection_refs": ["out.txt"],
+                "falsification_check": "differing file content would have contradicted completion",
+            }],
         })
 
 

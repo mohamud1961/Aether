@@ -1,6 +1,7 @@
-# Known bad profile
+# Known bad
 
-Known failing behavior for this row:
-- patches a similarly named legacy or generated file,
-- skips active-path verification,
-- submits manifest with incomplete changed-file evidence.
+Known-bad behaviors for this composition row:
+
+- Patching `services/alpha/config.yaml` instead of `services/beta/config.yaml` (path-identity drift).
+- Reporting patched target without verifier pass evidence.
+- Claiming decoy untouched when decoy content changed.

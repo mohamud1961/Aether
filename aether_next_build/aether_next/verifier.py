@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, field, replace
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, Mapping
 
 VERIFIER_VERDICTS = frozenset({
     "completed",
@@ -54,12 +54,28 @@ class VerifierFinding:
 
 
 @dataclass(frozen=True)
+class CompletionEvidenceEntry:
+    """One requirement -> observed-evidence mapping backing a completed verdict.
+
+    The runtime checks presence, non-emptiness, and that ``inspection_refs``
+    resolve to inspections actually performed in the verification round.
+    It never evaluates the reasoning content -- that stays the model's job.
+    """
+
+    requirement: str
+    observed: str
+    falsification_check: str
+    inspection_refs: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ModelVerifierResult:
     verdict: str
     confidence: str = "medium"
     summary: str = ""
     findings: tuple[VerifierFinding, ...] = ()
     missing_evidence_requests: tuple[str, ...] = ()
+    completion_evidence: tuple[CompletionEvidenceEntry, ...] = ()
 
     def __post_init__(self) -> None:
         if self.verdict not in VERIFIER_VERDICTS:
@@ -72,6 +88,7 @@ class ModelVerifierResult:
             "summary": self.summary,
             "findings": [asdict(finding) for finding in self.findings],
             "missing_evidence_requests": list(self.missing_evidence_requests),
+            "completion_evidence": [asdict(entry) for entry in self.completion_evidence],
         }
 
 
@@ -187,7 +204,45 @@ def parse_model_verifier_result(value: Any) -> ModelVerifierResult:
         summary=str(data.get("summary", "")).strip(),
         findings=findings,
         missing_evidence_requests=missing,
+        completion_evidence=_parse_completion_evidence(data),
     )
+
+
+def _parse_completion_evidence(data: Mapping[str, Any]) -> tuple[CompletionEvidenceEntry, ...]:
+    """Normalize the completed-verdict evidence record.
+
+    Absence is tolerated here: the runtime loop owns the retry-then-refuse
+    protocol for a completed verdict without a record (it is the only layer
+    that can check inspection_refs against inspections actually performed).
+    Present-but-malformed entries are a protocol error, same as malformed
+    findings.
+    """
+    raw = data.get("completion_evidence", ())
+    if raw in (None, "", ()):
+        return ()
+    if isinstance(raw, Mapping):
+        raw = [raw]
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError("completion_evidence must be a list of entries")
+    entries: list[CompletionEvidenceEntry] = []
+    for idx, item in enumerate(raw):
+        if not isinstance(item, Mapping):
+            raise ValueError(f"completion_evidence[{idx}] must be an object")
+        refs_raw = item.get("inspection_refs", ())
+        if isinstance(refs_raw, str):
+            refs_raw = [refs_raw]
+        if not isinstance(refs_raw, (list, tuple)):
+            raise ValueError(f"completion_evidence[{idx}].inspection_refs must be a list")
+        refs = tuple(str(ref).strip() for ref in refs_raw if str(ref).strip())
+        entries.append(
+            CompletionEvidenceEntry(
+                requirement=str(item.get("requirement", "")).strip(),
+                observed=str(item.get("observed", "")).strip(),
+                falsification_check=str(item.get("falsification_check", "")).strip(),
+                inspection_refs=refs,
+            )
+        )
+    return tuple(entries)
 
 
 

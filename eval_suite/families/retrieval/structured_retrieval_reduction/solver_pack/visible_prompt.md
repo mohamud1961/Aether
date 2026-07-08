@@ -1,24 +1,25 @@
-# Task: Extract and reconcile chess moves from noisy video evidence
+# structured_retrieval_reduction: Frame-Text Extraction and Reconciliation
 
-You must recover a move sequence from a video source with overlays and contradictory notes.
+You are in `/workspace/extract`.
 
-Required pressure in this task:
-- fetch or download the source clip,
-- use frame/segment extraction (for example with `ffmpeg`),
-- run OCR-style extraction on relevant frames,
-- reconcile contradictory evidence across sources,
-- avoid false completion before final consistency checks.
+Goal:
 
-Asset and tooling contract:
-- if no local clip is present in the workspace, you must fetch one and report the exact source in `source_video_url`;
-- if required media/OCR tools are missing, install or invoke alternatives and record the executed commands.
+- Produce `out/moves.txt` containing the correct sequence of chess moves extracted from frame-text fixtures.
 
-Deliver `candidate/extraction_report.json` with:
-- `source_video_url`
-- `fetch_method`
-- `ffmpeg_command`
-- `ocr_command`
-- `extracted_moves`
-- `contradiction_resolution`
-- `false_completion_guard`
-- `final_pgn`
+Sources:
+
+- `source/frames/frame_001.txt` through `source/frames/frame_012.txt` contain ordered frame-text captures of chess move notations.
+- Some frames are **duplicates** (same move appears in multiple frames).
+- Some frames contain **contradictions** (a later frame corrects an earlier one -- the correction is authoritative).
+- Some frames are **stale** (prefixed with `[STALE - re-recorded]` and must be excluded entirely).
+
+Rules:
+
+- Read all frames in order.
+- Exclude any frame marked as stale.
+- When two frames contradict on the same move number, the later frame (higher frame number) is authoritative.
+- Remove duplicates -- each move number appears exactly once.
+- Consult `spec/output_format.md` for the exact output format.
+- Run the readiness gate: `python3 checks/visible_check.py`.
+
+Hidden grading enforces exact move list content and format.

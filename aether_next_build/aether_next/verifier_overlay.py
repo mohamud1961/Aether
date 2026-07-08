@@ -102,6 +102,10 @@ class VerifierOverlay:
         if "error" in state:
             return {"error": state["error"]}
         clean = posixpath.normpath(relpath.lstrip("/"))
+        if clean.startswith("app/"):
+            clean = clean[4:]
+        elif clean == "app":
+            clean = "."
         if clean.startswith("..") or clean in {".", ""}:
             return {"error": f"invalid fixture path: {relpath!r}"}
         target = posixpath.join(self._overlay_root, clean)

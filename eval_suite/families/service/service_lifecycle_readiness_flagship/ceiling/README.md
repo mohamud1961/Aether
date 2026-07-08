@@ -1,8 +1,9 @@
-# Ceiling profile
+# Ceiling
 
-Expected ceiling behavior:
-- resolves true service port and route,
-- confirms readiness via repeated probes,
-- rejects wrong-port false positives,
-- performs lifecycle cleanup,
-- emits complete readiness receipt.
+Ceiling behavior for this flagship:
+
+- Binds to 127.0.0.1:18923.
+- GET /health returns {"status": "ok", "version": "1.0"} with HTTP 200.
+- POST /echo returns {"echo": "<body>"} with HTTP 200.
+- Survives both observation windows.
+- Shuts down cleanly on SIGTERM with exit code 0.

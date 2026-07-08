@@ -19,7 +19,7 @@ from eval_suite.graders.measurement_contracts import (
 from eval_suite.graders.measurement_grading import grade_public_terminalbench_workspace
 from eval_suite.adapters.terminalbench_paths import resolve_terminalbench_task_root
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_FAMILY = "terminalbench_equivalent_adapter"
 ADAPTER_LABEL = "TerminalBench equivalent adapter"
 ADAPTER_AUTHORITY_LABEL = "equivalent"

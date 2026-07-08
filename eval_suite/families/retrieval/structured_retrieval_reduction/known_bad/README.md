@@ -1,7 +1,9 @@
-# Known bad profile
+# Known bad
 
-Known failing behavior for this row:
-- skips fetch path and works from stale local notes,
-- does not run ffmpeg or OCR extraction,
-- ignores contradictions across frames,
-- outputs a plausible but unsupported PGN and claims completion.
+Known-bad behaviors for this task:
+
+- Stopping at partial extraction (first segment only, e.g. moves 1-3).
+- Including stale frames in the output instead of excluding them.
+- Failing to apply contradiction corrections (using original instead of corrected move).
+- Wrong output format (JSON instead of plain text, missing move numbers, extra whitespace).
+- Including duplicate moves in the final output.

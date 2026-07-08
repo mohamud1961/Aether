@@ -21,11 +21,11 @@ from eval_suite.adapters.contracts import (
 from eval_suite.adapters import bfcl_assets
 from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_BFCL_SAMPLES_PATH = REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/benchmark_samples/bfcl_v3_final.json"
-_DEFAULT_BFCL_APIS_DIR = REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/bfcl_apis"
-_FALLBACK_BFCL_SAMPLES_PATH = REPO_ROOT / "work/ledger/final_harness_eval_suite/adapter_fixtures/bfcl/benchmark_samples/bfcl_v3_final.json"
-_FALLBACK_BFCL_APIS_DIR = REPO_ROOT / "work/ledger/final_harness_eval_suite/adapter_fixtures/bfcl/bfcl_apis"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_BFCL_SAMPLES_PATH = REPO_ROOT / "eval_suite/fixtures/bfcl/bfcl/benchmark_samples/bfcl_v3_final.json"
+_DEFAULT_BFCL_APIS_DIR = REPO_ROOT / "eval_suite/fixtures/bfcl/bfcl/bfcl_apis"
+_FALLBACK_BFCL_SAMPLES_PATH = REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/benchmark_samples/bfcl_v3_final.json"
+_FALLBACK_BFCL_APIS_DIR = REPO_ROOT / "research/sources/codebases/deepagents/libs/evals/tests/evals/data/bfcl_apis"
 MIRRORED_BFCL_SAMPLES_PATH = _DEFAULT_BFCL_SAMPLES_PATH if _DEFAULT_BFCL_SAMPLES_PATH.exists() else _FALLBACK_BFCL_SAMPLES_PATH
 MIRRORED_BFCL_APIS_DIR = _DEFAULT_BFCL_APIS_DIR if _DEFAULT_BFCL_APIS_DIR.exists() else _FALLBACK_BFCL_APIS_DIR
 ADAPTER_FAMILY = "bfcl_equivalent_adapter"

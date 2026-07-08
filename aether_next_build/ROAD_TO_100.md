@@ -104,6 +104,12 @@ Design decisions of record (full reasoning in the audit Addendum):
   model_hooks gate with retry-then-refuse, mirroring existing gates).
   (c) unit tests with stub hooks: record missing → retry → refuse; refs that don't resolve →
   rejected; valid record → accepted; known-good path unaffected.
+  (d) context-window de-starvation (owner direction, 2026-07-08): the volatile context view
+  is capped by a hidden harness default `model_context_window_tokens=8000` (runtime_ir.py:281,
+  compression at 0.60 → ~4.8k tokens) that the workbench architect cannot override — measured
+  solver steps ran on ~7k tokens total against 200k-class models. Expose the view budget as an
+  architect-configurable workbench ContextPolicySpec field with a modern default (50k, ceiling
+  not target); same hidden-constraint class P2i fixed for wall-clocks.
 - **P2 — known-bad verifier eval (falsifiability gate for P1)**: verifier-only replay over
   frozen sentinel snapshots (kv wrong-field proto, gcode comment-vs-toolpath, video
   self-confirming frames) + log-summary known-good. Predictions recorded in the audit

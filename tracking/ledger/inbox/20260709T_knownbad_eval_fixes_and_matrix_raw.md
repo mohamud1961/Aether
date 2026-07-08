@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Antigravity
+- task: Known-bad verifier evaluation, path fixes, and diverse board run preparation
+- event_type: implementation
+- summary: Fixed known-bad verifier evaluation script bugs (shutil path collision and JSON load double wrap). Resolved verifier relative path normalization bugs so that container `/app/...` paths resolve correctly to host workspace copies during offline trace replays. Configured and successfully ran the model-mode verifier evaluation for all 5 cases. Prepared the 15-task diverse run matrix, Haiku monitoring protocol, and stop/abort criteria in `BENCHMARK_RUN_PLAN.md`.
+- observations: Both local python test suites pass completely (345 root tests and 353 aether_next_build tests). The verifier model (gpt-5.4-mini) correctly hits 3/3 rejections on the known-bad cases under model-mode evaluation, but misses on log-summary-date-ranges and code-from-image because of model reasoning capacity bounds and lack of independent probe results in frozen states. The active Azure account session has no access to the `Proteun` resource group or subscription `327c8387-6ead-4f07-b4a4-9a0d5f1495fe` where `proteun-vm` is defined, which constitutes a genuine external blocker.
+- inference: Offline/replay verification works cleanly on host checkouts with correct relative normalization. Stronger verifier models (gpt-5.4-pro) are required for benchmark-grade runs to comply with the falsification rules.
+- evidence_paths: `aether_next_build/knownbad_eval_model_out2/`, `aether_next_build/BENCHMARK_RUN_PLAN.md`.
+- affected_components: Verifier, path normalization, real executor, verifier overlay.
+- decision_change: Documented alternative VM instance `harnesseng-regular-01` in the accessible resource group `HARNESSENG-RG` as a fallback target.
+- unresolved_questions: Confirm whether the user's active VM update will grant access to `proteun-vm` or if we should fallback to `harnesseng-regular-01`.
+- confidence: high.
+- commit_message: Fix path normalization, nested tests, and verifier evaluation script bugs; add diverse run matrix.

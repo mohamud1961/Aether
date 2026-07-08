@@ -20,6 +20,12 @@ def normalize_relpath(path: str, workspace_root: str = "") -> str:
         return "."
     if root and raw.startswith(root + "/"):
         raw = raw[len(root) + 1 :]
+    if raw.startswith("/app/"):
+        raw = raw[5:]
+    elif raw.startswith("app/"):
+        raw = raw[4:]
+    elif raw in ("/app", "app"):
+        return "."
     normalized = posixpath.normpath(raw)
     if normalized == "/":
         return "."
@@ -278,7 +284,12 @@ class ContextPolicy:
     max_failure_clusters: int = 4
     max_alerts: int = 4
     max_candidates: int = 3
-    model_context_window_tokens: int = 8000
+    # Working-context view budget. 50k is a ceiling, not a target: the volatile
+    # packet is uncached per step, so content still has to earn inclusion. The
+    # old 8000 default silently starved 200k-class models (~4.8k tokens before
+    # compression kicked in) and was not architect-overridable -- the same
+    # hidden-harness-constraint class P2i fixed for wall-clock budgets.
+    model_context_window_tokens: int = 50_000
     compression_trigger_ratio: float = 0.60
     recipe: ContextRecipe | None = None
 

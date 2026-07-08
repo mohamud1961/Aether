@@ -193,6 +193,62 @@ def _read_output_requests_from_packet(
     return tuple(requests)
 
 
+def _refs_from_inspections(requests: Any, results: Any) -> set[str]:
+    """Identifiers of inspections that actually happened in this round.
+
+    Used only for content-blind referential-integrity checks on the
+    completed verdict's completion_evidence record: an entry must cite at
+    least one of these (request_id, path, handle, target, or check_id).
+    """
+    refs: set[str] = set()
+    for request in requests or ():
+        for value in (
+            getattr(request, "request_id", ""),
+            getattr(request, "path", ""),
+            getattr(request, "handle", ""),
+            getattr(request, "target", ""),
+            getattr(request, "check_id", ""),
+        ):
+            text = str(value).strip()
+            if text:
+                refs.add(text)
+    for row in results or ():
+        if isinstance(row, Mapping):
+            for key in ("request_id", "path", "handle", "target", "check_id"):
+                text = str(row.get(key, "")).strip()
+                if text:
+                    refs.add(text)
+    return refs
+
+
+def _completion_record_problem(result: Any, performed_refs: set[str]) -> str:
+    """Structural validity of the completion_evidence record; '' when valid.
+
+    Presence, non-emptiness, and inspection_refs resolution only. The
+    reasoning content is never evaluated -- judging evidence quality stays
+    the verifier model's job; this only makes skipping the record visible.
+    """
+    entries = tuple(getattr(result, "completion_evidence", ()) or ())
+    if not entries:
+        return "completion_evidence is missing or empty"
+    problems: list[str] = []
+    for idx, entry in enumerate(entries):
+        if not entry.requirement or not entry.observed or not entry.falsification_check:
+            problems.append(
+                f"completion_evidence[{idx}] has an empty requirement/observed/falsification_check field"
+            )
+            continue
+        if not entry.inspection_refs:
+            problems.append(f"completion_evidence[{idx}].inspection_refs is empty")
+            continue
+        if not any(ref in performed_refs for ref in entry.inspection_refs):
+            problems.append(
+                f"completion_evidence[{idx}].inspection_refs {list(entry.inspection_refs)} "
+                "do not match any inspection performed this round"
+            )
+    return "; ".join(problems)
+
+
 def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[VerifierInspectionRequest, ...]:
     """Minimal generic read-only evidence when a verifier completes uninspected.
 
@@ -446,6 +502,8 @@ class ModelHooks:
         max_rounds = int(VERIFIER_RUNTIME_CONTRACT["read_only_inspector"]["max_rounds"])
         inspected = False
         missing_evidence_realized = False
+        record_retry_used = False
+        performed_refs: set[str] = set()
         last_inspection_results: list[dict[str, Any]] = []
         for round_idx in range(max_rounds + 1):
             try:
@@ -483,6 +541,7 @@ class ModelHooks:
                     raise
                 results = inspector(requests)
                 inspected = True
+                performed_refs |= _refs_from_inspections(requests, results)
                 last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
@@ -510,6 +569,7 @@ class ModelHooks:
                 if auto_requests:
                     results = inspector(auto_requests)
                     inspected = True
+                    performed_refs |= _refs_from_inspections(auto_requests, results)
                     last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
@@ -542,6 +602,7 @@ class ModelHooks:
                 if auto_requests:
                     results = inspector(auto_requests)
                     inspected = True
+                    performed_refs |= _refs_from_inspections(auto_requests, results)
                     last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
@@ -605,6 +666,36 @@ class ModelHooks:
                     ),
                 })
                 continue
+            if result.verdict == "completed" and inspected and round_idx < max_rounds and not record_retry_used:
+                record_problem = _completion_record_problem(result, performed_refs)
+                if record_problem:
+                    # Content-blind protocol enforcement, mirroring the
+                    # inspection-required gate: the record must exist and its
+                    # inspection_refs must resolve to inspections that actually
+                    # happened this round. Whether the evidence is GOOD stays
+                    # the model's judgment.
+                    record_retry_used = True
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "instruction": (
+                                    "Protocol requires a completed verdict to carry completion_evidence "
+                                    "per verifier_runtime_contract.completion_evidence_shape: map each "
+                                    "decisive requirement to what your own inspection observed, cite "
+                                    "inspection_refs (request_id, path, handle, or target) of inspections "
+                                    "performed this round, and state the falsification_check. "
+                                    f"Current problem: {record_problem}. Return your final verdict again "
+                                    "with a valid record, or a different verdict if the inspected state "
+                                    "does not actually support completion."
+                                ),
+                            },
+                            default=str,
+                            sort_keys=True,
+                        ),
+                    })
+                    continue
             if result.verdict == "uncertain_missing_evidence" and round_idx < max_rounds:
                 try:
                     missing_requests = _structured_missing_evidence_requests(raw)
@@ -614,6 +705,7 @@ class ModelHooks:
                 if missing_requests:
                     results = inspector(missing_requests)
                     inspected = True
+                    performed_refs |= _refs_from_inspections(missing_requests, results)
                     last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
@@ -661,10 +753,41 @@ class ModelHooks:
                             "repair_instruction": (
                                 "Surface concrete current-state evidence and resubmit only after the evidence gap is closed."
                             ),
-                            "applies_to": ["verifier_evidence"],
+                            "applies_to": ["completion_evidence"],
                         },
                     ],
                 })
+            if result.verdict == "completed":
+                record_problem = _completion_record_problem(result, performed_refs)
+                if record_problem:
+                    # Out of retries and the record is still structurally
+                    # invalid: refuse the completion as a protocol event.
+                    # This is not a harness judgment that the task is wrong.
+                    return json.dumps({
+                        "verdict": "uncertain_missing_evidence",
+                        "confidence": "high",
+                        "summary": (
+                            "Completion cannot be accepted: the completed verdict's "
+                            f"completion_evidence record is invalid ({record_problem})."
+                        ),
+                        "missing_evidence_requests": [
+                            "Return completed only with a completion_evidence record whose inspection_refs cite inspections performed in the verification round.",
+                        ],
+                        "findings": [
+                            {
+                                "finding_id": "vf-completion-evidence-record",
+                                "verdict": "uncertain_missing_evidence",
+                                "priority": "blocking",
+                                "summary": "Completed verdict lacked a valid requirement->observed completion_evidence record.",
+                                "evidence": [record_problem],
+                                "repair_instruction": (
+                                    "Surface inspectable current-state evidence for each completion requirement; "
+                                    "completion is accepted only with a resolvable completion_evidence record."
+                                ),
+                                "applies_to": ["completion_evidence"],
+                            },
+                        ],
+                    })
             return raw
         raise ModelOutputError("verifier exceeded bounded inspection rounds without returning a verdict")
 

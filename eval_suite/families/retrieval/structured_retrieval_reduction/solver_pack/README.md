@@ -1,15 +1,8 @@
-# fhard_05 solver pack
+# structured_retrieval_reduction solver pack
 
-This row is the required pressure-family mutated sibling preserving extract-moves-from-video pressure.
+This task checks multi-step extraction, duplicate removal, contradiction
+reconciliation, and stale-segment exclusion from ordered frame-text fixtures.
 
-Preserved pressure:
-- fetch path,
-- ffmpeg extraction,
-- OCR-style parsing,
-- contradiction reconciliation,
-- false completion risk.
-
-Contamination safeguards:
-- custom asset and mutated output contract,
-- hidden move truth withheld,
-- no direct benchmark-row text in solver prompt.
+- Workspace root: `/workspace/extract`
+- Required output: `out/moves.txt`
+- Readiness gate: `python3 checks/visible_check.py`

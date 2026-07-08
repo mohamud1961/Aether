@@ -12,7 +12,7 @@ from typing import Any
 from eval_suite.adapters.contracts import build_adapter_result_row, validate_benchmark_adapter_case
 from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 UPSTREAM_ROOT = REPO_ROOT / "research/sources/codebases/ContextBench"
 DEFAULT_GOLD_PATH = UPSTREAM_ROOT / "data/contextbench_verified.parquet"
 ADAPTER_FAMILY = "contextbench_native_adapter"

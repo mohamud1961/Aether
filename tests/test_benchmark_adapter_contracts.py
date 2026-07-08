@@ -10,6 +10,7 @@ from eval_suite.adapters.contracts import (
     validate_adapter_result_row,
     validate_benchmark_adapter_case,
 )
+from eval_suite.schemas.eval_substrate_contracts import validate_result_row
 from harness.aether2.runtime.route_schemas import SchemaValidationError
 
 
@@ -236,3 +237,32 @@ def test_aggregate_adapter_result_rows_groups_by_authority():
     assert scoreboard["by_authority_label"]["native"]["pass"] == 1
     assert scoreboard["by_authority_label"]["equivalent"]["fail"] == 1
     assert scoreboard["by_authority_label"]["shaped"]["invalid"] == 1
+
+
+def test_result_row_can_represent_agent_initialization_failure_without_task_fail():
+    row = {
+        "run_id": "run-init-failure",
+        "eval_id": "aether2_init_failure_contract",
+        "task_pack_id": "task-pack",
+        "family": "initialization",
+        "surface_type": "terminal",
+        "admission_level": "diagnostic",
+        "backend_ref": "debug_local_no_sandbox",
+        "environment_ref": "artifacts/environment_manifest.json",
+        "artifact_refs": ["artifacts/agent_initialization_failure.json"],
+        "trace_refs": ["traces/init_failure.json"],
+        "closure_status": "invalid",
+        "task_truth_status": "invalid",
+        "contamination_status": "clean",
+        "failure_class": "agent_initialization",
+        "reason_codes": ["architect_config_schema_invalid_after_retry"],
+        "verifier_ref": "artifacts/verifier_not_run.json",
+        "grader_ref": "artifacts/grader_not_run.json",
+        "score": 0.0,
+    }
+
+    validated = validate_result_row(row)
+
+    assert validated["closure_status"] == "invalid"
+    assert validated["task_truth_status"] == "invalid"
+    assert validated["failure_class"] == "agent_initialization"

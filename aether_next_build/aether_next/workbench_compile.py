@@ -114,6 +114,7 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
         context_policy=ContextPolicy(
             mode=config.context_policy.mode,
             include_sections=_context_sections(config),
+            model_context_window_tokens=config.context_policy.model_context_window_tokens,
             recipe=_context_recipe(config),
         ),
         automatic_memory_policy=AutomaticMemoryPolicy(mode=config.memory_policy.automatic_repeat_mode),

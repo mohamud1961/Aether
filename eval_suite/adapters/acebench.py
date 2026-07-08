@@ -14,7 +14,7 @@ from typing import Any
 from eval_suite.adapters.contracts import build_adapter_result_row, validate_benchmark_adapter_case
 from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_FAMILY = "acebench_adapter"
 NATIVE_ADAPTER_LABEL = "ACEBench native adapter"
 EQUIVALENT_ADAPTER_LABEL = "ACEBench equivalent adapter"

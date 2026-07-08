@@ -13,7 +13,7 @@ from typing import Any
 
 from harness.aether2.runtime.azure_openai_env import build_openai_compatible_azure_gpt54_mini_env
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 UPSTREAM_ROOT = REPO_ROOT / "research/sources/codebases/letta-evals"
 DEFAULT_SUITE_YAML = UPSTREAM_ROOT / "letta-leaderboard/filesystem-agent/filesystem_code.yaml"
 OFFICIAL_JUDGE_MODEL = "gpt-5-mini"

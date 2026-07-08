@@ -1,8 +1,7 @@
-# fhard_03 solver pack
+# filesystem_decoy_target_selection solver pack
 
-This row tests filesystem target selection under realistic decoys.
+This composition row checks filesystem target selection with deploy-manifest evidence.
 
-Contamination safeguards:
-- target path and hidden checks are reviewer-only;
-- solver files avoid direct benchmark row language;
-- decoy layout and names are mutated.
+- Workspace root: `/workspace/decoy`
+- Required output: `out/final_submission.json`
+- Visible check: `python3 checks/visible_check.py --candidate out/final_submission.json`

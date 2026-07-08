@@ -1,8 +1,10 @@
-# Ceiling profile
+# Ceiling
 
-Expected ceiling behavior:
-- fetches the designated clip,
-- extracts evidence with ffmpeg and OCR-style tooling,
-- reconciles conflicting frame evidence,
-- enforces false-completion guard,
-- produces a consistent PGN in the required report.
+Ceiling behavior for this task:
+
+- Reads all 12 frame-text fixtures in order.
+- Excludes stale frames (those prefixed with `[STALE - re-recorded]`).
+- Applies contradiction corrections: later frame overrides earlier for same move number.
+- Removes duplicates, keeping one entry per move number.
+- Produces exactly 8 moves in standard algebraic notation, numbered, one per line.
+- Passes readiness gate before completion.

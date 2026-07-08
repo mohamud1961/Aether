@@ -65,6 +65,7 @@ VERIFIER_RUNTIME_CONTRACT = {
     ],
     "required_fields": {
         "always": ["verdict", "confidence", "summary"],
+        "completed": ["completion_evidence"],
         "needs_repair": ["findings"],
         "uncertain_missing_evidence": ["missing_evidence_requests"],
     },
@@ -74,6 +75,12 @@ VERIFIER_RUNTIME_CONTRACT = {
         "evidence": ["quote packet or read-only inspection evidence only"],
         "repair_instruction": "specific next action",
         "applies_to": ["artifact/path/or component"],
+    },
+    "completion_evidence_shape": {
+        "requirement": "the specific task/config requirement this entry discharges, quoted or tightly paraphrased from the verifier packet",
+        "observed": "what YOUR OWN read-only inspection actually showed, quoted",
+        "inspection_refs": ["request_id, path, handle, or target of an inspection you performed THIS round"],
+        "falsification_check": "the observation that would have contradicted this claim, and why it did not",
     },
     "rules": [
         "Judge only the evidence present in verifier_packet and verifier_inspection_results.",
@@ -85,6 +92,9 @@ VERIFIER_RUNTIME_CONTRACT = {
         "Treat solver-authored validation commands and recomputation receipts as claims to audit, not as proof; inspect whether their method matches the task semantics before returning completed.",
         "Numeric agreement between two runs of the same method proves nothing: before returning completed on data-derived outputs, independently spot-check a small raw sample against the produced artifact via read-only inspection or overlay execution.",
         "Shape-only checks (existence, size, syntax, content literals) are never sufficient evidence of semantic correctness.",
+        "A completed verdict must include completion_evidence (see completion_evidence_shape): one entry per decisive completion claim, mapping the requirement to what your own inspection observed. Every entry's inspection_refs must cite inspections you actually performed in this verification round; an unreferenced or empty record is a protocol violation and the completion will be refused.",
+        "When a claimed value is machine-re-derivable (counts, frame indices, field names, hashes, parsed values), decisive evidence must come from your own independent derivation -- overlay execution, probes, or your own perception of task inputs -- never from inspection of solver-produced artifacts alone.",
+        "If the decisive region of an artifact cannot be read directly within inspection spans, derive the needed fact yourself with overlay_run_command instead of judging from excerpts, comments, or metadata.",
     ],
     "read_only_inspector": {
         "enabled": True,

@@ -1,18 +1,18 @@
-# Task: Patch the correct file in a decoy-heavy repo
+# Task: Patch the correct service timeout
 
-You must fix one logic bug in the active reconcile pipeline.
+You are in `/workspace/decoy`.
 
-The workspace includes stale docs and generated snapshots that look patchable.
-Patch only the true target and provide `candidate/patch_manifest.json`.
+Goal:
 
-Target clarification:
-- authoritative code path is under `apps/ledger/src/`;
-- do not patch `reconcile_old.py` or generated snapshot files.
+- Identify the active service config and set its `timeout` to `300`.
+- Produce `out/final_submission.json`.
 
-Required manifest fields:
-- `target_file`
-- `changed_files`
-- `verification_command`
-- `verification_passed`
+Rules:
 
-Do not submit if verification is not run against the active target path.
+- Multiple service configs exist under `services/`. Only one is the active production service.
+- Consult `deploy_manifest.json` to determine which service is active.
+- Patch only the active service config. Do not modify any other config files.
+- Run visible check before final output: `python3 checks/visible_check.py --candidate out/final_submission.json`.
+- Final submission must include `patched_target` (relative path), `verifier_command`, and `decoy_untouched` (boolean).
+
+Hidden grading rejects decoy edits and missing verifier-before-closure behavior.

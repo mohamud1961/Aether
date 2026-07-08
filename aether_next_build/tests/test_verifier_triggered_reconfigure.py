@@ -99,7 +99,13 @@ class BlockedThenCompletedHooks:
             return json.dumps(self._verdicts.pop(0))
         return json.dumps({
             "verdict": "completed", "confidence": "high",
-            "summary": "state confirmed", "completion_evidence": ["out.txt state"],
+            "summary": "state confirmed",
+            "completion_evidence": [{
+                "requirement": "out.txt exists with the produced data",
+                "observed": "workspace state shows out.txt with the deliverable content",
+                "inspection_refs": ["out.txt"],
+                "falsification_check": "missing or divergent out.txt content would contradict completion",
+            }],
         })
 
 

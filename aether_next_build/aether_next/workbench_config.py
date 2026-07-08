@@ -95,6 +95,9 @@ class ContextPolicySpec:
     mode: str = "default_bounded"
     always_include: tuple[str, ...] = ()
     include_on_failure: tuple[str, ...] = ()
+    # Architect-settable working-context view budget (tokens). Ceiling, not
+    # target; see runtime_ir.ContextPolicy.model_context_window_tokens.
+    model_context_window_tokens: int = 50_000
     recipe: ContextRecipe | None = None
 
 
@@ -357,6 +360,17 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
     mode = str(ctx_raw.get("mode", "default_bounded"))
     if mode not in SUPPORTED_CONTEXT_POLICIES:
         raise ModelOutputError(f"unsupported context policy: {mode}")
+    window_raw = ctx_raw.get("model_context_window_tokens", 50_000)
+    try:
+        context_window_tokens = int(window_raw)
+    except (TypeError, ValueError):
+        raise ModelOutputError(
+            "context_policy.model_context_window_tokens must be an integer"
+        ) from None
+    if not 1_000 <= context_window_tokens <= 400_000:
+        raise ModelOutputError(
+            "context_policy.model_context_window_tokens must be between 1000 and 400000"
+        )
     mem_raw = data.get("memory_policy", {}) if isinstance(data.get("memory_policy", {}), dict) else {}
     automatic_repeat_mode = str(mem_raw.get("automatic_repeat_mode", "advisory")).strip() or "advisory"
     if automatic_repeat_mode not in AUTOMATIC_MEMORY_POLICY_MODES:
@@ -405,6 +419,7 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
             mode=mode,
             always_include=_tuple_str(ctx_raw.get("always_include", ())),
             include_on_failure=_tuple_str(ctx_raw.get("include_on_failure", ())),
+            model_context_window_tokens=context_window_tokens,
             recipe=_parse_context_recipe(ctx_raw.get("recipe")),
         ),
         memory_policy=MemoryPolicySpec(

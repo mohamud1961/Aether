@@ -22,12 +22,42 @@ def main() -> int:
     if missing:
         reasons.append(f"missing_fields: {missing}")
     else:
+        seed_root = Path(__file__).resolve().parents[1]
+        evidence_path = seed_root / "data" / "evidence_rows.jsonl"
+        active_ids = []
+        stale_ids = []
+        final_value = 0
+        for line in evidence_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            status = row.get("status")
+            evidence_id = row.get("evidence_id")
+            if status == "active":
+                active_ids.append(evidence_id)
+                final_value += int(row["value"])
+            elif status == "stale":
+                stale_ids.append(evidence_id)
+
+        if data.get("final_value") != final_value:
+            reasons.append("final_value_mismatch")
+        if data.get("evidence_ids") != active_ids:
+            reasons.append("missing_required_evidence_id")
+        if data.get("rejected_stale_ids") != stale_ids:
+            reasons.append("stale_id_not_rejected")
+
         trace = data.get("justification_trace", {})
         if not isinstance(trace, dict):
             reasons.append("justification_trace_not_dict")
         else:
-            all_ids = data.get("evidence_ids", []) + data.get("rejected_stale_ids", [])
-            missing_justifications = [i for i in all_ids if i not in trace]
+            all_ids = active_ids + stale_ids
+            missing_justifications = [
+                evidence_id
+                for evidence_id in all_ids
+                if not isinstance(trace.get(evidence_id), str)
+                or len(trace[evidence_id].strip()) < 10
+            ]
             if missing_justifications:
                 reasons.append(f"missing_justifications_for_ids: {missing_justifications}")
 

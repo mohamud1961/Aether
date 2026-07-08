@@ -91,12 +91,20 @@ def _valid_submit_json() -> str:
     })
 
 
-def _valid_verifier_json() -> str:
-    return json.dumps({
+def _valid_verifier_json(refs: tuple[str, ...] | None = None) -> str:
+    payload: dict[str, Any] = {
         "verdict": "completed",
         "confidence": "high",
         "summary": "Packet evidence supports internal completion.",
-    })
+    }
+    if refs:
+        payload["completion_evidence"] = [{
+            "requirement": "the required deliverable matches the visible task",
+            "observed": "inspected deliverable content matches the requirement",
+            "inspection_refs": list(refs),
+            "falsification_check": "differing inspected content would have contradicted completion",
+        }]
+    return json.dumps(payload)
 
 
 def _valid_act_json(**overrides: Any) -> str:
@@ -213,6 +221,19 @@ class TestArchitectGarbage:
         with pytest.raises(ModelOutputError, match="architect output could not be parsed"):
             hooks.architect(request)
         assert hooks.last_parse_errors, "expected parse errors to be recorded"
+    def test_garbage_does_not_return_runtime_config_ir(self) -> None:
+        envmap = _make_envmap()
+        registry = CapabilityRegistry.from_envmap(envmap)
+        compiler = ConfigCompiler(registry)
+
+        hooks = ModelHooks(
+            architect_model=_stub_model("{not valid json"),
+            solver_model=_stub_model(_valid_submit_json()),
+        )
+        request = AetherNextKernel().build_architect_request(envmap, compiler)
+        with pytest.raises(ModelOutputError):
+            hooks.architect(request)
+        assert hooks.last_parse_errors
 
 
 def test_completed_inspection_requires_result_bearing_evidence_for_semantic_tasks() -> None:
@@ -230,20 +251,6 @@ def test_completed_inspection_requires_result_bearing_evidence_for_semantic_task
 
     assert _completed_inspection_is_semantically_grounded(packet, shape_only) is False
     assert _completed_inspection_is_semantically_grounded(packet, grounded) is True
-
-    def test_garbage_does_not_return_runtime_config_ir(self) -> None:
-        envmap = _make_envmap()
-        registry = CapabilityRegistry.from_envmap(envmap)
-        compiler = ConfigCompiler(registry)
-
-        hooks = ModelHooks(
-            architect_model=_stub_model("{not valid json"),
-            solver_model=_stub_model(_valid_submit_json()),
-        )
-        request = AetherNextKernel().build_architect_request(envmap, compiler)
-        with pytest.raises(ModelOutputError):
-            hooks.architect(request)
-        assert hooks.last_parse_errors
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +420,7 @@ class TestVerifierHook:
                         {"request_id": "read-out", "kind": "read_file", "path": "out.txt", "limit": 1}
                     ],
                 })
-            return _valid_verifier_json()
+            return _valid_verifier_json(refs=("out.txt",))
 
         hooks = ModelHooks(
             architect_model=_stub_model(_valid_architect_json()),
@@ -719,7 +726,7 @@ class TestEndToEnd:
                     "kind": "inspect",
                     "requests": [{"request_id": "r1", "kind": "read_file", "path": "hello.txt"}],
                 })
-            return _valid_verifier_json()
+            return _valid_verifier_json(refs=("hello.txt",))
 
         hooks = ModelHooks(
             architect_model=_stub_model(arch_response),
@@ -777,11 +784,15 @@ class TestEndToEnd:
                 })
             return _valid_submit_json()
 
-        # This verifier never inspects -- it always says completed immediately,
-        # exactly the failure mode observed on the real VM batch.
+        # This verifier never REQUESTS inspection -- its first verdict is an
+        # uninspected completed, exactly the failure mode observed on the real
+        # VM batch. The runtime then auto-inspects; the second verdict must
+        # cite that auto-inspection per the completion-evidence protocol.
         def never_inspects_verifier(messages: list[dict[str, str]], *, max_output_tokens: int = 8000) -> str:
             verifier_calls["n"] += 1
-            return _valid_verifier_json()
+            if verifier_calls["n"] == 1:
+                return _valid_verifier_json()
+            return _valid_verifier_json(refs=("results.json",))
 
         hooks = ModelHooks(
             architect_model=_stub_model(_valid_architect_json()),

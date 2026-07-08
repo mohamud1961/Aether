@@ -15,11 +15,17 @@ from eval_suite.adapters.contracts import (
 from eval_suite.schemas.eval_substrate_contracts import validate_result_row, validate_task_pack
 from eval_suite.graders.measurement_grading import grade_contextbench_verified_answer
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTEXTBENCH_ROOT = REPO_ROOT / "research/sources/codebases/ContextBench"
 _DEFAULT_VERIFIED_CSV_PATH = CONTEXTBENCH_ROOT / "data/Verified.csv"
+_FIXTURE_VERIFIED_CSV_PATH = REPO_ROOT / "eval_suite/fixtures/contextbench/contextbench/Verified.csv"
 _FALLBACK_VERIFIED_CSV_PATH = REPO_ROOT / "work/ledger/final_harness_eval_suite/adapter_fixtures/contextbench/Verified.csv"
-VERIFIED_CSV_PATH = _DEFAULT_VERIFIED_CSV_PATH if _DEFAULT_VERIFIED_CSV_PATH.exists() else _FALLBACK_VERIFIED_CSV_PATH
+if _DEFAULT_VERIFIED_CSV_PATH.exists():
+    VERIFIED_CSV_PATH = _DEFAULT_VERIFIED_CSV_PATH
+elif _FIXTURE_VERIFIED_CSV_PATH.exists():
+    VERIFIED_CSV_PATH = _FIXTURE_VERIFIED_CSV_PATH
+else:
+    VERIFIED_CSV_PATH = _FALLBACK_VERIFIED_CSV_PATH
 ADAPTER_FAMILY = "contextbench_equivalent_adapter"
 ADAPTER_AUTHORITY_LABEL = "equivalent"
 ADAPTER_AUTHORITY_DETAIL = (

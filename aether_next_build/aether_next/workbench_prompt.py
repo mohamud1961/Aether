@@ -546,6 +546,10 @@ List the minimum direct evidence required before acceptance.
 
 For non-trivial tasks, this should usually include more than file existence or schema validity.
 
+Minimum evidence must be spec-anchored and method-independent. Each item names what the visible task requires and evidence that could contradict a wrong result. Never anchor a required-evidence item to solver-produced artifacts, solver-authored tests, solver-generated code, or "around the solver's reported values" -- evidence produced by the thing being checked cannot falsify it.
+
+When a deliverable's correctness is machine-re-derivable (counts, frame indices, field names, hashes, parsed or decoded values), require the reviewer to derive the value independently with its own read-only tools (overlay execution, probes, its own perception of task inputs) and compare it to the deliverable, rather than confirm the solver's artifact against itself.
+
 ## tool_policy
 
 Do not put explanatory prose inside enabled_tools or disabled_tools.
@@ -567,6 +571,8 @@ If supported modes are not listed, use "default_bounded".
 Do not invent context modes.
 
 Use always_include, include_on_failure, and recipe only if supported by the provided schema. If unsure, use empty arrays or an empty recipe object with supported fields.
+
+context_policy may set model_context_window_tokens (integer, default 50000): the working-context view budget per step. It is a ceiling, not a target -- volatile context is uncached and costs tokens every step, so raise it only when the task genuinely produces large evidence (long logs, many files, heavy transcripts) and lower it for small tasks. Do not starve the solver of its own recent evidence to look frugal.
 
 ## verification_policy.visible_smoke_tests
 

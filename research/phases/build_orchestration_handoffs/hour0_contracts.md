@@ -38,7 +38,7 @@ Semantic notes:
 
 ## 2. Exact Tool Surface
 
-There are exactly 10 model-visible tools, with exactly these names:
+There are exactly 12 model-visible tools, with exactly these names:
 
 1. `run_command`
 2. `start_job`
@@ -50,12 +50,14 @@ There are exactly 10 model-visible tools, with exactly these names:
 8. `write_file`
 9. `wait`
 10. `task_done`
+11. `task_blocked`
+12. `query_evidence`
 
 Worker-facing schema rules:
 - Use native provider function-calling schemas, not strict JSON-in-text prompts.
-- Do not add retrieval tools, planner tools, or receipt/meta tools.
+- Do not add planner tools or receipt/meta tools beyond the current run-evidence query surface.
 - Do not expose `search_receipts`, `view_receipt`, `view_file_cache`, `search_files`, or `probe_service`.
-- `tools.py` must contain exactly these 10 schemas and no extra callable tools.
+- `tools.py` must contain exactly these 12 schemas and no extra callable tools.
 
 Signature freeze:
 
@@ -70,6 +72,8 @@ read_file(path: str, offset: int | None = None, limit: int | None = None)
 write_file(path: str, content: str)
 wait(seconds: int, reason: str)
 task_done(summary: str, checks: list[str])
+task_blocked(blocker: str, evidence: list[str], attempts: list[str], missing_external_state: list[str], recommended_next_evidence: list[str], limitations: list[str] | None = None)
+query_evidence(query: str, tool: str | None = None, limit: int = 10)
 ```
 
 ## 3. Loop ↔ Harbor Bridge Interface

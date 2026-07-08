@@ -64,6 +64,7 @@ FAILURE_CLASSES = (
     "sandbox",
     "verification_grading",
     "schema_parsing",
+    "agent_initialization",
     "evidence_acquisition",
     "reduction_selection",
     "model_capability",

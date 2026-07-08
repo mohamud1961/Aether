@@ -30,11 +30,12 @@ _MAX_SCAN_ENTRIES = 5_000
 
 def _resolve_safe(workspace_root: str, path: str) -> str:
     """Resolve *path* relative to *workspace_root*, clamping escapes."""
+    norm = normalize_relpath(path, workspace_root)
     root = Path(workspace_root).resolve()
-    candidate = (root / path).resolve()
+    candidate = (root / norm).resolve()
     if not str(candidate).startswith(str(root)):
         # Clamp to workspace root -- never operate outside.
-        candidate = root / Path(path).name
+        candidate = root / Path(norm).name
         candidate = candidate.resolve()
         if not str(candidate).startswith(str(root)):
             return str(root)
