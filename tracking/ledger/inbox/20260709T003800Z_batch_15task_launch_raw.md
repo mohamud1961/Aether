@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Antigravity
+- task: VM resizing, dependency installation, and 15-task parallel benchmark run launch
+- event_type: experiment
+- summary: Authenticated local Azure CLI session, upgraded `proteun-vm` from `Standard_D4ds_v4` to `Standard_D16ds_v4` (16 vCPUs, 64 GB RAM), started the VM, verified SSH connectivity, synchronized checkout modifications via targeted rsync, installed required harness dependencies on the VM global Python environment, launched the 15 diverse benchmark tasks in parallel, and attached a local watchdog script to monitor execution and deallocate the VM on completion.
+- observations: The VM was successfully resized and launched. All 15 `run_pilot.py` processes are actively running on the VM with PIDs recorded. The local watchdog is active and writing to `/Users/mohamud/Downloads/harnesseng/tracking/ledger/inbox/vm_D16_run_watchdog_20260709T000000_batch_15task_D16.log`.
+- inference: Upgrading the VM to 16 vCPU enables safe, concurrent execution of all 15 tasks, reducing wall time to roughly 1.5–4 hours.
+- evidence_paths: `scripts/run_benchmark_batch_20260709.sh`, `tracking/watch_aether_vm_batch_20260709.sh`, and local watchdog log.
+- affected_components: VM execution environment, benchmark runner, watchdog monitor.
+- decision_change: None.
+- unresolved_questions: None.
+- confidence: high.
+- commit_message: NONE - no tracked file changes (only run scripts and logs)
