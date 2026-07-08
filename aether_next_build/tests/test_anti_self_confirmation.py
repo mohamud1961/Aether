@@ -5,7 +5,7 @@
    interpretation that produced them.
 2. Shape-only visible smoke checks compile as runnable but never as
    authoritative semantic proof.
-3. A solver that keeps submitting past legible verifier findings on a clean
+3. A solver that keeps submitting past legible completion findings on a clean
    workbench is classified model_limit, not verification_failure — the
    verifier did its job.
 """

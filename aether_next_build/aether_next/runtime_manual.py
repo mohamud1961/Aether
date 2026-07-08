@@ -79,6 +79,22 @@ def build_runtime_manual() -> dict[str, Any]:
             "rule": "Prefer probed commands/interpreters/modules over assumptions. If python is absent and python3 is present, use python3 in checks and solver guidance.",
             "dependency_rule": "Do not design deliverable scripts around unavailable imports unless the solver must install and verify them.",
         },
+        "schema_humility": {
+            "placeholder_notation_rule": (
+                "Do not turn placeholder notation such as [integer], <value>, {field}, or ... "
+                "into a hard type/shape contract unless the task explicitly states that the "
+                "literal brackets, list/array, object, or placeholder delimiters are required."
+            ),
+            "ambiguous_output_examples": (
+                "When an output example is ambiguous, instruct the solver/verifier to confirm "
+                "parsed types from task prose and executable/parser evidence instead of asserting "
+                "the placeholder shape."
+            ),
+            "visible_smoke_limit": (
+                "Visible smoke content_assertion checks may confirm stable literal keys/tokens, "
+                "but must not harden ambiguous placeholder delimiters into required output syntax."
+            ),
+        },
         "hard_configurable": [
             "tool_policy",
             "context_policy",
@@ -138,7 +154,7 @@ def build_runtime_manual() -> dict[str, Any]:
             "query_use_cases": [
                 "check whether a file was already read",
                 "retrieve prior file hash/excerpt/summary",
-                "retrieve failed checks and verifier findings",
+                "retrieve failed checks and completion findings",
                 "query artifact history and diffs",
                 "record explicit learned observations",
                 "compare what changed since a finding",
@@ -167,12 +183,12 @@ def build_runtime_manual() -> dict[str, Any]:
             "supported_policies": list(SUPPORTED_CONTEXT_POLICIES),
             "policy_goal": "Choose the smallest context that keeps task contract, latest evidence, active findings, pending checks, and useful memory query affordances visible.",
             "recipe_selectors": [
-                "active_verifier_findings", "pending_checks", "latest_failure", "failed_checks",
+                "active_completion_findings", "pending_checks", "latest_failure", "failed_checks",
                 "artifact_history", "memory_events", "observations", "file_reads", "file_writes",
                 "command_results", "check_results", "verifier_results", "repeated_actions",
                 "files_already_read", "stuck"
             ],
-            "recipe_safety_rule": "active_verifier_findings and pending_checks are safety sections and cannot be silently dropped when present.",
+            "recipe_safety_rule": "active_completion_findings and pending_checks are safety sections and cannot be silently dropped when present.",
             "compression": {
                 "implemented": True,
                 "planned_threshold": "60_percent_of_model_context_window",
@@ -272,7 +288,7 @@ def build_runtime_manual() -> dict[str, Any]:
                 "what artifact/content checks to perform before submit",
                 "which local or harness checks to run",
                 "how to respond when automatic memory indicates a repeated read/check/command/write",
-                "how to respond when local checks fail or verifier findings arrive",
+                "how to respond when local checks fail or completion findings arrive",
                 "when not to repeat reads/checks/commands/writes",
                 "when to call inspect_checks or run_check",
                 "what local verification cannot prove",

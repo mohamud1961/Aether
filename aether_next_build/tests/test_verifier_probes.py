@@ -11,7 +11,7 @@ from pathlib import Path
 
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler
 from aether_next.execution import CommandResult
-from aether_next.ledger import ExecutionLedger
+from aether_next.ledger import ExecutionLedger, Receipt
 from aether_next.real_executor import SubprocessExecutor
 from aether_next.runtime_ir import CapabilityDescriptor, EnvMap, RuntimeConfigIR
 from aether_next.verifier_inspector import (
@@ -273,6 +273,98 @@ def test_read_file_inspection_supports_offset_paging() -> None:
         assert results[0]["bytes"] == len(content)
         assert results[0]["offset"] == 5000
         assert results[0]["excerpt"].startswith("WINDOW_MARKER")
+
+
+def test_verifier_can_read_command_output_handles() -> None:
+    with tempfile.TemporaryDirectory() as root:
+        env = EnvMap(
+            task_prompt="t",
+            workspace_root=root,
+            capabilities={
+                "shell": CapabilityDescriptor("shell", "Run commands"),
+                "filesystem": CapabilityDescriptor("filesystem", "Files"),
+            },
+        )
+        ir = RuntimeConfigIR(
+            architect_summary="s",
+            solver_identity_prompt="solver",
+            verifier_identity_prompt="verifier",
+            selected_capabilities=("shell", "filesystem"),
+        )
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(ir, env)
+        ledger = ExecutionLedger()
+        ledger.record(Receipt(
+            receipt_id="step-5:a-1:cmd",
+            step=5,
+            kind="run_command",
+            success=True,
+            summary="command exit=0",
+            payload={
+                "stdout_handle": "5:a-1:stdout",
+                "stdout_full": "OUTPUT_TOML\njump_takeoff_frame_number = 107\nSPOT_AUDIT frame 104 score=10.9\n",
+                "stderr_handle": "5:a-1:stderr",
+                "stderr_full": "",
+            },
+        ))
+
+        results = execute_verifier_inspection_requests(
+            (VerifierInspectionRequest(request_id="r", kind="read_output", handle="5:a-1:stdout", span=200),),
+            compiled=compiled,
+            ledger=ledger,
+            executor=SubprocessExecutor(root),
+            envmap=env,
+        )
+
+        assert results[0]["source_receipt_id"] == "step-5:a-1:cmd"
+        assert results[0]["stream"] == "stdout"
+        assert "SPOT_AUDIT frame 104" in results[0]["excerpt"]
+        assert results[0]["read_only"] is True
+
+
+def test_verifier_read_output_uses_spooled_full_stream() -> None:
+    with tempfile.TemporaryDirectory() as root:
+        spool = Path(root, "stdout.spool")
+        spool.write_text("A" * 5000 + "FRAME_TRANSCRIPT_MARKER" + "B" * 5000)
+        env = EnvMap(
+            task_prompt="t",
+            workspace_root=root,
+            capabilities={
+                "shell": CapabilityDescriptor("shell", "Run commands"),
+                "filesystem": CapabilityDescriptor("filesystem", "Files"),
+            },
+        )
+        ir = RuntimeConfigIR(
+            architect_summary="s",
+            solver_identity_prompt="solver",
+            verifier_identity_prompt="verifier",
+            selected_capabilities=("shell", "filesystem"),
+        )
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(ir, env)
+        ledger = ExecutionLedger()
+        ledger.record(Receipt(
+            receipt_id="step-5:a-1:cmd",
+            step=5,
+            kind="run_command",
+            success=True,
+            summary="command exit=0",
+            payload={
+                "stdout_handle": "5:a-1:stdout",
+                "stdout_full": "TRUNCATED",
+                "stdout_overflow_path": str(spool),
+            },
+        ))
+
+        results = execute_verifier_inspection_requests(
+            (VerifierInspectionRequest(request_id="r", kind="read_output", handle="5:a-1:stdout", offset=5000, span=80),),
+            compiled=compiled,
+            ledger=ledger,
+            executor=SubprocessExecutor(root),
+            envmap=env,
+        )
+
+        assert results[0]["bytes"] == spool.stat().st_size
+        assert results[0]["offset"] == 5000
+        assert results[0]["excerpt"].startswith("FRAME_TRANSCRIPT_MARKER")
 
 
 def test_inspect_artifact_probe_reports_file_mode_and_owner() -> None:

@@ -13,6 +13,15 @@ VERIFIER_VERDICTS = frozenset({
     "uncertain_missing_evidence",
     "blocked_by_tooling",
     "blocked_by_harness_config",
+    "incomplete_state_wrong",
+    "incomplete_missing_required_artifact",
+    "incomplete_semantic_mismatch",
+    "insufficient_inspectable_evidence",
+    "reviewer_tool_execution_failed",
+    "reviewer_capability_missing",
+    "probe_inconclusive",
+    "environment_blocked",
+    "timeout_or_budget_blocked",
 })
 
 
@@ -181,6 +190,56 @@ def parse_model_verifier_result(value: Any) -> ModelVerifierResult:
     )
 
 
+
+_TOOL_FAILURE_WORDS = ("not found", "no such", "failed", "unavailable", "missing", "timed out", "timeout", "permission")
+_INCONCLUSIVE_WORDS = ("inconclusive", "ambiguous", "cannot determine", "unable to determine")
+_MISSING_ARTIFACT_WORDS = ("missing file", "file not found", "required artifact", "does not exist")
+_SEMANTIC_WORDS = ("wrong", "mismatch", "incorrect", "not within", "invalid value", "semantic")
+
+
+def classify_verifier_outcome(
+    result: ModelVerifierResult,
+    *,
+    inspection_summary: dict[str, Any] | None = None,
+) -> str:
+    """Return a precise audit classification for a verifier result.
+
+    This does not change the model's raw verdict. It gives result rows and
+    traces a sharper root-cause label than legacy ``blocked_by_tooling``.
+    """
+    if result.verdict == "completed":
+        return "completed"
+    text = " ".join(
+        [result.verdict, result.summary]
+        + [finding.summary for finding in result.findings]
+        + [" ".join(finding.evidence) for finding in result.findings]
+        + list(result.missing_evidence_requests)
+    ).lower()
+    inspection_summary = inspection_summary or {}
+    error_count = int(inspection_summary.get("inspection_error_count", 0) or 0)
+    tools_used = inspection_summary.get("inspection_tools_used", ()) or ()
+    if result.verdict in {"reviewer_tool_execution_failed", "reviewer_capability_missing", "probe_inconclusive", "environment_blocked", "timeout_or_budget_blocked"}:
+        return result.verdict
+    if result.verdict == "blocked_by_harness_config":
+        return "reviewer_capability_missing"
+    if result.verdict == "blocked_by_tooling":
+        if error_count:
+            return "reviewer_tool_execution_failed"
+        if any(word in text for word in _INCONCLUSIVE_WORDS):
+            return "probe_inconclusive"
+        if not tools_used:
+            return "reviewer_capability_missing"
+        return "probe_inconclusive"
+    if any(word in text for word in _MISSING_ARTIFACT_WORDS):
+        return "incomplete_missing_required_artifact"
+    if any(word in text for word in _SEMANTIC_WORDS):
+        return "incomplete_semantic_mismatch"
+    if result.verdict == "uncertain_missing_evidence":
+        return "insufficient_inspectable_evidence"
+    if any(word in text for word in _TOOL_FAILURE_WORDS) and error_count:
+        return "reviewer_tool_execution_failed"
+    return "incomplete_state_wrong" if result.verdict == "needs_repair" else result.verdict
+
 def _load_result_mapping(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -246,7 +305,7 @@ def _parse_findings(data: dict[str, Any], *, default_verdict: str) -> tuple[Veri
             created_step=_nonnegative_int(item.get("created_step", 0)),
             verdict=str(item.get("verdict") or default_verdict).strip(),
             priority=str(item.get("priority", "blocking")).strip() or "blocking",
-            summary=summary or repair or "verifier finding",
+            summary=summary or repair or "completion finding",
             evidence=evidence,
             repair_instruction=repair,
             applies_to=_string_tuple(item.get("applies_to") or item.get("targets") or item.get("paths") or ()),
@@ -267,13 +326,13 @@ def _findings_from_missing_evidence_requests(
             created_step=0,
             verdict="uncertain_missing_evidence",
             priority="blocking",
-            summary=f"Missing verifier evidence: {clean}",
+            summary=f"Missing inspectable completion evidence: {clean}",
             evidence=(clean,),
             repair_instruction=(
                 "Produce fresh current-state evidence that directly satisfies "
-                "this verifier request before submitting again."
+                "this completion-evidence request before submitting again."
             ),
-            applies_to=("verifier_evidence", f"missing_request:{digest}"),
+            applies_to=("completion_evidence", f"missing_request:{digest}"),
         ))
     return tuple(findings)
 

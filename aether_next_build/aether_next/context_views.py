@@ -61,8 +61,9 @@ _STANDARD_SECTION_KEYS = (
 _SUPPORTED_EXACT_RECIPE_SELECTORS = frozenset({
     *_STANDARD_SECTION_KEYS,
     "pending_checks",
-    "active_verifier_findings",
+    "active_completion_findings",
     "repeated_actions",
+    "repeat_efficiency_guidance",
     "files_already_read",
     "latest_file_reads",
     "memory_loop_feedback",
@@ -294,7 +295,7 @@ def maybe_compress(packet: dict[str, Any], policy: Any) -> dict[str, Any]:
     if estimated_tokens <= budget:
         return packet
     compressed = dict(packet)
-    preserved_exact = {"active_verifier_findings", "pending_checks", "no_progress_controls", "action_constraints", "stuck", "command_results", "latest_file_reads", "solver_parse_errors", "blocked_denied_receipts", "output_handles"}
+    preserved_exact = {"active_completion_findings", "pending_checks", "repeat_efficiency_guidance", "no_progress_controls", "action_constraints", "stuck", "command_results", "latest_file_reads", "solver_parse_errors", "blocked_denied_receipts", "output_handles"}
     recipe = getattr(policy, "recipe", None)
     if recipe is not None:
         preserved_exact.update(str(item) for item in recipe.preserve_exact)

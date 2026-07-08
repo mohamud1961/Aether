@@ -225,3 +225,29 @@ def test_prose_missing_evidence_requests_are_realized_as_inspections() -> None:
     assert by_path.get(".aether_tools/answer_notes.txt") == "read_file"
     assert by_path.get("code.png") == "perceive_artifact"
     assert len(requests) == 3  # the pathless request produces nothing
+
+
+def test_prose_missing_evidence_transcript_request_realizes_read_output() -> None:
+    from aether_next.model_hooks import _inspections_from_missing_evidence
+    from aether_next.verifier import ModelVerifierResult
+
+    result = ModelVerifierResult(
+        verdict="uncertain_missing_evidence",
+        summary="need transcript",
+        missing_evidence_requests=(
+            "Please surface the actual stdout/stderr or receipt text from the run.",
+            "Please surface a compact transcript for frames around the claimed window.",
+        ),
+    )
+    packet = {
+        "state_inspection_handles": [
+            {"kind": "output", "handle": "4:a-0:stdout", "stream": "stdout", "bytes": 128},
+            {"kind": "output", "handle": "5:a-1:stdout", "stream": "stdout", "bytes": 860},
+            {"kind": "output", "handle": "5:a-1:stderr", "stream": "stderr", "bytes": 0},
+        ],
+    }
+
+    requests = _inspections_from_missing_evidence(result, packet=packet)
+
+    read_output = [r for r in requests if r.kind == "read_output"]
+    assert [r.handle for r in read_output] == ["5:a-1:stdout", "5:a-1:stderr"]

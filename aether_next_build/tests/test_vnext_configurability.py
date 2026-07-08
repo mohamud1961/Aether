@@ -366,7 +366,7 @@ def test_architect_request_contains_full_workbench_manual_contract(tmp_path: Pat
     assert "hard_config" in manual["config_authority"]
     assert manual["role_contract"]["architect_does"][0] == "designs the task-specific solver system prompt"
     assert manual["memory"]["query_tool"] == "query_memory"
-    assert "retrieve failed checks and verifier findings" in manual["memory"]["query_use_cases"]
+    assert "retrieve failed checks and completion findings" in manual["memory"]["query_use_cases"]
     assert "inspect_checks" in manual["tools"]["solver_callable_verification_tools"]
     assert "run_check" in manual["tools"]["solver_callable_verification_tools"]
     assert manual["verification"]["model_verifier_planned_as_internal_gate"] is True
@@ -494,11 +494,10 @@ def test_workbench_kernel_boot_path_uses_stable_core_tools_and_receipt() -> None
     assert "Workbench configured file solver" in sections["[solver_identity]"]
     assert "[tool_semantics]" in sections
     assert "[automatic_memory_manual]" in sections
-    assert "[verification_submit_manual]" in sections
+    assert "[completion_submit_manual]" in sections
     assert "[envmap_file_tree]" in sections
     assert "[envmap_file_map_summary]" in sections
     assert "[configured_context_policy]" in sections
-    assert "[configured_verification_policy]" in sections
     assert "[configured_advisory_notes]" in sections
     assert "[action_schema]" in sections
     assert "query_memory" in sections["[action_schema]"]
@@ -771,10 +770,10 @@ def test_model_hooks_final_solver_messages_include_mechanical_runtime_contract_o
 
     final_messages = captured["messages"]
     assert any("[automatic_memory_manual]" in msg["content"] for msg in final_messages)
-    assert any("[verification_submit_manual]" in msg["content"] for msg in final_messages)
+    assert any("[completion_submit_manual]" in msg["content"] for msg in final_messages)
     assert any("[solver_turn_contract]" in msg["content"] for msg in final_messages)
     assert any("[solver_identity]" in msg["content"] and "Self-verification" in msg["content"] for msg in final_messages)
-    assert any("active_verifier_findings" in msg["content"] for msg in final_messages)
+    assert any("active_completion_findings" in msg["content"] for msg in final_messages)
     assert not any("Available action kinds" in msg["content"] for msg in final_messages)
 
 

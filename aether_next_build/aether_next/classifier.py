@@ -96,7 +96,7 @@ class HarnessLimiterClassifier:
                     evidence=stalemate or tuple(result.blockers),
                     detail=(
                         "solver kept submitting without new evidence despite "
-                        "delivered, legible verifier findings on a clean workbench"
+                        "delivered, legible completion findings on a clean workbench"
                     ),
                 )
             return LimiterClassification(
@@ -273,7 +273,7 @@ class HarnessLimiterClassifier:
         """Conservative local evidence bar before blaming model capability.
 
         A model-limit label is only meaningful after the harness proves the model
-        had stable tools, context, verifier feedback when relevant, and no silent
+        had stable tools, context, completion feedback when relevant, and no silent
         protocol/config/runtime failures.  This local check is intentionally
         conservative; insufficient evidence should fall back to a harness/context
         label rather than overclaiming model failure.

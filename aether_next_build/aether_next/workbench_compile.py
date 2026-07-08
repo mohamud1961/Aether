@@ -53,6 +53,7 @@ _DEFAULT_CAPABILITY_TOOLS = {
     "managed_process": ("launch_process", "probe_service", "stop_process"),
     "service_probe": ("probe_service",),
     "artifact_inspection": ("inspect_artifact",),
+    "output_handle_retrieval": ("read_output", "grep_output"),
     "network_fetch": ("bootstrap_acquire",),
 }
 
@@ -67,6 +68,7 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
     selected_caps = _stable_core_capabilities(envmap)
     helper_enabled = config.helper_script_policy.enabled and {"shell", "filesystem"}.issubset(selected_caps)
     smoke_result = compile_visible_smoke_tests(config, envmap)
+    schema_humility_warnings = _schema_humility_warnings(config, envmap)
     advisory_notes = [
         "vNext HarnessConfigIR compiled into RuntimeConfigIR.",
         "tool_policy_mode=stable_core",
@@ -101,6 +103,7 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
             advisory_notes.append("compiled_visible_smoke_checks=" + str([check.check_id for check in smoke_result.checks]))
         if smoke_result.rejected:
             advisory_notes.append("visible_smoke_compile_rejections=" + str([dict(item) for item in smoke_result.rejected]))
+    advisory_notes.extend(schema_humility_warnings)
     if config.repair_warning_codes:
         advisory_notes.append("workbench_config_repairs=" + ",".join(config.repair_warning_codes))
     return RuntimeConfigIR(
@@ -224,6 +227,7 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
     smoke_count = len(config.verification_policy.visible_smoke_tests)
     smoke_compile = compile_visible_smoke_tests(config, envmap)
     structural_count = len(config.verification_policy.structural_checks)
+    schema_humility_warnings = _schema_humility_warnings(config, envmap)
     dispositions = {
         "schema_version": {
             "status": "validated",
@@ -349,6 +353,14 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
     return {
         "top_level_fields": list(TOP_LEVEL_CONFIG_FIELDS),
         "dispositions": dispositions,
+        "guardrails": {
+            "schema_humility": {
+                "status": "realized_advisory",
+                "warnings": list(schema_humility_warnings),
+                "realized_as": "architect prompt instruction, runtime manual guidance, advisory notes, and config_realization_audit guardrail",
+                "note": "Placeholder notation is reported when it appears to be hardened into list/array contracts; the harness does not rewrite the task or decide the correct semantic type.",
+            },
+        },
         "missing_dispositions": missing,
         "has_silent_ignored_fields": bool(missing),
     }
@@ -361,3 +373,41 @@ def _realized_tools(selected_capabilities: tuple[str, ...], envmap: EnvMap) -> l
         if cap is not None:
             tools.update(cap.tool_names or _DEFAULT_CAPABILITY_TOOLS.get(cap.capability_id, ()))
     return sorted(tools)
+
+
+def _schema_humility_warnings(config: HarnessConfigIR, envmap: EnvMap) -> tuple[str, ...]:
+    task_prompt = str(envmap.task_prompt or "").lower()
+    placeholder_markers = ("[integer]", "[number]", "[string]", "<value>", "{field}", "...")
+    if not any(marker in task_prompt for marker in placeholder_markers):
+        return ()
+
+    visible_smoke_text = str([dict(item) for item in config.verification_policy.visible_smoke_tests])
+    config_text = "\n".join(
+        [
+            str(config.task_understanding),
+            str(config.success_definition),
+            config.solver_system_prompt.render(),
+            config.verifier_system_prompt.render(),
+            str(list(config.evidence_requirements)),
+            str(list(config.minimum_completion_evidence)),
+            str(list(config.false_positive_risks)),
+            visible_smoke_text,
+        ]
+    ).lower()
+    hardening_terms = (
+        "one-element array",
+        "one element array",
+        "single-element array",
+        "single element array",
+        "one-element list",
+        "single-element list",
+        "mapped to a list",
+        "mapped to an array",
+        "value is a list",
+        "value is an array",
+    )
+    if any(term in config_text for term in hardening_terms):
+        return (
+            "schema_humility_warning=placeholder_notation_may_have_been_hardened_into_array_or_list_contract",
+        )
+    return ()

@@ -1,8 +1,8 @@
 """Generic task-surface capability classification for EnvMap/audit.
 
 This module intentionally does not recognize benchmark task names.  It uses
-public task metadata, instructions, and visible file extensions as a coverage
-corpus to expose generic workbench needs to the architect.
+visible instructions and visible file/material surfaces as a high-recall,
+evidence-backed index of likely task capability requirements for the architect.
 """
 from __future__ import annotations
 
@@ -45,6 +45,13 @@ _TOOL_BY_CAPABILITY: dict[str, tuple[str, ...]] = {
     "binary_reverse_engineering": ("file", "strings", "readelf", "objdump", "gdb", "xxd", "hexdump"),
     "crypto_security": ("openssl", "python", "python3", "john", "hashcat"),
     "network_download": ("curl", "wget", "git", "pip", "uv"),
+    "text_log_data_transformation": ("python", "python3", "grep", "awk", "sed"),
+    "query_semantic_data": ("python", "python3", "sqlite3"),
+    "git_repository_repair": ("git", "python", "python3"),
+    "web_security_sanitization": ("python", "python3", "node", "npm"),
+    "password_hash_secret_recovery": ("python", "python3", "john", "hashcat", "7z"),
+    "code_security_repair": ("python", "python3", "node", "npm", "grep"),
+    "geometry_toolpath_extraction": ("python", "python3"),
 }
 _VERIFIER_BY_CAPABILITY: dict[str, tuple[str, ...]] = {
     "long_running_command": ("sandboxed_execution", "log_tail_handles"),
@@ -64,6 +71,13 @@ _VERIFIER_BY_CAPABILITY: dict[str, tuple[str, ...]] = {
     "binary_reverse_engineering": ("binary_artifact_probe", "sandboxed_execution"),
     "crypto_security": ("sandboxed_execution", "artifact_probe"),
     "network_download": ("network_fact_probe",),
+    "text_log_data_transformation": ("sandboxed_execution", "raw_input_sample_inspection"),
+    "query_semantic_data": ("query_output_inspection", "sandboxed_execution"),
+    "git_repository_repair": ("repository_state_inspection", "sandboxed_execution"),
+    "web_security_sanitization": ("content_security_inspection", "fixture_replay"),
+    "password_hash_secret_recovery": ("artifact_probe", "sandboxed_execution"),
+    "code_security_repair": ("source_diff_inspection", "fixture_replay"),
+    "geometry_toolpath_extraction": ("content_derivation_inspection", "artifact_preview"),
 }
 
 _KEYWORDS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
@@ -71,19 +85,45 @@ _KEYWORDS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("image_processing", ("image", "png", "jpeg", "jpg", "render", "screenshot", "pixel", "segmentation"), ("images", "image")),
     ("ocr_pdf_document", ("ocr", "pdf", "document", "tesseract", "invoice", "receipt"), ("ocr", "pdf")),
     ("qemu_vm", ("qemu", "vnc", "virtual machine", "vm", "boot", "bios"), ("qemu", "vm")),
-    ("background_service", ("server", "daemon", "background", "service", "listen", "port"), ("service", "server")),
-    ("http_service", ("http", "nginx", "webserver", "curl", "localhost", "port 80"), ("web", "http")),
+    ("background_service", ("daemon", "listen", "listening", "background process", "background service", "long-running service", "start a server", "run a server", "server running", "running on port", "runs on port", "serve requests", "grpc server", "grpc", "rpc calls", "pypi server"), ()),
+    ("http_service", ("http", "https", "nginx", "webserver", "web server", "curl", "localhost", "port 80", "http endpoint", "web endpoint"), ()),
     ("ssh_or_telnet_service", ("ssh", "telnet", "login prompt"), ("ssh", "telnet")),
     ("ml_training_or_inference", ("train", "model", "neural", "torch", "tensorflow", "sklearn", "fasttext", "caffe", "inference"), ("machine-learning", "ml", "model")),
-    ("scientific_computing", ("stan", "mcmc", "eigenvalue", "raman", "simulation", "numeric", "numpy", "scipy", "biology", "dna"), ("scientific-computing", "biology")),
+    ("scientific_computing", ("stan", "mcmc", "eigenvalue", "eigen value", "raman", "simulation", "numeric", "numerical", "numpy", "scipy", "biology", "dna", "protein", "assembly", "primer", "peak fitting", "curve fit", "least squares", "optimize", "optimization", "adaptive-rejection sampler", "rejection sampler", "density", "distribution", "stochastic", "bayesian network", "dag", "causal intervention"), ()),
     ("database", ("sqlite", "database", "sql", ".db"), ("database", "sql")),
-    ("compiler_build", ("compile", "build", "make", "cmake", "gcc", "clang", "coverage", "gcov"), ("compiler", "build")),
+    ("compiler_build", ("compile", "build", "make", "cmake", "gcc", "g++", "clang", "coverage", "gcov", "source code", "implement", "compiled program"), ("compiler", "build")),
     ("rust_build", ("cargo", "rustc", "rust"), ("rust",)),
     ("ocaml_coq_build", ("ocaml", "opam", "coq", "compcert", "dune"), ("ocaml", "coq")),
     ("binary_reverse_engineering", ("elf", "binary", "reverse", "disassemble", "objdump", "readelf", "mips"), ("binary", "reverse-engineering", "security")),
     ("crypto_security", ("openssl", "certificate", "crypto", "hash", "cipher", "cryptanalysis", "feal"), ("security", "crypto")),
-    ("network_download", ("download", "install", "pip install", "apt-get", "git clone", "fetch"), ("network",)),
+    ("network_download", ("download", "pip install", "apt-get", "apt install", "git clone", "fetch external", "download from", "install package", "install packages", "install grpcio", "python packages", "--index-url"), ()),
+    ("text_log_data_transformation", ("log", "logs", "csv", "tsv", "json", "jsonl", "summary", "summarize", "aggregate", "count", "counts", "date range", "parse text", "transform data", "extract rows"), ()),
+    ("query_semantic_data", ("sparql", "rdf", "turtle", ".ttl", "knowledge graph", "semantic query", "query language"), ()),
+    ("git_repository_repair", ("git", "repository", "commit", "branch", "merge conflict", "rebase", "cherry-pick", "restore changes", "checked out master", "merge them into master", "lost changes"), ()),
+    ("web_security_sanitization", ("xss", "cross-site scripting", "sanitize html", "sanitizer", "remove javascript", "filter javascript", "script tag", "onclick", "javascript:"), ()),
+    ("password_hash_secret_recovery", ("password", "hash", "secret", "credential", "leak", "7z hash", "7z archive", ".7z", "secret_file", "shadow file", "recover password", "secret key"), ()),
+    ("code_security_repair", ("vulnerability", "vulnerable", "security bug", "injection", "exploit", "unsafe", "sanitize input", "analyze program", "secret key"), ()),
+    ("geometry_toolpath_extraction", ("gcode", "g-code", "toolpath", "cnc", "extrusion path", "motion commands", "printer moves"), ()),
 )
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    """Return true when *phrase* appears as tokens, not as a substring.
+
+    Capability hints are model-facing substrate.  False positives are worse than
+    missed weak hints, so matching is intentionally conservative.
+    """
+    clean = phrase.strip().lower()
+    if not clean:
+        return False
+    if re.search(r"\s", clean):
+        pattern = r"(?<![a-z0-9_])" + re.escape(clean).replace(r"\ ", r"\s+") + r"(?![a-z0-9_])"
+    elif clean.startswith("."):
+        pattern = re.escape(clean) + r"(?![a-z0-9_])"
+    else:
+        pattern = r"(?<![a-z0-9_])" + re.escape(clean) + r"(?![a-z0-9_])"
+    return re.search(pattern, text.lower()) is not None
+
 _EXTENSIONS: dict[str, tuple[str, ...]] = {
     "image_processing": (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".ppm"),
     "video_processing": (".mp4", ".mov", ".avi", ".mkv", ".webm"),
@@ -94,6 +134,9 @@ _EXTENSIONS: dict[str, tuple[str, ...]] = {
     "ocaml_coq_build": (".ml", ".mli", ".v"),
     "scientific_computing": (".R", ".r", ".stan", ".npy", ".npz", ".mat"),
     "binary_reverse_engineering": (".elf", ".bin", ".o", ".so", ".a"),
+    "geometry_toolpath_extraction": (".gcode", ".gco", ".nc"),
+    "text_log_data_transformation": (".log", ".csv", ".tsv", ".jsonl"),
+    "query_semantic_data": (".ttl", ".rdf", ".sparql"),
 }
 
 
@@ -133,9 +176,11 @@ def classify_capability_needs(
     visible_files: Iterable[str] = (),
 ) -> tuple[CapabilityNeed, ...]:
     metadata = task_metadata or {}
-    category = str(metadata.get("category", ""))
-    tags = tuple(str(tag) for tag in metadata.get("tags", ()) or ())
-    haystack = "\n".join([instruction_text, category, " ".join(tags)]).lower()
+    # Model-facing capability needs must be inferred from visible task/workspace
+    # material, not benchmark category/tags. Resource budgets below remain useful
+    # because they are runtime constraints rather than semantic task labels.
+    tags: tuple[str, ...] = ()
+    haystack = instruction_text.lower()
     by_capability: dict[str, CapabilityNeed] = {}
 
     def add(capability: str, confidence: str, source: str, notes: str = "") -> None:
@@ -152,23 +197,15 @@ def classify_capability_needs(
         )
 
     for capability, words, tag_words in _KEYWORDS:
-        if any(word in haystack for word in words) or any(tag.lower() in tag_words for tag in tags):
-            add(capability, "high" if any(tag.lower() in tag_words for tag in tags) else "medium", "instruction_or_metadata")
+        # Token/phrase-aware matching prevents substring pollution such as
+        # report→port, instance→stan, or self-signed→elf.
+        if any(_contains_phrase(haystack, word) for word in words):
+            add(capability, "medium", "visible_instruction")
 
     lower_files = [str(path).lower() for path in visible_files]
     for capability, extensions in _EXTENSIONS.items():
         if any(path.endswith(extensions) or Path(path).name.lower() in {"makefile", "cmakelists.txt", "cargo.toml", "dune", "coq_makefile"} for path in lower_files):
             add(capability, "medium", "visible_file_extensions")
-
-    budget = metadata.get("resource_budget") if isinstance(metadata.get("resource_budget"), Mapping) else metadata
-    for key in ("agent_timeout_sec", "verifier_timeout_sec", "build_timeout_sec"):
-        try:
-            value = float(budget.get(key, 0) or 0)  # type: ignore[union-attr]
-        except (TypeError, ValueError, AttributeError):
-            value = 0
-        if value >= 900:
-            add("long_running_command", "high", "task_timeout_metadata", f"{key}={value:g}")
-            break
 
     return tuple(sorted(by_capability.values(), key=lambda item: item.capability))
 

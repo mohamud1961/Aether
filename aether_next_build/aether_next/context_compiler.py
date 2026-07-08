@@ -68,7 +68,7 @@ class ContextCompiler:
         out = dict(packet)
         out.setdefault("automatic_memory_available", True)
         for key in (
-            "active_verifier_findings",
+            "active_completion_findings",
             "pending_checks",
             "automatic_memory_findings",
             "no_progress_controls",
@@ -168,6 +168,14 @@ class ContextCompiler:
         repeated = ledger.repeated_actions()
         if repeated:
             packet["repeated_actions"] = repeated
+            packet["repeat_efficiency_guidance"] = {
+                "principle": "Repeated actions are an information-gain signal, not a correctness verdict.",
+                "rule": (
+                    "Do not repeat the same command, read, write, or submit claim unless the repeat adds new information, "
+                    "changes task state, or creates missing inspectable evidence. Use prior output handles/evidence when enough."
+                ),
+                "next_step_question": "What new information, state change, or evidence would this repeat add?",
+            }
 
         already_read = ledger.files_already_read()
         if already_read:
@@ -237,7 +245,7 @@ class ContextCompiler:
 
         active_findings = ledger.active_finding_context(len(ledger.all_receipts()))
         if active_findings:
-            packet["active_verifier_findings"] = active_findings
+            packet["active_completion_findings"] = active_findings
         artifact_rows = artifact_history(ledger.all_receipts(), limit=12)
         if artifact_rows:
             packet["artifact_history"] = artifact_rows
@@ -276,7 +284,7 @@ class ContextCompiler:
                 packet[key] = available[key]
         if "pending_checks" in available and (always_include_pending or "pending_checks" in policy.include_sections):
             packet["pending_checks"] = available["pending_checks"]
-        for key in ("repeated_actions", "files_already_read", "latest_file_reads", "memory_loop_feedback", "automatic_memory_findings", "no_progress_controls", "action_constraints", "stuck", "active_verifier_findings"):
+        for key in ("repeated_actions", "repeat_efficiency_guidance", "files_already_read", "latest_file_reads", "memory_loop_feedback", "automatic_memory_findings", "no_progress_controls", "action_constraints", "stuck", "active_completion_findings"):
             if key in available:
                 packet[key] = available[key]
         return packet
@@ -297,7 +305,7 @@ class ContextCompiler:
             result = {"automatic_memory_available": True}
             if latest:
                 result["latest_tool_result"] = latest
-            for key in ("pending_checks", "active_verifier_findings", "no_progress_controls", "action_constraints", "stuck"):
+            for key in ("pending_checks", "active_completion_findings", "no_progress_controls", "action_constraints", "stuck"):
                 if key in packet:
                     result[key] = packet[key]
             return result
@@ -306,15 +314,16 @@ class ContextCompiler:
                 "recent_progress": packet.get("recent_progress", []),
                 "pending_checks": packet.get("pending_checks", []),
                 "artifacts_present": packet.get("artifacts_present", []),
-                "active_verifier_findings": packet.get("active_verifier_findings", []),
+                "active_completion_findings": packet.get("active_completion_findings", []),
                 "automatic_memory_available": True,
             }
         if mode == "failure_focused":
             keys = (
-                "active_verifier_findings",
+                "active_completion_findings",
                 "pending_checks",
                 "failure_clusters",
                 "repeated_actions",
+                "repeat_efficiency_guidance",
                 "files_already_read",
                 "no_progress_controls",
                 "action_constraints",

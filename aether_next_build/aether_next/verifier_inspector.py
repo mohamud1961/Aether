@@ -21,6 +21,7 @@ class VerifierInspectionRequest:
     request_id: str
     kind: str
     path: str = ""
+    handle: str = ""
     check_id: str = ""
     receipt_kind: str = ""
     limit: int = 5
@@ -28,6 +29,7 @@ class VerifierInspectionRequest:
     content: str = ""
     target: str = ""
     offset: int = 0
+    span: int = 4000
 
 
 def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRequest, ...]:
@@ -53,6 +55,7 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
                 request_id=str(item.get("request_id", f"inspect-{idx}")).strip() or f"inspect-{idx}",
                 kind=kind,
                 path=str(item.get("path", "")).strip(),
+                handle=str(item.get("handle", "")).strip(),
                 check_id=str(item.get("check_id", "")).strip(),
                 receipt_kind=str(item.get("receipt_kind", "")).strip(),
                 limit=max(1, int(item.get("limit", 5) or 5)),
@@ -60,6 +63,7 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
                 content=str(item.get("content", "")),
                 target=str(item.get("target", "")).strip(),
                 offset=max(0, int(item.get("offset", 0) or 0)),
+                span=max(1, int(item.get("span", item.get("limit", 4000)) or 4000)),
             )
         )
     if not parsed:
@@ -83,6 +87,9 @@ def execute_verifier_inspection_requests(
     for request in requests:
         if request.kind == "read_file":
             results.append(_read_file_result(request, executor, envmap))
+            continue
+        if request.kind == "read_output":
+            results.append(_read_output_result(request, all_receipts))
             continue
         if request.kind == "rerun_check":
             check = checks_by_id.get(request.check_id)
@@ -269,6 +276,56 @@ def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap:
         "offset": offset,
         "content_hash": sha256(content.encode("utf-8", "replace")).hexdigest()[:16],
         "excerpt": excerpt,
+    }
+
+
+def _read_output_result(request: VerifierInspectionRequest, receipts: tuple[Any, ...]) -> dict[str, Any]:
+    handle = request.handle or request.path or request.target
+    if not handle:
+        return _error_result(request, "read_output requires handle")
+
+    full = ""
+    source_receipt = ""
+    stream = ""
+    overflow = ""
+    for receipt in receipts:
+        payload = receipt.payload or {}
+        if payload.get("stdout_handle") == handle:
+            full = str(payload.get("stdout_full", ""))
+            source_receipt = receipt.receipt_id
+            stream = "stdout"
+            overflow = str(payload.get("stdout_overflow_path", ""))
+            break
+        if payload.get("stderr_handle") == handle:
+            full = str(payload.get("stderr_full", ""))
+            source_receipt = receipt.receipt_id
+            stream = "stderr"
+            overflow = str(payload.get("stderr_overflow_path", ""))
+            break
+    if not source_receipt:
+        return _error_result(request, f"output handle not found: {handle}")
+    if overflow:
+        try:
+            with open(overflow, encoding="utf-8", errors="replace") as fh:
+                full = fh.read()
+        except OSError as exc:
+            return _error_result(request, f"output spool unreadable for handle {handle}: {exc}")
+
+    offset = max(0, int(getattr(request, "offset", 0) or 0))
+    span = max(1, min(20000, int(getattr(request, "span", 4000) or 4000)))
+    excerpt = full[offset: offset + span]
+    return {
+        "request_id": request.request_id,
+        "kind": request.kind,
+        "handle": handle,
+        "source_receipt_id": source_receipt,
+        "stream": stream,
+        "bytes": len(full),
+        "offset": offset,
+        "span": span,
+        "excerpt": excerpt,
+        "content_hash": sha256(full.encode("utf-8", "replace")).hexdigest()[:16],
+        "read_only": True,
     }
 
 

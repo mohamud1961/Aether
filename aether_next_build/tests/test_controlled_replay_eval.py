@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import pytest
 from run_controlled_replay_eval import CASES, build_case_record, run, summarize
 
 
+def _require_replay_fixtures() -> None:
+    missing = [str(case.trace_path) for case in CASES if not case.trace_path.exists()]
+    if missing:
+        pytest.skip("controlled replay trace fixtures not packaged in code-only archive: " + ", ".join(missing[:3]))
+
+
 def test_controlled_replay_report_uses_real_trace_evidence() -> None:
+    _require_replay_fixtures()
     records = [build_case_record(case) for case in CASES]
     summary = summarize(records)
 
@@ -25,6 +33,7 @@ def test_controlled_replay_report_uses_real_trace_evidence() -> None:
 
 
 def test_controlled_replay_run_writes_expected_artifacts(tmp_path) -> None:
+    _require_replay_fixtures()
     result = run(tmp_path)
 
     assert (tmp_path / "summary.json").exists()

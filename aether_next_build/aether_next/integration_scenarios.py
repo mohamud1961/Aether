@@ -135,7 +135,7 @@ def run_workbench_verifier_repair_scenario() -> IntegrationScenarioResult:
             _act("write-wrong", "write_file", {"path": "out.txt", "content": "PASS-124\n"}),
         )),
         SolverTurn(kind="submit_outcome", summary="submit first attempt"),
-        SolverTurn(kind="act", summary="repair after verifier finding", actions=(
+        SolverTurn(kind="act", summary="repair after completion finding", actions=(
             _act("hist", "query_artifact_history", {"path": "out.txt"}, capability="kernel"),
             _act("diff", "inspect_diff", {"path": "out.txt"}, capability="kernel"),
             _act("obs", "record_observation", {"observation": "Verifier requires exact PASS-123 token", "path": "out.txt"}, capability="kernel"),
@@ -171,7 +171,7 @@ def run_workbench_verifier_repair_scenario() -> IntegrationScenarioResult:
         checks={
             "completed": result.status == "completed",
             "verifier_blocked_first_submit": any(r["kind"] == "model_verifier_result" and r.get("verdict") == "needs_repair" for r in receipts),
-            "active_finding_reached_context": any("active_verifier_findings" in packet for packet in hooks.context_packets[1:]),
+            "active_finding_reached_context": any("active_completion_findings" in packet for packet in hooks.context_packets[1:]),
             "artifact_changed_after_finding": _artifact_changed_after_verifier_repair(receipts, "out.txt"),
             "final_content_exact": executor.files.get("out.txt") == "PASS-123\n",
         },
@@ -183,7 +183,7 @@ def _artifact_changed_after_verifier_repair(receipts: list[dict[str, Any]], path
 
     The verifier packet is state-only and must not include solver journey/history.
     Integration scenarios may still use the trace/receipt ledger to confirm that
-    the solver repaired an artifact after verifier feedback.
+    the solver repaired an artifact after completion feedback.
     """
     first_repair_step = None
     for receipt in receipts:
@@ -269,7 +269,7 @@ def _workbench_config(*, success: str, smoke_contains: str, recipe: bool, enable
         "success_definition": success,
         "solver_system_prompt": {
             "role": "verification-first solver",
-            "workflow": ["inspect inputs", "write artifact", "run/check visible evidence", "repair verifier findings before resubmitting"],
+            "workflow": ["inspect inputs", "write artifact", "run/check visible evidence", "repair completion findings before resubmitting"],
             "self_verification": ["Read or inspect out.txt before submit readiness.", "Treat verifier needs_repair as active blocker."],
             "memory_use": ["Use query_memory/query_artifact_history/inspect_diff before repeating reads or checks, not as a ritual first action."],
             "avoid": ["Do not call task_done repeatedly without new evidence."],
@@ -293,9 +293,9 @@ def _workbench_config(*, success: str, smoke_contains: str, recipe: bool, enable
     }
     if recipe:
         payload["context_policy"]["recipe"] = {
-            "always_include": ["pending_checks", "active_verifier_findings", "artifact_history", "observations"],
+            "always_include": ["pending_checks", "active_completion_findings", "artifact_history", "observations"],
             "include_recent": [{"selector": "file_writes", "count": 4}, {"selector": "check_results", "count": 4}],
-            "preserve_exact": ["active_verifier_findings", "pending_checks"],
+            "preserve_exact": ["active_completion_findings", "pending_checks"],
             "make_queryable_not_inline": ["memory_events"],
         }
     return parse_harness_config_ir(json.dumps(payload))

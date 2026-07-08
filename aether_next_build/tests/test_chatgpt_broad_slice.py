@@ -58,7 +58,7 @@ def _compiled(*, context_policy: ContextPolicy | None = None):
     return ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(
         RuntimeConfigIR(
             architect_summary="summary",
-            solver_identity_prompt="Use verifier feedback as blocker and query_memory before repeats.",
+            solver_identity_prompt="Use completion feedback as blocker and query_memory before repeats.",
             selected_capabilities=("shell", "filesystem"),
             completion_policy=CompletionPolicy(require_all_obligations=False, require_recent_progress=False),
             model_verifier_policy=ModelVerifierPolicy(enabled=True),
@@ -168,7 +168,7 @@ def test_context_recipe_cannot_drop_active_findings_or_pending_checks() -> None:
     packet = ContextCompiler().compile(compiled, ledger, alerts=[])
 
     assert "pending_checks" in packet
-    assert "active_verifier_findings" in packet
+    assert "active_completion_findings" in packet
     assert packet["context_recipe_realization"]["enabled"] is True
 
 

@@ -60,8 +60,10 @@ def score_solver_prompt(config: HarnessConfigIR | None) -> dict[str, Any]:
         missing.append("solver_prompt_has_validation_language")
     if not prompt.stop_conditions or not any(marker in _joined(prompt.stop_conditions).lower() for marker in ("stop", "submit", "complete", "ready", "done")):
         missing.append("solver_prompt_has_completion_gate")
-    if not any(marker in lower for marker in ("verifier finding", "verifier feedback", "failed check", "repair and resubmit", "resubmit only after")):
-        missing.append("solver_prompt_handles_failed_checks_or_verifier_feedback")
+    if any(marker in lower for marker in ("verifier", "reviewer", "judge", "hidden test", "grader")):
+        missing.append("solver_prompt_leaks_external_judgement_language")
+    if not any(marker in lower for marker in ("completion finding", "completion issue", "state defect", "failed check", "repair and resubmit", "resubmit only after", "fresh evidence")):
+        missing.append("solver_prompt_handles_completion_findings_or_failed_checks")
     avoid_lower = _joined(prompt.avoid).lower()
     if not prompt.avoid or not any(marker in avoid_lower for marker in ("do not", "don't", "avoid", "never")):
         missing.append("solver_prompt_has_do_not_submit_or_avoid_gate")
@@ -133,8 +135,8 @@ def score_config_contract(config: HarnessConfigIR | None, realization_preview: d
         missing.append("model_verifier_runs_on_solver_submit_only")
     if not config.local_verification_limits:
         missing.append("local_verification_limits")
-    if "query_memory" not in config.tool_policy.enabled_tools:
-        warnings.append("query_memory_not_declared_advisory")
+    if not config.tool_policy.enabled_tools:
+        warnings.append("no_architect_tool_preference_declared")
     if config.tool_policy.disabled_tools:
         warnings.append("architect_disabled_tools_advisory_present")
     if realization_preview:

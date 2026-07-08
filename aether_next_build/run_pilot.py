@@ -403,6 +403,11 @@ def main(argv: list[str] | None = None) -> int:
         })
         persist_results()
 
+        def _record_progress(stage: str, detail: str) -> None:
+            records[record_index]["running_stage"] = stage
+            records[record_index]["running_detail"] = detail
+            persist_results()
+
         try:
             record = run_tbench_task(
                 task_dir=task_dir,
@@ -417,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
                 snapshot_dir=args.snapshot_dir,
                 snapshot_steps=snap_steps,
                 run_provenance={**run_provenance, "task_hash": _task_hash(task_dir)},
+                progress_callback=_record_progress,
             )
         except Exception as exc:
             record = {

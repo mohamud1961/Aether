@@ -41,13 +41,13 @@ def test_workbench_verifier_repair_loop_exercises_real_kernel_stack() -> None:
     first_verifier_packet = result.verifier_packets[0]
     second_context_packet = next(
         packet for packet in result.context_packets[2:]
-        if "active_verifier_findings" in packet
+        if "active_completion_findings" in packet
     )
     assert first_verifier_packet["success_definition"] == "out.txt must contain the exact token PASS-123."
     assert "artifact_history" not in first_verifier_packet
     assert "memory_events" not in first_verifier_packet
     assert "solver_authored_evidence" not in first_verifier_packet
-    assert second_context_packet["active_verifier_findings"]
+    assert second_context_packet["active_completion_findings"]
     assert second_context_packet["context_recipe_realization"]["enabled"] is True
 
 

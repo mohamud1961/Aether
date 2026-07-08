@@ -345,8 +345,8 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
     if not isinstance(tools_raw, dict):
         raise ModelOutputError("tool_policy object is required")
     enabled = _tuple_str(tools_raw.get("enabled_tools", ()))
-    if not enabled:
-        raise ModelOutputError("tool_policy.enabled_tools must not be empty")
+    # Empty enabled_tools means "no architect tool preference" in stable-core mode.
+    # The harness still exposes the stable core toolset unless env/safety forbids it.
     known_tools = {name for name, _ in ACTION_SCHEMA}
     unknown = sorted(set(enabled) - known_tools)
     if unknown:

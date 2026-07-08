@@ -116,8 +116,9 @@ def test_envmap_ingests_public_task_metadata_as_hints_not_facts(tmp_path: Path) 
     }
     envmap = build_envmap_from_task(str(tmp_path), "Process the input video with ffmpeg.", task_toml=task_toml)
 
-    assert envmap.task_metadata["category"] == "video-processing"
+    assert envmap.task_metadata["internal_task_metadata"]["category"] == "video-processing"
     assert envmap.task_metadata["resource_budget"]["agent_timeout_sec"] == 3600
+    assert "docker_image" not in envmap.task_metadata["model_facing_resource_budget"]
     needs = {item["capability"] for item in envmap.task_metadata["capability_requirements"]}
     assert "video_processing" in needs
     assert envmap.task_metadata["env_fact_policy"]["capability_requirements_are_facts"] is False

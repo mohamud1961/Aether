@@ -295,7 +295,7 @@ def test_context_policy_default_bounded_exact_sections() -> None:
         "planned_checks",
         "pending_checks",
         "command_results",
-        "active_verifier_findings",
+        "active_completion_findings",
         "files_already_read",
         "latest_file_reads",
         "stuck",
@@ -312,7 +312,7 @@ def test_context_policy_retrieval_augmented_adds_memory_guidance_without_droppin
     assert "automatic_memory_guidance" in packet
     assert "recent_progress" in packet
     assert "pending_checks" in packet
-    assert "active_verifier_findings" in packet
+    assert "active_completion_findings" in packet
 
 
 def test_context_policy_rolling_recent_exact_sections() -> None:
@@ -323,7 +323,7 @@ def test_context_policy_rolling_recent_exact_sections() -> None:
         "recent_progress",
         "pending_checks",
         "artifacts_present",
-        "active_verifier_findings",
+        "active_completion_findings",
         "automatic_memory_available",
         "command_results",
     }
@@ -336,11 +336,12 @@ def test_context_policy_failure_focused_exact_sections() -> None:
     packet = ContextCompiler().compile(compiled, ledger, alerts=[])
 
     assert set(packet) == {
-        "active_verifier_findings",
+        "active_completion_findings",
         "pending_checks",
         "failure_clusters",
         "files_already_read",
         "repeated_actions",
+        "repeat_efficiency_guidance",
         "stuck",
         "automatic_memory_available",
         "command_results",
@@ -357,7 +358,7 @@ def test_context_policy_latest_tool_result_only_exact_sections() -> None:
         "automatic_memory_available",
         "latest_tool_result",
         "pending_checks",
-        "active_verifier_findings",
+        "active_completion_findings",
         "stuck",
         "command_results",
     }
@@ -379,7 +380,7 @@ def test_context_compression_triggers_at_sixty_percent_and_preserves_findings() 
     packet = ContextCompiler().compile(compiled, ledger, alerts=[])
 
     assert packet["context_compression"]["triggered"] is True
-    assert packet["active_verifier_findings"][0]["finding_id"] == "vf-1"
+    assert packet["active_completion_findings"][0]["finding_id"] == "vf-1"
     assert packet["context_compression"]["threshold_ratio"] == 0.60
     assert "pending_checks" in packet["context_compression"]["preserved_exact"]
 
@@ -418,7 +419,7 @@ def test_context_recipe_last_two_tool_results_and_single_last_failure() -> None:
 
 def test_context_recipe_preserves_active_findings_pending_checks_and_stuck_exactly() -> None:
     compiled = _compiled(context_policy=_recipe_policy(
-        preserve_exact=("active_verifier_findings", "pending_checks", "stuck"),
+        preserve_exact=("active_completion_findings", "pending_checks", "stuck"),
         make_queryable_not_inline=("recent_progress",),
     ))
     ledger = _context_ledger_with_state()
@@ -428,7 +429,7 @@ def test_context_recipe_preserves_active_findings_pending_checks_and_stuck_exact
 
     packet = ContextCompiler().compile(compiled, ledger, alerts=[])
 
-    assert "active_verifier_findings" in packet
+    assert "active_completion_findings" in packet
     assert "pending_checks" in packet
     assert packet["stuck"]["no_progress"] is True
     assert "recent_progress" not in packet
@@ -460,7 +461,7 @@ def test_context_recipe_large_outputs_are_queryable_not_inline() -> None:
 
 def test_context_recipe_rejects_unsupported_selectors_without_crashing() -> None:
     compiled = _compiled(context_policy=_recipe_policy(
-        preserve_exact=("active_verifier_findings", "banana_selector"),
+        preserve_exact=("active_completion_findings", "banana_selector"),
         include_recent=(("tool_results", 1), ("imaginary_results", 2)),
         make_queryable_not_inline=("unsupported_queryable",),
         unsupported_fields=("memory_query_available",),
@@ -759,6 +760,17 @@ def test_verifier_packet_excludes_solver_command_stdout_but_exposes_output_handl
     assert "command_results" not in packet
     assert "BEFORE==AFTER True" not in json.dumps(packet)
     assert any(item.get("handle") == "out:cmd-1:stdout" for item in packet["state_inspection_handles"])
+    assert packet["recent_command_receipts"] == [
+        {
+            "receipt_id": "cmd-1",
+            "step": 3,
+            "command": "python3 compare.py",
+            "exit_code": 0,
+            "stdout_handle": "out:cmd-1:stdout",
+            "stderr_handle": "",
+            "authority": "audit_trail_only",
+        }
+    ]
 
 
 def test_verifier_packet_has_no_privileged_solver_or_proof_fields() -> None:
@@ -799,6 +811,30 @@ def test_verifier_packet_has_no_privileged_solver_or_proof_fields() -> None:
     assert "solver_authored_evidence" not in packet
     assert "command_results" not in packet
     assert "solver says task is correct" not in json.dumps(packet)
+
+
+def test_recent_command_receipts_are_audit_trail_not_privileged_proof() -> None:
+    compiled = _compiled()
+    ledger = ExecutionLedger()
+    ledger.ensure_objective(_objective())
+    ledger.record(Receipt(
+        "cmd-1", 3, "run_command", True, "command exit=0: python3 judge.py",
+        payload={
+            "command": "python3 judge.py",
+            "exit_code": 0,
+            "stdout": "task solved perfectly\n",
+            "stdout_handle": "out:cmd-1:stdout",
+            "stderr": "",
+            "stderr_handle": "out:cmd-1:stderr",
+        },
+    ))
+
+    packet = build_verifier_packet(compiled, ledger, step=3, reason="solver_submit")
+
+    assert packet["recent_command_receipts"][0]["authority"] == "audit_trail_only"
+    dumped = json.dumps(packet)
+    assert "task solved perfectly" not in dumped
+    assert "solver_claim" not in dumped
 
 
 def test_verifier_packet_includes_workbench_realization_and_repair_metadata() -> None:

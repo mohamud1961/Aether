@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
-from run_trace_verifier_replay_ab import run
+import pytest
+
+from run_trace_verifier_replay_ab import run, DEFAULT_CASES
+
+
+def _require_trace_replay_fixtures() -> None:
+    missing = [trace for _task, trace in DEFAULT_CASES if not Path(trace).exists()]
+    if missing:
+        pytest.skip("trace verifier replay fixtures not packaged in code-only archive: " + ", ".join(missing[:3]))
 
 
 def test_trace_verifier_replay_ab_fake_writes_variant_artifacts(tmp_path) -> None:
+    _require_trace_replay_fixtures()
     summary = run(mode="fake", out_dir=tmp_path)
 
     assert summary["counts"]["cases"] == 3

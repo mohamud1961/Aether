@@ -83,9 +83,17 @@ def _structured_missing_evidence_requests(raw: str) -> tuple[VerifierInspectionR
 _PATH_IN_REQUEST_RE = re.compile(r"(?:/app/|\b)([A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)*\.[A-Za-z0-9]{1,8})")
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff")
+_TRANSCRIPT_REQUEST_RE = re.compile(
+    r"\b(stdout|stderr|transcript|frame-evidence|frame evidence|receipt text|command output|printed by)\b",
+    re.IGNORECASE,
+)
 
 
-def _inspections_from_missing_evidence(result: Any) -> tuple[VerifierInspectionRequest, ...]:
+def _inspections_from_missing_evidence(
+    result: Any,
+    *,
+    packet: Mapping[str, Any] | None = None,
+) -> tuple[VerifierInspectionRequest, ...]:
     """Realize prose missing-evidence requests that name concrete files.
 
     Observed live: verifiers returned uncertain_missing_evidence asking the
@@ -95,7 +103,11 @@ def _inspections_from_missing_evidence(result: Any) -> tuple[VerifierInspectionR
     directly instead of stalling the run on an unsatisfiable ask.
     """
     seen: list[str] = []
+    wants_transcript = False
     for request in getattr(result, "missing_evidence_requests", ()) or ():
+        text = str(request)
+        if _TRANSCRIPT_REQUEST_RE.search(text):
+            wants_transcript = True
         for match in _PATH_IN_REQUEST_RE.finditer(str(request)):
             path = match.group(1)
             if path not in seen:
@@ -107,6 +119,76 @@ def _inspections_from_missing_evidence(result: Any) -> tuple[VerifierInspectionR
             request_id=f"auto-missing-evidence-{idx}",
             kind=kind,
             path=path,
+        ))
+    if wants_transcript:
+        requests.extend(_read_output_requests_from_packet(packet, start_idx=len(requests)))
+    return tuple(requests)
+
+
+def _read_output_requests_from_packet(
+    packet: Mapping[str, Any] | None,
+    *,
+    start_idx: int = 0,
+) -> tuple[VerifierInspectionRequest, ...]:
+    if not isinstance(packet, Mapping):
+        return ()
+    handles = packet.get("state_inspection_handles")
+    if not isinstance(handles, (list, tuple)):
+        return ()
+    output_handles: list[dict[str, Any]] = []
+    for item in handles:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("kind", "")).strip() != "output":
+            continue
+        handle = str(item.get("handle", "")).strip()
+        stream = str(item.get("stream", "")).strip()
+        if not handle or stream not in {"stdout", "stderr"}:
+            continue
+        output_handles.append({
+            "handle": handle,
+            "stream": stream,
+            "bytes": int(item.get("bytes", 0) or 0),
+        })
+    if not output_handles:
+        return ()
+    def _handle_key(item: Mapping[str, Any]) -> tuple[int, str]:
+        handle = str(item.get("handle", ""))
+        try:
+            step_part = handle.split(":", 1)[0]
+            return (int(step_part), handle)
+        except Exception:
+            return (-1, handle)
+
+    def _handle_base(handle: str) -> str:
+        parts = handle.split(":")
+        return ":".join(parts[:-1]) if len(parts) >= 2 else handle
+
+    output_handles.sort(key=_handle_key)
+    latest_stdout = next((item for item in reversed(output_handles) if item["stream"] == "stdout"), None)
+    chosen: list[dict[str, Any]] = []
+    if latest_stdout is not None:
+        chosen.append(latest_stdout)
+        sibling_base = _handle_base(latest_stdout["handle"])
+        sibling_stderr = next(
+            (
+                item
+                for item in reversed(output_handles)
+                if item["stream"] == "stderr" and _handle_base(item["handle"]) == sibling_base
+            ),
+            None,
+        )
+        if sibling_stderr is not None:
+            chosen.append(sibling_stderr)
+    if not chosen:
+        chosen = output_handles[-2:]
+    requests: list[VerifierInspectionRequest] = []
+    for idx, item in enumerate(chosen, start=start_idx):
+        requests.append(VerifierInspectionRequest(
+            request_id=f"auto-missing-output-{idx}",
+            kind="read_output",
+            handle=item["handle"],
+            span=4000,
         ))
     return tuple(requests)
 
@@ -188,7 +270,59 @@ def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[
             path=deduped_artifacts[0],
             limit=8,
         ))
+    command_receipts = packet.get("recent_command_receipts", ())
+    if len(requests) < 3 and isinstance(command_receipts, (list, tuple)):
+        latest_stdout = ""
+        latest_stderr = ""
+        for item in reversed(command_receipts):
+            if not isinstance(item, Mapping):
+                continue
+            if not latest_stdout:
+                latest_stdout = str(item.get("stdout_handle", "")).strip()
+            if not latest_stderr:
+                latest_stderr = str(item.get("stderr_handle", "")).strip()
+            if latest_stdout and latest_stderr:
+                break
+        if latest_stdout:
+            requests.append(VerifierInspectionRequest(
+                request_id="auto-latest-command-stdout",
+                kind="read_output",
+                handle=latest_stdout,
+                span=4000,
+            ))
+        if len(requests) < 3 and latest_stderr:
+            requests.append(VerifierInspectionRequest(
+                request_id="auto-latest-command-stderr",
+                kind="read_output",
+                handle=latest_stderr,
+                span=4000,
+            ))
     return tuple(requests[:3])
+
+
+def _completed_inspection_is_semantically_grounded(
+    packet: Mapping[str, Any],
+    inspection_results: list[Mapping[str, Any]],
+) -> bool:
+    if not inspection_results:
+        return False
+    if not packet.get("local_verification_limits") and not packet.get("false_positive_risks"):
+        return True
+    saw_output = False
+    saw_substantive_file = False
+    for row in inspection_results:
+        if not isinstance(row, Mapping):
+            continue
+        kind = str(row.get("kind", "")).strip()
+        if kind == "read_output" and str(row.get("excerpt", "")).strip():
+            saw_output = True
+            continue
+        if kind == "read_file":
+            excerpt = str(row.get("excerpt", "")).strip()
+            path = str(row.get("path", "")).strip()
+            if excerpt and path and not path.endswith((".py", ".sh", ".js", ".ts", ".java", ".c", ".cpp", ".rs", ".go")):
+                saw_substantive_file = True
+    return saw_output or saw_substantive_file
 
 
 class ModelHooks:
@@ -312,6 +446,7 @@ class ModelHooks:
         max_rounds = int(VERIFIER_RUNTIME_CONTRACT["read_only_inspector"]["max_rounds"])
         inspected = False
         missing_evidence_realized = False
+        last_inspection_results: list[dict[str, Any]] = []
         for round_idx in range(max_rounds + 1):
             try:
                 raw = self._verifier(messages, max_output_tokens=_verifier_max_output_tokens())
@@ -348,6 +483,7 @@ class ModelHooks:
                     raise
                 results = inspector(requests)
                 inspected = True
+                last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
                     "role": "user",
@@ -370,10 +506,11 @@ class ModelHooks:
                 # if the verdict is still uncertain let durable findings and
                 # unchanged-state memoization take over instead of looping.
                 missing_evidence_realized = True
-                auto_requests = _inspections_from_missing_evidence(result)
+                auto_requests = _inspections_from_missing_evidence(result, packet=packet)
                 if auto_requests:
                     results = inspector(auto_requests)
                     inspected = True
+                    last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
                         "role": "user",
@@ -405,6 +542,7 @@ class ModelHooks:
                 if auto_requests:
                     results = inspector(auto_requests)
                     inspected = True
+                    last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
                         "role": "user",
@@ -444,6 +582,29 @@ class ModelHooks:
                     ),
                 })
                 continue
+            if (
+                result.verdict == "completed"
+                and inspected
+                and not _completed_inspection_is_semantically_grounded(packet, last_inspection_results)
+                and round_idx < max_rounds
+            ):
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "instruction": (
+                                "Do not return completed yet. The inspections so far only prove shape or artifact presence, "
+                                "not semantically grounded current-state support for the produced result. Inspect concrete "
+                                "result-bearing evidence next, such as the latest command output, produced output artifact, "
+                                "or an independent overlay check against the deliverable, then judge again."
+                            ),
+                        },
+                        default=str,
+                        sort_keys=True,
+                    ),
+                })
+                continue
             if result.verdict == "uncertain_missing_evidence" and round_idx < max_rounds:
                 try:
                     missing_requests = _structured_missing_evidence_requests(raw)
@@ -453,6 +614,7 @@ class ModelHooks:
                 if missing_requests:
                     results = inspector(missing_requests)
                     inspected = True
+                    last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
                         "role": "user",

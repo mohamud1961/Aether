@@ -75,30 +75,19 @@ def _raw_config(**overrides):
 
 
 def test_workbench_architect_prompt_states_runtime_config_role() -> None:
-    assert "configure the harness for task success" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "not to solve the task" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Visible smoke tests must be typed specs" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "visible_smoke_tests[*].type must be exactly one of: syntax_check | run_deliverable_on_fixture | content_assertion | file_exists | file_size" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "executing a program" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Filesystem-only guidance is appropriate only" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Operate like a compiler-backed skill" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "envmap.environment_probe" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "verifier_system_prompt" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "evidence_requirements" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "automatic memory repeat" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "automatic_repeat_mode" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "soft_block_exact_repeat" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Strict JSON rules" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Keep the total response compact enough to fit comfortably within the output budget" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "submit_outcome as a true completion claim" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "read-only\ncurrent-state inspector" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "blocked_by_harness_config" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "completed, needs_repair,\nuncertain_missing_evidence, blocked_by_tooling, and blocked_by_harness_config" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "if a local check fails or the verifier returns needs_repair" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Metadata is not semantic image" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "code-from-image style tasks" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "fresh extraction evidence or blocked_by_tooling" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-
+    assert "design the best possible task-local workbench" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "You do not solve the task yourself" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Visible validation surfaces means only" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Submit is a final completion claim" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Do not tell the solver that submit triggers a verifier" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Repeated actions are an efficiency signal, not proof of failure" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "The reviewer must inspect state directly before judging" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Do not put explanatory prose inside enabled_tools" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Fields that expect enum values" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Schema humility is mandatory" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "[integer]" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert '"enabled_tools": []' in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "grader_hints" not in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
 
 def test_runtime_manual_allowed_smoke_enum_matches_parser_enum() -> None:
     manual = build_runtime_manual()
@@ -121,13 +110,16 @@ def test_runtime_manual_allowed_smoke_enum_matches_parser_enum() -> None:
     solver_style = manual["solver_prompt_requirements"]["verification_first_style"]
     verifier_requirements = manual["verifier_prompt_requirements"]["must_include"]
     assert "that submit_outcome is a true completion claim, not a fishing call" in solver_style
-    assert "how to respond when local checks fail or verifier findings arrive" in solver_style
+    assert "how to respond when local checks fail or completion findings arrive" in solver_style
     assert "read-only current-state inspection role" in verifier_requirements
     assert "verdict meanings for completed/needs_repair/uncertain_missing_evidence/blocked_by_tooling/blocked_by_harness_config" in verifier_requirements
     perception = manual["perception_and_artifact_extraction"]
     assert perception["metadata_is_not_semantics"] is True
     assert "metadata-only inspect_artifact success" in perception["not_completion_evidence"]
     assert "semantic extraction is unavailable" in perception["semantic_extraction_rule"]
+    schema_humility = manual["schema_humility"]
+    assert "[integer]" in schema_humility["placeholder_notation_rule"]
+    assert "must not harden ambiguous placeholder delimiters" in schema_humility["visible_smoke_limit"]
 
 
 def test_architect_quality_rewards_verifier_state_inspector_and_repair_guidance() -> None:
@@ -136,11 +128,11 @@ def test_architect_quality_rewards_verifier_state_inspector_and_repair_guidance(
         "inspect inputs and exact output path",
         "build the artifact",
         "run the strongest local checks",
-        "repair and resubmit only after verifier feedback or failed checks are addressed",
+        "repair and resubmit only after completion feedback or failed checks are addressed",
     ]
     raw["solver_system_prompt"]["self_verification"] = [
         "run_check on the visible validator before submit",
-        "if a verifier finding or failed check appears, repair the named gap and resubmit only after fresh evidence",
+        "if a completion finding or failed check appears, repair the named gap and resubmit only after fresh evidence",
     ]
     raw["solver_system_prompt"]["stop_conditions"] = [
         "Ready to submit only when /app/out.txt matches the requested result and the strongest local evidence is fresh.",
@@ -195,7 +187,7 @@ def test_architect_quality_penalizes_visual_task_without_extraction_boundary() -
 def test_fake_architect_execution_pressure_config_realizes_shell_tool() -> None:
     class _ExecutionAwareModel:
         def __call__(self, messages, *, max_output_tokens=8000):
-            assert "executing a program" in messages[0]["content"]
+            assert "visible task instructions" in messages[0]["content"]
             assert "run_command" in messages[1]["content"]
             raw = json.loads(_raw_config())
             raw["task_understanding"] = "Generate cryptographic artifacts using a local command-line tool."
@@ -315,7 +307,7 @@ def test_harness_config_ir_recipe_bridges_to_runtime_context_policy() -> None:
         "recipe": {
             "include_recent": {"tool_results": 2},
             "include_last_failure": 1,
-            "preserve_exact": ["pending_checks", "active_verifier_findings"],
+            "preserve_exact": ["pending_checks", "active_completion_findings"],
             "make_queryable_not_inline": ["command_results"],
             "unsupported_knob": True,
         },
@@ -328,7 +320,7 @@ def test_harness_config_ir_recipe_bridges_to_runtime_context_policy() -> None:
     assert ir.context_policy.recipe.include_recent[0].selector == "tool_results"
     assert ir.context_policy.recipe.include_recent[0].count == 2
     assert ir.context_policy.recipe.include_last_failure == 1
-    assert ir.context_policy.recipe.preserve_exact == ("pending_checks", "active_verifier_findings")
+    assert ir.context_policy.recipe.preserve_exact == ("pending_checks", "active_completion_findings")
     assert ir.context_policy.recipe.make_queryable_not_inline == ("command_results",)
     assert ir.context_policy.recipe.unsupported_fields == ("unsupported_knob",)
 
@@ -360,6 +352,38 @@ def test_config_realization_audit_accounts_for_every_top_level_field() -> None:
     assert dispositions["memory_policy"]["automatic_repeat_mode"] == "advisory"
     assert dispositions["verification_policy"]["status"] == "realized_partial"
     assert dispositions["model_verifier_policy"]["status"] == "realized"
+    assert audit["guardrails"]["schema_humility"]["status"] == "realized_advisory"
+
+
+def test_config_realization_flags_placeholder_shape_hardening() -> None:
+    raw = json.loads(_raw_config())
+    raw["task_understanding"] = "Write a TOML output shown as jump_takeoff_frame_number = [integer]."
+    raw["success_definition"] = "The TOML output has the requested jump frame number."
+    raw["solver_system_prompt"]["self_verification"] = [
+        "Confirm jump_takeoff_frame_number is a one-element array.",
+    ]
+    raw["verifier_system_prompt"]["required_evidence"] = [
+        "current output has a one-element array for jump_takeoff_frame_number",
+    ]
+    raw["verification_policy"] = {
+        "visible_smoke_tests": [
+            {"type": "content_assertion", "path": "output.toml", "contains": ["jump_takeoff_frame_number = ["]}
+        ]
+    }
+    env = EnvMap(
+        task_prompt="Write output.toml with:\njump_takeoff_frame_number = [integer]\n",
+        workspace_root="/app",
+        capabilities=_env().capabilities,
+    )
+    config = parse_harness_config_ir(json.dumps(raw))
+
+    audit = config_realization_audit(config, env)
+    ir = harness_config_to_runtime_ir(config, env)
+
+    assert audit["guardrails"]["schema_humility"]["warnings"] == [
+        "schema_humility_warning=placeholder_notation_may_have_been_hardened_into_array_or_list_contract"
+    ]
+    assert any("schema_humility_warning" in note for note in ir.advisory_notes)
 
 
 def test_config_realization_audit_reports_declared_and_runtime_allowed_tools() -> None:

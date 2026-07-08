@@ -148,6 +148,7 @@ def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *,
         official_grader_authority = str(verification_authority.get("official_grader", "")).strip()
 
     state_handles: list[dict[str, Any]] = []
+    recent_command_receipts: list[dict[str, Any]] = []
     for receipt in ledger.all_receipts():
         payload = receipt.payload or {}
         if payload.get("file_handle"):
@@ -166,6 +167,16 @@ def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *,
                     "stream": stream,
                     "bytes": payload.get(f"{stream}_bytes", 0),
                 })
+        if receipt.kind == "run_command":
+            recent_command_receipts.append({
+                "receipt_id": receipt.receipt_id,
+                "step": receipt.step,
+                "command": str(payload.get("command", "")).strip(),
+                "exit_code": payload.get("exit_code"),
+                "stdout_handle": payload.get("stdout_handle", ""),
+                "stderr_handle": payload.get("stderr_handle", ""),
+                "authority": "audit_trail_only",
+            })
 
     packet = {
         "reason": reason,
@@ -187,6 +198,7 @@ def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *,
         "artifacts_present": sorted(ledger.current_artifacts()),
         "raw_state_candidates": _raw_state_candidates(realization),
         "state_inspection_handles": state_handles[-32:],
+        "recent_command_receipts": recent_command_receipts[-8:],
         "open_obligations": [item.as_dict() for item in ledger.open_obligations()],
         "active_findings": ledger.active_finding_context(step),
         "solver_reported_blockers": _solver_reported_blockers(ledger),

@@ -12,6 +12,7 @@ from .envmap_builder import build_envmap_from_task
 from .kernel import AetherNextKernel, KernelResult
 from .model_hooks import ModelHooks, ModelCallable
 from .real_executor import SubprocessExecutor
+from .result_metrics import run_metrics_for_row
 from .task_metadata_loader import load_task_metadata
 
 
@@ -108,6 +109,8 @@ def run_task(
     classifier = HarnessLimiterClassifier()
     classification = classifier.classify(result)
 
+    run_metrics = run_metrics_for_row(result, hooks.last_parse_errors)
+
     return {
         "architect_mode": architect_mode,
         "status": result.status,
@@ -121,7 +124,8 @@ def run_task(
         "classifier_confidence": classification.confidence,
         "classifier_evidence": list(classification.evidence),
         "classifier_detail": classification.detail,
-        "model_parse_errors": list(hooks.last_parse_errors),
+        "model_parse_errors": run_metrics.pop("model_parse_errors"),
+        "run_metrics": run_metrics,
         "receipt_summary": _receipt_summary(result),
     }
 

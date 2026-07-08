@@ -254,11 +254,11 @@ def test_stale_active_finding_is_not_resolved_by_runtime_proof_contract() -> Non
     """Proof-contract evidence must not become a second verifier.
 
     Earlier repair work let deterministic proof-contract analysis clear stale
-    verifier findings after the runtime observed evidence. That helped one
+    completion findings after the runtime observed evidence. That helped one
     OpenSSL anomaly, but it also made harness-side family judgement share
     ownership with the verifier. The canonical contract is stricter: proof
     analysis may be packet evidence, but only verifier lifecycle can resolve
-    verifier findings.
+    completion findings.
     """
     runtime = _runtime(
         success_definition="Generate a private key and self-signed certificate with openssl.",
@@ -310,7 +310,7 @@ def test_stale_active_finding_is_not_resolved_by_runtime_proof_contract() -> Non
 
     # Even if runtime proof-contract analysis would consider the evidence
     # category satisfied, it remains verifier evidence only. It must not resolve
-    # a verifier finding on the verifier's behalf.
+    # a completion finding on the verifier's behalf.
     assert "missing-key-mode-proof" in ledger.findings.active
     assert ledger.findings.active["missing-key-mode-proof"].stale_cycles == 2
     assert ledger.active_finding_context(step=15)

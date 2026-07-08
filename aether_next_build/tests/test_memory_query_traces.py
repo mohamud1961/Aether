@@ -3,10 +3,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from aether_next.ledger import ExecutionLedger, Receipt
 
 
 TRACE_ROOT = Path(__file__).resolve().parents[1] / "phase2_traces"
+
+
+def _require_trace(path: Path) -> None:
+    if not path.exists():
+        pytest.skip(f"trace fixture not packaged in code-only archive: {path}")
 
 
 def _command_from_summary(summary: str) -> str:
@@ -17,6 +24,7 @@ def _command_from_summary(summary: str) -> str:
 
 
 def _ledger_from_trace(path: Path) -> ExecutionLedger:
+    _require_trace(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     ledger = ExecutionLedger()
     for step in payload["trace"]["steps"]:

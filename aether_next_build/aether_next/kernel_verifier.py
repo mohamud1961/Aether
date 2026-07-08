@@ -10,7 +10,7 @@ from typing import Any
 
 from .ledger import ExecutionLedger, Receipt
 from .runtime_ir import CompiledRuntime
-from .verifier import ModelVerifierResult, parse_model_verifier_result
+from .verifier import ModelVerifierResult, classify_verifier_outcome, parse_model_verifier_result
 from .verifier_inspector import (
     VerifierInspectionRequest,
     execute_verifier_inspection_requests,
@@ -42,6 +42,59 @@ _REASON_ALIASES = {
     "uncertain_missing_evidence": "deterministic_failure",
 }
 
+
+
+def _inspection_evidence_summary(receipts: tuple[Receipt, ...]) -> dict[str, Any]:
+    """Summarise verifier-side inspection evidence for audit/result rows."""
+    inspection_receipts = [receipt for receipt in receipts if receipt.kind == "model_verifier_inspection"]
+    tools: list[str] = []
+    inspected_items: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for receipt in inspection_receipts:
+        payload = receipt.payload or {}
+        requests = payload.get("requests", ()) if isinstance(payload, dict) else ()
+        results = payload.get("results", ()) if isinstance(payload, dict) else ()
+        if isinstance(requests, list):
+            for request in requests:
+                if not isinstance(request, dict):
+                    continue
+                kind = str(request.get("kind", "")).strip()
+                if kind:
+                    tools.append(kind)
+        if isinstance(results, list):
+            for row in results:
+                if not isinstance(row, dict):
+                    continue
+                item = {
+                    "kind": row.get("kind", ""),
+                    "path": row.get("path", ""),
+                    "handle": row.get("handle", ""),
+                    "request_id": row.get("request_id", ""),
+                    "bytes": row.get("bytes", row.get("stdout_bytes", row.get("stderr_bytes", 0))),
+                    "content_hash": row.get("content_hash", ""),
+                    "read_only": bool(row.get("read_only", False)),
+                }
+                if row.get("matched_paths"):
+                    item["matched_paths"] = row.get("matched_paths")
+                if any(str(value).strip() for value in item.values() if not isinstance(value, bool)):
+                    inspected_items.append(item)
+                if row.get("error"):
+                    errors.append({
+                        "kind": row.get("kind", ""),
+                        "path": row.get("path", ""),
+                        "handle": row.get("handle", ""),
+                        "error": str(row.get("error", ""))[:1000],
+                    })
+    # stable order + concise payload
+    unique_tools = list(dict.fromkeys(tools))
+    return {
+        "inspection_receipt_ids": [receipt.receipt_id for receipt in inspection_receipts],
+        "inspection_count": len(inspection_receipts),
+        "inspection_tools_used": unique_tools,
+        "inspected_items": inspected_items[:20],
+        "inspection_error_count": len(errors),
+        "inspection_errors": errors[:10],
+    }
 
 def run_model_verifier_if_available(
     hooks: Any,
@@ -103,6 +156,7 @@ def run_model_verifier_if_available(
             },
         ))
         return previous
+    receipt_count_before_verify = len(ledger.all_receipts())
     ledger.record(Receipt(
         receipt_id=f"step-{step}:model_verifier_packet:{reason}",
         step=step,
@@ -144,6 +198,8 @@ def run_model_verifier_if_available(
         )
         return None
     ledger.apply_verifier_result(result, step=step, compiled=compiled)
+    inspection_summary = _inspection_evidence_summary(ledger.all_receipts()[receipt_count_before_verify:])
+    reviewer_classification = classify_verifier_outcome(result, inspection_summary=inspection_summary)
     active_after = ledger.active_finding_context(step + 1)
     result_receipt = ledger.latest_receipt("model_verifier_result")
     if result_receipt is not None:
@@ -153,7 +209,25 @@ def run_model_verifier_if_available(
             "raw_verifier_output": raw,
             "parsed_verifier_result": result.as_dict(),
             "active_findings_after": active_after,
+            "reviewer_classification": reviewer_classification,
+            "reviewer_evidence_receipt": inspection_summary,
         })
+    ledger.record(Receipt(
+        receipt_id=f"step-{step}:model_verifier_evidence:{reason}",
+        step=step,
+        kind="model_verifier_evidence",
+        success=not bool(inspection_summary.get("inspection_errors")),
+        summary=(
+            f"reviewer evidence summary: {inspection_summary.get('inspection_count', 0)} inspection receipt(s); "
+            f"classification={reviewer_classification}"
+        ),
+        failure_class="" if not inspection_summary.get("inspection_errors") else "reviewer_tool_execution_failed",
+        payload={
+            "reason": reason,
+            "reviewer_classification": reviewer_classification,
+            **inspection_summary,
+        },
+    ))
     _persist_verifier_bundle(
         step=step,
         reason=reason,
@@ -264,6 +338,7 @@ def _call_verify(
                             "request_id": request.request_id,
                             "kind": request.kind,
                             "path": request.path,
+                            "handle": getattr(request, "handle", ""),
                             "check_id": request.check_id,
                             "receipt_kind": request.receipt_kind,
                             "limit": request.limit,

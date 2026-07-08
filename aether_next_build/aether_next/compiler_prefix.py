@@ -35,11 +35,12 @@ PROTOCOL_CARD_SECTIONS: tuple[tuple[str, str], ...] = (
                 ),
             ),
             (
-                "verification_submit_manual",
+                "completion_submit_manual",
                 (
-                    "Verification facts: inspect_checks and run_check expose harness-visible checks when available; "
-                    "submit_outcome requests runtime completion evaluation; active_verifier_findings may appear in later "
-                    "context packets after a verifier pass; local checks and local evidence do not prove hidden grader behavior."
+                    "Completion facts: inspect_checks and run_check expose harness-visible checks when available; "
+                    "submit_outcome is a final completion claim evaluated against current task state; "
+                    "active_completion_findings may appear in later context packets when unresolved state or evidence issues remain. "
+                    "Local checks and local evidence are useful task evidence, not a substitute for genuine task completion."
                 ),
             ),
             (

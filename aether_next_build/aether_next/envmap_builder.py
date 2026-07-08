@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
+from typing import Any
 
 from .runtime_ir import CapabilityDescriptor, EnvMap
 from .task_capability import classify_capability_needs, flatten_task_toml, required_tool_hints
@@ -59,6 +60,12 @@ _SUBSTRATE_CAPABILITIES: tuple[tuple[str, str, tuple[str, ...], str], ...] = (
         "Inspect artifacts (text, binary, structured data)",
         ("inspect_artifact",),
         "moderate",
+    ),
+    (
+        "output_handle_retrieval",
+        "Retrieve full command outputs by handle",
+        ("read_output", "grep_output"),
+        "cheap",
     ),
     (
         "network_fetch",
@@ -123,6 +130,134 @@ def _build_file_map_summary(files: tuple[str, ...], dirs: tuple[str, ...]) -> di
         "visible_file_count": len(files),
         "visible_dir_count": len(dirs),
     }
+
+
+
+def _build_visible_validation_surfaces(files: tuple[str, ...], instruction_text: str) -> list[dict[str, Any]]:
+    """Return visible-only validation surfaces for architect setup.
+
+    This is the clean replacement for grader-shaped hints: only files, scripts,
+    commands, examples, fixtures, and README/package surfaces that are visible in
+    task/workspace material are included.
+    """
+    surfaces: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(kind: str, value: str, evidence: str) -> None:
+        value = value.strip()
+        key = (kind, value)
+        if not value or key in seen or len(surfaces) >= 40:
+            return
+        seen.add(key)
+        surfaces.append({"kind": kind, "value": value, "evidence": evidence})
+
+    for path in files:
+        name = path.rsplit("/", 1)[-1].lower()
+        lower = path.lower()
+        if name in {"readme", "readme.md", "readme.txt"}:
+            add("readme", path, "visible workspace file")
+        if name in {"makefile", "package.json", "pyproject.toml", "tox.ini", "pytest.ini", "cargo.toml"}:
+            add("project_command_surface", path, "visible workspace file")
+        if any(part in lower for part in ("test", "tests", "check", "verify", "fixture", "example", "sample")):
+            add("visible_test_or_example", path, "visible workspace file name")
+
+    command_patterns = (
+        r"`([^`\n]*(?:pytest|make|npm test|python3?\s+[^`\n]+|cargo test|go test|Rscript)[^`\n]*)`",
+        r"(?:run|execute|use)\s+`([^`\n]+)`",
+    )
+    for pattern in command_patterns:
+        for match in re.finditer(pattern, instruction_text, flags=re.IGNORECASE):
+            add("instruction_command", match.group(1), "visible task instruction")
+    return surfaces
+
+
+_MATERIAL_EXTENSIONS = {
+    ".csv", ".tsv", ".json", ".jsonl", ".toml", ".yaml", ".yml", ".txt", ".log",
+    ".ttl", ".rdf", ".sparql", ".sql", ".db", ".sqlite", ".sqlite3",
+    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".png", ".jpg", ".jpeg", ".pdf",
+    ".gcode", ".gco", ".nc", ".proto", ".html", ".pem", ".crt", ".key",
+    ".py", ".js", ".ts", ".sh", ".c", ".cpp", ".rs", ".R", ".r", ".stan",
+}
+_EXAMPLE_TOKENS = ("example", "sample", "fixture", "demo", "input", "output", "expected")
+
+
+def _build_visible_materials(files: tuple[str, ...], dirs: tuple[str, ...]) -> dict[str, Any]:
+    """Return high-recall visible task material facts without reading hidden data."""
+    declared_assets: list[dict[str, Any]] = []
+    visible_examples: list[dict[str, Any]] = []
+    extension_counts: dict[str, int] = {}
+    dir_file_counts: dict[str, int] = {}
+    grouped: dict[str, dict[str, Any]] = {}
+
+    for path in files:
+        p = Path(path)
+        ext = p.suffix.lower()
+        if ext:
+            extension_counts[ext] = extension_counts.get(ext, 0) + 1
+        parent = str(p.parent) if str(p.parent) != "." else "."
+        dir_file_counts[parent] = dir_file_counts.get(parent, 0) + 1
+        lower = path.lower()
+        is_material = ext in _MATERIAL_EXTENSIONS or any(token in lower for token in _EXAMPLE_TOKENS)
+        if is_material and len(declared_assets) < 80:
+            declared_assets.append({
+                "path": path,
+                "extension": ext,
+                "kind": _material_kind(path),
+                "evidence": "visible workspace file",
+            })
+        if any(token in lower for token in _EXAMPLE_TOKENS) and len(visible_examples) < 60:
+            visible_examples.append({
+                "path": path,
+                "kind": _material_kind(path),
+                "evidence": "visible file name indicates example/sample/fixture/input/output",
+            })
+        if ext and parent != ".":
+            row = grouped.setdefault(parent, {"dir": parent, "file_count": 0, "extensions": {}})
+            row["file_count"] += 1
+            row["extensions"][ext] = row["extensions"].get(ext, 0) + 1
+
+    notable_dirs = [
+        {"dir": d, "file_count": c}
+        for d, c in sorted(dir_file_counts.items(), key=lambda item: (-item[1], item[0]))[:30]
+    ]
+    directory_materials = []
+    for row in sorted(grouped.values(), key=lambda item: (-item["file_count"], item["dir"]))[:30]:
+        directory_materials.append({
+            "dir": row["dir"],
+            "file_count": row["file_count"],
+            "extensions": dict(sorted(row["extensions"].items())),
+        })
+    return {
+        "declared_assets": declared_assets,
+        "visible_examples": visible_examples,
+        "visible_material_summary": {
+            "extension_counts": dict(sorted(extension_counts.items())),
+            "notable_dirs": notable_dirs,
+            "directory_materials": directory_materials,
+            "visible_file_count": len(files),
+            "visible_dir_count": len(dirs),
+        },
+    }
+
+
+def _material_kind(path: str) -> str:
+    lower = path.lower()
+    ext = Path(lower).suffix
+    if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
+        return "video"
+    if ext in {".png", ".jpg", ".jpeg", ".pdf"}:
+        return "visual_or_document"
+    if ext in {".csv", ".tsv", ".json", ".jsonl", ".log", ".txt"}:
+        return "data_or_text"
+    if ext in {".ttl", ".rdf", ".sparql", ".sql", ".db", ".sqlite", ".sqlite3"}:
+        return "query_or_database"
+    if ext in {".gcode", ".gco", ".nc"}:
+        return "geometry_or_toolpath"
+    if ext in {".py", ".js", ".ts", ".sh", ".c", ".cpp", ".rs", ".R", ".r", ".stan"}:
+        return "source_or_script"
+    if ext in {".pem", ".crt", ".key"}:
+        return "security_artifact"
+    return "visible_file"
 
 
 def _extract_vocab_hits(text: str, vocab: tuple[str, ...]) -> list[str]:
@@ -222,6 +357,114 @@ def _classify_instruction_paths(
     }
 
 
+
+def _action_affordances(capabilities: dict[str, CapabilityDescriptor]) -> list[dict[str, Any]]:
+    affordances: list[dict[str, Any]] = []
+    for cap in sorted(capabilities.values(), key=lambda item: item.capability_id):
+        for tool in cap.tool_names:
+            affordances.append({
+                "action": tool,
+                "available": bool(cap.available),
+                "source_capability": cap.capability_id,
+                "scope": "solver_and_reviewer",
+            })
+    return affordances
+
+
+def _observed_environment_support(probe: dict[str, Any]) -> dict[str, Any]:
+    commands = probe.get("command_names") if isinstance(probe.get("command_names"), dict) else {}
+    python = probe.get("python") if isinstance(probe.get("python"), dict) else {}
+    network = probe.get("network") if isinstance(probe.get("network"), dict) else {}
+    modules = python.get("modules") if isinstance(python.get("modules"), dict) else {}
+
+    def command_status(name: str) -> str:
+        info = commands.get(name) if isinstance(commands, dict) else None
+        if not isinstance(info, dict):
+            return "unknown"
+        return "available" if info.get("available") else "missing"
+
+    def module_status(name: str) -> str:
+        info = modules.get(name) if isinstance(modules, dict) else None
+        if not isinstance(info, dict):
+            return "unknown"
+        return "available" if info.get("available") else "missing"
+
+    package_contract = python.get("package_contract") if isinstance(python.get("package_contract"), dict) else {}
+    return {
+        "commands": {name: command_status(name) for name in sorted(commands)},
+        "python": {
+            "preferred": python.get("preferred", ""),
+            "interpreters": python.get("interpreters", []),
+            "package_contract": package_contract,
+        },
+        "packages": {name: module_status(name) for name in sorted(modules)},
+        "media": {
+            "ffmpeg": command_status("ffmpeg"),
+            "ffprobe": command_status("ffprobe"),
+            "tesseract": command_status("tesseract"),
+            "imagemagick_convert": command_status("convert"),
+            "imagemagick_magick": command_status("magick"),
+            "python_cv2": module_status("cv2"),
+            "python_pil": module_status("PIL"),
+            "python_numpy": module_status("numpy"),
+        },
+        "network": network or {"status": "unknown"},
+        "services": {
+            "curl": command_status("curl"),
+            "wget": command_status("wget"),
+            "grpcurl": command_status("grpcurl"),
+            "nginx": command_status("nginx"),
+        },
+    }
+
+
+def _reviewer_probe_support(probe: dict[str, Any], capabilities: dict[str, CapabilityDescriptor]) -> dict[str, Any]:
+    commands = probe.get("command_names") if isinstance(probe.get("command_names"), dict) else {}
+    python = probe.get("python") if isinstance(probe.get("python"), dict) else {}
+    modules = python.get("modules") if isinstance(python.get("modules"), dict) else {}
+
+    def has_cmd(name: str) -> bool | str:
+        info = commands.get(name) if isinstance(commands, dict) else None
+        return bool(info.get("available")) if isinstance(info, dict) else "unknown"
+
+    def has_module(name: str) -> bool | str:
+        info = modules.get(name) if isinstance(modules, dict) else None
+        return bool(info.get("available")) if isinstance(info, dict) else "unknown"
+
+    available_actions = {tool for cap in capabilities.values() if cap.available for tool in cap.tool_names}
+    python_available = bool(python.get("preferred")) or has_cmd("python3") is True or has_cmd("python") is True
+
+    can_probe_http: bool | str
+    if python_available or has_cmd("curl") is True or has_cmd("wget") is True:
+        can_probe_http = True
+    elif has_cmd("curl") == "unknown" and has_cmd("wget") == "unknown" and not python:
+        can_probe_http = "unknown"
+    else:
+        can_probe_http = "degraded_missing_python_or_http_tool"
+
+    can_probe_ports: bool | str = True if python_available else "degraded_missing_python"
+
+    can_sample_media: bool | str
+    if has_cmd("ffmpeg") is True or has_module("cv2") is True or has_module("PIL") is True:
+        can_sample_media = True
+    elif has_cmd("ffmpeg") == "unknown" and has_module("cv2") == "unknown" and has_module("PIL") == "unknown":
+        can_sample_media = "unknown"
+    else:
+        can_sample_media = "metadata_only_or_tool_missing"
+
+    return {
+        "can_read_files": True,
+        "can_stat_artifacts": True,
+        "can_read_output_handles": True,
+        "can_inspect_artifacts": True,
+        "can_probe_ports": can_probe_ports,
+        "can_probe_http": can_probe_http,
+        "can_list_processes": True if has_cmd("ps") is True or has_cmd("pgrep") is True else has_cmd("ps"),
+        "can_sample_media_frames": can_sample_media,
+        "python_probe_fallback": python_available,
+        "source": "verifier_inspector_schema_and_live_probe_tools",
+    }
+
 def _build_capabilities() -> dict[str, CapabilityDescriptor]:
     """Build the generic substrate capability descriptors."""
     result: dict[str, CapabilityDescriptor] = {}
@@ -278,6 +521,8 @@ def build_envmap_from_task(
     capabilities = _build_capabilities()
     static_hints = _static_task_hints(instruction_text)
     summary = _build_file_map_summary(visible_files, visible_dirs)
+    visible_validation_surfaces = _build_visible_validation_surfaces(visible_files, instruction_text)
+    visible_materials = _build_visible_materials(visible_files, visible_dirs)
     path_classification = _classify_instruction_paths(
         list(static_hints["output_paths"]),
         list(static_hints["prompt_declared_output_paths"]),
@@ -292,11 +537,18 @@ def build_envmap_from_task(
     metadata = dict(task_metadata or {})
     public_task_metadata = flatten_task_toml(task_toml)
     if public_task_metadata:
-        metadata.setdefault("public_task_metadata", public_task_metadata)
-        # Promote stable public metadata to top-level EnvMap task_metadata for prompt/hash simplicity.
-        for key in ("category", "difficulty", "tags", "resource_budget", "agent_timeout_sec", "verifier_timeout_sec"):
+        # Keep public benchmark-shaped metadata internal.  Only resource/runtime
+        # budgets are model-facing because they constrain the workbench.
+        metadata.setdefault("internal_task_metadata", public_task_metadata)
+        for key in ("resource_budget", "agent_timeout_sec", "verifier_timeout_sec"):
             if key in public_task_metadata and key not in metadata:
                 metadata[key] = public_task_metadata[key]
+        budget = public_task_metadata.get("resource_budget") if isinstance(public_task_metadata.get("resource_budget"), dict) else {}
+        if isinstance(budget, dict):
+            metadata.setdefault("model_facing_resource_budget", {
+                k: v for k, v in budget.items()
+                if k in {"agent_timeout_sec", "verifier_timeout_sec", "build_timeout_sec", "cpus", "memory", "storage"}
+            })
     metadata.setdefault("static_task_hints", dict(static_hints))
     capability_needs = classify_capability_needs(
         instruction_text,
@@ -309,6 +561,18 @@ def build_envmap_from_task(
         "rule": "EnvMap facts must be probed_true/probed_false/unknown; capability_requirements are inferred hints, not facts",
         "capability_requirements_are_facts": False,
     }
+    metadata["visible_validation_surfaces"] = visible_validation_surfaces
+    metadata["declared_assets"] = visible_materials["declared_assets"]
+    metadata["visible_examples"] = visible_materials["visible_examples"]
+    metadata["visible_material_summary"] = visible_materials["visible_material_summary"]
+    metadata["task_capability_requirements"] = [need.as_dict() for need in capability_needs]
+    metadata["available_action_affordances"] = _action_affordances(capabilities)
+    metadata["observed_environment_support"] = _observed_environment_support(metadata.get("environment_probe") if isinstance(metadata.get("environment_probe"), dict) else {})
+    metadata["reviewer_probe_support"] = _reviewer_probe_support(metadata.get("environment_probe") if isinstance(metadata.get("environment_probe"), dict) else {}, capabilities)
+    summary["visible_validation_surfaces"] = visible_validation_surfaces
+    summary["declared_assets"] = visible_materials["declared_assets"]
+    summary["visible_examples"] = visible_materials["visible_examples"]
+    summary["visible_material_summary"] = visible_materials["visible_material_summary"]
     summary["capability_requirements"] = [need.as_dict() for need in capability_needs]
     summary["required_tool_hints"] = list(metadata["required_tool_hints"])
     probe = metadata.get("environment_probe") if isinstance(metadata.get("environment_probe"), dict) else {}
@@ -327,6 +591,7 @@ def build_envmap_from_task(
         visible_dirs=visible_dirs,
         capabilities=capabilities,
         grader_hints={},
+        resource_limits=dict(metadata.get("model_facing_resource_budget", {}) or {}),
         task_metadata=metadata,
         network_scope=network_scope,
         file_tree=_build_file_tree(visible_files, visible_dirs),

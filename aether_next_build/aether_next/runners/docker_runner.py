@@ -12,7 +12,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 import logging
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from ..classifier import HarnessLimiterClassifier, reconcile_grader_alignment
 from ..envmap_builder import build_envmap_from_task
@@ -35,6 +35,7 @@ from ..real_executor import (
     _MAX_SCAN_ENTRIES,
 )
 from ..run_adapter import ensure_certified_architect_mode, workbench_architect_for
+from ..result_metrics import run_metrics_for_row
 from ..runtime_ir import EnvMap, normalize_relpath
 from ..task_metadata_loader import load_task_instruction, load_task_metadata
 from .docker_exec_executor import DockerExecExecutor
@@ -42,6 +43,7 @@ from .docker_helpers import detect_grader_command, ensure_image_available, seed_
 
 # Prevent git "dubious ownership" on bind-mounted workspaces (uid mismatch).
 _GIT_SAFE_DIR_CMD = "git config --global --add safe.directory '*' || true"
+_log = logging.getLogger(__name__)
 
 
 def _load_task_toml(task_dir: str) -> dict[str, Any]:
@@ -212,6 +214,7 @@ def run_tbench_task(
     snapshot_dir: str | None = None,
     snapshot_steps: tuple[int, ...] = (),
     run_provenance: dict[str, Any] | None = None,
+    progress_callback: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     """Run one Terminal-Bench task end-to-end.  Never raises -- errors are
     captured into the record so that a pilot loop can continue.
@@ -237,13 +240,16 @@ def run_tbench_task(
 
     try:  # outer try: catch ALL exceptions so the pilot never gets a raise
         # -- 1. Temp workspace + seed ----------------------------------------
+        _progress(progress_callback, task_name, "workspace_create", "creating temporary workspace")
         workspace_dir = tempfile.mkdtemp(prefix=f"tbench_{task_name}_")
         workspace_path = Path(workspace_dir)
 
+        _progress(progress_callback, task_name, "image_available", f"ensuring docker image {image}")
         image_error = ensure_image_available(image, pull_timeout_s=max(300, run_timeout_s))
         if image_error is not None:
             return _error_record(task_name, image, "image_pull_failed", image_error, architect_mode=architect_mode)
 
+        _progress(progress_callback, task_name, "workspace_seed", "copying task workspace from image")
         seed_error = seed_workspace_from_image(
             image,
             workspace_path,
@@ -257,6 +263,7 @@ def run_tbench_task(
         task_dir_abs = str(Path(task_dir).resolve())
         tests_mount = os.path.join(task_dir_abs, "tests")
 
+        _progress(progress_callback, task_name, "container_start", "starting solver container")
         docker_run_cmd = [
             "docker", "run", "-d",
             "-v", f"{workspace_dir}:/app",
@@ -288,6 +295,7 @@ def run_tbench_task(
         )
 
         # -- 3. Build kernel inputs and run -----------------------------------
+        _progress(progress_callback, task_name, "envmap_build", "building task environment map")
         instruction_text = load_task_instruction(task_dir)
 
         envmap = build_envmap_from_task(
@@ -310,6 +318,7 @@ def run_tbench_task(
             if isinstance(required_tool_hints, (list, tuple))
             else tuple(static_hints.get("tool_hints", ())) if isinstance(static_hints, dict) else ()
         )
+        _progress(progress_callback, task_name, "environment_probe", "probing task runtime capabilities")
         env_probe = probe_environment(
             executor,
             workspace_root="/app",
@@ -343,8 +352,10 @@ def run_tbench_task(
         kernel_timeout_detail = ""
 
         try:
+            _progress(progress_callback, task_name, "kernel_run", f"running agent kernel with timeout {run_timeout_s}s")
             with _scoped_verifier_evidence_dir(task_name, trace_dir), _kernel_wall_timeout(run_timeout_s):
                 result = kernel.run(envmap, executor, hooks, trace=run_trace)
+            _progress(progress_callback, task_name, "kernel_done", f"kernel status={result.status} step={result.step}")
         except KernelRunTimeout as exc:
             # The agent phase has TERMINATED (by wall clock).  The official
             # grader runs after termination regardless of the reason -- a
@@ -362,9 +373,11 @@ def run_tbench_task(
             )
             kernel_timed_out = True
             kernel_timeout_detail = str(exc)
+            _progress(progress_callback, task_name, "kernel_timeout", kernel_timeout_detail)
 
         # Capture final workspace snapshot if requested.
         if snapshot_dir and container_id:
+            _progress(progress_callback, task_name, "snapshot_final", "copying final workspace snapshot")
             _docker_snapshot(container_id, os.path.join(snapshot_dir, task_name, "final"))
 
         # -- 4. Score with official grader ------------------------------------
@@ -373,6 +386,7 @@ def run_tbench_task(
         # reached a terminal state.  The solver container is started without
         # /task or /tests mounts, so pre-terminal code cannot inspect grader
         # or solution material.
+        _progress(progress_callback, task_name, "grader_prepare", "mounting official task/test surfaces after agent termination")
         subprocess.run(
             ["docker", "exec", container_id, "bash", "-lc", "rm -rf /task /tests && mkdir -p /task /tests"],
             capture_output=True, text=True, errors="replace", timeout=30,
@@ -390,6 +404,7 @@ def run_tbench_task(
         grader_cmd = detect_grader_command(task_dir_abs)
         grader_error = None
         try:
+            _progress(progress_callback, task_name, "grader_run", grader_cmd)
             grader_proc = subprocess.run(
                 ["docker", "exec", "-w", "/app", container_id, "bash", "-lc", grader_cmd],
                 capture_output=True, text=True, errors="replace", timeout=run_timeout_s,
@@ -409,6 +424,7 @@ def run_tbench_task(
             grader_exit=grader_exit,
             grader_error=grader_error,
         )
+        _progress(progress_callback, task_name, "grader_done", f"reward={reward} source={reward_source} error={grader_error}")
 
         # Capture CTRF detail if present (optional).
         grader_detail: dict[str, Any] | None = None
@@ -442,6 +458,7 @@ def run_tbench_task(
             kernel_timed_out=kernel_timed_out,
         )
         verifier_verdict = _latest_model_verifier_verdict(result)
+        run_metrics = run_metrics_for_row(result, hooks.last_parse_errors)
 
         record: dict[str, Any] = {
             "task": task_name,
@@ -458,7 +475,8 @@ def run_tbench_task(
             "classifier_label": classifier_label,
             "classifier_confidence": classifier_confidence,
             "classifier_detail": classifier_detail,
-            "model_parse_errors": list(hooks.last_parse_errors),
+            "model_parse_errors": run_metrics.pop("model_parse_errors"),
+            "run_metrics": run_metrics,
             "grader_exit": grader_exit,
             "reward_source": reward_source,
             "grader_stdout_tail": grader_stdout, "grader_stderr_tail": grader_stderr,
@@ -520,6 +538,21 @@ def run_tbench_task(
             )
         if workspace_dir and os.path.isdir(workspace_dir):
             shutil.rmtree(workspace_dir, ignore_errors=True)
+
+
+def _progress(
+    callback: Callable[[str, str], None] | None,
+    task_name: str,
+    stage: str,
+    detail: str,
+) -> None:
+    message = f"[{task_name}] {stage}: {detail}"
+    print(message, flush=True)
+    if callback is not None:
+        try:
+            callback(stage, detail)
+        except Exception:
+            _log.debug("progress callback failed", exc_info=True)
 
 
 def _error_record(

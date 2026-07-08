@@ -48,6 +48,7 @@ _DEFAULT_CAPABILITY_TOOLS = {
     "managed_process": ("launch_process", "probe_service", "stop_process"),
     "service_probe": ("probe_service",),
     "artifact_inspection": ("inspect_artifact",),
+    "output_handle_retrieval": ("read_output", "grep_output"),
     "network_fetch": ("bootstrap_acquire",),
 }
 
@@ -506,7 +507,7 @@ class ConfigCompiler:
                 "kernel_contract",
                 "tool_semantics",
                 "automatic_memory_manual",
-                "verification_submit_manual",
+                "completion_submit_manual",
                 "solver_turn_contract",
                 "task_prompt",
                 "envmap",
@@ -533,6 +534,23 @@ class ConfigCompiler:
             ],
         }
 
+        solver_visible_config_realization = {
+            key: value
+            for key, value in config_realization.items()
+            if key not in {
+                "verifier_raw_state_candidates",
+                "verifier_prompt_inserted",
+                "verifier_system_prompt_summary",
+                "verifier_prompt_hash",
+                "verification_authority",
+                "model_verifier_policy",
+            }
+        }
+        solver_visible_config_realization["rendered_sections"] = [
+            item for item in config_realization.get("rendered_sections", [])
+            if item not in {"verifier_identity", "configured_verification_policy"}
+        ]
+
         prefix_sections: list[tuple[str, str]] = [
             *PROTOCOL_CARD_SECTIONS,
             ("task_prompt", envmap.task_prompt),
@@ -548,15 +566,13 @@ class ConfigCompiler:
             ("forbidden_paths", stable_json(list(forbidden_paths))),
             ("workflow_mode", ir.workflow_policy.mode),
             ("solver_identity", ir.solver_identity_prompt),
-            ("verifier_identity", ir.verifier_identity_prompt),
             ("configured_context_policy", stable_json(configured_context_policy)),
-            ("configured_verification_policy", stable_json(configured_verification_policy)),
             ("configured_advisory_notes", stable_json(configured_advisory_notes)),
             ("environment_probe", stable_json(environment_probe)),
             ("refusal_boundary", self._render_refusal_boundary(ir.refusal_policy)),
             ("selected_capabilities", stable_json([asdict(cap) for cap in selected_capabilities])),
             ("action_schema", stable_json(action_schema_dict)),
-            ("config_realization", stable_json(config_realization)),
+            ("config_realization", stable_json(solver_visible_config_realization)),
         ]
 
         return CompiledRuntime(

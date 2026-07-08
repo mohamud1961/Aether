@@ -96,22 +96,24 @@ VERIFIER_RUNTIME_CONTRACT = {
             "requests": [
                 {
                     "request_id": "stable id",
-                    "kind": "read_file | rerun_check | inspect_artifact_history | inspect_recent_receipts | overlay_run_command | overlay_write_fixture | probe_port | probe_http | probe_process | inspect_artifact | perceive_artifact",
+                    "kind": "read_file | read_output | rerun_check | inspect_artifact_history | inspect_recent_receipts | overlay_run_command | overlay_write_fixture | probe_port | probe_http | probe_process | inspect_artifact | perceive_artifact",
                     "path": "relative path when needed (fixture target for overlay_write_fixture; artifact for inspect_artifact)",
+                    "handle": "command-output handle such as 5:a-1:stdout when using read_output",
                     "check_id": "compiled check id when needed",
                     "receipt_kind": "receipt kind filter when needed",
                     "command": "command to execute for overlay_run_command",
                     "content": "fixture file content for overlay_write_fixture",
                     "target": "host:port for probe_port, URL for probe_http, process pattern for probe_process",
                     "offset": 0,
+                    "span": 4000,
                     "limit": 1,
                 }
             ],
         },
         "rules": [
             "Use inspection requests only when the current verifier packet is insufficient to judge safely.",
-            "NEVER return uncertain_missing_evidence asking for file contents, transcripts, or state you can observe yourself: you have read_file, rerun_check, probes, overlay execution, and perceive_artifact -- inspect first, judge second. Solver-provided claims cannot enter the packet.",
-            "read_file, receipt/history inspection, probe_port, probe_http, probe_process, and inspect_artifact never mutate anything; probes observe LIVE services/processes/artifacts.",
+            "NEVER return uncertain_missing_evidence asking for file contents, command transcripts, or state you can observe yourself: you have read_file, read_output, rerun_check, probes, overlay execution, and perceive_artifact -- inspect first, judge second. Solver-provided claims cannot enter the packet.",
+            "read_file, read_output, receipt/history inspection, probe_port, probe_http, probe_process, and inspect_artifact never mutate anything; probes observe LIVE services/processes/artifacts.",
             "inspect_artifact returns file metadata including permissions (mode), owner, size, sha256, and type: use it to verify permission/ownership requirements instead of returning blocked_by_tooling.",
             "Artifact extractions labeled model_transcription_not_ground_truth are a model's reading of a binary artifact: audit them against independent evidence (e.g. executing the derived artifact) rather than accepting or dismissing them outright.",
             "perceive_artifact gives you your OWN vision reading of an image (when a vision route exists): use it to verify image-derived deliverables independently of the solver's transcription.",

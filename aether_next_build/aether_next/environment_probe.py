@@ -8,7 +8,7 @@ from typing import Any
 from .execution import Executor
 
 COMMAND_PROBE_NAMES: tuple[str, ...] = (
-    "python", "python3", "pip", "uv",
+    "python", "python3", "pip", "pip3", "uv", "ps", "pgrep",
     "node", "npm", "git",
     "openssl", "curl", "wget",
     "ffmpeg", "ffprobe", "tesseract", "pdftotext", "convert", "magick",
@@ -57,6 +57,12 @@ def probe_environment(
     )
     python = _probe_python(executor, workspace_root=workspace_root, command_names=command_names)
     network = _probe_network(executor, workspace_root=workspace_root, command_names=command_names)
+    if isinstance(python, dict):
+        python["package_contract"] = _merge_package_contract(
+            python.get("interpreter_details", {}) if isinstance(python.get("interpreter_details"), dict) else {},
+            command_names,
+            network_status=str(network.get("status", "unknown")) if isinstance(network, dict) else "unknown",
+        )
     return {
         "schema_version": "environment_probe.v1",
         "workspace_root": workspace_root,
@@ -159,7 +165,11 @@ def _probe_python(
         name for name in ("python3", "python")
         if command_names.get(name, {}).get("available")
     ]
-    modules = ("pytest", "cryptography", "rdflib", "numpy", "scipy", "pandas", "sklearn", "PIL", "cv2", "torch")
+    modules = (
+        "pytest", "cryptography", "rdflib", "numpy", "scipy", "pandas", "sklearn",
+        "PIL", "cv2", "torch", "grpc", "grpc_tools", "fasttext", "pyarrow",
+        "toml", "matplotlib",
+    )
     results: dict[str, Any] = {"preferred": interpreters[0] if interpreters else "", "interpreters": interpreters}
     module_status: dict[str, dict[str, Any]] = {}
     for interpreter in interpreters[:2]:
@@ -184,12 +194,112 @@ def _probe_python(
                 current = module_status.setdefault(str(mod), {"available_in": []})
                 if available:
                     current["available_in"].append(interpreter)
+            details = results.setdefault("interpreter_details", {})
+            if isinstance(details, dict):
+                details[interpreter] = _python_package_contract(
+                    executor,
+                    workspace_root=workspace_root,
+                    interpreter=interpreter,
+                    command_names=command_names,
+                )
     for mod in modules:
         item = module_status.setdefault(mod, {"available_in": []})
         item["available"] = bool(item["available_in"])
     results["modules"] = module_status
+    results["package_contract"] = _merge_package_contract(
+        results.get("interpreter_details", {}) if isinstance(results.get("interpreter_details"), dict) else {},
+        command_names,
+        network_status="unknown",
+    )
     return results
 
+
+def _python_package_contract(
+    executor: Executor,
+    *,
+    workspace_root: str,
+    interpreter: str,
+    command_names: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    code = """
+import json, os, site, sys, sysconfig
+paths = []
+try:
+    paths.extend(site.getsitepackages())
+except Exception:
+    pass
+try:
+    paths.append(site.getusersitepackages())
+except Exception:
+    pass
+stdlib = sysconfig.get_path("stdlib") or ""
+externally_managed = os.path.exists(os.path.join(stdlib, "EXTERNALLY-MANAGED"))
+print(json.dumps({
+    "executable": sys.executable,
+    "version": sys.version.split()[0],
+    "site_packages": paths,
+    "site_packages_writable": any(os.access(path, os.W_OK) for path in paths if path),
+    "externally_managed": externally_managed,
+}))
+""".strip()
+    result = executor.run_command(
+        f"{shlex.quote(interpreter)} -c {shlex.quote(code)}",
+        cwd=workspace_root,
+        timeout_s=10,
+    )
+    parsed: dict[str, Any] = {}
+    if result.success:
+        try:
+            parsed = json.loads(result.stdout.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError):
+            parsed = {}
+    parsed["pip_commands_available"] = [
+        name for name in ("pip", "pip3") if command_names.get(name, {}).get("available")
+    ]
+    parsed["pip_module_available"] = _pip_module_available(
+        executor,
+        workspace_root=workspace_root,
+        interpreter=interpreter,
+    )
+    return parsed
+
+
+def _pip_module_available(executor: Executor, *, workspace_root: str, interpreter: str) -> bool:
+    result = executor.run_command(
+        f"{shlex.quote(interpreter)} -m pip --version >/dev/null 2>&1",
+        cwd=workspace_root,
+        timeout_s=10,
+    )
+    return result.exit_code == 0
+
+
+def _merge_package_contract(
+    interpreter_details: dict[str, Any],
+    command_names: dict[str, dict[str, Any]],
+    *,
+    network_status: str,
+) -> dict[str, Any]:
+    preferred = next(iter(interpreter_details), "")
+    detail = interpreter_details.get(preferred, {}) if preferred else {}
+    pip_commands = [
+        name for name in ("pip", "pip3") if command_names.get(name, {}).get("available")
+    ]
+    pip_available = bool(pip_commands or detail.get("pip_module_available"))
+    if network_status == "unknown":
+        package_install_status = "unknown"
+    elif network_status == "probed_true" and pip_available:
+        package_install_status = "probed_possible"
+    else:
+        package_install_status = "probed_unavailable"
+    return {
+        "preferred_python": preferred,
+        "pip_available": pip_available,
+        "pip_commands_available": pip_commands,
+        "pip_interpreter": preferred if detail.get("pip_module_available") else "",
+        "site_packages_writable": detail.get("site_packages_writable", "unknown"),
+        "externally_managed_python": detail.get("externally_managed", "unknown"),
+        "package_install_status": package_install_status,
+    }
 
 
 def _probe_network(

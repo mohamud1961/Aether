@@ -267,7 +267,7 @@ class AetherNextKernel:
                         kind="model_verifier_skipped",
                         success=True,
                         summary=(
-                            "model verifier skipped: active verifier findings require "
+                            "model verifier skipped: active completion findings require "
                             "an intervening solver action or evidence before another submit"
                         ),
                         failure_class="",
@@ -289,7 +289,7 @@ class AetherNextKernel:
                             kind="solver_submit_stalemate",
                             success=False,
                             summary=(
-                                "solver submit stalemate: active verifier findings "
+                                "solver submit stalemate: active completion findings "
                                 "required intervening evidence, but the solver kept "
                                 "submitting without adding evidence"
                             ),

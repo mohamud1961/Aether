@@ -12,6 +12,7 @@ from aether_next.kernel import AetherNextKernel
 from aether_next.model_hooks import (
     ModelHooks,
     ModelOutputError,
+    _completed_inspection_is_semantically_grounded,
     _default_completion_inspection_requests,
     _extract_json_object,
     parse_runtime_config_ir,
@@ -23,6 +24,7 @@ from aether_next.runtime_ir import (
     RuntimeConfigIR,
     SolverTurn,
 )
+from aether_next.verifier_inspector import VerifierInspectionRequest
 from aether_next.verifier import parse_model_verifier_result
 from aether_next.workbench_config import parse_harness_config_ir
 
@@ -211,6 +213,23 @@ class TestArchitectGarbage:
         with pytest.raises(ModelOutputError, match="architect output could not be parsed"):
             hooks.architect(request)
         assert hooks.last_parse_errors, "expected parse errors to be recorded"
+
+
+def test_completed_inspection_requires_result_bearing_evidence_for_semantic_tasks() -> None:
+    packet = {
+        "false_positive_risks": ["shape-valid artifact may still be semantically wrong"],
+        "local_verification_limits": [{"source": "runtime_config", "statement": "shape-only checks are insufficient"}],
+    }
+    shape_only = [
+        {"kind": "read_file", "path": "jump_analyzer.py", "excerpt": "print('ok')"},
+        {"kind": "inspect_recent_receipts", "rows": []},
+    ]
+    grounded = [
+        {"kind": "read_output", "handle": "9:a-1:stdout", "excerpt": "takeoff=87 landing=119 sampled_scores=[...]"},
+    ]
+
+    assert _completed_inspection_is_semantically_grounded(packet, shape_only) is False
+    assert _completed_inspection_is_semantically_grounded(packet, grounded) is True
 
     def test_garbage_does_not_return_runtime_config_ir(self) -> None:
         envmap = _make_envmap()
@@ -422,6 +441,88 @@ class TestVerifierHook:
         assert inspections[0][0].path == "out.txt"
         assert len(seen["calls"]) == 2
         assert "verifier_inspection_results" in seen["calls"][1][-1]["content"]
+
+    def test_verify_with_inspector_auto_realizes_transcript_missing_evidence_as_read_output(self) -> None:
+        envmap = _make_envmap()
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(envmap)).compile(
+            RuntimeConfigIR(
+                architect_summary="summary",
+                solver_identity_prompt="solver",
+                selected_capabilities=("shell", "filesystem"),
+                verifier_identity_prompt="Task-specific verifier prompt.",
+            ),
+            envmap,
+        )
+        calls: list[list[dict[str, str]]] = []
+
+        def verifier_model(messages, *, max_output_tokens=8000):
+            calls.append(messages)
+            if len(calls) == 1:
+                return json.dumps({
+                    "verdict": "uncertain_missing_evidence",
+                    "confidence": "0.8",
+                    "summary": "Need the actual stdout transcript before I can judge.",
+                    "missing_evidence_requests": [
+                        "Please surface the actual stdout/stderr or receipt text from the run, including the frame-evidence lines printed by the spot-audit command."
+                    ],
+                })
+            payload = json.loads(messages[-1]["content"])
+            inspected = payload.get("verifier_inspection_results", [])
+            assert any(row.get("kind") == "read_output" and "SPOT_AUDIT" in row.get("excerpt", "") for row in inspected)
+            return json.dumps({
+                "verdict": "needs_repair",
+                "confidence": "high",
+                "summary": "The transcript shows the produced boundary is still wrong.",
+                "findings": [{
+                    "finding_id": "wrong-boundary",
+                    "summary": "The command transcript shows the chosen window does not match the required boundary.",
+                    "evidence": ["SPOT_AUDIT transcript disagrees with the claimed completion."],
+                    "repair_instruction": "Repair the boundary logic and regenerate the output.",
+                    "applies_to": ["output.toml", "jump_analyzer.py"],
+                }],
+            })
+
+        hooks = ModelHooks(
+            architect_model=_stub_model(_valid_architect_json()),
+            solver_model=_stub_model(_valid_submit_json()),
+            verifier_model=verifier_model,
+        )
+        inspections: list[tuple[Any, ...]] = []
+
+        def inspector(requests):
+            inspections.append(requests)
+            results = []
+            for request in requests:
+                if request.kind == "read_output":
+                    results.append({
+                        "request_id": request.request_id,
+                        "kind": request.kind,
+                        "handle": request.handle,
+                        "excerpt": "OUTPUT_TOML\\n...\\nSPOT_AUDIT frame 104 score=10.9",
+                    })
+            return results
+
+        packet = {
+            "reason": "solver_submit",
+            "task_prompt": "Analyze jump video.",
+            "state_inspection_handles": [
+                {"kind": "output", "handle": "5:a-1:stdout", "stream": "stdout", "bytes": 860},
+                {"kind": "output", "handle": "5:a-1:stderr", "stream": "stderr", "bytes": 0},
+            ],
+        }
+
+        raw = hooks.verify_with_inspector(
+            packet,
+            compiled,
+            ledger=type("_L", (), {"all_receipts": lambda self: []})(),
+            inspector=inspector,
+        )
+        parsed = parse_model_verifier_result(raw)
+
+        assert parsed.verdict == "needs_repair"
+        assert len(inspections) == 1
+        assert [r.kind for r in inspections[0]] == ["read_output", "read_output"]
+        assert [r.handle for r in inspections[0]] == ["5:a-1:stdout", "5:a-1:stderr"]
 
     def test_auto_inspection_exposes_raw_state_before_accepting_solver_recomputation(self) -> None:
         envmap = _make_envmap()
