@@ -7,6 +7,11 @@ from typing import Any
 import time
 
 from harness.aether2.runtime.model_routes import ModelClientError, TRANSIENT_STATUS_CODES, make_model_client_from_route
+from harness.aether2.runtime.transcript_repair import (
+    RepairEvent,
+    repair_tool_call_pairs,
+    serialize_parallel_tool_calls,
+)
 
 
 @dataclass(frozen=True)
@@ -33,8 +38,24 @@ class Aether2ModelClient:
         self.max_attempts = max(1, int(max_attempts))
         self.backoff_sec = max(0.0, float(backoff_sec))
         self._client = make_model_client_from_route(self.model_route, **client_kwargs)
+        # Cumulative audit of tool-call/response pairing repairs applied before any
+        # request reached the provider. Every model call in a run funnels through
+        # this client, so this is the single source of truth for the run.
+        self.transcript_repair_events: list[RepairEvent] = []
+
+    @property
+    def transcript_repairs(self) -> int:
+        return len(self.transcript_repair_events)
 
     def call(self, messages, tools, *, cache_prefix_len: int) -> ModelResponse:
+        # Pre-send tool-call pairing invariant. Guarantees the provider never sees
+        # an assistant `tool_calls` without matching `tool` responses (a hard 400),
+        # regardless of which upstream branch assembled the transcript. No-op for
+        # valid transcripts, so flag-off baseline behaviour is unchanged.
+        repair = repair_tool_call_pairs(messages)
+        if repair.repaired:
+            self.transcript_repair_events.extend(repair.events)
+        outgoing = serialize_parallel_tool_calls(repair.messages)
         attempt = 0
         while True:
             attempt += 1
@@ -44,8 +65,8 @@ class Aether2ModelClient:
                 # AzureOpenAIAPIKeyModelClient) forward unrecognized kwargs straight
                 # into the request payload, so it must NOT be passed through here.
                 raw = self._client.complete(
-                    list(messages),
-                    tools=_flatten_function_tools(tools),
+                    list(outgoing),
+                    tools=_tools_for_route(self.model_route, tools),
                 )
                 return _normalize_response(raw)
             except ModelClientError as exc:
@@ -83,6 +104,17 @@ def _flatten_function_tools(tools: Any) -> list[dict[str, Any]]:
         else:
             flattened.append(dict(tool))
     return flattened
+
+
+def _tools_for_route(model_route: dict[str, Any], tools: Any) -> list[dict[str, Any]]:
+    """Return the tool shape expected by the configured provider route."""
+    request_settings = model_route.get("request_settings")
+    if (
+        isinstance(request_settings, dict)
+        and request_settings.get("azure_api_surface") == "v1_responses"
+    ):
+        return [dict(tool) for tool in list(tools or []) if isinstance(tool, dict)]
+    return _flatten_function_tools(tools)
 
 
 def _normalize_response(raw: dict[str, Any]) -> ModelResponse:

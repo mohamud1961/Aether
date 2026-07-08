@@ -3,7 +3,7 @@
 Responsibilities:
 - Build the per-turn completion contract injected into the model context.
 - Track evidence progress across turns (requirement advancement, provenance).
-- Build suppressed-blocker and evidence-gate DiscrepancyReport objects.
+- Build evidence-gate DiscrepancyReport objects.
 - Classify semantic action families for failure-family tracking.
 """
 
@@ -24,15 +24,19 @@ __all__ = [
     "_INDEPENDENT_PROVENANCE_LABELS",
     "_SELF_AUTHORED_PROVENANCE_LABELS",
     "_WEAK_EVIDENCE_STRENGTHS",
-    "_active_blockers",
     "_build_completion_contract",
     "_build_completion_evidence_gate_report",
-    "_build_suppressed_blocker_report",
+    "_build_operational_verification_feedback",
+    "_build_proof_state",
+    "_build_recovery_warning",
+    "_build_task_done_warning",
     "_failure_class",
     "_ledger_progress",
+    "_mutation_risk_from_tool_call",
     "_new_independent_provenance_added",
     "_primary_requirement",
     "_semantic_action_family",
+    "_summarize_repeat_progress_note",
     "_strength_rank",
 ]
 
@@ -69,6 +73,10 @@ def _strength_rank(value: str) -> int:
     return {"none": 0, "weak": 1, "moderate": 2, "strong": 3}.get(value, 0)
 
 
+def _status_rank(value: str) -> int:
+    return {"contradicted": -2, "unproven": 0, "partial": 2, "proven": 4}.get(value, 0)
+
+
 def _new_independent_provenance_added(before_item: Mapping[str, Any], after_item: Mapping[str, Any]) -> bool:
     """Return True if a new independent-provenance label appeared in after_item."""
 
@@ -76,6 +84,224 @@ def _new_independent_provenance_added(before_item: Mapping[str, Any], after_item
     after_labels = {str(label) for label in (after_item.get("evidence_provenance", []) or [])}
     newly_added = after_labels - before_labels
     return bool(newly_added & _INDEPENDENT_PROVENANCE_LABELS)
+
+
+def _build_proof_state(
+    ledger: Mapping[str, Any],
+    *,
+    receipt_store: Any | None = None,
+    local_tools: Any | None = None,
+    completion_policy: Any | None = None,
+    previous_score: int | None = None,
+) -> dict[str, Any]:
+    """Build a generic, receipt-backed proof-state summary for receipt-driven runs."""
+
+    from harness.aether2.control.requirements import _ledger_requirements, _ledger_requirement_text  # local import
+
+    receipt_events = list(receipt_store.events(limit=50)) if receipt_store is not None and hasattr(receipt_store, "events") else []
+    requirements = [
+        dict(item)
+        for item in _ledger_requirements(ledger)
+        if _ledger_requirement_text(item) and "unassigned activity" not in _ledger_requirement_text(item).lower()
+    ]
+    tool_risks = local_tools.completion_risks() if local_tools is not None and hasattr(local_tools, "completion_risks") else {}
+    untrusted_tools = list(tool_risks.get("untrusted_tools", []) or [])
+    rejected_proxy_evidence: list[str] = []
+    observed_evidence = _typed_observed_evidence(receipt_events, untrusted_tools=untrusted_tools)
+    score = 0
+    proven = 0
+    proxy_warnings: list[str] = []
+    unresolved: list[str] = []
+    weak_or_self_authored: list[str] = []
+    next_required_evidence: list[str] = []
+    proof_items: list[dict[str, Any]] = []
+
+    for item in requirements:
+        requirement = _ledger_requirement_text(item)
+        status = str(item.get("status", "unproven"))
+        evidence_strength = str(item.get("evidence_strength", "none"))
+        evidence_refs = [str(ref) for ref in list(item.get("evidence_refs", []) or [])]
+        provenance = {str(label) for label in (item.get("evidence_provenance", []) or [])}
+        blockers = [str(value) for value in list(item.get("verifier_blockers", []) or [])]
+        next_required = [str(value) for value in list(item.get("next_required_evidence", []) or [])]
+        score += _status_rank(status) + _strength_rank(evidence_strength)
+        score -= len(blockers)
+        if status == "proven":
+            proven += 1
+        if status != "proven" or blockers or next_required:
+            unresolved.append(requirement)
+        proof_item_status = "proven"
+        if blockers:
+            proof_item_status = "blocked"
+        elif status == "partial":
+            proof_item_status = "partial"
+        elif status != "proven":
+            proof_item_status = "unknown"
+        proof_items.append(
+            {
+                "name": requirement,
+                "status": proof_item_status,
+                "evidence_refs": evidence_refs[:4],
+            }
+        )
+        for missing in next_required:
+            if missing not in next_required_evidence:
+                next_required_evidence.append(missing)
+        if evidence_refs and (
+            evidence_strength in _WEAK_EVIDENCE_STRENGTHS
+            or (provenance and provenance.issubset(_SELF_AUTHORED_PROVENANCE_LABELS))
+        ):
+            weak_or_self_authored.append(requirement)
+            rejected_proxy_evidence.append(f"{requirement}: completion relied on weak or self-authored evidence")
+            if status == "proven":
+                score -= 1
+
+    for tool in untrusted_tools:
+        path = str(tool.get("path", "") or tool.get("name", "") or "task-local tool")
+        rejected_proxy_evidence.append(f"{path}: task-local helper is not trusted for completion")
+        score -= 1
+
+    required_final_evidence = []
+    if completion_policy is not None:
+        required_final_evidence = [
+            str(item).strip()
+            for item in list(getattr(completion_policy, "required_final_evidence", ()) or ())
+            if str(item).strip()
+        ]
+    if "command_not_found" in observed_evidence:
+        next_required_evidence.append(
+            "Inspect available runtimes/package managers and use harness tools directly instead of typing them as shell commands."
+        )
+    proxy_warnings.extend(_proxy_warning_labels(observed_evidence, untrusted_tools=untrusted_tools))
+    missing_proof: list[str] = []
+    for requirement in unresolved[:4]:
+        if requirement not in missing_proof:
+            missing_proof.append(requirement)
+    for item in required_final_evidence[:4]:
+        if item not in missing_proof:
+            missing_proof.append(item)
+    readiness = bool(requirements) and proven == len(requirements) and not rejected_proxy_evidence and not unresolved
+    summary_bits = [
+        f"requirements={len(requirements)}",
+        f"proven={proven}",
+        f"unresolved={len(unresolved)}",
+        f"proxy_rejections={len(rejected_proxy_evidence)}",
+    ]
+    if required_final_evidence:
+        summary_bits.append(f"required_final_evidence={len(required_final_evidence)}")
+    state = "ready" if readiness else "not_ready"
+    last_action_signature = _last_action_signature(receipt_events)
+    last_blocker = None
+    if next_required_evidence:
+        last_blocker = next_required_evidence[0]
+    elif rejected_proxy_evidence:
+        last_blocker = rejected_proxy_evidence[0]
+    elif unresolved:
+        last_blocker = unresolved[0]
+    return {
+        "state": state,
+        "readiness": readiness,
+        "score": score,
+        "delta": None if previous_score is None else score - previous_score,
+        "summary": ", ".join(summary_bits),
+        "requirements_total": len(requirements),
+        "requirements_proven": proven,
+        "observed_evidence": observed_evidence,
+        "missing_proof": missing_proof[:6],
+        "open_requirements": unresolved[:4],
+        "next_required_evidence": next_required_evidence[:6],
+        "weak_or_self_authored_requirements": weak_or_self_authored[:4],
+        "required_final_evidence": required_final_evidence[:4],
+        "rejected_proxy_evidence": rejected_proxy_evidence[:6],
+        "proxy_warnings": proxy_warnings[:8],
+        "proof_items": proof_items[:8],
+        "last_blocker": last_blocker,
+        "last_action_signature": last_action_signature,
+        "untrusted_local_tools": untrusted_tools[:4],
+        "receipt_event_count": len(receipt_events),
+    }
+
+
+def _typed_observed_evidence(
+    receipt_events: list[Mapping[str, Any]],
+    *,
+    untrusted_tools: list[Mapping[str, Any]],
+) -> list[str]:
+    types: list[str] = []
+    for event in receipt_events:
+        payload = event.get("payload") if isinstance(event.get("payload"), Mapping) else {}
+        summary = str(event.get("summary", "") or "")
+        blob = " ".join(
+            [
+                summary,
+                str(payload.get("stdout_excerpt", "") or ""),
+                str(payload.get("stderr_excerpt", "") or ""),
+                str(payload.get("status", "") or ""),
+            ]
+        ).lower()
+        exit_code = payload.get("exit_code")
+        if exit_code == 127 or "command not found" in blob:
+            _append_once(types, "command_not_found")
+        if "listen_ok" in blob or "listening" in blob or "port being open" in blob:
+            _append_once(types, "open_port_only")
+        if any(token in blob for token in ("connected to ", "http/1.1", "login:")):
+            _append_once(types, "fresh_client_observed_text")
+        if "schema valid" in blob:
+            _append_once(types, "schema_valid")
+        if "schema invalid" in blob:
+            _append_once(types, "schema_invalid")
+        if "candidate_destructive_input_blocked" in blob or "protected candidate" in blob:
+            _append_once(types, "destructive_action_blocked")
+        if event.get("event_type") == "artifact_observation" and payload.get("status") == "exists_only":
+            _append_once(types, "artifact_exists_only")
+    if untrusted_tools:
+        _append_once(types, "helper_output_untrusted")
+    return types
+
+
+def _append_once(values: list[str], value: str) -> None:
+    if value not in values:
+        values.append(value)
+
+
+def _proxy_warning_labels(
+    observed_evidence: list[str],
+    *,
+    untrusted_tools: list[Mapping[str, Any]],
+) -> list[str]:
+    warnings: list[str] = []
+    mapping = {
+        "artifact_exists_only": "artifact_exists_only",
+        "open_port_only": "port_open_only",
+        "helper_output_untrusted": "unvalidated_helper_output",
+        "destructive_action_blocked": "original_overwrite_risk",
+    }
+    for item in observed_evidence:
+        label = mapping.get(item)
+        if label is not None:
+            _append_once(warnings, label)
+    if "fresh_client_observed_text" not in observed_evidence and "open_port_only" in observed_evidence:
+        _append_once(warnings, "process_alive_only")
+    if untrusted_tools:
+        _append_once(warnings, "unvalidated_helper_output")
+    return warnings
+
+
+def _last_action_signature(receipt_events: list[Mapping[str, Any]]) -> str | None:
+    for event in reversed(receipt_events):
+        if event.get("event_type") != "tool_result":
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), Mapping) else {}
+        tool_name = str(payload.get("tool_name", "") or "").strip()
+        arguments = payload.get("arguments", {})
+        if not tool_name:
+            continue
+        family, target, target_kind = _semantic_action_family(tool_name, arguments if isinstance(arguments, Mapping) else {})
+        parts = [family]
+        if target:
+            parts.append(f"{target_kind or 'target'}={target}")
+        return " ".join(parts)
+    return None
 
 
 def _ledger_progress(before: Mapping[str, Any], after: Mapping[str, Any]) -> tuple[bool, bool]:
@@ -108,7 +334,12 @@ def _ledger_progress(before: Mapping[str, Any], after: Mapping[str, Any]) -> tup
     return requirement_advanced, stronger_evidence_added
 
 
-def _build_completion_contract(task_instruction: str, ledger: Mapping[str, Any]) -> dict[str, Any]:
+def _build_completion_contract(
+    task_instruction: str,
+    ledger: Mapping[str, Any],
+    *,
+    completion_policy: Any | None = None,
+) -> dict[str, Any]:
     """Build the per-turn completion contract injected into the model context."""
 
     from harness.aether2.control.requirements import (  # local import
@@ -155,6 +386,12 @@ def _build_completion_contract(task_instruction: str, ledger: Mapping[str, Any])
         ):
             current_evidence_is_self_authored_or_weak = True
 
+    required_final_evidence = []
+    weak_evidence_policy = None
+    if completion_policy is not None:
+        required_final_evidence = list(getattr(completion_policy, "required_final_evidence", ()) or ())
+        weak_evidence_policy = getattr(completion_policy, "weak_evidence_policy", None)
+
     return {
         "intro": COMPLETION_REMINDER_INTRO,
         "stated_task_contract": contract_text,
@@ -162,6 +399,8 @@ def _build_completion_contract(task_instruction: str, ledger: Mapping[str, Any])
         "verifier_blockers": blockers[:_REQUIREMENT_PREVIEW_LIMIT],
         "weak_evidence": weak_evidence[:_REQUIREMENT_PREVIEW_LIMIT],
         "next_required_evidence": next_required[:_REQUIREMENT_PREVIEW_LIMIT],
+        "required_final_evidence": required_final_evidence[:_REQUIREMENT_PREVIEW_LIMIT],
+        "weak_evidence_policy": weak_evidence_policy,
         "current_unresolved_requirement": current_unresolved_requirement,
         "strongest_missing_evidence": strongest_missing_evidence,
         "current_evidence_is_self_authored_or_weak": current_evidence_is_self_authored_or_weak,
@@ -214,58 +453,93 @@ def _failure_class(envelope: ObservationEnvelope) -> str | None:
     return None
 
 
-def _active_blockers(ledger: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Return all active/candidate_resolved/exhausted blockers from the ledger."""
+def _build_operational_verification_feedback(
+    report: DiscrepancyReport,
+    *,
+    proof_state: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return compact, action-oriented verifier feedback for the next model turn.
 
-    blockers = ledger.get("blockers", []) if isinstance(ledger, Mapping) else []
-    if not isinstance(blockers, list):
-        return []
-    return [
-        dict(item)
-        for item in blockers
-        if isinstance(item, Mapping) and str(item.get("status", "")) in {"active", "candidate_resolved", "exhausted"}
-    ]
+    The verifier report is intentionally requirement/evidence-oriented. This
+    helper turns unresolved findings into a small operational packet without
+    adding task-specific knowledge or hidden grader truth.
+    """
 
+    unresolved = list(report.unresolved_requirements)
+    primary = unresolved[0] if unresolved else None
+    requirement = primary.requirement if primary is not None else "completion claim"
+    evidence = primary.evidence if primary is not None else report.summary
+    reason_codes = list(report.reason_codes)
+    searchable = " ".join([requirement, evidence, report.summary, *reason_codes]).lower()
 
-def _build_suppressed_blocker_report(ledger: Mapping[str, Any]) -> DiscrepancyReport:
-    """Build a DiscrepancyReport for a verifier call suppressed due to active blockers."""
+    next_action_type = "collect_independent_evidence"
+    guidance = (
+        "Gather new evidence that directly resolves the stated gap; do not only restate prior checks."
+    )
+    do_not_repeat = "Do not resubmit the same completion claim without a new state change or stronger evidence."
 
-    blocker_rows = _active_blockers(ledger)[:_REQUIREMENT_PREVIEW_LIMIT]
-    requirements = tuple(
-        RequirementResult(
-            requirement=str(blocker.get("requirement", "")).strip() or "unresolved requirement",
-            verdict="unverifiable",
-            evidence=(
-                str(blocker.get("insufficiency_reason", "")).strip()
-                or "No new blocker-relevant evidence was provided."
-            )
-            + (
-                ""
-                if not list(blocker.get("required_next_evidence", []) or [])
-                else f" Next evidence: {list(blocker.get('required_next_evidence', []) or [])[0]}"
-            ),
-            evidence_strength="weak",
-            evidence_strength_reasons=("suppressed_verifier_without_new_relevant_evidence",),
-            confidence="high",
-            evidence_refs=tuple(str(item) for item in list(blocker.get("rejected_evidence_refs", []) or [])[:2]),
-            unresolved=True,
+    exact_tokens = (
+        "byte",
+        "exact",
+        "literal",
+        "canonical",
+        "format",
+        "precision",
+        "ordering",
+        "command string",
+    )
+    service_tokens = ("service", "server", "port", "http", "survival", "sigterm", "process", "daemon")
+    durable_tokens = ("proof", "bundle", "artifact", "trace", "long-horizon", "long horizon", "submission")
+    command_tokens = ("command", "runner", "toolchain", "script", "pytest", "executable")
+
+    if any(token in searchable for token in exact_tokens):
+        next_action_type = "rederive_and_compare_exact_artifact"
+        guidance = (
+            "Re-open the produced artifact and the visible specification/source data, then compare the literal "
+            "output against the visible contract for key order, formatting, precision, newline, and byte-level "
+            "representation. If a serializer cannot preserve the required representation, regenerate the artifact "
+            "with an explicit formatter instead of rerunning the same weak check."
         )
-        for blocker in blocker_rows
-    )
-    summary = "Completion request rejected without a new verifier call because active blockers still require new relevant evidence."
-    blocker_summaries = [
-        f"{str(blocker.get('requirement', '')).strip()}: "
-        f"{(list(blocker.get('required_next_evidence', []) or []) or ['new blocker-relevant evidence required'])[0]}"
-        for blocker in blocker_rows
-    ]
-    if blocker_summaries:
-        summary += " " + " | ".join(blocker_summaries)
-    return DiscrepancyReport(
-        requirements=requirements,
-        reason_codes=("verifier_suppressed_no_new_relevant_evidence",),
-        summary=summary,
-        raw_response="suppressed_verifier_call",
-    )
+        do_not_repeat = (
+            "Do not rely only on a shape check, JSON parse success, or a checker that does not prove literal "
+            "contract equivalence."
+        )
+    elif any(token in searchable for token in service_tokens):
+        next_action_type = "prove_service_survival_and_semantics"
+        guidance = (
+            "Run a fresh client probe for the required behavior, then collect bounded survival and shutdown/log "
+            "evidence from the actual process in the target environment."
+        )
+        do_not_repeat = "Do not treat startup, one curl, or an open port as service readiness."
+    elif any(token in searchable for token in durable_tokens):
+        next_action_type = "prove_durable_final_artifacts"
+        guidance = (
+            "Read back the final artifacts, verify they contain the required semantic fields, and add the missing "
+            "proof object or trace-backed evidence from solver-visible sources."
+        )
+        do_not_repeat = "Do not treat a generated summary as proof unless the referenced artifacts were read back."
+    elif any(token in searchable for token in command_tokens):
+        next_action_type = "prove_command_fidelity"
+        guidance = (
+            "Read the authoritative visible contract and the edited command/script, then execute the exact command "
+            "path required by that contract and record the observed result."
+        )
+        do_not_repeat = "Do not substitute a nearby command or rely on stale docs when the contract names an exact command."
+
+    return {
+        "status": "not_ready" if unresolved else "ready",
+        "primary_gap": requirement,
+        "why_not_ready": evidence,
+        "reason_codes": reason_codes,
+        "next_action_type": next_action_type,
+        "exact_guidance": guidance,
+        "do_not_repeat": do_not_repeat,
+        "proof_state": dict(proof_state) if isinstance(proof_state, Mapping) else None,
+        "proof_state_delta": None if not isinstance(proof_state, Mapping) else proof_state.get("delta"),
+        "rejected_proxy_evidence": []
+        if not isinstance(proof_state, Mapping)
+        else [str(item) for item in list(proof_state.get("rejected_proxy_evidence", []) or []) if str(item).strip()],
+    }
 
 
 def _build_completion_evidence_gate_report(
@@ -275,6 +549,8 @@ def _build_completion_evidence_gate_report(
     finalize_reason: str | None,
     check_results: list[Any],
     action_digest: Mapping[str, Any],
+    completion_policy: Any | None = None,
+    proof_state: Mapping[str, Any] | None = None,
 ) -> DiscrepancyReport | None:
     """Build a gate DiscrepancyReport when task_done has no evidence, or None."""
 
@@ -282,6 +558,9 @@ def _build_completion_evidence_gate_report(
 
     if finalize_reason != "task_done":
         return None
+    required_final_evidence = []
+    if completion_policy is not None:
+        required_final_evidence = list(getattr(completion_policy, "required_final_evidence", ()) or ())
     if check_results or _has_independent_runtime_evidence(action_digest):
         return None
 
@@ -291,6 +570,18 @@ def _build_completion_evidence_gate_report(
         "did not observe independent runtime/service/session evidence. Provide "
         "a concrete externally observable check, or keep working."
     )
+    if isinstance(proof_state, Mapping) and proof_state:
+        state = str(proof_state.get("state", "") or "").strip()
+        summary = str(proof_state.get("summary", "") or "").strip()
+        proxy_items = [str(item) for item in list(proof_state.get("rejected_proxy_evidence", []) or []) if str(item).strip()]
+        if state:
+            evidence += f" Current proof_state={state}."
+        if summary:
+            evidence += f" {summary}."
+        if proxy_items:
+            evidence += " Rejected proxy evidence: " + "; ".join(proxy_items[:4]) + "."
+    if required_final_evidence:
+        evidence += " Required final evidence for this task includes: " + "; ".join(required_final_evidence[:4])
     result = RequirementResult(
         requirement=requirement or "completion claim",
         verdict="unverifiable",
@@ -339,3 +630,101 @@ def _has_independent_runtime_evidence(action_digest: Mapping[str, Any]) -> bool:
                 return True
 
     return False
+
+
+def _build_task_done_warning(proof_state: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(proof_state, Mapping) or not proof_state:
+        return None
+    unresolved = [str(item) for item in list(proof_state.get("open_requirements", []) or []) if str(item).strip()]
+    proxy = [str(item) for item in list(proof_state.get("rejected_proxy_evidence", []) or []) if str(item).strip()]
+    if not unresolved and not proxy and bool(proof_state.get("readiness")):
+        return None
+    return {
+        "type": "task_done_warning",
+        "readiness": str(proof_state.get("state", "not_ready") or "not_ready"),
+        "unresolved_proof_items": unresolved[:4],
+        "rejected_proxy_evidence": proxy[:4],
+        "message": (
+            "Readiness is still unsupported by the current proof state. Review the unresolved proof items and proxy evidence before finalizing."
+        ),
+    }
+
+
+def _build_recovery_warning(
+    tool_name: str,
+    arguments: Mapping[str, Any],
+    envelope: ObservationEnvelope,
+) -> dict[str, Any] | None:
+    error = getattr(envelope, "error", None)
+    reason_code = str(getattr(error, "reason_code", "") or "").strip()
+    if tool_name == "start_job" and reason_code == "interactive_job_requires_session_start":
+        command = " ".join(str(arguments.get("cmd", "") or "").split())
+        return {
+            "type": "interactive_tool_recovery",
+            "tool": tool_name,
+            "reason_code": reason_code,
+            "message": (
+                "A detached background job was blocked because this command appears interactive and needs stdin/terminal attachment. "
+                "Use session_start with the real interactive command itself, then continue with session_read/session_send. "
+                "Do not retry the same start_job shape."
+            ),
+            "blocked_command": command[:240],
+            "recovery_tools": ["session_start", "session_read", "session_send"],
+        }
+    return None
+
+
+def _mutation_risk_from_tool_call(
+    tool_name: str,
+    arguments: Mapping[str, Any],
+    *,
+    proof_state: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(proof_state, Mapping):
+        proof_state = {}
+    open_requirements = [str(item) for item in list(proof_state.get("open_requirements", []) or []) if str(item).strip()]
+    if not open_requirements:
+        return None
+
+    compact = ""
+    if tool_name == "run_command":
+        compact = " ".join(str(arguments.get("cmd", "") or "").split())
+    elif tool_name == "write_file":
+        compact = str(arguments.get("path", "") or "")
+    elif tool_name == "session_send":
+        compact = str(arguments.get("keys", "") or "")
+    lowered = compact.lower()
+
+    risk = None
+    if tool_name == "run_command":
+        bulk_markers = (" rm ", " mv ", " cp ", " install -d ", " mvn ", "truncate", "sed -i", "perl -pi", "cat >")
+        if any(marker in f" {lowered} " for marker in bulk_markers) or "*" in lowered:
+            risk = "bulk_or_destructive_shell_mutation"
+    elif tool_name == "write_file":
+        risk = "overwrite_or_rebuild_artifact"
+    elif tool_name == "session_send" and any(token in compact for token in ("\x03", "\u0003")):
+        risk = "destructive_service_interrupt"
+
+    if risk is None:
+        return None
+    return {
+        "type": "mutation_warning",
+        "risk": risk,
+        "open_requirements": open_requirements[:4],
+        "message": (
+            "Proof coverage is still incomplete and this action looks bulk, destructive, or hard to undo. Preserve evidence or a replacement path before invalidating the current candidate."
+        ),
+    }
+
+
+def _summarize_repeat_progress_note(previous: Mapping[str, Any] | None, current: Mapping[str, Any] | None) -> str | None:
+    if not isinstance(previous, Mapping) or not isinstance(current, Mapping):
+        return None
+    previous_signature = str(previous.get("signature", "") or "").strip()
+    current_signature = str(current.get("signature", "") or "").strip()
+    if not previous_signature or previous_signature != current_signature:
+        return None
+    result = str(previous.get("result", "") or "").strip()
+    if not result:
+        result = "no stronger evidence was observed"
+    return f"Progress note: you tried a similar action last turn. Result: {result}."

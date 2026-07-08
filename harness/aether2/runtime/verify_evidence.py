@@ -472,15 +472,31 @@ def _classify_evidence_provenance(
 
 def _has_clean_support(
     *,
+    requirement: str,
     verdict: str,
     strength: str,
     evidence_provenance: tuple[str, ...],
     evidence_strength_reasons: tuple[str, ...],
 ) -> bool:
+    lowered_requirement = requirement.strip().lower()
+    if lowered_requirement.startswith("[inferred]") or lowered_requirement.startswith("[watchpoint]"):
+        return True
     if verdict != "satisfied":
         return False
     if strength == "strong":
         return True
     if strength == "mixed":
         return "independent" in evidence_provenance
+    high_signal_reasons = {
+        "clean_execution",
+        "independent_value_or_invariant_comparison",
+        "artifact_parse_and_use",
+        "client_interaction",
+        "provided_checks_without_environment_hacks",
+        "bounded_survival_window",
+        "response_or_state_validation",
+        "crash_or_replacement_detected",
+    }
+    if "independent" in evidence_provenance and high_signal_reasons.intersection(evidence_strength_reasons):
+        return True
     return False

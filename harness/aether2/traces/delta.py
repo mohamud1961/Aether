@@ -5,7 +5,7 @@ All implementation has been extracted into focused sibling modules:
 
 - ``snapshot_diff``    — FileDelta / StateSnapshot / DeltaReport / snapshot / diff
 - ``evidence_ledger``  — build_evidence_ledger / compact_evidence_ledger / record_*
-- ``blockers``         — register_verifier_blockers / mark_blockers_* / should_suppress_*
+- ``blockers``         — register_verifier_blockers / mark_blockers_* lifecycle helpers
 - ``terminal_claims``  — record_terminal_claim / normalization helpers
 - ``_text_utils``      — _clean_text / _coerce_int / _normalize_string_list / …
 
@@ -59,7 +59,6 @@ from harness.aether2.traces.blockers import (
     compute_relevant_evidence_version,
     mark_blockers_candidate_resolved,
     mark_blockers_exhausted,
-    should_suppress_verifier_call,
     # internal helpers used transitively
     _blocker_map,
     _blocker_sort_key,
@@ -201,7 +200,6 @@ __all__ = [
     "mark_blockers_exhausted",
     "record_verifier_report",
     "register_verifier_blockers",
-    "should_suppress_verifier_call",
     # terminal_claims
     "record_terminal_claim",
 ]

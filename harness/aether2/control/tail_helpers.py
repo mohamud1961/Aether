@@ -39,6 +39,8 @@ def _build_tail_state(
     session_ids: list[str],
     note: Any | None,
     events: list[str] | None = None,
+    proof_state: Mapping[str, Any] | None = None,
+    progress_note: str | None = None,
 ) -> dict[str, Any]:
     """Build the §6.3 tail-state dict appended to each model request."""
     # Import locally to avoid circulars.
@@ -70,6 +72,10 @@ def _build_tail_state(
         "derived_state": derived_state,
         "evidence_ledger": _tail_evidence_ledger(evidence_ledger),
     }
+    if isinstance(proof_state, Mapping) and proof_state:
+        tail["proof_state"] = dict(proof_state)
+    if progress_note:
+        tail["progress_note"] = progress_note
     if note is not None:
         tail["mirror_note"] = note.text
         if note.fuel_gauge_text:

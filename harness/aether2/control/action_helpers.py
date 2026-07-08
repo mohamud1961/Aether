@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from harness.aether2.traces.envelope import ObservationEnvelope, build_envelope
+from harness.aether2.runtime.adaptive_profile_helpers import redact_host_run_paths
 
 __all__ = [
     "_action_signature",
@@ -63,7 +64,12 @@ def _envelope_failed(envelope: ObservationEnvelope) -> bool:
 
 
 def _build_blind_retry_blocked_envelope(
-    tool_name: str, arguments: Mapping[str, Any], cwd: str, *, raw_log_dir: Path
+    tool_name: str,
+    arguments: Mapping[str, Any],
+    cwd: str,
+    *,
+    raw_log_dir: Path,
+    guidance: str | None = None,
 ) -> ObservationEnvelope:
     """Return a synthetic envelope that blocks a blind-retry of the same failed action."""
     raw = {
@@ -72,13 +78,14 @@ def _build_blind_retry_blocked_envelope(
         "duration_sec": 0.0,
         "cwd": cwd,
         "stdout": "",
-        "stderr": "blind_retry_blocked_same_failed_command",
+        "stderr": "blind_retry_blocked_same_failed_command" + (f"\n{guidance}" if guidance else ""),
         "blind_retry_blocked": True,
         "error": {
             "kind": "blind_retry_blocked",
             "message": (
                 "This exact action just failed and nothing has changed since. "
                 "Try something different before repeating it."
+                + (f" Task-specific repeat guidance: {guidance}" if guidance else "")
             ),
             "reason_code": "blind_retry_blocked_same_failed_command",
             "tool_name": tool_name,
@@ -144,6 +151,7 @@ def _envelope_to_message(tool_name: str, tool_call_id: Any, envelope: Observatio
             }
         ),
     }
+    payload = redact_host_run_paths(payload)
     return {
         "role": "tool",
         "name": tool_name,

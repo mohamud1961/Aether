@@ -1,4 +1,10 @@
-"""Workspace scoped foreground execution helper with optional container backing."""
+"""Workspace scoped foreground execution helper with optional container backing.
+
+The token-level path scan in this module is an advisory heuristic for obvious
+workspace escapes. The real containment boundary is the task environment
+itself, typically container isolation. Nested shells can bypass string-level
+scanning, so this guard must never be treated as a security boundary.
+"""
 
 from __future__ import annotations
 
@@ -49,18 +55,21 @@ class ContainerExecutor:
     """Run foreground shell commands with a workspace-root boundary."""
 
     _FOREGROUND_SCRIPT_DIR = ".aether2/foreground_commands"
+    _DEFAULT_MAX_TEXT_READ_BYTES = 256 * 1024
 
     def __init__(
         self,
         workspace_root: str | Path | None = None,
         *,
         backend: ContainerBackend | None = None,
+        max_text_read_bytes: int = _DEFAULT_MAX_TEXT_READ_BYTES,
     ) -> None:
         root = Path(workspace_root) if workspace_root is not None else Path.cwd()
         self.workspace_root = root.resolve(strict=False)
         self.backend = backend or ContainerBackend()
         container_root = self.backend.container_workspace_root or self.workspace_root.as_posix()
         self.container_workspace_root = self._normalize_container_root(container_root)
+        self.max_text_read_bytes = max(1, int(max_text_read_bytes))
 
     @property
     def execution_boundary(self) -> str:
@@ -188,6 +197,23 @@ class ContainerExecutor:
             raise ValueError(error.message)
         return resolved
 
+    def read_text_file(self, path: str | Path) -> str:
+        target = self.resolve_workspace_path(path)
+        size = target.stat().st_size
+        if size > self.max_text_read_bytes:
+            raise ValueError(
+                "read_file_limit_exceeded: file exceeds the safe text-read limit "
+                f"({size} bytes > {self.max_text_read_bytes} bytes)"
+            )
+        return target.read_text(encoding="utf-8", errors="replace")
+
+    def write_text_file(self, path: str | Path, content: str) -> None:
+        target = self.resolve_workspace_path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = target.with_name(target.name + ".aether2_tmp")
+        tmp_path.write_text(content, encoding="utf-8")
+        tmp_path.replace(target)
+
     def to_container_path(self, path: str | Path) -> str:
         resolved = self.resolve_workspace_path(path)
         relative = resolved.relative_to(self.workspace_root).as_posix()
@@ -220,9 +246,12 @@ class ContainerExecutor:
 
     def _find_boundary_violation(self, command: str, cwd_path: Path) -> str | None:
         try:
-            tokens = shlex.split(command, posix=True)
+            tokens = shlex.split(self._strip_heredoc_bodies(command), posix=True)
         except ValueError:
             return None
+        nested_violation = self._nested_shell_boundary_violation(tokens, cwd_path)
+        if nested_violation is not None:
+            return nested_violation
         for index, token in enumerate(tokens):
             if index == 0:
                 continue
@@ -230,8 +259,28 @@ class ContainerExecutor:
             if candidate is None:
                 continue
             if not self._is_within_workspace(candidate):
+                if self._is_allowed_runtime_path_token(token):
+                    continue
                 return token
         return None
+
+    def _nested_shell_boundary_violation(self, tokens: list[str], cwd_path: Path) -> str | None:
+        if not tokens:
+            return None
+        shell_name = Path(tokens[0]).name
+        if shell_name not in {"sh", "bash", "zsh", "dash"}:
+            return None
+        nested_command: str | None = None
+        for index, token in enumerate(tokens[1:], start=1):
+            if token == "-c" and index + 1 < len(tokens):
+                nested_command = tokens[index + 1]
+                break
+            if token.endswith("c") and token.startswith("-l") and index + 1 < len(tokens):
+                nested_command = tokens[index + 1]
+                break
+        if not nested_command:
+            return None
+        return self._find_boundary_violation(nested_command, cwd_path)
 
     def _format_blocked_token(self, token: str) -> str:
         stripped = token.strip()
@@ -240,6 +289,42 @@ class ContainerExecutor:
         if stripped.startswith(("~", "/")):
             return "<outside-workspace-path>"
         return stripped
+
+    def _strip_heredoc_bodies(self, command: str) -> str:
+        """Remove heredoc bodies before path-token boundary scanning."""
+
+        lines = command.splitlines()
+        if not lines:
+            return command
+
+        stripped_lines: list[str] = []
+        active_delimiters: list[str] = []
+        for line in lines:
+            if active_delimiters:
+                if line.strip() == active_delimiters[-1]:
+                    active_delimiters.pop()
+                    stripped_lines.append(line)
+                continue
+
+            stripped_lines.append(line)
+            delimiter = self._heredoc_delimiter(line)
+            if delimiter is not None:
+                active_delimiters.append(delimiter)
+        return "\n".join(stripped_lines)
+
+    def _heredoc_delimiter(self, line: str) -> str | None:
+        marker = "<<"
+        if marker not in line:
+            return None
+        suffix = line.split(marker, 1)[1].lstrip()
+        if not suffix:
+            return None
+        token = suffix.split()[0].strip()
+        if token.startswith("-"):
+            token = token[1:]
+        if len(token) >= 2 and token[0] == token[-1] and token[0] in {"'", '"'}:
+            token = token[1:-1]
+        return token or None
 
     def _candidate_path_from_token(self, token: str, cwd_path: Path) -> Path | None:
         if not token or token.startswith("-") or "://" in token:
@@ -252,8 +337,12 @@ class ContainerExecutor:
         return resolved
 
     def _looks_like_path_token(self, token: str) -> bool:
-        if token.startswith(("/", "./", "../", "~/")):
+        if token in {".", ".."}:
             return True
+        if token.startswith(("./", "../", "~/")):
+            return True
+        if token.startswith("/"):
+            return self._looks_like_absolute_filesystem_path(token)
         if "/" in token:
             return True
         return Path(token).suffix.lower() in {
@@ -271,6 +360,65 @@ class ContainerExecutor:
             ".yaml",
             ".yml",
         }
+
+    def _looks_like_absolute_filesystem_path(self, token: str) -> bool:
+        """Distinguish filesystem paths from HTTP/API route literals.
+
+        Shell snippets often contain service routes such as `/health` or
+        `/echo`. Those are not filesystem reads and should not trip the
+        workspace boundary guard. Actual host/container paths remain guarded.
+        """
+
+        stripped = token.strip()
+        if not stripped.startswith("/") or stripped.startswith("//"):
+            return False
+        first_component = stripped.lstrip("/").split("/", 1)[0]
+        if first_component in {
+            "app",
+            "bin",
+            "dev",
+            "etc",
+            "home",
+            "opt",
+            "private",
+            "proc",
+            "root",
+            "sbin",
+            "sys",
+            "tmp",
+            "usr",
+            "var",
+            "workspace",
+            "Users",
+            "Volumes",
+        }:
+            return True
+        return Path(stripped).suffix.lower() in {
+            ".csv",
+            ".ini",
+            ".json",
+            ".jsonl",
+            ".log",
+            ".md",
+            ".py",
+            ".sh",
+            ".txt",
+            ".toml",
+            ".xml",
+            ".yaml",
+            ".yml",
+        }
+
+    def _is_allowed_runtime_path_token(self, token: str) -> bool:
+        """Allow container-local runtime paths in shell commands only.
+
+        File tools remain workspace-scoped through _resolve_workspace_path. This
+        exception is only for command tokens such as pid files, sockets, and
+        temporary logs that live in the task container's runtime namespace.
+        """
+
+        stripped = token.strip()
+        return stripped == "/tmp" or stripped.startswith("/tmp/")
 
     def _is_within_workspace(self, path: Path) -> bool:
         try:

@@ -54,11 +54,35 @@ def build_fact_ledger(
     return fact_ledger
 
 
+def build_receipt_continuity_snapshot(
+    receipt_store: Any,
+    context_pack_policy: Any,
+    local_tools: Any | None = None,
+    proof_state: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Extract durable facts from the receipt store for compaction preservation.
+
+    Returns a dict suitable for injection as a [receipt_continuity] prefix
+    message, or None when the receipt store is unavailable.
+    """
+    if receipt_store is None:
+        return None
+    view = receipt_store.context_view(
+        policy=context_pack_policy,
+        local_tools=local_tools,
+        proof_state=proof_state,
+    )
+    if not view:
+        return None
+    return view
+
+
 def rebase(
     context: ContextManager,
     model_client: Any,
     *,
     record_exchange: Any | None = None,
+    receipt_continuity_snapshot: dict[str, Any] | None = None,
 ) -> ContextManager:
     if context.prefix is None:
         raise ValueError("context prefix must be built before rebase")
@@ -103,11 +127,30 @@ def rebase(
         delta_state=context.delta_state,
         compaction_generation=context.compaction_generation + 1,
     )
+    # Receipt-continuity preservation: when the receipt-driven variant is
+    # active, durable facts from the receipt store are re-injected after
+    # rebase so the model retains coherent state (plan, contract, candidates,
+    # tools, failures/feedback).  Baseline (snapshot is None) is unchanged.
+    receipt_continuity_messages: list[dict[str, Any]] = []
+    if receipt_continuity_snapshot is not None:
+        receipt_continuity_messages = [
+            {
+                "role": "system",
+                "content": "[receipt_continuity]\n"
+                + json.dumps(
+                    receipt_continuity_snapshot,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ),
+            },
+        ]
     rebased.build_prefix(
         system_prompt=context.system_prompt,
         task_instruction=context.task_instruction,
         orientation=context.orientation,
         tool_schemas=context.tool_schemas,
+        frozen_success_contract=context.current_frozen_success_contract(),
         extra_prefix_messages=[
             {
                 "role": "system",
@@ -116,6 +159,9 @@ def rebase(
             },
             {"role": "assistant", "content": handoff_text},
             *context.transcript[-10:],
+            # Durable receipt-driven facts survive compaction here.
+            # Future: add proof_state to receipt_continuity_snapshot when built.
+            *receipt_continuity_messages,
         ],
     )
     return rebased

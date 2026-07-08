@@ -19,6 +19,7 @@ _MAX_LABEL_LEN = 40
 _REDACTED = "[REDACTED]"
 _CALL_ROLES = frozenset({"normal", "closing", "compaction", "verifier", "repair"})
 _ORIENTATION_PREFIX = "[orientation_snapshot]\n"
+_FROZEN_SUCCESS_CONTRACT_PREFIX = "[frozen_success_contract]\n"
 _TAIL_BLOCK_PREFIX = "[tail_telemetry]\n"
 _FACT_LEDGER_PREFIX = "[deterministic_fact_ledger]\n"
 _TOOL_SCHEMAS_PREFIX = "[tool_schemas]\n"
@@ -261,6 +262,17 @@ def _extract_json_block(request_messages: list[Any], prefix: str) -> Any | None:
     return None
 
 
+def _extract_text_block(request_messages: list[Any], prefix: str) -> str | None:
+    for message in reversed(request_messages):
+        if not isinstance(message, Mapping):
+            continue
+        content = message.get("content")
+        if not isinstance(content, str) or not content.startswith(prefix):
+            continue
+        return content[len(prefix) :]
+    return None
+
+
 def _extract_env_contract_metadata_from_mapping(payload: Any) -> tuple[str | None, str | None]:
     if not isinstance(payload, Mapping):
         return None, None
@@ -288,6 +300,12 @@ def _extract_env_contract_context(request_messages: list[Any]) -> dict[str, str 
     orientation_snapshot = _extract_json_block(request_messages, _ORIENTATION_PREFIX)
     version, digest = _extract_env_contract_metadata_from_mapping(orientation_snapshot)
     return {"version": version, "digest": digest}
+
+
+def _extract_frozen_success_contract_context(request_messages: list[Any]) -> dict[str, str | None]:
+    frozen_success_contract_text = _extract_text_block(request_messages, _FROZEN_SUCCESS_CONTRACT_PREFIX)
+    digest = _stable_digest(frozen_success_contract_text) if frozen_success_contract_text is not None else None
+    return {"text": frozen_success_contract_text, "digest": digest}
 
 
 def _infer_call_role(request_messages: list[Any], call_role: str | None) -> str:
@@ -383,6 +401,7 @@ class ReceiptWriter:
         call_role: str | None = None,
         tail_state: Mapping[str, Any] | None = None,
         ledger_state: Mapping[str, Any] | None = None,
+        frozen_success_contract: str | None = None,
         env_contract: Mapping[str, Any] | None = None,
         env_contract_version: str | None = None,
         env_contract_digest: str | None = None,
@@ -404,6 +423,7 @@ class ReceiptWriter:
         effective_ledger_state = dict(ledger_state) if ledger_state is not None else _extract_json_block(
             request_messages, _FACT_LEDGER_PREFIX
         )
+        inferred_frozen_success_contract = _extract_frozen_success_contract_context(request_messages)
         inferred_env_contract = _extract_env_contract_context(request_messages)
         explicit_env_contract_version, explicit_env_contract_digest = _extract_env_contract_metadata_from_mapping(
             env_contract
@@ -418,6 +438,11 @@ class ReceiptWriter:
             or explicit_env_contract_digest
             or inferred_env_contract["digest"]
         )
+        effective_frozen_success_contract = (
+            frozen_success_contract
+            if frozen_success_contract is not None
+            else inferred_frozen_success_contract["text"]
+        )
         normalized_request_messages = _normalize_for_json(request_messages)
         normalized_payload = {
             "call_idx": call_idx,
@@ -426,6 +451,12 @@ class ReceiptWriter:
                 "env_contract": {
                     "digest": effective_env_contract_digest,
                     "version": effective_env_contract_version,
+                },
+                "frozen_success_contract": {
+                    "digest": _stable_digest(effective_frozen_success_contract)
+                    if effective_frozen_success_contract is not None
+                    else None,
+                    "text": effective_frozen_success_contract,
                 },
                 "ledger_state": _normalize_for_json(effective_ledger_state),
                 "tail_state": _normalize_for_json(effective_tail_state),

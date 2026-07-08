@@ -28,12 +28,18 @@ class Scorecard:
     action_type_breakdown: dict[str, int] = field(default_factory=dict)
 
     @property
+    def verifier_readiness(self) -> bool:
+        """Advisory verifier readiness signal; official reward remains authoritative."""
+        return self.verifier_clean
+
+    @property
     def pass_(self) -> bool:
-        """Deprecated alias for `verifier_clean` (advisory verifier signal, not grader authority)."""
+        """Deprecated alias for the advisory verifier readiness signal."""
         return self.verifier_clean
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "verifier_readiness": self.verifier_readiness,
             "verifier_clean": self.verifier_clean,
             "grader_reward": self.grader_reward,
             "steps": self.steps,
@@ -102,7 +108,7 @@ def build_scorecard(run: Any) -> Scorecard:
     grader_reward = float(grader_reward_raw) if grader_reward_raw is not None else None
 
     return Scorecard(
-        verifier_clean=_get_bool(run, "verifier_clean", "pass_", "pass", "passed", "success"),
+        verifier_clean=_get_bool(run, "verifier_readiness", "verifier_clean", "pass_", "pass", "passed", "success"),
         grader_reward=grader_reward,
         steps=_get_int(run, "steps", "step_count"),
         model_calls=_get_int(run, "model_calls", "model_call_count"),

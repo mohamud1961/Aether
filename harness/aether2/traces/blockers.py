@@ -1,10 +1,9 @@
-"""Blocker core: normalization, mutation, suppression and evidence-version helpers.
+"""Blocker core: normalization, mutation, and evidence-version helpers.
 
 Responsible for:
 - Normalizing blocker records (_normalize_blocker, _blocker_map, _blocker_sort_key)
 - Mutating blockers in a ledger (upsert, resolve, obsolete, exhausted)
-- Suppression logic (should_suppress_verifier_call, compute_relevant_evidence_version)
-- Evidence overlap and relevance checks
+- Evidence-version and relevance checks for blocker lifecycle bookkeeping
 
 Verifier-report parsing lives in ``harness.aether2.traces.verifier``.
 All public names are re-exported verbatim by
@@ -37,7 +36,6 @@ __all__ = [
     "compute_relevant_evidence_version",
     "mark_blockers_candidate_resolved",
     "mark_blockers_exhausted",
-    "should_suppress_verifier_call",
 ]
 
 # ---------------------------------------------------------------------------
@@ -146,46 +144,6 @@ def mark_blockers_exhausted(
         blocker["age_steps"] = _compute_age_steps(blocker.get("created_step"), blocker.get("last_updated_step"))
     normalized["blockers"] = list(blockers.values())
     return compact_evidence_ledger(normalized)
-
-
-def should_suppress_verifier_call(
-    ledger: Mapping[str, Any] | None,
-    *,
-    requirement: str | None = None,
-    blocker_ids: Iterable[str] | None = None,
-    relevant_evidence_refs: Iterable[str] | None = None,
-    relevant_failed_checks: Iterable[str] | None = None,
-    relevant_artifact_paths: Iterable[str] | None = None,
-    relevant_verifier_refs: Iterable[str] | None = None,
-    relevant_evidence_classes: Iterable[str] | None = None,
-) -> bool:
-    from harness.aether2.traces.evidence_ledger import compact_evidence_ledger
-
-    normalized = compact_evidence_ledger(ledger)
-    blocker_id_filter = set(_normalize_string_list(blocker_ids or (), limit=_MAX_BLOCKERS))
-    blockers = _blocker_map(normalized)
-    active_blockers = list(
-        _iter_target_blockers(
-            blockers,
-            requirement=requirement,
-            blocker_id_filter=blocker_id_filter,
-            statuses={"active"},
-        )
-    )
-    if not active_blockers:
-        return False
-    for blocker in active_blockers:
-        if _has_relevant_new_evidence(
-            normalized,
-            blocker=blocker,
-            relevant_evidence_refs=relevant_evidence_refs,
-            relevant_failed_checks=relevant_failed_checks,
-            relevant_artifact_paths=relevant_artifact_paths,
-            relevant_verifier_refs=relevant_verifier_refs,
-            relevant_evidence_classes=relevant_evidence_classes,
-        ):
-            return False
-    return True
 
 
 def compute_relevant_evidence_version(

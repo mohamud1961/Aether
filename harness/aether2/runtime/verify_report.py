@@ -7,6 +7,8 @@ These are internal helpers; callers should import from verify.py.
 from __future__ import annotations
 
 import json
+
+from harness.aether2.runtime.context import sanitize_model_visible_payload
 import re
 from typing import Any, Mapping
 
@@ -181,7 +183,7 @@ def _inspection_payload(result: Any) -> dict[str, Any]:
             payload["error"] = dict(error)
         else:
             payload["error"] = getattr(error, "__dict__", {"message": str(error)})
-    return payload
+    return sanitize_model_visible_payload(payload)
 
 
 def _verifier_output_failure(

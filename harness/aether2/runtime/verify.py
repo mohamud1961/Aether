@@ -61,6 +61,7 @@ class RequirementResult:
     confidence: str = "low"
     evidence_refs: tuple[str, ...] = ()
     unresolved: bool = False
+    blocks_readiness: bool = True
 
 
 @dataclass(frozen=True)
@@ -75,7 +76,8 @@ class DiscrepancyReport:
         return tuple(
             item
             for item in self.requirements
-            if item.unresolved or item.verdict in {"unsatisfied", "unverifiable"}
+            if item.blocks_readiness
+            and (item.unresolved or item.verdict in {"unsatisfied", "unverifiable"})
         )
 
     @property
@@ -84,7 +86,8 @@ class DiscrepancyReport:
         if "verifier_parse_failed" in self.reason_codes:
             return True
         return any(
-            item.unresolved or item.verdict in {"unsatisfied", "unverifiable"}
+            item.blocks_readiness
+            and (item.unresolved or item.verdict in {"unsatisfied", "unverifiable"})
             for item in self.requirements
         )
 
@@ -157,6 +160,8 @@ VERIFIER_TOOL_SCHEMAS: list[dict[str, Any]] = [
     },
 ]
 
+MAX_VERIFIER_INSPECTION_CALLS = 3
+
 
 def replay_checks(checks: list[str], executor: Any) -> list[CheckResult]:
     results: list[CheckResult] = []
@@ -189,6 +194,11 @@ def verify_fresh_context(
     inspection_ctx: Any | None = None,
     record_exchange: Any | None = None,
     stated_requirements: list[str] | None = None,
+    verifier_system_prompt: str = "",
+    verifier_focus: list[str] | None = None,
+    verifier_do_not_assume: list[str] | None = None,
+    required_final_evidence: list[str] | None = None,
+    max_inspection_calls: int = MAX_VERIFIER_INSPECTION_CALLS,
 ) -> DiscrepancyReport:
     clean_orientation = _strip_transcript_fields(_clean_hidden_refs(dict(orientation)))
     clean_diff = _strip_transcript_fields(_clean_hidden_refs(dict(diff)))
@@ -211,39 +221,53 @@ def verify_fresh_context(
     }
     if clean_stated_requirements:
         payload["stated_requirements"] = clean_stated_requirements
+    if verifier_focus or verifier_do_not_assume or required_final_evidence:
+        payload["verifier_policy"] = {
+            "focus": [str(item).strip() for item in (verifier_focus or []) if str(item).strip()],
+            "do_not_assume": [str(item).strip() for item in (verifier_do_not_assume or []) if str(item).strip()],
+            "required_final_evidence": [
+                str(item).strip() for item in (required_final_evidence or []) if str(item).strip()
+            ],
+        }
+    verifier_contract = (
+        "You are a fresh-context verifier. Evaluate the claim requirement by requirement, "
+        "using only the provided task, orientation, workspace diff, replayed checks, and action digest. "
+        "Do not assume access to any executor transcript.\n\n"
+        "Respond with a single JSON object and nothing else, using EXACTLY this schema "
+        "(no other top-level keys are allowed):\n"
+        "{\n"
+        '  "requirements": [\n'
+        '    {"requirement": "<short description of one task requirement>", '
+        '"verdict": "satisfied" | "unsatisfied" | "unverifiable", '
+        '"evidence": "<evidence for this verdict>", '
+        '"evidence_refs": ["<source ref such as checks_results[0], workspace_diff, '
+        'action_digest.tool_calls[1], inspection.run_command[0]>", "..."]}\n'
+        "    ... one entry per distinct requirement implied by the task ...\n"
+        "  ],\n"
+        '  "reason_codes": [<list of short machine-readable strings; empty list if no problems>],\n'
+        '  "summary": "<one or two sentence overall summary>"\n'
+        "}\n"
+        'Do NOT use alternative keys such as "claim_satisfied", "verdict" at the top level, or "overall_evidence". '
+        'Every requirement entry must use exactly the keys "requirement", "verdict", "evidence", and "evidence_refs". '
+        '"evidence_refs" must be grounded in the provided payload or read-only inspection results, '
+        'and "verdict" must be exactly one of "satisfied", "unsatisfied", or "unverifiable". '
+        "For service or persistence claims, treat a running process, open port, or single startup probe as weak evidence; "
+        "prefer bounded survival checks, correct-environment client probes, response/state validation, and any crash/restart/replacement evidence.\n\n"
+        "If the payload includes \"stated_requirements\", your \"requirements\" list MUST include at least one entry "
+        "for each stated requirement (positive behavior, negative/forbidden side-effect constraints, required "
+        "artifact/install paths, final-state/directory invariants, and persistence/service requirements). "
+        "Do not invent constraints beyond the provided task text or stated_requirements; cite the exact stated "
+        "requirement text in the requirement field."
+    )
+    prompt_parts = []
+    architect_prompt = " ".join(str(verifier_system_prompt or "").split())
+    if architect_prompt:
+        prompt_parts.append("[architect_verifier_prompt]\n" + architect_prompt)
+    prompt_parts.append("[harness_verifier_schema_contract]\n" + verifier_contract)
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are a fresh-context verifier. Evaluate the claim requirement by requirement, "
-                "using only the provided task, orientation, workspace diff, replayed checks, and action digest. "
-                "Do not assume access to any executor transcript.\n\n"
-                "Respond with a single JSON object and nothing else, using EXACTLY this schema "
-                "(no other top-level keys are allowed):\n"
-                "{\n"
-                '  "requirements": [\n'
-                '    {"requirement": "<short description of one task requirement>", '
-                '"verdict": "satisfied" | "unsatisfied" | "unverifiable", '
-                '"evidence": "<evidence for this verdict>", '
-                '"evidence_refs": ["<source ref such as checks_results[0], workspace_diff, '
-                'action_digest.tool_calls[1], inspection.run_command[0]>", "..."]}\n'
-                "    ... one entry per distinct requirement implied by the task ...\n"
-                "  ],\n"
-                '  "reason_codes": [<list of short machine-readable strings; empty list if no problems>],\n'
-                '  "summary": "<one or two sentence overall summary>"\n'
-                "}\n"
-                'Do NOT use alternative keys such as "claim_satisfied", "verdict" at the top level, or "overall_evidence". '
-                'Every requirement entry must use exactly the keys "requirement", "verdict", "evidence", and "evidence_refs". '
-                '"evidence_refs" must be grounded in the provided payload or read-only inspection results, '
-                'and "verdict" must be exactly one of "satisfied", "unsatisfied", or "unverifiable". '
-                "For service or persistence claims, treat a running process, open port, or single startup probe as weak evidence; "
-                "prefer bounded survival checks, correct-environment client probes, response/state validation, and any crash/restart/replacement evidence.\n\n"
-                "If the payload includes \"stated_requirements\", your \"requirements\" list MUST include at least one entry "
-                "for each stated requirement (positive behavior, negative/forbidden side-effect constraints, required "
-                "artifact/install paths, final-state/directory invariants, and persistence/service requirements). "
-                "Do not invent constraints beyond the provided task text or stated_requirements; cite the exact stated "
-                "requirement text in the requirement field."
-            ),
+            "content": "\n\n".join(prompt_parts),
         },
         {"role": "user", "content": json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)},
     ]
@@ -263,17 +287,46 @@ def verify_fresh_context(
     inspection_records: list[dict[str, Any]] = []
     tool_calls = _extract_tool_calls(response)
     if inspection_ctx is not None and tool_calls:
+        inspection_budget = max(0, int(max_inspection_calls))
+        executed_inspections = 0
         messages_for_parse.append(_assistant_message(response))
         for tool_call in tool_calls:
             tool_name = _tool_call_name(tool_call)
-            if tool_name is None:
-                continue
             arguments = _parse_tool_call_arguments(tool_call)
+            tool_call_id = tool_call.get("id")
+            if tool_name is None:
+                tool_name = "unknown"
+                sanitized_result = _inspection_error_payload(
+                    kind="verification_unknown_tool",
+                    message="verifier requested an unknown inspection tool",
+                    reason_code="verification_unknown_tool",
+                )
+                inspection_records.append(
+                    {
+                        "tool_name": tool_name,
+                        "arguments": dict(arguments),
+                        "result": sanitized_result,
+                    }
+                )
+                messages_for_parse.append(_inspection_tool_message(tool_name, tool_call_id, sanitized_result))
+                continue
             handler = getattr(inspection_ctx, tool_name, None)
             if handler is None:
-                continue
-            result = handler(**arguments)
-            sanitized_result = _inspection_payload(result)
+                sanitized_result = _inspection_error_payload(
+                    kind="verification_unknown_tool",
+                    message=f"verifier requested unavailable inspection tool: {tool_name}",
+                    reason_code="verification_unknown_tool",
+                )
+            elif executed_inspections >= inspection_budget:
+                sanitized_result = _inspection_error_payload(
+                    kind="verification_inspection_budget_exhausted",
+                    message="verifier read-only inspection budget exhausted",
+                    reason_code="verification_inspection_budget_exhausted",
+                )
+            else:
+                result = handler(**arguments)
+                sanitized_result = _inspection_payload(result)
+                executed_inspections += 1
             inspection_records.append(
                 {
                     "tool_name": tool_name,
@@ -281,19 +334,7 @@ def verify_fresh_context(
                     "result": sanitized_result,
                 }
             )
-            messages_for_parse.append(
-                {
-                    "role": "tool",
-                    "name": tool_name,
-                    "tool_call_id": tool_call.get("id"),
-                    "content": json.dumps(
-                        sanitized_result,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                        ensure_ascii=True,
-                    ),
-                }
-            )
+            messages_for_parse.append(_inspection_tool_message(tool_name, tool_call_id, sanitized_result))
         response = _call_model(model_client, messages_for_parse, [])
         if record_exchange is not None:
             record_exchange(
@@ -323,6 +364,7 @@ def verify_fresh_context(
         for item in parsed.get("requirements", [])
         if str(item.get("requirement", "")).strip()
     )
+    requirements = _downgrade_nonblocking_process_gaps(requirements, clean_action_digest)
     requirements = requirements + _uncovered_constraint_results(
         clean_stated_requirements, requirements
     )
@@ -332,6 +374,40 @@ def verify_fresh_context(
         summary=str(parsed.get("summary", "")),
         raw_response=raw_text,
     )
+
+
+def _inspection_error_payload(*, kind: str, message: str, reason_code: str) -> dict[str, Any]:
+    return {
+        "exit_code": 1,
+        "cwd": "",
+        "stdout_head": "",
+        "stdout_tail": "",
+        "stderr_head": message,
+        "stderr_tail": "",
+        "error": {
+            "kind": kind,
+            "message": message,
+            "reason_code": reason_code,
+        },
+    }
+
+
+def _inspection_tool_message(
+    tool_name: str,
+    tool_call_id: Any,
+    sanitized_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "role": "tool",
+        "name": tool_name,
+        "tool_call_id": tool_call_id,
+        "content": json.dumps(
+            dict(sanitized_result),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ),
+    }
 
 
 def _requirement_result_from_report_item(
@@ -363,6 +439,7 @@ def _requirement_result_from_report_item(
             report_reason_codes=reason_codes,
             assessment=assessment,
         )
+    blocks_readiness = _requirement_blocks_readiness(requirement)
     return RequirementResult(
         requirement=requirement,
         verdict=verdict,
@@ -373,11 +450,13 @@ def _requirement_result_from_report_item(
         confidence=assessment["confidence"],
         evidence_refs=evidence_refs,
         unresolved=verdict in {"unsatisfied", "unverifiable"} or not _has_clean_support(
+            requirement=requirement,
             verdict=verdict,
             strength=assessment["strength"],
             evidence_provenance=tuple(evidence_provenance),
             evidence_strength_reasons=tuple(assessment["reasons"]),
         ),
+        blocks_readiness=blocks_readiness,
     )
 
 
@@ -385,11 +464,11 @@ def _uncovered_constraint_results(
     stated_requirements: list[str],
     requirements: tuple[RequirementResult, ...],
 ) -> tuple[RequirementResult, ...]:
-    """W5.2: stated task constraints / final-state requirements that the verifier
-    did not address at all become explicit unresolved gaps, so a verifier that
-    only inspects shape/proxy evidence for the obvious requirement cannot
-    silently leave declared constraints (final-state, forbidden side effects,
-    install paths, persistence) uncovered and still report `verifier_clean=true`.
+    """W5.2: hard stated task constraints that the verifier did not address at
+    all become explicit readiness gaps.
+
+    Lower-authority inferred/watchpoint lines can inform the verifier without
+    becoming hard readiness blockers on their own.
     """
     if not stated_requirements:
         return ()
@@ -399,6 +478,8 @@ def _uncovered_constraint_results(
         covered_tokens |= _constraint_coverage_tokens(item.evidence)
     extras: list[RequirementResult] = []
     for stated in stated_requirements:
+        if not _requirement_blocks_readiness(stated):
+            continue
         if not _looks_like_constraint(stated):
             continue
         stated_tokens = _constraint_coverage_tokens(stated)
@@ -421,6 +502,133 @@ def _uncovered_constraint_results(
                 confidence="low",
                 evidence_refs=("claim",),
                 unresolved=True,
+                blocks_readiness=True,
             )
         )
     return tuple(extras)
+
+
+def _downgrade_nonblocking_process_gaps(
+    requirements: tuple[RequirementResult, ...],
+    action_digest: Mapping[str, Any],
+) -> tuple[RequirementResult, ...]:
+    """Do not fail readiness on unobservable process/intent claims alone.
+
+    The verifier should block on missing task evidence. It should not force the
+    agent to prove mental intent, or prove a negative hidden-asset claim when
+    the visible action digest contains no hidden/reviewer access.
+    """
+
+    hidden_access_observed = _action_digest_mentions_hidden_or_reviewer(action_digest)
+    normalized: list[RequirementResult] = []
+    for item in requirements:
+        if not item.unresolved:
+            normalized.append(item)
+            continue
+        text = f"{item.requirement} {item.evidence}".lower()
+        if _is_planning_or_process_observability_gap(text):
+            normalized.append(
+                RequirementResult(
+                    requirement=item.requirement,
+                    verdict="satisfied",
+                    evidence=(
+                        item.evidence
+                        + " This process-only observability gap is not a task-readiness blocker."
+                    ),
+                    evidence_strength=item.evidence_strength,
+                    evidence_strength_reasons=item.evidence_strength_reasons,
+                    evidence_provenance=item.evidence_provenance,
+                    confidence=item.confidence,
+                    evidence_refs=item.evidence_refs,
+                    unresolved=False,
+                )
+            )
+            continue
+        if _is_hidden_access_absence_gap(text) and not hidden_access_observed:
+            normalized.append(
+                RequirementResult(
+                    requirement=item.requirement,
+                    verdict="satisfied",
+                    evidence=(
+                        "No hidden/reviewer access is visible in the action digest; absence-only proof is "
+                        "not treated as a task-readiness blocker."
+                    ),
+                    evidence_strength="moderate",
+                    evidence_strength_reasons=("no_hidden_access_in_action_digest",),
+                    evidence_provenance=("action_digest",),
+                    confidence="medium",
+                    evidence_refs=("action_digest.tool_calls",),
+                    unresolved=False,
+                )
+            )
+            continue
+        normalized.append(item)
+    return tuple(normalized)
+
+
+def _is_planning_or_process_observability_gap(text: str) -> bool:
+    has_process_signal = (
+        "plan before" in text
+        or "planning" in text
+        or "pre-action plan" in text
+        or "explicit pre-action" in text
+        or "does not expose" in text
+        or "intent" in text
+        or "mental" in text
+        or "process-only" in text
+    )
+    has_observability_gap = (
+        "unverifiable" in text
+        or "not directly" in text
+        or "not explicitly" in text
+        or "does not expose" in text
+    )
+    return has_process_signal and has_observability_gap
+
+
+def _is_hidden_access_absence_gap(text: str) -> bool:
+    return (
+        ("hidden" in text or "reviewer" in text)
+        and ("absence" in text or "no direct evidence" in text or "cannot be fully verified" in text)
+    )
+
+
+def _action_digest_mentions_hidden_or_reviewer(action_digest: Mapping[str, Any]) -> bool:
+    tool_calls = action_digest.get("tool_calls")
+    if not isinstance(tool_calls, list):
+        return False
+    for call in tool_calls:
+        if not isinstance(call, Mapping):
+            continue
+        if "hidden" in str(call).lower() or "reviewer" in str(call).lower():
+            return True
+    return False
+
+
+def _is_external_grader_authority_note(stated_requirement: str) -> bool:
+    """Return True for grader-authority notes that the agent cannot prove.
+
+    Internal verification should check readiness evidence. It should not require
+    the model to prove the hidden/official grader's future behavior from inside
+    the task workspace.
+    """
+
+    text = stated_requirement.strip().lower()
+    if not text:
+        return False
+    return (
+        "hidden grading" in text
+        or "hidden grader" in text
+        or "official grader" in text
+        or "grader remains" in text
+    )
+
+
+def _requirement_blocks_readiness(requirement: str) -> bool:
+    text = requirement.strip()
+    if not text:
+        return False
+    lowered = text.lower()
+    if lowered.startswith("[inferred]") or lowered.startswith("[watchpoint]"):
+        return False
+    return not _is_external_grader_authority_note(text)

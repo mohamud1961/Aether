@@ -6,11 +6,11 @@ from pathlib import Path
 
 from harness.aether2.control.loop import ExecutionContext, run_aether2_loop
 from harness.aether2.hooks import HookRegistry, HookResult
-from harness.aether2.runtime.bridge_harbor import TaskSpec
 from harness.aether2.runtime.executor import ContainerExecutor
 from harness.aether2.runtime.jobs import JobRegistry
 from harness.aether2.runtime.model_client import ModelResponse
 from harness.aether2.runtime.sessions import SessionRegistry
+from harness.aether2.runtime.task_spec import TaskSpec
 from harness.aether2.tools import (
     FakeLocalMcpServer,
     McpServerConfig,
@@ -275,7 +275,7 @@ def test_loop_uses_registry_tool_schemas_and_records_mcp_tool_invocations(tmp_pa
         task,
         client,
         executor,
-        deadline_ts=time.time() + 60,
+        deadline_ts=time.monotonic() + 60,
         hook_registry=hooks,
         tool_registry=registry,
     )

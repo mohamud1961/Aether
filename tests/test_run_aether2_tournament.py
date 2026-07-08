@@ -15,7 +15,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_aether2_tourname
 def _make_repo_root(tmp_path: Path) -> Path:
     repo_root = tmp_path / "repo"
     (repo_root / "tools").mkdir(parents=True)
-    (repo_root / "tools" / "run_aether2_g3_official.py").write_text(
+    (repo_root / "tools" / "entrypoint.py").write_text(
         "#!/usr/bin/env python3\n",
         encoding="utf-8",
     )
@@ -86,6 +86,7 @@ def _run_launcher(
 def _make_env(*, preflight_rc: str = "0", timeout_rc: str = "1", write_row_json: str = "0") -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = ""
+    env["PYTHON_BIN"] = "python3"
     env["FAKE_PYTHON3_RC"] = preflight_rc
     env["FAKE_TIMEOUT_RC"] = timeout_rc
     env["FAKE_TIMEOUT_WRITE_ROW_JSON"] = write_row_json
@@ -104,6 +105,35 @@ def test_launcher_shell_syntax_check() -> None:
     assert result.stderr == ""
 
 
+def test_missing_entrypoint_fails_before_launch(tmp_path: Path) -> None:
+    repo_root = _make_repo_root(tmp_path)
+    task_ids = tmp_path / "task_ids.txt"
+    task_ids.write_text("alpha\n", encoding="utf-8")
+    output_root = tmp_path / "output"
+    python3_log = tmp_path / "python3.log"
+    timeout_log = tmp_path / "timeout.log"
+    env = _make_env()
+
+    result = _run_launcher(
+        [
+            "--repo-root",
+            str(repo_root),
+            "--task-ids-file",
+            str(task_ids),
+            "--output-root",
+            str(output_root),
+        ],
+        env,
+        cwd=tmp_path,
+        python3_log=python3_log,
+        timeout_log=timeout_log,
+    )
+
+    assert result.returncode == 64
+    assert "--entrypoint is required" in result.stderr
+    assert not timeout_log.exists()
+
+
 def test_preflight_failure_stops_before_touching_corpus(tmp_path: Path) -> None:
     repo_root = _make_repo_root(tmp_path)
     task_ids = tmp_path / "task_ids.txt"
@@ -117,6 +147,8 @@ def test_preflight_failure_stops_before_touching_corpus(tmp_path: Path) -> None:
         [
             "--repo-root",
             str(repo_root),
+            "--entrypoint",
+            str(repo_root / "tools" / "entrypoint.py"),
             "--task-ids-file",
             str(task_ids),
             "--output-root",
@@ -151,6 +183,8 @@ def test_dry_run_prints_plan_without_side_effects(tmp_path: Path) -> None:
         [
             "--repo-root",
             str(repo_root),
+            "--entrypoint",
+            str(repo_root / "tools" / "entrypoint.py"),
             "--task-ids-file",
             str(task_ids),
             "--output-root",
@@ -187,6 +221,8 @@ def test_invalid_launch_writes_marker_row_when_row_json_is_missing(tmp_path: Pat
         [
             "--repo-root",
             str(repo_root),
+            "--entrypoint",
+            str(repo_root / "tools" / "entrypoint.py"),
             "--task-ids-file",
             str(task_ids),
             "--output-root",
@@ -232,6 +268,8 @@ def test_fail_fast_aborts_after_consecutive_fast_failures(tmp_path: Path) -> Non
         [
             "--repo-root",
             str(repo_root),
+            "--entrypoint",
+            str(repo_root / "tools" / "entrypoint.py"),
             "--task-ids-file",
             str(task_ids),
             "--output-root",

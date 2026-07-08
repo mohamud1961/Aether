@@ -23,7 +23,14 @@ from harness.aether2.control.action_helpers import (
     _parse_tool_call_arguments,
     _tool_call_name,
 )
-from harness.aether2.control.completion import _failure_class, _ledger_progress, _semantic_action_family
+from harness.aether2.control.completion import (
+    _build_recovery_warning,
+    _build_task_done_warning,
+    _failure_class,
+    _ledger_progress,
+    _mutation_risk_from_tool_call,
+    _semantic_action_family,
+)
 from harness.aether2.control.requirements import _current_evidence_ledger, _relevant_requirement
 from harness.aether2.control.tail_helpers import _collect_established_facts, _unused_affordances
 
@@ -54,6 +61,7 @@ def _execute_tool_calls(
     elapsed_sec: float,
     remaining_sec: float | None,
     model_request_index: int,
+    repeat_policy: Any | None = None,
 ) -> tuple[dict[str, Any], int, int, list[str], tuple[dict[str, Any], ObservationEnvelope] | None]:
     """Iterate over tool_calls in a model response, dispatch each, and update state."""
     # Inline import to avoid circular dependency with execution_context.py
@@ -61,6 +69,7 @@ def _execute_tool_calls(
 
     most_recent_checks: list[str] = []
     task_done_call: tuple[dict[str, Any], ObservationEnvelope] | None = None
+    step_primary_action: dict[str, Any] | None = None
 
     for tool_call in getattr(response, "tool_calls", ()) or ():
         tool_name = _tool_call_name(tool_call)
@@ -86,13 +95,51 @@ def _execute_tool_calls(
             continue
 
         arguments = _parse_tool_call_arguments(tool_call)
+        proof_state = getattr(ctx, "proof_state", None)
+        warned_signatures = getattr(ctx, "_warning_signatures", set())
+        warning_signature = json.dumps({"tool": tool_name, "arguments": arguments}, sort_keys=True, ensure_ascii=True)
+        task_done_warning = None
+        mutation_warning = None
+        if warning_signature not in warned_signatures:
+            if tool_name == "task_done":
+                task_done_warning = _build_task_done_warning(proof_state)
+            else:
+                mutation_warning = _mutation_risk_from_tool_call(tool_name, arguments, proof_state=proof_state)
+            warning_payload = task_done_warning or mutation_warning
+            if warning_payload is not None:
+                warned_signatures = set(warned_signatures)
+                warned_signatures.add(warning_signature)
+                ctx._warning_signatures = warned_signatures
+                if getattr(ctx, "receipt_store", None) is not None:
+                    ctx.receipt_store.append(
+                        "warning_event",
+                        step,
+                        warning_payload.get("message", "warning"),
+                        warning_payload,
+                    )
+                context.append_turn(
+                    {
+                        "role": "system",
+                        "content": json.dumps(
+                            {"warning": warning_payload},
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=True,
+                        ),
+                    }
+                )
+                continue
         signature = _action_signature(tool_name, arguments)
         blind_retry = tool_name == "run_command" and failure_tracker.get("last_failure_signature") == signature
         permission_decision: dict[str, Any] | None = None
         hook_trace: list[dict[str, Any]] = []
         if blind_retry:
             envelope = _build_blind_retry_blocked_envelope(
-                tool_name, arguments, str(executor.workspace_root), raw_log_dir=ctx.raw_log_dir
+                tool_name,
+                arguments,
+                str(executor.workspace_root),
+                raw_log_dir=ctx.raw_log_dir,
+                guidance=str(getattr(repeat_policy, "guidance", "") or ""),
             )
             failure_tracker = {"last_failure_signature": None, "streak": 0}
         else:
@@ -142,6 +189,34 @@ def _execute_tool_calls(
             failure_tracker = {"last_failure_signature": None, "last_failure_class": None, "streak": 0}
 
         context.append_turn(_envelope_to_message(tool_name, tool_call_id, envelope))
+        recovery_warning = _build_recovery_warning(tool_name, arguments, envelope)
+        recovery_warning_signature = json.dumps(
+            {"recovery_warning": recovery_warning, "tool": tool_name, "arguments": arguments},
+            sort_keys=True,
+            ensure_ascii=True,
+        )
+        if recovery_warning is not None and recovery_warning_signature not in warned_signatures:
+            warned_signatures = set(warned_signatures)
+            warned_signatures.add(recovery_warning_signature)
+            ctx._warning_signatures = warned_signatures
+            if getattr(ctx, "receipt_store", None) is not None:
+                ctx.receipt_store.append(
+                    "warning_event",
+                    step,
+                    recovery_warning.get("message", "warning"),
+                    recovery_warning,
+                )
+            context.append_turn(
+                {
+                    "role": "system",
+                    "content": json.dumps(
+                        {"warning": recovery_warning},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=True,
+                    ),
+                }
+            )
         _record = ToolInvocationRecord(
             step=step,
             tool_name=tool_name,
@@ -222,6 +297,15 @@ def _execute_tool_calls(
         context.delta_state = ctx.last_snapshot
         requirement_advanced, stronger_evidence_added = _ledger_progress(ledger_before, updated_ledger)
         action_family, semantic_target, semantic_target_kind = _semantic_action_family(tool_name, arguments)
+        result_summary = _step_result_summary(tool_name, envelope, failure_class_after)
+        current_action_memory = {
+            "signature": " ".join(
+                part for part in [action_family, None if semantic_target is None else f"{semantic_target_kind or 'target'}={semantic_target}"] if part
+            ),
+            "result": result_summary,
+        }
+        if step_primary_action is None:
+            step_primary_action = current_action_memory
         semantic_observation = SemanticObservation(
             action_family=action_family,
             target=semantic_target,
@@ -279,4 +363,20 @@ def _execute_tool_calls(
             task_done_call = (arguments, envelope)
             most_recent_checks = [str(item) for item in arguments.get("checks", [])]
 
+    ctx._step_primary_action = step_primary_action
     return failure_tracker, recoveries, no_delta_streaks, most_recent_checks, task_done_call
+
+
+def _step_result_summary(tool_name: str, envelope: ObservationEnvelope, failure_class_after: str | None) -> str:
+    if failure_class_after:
+        return failure_class_after.replace("_", " ")
+    if getattr(envelope, "exit_code", None) not in {None, 0}:
+        return f"exit_code={envelope.exit_code}"
+    for text in (
+        getattr(envelope, "stdout_head", "") or "",
+        getattr(envelope, "stderr_head", "") or "",
+    ):
+        compact = " ".join(str(text).split())
+        if compact:
+            return compact[:180]
+    return f"{tool_name} completed without stronger evidence"

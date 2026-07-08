@@ -8,6 +8,7 @@ from typing import Any
 import errno
 import json
 import os
+import signal
 import shlex
 import subprocess
 import time
@@ -257,6 +258,55 @@ class JobRegistry:
 
     def as_dict(self, job_id: str) -> dict[str, Any]:
         return asdict(self.status(job_id))
+
+    def stop(self, job_id: str, *, timeout_sec: float = 3.0) -> JobStatus:
+        """Terminate a registered detached job and return its final status."""
+
+        status = self.status(job_id)
+        if not status.alive:
+            return status
+        if self.backend.kind == "local":
+            try:
+                os.killpg(status.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                return self.status(job_id)
+            except PermissionError:
+                os.kill(status.pid, signal.SIGTERM)
+            deadline = time.monotonic() + timeout_sec
+            while time.monotonic() < deadline:
+                current = self.status(job_id)
+                if not current.alive:
+                    return current
+                time.sleep(0.1)
+            try:
+                os.killpg(status.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                os.kill(status.pid, signal.SIGKILL)
+            return self.status(job_id)
+
+        if not self.backend.container_id:
+            return status
+        subprocess.run(
+            ["docker", "exec", self.backend.container_id, "kill", "-TERM", f"-{status.pid}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        deadline = time.monotonic() + timeout_sec
+        while time.monotonic() < deadline:
+            current = self.status(job_id)
+            if not current.alive:
+                return current
+            time.sleep(0.1)
+        subprocess.run(
+            ["docker", "exec", self.backend.container_id, "kill", "-KILL", f"-{status.pid}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return self.status(job_id)
 
 
 

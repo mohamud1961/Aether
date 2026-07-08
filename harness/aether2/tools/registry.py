@@ -140,6 +140,8 @@ class ToolRegistry:
         return list(self._issues)
 
     def get(self, tool_name: str) -> RegisteredTool | None:
+        if tool_name == "query_history":
+            return self._tools.get("query_evidence")
         return self._tools.get(tool_name)
 
     def invoke(

@@ -17,6 +17,7 @@ from typing import Any, Mapping
 
 __all__ = [
     "_build_reasoning_trace_step",
+    "_estimate_token_cost",
     "_model_visible_requirement_summary",
     "_response_cost",
     "_response_usage",
@@ -108,6 +109,7 @@ def _build_reasoning_trace_step(
     verification_round_index: int | None = None,
     blocker_state: Mapping[str, Any] | None = None,
     finalize_reason: str | None = None,
+    frozen_success_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a single reasoning-trace step dict from all per-turn state."""
 
@@ -136,6 +138,7 @@ def _build_reasoning_trace_step(
         "model_input_digests": dict(input_digests),
         "visible_context": {
             "model_exchange_ref": model_exchange_ref,
+            "frozen_success_contract": dict(frozen_success_contract or {}),
             "tail_state": visible_tail_state,
             "completion_contract": completion_contract,
             "model_visible_requirements": _model_visible_requirement_summary(completion_contract, post_step_ledger),
@@ -178,6 +181,7 @@ def _write_reasoning_trace(
         "step_count": len(steps),
         "model_call_count": model_call_count,
         "finalize_reason": finalize_reason,
+        "verifier_readiness": finalize_pass,
         "verifier_clean": finalize_pass,
         "steps": steps,
         "non_step_model_calls": non_step_model_calls,
@@ -194,6 +198,47 @@ def _response_usage(response: Any) -> Mapping[str, Any]:
     if isinstance(usage, Mapping):
         return usage
     return {}
+
+
+def _estimate_token_cost(
+    usage: Mapping[str, Any],
+    *,
+    input_per_mtok: float,
+    output_per_mtok: float,
+    cached_input_discount: float,
+    large_context_threshold: int = 272_000,
+    large_context_input_multiplier: float = 2.0,
+    large_context_output_multiplier: float = 1.5,
+) -> float:
+    """Estimate USD cost for one response from token counts and known rates.
+
+    Budget backstop for when the provider does not populate a `cost` field (e.g. a
+    newly released model litellm has no price for). Cached input is priced at
+    `cached_input_discount` of the input rate. Returns 0.0 when rates are unset.
+
+    When a single request's total input exceeds `large_context_threshold` tokens,
+    the long-context surcharge (e.g. Azure's 2x input / 1.5x output above 272K) is
+    applied, so the estimate does not silently under-count large-context calls.
+    """
+
+    def _i(key: str) -> int:
+        try:
+            return max(0, int(usage.get(key) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    cached = _i("cached_input_tokens")
+    fresh = _i("fresh_input_tokens")
+    if fresh == 0 and cached == 0:
+        fresh = _i("input_tokens")
+    output = _i("output_tokens")
+
+    if (fresh + cached) > large_context_threshold:
+        input_per_mtok *= large_context_input_multiplier
+        output_per_mtok *= large_context_output_multiplier
+
+    input_cost = fresh * input_per_mtok + cached * input_per_mtok * cached_input_discount
+    return (input_cost + output * output_per_mtok) / 1_000_000
 
 
 def _response_cost(response: Any) -> float:

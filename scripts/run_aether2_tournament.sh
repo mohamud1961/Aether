@@ -9,6 +9,7 @@ Launcher for running a task list through a child entrypoint.
 
 Options:
   --repo-root PATH         Repo root to place on PYTHONPATH (default: script parent)
+  --entrypoint PATH        Child entrypoint to execute for each task launch
   --task-ids-file PATH     File with one task id per line
   --task-root PATH         Task root passed to the child entrypoint
   --output-root PATH       Output root for logs and rows
@@ -52,7 +53,9 @@ latest_row_json() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3.11}"
 
+ENTRYPOINT=""
 TASK_IDS_FILE=""
 TASK_ROOT="/home/azureuser/terminal-bench-official/original-tasks"
 OUTPUT_ROOT=""
@@ -67,6 +70,7 @@ DRY_RUN="0"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo-root) REPO_ROOT="$2"; shift 2 ;;
+    --entrypoint) ENTRYPOINT="$2"; shift 2 ;;
     --task-ids-file) TASK_IDS_FILE="$2"; shift 2 ;;
     --task-root) TASK_ROOT="$2"; shift 2 ;;
     --output-root) OUTPUT_ROOT="$2"; shift 2 ;;
@@ -85,8 +89,7 @@ done
 [[ -d "$REPO_ROOT" ]] || die "repo root not found: $REPO_ROOT"
 
 export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
-ENTRYPOINT="$REPO_ROOT/tools/run_aether2_g3_official.py"
-PREFLIGHT_CMD=(python3 -c "import runner.aether2.bridge_harbor")
+PREFLIGHT_CMD=("$PYTHON_BIN" -c "import runner.aether2.bridge_harbor")
 
 log "PYTHONPATH=$PYTHONPATH"
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -116,6 +119,14 @@ if [[ -z "$OUTPUT_ROOT" ]]; then
   fi
 fi
 
+if [[ -z "$ENTRYPOINT" ]]; then
+  if [[ "$DRY_RUN" == "1" ]]; then
+    ENTRYPOINT="<entrypoint>"
+  else
+    die "--entrypoint is required; no canonical default entrypoint is wired in this launcher"
+  fi
+fi
+
 if [[ "$DRY_RUN" != "1" ]]; then
   [[ -f "$ENTRYPOINT" ]] || die "entrypoint not found: $ENTRYPOINT"
   mkdir -p "$OUTPUT_ROOT/logs"
@@ -133,7 +144,7 @@ while IFS= read -r task_id || [[ -n "$task_id" ]]; do
   SAFE_TASK="$(printf '%s' "$task_id" | tr -c 'A-Za-z0-9_.-' '_')"
   TASK_LOG="$OUTPUT_ROOT/logs/attempt_${ATTEMPT}_${SAFE_TASK}.log"
 
-  CMD=(timeout --foreground "$PER_TASK_TIMEOUT_SEC" python3 "$ENTRYPOINT"
+  CMD=(timeout --foreground "$PER_TASK_TIMEOUT_SEC" "$PYTHON_BIN" "$ENTRYPOINT"
        --task-id "$task_id"
        --task-root "$TASK_ROOT"
        --output-root "$OUTPUT_ROOT"

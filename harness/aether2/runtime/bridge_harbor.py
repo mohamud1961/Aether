@@ -17,7 +17,12 @@ import uuid
 
 from harness.aether2.runtime.executor import ContainerBackend, ContainerExecutor
 from harness.aether2.runtime.model_client import Aether2ModelClient
-from harness.aether2.runtime.model_routes import make_azure_gpt53_codex_route_from_env, make_azure_gpt54_mini_route_from_env
+from harness.aether2.runtime.model_routes import (
+    make_azure_gpt53_codex_route_from_env,
+    make_azure_gpt54_mini_route_from_env,
+    make_azure_gpt54_pro_route_from_env,
+)
+from harness.aether2.runtime.task_spec import TaskSpec
 
 
 def _parse_toml_scalar(raw: str) -> object:
@@ -83,15 +88,6 @@ def _load_tomllib() -> types.ModuleType:
 
 tomllib = sys.modules.get("tomllib") or _load_tomllib()
 sys.modules.setdefault("tomllib", tomllib)
-
-
-@dataclass(frozen=True)
-class TaskSpec:
-    task_id: str
-    instruction: str
-    task_dir: Path
-    workspace_root: Path
-    artifacts_dir: Path
 
 
 @dataclass(frozen=True)
@@ -172,7 +168,7 @@ def _attach_grader_reward(result: Any, executor: ContainerExecutor) -> Any:
 
     Harbor (when present) writes its grader's reward to `/logs/verifier/reward.txt` inside the
     task container/workspace, AFTER the agent's own run. This is advisory-verifier-independent
-    grader authority (see C6): `verifier_clean` never masquerades as this value, and this value
+    grader authority (see C6): verifier readiness never masquerades as this value, and this value
     is `None` when no reward file exists (e.g. local homolog runs with no grader).
     """
     if not hasattr(result, "grader_reward"):
@@ -242,20 +238,23 @@ def build_harbor_run_manifest(
             "workspace_root": str(task.workspace_root),
             "artifacts_dir": str(task.artifacts_dir),
             "visible_files_only": True,
+            "official_grader_phase": "post_agent",
+            "official_grader_agent_visible": False,
+            "official_grader_authority": "external_measurement",
         }
         for field in (
+            "verifier_readiness",
             "verifier_clean",
             "finalize_reason",
             "grader_reward",
             "reasoning_trace_ref",
             "job_survival",
             "session_survival",
-            "suppressed_verifier_calls",
-            "completion_precheck_rejections",
             "no_delta_streaks",
             "verification_rounds",
             "recoveries",
             "compaction_count",
+            "transcript_repairs",
             "pass_",
             "status",
         ):
@@ -275,6 +274,7 @@ def _result_field(result: Any, field: str) -> Any:
 def _result_summary(result: Any) -> dict[str, Any]:
     summary: dict[str, Any] = {}
     for field in (
+        "verifier_readiness",
         "verifier_clean",
         "finalize_reason",
         "summary",
@@ -284,12 +284,11 @@ def _result_summary(result: Any) -> dict[str, Any]:
         "reasoning_trace_ref",
         "job_survival",
         "session_survival",
-        "suppressed_verifier_calls",
-        "completion_precheck_rejections",
         "no_delta_streaks",
         "verification_rounds",
         "recoveries",
         "compaction_count",
+        "transcript_repairs",
     ):
         value = _result_field(result, field)
         if value is not None:
@@ -379,14 +378,17 @@ def _build_model_client() -> Any:
         deployment_hint = str(
             os.environ.get("AETHER2_MODEL_TIER")
             or os.environ.get("AETHER2_MODEL")
+            or os.environ.get("AZURE_OPENAI_GPT54_PRO_DEPLOYMENT")
             or os.environ.get("AZURE_OPENAI_GPT54_MINI_DEPLOYMENT")
             or os.environ.get("AZURE_OPENAI_GPT53_CODEX_DEPLOYMENT")
             or ""
         ).lower()
         if "5.3" in deployment_hint or "codex" in deployment_hint:
-            route = make_azure_gpt53_codex_route_from_env(request_settings={"temperature": 0})
+            route = make_azure_gpt53_codex_route_from_env()
+        elif "pro" in deployment_hint and ("5.4" in deployment_hint or "gpt54" in deployment_hint):
+            route = make_azure_gpt54_pro_route_from_env()
         else:
-            route = make_azure_gpt54_mini_route_from_env(request_settings={"temperature": 0})
+            route = make_azure_gpt54_mini_route_from_env()
         return Aether2ModelClient(route)
     except Exception:
         return _MissingModelClient()

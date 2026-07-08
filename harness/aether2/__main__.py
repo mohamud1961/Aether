@@ -1,13 +1,4 @@
-"""Zero-credential offline agent demo for harness.aether2.
-
-Run with::
-
-    python -m harness.aether2
-
-The demo spins up ``LocalStubModelClient`` (no API key needed), points it at a
-temporary workspace, runs the Aether-2 continuity loop over a trivial in-memory
-task, and prints the ``RunResult`` summary.  No network calls are made.
-"""
+"""Offline demo entrypoint for the canonical harness runtime."""
 
 from __future__ import annotations
 
@@ -28,10 +19,10 @@ def _run_demo() -> None:
     # Imports — all from harness, never from runner                        #
     # ------------------------------------------------------------------ #
     from harness.aether2.control.loop import run_aether2_loop
-    from harness.aether2.runtime.bridge_harbor import TaskSpec
     from harness.aether2.runtime.executor import ContainerExecutor
     from harness.aether2.runtime.model_client import Aether2ModelClient
     from harness.aether2.runtime.model_routes import LocalStubModelClient
+    from harness.aether2.runtime.task_spec import TaskSpec
 
     # ------------------------------------------------------------------ #
     # Stub model client — responds immediately, no credentials required    #
@@ -103,7 +94,7 @@ def _run_demo() -> None:
     print("=== harness.aether2 offline demo ===")
     print(f"task_id        : {task.task_id}")
     print(f"finalize_reason: {result.finalize_reason}")
-    print(f"verifier_clean : {result.verifier_clean}")
+    print(f"verifier_readiness : {result.verifier_readiness}")
     print(f"steps          : {result.steps}")
     print(f"model_calls    : {result.model_calls}")
     print(f"wall_time_s    : {result.wall_time:.2f}")

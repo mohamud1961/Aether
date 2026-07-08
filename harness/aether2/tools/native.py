@@ -22,8 +22,11 @@ TOOL_NAMES: list[str] = [
     "wait",
     "task_done",
     "task_blocked",
-    "query_history",
+    "query_evidence",
+    "inspect_artifact",
 ]
+
+LEGACY_TOOL_ALIASES: dict[str, str] = {"query_history": "query_evidence"}
 
 
 def _schema(name: str, description: str, properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
@@ -66,7 +69,9 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _schema(
         "start_job",
-        "Start a detached job that keeps running after the current process exits.",
+        "Start a detached non-interactive job that keeps running after the current process exits. "
+        "Use job_status for logs. session_send/session_read cannot attach to a start_job process; "
+        "for programs that need stdin or live console input, start them with session_start instead.",
         {
             "cmd": {
                 "type": "string",
@@ -96,7 +101,11 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _schema(
         "session_start",
-        "Start a persistent interactive session backed by a named PTY.",
+        "Start a new persistent interactive command session. This does not attach to a job that was "
+        "already started with start_job; launch interactive programs here from the beginning when you "
+        "will need session_send or session_read. The command must be the actual interactive program "
+        "or a real connector to it; a dummy shell/cat proxy only receives your keystrokes and does not "
+        "control another process.",
         {
             "session_id": {
                 "type": "string",
@@ -284,8 +293,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         ["blocker", "evidence", "attempts", "missing_external_state", "recommended_next_evidence"],
     ),
     _schema(
-        "query_history",
-        "Search prior tool actions and observations from the current run by keyword.",
+        "query_evidence",
+        "Search prior commands, outputs, artifacts, and observations from the current run by keyword.",
         {
             "query": {
                 "type": "string",
@@ -305,6 +314,28 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         },
         ["query"],
     ),
+    _schema(
+        "inspect_artifact",
+        "Inspect a task artifact generically by path. For PDFs and images, mode='auto' already attempts text extraction or OCR when available; use mode='metadata' only when you need file type or size rather than document contents.",
+        {
+            "path": {"type": "string", "description": "Path to inspect inside the task workspace."},
+            "question": {"type": ["string", "null"], "description": "Optional question to guide the inspection summary, such as whether a document is an invoice or what total/VAT text is visible."},
+            "mode": {
+                "type": "string",
+                "enum": ["auto", "text", "ocr", "vision", "pdf", "frames", "metadata"],
+                "default": "auto",
+                "description": "Inspection mode. Use auto for the default best-effort path, pdf for PDF text extraction, ocr for images, and metadata only for file properties. Unsupported optional modes degrade gracefully.",
+            },
+            "max_outputs": {
+                "type": "integer",
+                "default": 5,
+                "minimum": 1,
+                "maximum": 20,
+                "description": "Maximum number of derived observations to return.",
+            },
+        },
+        ["path"],
+    ),
 ]
 
 
@@ -323,14 +354,15 @@ class ToolDispatchOutcome:
 def dispatch(tool_name: str, args: dict[str, Any], ctx: Any) -> Any:
     """Dispatch a tool call to the matching method on ctx."""
 
-    if tool_name not in TOOL_NAMES:
+    canonical_tool_name = LEGACY_TOOL_ALIASES.get(tool_name, tool_name)
+    if canonical_tool_name not in TOOL_NAMES:
         raise KeyError(f"unknown tool: {tool_name}")
-    handler = getattr(ctx, tool_name, None)
+    handler = getattr(ctx, canonical_tool_name, None)
     if handler is None:
-        raise AttributeError(f"context does not implement {tool_name}")
-    # query_history accepts 'limit' as a positional-style kwarg; strip None so
+        raise AttributeError(f"context does not implement {canonical_tool_name}")
+    # query_evidence accepts 'limit' as a positional-style kwarg; strip None so
     # the handler default applies when the model omits the optional argument.
-    if tool_name == "query_history":
+    if canonical_tool_name == "query_evidence":
         cleaned: dict[str, Any] = {k: v for k, v in args.items() if v is not None}
         return handler(**cleaned)
     return handler(**args)
@@ -479,4 +511,12 @@ def _run_post_hooks(
     return [invocation.as_dict() for invocation in result.invocations]
 
 
-__all__ = ["TOOL_NAMES", "TOOL_SCHEMAS", "ToolDispatchOutcome", "ToolHandler", "dispatch", "dispatch_with_hooks"]
+__all__ = [
+    "LEGACY_TOOL_ALIASES",
+    "TOOL_NAMES",
+    "TOOL_SCHEMAS",
+    "ToolDispatchOutcome",
+    "ToolHandler",
+    "dispatch",
+    "dispatch_with_hooks",
+]

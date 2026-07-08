@@ -1,8 +1,8 @@
-"""Evidence-relevance checking for the blocker suppression mechanism.
+"""Evidence-relevance checking for blocker lifecycle bookkeeping.
 
-Determines whether a set of new evidence is relevant enough to a
-given blocker to warrant re-running the verifier.  Extracted from
-blockers.py to keep that module under 500 LOC.
+Determines whether a set of new evidence is relevant enough to move a blocker
+into candidate-resolved state before the next verifier judgement. Extracted
+from blockers.py to keep that module under 500 LOC.
 
 No public API — all names are private (_prefixed).
 """

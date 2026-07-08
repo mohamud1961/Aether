@@ -53,6 +53,21 @@ def _normalize_request_tools(tools: Any) -> list[dict[str, Any]]:
     for tool in tools:
         if not isinstance(tool, dict):
             continue
+        if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+            function_payload = tool.get("function") or {}
+            normalized_tool: dict[str, Any] = {"type": "function"}
+            name = function_payload.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+            normalized_tool["name"] = name
+            description = function_payload.get("description")
+            if isinstance(description, str) and description:
+                normalized_tool["description"] = description
+            parameters = function_payload.get("parameters")
+            if isinstance(parameters, dict):
+                normalized_tool["parameters"] = parameters
+            normalized.append(normalized_tool)
+            continue
         if isinstance(tool.get("type"), str):
             normalized.append(dict(tool))
             continue

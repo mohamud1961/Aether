@@ -6,7 +6,7 @@ import json
 import time
 from typing import Any, Mapping
 
-from harness.aether2.runtime.compactor import rebase
+from harness.aether2.runtime.compactor import build_receipt_continuity_snapshot, rebase
 from harness.aether2.runtime.context import ContextManager
 from harness.aether2.traces.delta import (
     diff as delta_diff,
@@ -14,11 +14,11 @@ from harness.aether2.traces.delta import (
     mark_blockers_exhausted,
     record_check_results,
     record_verifier_report,
-    should_suppress_verifier_call,
     snapshot as delta_snapshot,
     with_evidence_ledger,
 )
 from harness.aether2.runtime.verify import replay_checks, verify_fresh_context
+from harness.aether2.runtime.adaptive_profile_helpers import solver_visible_orientation
 from harness.aether2.runtime.orientation import orient
 from harness.aether2.control.requirements import (
     _current_evidence_ledger,
@@ -27,7 +27,7 @@ from harness.aether2.control.requirements import (
 from harness.aether2.control.completion import (
     _build_completion_contract,
     _build_completion_evidence_gate_report,
-    _build_suppressed_blocker_report,
+    _build_operational_verification_feedback,
 )
 from harness.aether2.control.reasoning_trace import (
     _build_reasoning_trace_step,
@@ -49,7 +49,9 @@ from harness.aether2.control.tail_helpers import (
 from harness.aether2.control.tool_dispatch import _execute_tool_calls
 from harness.aether2.traces.redaction import _clean_hidden_refs
 
-MAX_VERIFICATION_ROUNDS = 3
+# Default to one verifier feedback packet that normal loop state can consume.
+# A future config spine can override this via state["verification_round_limit"].
+MAX_VERIFICATION_ROUNDS = 1
 
 
 def _run_verification_rounds(
@@ -77,6 +79,9 @@ def _run_verification_rounds(
     orientation_dict: dict[str, Any],
     active_tool_schemas: list[Any],
     state: dict[str, Any],
+    verifier_policy: Any | None = None,
+    completion_policy: Any | None = None,
+    repeat_policy: Any | None = None,
 ) -> dict[str, Any]:
     """Execute the inner verification/repair loop."""
     verification_rounds = state["verification_rounds"]
@@ -85,7 +90,6 @@ def _run_verification_rounds(
     tokens_fresh = state["tokens_fresh"]
     total_cost = state["total_cost"]
     compaction_count = state["compaction_count"]
-    completion_precheck_rejections = state["completion_precheck_rejections"]
     recoveries = state["recoveries"]
     no_delta_streaks = state["no_delta_streaks"]
     finalize_pass = state["finalize_pass"]
@@ -95,6 +99,10 @@ def _run_verification_rounds(
     failure_tracker = state["failure_tracker"]
     claim_checks = state["claim_checks"]
     finalize_reason = state["finalize_reason"]
+    proof_state = state.get("proof_state")
+    ctx.proof_state = proof_state
+    verification_round_limit = max(1, int(state.get("verification_round_limit", MAX_VERIFICATION_ROUNDS)))
+    feedback_only = bool(state.get("feedback_only", False))
 
     def record_exchange(
         call_idx: int,
@@ -112,6 +120,7 @@ def _run_verification_rounds(
             call_role=call_role,
             tail_state=context.current_tail_payload(),
             ledger_state=_current_evidence_ledger(context),
+            frozen_success_contract=context.current_frozen_success_contract_text(),
         )
 
     def make_exchange_recorder(counter: dict[str, int]):
@@ -170,12 +179,13 @@ def _run_verification_rounds(
                 verification_round_index=verification_round_index,
                 blocker_state=blocker_state,
                 finalize_reason=finalize_reason,
+                frozen_success_contract=context.current_frozen_success_contract(),
             )
         )
 
     rounds = 0
     claim_summary = finalize_summary
-    while rounds < MAX_VERIFICATION_ROUNDS:
+    while rounds < verification_round_limit:
         rounds += 1
         verification_rounds += 1
         check_results = replay_checks(claim_checks, executor) if claim_checks else []
@@ -211,7 +221,7 @@ def _run_verification_rounds(
             session_ids=session_ids,
             claim_checks=claim_checks,
             check_results=check_results,
-            remaining_sec=deadline_ts - time.time(),
+            remaining_sec=deadline_ts - time.monotonic(),
             start_snapshot=curr_snapshot,
         )
         curr_snapshot = monitored_snapshot
@@ -235,75 +245,54 @@ def _run_verification_rounds(
             finalize_reason=finalize_reason,
             check_results=check_results,
             action_digest=action_digest,
+            completion_policy=completion_policy,
+            proof_state=proof_state,
         )
         if completion_gate_report is not None:
-            completion_precheck_rejections += 1
-            discrepancy_report = completion_gate_report
-            updated_ledger = record_verifier_report(
-                _current_evidence_ledger(context),
-                report=discrepancy_report,
-                verifier_ref=f"completion_evidence_gate_round={verification_rounds}",
+            action_digest["completion_runtime_floor"] = {
+                "status": "evidence_floor_warning",
+                "summary": completion_gate_report.summary,
+                "reason_codes": list(completion_gate_report.reason_codes),
+                "requirements": [item.__dict__ for item in completion_gate_report.requirements],
+            }
+        verifier_counter = {"next": model_calls + 1}
+        discrepancy_report = verify_fresh_context(
+            verifier_task_contract,
+            solver_visible_orientation(orientation_dict),
+            _diff_to_dict(workspace_diff),
+            {"summary": claim_summary, "trigger": finalize_reason},
+            check_results,
+            action_digest,
+            model_client,
+            inspection_ctx=_ReadOnlyVerificationContext(ctx, receipts),
+            record_exchange=make_exchange_recorder(verifier_counter),
+            stated_requirements=stated_requirements,
+            verifier_system_prompt=str(getattr(verifier_policy, "system_prompt", "") or ""),
+            verifier_focus=list(getattr(verifier_policy, "focus", ()) or ()),
+            verifier_do_not_assume=list(getattr(verifier_policy, "do_not_assume", ()) or ()),
+            required_final_evidence=list(getattr(verifier_policy, "required_final_evidence", ()) or ()),
+        )
+        model_calls = verifier_counter["next"] - 1
+        updated_ledger = record_verifier_report(
+            _current_evidence_ledger(context),
+            report=discrepancy_report,
+            verifier_ref=f"verification_round={verification_rounds}",
+            step=step,
+            exhaustion_round_limit=verification_round_limit - 1,
+        )
+        if discrepancy_report.has_discrepancies and rounds >= verification_round_limit:
+            updated_ledger = mark_blockers_exhausted(
+                updated_ledger,
                 step=step,
-                exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
+                exhaustion_round_limit=verification_round_limit - 1,
+                force=True,
             )
-            if rounds >= MAX_VERIFICATION_ROUNDS:
-                updated_ledger = mark_blockers_exhausted(
-                    updated_ledger,
-                    step=step,
-                    exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                    force=True,
-                )
-        elif should_suppress_verifier_call(
-            verification_ledger,
-            relevant_failed_checks=successful_check_summaries,
-            relevant_artifact_paths=relevant_artifact_paths,
-        ):
-            suppressed_verifier_calls += 1
-            completion_precheck_rejections += 1
-            if rounds >= MAX_VERIFICATION_ROUNDS:
-                verification_ledger = mark_blockers_exhausted(
-                    verification_ledger,
-                    step=step,
-                    exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                    force=True,
-                )
-            discrepancy_report = _build_suppressed_blocker_report(verification_ledger)
-            updated_ledger = verification_ledger
-        else:
-            verifier_counter = {"next": model_calls + 1}
-            discrepancy_report = verify_fresh_context(
-                verifier_task_contract,
-                orientation_dict,
-                _diff_to_dict(workspace_diff),
-                {"summary": claim_summary, "trigger": finalize_reason},
-                check_results,
-                action_digest,
-                model_client,
-                inspection_ctx=_ReadOnlyVerificationContext(ctx, receipts),
-                record_exchange=make_exchange_recorder(verifier_counter),
-                stated_requirements=stated_requirements,
-            )
-            model_calls = verifier_counter["next"] - 1
-            updated_ledger = record_verifier_report(
-                _current_evidence_ledger(context),
-                report=discrepancy_report,
-                verifier_ref=f"verification_round={verification_rounds}",
-                step=step,
-                exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-            )
-            if discrepancy_report.has_discrepancies and rounds >= MAX_VERIFICATION_ROUNDS:
-                updated_ledger = mark_blockers_exhausted(
-                    updated_ledger,
-                    step=step,
-                    exhaustion_round_limit=MAX_VERIFICATION_ROUNDS - 1,
-                    force=True,
-                )
         discrepancy_reports.append(discrepancy_report)
         ctx.last_snapshot = with_evidence_ledger(ctx.last_snapshot, updated_ledger)
         context.delta_state = ctx.last_snapshot
 
-        remaining_sec = deadline_ts - time.time()
-        if not discrepancy_report.has_discrepancies or remaining_sec <= 0 or rounds >= MAX_VERIFICATION_ROUNDS:
+        remaining_sec = deadline_ts - time.monotonic()
+        if not discrepancy_report.has_discrepancies or remaining_sec <= 0:
             finalize_pass = not discrepancy_report.has_discrepancies
             finalize_summary = claim_summary if finalize_pass else discrepancy_report.summary
             break
@@ -314,6 +303,19 @@ def _run_verification_rounds(
                 _clean_hidden_refs(
                     {
                         "verification_blocker": discrepancy_report.summary,
+                        "next_step_instruction": (
+                            "The task is not complete. Continue the normal solving loop now: "
+                            "use concrete tool calls to address the unsatisfied requirements, "
+                            "or call task_blocked with evidence, attempts, missing external "
+                            "state, and recommended next evidence if the blocker is genuinely "
+                            "external. Do not merely acknowledge this verifier feedback."
+                        ),
+                        "verifier_continuation_state": (
+                            _build_operational_verification_feedback(
+                                discrepancy_report,
+                                proof_state=proof_state,
+                            )
+                        ),
                         "verification_report": {
                             "requirements": [item.__dict__ for item in discrepancy_report.requirements],
                             "reason_codes": list(discrepancy_report.reason_codes),
@@ -330,9 +332,34 @@ def _run_verification_rounds(
         }
         context.append_turn(report_message)
 
+        if feedback_only:
+            state.update({
+                "verification_rounds": verification_rounds,
+                "model_calls": model_calls,
+                "tokens_cached": tokens_cached,
+                "tokens_fresh": tokens_fresh,
+                "total_cost": total_cost,
+                "compaction_count": compaction_count,
+                "recoveries": recoveries,
+                "no_delta_streaks": no_delta_streaks,
+                "finalize_pass": False,
+                "finalize_summary": discrepancy_report.summary,
+                "plan_text": plan_text,
+                "context": context,
+                "failure_tracker": failure_tracker,
+                "claim_checks": claim_checks,
+                "finalize_reason": None,
+                "verifier_feedback_pending": True,
+            })
+            return state
+
         messages = [*context.message_history()]
         repair_pre_ledger = _current_evidence_ledger(context)
-        repair_completion_contract = _build_completion_contract(verifier_task_contract, repair_pre_ledger)
+        repair_completion_contract = _build_completion_contract(
+            verifier_task_contract,
+            repair_pre_ledger,
+            completion_policy=completion_policy,
+        )
         repair_tail_state = context.current_tail_payload()
         response = model_client.call(messages, active_tool_schemas, cache_prefix_len=context.prefix.token_estimate)
         model_calls += 1
@@ -369,10 +396,20 @@ def _run_verification_rounds(
             )
             _sync_fact_ledger_state(context, ctx)
             compaction_counter = {"next": model_calls + 1}
+            receipt_snapshot = None
+            if getattr(ctx, "receipt_store", None) is not None and getattr(ctx, "receipt_context_pack_policy", None) is not None:
+                local_tools = getattr(ctx, "task_local_tools", None)
+                receipt_snapshot = build_receipt_continuity_snapshot(
+                    ctx.receipt_store,
+                    ctx.receipt_context_pack_policy,
+                    local_tools=None if local_tools is None else local_tools.summary(),
+                    proof_state=proof_state if isinstance(proof_state, Mapping) else None,
+                )
             context = rebase(
                 context,
                 model_client,
                 record_exchange=make_exchange_recorder(compaction_counter),
+                receipt_continuity_snapshot=receipt_snapshot,
             )
             compaction_count += 1
             model_calls = compaction_counter["next"] - 1
@@ -401,6 +438,7 @@ def _run_verification_rounds(
             elapsed_sec=time.monotonic() - started_at,
             remaining_sec=remaining_sec,
             model_request_index=model_calls,
+            repeat_policy=repeat_policy,
         )
         repair_step_tool_invocations = tool_invocations[repair_step_tool_invocation_start:]
         if new_task_done is not None:
@@ -438,7 +476,6 @@ def _run_verification_rounds(
         "tokens_fresh": tokens_fresh,
         "total_cost": total_cost,
         "compaction_count": compaction_count,
-        "completion_precheck_rejections": completion_precheck_rejections,
         "recoveries": recoveries,
         "no_delta_streaks": no_delta_streaks,
         "finalize_pass": finalize_pass,

@@ -48,7 +48,6 @@ from harness.aether2.traces.delta import (
     record_terminal_claim,
     record_verifier_report,
     serialize_evidence_ledger,
-    should_suppress_verifier_call,
     snapshot,
     with_evidence_ledger,
 )
@@ -70,11 +69,12 @@ from harness.aether2.traces.envelope import (
     build_envelope,
     collapse_cr_ansi,
 )
-from harness.aether2.runtime.bridge_harbor import TaskSpec, run_task_via_harbor
+from harness.aether2.runtime.bridge_harbor import run_task_via_harbor
 from harness.aether2.runtime.context import ContextManager, Prefix
 from harness.aether2.runtime.executor import ContainerExecutor, RawResult
 from harness.aether2.runtime.jobs import JobRegistry, JobStatus
 from harness.aether2.runtime.model_client import Aether2ModelClient, ModelResponse
+from harness.aether2.runtime.task_spec import TaskSpec
 from harness.aether2.runtime.sessions import SessionRegistry
 from harness.aether2.skills import (
     BundledSkillDefinition,
@@ -300,7 +300,6 @@ __all__ = [
     "render_summary",
     "render_skill_context_block",
     "serialize_evidence_ledger",
-    "should_suppress_verifier_call",
     "snapshot",
     "skill_matches_paths",
     "summarize_text",

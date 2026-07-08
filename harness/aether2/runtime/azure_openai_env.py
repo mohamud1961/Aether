@@ -12,11 +12,15 @@ from harness.aether2.runtime.model_routes import (
     AZURE_ENV_GPT53_CODEX_KEY,
     AZURE_ENV_GPT54_MINI_DEPLOYMENT,
     AZURE_ENV_GPT54_MINI_KEY,
+    AZURE_ENV_GPT54_PRO_DEPLOYMENT,
+    AZURE_ENV_GPT54_PRO_KEY,
 )
 
 AZURE_ENV_ALIASES = {
     AZURE_ENV_GPT54_MINI_KEY: ("AZURE_OPENAI_API_KEY", "OPENAI_API_KEY"),
     AZURE_ENV_GPT54_MINI_DEPLOYMENT: ("AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_MODEL_DEPLOYMENT"),
+    AZURE_ENV_GPT54_PRO_KEY: ("AZURE_OPENAI_API_KEY", "OPENAI_API_KEY"),
+    AZURE_ENV_GPT54_PRO_DEPLOYMENT: ("AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_MODEL_DEPLOYMENT"),
     AZURE_ENV_ENDPOINT: ("AZURE_OPENAI_BASE_URL",),
     AZURE_ENV_API_VERSION: ("OPENAI_API_VERSION",),
 }
@@ -47,6 +51,13 @@ def detect_azure_openai_routes(env: Mapping[str, str] | None = None) -> dict[str
             endpoint_env=AZURE_ENV_ENDPOINT,
             deployment_env=AZURE_ENV_GPT54_MINI_DEPLOYMENT,
             key_env=AZURE_ENV_GPT54_MINI_KEY,
+            source=source,
+        ),
+        _route_status(
+            route_id="azure_openai_gpt54_pro",
+            endpoint_env=AZURE_ENV_ENDPOINT,
+            deployment_env=AZURE_ENV_GPT54_PRO_DEPLOYMENT,
+            key_env=AZURE_ENV_GPT54_PRO_KEY,
             source=source,
         ),
         _route_status(
@@ -81,6 +92,38 @@ def build_openai_compatible_azure_gpt54_mini_env(env: Mapping[str, str] | None =
             "checked_env_groups": route["checked_env_groups"],
         }
     deployment = _resolved_value(source, AZURE_ENV_GPT54_MINI_DEPLOYMENT)
+    endpoint = (_resolved_value(source, AZURE_ENV_ENDPOINT) or "").rstrip("/")
+    api_key_env = route["resolved_envs"]["api_key_env"]
+    return {
+        "available": True,
+        "route_id": route["route_id"],
+        "deployment_name": deployment,
+        "openai_compatible_env": {
+            OPENAI_COMPATIBLE_BASE_URL_ENV: f"{endpoint}/openai/v1/",
+            OPENAI_COMPATIBLE_API_KEY_ENV: f"${api_key_env}",
+            OPENAI_COMPATIBLE_MODEL_ENV: deployment,
+        },
+        "source_env_names": {
+            "endpoint_env": route["resolved_envs"]["endpoint_env"],
+            "deployment_env": route["resolved_envs"]["deployment_env"],
+            "api_key_env": api_key_env,
+            "api_version_env": _resolved_name(source, AZURE_ENV_API_VERSION),
+        },
+        "checked_env_groups": route["checked_env_groups"],
+    }
+
+
+def build_openai_compatible_azure_gpt54_pro_env(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    source = os.environ if env is None else env
+    route = detect_azure_openai_routes(source)["routes"][1]
+    if not route["available"]:
+        return {
+            "available": False,
+            "route_id": route["route_id"],
+            "missing_envs": route["missing_envs"],
+            "checked_env_groups": route["checked_env_groups"],
+        }
+    deployment = _resolved_value(source, AZURE_ENV_GPT54_PRO_DEPLOYMENT)
     endpoint = (_resolved_value(source, AZURE_ENV_ENDPOINT) or "").rstrip("/")
     api_key_env = route["resolved_envs"]["api_key_env"]
     return {

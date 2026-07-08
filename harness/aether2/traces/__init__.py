@@ -14,7 +14,6 @@ from harness.aether2.traces.delta import (
     record_terminal_claim,
     record_verifier_report,
     serialize_evidence_ledger,
-    should_suppress_verifier_call,
     snapshot,
     with_evidence_ledger,
 )
@@ -70,9 +69,7 @@ __all__ = [
     "record_verifier_report",
     "render_summary",
     "serialize_evidence_ledger",
-    "should_suppress_verifier_call",
     "snapshot",
     "summarize_text",
     "with_evidence_ledger",
 ]
-
