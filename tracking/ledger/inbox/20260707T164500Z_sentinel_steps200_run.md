@@ -1,0 +1,19 @@
+RAW_LEDGER_UPDATE
+- actor: antigravity
+- task: sentinel_rerun_steps200
+- event_type: experiment
+- summary: Reran kv-store-grpc and code-from-image on the VM with max-steps limit increased to 200 using gpt-5.4-mini.
+- observations:
+  - code-from-image achieved 1.0 (PASS) at step 25.
+  - kv-store-grpc terminated early at step 2 with a verifier_false_clean classification (reward 0.0).
+- inference:
+  - Increasing the step budget allowed code-from-image to successfully complete its image processing and transcription steps, resulting in a capability pass.
+  - kv-store-grpc terminated early because the verifier falsely declared the state complete before checking functionality tests.
+- evidence_paths:
+  - results: aether_next_build/vm_goal_runs/20260707T162100Z_sentinel_steps200/results.json
+  - proof_board: aether_next_build/vm_goal_runs/20260707T162100Z_sentinel_steps200/proof_board/SENTINEL_PROOF_BOARD.md
+- affected_components: none
+- decision_change: none
+- unresolved_questions: How to improve the verifier's alignment on gRPC state completeness?
+- confidence: high
+- commit_message: Record sentinel 200-step run results

@@ -1,0 +1,662 @@
+[
+  {
+    "task": "kv-store-grpc",
+    "image": "alexgshaw/kv-store-grpc:20251031",
+    "architect_mode": "workbench",
+    "reward": 0.0,
+    "status": "completed",
+    "kernel_status": "completed",
+    "model_verifier_final_verdict": "completed",
+    "step": 2,
+    "reconfigurations": 0,
+    "architect_defect": false,
+    "architect_defect_reasons": [],
+    "classifier_label": "none",
+    "classifier_confidence": "high",
+    "classifier_detail": "completed",
+    "model_parse_errors": [
+      {
+        "receipt_id": "step-1:solver_parse_error",
+        "step": 1,
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 455 (char 454)",
+        "error": "solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 455 (char 454)",
+        "retry_attempted": true
+      }
+    ],
+    "run_metrics": {
+      "solver_parse_error_count": 1,
+      "solver_parse_error_examples": [
+        {
+          "receipt_id": "step-1:solver_parse_error",
+          "step": 1,
+          "kind": "solver_parse_error",
+          "success": false,
+          "failure_class": "solver_protocol_error",
+          "summary": "solver output parse/validation error: solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 455 (char 454)",
+          "error": "solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 455 (char 454)",
+          "retry_attempted": true
+        }
+      ],
+      "turn_validation_error_count": 0,
+      "unknown_action_count": 0,
+      "action_validation_error_count": 0,
+      "tool_schema_error_count": 0,
+      "parse_repair_attempts": 1,
+      "parse_repair_failures": 0,
+      "parse_repair_successes": 1,
+      "first_valid_action_step": 0,
+      "repeated_command_count": 0,
+      "repeated_write_count": 0,
+      "submit_without_new_evidence_count": 0,
+      "submit_receipt_count": 0,
+      "repeated_commands": []
+    },
+    "grader_exit": 0,
+    "reward_source": "reward_txt",
+    "grader_stdout_tail": "     stub = kv_store_pb2_grpc.KVStoreStub(channel)\n    \n            # Test that the server responds to gRPC calls (not just TCP)\n            # This will fail if it's not a real gRPC server\n>           response = stub.SetVal(kv_store_pb2.SetValRequest(key=\"handshake\", value=999))\n                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE           ValueError: Protocol message SetValRequest has no \"value\" field.\n\n/tests/test_outputs.py:120: ValueError\n\nDuring handling of the above exception, another exception occurred:\n\n    def test_grpc_protocol_handshake():\n        \"\"\"\n        Anti-cheating test: Verify that the server responds to actual gRPC protocol.\n        This ensures we're not just talking to a mock HTTP server.\n        \"\"\"\n        import grpc\n        import kv_store_pb2\n        import kv_store_pb2_grpc\n    \n        port = \"5328\"\n        addr = f\"127.0.0.1:{port}\"\n    \n        # Create a channel and test gRPC handshake\n        channel = grpc.insecure_channel(addr)\n    \n        try:\n            # Test that we can create a stub (this tests gRPC protocol)\n            stub = kv_store_pb2_grpc.KVStoreStub(channel)\n    \n            # Test that the server responds to gRPC calls (not just TCP)\n            # This will fail if it's not a real gRPC server\n            response = stub.SetVal(kv_store_pb2.SetValRequest(key=\"handshake\", value=999))\n    \n            # Verify we got a proper gRPC response\n            assert hasattr(response, \"val\"), \"Response must be a gRPC response object\"\n            assert response.val == 999, \"gRPC server must return the correct value\"\n    \n            print(\"\u2713 gRPC protocol handshake successful\")\n    \n        except grpc.RpcError:\n            # gRPC errors are expected and indicate real gRPC protocol\n            print(\"\u2713 gRPC protocol detected\")\n        except Exception as e:\n            # Any other exception means it's not a real gRPC server\n>           assert False, f\"Not a real gRPC server: {e}\"\nE           AssertionError: Not a real gRPC server: Protocol message SetValRequest has no \"value\" field.\nE           assert False\n\n/tests/test_outputs.py:133: AssertionError\n________________________ test_grpc_server_functionality ________________________\n\n    def test_grpc_server_functionality():\n        \"\"\"\n        Test that the gRPC server responds correctly to SetVal and GetVal requests.\n        This verifies the server implements the KVStore service correctly.\n        \"\"\"\n        import grpc\n        import kv_store_pb2\n        import kv_store_pb2_grpc\n    \n        port = \"5328\"\n        addr = f\"127.0.0.1:{port}\"\n    \n        # Create a channel and stub\n        channel = grpc.insecure_channel(addr)\n        stub = kv_store_pb2_grpc.KVStoreStub(channel)\n    \n        try:\n            # Test SetVal functionality\n>           resp = stub.SetVal(kv_store_pb2.SetValRequest(key=\"test_key\", value=42))\n                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE           ValueError: Protocol message SetValRequest has no \"value\" field.\n\n/tests/test_outputs.py:156: ValueError\n==================================== PASSES ====================================\n_________________________ test_grpc_tools_installation _________________________\n----------------------------- Captured stdout call -----------------------------\n\u2713 grpcio successfully imported\n=========================== short test summary info ============================\nPASSED ../tests/test_outputs.py::test_proto_file_creation\nPASSED ../tests/test_outputs.py::test_grpc_tools_installation\nPASSED ../tests/test_outputs.py::test_protobuf_generation\nPASSED ../tests/test_outputs.py::test_server_file_creation\nPASSED ../tests/test_outputs.py::test_real_grpc_server_running\nFAILED ../tests/test_outputs.py::test_grpc_protocol_handshake - AssertionErro...\nFAILED ../tests/test_outputs.py::test_grpc_server_functionality - ValueError:...\n========================= 2 failed, 5 passed in 0.11s ==========================\n",
+    "grader_stderr_tail": "WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.\n\n[notice] A new release of pip is available: 25.2 -> 26.1.2\n[notice] To update, run: pip install --upgrade pip\n",
+    "receipt_summary": [
+      {
+        "receipt_id": "config:realization",
+        "kind": "config_realization",
+        "success": true,
+        "failure_class": "",
+        "summary": "compiled architect config realization"
+      },
+      {
+        "receipt_id": "step-0:inspect_env:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: cd /app && pwd && ls -la && python3 - <<'PY'\nimport importlib.util, sys\nfor name in ('grpc','grpc_tools'):\n    print(name, importlib.util.find_spec(name))\nPY\npython3 -m pip show grpcio grpcio-tools || true"
+      },
+      {
+        "receipt_id": "step-1:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 455 (char 454)"
+      },
+      {
+        "receipt_id": "step-1:install_build_launch_verify:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: set -euo pipefail\ncd /app\npython3 -m pip install --no-cache-dir grpcio==1.73.0 grpcio-tools==1.73.0\npython3 - <<'PY'\nimport grpc, grpc_tools, sys\nprint('grpc_version=', grpc.__version__)\nprint('grpc_tools_file=', grpc_tools.__file__)\nPY\ncat > /app/kv-store.proto <<'EOF'\nsyntax = \"proto3\";\n\nservice KVStore {\n  rpc GetVal (GetValRequest) returns (GetValResponse);\n  rpc SetVal (SetValRequest) returns (SetValResponse);\n}\n\nmessage GetValRequest {\n  string key = 1;\n}\n\nmessage GetValResponse {\n  int32 val = 1;\n}\n\nmessage SetValRequest {\n  string key = 1;\n  int32 val = 2;\n}\n\nmessage SetValResponse {\n  int32 val = 1;\n}\nEOF\npython3 -m grpc_tools.protoc -I /app --python_out=/app --grpc_python_out=/app /app/kv-store.proto\npython3 - <<'PY'\nfrom pathlib import Path\nimport importlib.util\nroot = Path('/app')\nprint('generated_files=', [p.name for p in root.glob('*pb2*.py')])\nfor name in ['kv_store_pb2.py', 'kv_store_pb2_grpc.py']:\n    p = root / name\n    print(name, 'exists=', p.exists())\n    if p.exists():\n        text = p.read_text()\n        print(name, 'first_import_lines=')\n        for line in text.splitlines()[:8]:\n            print(line)\nPY\ncat > /app/server.py <<'EOF'\nfrom concurrent import futures\nimport grpc\n\nimport kv_store_pb2\nimport kv_store_pb2_grpc\n\n\nclass Server(kv_store_pb2_grpc.KVStoreServicer):\n    def __init__(self):\n        self.store = {}\n\n    def GetVal(self, request, context):\n        return kv_store_pb2.GetValResponse(val=self.store.get(request.key, 0))\n\n    def SetVal(self, request, context):\n        self.store[request.key] = request.val\n        return kv_store_pb2.SetValResponse(val=request.val)\n\n\ndef serve():\n    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))\n    kv_store_pb2_grpc.add_KVStoreServicer_to_server(Server(), server)\n    server.add_insecure_port('[::]:5328')\n    server.start()\n    server.wait_for_termination()\n\n\nif __name__ == '__main__':\n    serve()\nEOF\npython3 - <<'PY'\nfrom pathlib import Path\nprint(Path('/app/server.py').read_text())\nPY\nnohup python3 /app/server.py >/app/server.log 2>&1 &\necho $! >/app/server.pid\nsleep 2\npython3 - <<'PY'\nimport grpc\nimport kv_store_pb2\nimport kv_store_pb2_grpc\n\nchannel = grpc.insecure_channel('localhost:5328')\nstub = kv_store_pb2_grpc.KVStoreStub(channel)\nset_resp = stub.SetVal(kv_store_pb2.SetValRequest(key='alpha', val=7))\nget_resp = stub.GetVal(kv_store_pb2.GetValRequest(key='alpha'))\nprint('set_resp.val=', set_resp.val)\nprint('get_resp.val=', get_resp.val)\nassert set_resp.val == 7\nassert get_resp.val == 7\nprint('probe=ok')\nPY\ncat /app/server.log\n"
+      },
+      {
+        "receipt_id": "step-2:model_verifier_packet:solver_submit",
+        "kind": "model_verifier_packet",
+        "success": true,
+        "failure_class": "",
+        "summary": "model verifier packet built for solver_submit"
+      },
+      {
+        "receipt_id": "step-2:model_verifier_inspection:5",
+        "kind": "model_verifier_inspection",
+        "success": true,
+        "failure_class": "",
+        "summary": "model verifier inspection executed: read_file, inspect_recent_receipts, inspect_artifact_history"
+      },
+      {
+        "receipt_id": "step-2:model_verifier",
+        "kind": "model_verifier_result",
+        "success": true,
+        "failure_class": "",
+        "summary": "model verifier verdict: completed"
+      },
+      {
+        "receipt_id": "step-2:model_verifier_evidence:solver_submit",
+        "kind": "model_verifier_evidence",
+        "success": true,
+        "failure_class": "",
+        "summary": "reviewer evidence summary: 1 inspection receipt(s); classification=completed"
+      }
+    ],
+    "run_provenance": {
+      "schema_version": "aether_run_provenance.v1",
+      "provenance_mode": "production",
+      "git_available": false,
+      "code_sha": "",
+      "branch": "",
+      "dirty": null,
+      "code_tree_hash": "d559c7dc407090713575fa8485eced2f0604e7a8a9b80dce0232ba6e62b230f4",
+      "prompt_hashes": {
+        "run_args": "21146bd5169d6f379e2d476db83cd04a9af69aef2eb57ff982cad348ee8606e4"
+      },
+      "model_params": {
+        "solver_deploy_env": "AZURE_OPENAI_GPT54_PRO_DEPLOYMENT",
+        "architect_deploy_env": "AZURE_OPENAI_GPT54_PRO_DEPLOYMENT",
+        "endpoint_env": "AZURE_OPENAI_ENDPOINT",
+        "effort": "medium"
+      },
+      "task_hash": "a7b462d8e4814d3459df9ad6f4512dcc37ef87eff1a1e9852c19b0e7fc3777b6"
+    },
+    "expected_steps": 9,
+    "step_efficiency": 0.22,
+    "run_timeout_s_effective": 1800,
+    "run_timeout_policy": "task_declared=900; runner_floor=1800; cap=14400; effective=1800",
+    "official_grader_status": "fail",
+    "internal_completion_status": "completed",
+    "verifier_alignment_status": "verifier_false_clean",
+    "grader_detail": {
+      "passed_count": 5,
+      "failed_count": 2,
+      "passed_names": [
+        "test_outputs.py::test_proto_file_creation",
+        "test_outputs.py::test_grpc_tools_installation",
+        "test_outputs.py::test_protobuf_generation",
+        "test_outputs.py::test_server_file_creation",
+        "test_outputs.py::test_real_grpc_server_running"
+      ],
+      "failed_names": [
+        "test_outputs.py::test_grpc_protocol_handshake",
+        "test_outputs.py::test_grpc_server_functionality"
+      ]
+    },
+    "trace_path": "/home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260707T162100Z_sentinel_steps200/traces/kv-store-grpc.trace.json"
+  },
+  {
+    "task": "code-from-image",
+    "image": "alexgshaw/code-from-image:20251031",
+    "architect_mode": "workbench",
+    "reward": 1.0,
+    "status": "completed",
+    "kernel_status": "completed",
+    "model_verifier_final_verdict": "completed",
+    "step": 25,
+    "reconfigurations": 0,
+    "architect_defect": false,
+    "architect_defect_reasons": [],
+    "classifier_label": "none",
+    "classifier_confidence": "high",
+    "classifier_detail": "completed",
+    "model_parse_errors": [
+      {
+        "receipt_id": "step-2:solver_parse_error",
+        "step": 2,
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 378 (char 377)",
+        "error": "solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 378 (char 377)",
+        "retry_attempted": true
+      },
+      {
+        "receipt_id": "step-3:solver_parse_error",
+        "step": 3,
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: inspect_artifact',)",
+        "error": "solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: inspect_artifact',)",
+        "retry_attempted": true
+      },
+      {
+        "receipt_id": "step-4:solver_parse_error",
+        "step": 4,
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+        "error": "solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+        "retry_attempted": true
+      },
+      {
+        "receipt_id": "step-8:solver_parse_error",
+        "step": 8,
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+        "error": "solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+        "retry_attempted": true
+      },
+      {
+        "receipt_id": "step-11:solver_parse_error",
+        "step": 11,
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: unbalanced braces in model output",
+        "error": "solver output could not be parsed: unbalanced braces in model output",
+        "retry_attempted": true
+      }
+    ],
+    "run_metrics": {
+      "solver_parse_error_count": 11,
+      "solver_parse_error_examples": [
+        {
+          "receipt_id": "step-2:solver_parse_error",
+          "step": 2,
+          "kind": "solver_parse_error",
+          "success": false,
+          "failure_class": "solver_protocol_error",
+          "summary": "solver output parse/validation error: solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 378 (char 377)",
+          "error": "solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 378 (char 377)",
+          "retry_attempted": true
+        },
+        {
+          "receipt_id": "step-3:solver_parse_error",
+          "step": 3,
+          "kind": "solver_parse_error",
+          "success": false,
+          "failure_class": "solver_protocol_error",
+          "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: inspect_artifact',)",
+          "error": "solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: inspect_artifact',)",
+          "retry_attempted": true
+        },
+        {
+          "receipt_id": "step-4:solver_parse_error",
+          "step": 4,
+          "kind": "solver_parse_error",
+          "success": false,
+          "failure_class": "solver_protocol_error",
+          "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+          "error": "solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+          "retry_attempted": true
+        },
+        {
+          "receipt_id": "step-8:solver_parse_error",
+          "step": 8,
+          "kind": "solver_parse_error",
+          "success": false,
+          "failure_class": "solver_protocol_error",
+          "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+          "error": "solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)",
+          "retry_attempted": true
+        },
+        {
+          "receipt_id": "step-11:solver_parse_error",
+          "step": 11,
+          "kind": "solver_parse_error",
+          "success": false,
+          "failure_class": "solver_protocol_error",
+          "summary": "solver output parse/validation error: solver output could not be parsed: unbalanced braces in model output",
+          "error": "solver output could not be parsed: unbalanced braces in model output",
+          "retry_attempted": true
+        }
+      ],
+      "turn_validation_error_count": 0,
+      "unknown_action_count": 0,
+      "action_validation_error_count": 0,
+      "tool_schema_error_count": 0,
+      "parse_repair_attempts": 10,
+      "parse_repair_failures": 1,
+      "parse_repair_successes": 9,
+      "first_valid_action_step": 0,
+      "repeated_command_count": 0,
+      "repeated_write_count": 2,
+      "submit_without_new_evidence_count": 0,
+      "submit_receipt_count": 0,
+      "repeated_commands": []
+    },
+    "grader_exit": 0,
+    "reward_source": "reward_txt",
+    "grader_stdout_tail": "ing previously unselected package libsasl2-modules-db:amd64.\nPreparing to unpack .../07-libsasl2-modules-db_2.1.28+dfsg-10_amd64.deb ...\nUnpacking libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...\nSelecting previously unselected package libsasl2-2:amd64.\nPreparing to unpack .../08-libsasl2-2_2.1.28+dfsg-10_amd64.deb ...\nUnpacking libsasl2-2:amd64 (2.1.28+dfsg-10) ...\nSelecting previously unselected package libldap-2.5-0:amd64.\nPreparing to unpack .../09-libldap-2.5-0_2.5.13+dfsg-5_amd64.deb ...\nUnpacking libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...\nSelecting previously unselected package libnghttp2-14:amd64.\nPreparing to unpack .../10-libnghttp2-14_1.52.0-1+deb12u3_amd64.deb ...\nUnpacking libnghttp2-14:amd64 (1.52.0-1+deb12u3) ...\nSelecting previously unselected package libpsl5:amd64.\nPreparing to unpack .../11-libpsl5_0.21.2-1_amd64.deb ...\nUnpacking libpsl5:amd64 (0.21.2-1) ...\nSelecting previously unselected package librtmp1:amd64.\nPreparing to unpack .../12-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_amd64.deb ...\nUnpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...\nSelecting previously unselected package libssh2-1:amd64.\nPreparing to unpack .../13-libssh2-1_1.10.0-3+b1_amd64.deb ...\nUnpacking libssh2-1:amd64 (1.10.0-3+b1) ...\nSelecting previously unselected package libcurl4:amd64.\nPreparing to unpack .../14-libcurl4_7.88.1-10+deb12u14_amd64.deb ...\nUnpacking libcurl4:amd64 (7.88.1-10+deb12u14) ...\nSelecting previously unselected package curl.\nPreparing to unpack .../15-curl_7.88.1-10+deb12u14_amd64.deb ...\nUnpacking curl (7.88.1-10+deb12u14) ...\nSelecting previously unselected package libldap-common.\nPreparing to unpack .../16-libldap-common_2.5.13+dfsg-5_all.deb ...\nUnpacking libldap-common (2.5.13+dfsg-5) ...\nSelecting previously unselected package libsasl2-modules:amd64.\nPreparing to unpack .../17-libsasl2-modules_2.1.28+dfsg-10_amd64.deb ...\nUnpacking libsasl2-modules:amd64 (2.1.28+dfsg-10) ...\nSelecting previously unselected package publicsuffix.\nPreparing to unpack .../18-publicsuffix_20230209.2326-1_all.deb ...\nUnpacking publicsuffix (20230209.2326-1) ...\nSetting up libkeyutils1:amd64 (1.6.3-2) ...\nSetting up libpsl5:amd64 (0.21.2-1) ...\nSetting up libbrotli1:amd64 (1.0.9-2+b6) ...\nSetting up libsasl2-modules:amd64 (2.1.28+dfsg-10) ...\nSetting up libnghttp2-14:amd64 (1.52.0-1+deb12u3) ...\nSetting up krb5-locales (1.20.1-2+deb12u5) ...\nSetting up libldap-common (2.5.13+dfsg-5) ...\nSetting up libkrb5support0:amd64 (1.20.1-2+deb12u5) ...\nSetting up libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...\nSetting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...\nSetting up libk5crypto3:amd64 (1.20.1-2+deb12u5) ...\nSetting up libsasl2-2:amd64 (2.1.28+dfsg-10) ...\nSetting up libssh2-1:amd64 (1.10.0-3+b1) ...\nSetting up libkrb5-3:amd64 (1.20.1-2+deb12u5) ...\nSetting up publicsuffix (20230209.2326-1) ...\nSetting up libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...\nSetting up libgssapi-krb5-2:amd64 (1.20.1-2+deb12u5) ...\nSetting up libcurl4:amd64 (7.88.1-10+deb12u14) ...\nSetting up curl (7.88.1-10+deb12u14) ...\nProcessing triggers for libc-bin (2.36-9+deb12u10) ...\nno checksums to verify\ninstalling to /root/.local/bin\n  uv\n  uvx\neverything's installed!\n\nTo add $HOME/.local/bin to your PATH, either restart your shell or run:\n\n    source $HOME/.local/bin/env (sh, bash, zsh)\n    source $HOME/.local/bin/env.fish (fish)\n============================= test session starts ==============================\nplatform linux -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0\nrootdir: /tests\nplugins: json-ctrf-0.3.5\ncollected 2 items\n\n../tests/test_outputs.py ..                                              [100%]\n\n==================================== PASSES ====================================\n=========================== short test summary info ============================\nPASSED ../tests/test_outputs.py::test_output_file_exists\nPASSED ../tests/test_outputs.py::test_output_is_correct\n============================== 2 passed in 0.02s ===============================\n",
+    "grader_stderr_tail": "debconf: delaying package configuration, since apt-utils is not installed\ndownloading uv 0.9.5 x86_64-unknown-linux-gnu\nDownloading pygments (1.2MiB)\n Downloading pygments\nInstalled 6 packages in 10ms\n",
+    "receipt_summary": [
+      {
+        "receipt_id": "config:realization",
+        "kind": "config_realization",
+        "success": true,
+        "failure_class": "",
+        "summary": "compiled architect config realization"
+      },
+      {
+        "receipt_id": "step-0:inspect1:inspect",
+        "kind": "artifact_inspection",
+        "success": true,
+        "failure_class": "",
+        "summary": "inspected code.png (90128 chars)"
+      },
+      {
+        "receipt_id": "step-1:a-0:inspect",
+        "kind": "artifact_inspection",
+        "success": true,
+        "failure_class": "",
+        "summary": "inspected code.png (90128 chars)"
+      },
+      {
+        "receipt_id": "step-2:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: invalid JSON: Expecting ',' delimiter: line 1 column 378 (char 377)"
+      },
+      {
+        "receipt_id": "step-2:a-0:no_progress_control",
+        "kind": "no_progress_control",
+        "success": false,
+        "failure_class": "repeated_artifact_inspection_no_state_change",
+        "summary": "Repeated artifact inspection targeted the same unchanged artifact. Use the surfaced metadata/text, inspect a different region/artifact, switch capability, produce a new semantic extraction, or declare a concrete blocker."
+      },
+      {
+        "receipt_id": "step-2:a-0:inspect",
+        "kind": "artifact_inspection",
+        "success": true,
+        "failure_class": "",
+        "summary": "inspected code.png (90128 chars)"
+      },
+      {
+        "receipt_id": "step-3:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: inspect_artifact',)"
+      },
+      {
+        "receipt_id": "step-3:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport struct, zlib\nfrom pathlib import Path\np=Path('/app/code.png').read_bytes()\nassert p[:8]==b'\\x89PNG\\r\\n\\x1a\\n'\no=8\nw=h=None\nidat=b''\ncolor=bit=None\nwhile o < len(p):\n    ln=struct.unpack('>I',p[o:o+4])[0]; o+=4\n    typ=p[o:o+4]; o+=4\n    data=p[o:o+ln]; o+=ln\n    o+=4\n    if typ==b'IHDR':\n        w,h,bit,color,comp,flt,inter=struct.unpack('>IIBBBBB',data)\n    elif typ==b'IDAT':\n        idat += data\n    elif typ==b'IEND':\n        break\nraw=zlib.decompress(idat)\n# Only support common formats; try RGB/RGBA/Grayscale\nbpp={0:1,2:3,3:1,4:2,6:4}[color]\nstride=w*bpp\nrows=[]\nidx=0\nprev=[0]*stride\nfor y in range(h):\n    f=raw[idx]; idx+=1\n    scan=list(raw[idx:idx+stride]); idx+=stride\n    out=[0]*stride\n    if f==0:\n        out=scan\n    elif f==1:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            out[i]=(v+left)&255\n    elif f==2:\n        for i,v in enumerate(scan):\n            out[i]=(v+prev[i])&255\n    elif f==3:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            up=prev[i]\n            out[i]=(v+((left+up)//2))&255\n    elif f==4:\n        for i,v in enumerate(scan):\n            a=out[i-bpp] if i>=bpp else 0\n            b=prev[i]\n            c=prev[i-bpp] if i>=bpp else 0\n            p=a+b-c\n            pa=abs(p-a); pb=abs(p-b); pc=abs(p-c)\n            pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c)\n            out[i]=(v+pr)&255\n    prev=out\n    rows.append(out)\n# Convert to grayscale\nif color==2:\n    pix=[tuple(r[i:i+3]) for r in rows for i in range(0,len(r),3)]\n    gray=[(r*299+g*587+b*114)//1000 for r,g,b in pix]\nelif color==6:\n    pix=[tuple(r[i:i+4]) for r in rows for i in range(0,len(r),4)]\n    gray=[(r*299+g*587+b*114)//1000 for r,g,b,a in pix]\nelif color in (0,3):\n    gray=[v for r in rows for v in r]\nelse:\n    gray=[]\nprint('size',w,h,'color',color,'bit',bit)\n# downsample and print ascii\nchars='@%#*+=-:. '\n# normalize by simple threshold around near-white background\nfor scale in [1,2,3,4,5,6,8,10]:\n    print('\\nSCALE',scale)\n    for y in range(0,h,scale):\n        line=''\n        for x in range(0,w,scale):\n            vals=[]\n            for yy in range(y,min(y+scale,h)):\n                row=gray[yy*w:(yy+1)*w]\n                vals.extend(row[x:min(x+scale,w)])\n            if not vals:\n                continue\n            v=sum(vals)//len(vals)\n            line += chars[(255-v)*len(chars)//256]\n        print(line.rstrip())\nPY"
+      },
+      {
+        "receipt_id": "step-4:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)"
+      },
+      {
+        "receipt_id": "step-4:a-0:cmd",
+        "kind": "run_command",
+        "success": false,
+        "failure_class": "command_failure",
+        "summary": "command exit=1: python3 - <<'PY'\nimport struct, zlib\nfrom pathlib import Path\np=Path('/app/code.png').read_bytes()\nassert p[:8]==b'\\x89PNG\\r\\n\\x1a\\n'\no=8\nw=h=None\nidat=b''\ncolor=bit=None\nwhile o < len(p):\n    ln=struct.unpack('>I',p[o:o+4])[0]; o+=4\ntyp=p[o:o+4]; o+=4\ndata=p[o:o+ln]; o+=ln\no+=4\n    if typ==b'IHDR':\n        w,h,bit,color,comp,flt,inter=struct.unpack('>IIBBBBB',data)\n    elif typ==b'IDAT':\n        idat += data\n    elif typ==b'IEND':\n        break\nraw=zlib.decompress(idat)\nbpp={0:1,2:3,3:1,4:2,6:4}[color]\nstride=w*bpp\nrows=[]\nidx=0\nprev=[0]*stride\nfor y in range(h):\n    f=raw[idx]; idx+=1\n    scan=list(raw[idx:idx+stride]); idx+=stride\n    out=[0]*stride\n    if f==0:\n        out=scan\n    elif f==1:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            out[i]=(v+left)&255\n    elif f==2:\n        for i,v in enumerate(scan):\n            out[i]=(v+prev[i])&255\n    elif f==3:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            up=prev[i]\n            out[i]=(v+((left+up)//2))&255\n    elif f==4:\n        for i,v in enumerate(scan):\n            a=out[i-bpp] if i>=bpp else 0\n            b=prev[i]\n            c=prev[i-bpp] if i>=bpp else 0\n            p=a+b-c\n            pa=abs(p-a); pb=abs(p-b); pc=abs(p-c)\n            pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c)\n            out[i]=(v+pr)&255\n    prev=out\n    rows.append(out)\n# grayscale\nif color==2:\n    gray=[(r*299+g*587+b*114)//1000 for row in rows for r,g,b in (tuple(row[i:i+3]) for i in range(0,len(row),3))]\nelif color==6:\n    gray=[(r*299+g*587+b*114)//1000 for row in rows for r,g,b,a in (tuple(row[i:i+4]) for i in range(0,len(row),4))]\nelif color in (0,3):\n    gray=[v for row in rows for v in row]\nelse:\n    raise SystemExit('unsupported color')\n# bbox of dark pixels\nxs=[]; ys=[]\nfor yy in range(h):\n    row=gray[yy*w:(yy+1)*w]\n    for xx,v in enumerate(row):\n        if v < 240:\n            xs.append(xx); ys.append(yy)\nprint('image',w,h,'bbox',min(xs),min(ys),max(xs),max(ys), 'count',len(xs))\n# crop with padding\nx0=max(0,min(xs)-10); x1=min(w,max(xs)+11)\ny0=max(0,min(ys)-10); y1=min(h,max(ys)+11)\nprint('crop',x0,y0,x1,y1,'size',x1-x0,y1-y0)\ncw, ch = x1-x0, y1-y0\ncrop=[gray[(y0+y)*w + x0:(y0+y)*w + x1] for y in range(ch)]\n# Render with braille cells 2x4\nTH=200\nfor by in range(0,ch,4):\n    line=[]\n    for bx in range(0,cw,2):\n        bits=0\n        for dy in range(4):\n            for dx in range(2):\n                yy=by+dy; xx=bx+dx\n                if yy<ch and xx<cw and crop[yy][xx] < TH:\n                    bit = {(0,0):1,(1,0):2,(2,0):4,(0,1):8,(1,1):16,(2,1):32,(3,0):64,(3,1):128}[(dy,dx)]\n                    bits |= bit\n        line.append(chr(0x2800+bits))\n    print(''.join(line).rstrip())\nPY"
+      },
+      {
+        "receipt_id": "step-5:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport struct, zlib\nfrom pathlib import Path\np=Path('/app/code.png').read_bytes()\nassert p[:8]==b'\\x89PNG\\r\\n\\x1a\\n'\no=8\nw=h=bit=color=None\nidat=b''\nwhile o < len(p):\n    ln=struct.unpack('>I',p[o:o+4])[0]; o+=4\n    typ=p[o:o+4]; o+=4\n    data=p[o:o+ln]; o+=ln\n    o+=4\n    if typ==b'IHDR':\n        w,h,bit,color,comp,flt,inter=struct.unpack('>IIBBBBB',data)\n    elif typ==b'IDAT':\n        idat += data\n    elif typ==b'IEND':\n        break\nraw=zlib.decompress(idat)\nbpp={0:1,2:3,3:1,4:2,6:4}[color]\nstride=w*bpp\nrows=[]\nidx=0\nprev=[0]*stride\nfor y in range(h):\n    f=raw[idx]; idx+=1\n    scan=list(raw[idx:idx+stride]); idx+=stride\n    out=[0]*stride\n    if f==0:\n        out=scan\n    elif f==1:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            out[i]=(v+left)&255\n    elif f==2:\n        for i,v in enumerate(scan):\n            out[i]=(v+prev[i])&255\n    elif f==3:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            up=prev[i]\n            out[i]=(v+((left+up)//2))&255\n    elif f==4:\n        for i,v in enumerate(scan):\n            a=out[i-bpp] if i>=bpp else 0\n            b=prev[i]\n            c=prev[i-bpp] if i>=bpp else 0\n            p=a+b-c\n            pa=abs(p-a); pb=abs(p-b); pc=abs(p-c)\n            pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c)\n            out[i]=(v+pr)&255\n    prev=out\n    rows.append(out)\nif color==6:\n    gray=[(r*299+g*587+b*114)//1000 for row in rows for r,g,b,a in (tuple(row[i:i+4]) for i in range(0,len(row),4))]\nelif color==2:\n    gray=[(r*299+g*587+b*114)//1000 for row in rows for r,g,b in (tuple(row[i:i+3]) for i in range(0,len(row),3))]\nelif color in (0,3):\n    gray=[v for row in rows for v in row]\nelse:\n    raise SystemExit('unsupported color')\n# Find content bbox using threshold\nthr=245\nxs=[]; ys=[]\nfor yy in range(h):\n    row=gray[yy*w:(yy+1)*w]\n    for xx,v in enumerate(row):\n        if v < thr:\n            xs.append(xx); ys.append(yy)\nprint('IMAGE',w,h,'bbox',min(xs),min(ys),max(xs),max(ys),'count',len(xs))\n# Examine horizontal density to locate text lines\nx0=max(0,min(xs)-5); x1=min(w,max(xs)+6)\ny0=max(0,min(ys)-5); y1=min(h,max(ys)+6)\nprint('CROP',x0,y0,x1,y1)\n# Render grayscale crop at scale 2 with dark as '#'\nfor scale in [2,3,4]:\n    print('\\nSCALE',scale)\n    for yy in range(y0,y1,scale):\n        line=[]\n        for xx in range(x0,x1,scale):\n            vals=[]\n            for y2 in range(yy,min(yy+scale,y1)):\n                row=gray[y2*w:(y2+1)*w]\n                vals.extend(row[xx:min(xx+scale,x1)])\n            if not vals:\n                continue\n            v=sum(vals)//len(vals)\n            line.append('#' if v < 180 else ('+' if v < 220 else '.' if v < 245 else ' '))\n        s=''.join(line).rstrip()\n        if s:\n            print(s)\nPY"
+      },
+      {
+        "receipt_id": "step-6:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport struct, zlib\nfrom pathlib import Path\np=Path('/app/code.png').read_bytes()\no=8\nw=h=bit=color=None\nidat=b''\nwhile o < len(p):\n    ln=struct.unpack('>I',p[o:o+4])[0]; o+=4\n    typ=p[o:o+4]; o+=4\n    data=p[o:o+ln]; o+=ln\n    o+=4\n    if typ==b'IHDR':\n        w,h,bit,color,comp,flt,inter=struct.unpack('>IIBBBBB',data)\n    elif typ==b'IDAT':\n        idat += data\n    elif typ==b'IEND':\n        break\nraw=zlib.decompress(idat)\nbpp={0:1,2:3,3:1,4:2,6:4}[color]\nstride=w*bpp\nrows=[]\nidx=0\nprev=[0]*stride\nfor y in range(h):\n    f=raw[idx]; idx+=1\n    scan=list(raw[idx:idx+stride]); idx+=stride\n    out=[0]*stride\n    if f==0:\n        out=scan\n    elif f==1:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            out[i]=(v+left)&255\n    elif f==2:\n        for i,v in enumerate(scan):\n            out[i]=(v+prev[i])&255\n    elif f==3:\n        for i,v in enumerate(scan):\n            left=out[i-bpp] if i>=bpp else 0\n            up=prev[i]\n            out[i]=(v+((left+up)//2))&255\n    elif f==4:\n        for i,v in enumerate(scan):\n            a=out[i-bpp] if i>=bpp else 0\n            b=prev[i]\n            c=prev[i-bpp] if i>=bpp else 0\n            p=a+b-c\n            pa=abs(p-a); pb=abs(p-b); pc=abs(p-c)\n            pr=a if pa<=pb and pa<=pc else (b if pb<=pc else c)\n            out[i]=(v+pr)&255\n    prev=out\n    rows.append(out)\n# grayscale\nif color==6:\n    gray=[(r*299+g*587+b*114)//1000 for row in rows for r,g,b,a in (tuple(row[i:i+4]) for i in range(0,len(row),4))]\nelif color==2:\n    gray=[(r*299+g*587+b*114)//1000 for row in rows for r,g,b in (tuple(row[i:i+3]) for i in range(0,len(row),3))]\nelif color in (0,3):\n    gray=[v for row in rows for v in row]\nelse:\n    raise SystemExit('unsupported')\n# row counts\nthr=245\ncounts=[]\nfor y in range(h):\n    row=gray[y*w:(y+1)*w]\n    cnt=sum(1 for v in row if v<thr)\n    counts.append(cnt)\n# print runs where count > 20\ninrun=False; start=None\nfor y,c in enumerate(counts):\n    if c>20 and not inrun:\n        inrun=True; start=y\n    if inrun and c<=20:\n        print('run',start,y-1,'max',max(counts[start:y]),'avg',sum(counts[start:y])/(y-start))\n        inrun=False\nif inrun:\n    y=len(counts)\n    print('run',start,y-1,'max',max(counts[start:y]),'avg',sum(counts[start:y])/(y-start))\n# print top 40 rows by count\nmx=sorted([(c,y) for y,c in enumerate(counts)], reverse=True)[:60]\nprint('top rows:',mx[:20])\nPY"
+      },
+      {
+        "receipt_id": "step-7:inspect-meta-1:inspect:vision",
+        "kind": "artifact_inspection",
+        "success": true,
+        "failure_class": "",
+        "summary": "vision transcription of code.png (95041 bytes, image/png): 222 chars extracted"
+      },
+      {
+        "receipt_id": "step-8:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)"
+      },
+      {
+        "receipt_id": "step-8:a-0:cmd",
+        "kind": "run_command",
+        "success": false,
+        "failure_class": "missing_artifact",
+        "summary": "command exit=1: python3 - <<'PY'\nimport sys, subprocess, os\npkg='rapidocr_onnxruntime'\ntry:\n    import rapidocr_onnxruntime\nexcept Exception:\n    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', 'rapidocr-onnxruntime'])\nfrom rapidocr_onnxruntime import RapidOCR\nfrom pathlib import Path\nocr = RapidOCR()\nimg = str(Path('/app/code.png'))\nresult, _ = ocr(img)\nprint(result)\nPY"
+      },
+      {
+        "receipt_id": "step-9:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport sys, subprocess\nsubprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--upgrade', 'opencv-python-headless'])\nprint('installed')\nPY"
+      },
+      {
+        "receipt_id": "step-10:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport sys, subprocess, os\nsubprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--upgrade', 'rapidocr-onnxruntime', 'opencv-python-headless'])\nfrom rapidocr_onnxruntime import RapidOCR\nocr = RapidOCR()\nresult, _ = ocr('/app/code.png')\nprint(result)\nPY"
+      },
+      {
+        "receipt_id": "step-11:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: unbalanced braces in model output"
+      },
+      {
+        "receipt_id": "step-11:compute-and-write:cmd",
+        "kind": "run_command",
+        "success": false,
+        "failure_class": "command_failure",
+        "summary": "command exit=1: python3 - <<'PY'\nimport hashlib,itertools\nfrom pathlib import Path\nfrom rapidocr_onnxruntime import RapidOCR\nocr=RapidOCR()\nres,_=ocr('/app/code.png')\ntext='\\n'.join(r[1] for r in res if len(r)>1)\nline=next((l for l in text.splitlines() if 'SALT' in l), '')\nraw=line.split('=',1)[1].strip() if '=' in line else ''\nwhile raw and raw[0] in ' '+chr(34)+chr(39):\n    raw=raw[1:]\nwhile raw and raw[-1] in ' '+chr(34)+chr(39):\n    raw=raw[:-1]\nif not raw:\n    raw='B00TBENCH-SALT'\nsubs={'6':['B','6'],'B':['B','6'],'0':['0','O'],'O':['O','0']}\nopts=[subs.get(c,[c]) for c in raw]\ncand_salts=set(''.join(p) for p in itertools.product(*opts))\nimg=Path('/app/code.png').read_bytes()\nbases=[hashlib.sha256(img).digest(),hashlib.sha256(img).hexdigest().encode()]\nfor salt in list(cand_salts)+['B00TBENCH-SALT','BOOTBENCH-SALT','B0OTBENCH-SALT','O00OTBENCH-SALT']:\n    for base in bases:\n        d=hashlib.sha256(base+base[:10]+salt.encode()).hexdigest()\n        if d.startswith('bee26a'):\n            Path('/app/output.txt').write_text(d)\n            print(d)\n            raise SystemExit\nprint('OCR_TEXT_START')\nprint(text)\nprint('OCR_TEXT_END')\nraise SystemExit('no prefix-matching candidate')\nPY"
+      },
+      {
+        "receipt_id": "step-12:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: unbalanced braces in model output"
+      },
+      {
+        "receipt_id": "step-12:step-12:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport hashlib\nfrom pathlib import Path\nimg = Path('/app/code.png').read_bytes()\nsha = hashlib.sha256(img)\nbase_digest = sha.digest()\nbase_hex = sha.hexdigest()\nbase_candidates = {\n    'digest': base_digest,\n    'hexbytes': base_hex.encode(),\n}\nsalts = [\n    'BOOTBENCH-SALT',\n    'B00TBENCH-SALT',\n    'B00OTBENCH-SALT',\n    'BO0TBENCH-SALT',\n    'B0OTBENCH-SALT',\n    'O00OTBENCH-SALT',\n    'BOOTBENCHSALT',\n    'B00TBENCHSALT',\n]\n# Try the likely concatenation orders of [h0, h0[:10], SALT]\norders = [\n    ('base', 'prefix', 'salt'),\n    ('base', 'salt', 'prefix'),\n    ('prefix', 'base', 'salt'),\n    ('prefix', 'salt', 'base'),\n    ('salt', 'base', 'prefix'),\n    ('salt', 'prefix', 'base'),\n]\nfor bname, base in base_candidates.items():\n    for salt in salts:\n        s = salt.encode()\n        for order in orders:\n            parts = []\n            for item in order:\n                if item == 'base':\n                    parts.append(base)\n                elif item == 'prefix':\n                    parts.append(base[:10])\n                elif item == 'salt':\n                    parts.append(s)\n            d = hashlib.sha256(b''.join(parts)).hexdigest()\n            if d.startswith('bee26a'):\n                Path('/app/output.txt').write_text(d)\n                print(d)\n                print('MATCH', bname, salt, order)\n                raise SystemExit\nprint('NO_MATCH')\nPY"
+      },
+      {
+        "receipt_id": "step-13:read_ocr_10:output",
+        "kind": "read_output",
+        "success": true,
+        "failure_class": "",
+        "summary": "read_output '10:a-0:stdout' bytes 0:916"
+      },
+      {
+        "receipt_id": "step-14:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: parsed turn failed validation: ('unknown turn kind: run_command',)"
+      },
+      {
+        "receipt_id": "step-14:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nfrom pathlib import Path\nimport cv2\nfrom rapidocr_onnxruntime import RapidOCR\nimg = cv2.imread('/app/code.png')\n# Focus on the top portion where the salt and function header appear.\ncrop = img[70:180, 40:720]\ncv2.imwrite('/app/_salt_crop.png', crop)\nocr = RapidOCR()\nres, _ = ocr('/app/_salt_crop.png')\nprint('OCR_CROP_TEXT_START')\nfor item in res:\n    print(item[1])\nprint('OCR_CROP_TEXT_END')\nPY"
+      },
+      {
+        "receipt_id": "step-15:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport cv2\nfrom rapidocr_onnxruntime import RapidOCR\nimg = cv2.imread('/app/code.png')\n# Tight crop around the salt assignment line.\n# Coordinates chosen from earlier OCR boxes.\nfor i,(y0,y1) in enumerate([(90,160),(95,155),(100,150)]):\n    crop = img[y0:y1, 90:650]\n    path=f'/app/_salt_crop_{i}.png'\n    cv2.imwrite(path, crop)\n    ocr = RapidOCR()\n    res, _ = ocr(path)\n    print('CROP',i,y0,y1)\n    for item in res:\n        print(item[1])\nPY"
+      },
+      {
+        "receipt_id": "step-16:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport cv2\nfrom rapidocr_onnxruntime import RapidOCR\nimg = cv2.imread('/app/code.png')\n# Crop around the SALT line based on prior OCR boxes.\ncrop = img[90:170, 70:700]\n# Upscale and sharpen\ncrop = cv2.resize(crop, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)\ngray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)\n# Try both light and dark thresholding variants\nfor name, proc in [\n    ('orig', crop),\n    ('gray', cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)),\n    ('thresh', cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]),\n    ('inv', cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]),\n]:\n    path = f'/app/_salt_{name}.png'\n    cv2.imwrite(path, proc)\n    ocr = RapidOCR()\n    res, _ = ocr(path)\n    print('===', name, '===')\n    for item in res:\n        print(item[1])\nPY"
+      },
+      {
+        "receipt_id": "step-17:a-0:cmd",
+        "kind": "run_command",
+        "success": false,
+        "failure_class": "test_failure",
+        "summary": "command exit=1: python3 - <<'PY'\nimport hashlib, itertools\nfrom pathlib import Path\nimg = Path('/app/code.png').read_bytes()\nsha_img = hashlib.sha256(img)\nimg_digest = sha_img.digest()\nimg_hex = sha_img.hexdigest()\n# Candidate salt spellings inferred from OCR of the image.\nsalts = [\n    'BOOTBENCH-SALT',\n    'B00TBENCH-SALT',\n    'BO0TBENCH-SALT',\n    'B0OTBENCH-SALT',\n    'B00OTBENCH-SALT',\n    '0000TBENCH-SALT',\n    'O00OTBENCH-SALT',\n    'B00TBENCHSALT',\n    'BOOTBENCHSALT',\n]\n# Candidate interpretations of h0 and concatenation style.\nforms = []\n# h0 as hex string or digest bytes; combine with h0[:10] and salt in various ways.\nfor h0_name, h0 in [('hex', img_hex), ('digest', img_digest)]:\n    if isinstance(h0, str):\n        prefix = h0[:10]\n        enc = h0.encode()\n        prefix_enc = prefix.encode()\n    else:\n        prefix = h0[:10]\n        enc = h0\n        prefix_enc = prefix\n    forms.extend([\n        ('h0+h0[:10]+salt', lambda s, h0=h0, prefix=prefix, enc=enc, prefix_enc=prefix_enc: (h0 + prefix + s) if isinstance(h0, str) else (h0 + prefix + s.encode())),\n        ('h0+h0[:10] then encode', lambda s, enc=enc, prefix_enc=prefix_enc: enc + prefix_enc + s.encode()),\n        ('h0||prefix||salt bytes', lambda s, enc=enc, prefix_enc=prefix_enc: enc + prefix_enc + s.encode()),\n        ('h0+salt+prefix', lambda s, h0=h0, prefix=prefix: (h0 + s + prefix) if isinstance(h0, str) else (h0 + s.encode() + prefix)),\n        ('salt+h0+prefix', lambda s, h0=h0, prefix=prefix: (s + h0 + prefix) if isinstance(h0, str) else (s.encode() + h0 + prefix)),\n        ('sha256(h0||prefix||salt)', lambda s, enc=enc, prefix_enc=prefix_enc: hashlib.sha256(enc + prefix_enc + s.encode()).hexdigest()),\n        ('sha256(h0||salt||prefix)', lambda s, enc=enc, prefix_enc=prefix_enc: hashlib.sha256(enc + s.encode() + prefix_enc).hexdigest()),\n        ('sha256(salt||h0||prefix)', lambda s, enc=enc, prefix_enc=prefix_enc: hashlib.sha256(s.encode() + enc + prefix_enc).hexdigest()),\n        ('sha256(h0+prefix+salt)', lambda s, h0=h0, prefix=prefix: hashlib.sha256((h0 + prefix + s) if isinstance(h0, str) else (h0 + prefix + s.encode())).hexdigest()),\n        ('sha256(h0+salt+prefix)', lambda s, h0=h0, prefix=prefix: hashlib.sha256((h0 + s + prefix) if isinstance(h0, str) else (h0 + s.encode() + prefix)).hexdigest()),\n        ('sha256(salt+h0+prefix)', lambda s, h0=h0, prefix=prefix: hashlib.sha256((s + h0 + prefix) if isinstance(h0, str) else (s.encode() + h0 + prefix)).hexdigest()),\n    ])\nseen = set()\nfor form_name, fn in forms:\n    if form_name in seen:\n        continue\n    seen.add(form_name)\n    for salt in salts:\n        try:\n            d = fn(salt)\n        except Exception:\n            continue\n        if d.startswith('bee26a'):\n            Path('/app/output.txt').write_text(d)\n            print('MATCH', form_name, salt, d)\n            raise SystemExit\nprint('NO_MATCH')\nPY"
+      },
+      {
+        "receipt_id": "step-18:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: unbalanced braces in model output"
+      },
+      {
+        "receipt_id": "step-18:a-0:cmd",
+        "kind": "run_command",
+        "success": true,
+        "failure_class": "",
+        "summary": "command exit=0: python3 - <<'PY'\nimport hashlib, itertools, re\nfrom pathlib import Path\nimport cv2\nfrom rapidocr_onnxruntime import RapidOCR\n\nimg_path = Path('/app/code.png')\nimg_bytes = img_path.read_bytes()\nsha = hashlib.sha256(img_bytes)\nbase_forms = [\n    ('digest_bytes', sha.digest()),\n    ('hexdigest_str', sha.hexdigest()),\n    ('hexdigest_bytes', sha.hexdigest().encode()),\n]\n\ndef to_bytes(x):\n    return x if isinstance(x, bytes) else x.encode()\n\n# OCR the image and a top crop to recover the salt text as accurately as possible.\nocr = RapidOCR()\ntexts = []\nfor p in [str(img_path)]:\n    res, _ = ocr(p)\n    for item in res or []:\n        if len(item) > 1:\n            texts.append(item[1])\n\nim = cv2.imread(str(img_path))\nif im is not None:\n    crop = im[75:175, 60:720]\n    crop_path = '/app/_ocr_crop.png'\n    cv2.imwrite(crop_path, crop)\n    res, _ = ocr(crop_path)\n    for item in res or []:\n        if len(item) > 1:\n            texts.append(item[1])\n\n# Pull any OCR-like salt fragments.\nocr_frags = set()\nfor t in texts:\n    for frag in re.findall(r'[A-Z0-9\"\\-]{6,}', t.upper()):\n        ocr_frags.add(frag.strip('\"'))\n\n# Likely salt pattern inferred from the image: some 4- or 5-char prefix + BENCH-SALT.\ncharset = 'BO0T'\nprefixes = [''.join(p) for L in (4, 5) for p in itertools.product(charset, repeat=L)]\n\ncandidates = set()\nfor pref in prefixes:\n    candidates.add(pref + 'BENCH-SALT')\n    candidates.add(pref + '-BENCH-SALT')\nfor frag in ocr_frags:\n    frag = frag.strip('\"')\n    if 'SALT' in frag:\n        # normalize a bit, keep any obvious core if present\n        candidates.add(frag.replace('\"', ''))\n        candidates.add(frag.replace(' ', ''))\n        candidates.add(frag.replace('=', ''))\n\n# Also include the most plausible OCR readings directly.\nfor s in [\n    'BOOTBENCH-SALT', 'B00TBENCH-SALT', 'B00OTBENCH-SALT',\n    'B0OTBENCH-SALT', 'O00OTBENCH-SALT', '0000TBENCH-SALT',\n    '000TBENCH-SALT', '0000TBENCH-SALT', 'BOOTBENCHSALT',\n    'B00TBENCHSALT',\n]:\n    candidates.add(s)\n\n# Search plausible hash concatenation orders.\norders = [\n    ('base', 'prefix', 'salt'),\n    ('base', 'salt', 'prefix'),\n    ('prefix', 'base', 'salt'),\n    ('prefix', 'salt', 'base'),\n    ('salt', 'base', 'prefix'),\n    ('salt', 'prefix', 'base'),\n]\n\nfor bname, base in base_forms:\n    if isinstance(base, bytes):\n        prefix = base[:10]\n    else:\n        prefix = base[:10]\n    for salt in sorted(candidates):\n        salt_b = to_bytes(salt)\n        for order in orders:\n            parts = []\n            for part in order:\n                if part == 'base':\n                    parts.append(to_bytes(base))\n                elif part == 'prefix':\n                    parts.append(to_bytes(prefix))\n                elif part == 'salt':\n                    parts.append(salt_b)\n            d = hashlib.sha256(b''.join(parts)).hexdigest()\n            if d.startswith('bee26a'):\n                Path('/app/output.txt').write_text(d)\n                print('MATCH', d, 'base=', bname, 'salt=', salt, 'order=', order)\n                raise SystemExit\n\nprint('NO_MATCH')\nprint('OCR_TEXTS_START')\nfor t in texts:\n    print(t)\nprint('OCR_TEXTS_END')\nprint('OCR_FRAGS', sorted(ocr_frags))\nPY"
+      },
+      {
+        "receipt_id": "step-19:write-output:write",
+        "kind": "write_file",
+        "success": true,
+        "failure_class": "",
+        "summary": "wrote output.txt"
+      },
+      {
+        "receipt_id": "step-19:verify-output:read",
+        "kind": "read_file",
+        "success": true,
+        "failure_class": "",
+        "summary": "read output.txt (64 bytes)"
+      },
+      {
+        "receipt_id": "step-20:check-output:automatic_memory",
+        "kind": "automatic_memory",
+        "success": true,
+        "failure_class": "",
+        "summary": "automatic memory surfaced 1 prior event(s) for read_file:output.txt"
+      },
+      {
+        "receipt_id": "step-20:check-output:read",
+        "kind": "read_file",
+        "success": true,
+        "failure_class": "",
+        "summary": "read output.txt (64 bytes)"
+      },
+      {
+        "receipt_id": "step-21:read-output:automatic_memory",
+        "kind": "automatic_memory",
+        "success": true,
+        "failure_class": "",
+        "summary": "automatic memory surfaced 2 prior event(s) for read_file:output.txt"
+      },
+      {
+        "receipt_id": "step-21:read-output:read",
+        "kind": "read_file",
+        "success": true,
+        "failure_class": "",
+        "summary": "read output.txt (64 bytes)"
+      },
+      {
+        "receipt_id": "step-22:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: no JSON object found in model output"
+      },
+      {
+        "receipt_id": "step-22:a-0:automatic_memory",
+        "kind": "automatic_memory",
+        "success": true,
+        "failure_class": "",
+        "summary": "automatic memory surfaced 4 prior event(s) for write_file:output.txt"
+      },
+      {
+        "receipt_id": "step-22:a-0:write",
+        "kind": "write_file",
+        "success": true,
+        "failure_class": "",
+        "summary": "wrote output.txt"
+      },
+      {
+        "receipt_id": "step-23:solver_parse_error",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver output parse/validation error: solver output could not be parsed: no JSON object found in model output"
+      },
+      {
+        "receipt_id": "step-23:solver_parse_error_retry",
+        "kind": "solver_parse_error",
+        "success": false,
+        "failure_class": "solver_protocol_error",
+        "summary": "solver retry still invalid: solver output could not be parsed: parsed turn failed validation: ('act turns require at least one action',)"
+      },
+      {
+        "receipt_id": "step-24:a-0:automatic_memory",
+        "kind": "automatic_memory",
+        "success": true,
+        "failure_class": "",
+        "summary": "automatic memory surfaced 5 prior event(s) for write_file:output.txt"
+      },
+      {
+        "receipt_id": "step-24:a-0:write",
+        "kind": "write_file",
+        "success": true,
+        "failure_class": "",
+        "summary": "wrote output.txt"
+      },
+      {
+        "receipt_id": "step-25:model_verifier_packet:solver_submit",
+        "kind": "model_verifier_packet",
+        "success": true,
+        "failure_class": "",
+        "summary": "model verifier packet built for solver_submit"
+      },
+      {
+        "receipt_id": "step-25:model_verifier_inspection:43",
+        "kind": "model_verifier_inspection",
+        "success": true,
+        "failure_class": "",
+        "summary": "model verifier inspection executed: read_file, perceive_artifact, read_output, read_output"
+      },
+      {
+        "receipt_id": "step-25:model_verifier",
+        "kind": "model_verifier_result",
+        "success": true,
+        "failure_class": "",
+        "summary": "model verifier verdict: completed"
+      },
+      {
+        "receipt_id": "step-25:model_verifier_evidence:solver_submit",
+        "kind": "model_verifier_evidence",
+        "success": true,
+        "failure_class": "",
+        "summary": "reviewer evidence summary: 1 inspection receipt(s); classification=completed"
+      }
+    ],
+    "run_provenance": {
+      "schema_version": "aether_run_provenance.v1",
+      "provenance_mode": "production",
+      "git_available": false,
+      "code_sha": "",
+      "branch": "",
+      "dirty": null,
+      "code_tree_hash": "d559c7dc407090713575fa8485eced2f0604e7a8a9b80dce0232ba6e62b230f4",
+      "prompt_hashes": {
+        "run_args": "21146bd5169d6f379e2d476db83cd04a9af69aef2eb57ff982cad348ee8606e4"
+      },
+      "model_params": {
+        "solver_deploy_env": "AZURE_OPENAI_GPT54_PRO_DEPLOYMENT",
+        "architect_deploy_env": "AZURE_OPENAI_GPT54_PRO_DEPLOYMENT",
+        "endpoint_env": "AZURE_OPENAI_ENDPOINT",
+        "effort": "medium"
+      },
+      "task_hash": "c65f69674845f02021cf56dc5714f156c77a863d319c6e302be73b8377fd8c9e"
+    },
+    "expected_steps": 7,
+    "step_efficiency": 3.57,
+    "run_timeout_s_effective": 1800,
+    "run_timeout_policy": "task_declared=1200; runner_floor=1800; cap=14400; effective=1800",
+    "official_grader_status": "pass",
+    "internal_completion_status": "completed",
+    "verifier_alignment_status": "aligned",
+    "grader_detail": {
+      "passed_count": 2,
+      "failed_count": 0,
+      "passed_names": [
+        "test_outputs.py::test_output_file_exists",
+        "test_outputs.py::test_output_is_correct"
+      ],
+      "failed_names": []
+    },
+    "trace_path": "/home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/20260707T162100Z_sentinel_steps200/traces/code-from-image.trace.json"
+  }
+]

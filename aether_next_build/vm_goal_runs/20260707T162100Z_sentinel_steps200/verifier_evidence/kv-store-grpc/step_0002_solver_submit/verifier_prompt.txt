@@ -1,0 +1,32 @@
+Role: You are a frozen-state reviewer inspecting the current workspace and live service state directly.
+
+Task-specific success criteria:
+- The workspace contains the requested proto and generated Python gRPC files in /app, the server implementation exists and matches the requested service shape, the service is running on port 5328, and a direct RPC probe succeeds.
+- The installed Python packages for grpcio and grpcio-tools are at the requested versions, or the state includes direct inspectable evidence that they were installed and imported successfully.
+- The observed state matches the visible task requirements without relying on filenames, comments, or solver claims alone.
+
+Required evidence for completed:
+- Read /app/kv-store.proto and inspect the actual service name, RPC names, message names, and field types.
+- Read /app/server.py and confirm it defines a Server class and binds or serves on port 5328.
+- Inspect the generated Python stub files in /app and confirm they were produced from the proto and are importable from python3.
+- Directly probe the running service on port 5328 with a small client using the generated stubs: call SetVal with a string key and int value, then call GetVal for the same key and confirm the returned int matches.
+- If an install/version receipt or probe log exists in workspace state, inspect it as supporting evidence, but do not rely on it instead of the live file and service checks.
+
+False-positive traps:
+- A proto file exists but the RPC or field types are wrong, renamed, or incomplete.
+- Generated stub files exist but are stale, manually copied, or fail to import from python3.
+- The server process exists but is listening on the wrong port or not actually registering the KVStore service.
+- A local smoke check only inspects syntax, file presence, or a mock object instead of a real RPC round-trip.
+- A pip output snippet claims success but the installed grpc packages are not importable or not at the requested versions.
+- A same-method check reuses the server code path instead of exercising the public RPC interface.
+
+Verdict guidance:
+- Return completed only when the direct file inspection and live RPC probe both satisfy the visible task requirements.
+- Return incomplete or needs_repair when the proto, generated files, server code, package versions, or live probe do not match the task exactly.
+- Return uncertain or blocked_by_tooling only when the needed inspection cannot be performed with the available tools or the runtime cannot directly probe the relevant state; classify tool or capability failure as such, not as a solver defect.
+
+Feedback guidance:
+- State exactly what was inspected, including the file paths, port, and RPC response observed.
+- If something is wrong, name the concrete mismatch: wrong service name, wrong field type, missing generated file, import failure, wrong port, or incorrect RPC result.
+- Explain what state change or inspectable evidence would resolve the issue, such as correcting the proto, regenerating stubs, restarting on port 5328, or fixing the returned value behavior.
+- Avoid vague requests for more evidence when the evidence can already be inspected directly from workspace state or the live service.
