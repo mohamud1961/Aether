@@ -40,6 +40,13 @@ When an orchestrator creates, delegates to, resumes, or materially redirects a
 thread or subagent, that worker must hand its result back to the originating
 orchestrator before the work is considered closed.
 
+This is a hard closure rule for all background Codex threads: a worker's final
+answer in its own thread is not enough. The worker must explicitly send a
+handoff to the target thread or orchestrator that launched it, using the thread
+handoff/send-message tool when available, and include a delivery receipt in the
+handoff. If the send tool is unavailable or fails, the worker must record the
+failed delivery attempt and the exact manual handoff target in its final status.
+
 The orchestrator must require each worker handoff to include:
 
 - final status: complete, partial, blocked, or invalid due to environment;
@@ -136,6 +143,54 @@ Unresolved material findings must be repaired, rebutted with evidence, or cause 
 3. **Report material work to the research ledger.** Significant research, decisions, failures, experiment outcomes, and implementation changes must emit a `RAW_LEDGER_UPDATE` handoff for historian review.
 4. **Commit in coherent slices.** Do not let work accumulate into one giant end-of-task commit when a smaller logical checkpoint is already complete.
 5. **Keep multi-agent work governed.** Use `GOVERNED_MULTI_AGENT_OPERATING_MODEL.md` and `tracking/collab/` for structured collaboration artifacts instead of ad hoc shared chats.
+
+
+## No Fake Work (Anti-Proxy-Success)
+
+A change is "done" only when it does **real work**, proven by evidence **independent of the
+implementer's own claims**. Making a check turn green is not the goal; making the underlying
+thing true is. This rule exists because it has already been violated: a "BFCL native is fixed"
+handoff (preflight green, `native_runtime_available: True`, 17 tests passing) turned out to be
+empty stub files, no-op import shims, and synthetic `ping()` data that existed *solely* to flip
+existence/import checks to true. That is a repo-engineering fault, and it must never recur.
+
+**Prohibited — these are fake work, never acceptable, never "complete":**
+
+- A file, asset, or module that exists **only to satisfy an existence/import check**
+  (e.g., something whose sole purpose is to make `Path(...).exists()` or `find_spec(...)` return
+  True). If `X_present: True` is reported, `X` must be real and functional.
+- **No-op / swallow-all shims** (objects whose `__getattr__`/`__call__` return self) standing in
+  for a real dependency, presented as if the dependency works.
+- **Stub functions** that return `{"status": "stubbed"}`, `[]`, constants, or canned values
+  presented as real behavior; empty case lists / synthetic placeholder data
+  (e.g., `ping()`-only ground truth) standing in for real assets.
+- Making a test, preflight, or readiness check pass by **weakening it, mocking past it, or
+  feeding it synthetic data that masquerades as real**.
+- Claiming `fixed` / `complete` / `ready` / `available` / `green` when that status is satisfied
+  by mocks, stubs, shims, placeholder data, or import-success rather than real execution.
+
+**Required — every implementation agent must:**
+
+- **Distinguish "imports succeed / file exists" from "really works," and report which.** A green
+  preflight is not evidence of capability unless the run actually exercised real assets.
+- **When real assets, deps, or functionality are missing, report `BLOCKED` with the exact missing
+  piece.** Honest "blocked, needs official BFCL source" beats a stub that flips a check to green.
+  A blocked-with-specifics handoff is a *success* of this rule, not a failure of the task.
+- **Earn green by real execution.** Any check you add must be falsifiable: a known-bad input must
+  fail it. A readiness/`available` signal must reflect real capability, not import success, and
+  must be designed so it **cannot be satisfied by stub/synthetic assets** (validate content, not
+  just existence; reject obvious placeholders).
+- **Vendored or shimmed dependencies must be real implementations** or explicitly labeled as
+  non-functional stubs **and reported as not working** — never presented as a fix.
+- **Self-report honestly:** the handoff status must state what was *actually verified by fresh
+  observation* vs. what was assumed. "Tests pass" is not a faithfulness claim; say what the tests
+  actually exercised.
+
+**Review enforcement:** for `adversarial_only` and `*_plus_adversarial` gates, the adversarial
+reviewer must specifically attempt to **disprove faithfulness** — open the files behind any
+green/`present:true`/`available:true` signal and confirm real implementations and real data, not
+stubs. A faithfulness audit (does the green reflect reality?) is mandatory before any
+"fixed/ready/complete" claim is accepted.
 
 
 ## Experiment Discipline
@@ -284,10 +339,23 @@ EOF
 This writes one raw handoff file per update into `tracking/ledger/inbox/`. Do not edit the canonical ledger files directly.
 `LEDGER_UPDATE` is still accepted by the recorder for backward compatibility, but `RAW_LEDGER_UPDATE` is the preferred format.
 
-## Aether-2 Continuity Harness — Active Harness Line
+## Aether Canonical Harness Line
 
-`runner/aether2/` is the active harness line for TB2.0 work. Its governing principle:
+Aether-Next is the canonical agent/harness line for TB2.0 work. Until the
+consolidation rename is executed, the canonical implementation path is
+`aether_next_build/aether_next/`. `harness/aether2/` and `runner/aether2/` are
+reference/compatibility surfaces only; do not start new active-harness build
+slices there unless a future goal explicitly reopens that decision.
+
+The governing principle remains:
 
 "The model pilots. The harness instruments. The verifier reflects. The ledger remembers. The grader decides."
 
-No phase gates, doctrines-as-control, action-rewriting, completion vetoes, or harness-side planning may be added to `runner/aether2/`. Any change to `runner/aether2/` must pass `tools/aether2_genericity_check.py` (no hardcoded TB2.0 task names, no benchmark vocabulary in prompts, no task-conditional affordances) before merge.
+No phase gates, doctrines-as-control, action-rewriting, completion vetoes, or
+harness-side planning may be added to the canonical Aether line. Any change to
+the canonical harness line must preserve genericity: no hardcoded TB2.0 task
+names, no benchmark vocabulary in prompts, and no task-conditional affordances.
+
+Aether-2 carve-down work remains useful evidence and a source of portable
+generic patterns, but it is not production authority unless the production-target
+decision is explicitly reversed with scored evidence.
