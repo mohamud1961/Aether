@@ -495,6 +495,7 @@ class ConfigCompiler:
             "evidence_requirements": list(ir.evidence_requirements),
             "false_positive_risks": list(ir.false_positive_risks),
             "minimum_completion_evidence": list(ir.minimum_completion_evidence),
+            "re_derivable_claims": list(ir.re_derivable_claims),
             "local_verification_limits": structured_local_verification_limits,
             "local_verification_limits_text": list(ir.local_verification_limits),
             "verification_authority": {
@@ -603,6 +604,7 @@ class ConfigCompiler:
             evidence_requirements=ir.evidence_requirements,
             false_positive_risks=ir.false_positive_risks,
             minimum_completion_evidence=ir.minimum_completion_evidence,
+            re_derivable_claims=ir.re_derivable_claims,
             config_realization=config_realization,
             architect_model_tier=ir.architect_model_tier,
             solver_model_tier=ir.solver_model_tier,

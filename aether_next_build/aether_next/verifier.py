@@ -53,6 +53,19 @@ class VerifierFinding:
         return data
 
 
+class CompletionEvidenceShapeError(ValueError):
+    """A completed verdict named a completion_evidence record with an invalid shape.
+
+    Distinguished from a generic ``ValueError`` so the runtime loop
+    (``model_hooks.verify_with_inspector``) can route a present-but-malformed
+    record to the completion_evidence_shape retry instead of the generic
+    "not valid protocol JSON" retry: the model's output DID parse as JSON and
+    named the field, only this one field's shape is wrong. Still a
+    ``ValueError`` subtype so existing ``except ValueError`` / ``pytest.raises
+    (ValueError)`` call sites keep working unchanged.
+    """
+
+
 @dataclass(frozen=True)
 class CompletionEvidenceEntry:
     """One requirement -> observed-evidence mapping backing a completed verdict.
@@ -223,16 +236,16 @@ def _parse_completion_evidence(data: Mapping[str, Any]) -> tuple[CompletionEvide
     if isinstance(raw, Mapping):
         raw = [raw]
     if not isinstance(raw, (list, tuple)):
-        raise ValueError("completion_evidence must be a list of entries")
+        raise CompletionEvidenceShapeError("completion_evidence must be a list of entries")
     entries: list[CompletionEvidenceEntry] = []
     for idx, item in enumerate(raw):
         if not isinstance(item, Mapping):
-            raise ValueError(f"completion_evidence[{idx}] must be an object")
+            raise CompletionEvidenceShapeError(f"completion_evidence[{idx}] must be an object")
         refs_raw = item.get("inspection_refs", ())
         if isinstance(refs_raw, str):
             refs_raw = [refs_raw]
         if not isinstance(refs_raw, (list, tuple)):
-            raise ValueError(f"completion_evidence[{idx}].inspection_refs must be a list")
+            raise CompletionEvidenceShapeError(f"completion_evidence[{idx}].inspection_refs must be a list")
         refs = tuple(str(ref).strip() for ref in refs_raw if str(ref).strip())
         entries.append(
             CompletionEvidenceEntry(

@@ -422,6 +422,14 @@ class RuntimeConfigIR:
     evidence_requirements: tuple[str, ...] = ()
     false_positive_risks: tuple[str, ...] = ()
     minimum_completion_evidence: tuple[str, ...] = ()
+    # Architect-flagged claims that are machine-re-derivable (counts, frame
+    # indices, decoded/parsed values, hashes): when non-empty, the runtime
+    # requires a completed verdict to cite at least one inspection_ref that
+    # resolves to an independent-derivation inspection kind (overlay
+    # execution, a live probe, or the verifier's own perception), not only a
+    # read of a solver-produced artifact. Optional; empty means unflagged
+    # (unchanged legacy behavior).
+    re_derivable_claims: tuple[str, ...] = ()
 
     def prompt_summary(self) -> str:
         payload = {
@@ -479,6 +487,7 @@ class CompiledRuntime:
     evidence_requirements: tuple[str, ...] = ()
     false_positive_risks: tuple[str, ...] = ()
     minimum_completion_evidence: tuple[str, ...] = ()
+    re_derivable_claims: tuple[str, ...] = ()
     config_realization: Mapping[str, Any] = field(default_factory=dict)
 
     def prefix_messages(self) -> list[dict[str, str]]:

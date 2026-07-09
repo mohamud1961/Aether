@@ -35,7 +35,7 @@ from .model_prompts import (
     DEFAULT_VERIFIER_IDENTITY_PROMPT,
     VERIFIER_RUNTIME_CONTRACT,
 )
-from .verifier import parse_model_verifier_result
+from .verifier import CompletionEvidenceShapeError, parse_model_verifier_result
 from .verifier_inspector import VerifierInspectionRequest, parse_verifier_inspection_requests
 
 
@@ -193,15 +193,62 @@ def _read_output_requests_from_packet(
     return tuple(requests)
 
 
+def _inspection_result_errored(row: Mapping[str, Any]) -> bool:
+    """True when an inspection RESULT row reports failure, never content.
+
+    Every failure path in verifier_inspector.py (``_error_result`` and each
+    probe's own failure dict) funnels through a non-empty top-level
+    ``error`` field. A negative-but-successful observation -- a closed
+    port, an unreachable URL, a non-existent artifact, a non-zero rerun
+    exit code -- is NOT an error by this check: it is a real, content-
+    bearing inspection outcome, and judging whether that content supports a
+    claim stays the model's job. This is a structural/provenance check
+    only.
+    """
+    return bool(str(row.get("error", "")).strip())
+
+
+def _paired_non_errored_inspections(
+    requests: Any, results: Any,
+) -> list[tuple[Any, Mapping[str, Any]]]:
+    """Pair each inspection request with its result row, keeping non-errored pairs.
+
+    Pairing prefers a same-request_id result row (the real inspector always
+    echoes request_id back); positional pairing is a defensive fallback for
+    a results list that omits it. This is the shared basis for every
+    content-blind provenance check on completion_evidence: a ref may only
+    resolve to an inspection that both HAPPENED and DID NOT ERROR this
+    round -- citing a failed read/probe must never satisfy a gate.
+    """
+    results_list = [row for row in (results or ()) if isinstance(row, Mapping)]
+    by_request_id: dict[str, Mapping[str, Any]] = {}
+    for row in results_list:
+        rid = str(row.get("request_id", "")).strip()
+        if rid and rid not in by_request_id:
+            by_request_id[rid] = row
+    pairs: list[tuple[Any, Mapping[str, Any]]] = []
+    for idx, request in enumerate(requests or ()):
+        request_id = str(getattr(request, "request_id", "")).strip()
+        row = by_request_id.get(request_id)
+        if row is None and idx < len(results_list):
+            row = results_list[idx]
+        if row is None or _inspection_result_errored(row):
+            continue
+        pairs.append((request, row))
+    return pairs
+
+
 def _refs_from_inspections(requests: Any, results: Any) -> set[str]:
-    """Identifiers of inspections that actually happened in this round.
+    """Identifiers of inspections that happened and did NOT error this round.
 
     Used only for content-blind referential-integrity checks on the
     completed verdict's completion_evidence record: an entry must cite at
-    least one of these (request_id, path, handle, target, or check_id).
+    least one of these (request_id, path, handle, target, or check_id). A
+    ref that resolves only to a failed inspection is excluded -- citing a
+    file-not-found read as "evidence" must never satisfy the gate.
     """
     refs: set[str] = set()
-    for request in requests or ():
+    for request, row in _paired_non_errored_inspections(requests, results):
         for value in (
             getattr(request, "request_id", ""),
             getattr(request, "path", ""),
@@ -212,12 +259,61 @@ def _refs_from_inspections(requests: Any, results: Any) -> set[str]:
             text = str(value).strip()
             if text:
                 refs.add(text)
-    for row in results or ():
-        if isinstance(row, Mapping):
-            for key in ("request_id", "path", "handle", "target", "check_id"):
-                text = str(row.get(key, "")).strip()
-                if text:
-                    refs.add(text)
+        for key in ("request_id", "path", "handle", "target", "check_id"):
+            text = str(row.get(key, "")).strip()
+            if text:
+                refs.add(text)
+    return refs
+
+
+# Inspection kinds that constitute independent derivation: the verifier
+# itself executes/observes something (overlay execution, a live probe, or
+# its own perception) rather than reading a solver-produced artifact's
+# content and trusting it. read_file, read_output, inspect_recent_receipts,
+# and inspect_artifact_history are deliberately excluded -- they only ever
+# surface what the solver (or a prior solver-triggered command) already
+# produced, which is exactly the self-confirmation the false-clean failure
+# mode exploits (see FABLE5_BATCH_AUDIT_20260709T101515Z.md secs 4/6).
+# rerun_check is included alongside overlay_run_command: both execute
+# independently in the disposable verifier overlay via the same mechanism
+# (VerifierOverlay.run_command), differing only in whether the command comes
+# from an architect-declared check or an ad hoc verifier request.
+_INDEPENDENT_DERIVATION_KINDS = frozenset({
+    "overlay_run_command",
+    "rerun_check",
+    "probe_port",
+    "probe_http",
+    "probe_process",
+    "perceive_artifact",
+})
+
+
+def _independent_derivation_refs(requests: Any, results: Any) -> set[str]:
+    """Subset of ``_refs_from_inspections`` limited to independent-derivation kinds.
+
+    Same non-errored pairing as ``_refs_from_inspections``; additionally
+    requires the REQUEST's kind to be in ``_INDEPENDENT_DERIVATION_KINDS``.
+    Content-blind: this checks only the KIND of the cited inspection, never
+    whether its observed content actually supports the claim.
+    """
+    refs: set[str] = set()
+    for request, row in _paired_non_errored_inspections(requests, results):
+        if str(getattr(request, "kind", "")).strip() not in _INDEPENDENT_DERIVATION_KINDS:
+            continue
+        for value in (
+            getattr(request, "request_id", ""),
+            getattr(request, "path", ""),
+            getattr(request, "handle", ""),
+            getattr(request, "target", ""),
+            getattr(request, "check_id", ""),
+        ):
+            text = str(value).strip()
+            if text:
+                refs.add(text)
+        for key in ("request_id", "path", "handle", "target", "check_id"):
+            text = str(row.get(key, "")).strip()
+            if text:
+                refs.add(text)
     return refs
 
 
@@ -247,6 +343,136 @@ def _completion_record_problem(result: Any, performed_refs: set[str]) -> str:
                 "do not match any inspection performed this round"
             )
     return "; ".join(problems)
+
+
+def _completion_independence_problem(result: Any, independent_refs: set[str]) -> str:
+    """Whether a completed verdict cites an independent-derivation inspection.
+
+    '' when at least one completion_evidence.inspection_refs entry (anywhere
+    in the record) resolves to an independent-derivation inspection kind.
+    Callers gate this on the architect having flagged the task's claims as
+    machine-re-derivable (packet.re_derivable_claims) -- when not flagged,
+    this check is not consulted and behavior is unchanged.
+
+    Content-blind: this checks only the KIND of the cited inspection
+    (already resolved into ``independent_refs`` by
+    ``_independent_derivation_refs``), never whether the reasoning in the
+    record is correct.
+    """
+    entries = tuple(getattr(result, "completion_evidence", ()) or ())
+    cited: set[str] = set()
+    for entry in entries:
+        cited |= set(getattr(entry, "inspection_refs", ()) or ())
+    if cited & independent_refs:
+        return ""
+    return (
+        "no completion_evidence.inspection_refs resolve to an independent-derivation "
+        "inspection performed this round (overlay_run_command, rerun_check, probe_port, "
+        "probe_http, probe_process, or perceive_artifact); this task flags its decisive "
+        "claim(s) as machine-re-derivable, so reading a solver-produced artifact alone "
+        "is not sufficient"
+    )
+
+
+def _completion_record_retry_instruction(problem: str) -> dict[str, Any]:
+    return {
+        "instruction": (
+            "Protocol requires a completed verdict to carry completion_evidence "
+            "per verifier_runtime_contract.completion_evidence_shape: map each "
+            "decisive requirement to what your own inspection observed, cite "
+            "inspection_refs (request_id, path, handle, or target) of inspections "
+            "performed this round, and state the falsification_check. "
+            f"Current problem: {problem}. Return your final verdict again "
+            "with a valid record, or a different verdict if the inspected state "
+            "does not actually support completion."
+        ),
+    }
+
+
+def _independent_derivation_retry_instruction(problem: str) -> dict[str, Any]:
+    return {
+        "instruction": (
+            "This task's re_derivable_claims marks its decisive claim(s) as "
+            "machine-re-derivable. Protocol requires at least one completion_evidence "
+            "inspection_ref to resolve to an inspection you performed independently -- "
+            "overlay_run_command, rerun_check, a probe_port/probe_http/probe_process live "
+            "check, or your own perceive_artifact reading -- not only read_file, "
+            "read_output, or receipt/history inspection of a solver-produced artifact. "
+            f"Current problem: {problem}. Submit a bounded inspection request performing "
+            "that independent derivation, then return your final verdict."
+        ),
+    }
+
+
+def _refuse_completion_record(problem: str) -> str:
+    """Build the uncertain_missing_evidence refusal for an invalid completion_evidence record.
+
+    Shared by the structural gate (missing/empty/unresolved refs) and the
+    malformed-shape path (present but wrong-typed record) -- same protocol
+    event either way: the completed verdict is refused, never silently
+    accepted or crashed on.
+    """
+    return json.dumps({
+        "verdict": "uncertain_missing_evidence",
+        "confidence": "high",
+        "summary": (
+            "Completion cannot be accepted: the completed verdict's "
+            f"completion_evidence record is invalid ({problem})."
+        ),
+        "missing_evidence_requests": [
+            "Return completed only with a completion_evidence record whose inspection_refs cite inspections performed in the verification round.",
+        ],
+        "findings": [
+            {
+                "finding_id": "vf-completion-evidence-record",
+                "verdict": "uncertain_missing_evidence",
+                "priority": "blocking",
+                "summary": "Completed verdict lacked a valid requirement->observed completion_evidence record.",
+                "evidence": [problem],
+                "repair_instruction": (
+                    "Surface inspectable current-state evidence for each completion requirement; "
+                    "completion is accepted only with a resolvable completion_evidence record."
+                ),
+                "applies_to": ["completion_evidence"],
+            },
+        ],
+    })
+
+
+def _refuse_completion_independence(problem: str) -> str:
+    """Build the uncertain_missing_evidence refusal for a missing independent-derivation ref.
+
+    Phase 1.5 closure for the false-clean failure mode: a completed verdict
+    whose record is structurally valid but backed only by inspection of
+    solver-produced artifacts, on a task whose decisive claims are flagged
+    machine-re-derivable, is refused rather than accepted.
+    """
+    return json.dumps({
+        "verdict": "uncertain_missing_evidence",
+        "confidence": "high",
+        "summary": (
+            "Completion cannot be accepted: the completed verdict's "
+            f"completion_evidence record is invalid ({problem})."
+        ),
+        "missing_evidence_requests": [
+            "Return completed only after independently deriving the decisive claim via overlay_run_command, rerun_check, a live probe, or your own perceive_artifact reading.",
+        ],
+        "findings": [
+            {
+                "finding_id": "vf-completion-evidence-independence",
+                "verdict": "uncertain_missing_evidence",
+                "priority": "blocking",
+                "summary": "Completed verdict did not cite an independent-derivation inspection for a machine-re-derivable claim.",
+                "evidence": [problem],
+                "repair_instruction": (
+                    "Independently re-derive the decisive claim (overlay execution, a live probe, "
+                    "or your own perception) rather than only reading solver-produced artifacts, "
+                    "then resubmit a completed verdict citing that inspection."
+                ),
+                "applies_to": ["completion_evidence"],
+            },
+        ],
+    })
 
 
 def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[VerifierInspectionRequest, ...]:
@@ -503,7 +729,14 @@ class ModelHooks:
         inspected = False
         missing_evidence_realized = False
         record_retry_used = False
+        independence_retry_used = False
+        # Architect-flagged trigger (Phase 1.5): when the task names claims
+        # that are machine-re-derivable, a completed verdict must cite an
+        # independent-derivation inspection. Absent/empty means unflagged --
+        # unchanged legacy behavior, no independence requirement applied.
+        require_independent_derivation = bool(packet.get("re_derivable_claims"))
         performed_refs: set[str] = set()
+        performed_independent_refs: set[str] = set()
         last_inspection_results: list[dict[str, Any]] = []
         for round_idx in range(max_rounds + 1):
             try:
@@ -514,6 +747,29 @@ class ModelHooks:
                 raise
             try:
                 result = parse_model_verifier_result(raw)
+            except CompletionEvidenceShapeError as shape_exc:
+                # The verdict JSON itself parsed and named completion_evidence;
+                # only that field's shape is wrong (e.g. a list of strings,
+                # the pre-Phase-1 stub shape). Route to the SAME record-
+                # problem retry the structural gate below uses, sharing its
+                # one-retry budget -- never the generic "not valid protocol
+                # JSON" path, which would misdirect the model to resend a
+                # bare verdict/confidence/summary and could burn every
+                # remaining round chasing the wrong fix.
+                self.last_parse_errors.append(str(shape_exc))
+                if round_idx < max_rounds and not record_retry_used:
+                    record_retry_used = True
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({
+                        "role": "user",
+                        "content": json.dumps(
+                            _completion_record_retry_instruction(str(shape_exc)),
+                            default=str,
+                            sort_keys=True,
+                        ),
+                    })
+                    continue
+                return _refuse_completion_record(str(shape_exc))
             except Exception as verdict_exc:
                 try:
                     requests = parse_verifier_inspection_requests(raw)
@@ -542,6 +798,7 @@ class ModelHooks:
                 results = inspector(requests)
                 inspected = True
                 performed_refs |= _refs_from_inspections(requests, results)
+                performed_independent_refs |= _independent_derivation_refs(requests, results)
                 last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
@@ -570,6 +827,7 @@ class ModelHooks:
                     results = inspector(auto_requests)
                     inspected = True
                     performed_refs |= _refs_from_inspections(auto_requests, results)
+                    performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
                     last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
@@ -603,6 +861,7 @@ class ModelHooks:
                     results = inspector(auto_requests)
                     inspected = True
                     performed_refs |= _refs_from_inspections(auto_requests, results)
+                    performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
                     last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
@@ -666,9 +925,9 @@ class ModelHooks:
                     ),
                 })
                 continue
-            if result.verdict == "completed" and inspected and round_idx < max_rounds and not record_retry_used:
+            if result.verdict == "completed" and inspected and round_idx < max_rounds:
                 record_problem = _completion_record_problem(result, performed_refs)
-                if record_problem:
+                if record_problem and not record_retry_used:
                     # Content-blind protocol enforcement, mirroring the
                     # inspection-required gate: the record must exist and its
                     # inspection_refs must resolve to inspections that actually
@@ -679,23 +938,38 @@ class ModelHooks:
                     messages.append({
                         "role": "user",
                         "content": json.dumps(
-                            {
-                                "instruction": (
-                                    "Protocol requires a completed verdict to carry completion_evidence "
-                                    "per verifier_runtime_contract.completion_evidence_shape: map each "
-                                    "decisive requirement to what your own inspection observed, cite "
-                                    "inspection_refs (request_id, path, handle, or target) of inspections "
-                                    "performed this round, and state the falsification_check. "
-                                    f"Current problem: {record_problem}. Return your final verdict again "
-                                    "with a valid record, or a different verdict if the inspected state "
-                                    "does not actually support completion."
-                                ),
-                            },
+                            _completion_record_retry_instruction(record_problem),
                             default=str,
                             sort_keys=True,
                         ),
                     })
                     continue
+                if (
+                    not record_problem
+                    and require_independent_derivation
+                    and not independence_retry_used
+                ):
+                    # Phase 1.5: the record is structurally valid, but this
+                    # task flags its decisive claim(s) as machine-re-derivable
+                    # -- require at least one cited inspection to be an
+                    # independent-derivation kind, not only a read of a
+                    # solver-produced artifact. Same one-retry-then-refuse
+                    # shape as the structural gate above, its own budget.
+                    independence_problem = _completion_independence_problem(
+                        result, performed_independent_refs,
+                    )
+                    if independence_problem:
+                        independence_retry_used = True
+                        messages.append({"role": "assistant", "content": raw})
+                        messages.append({
+                            "role": "user",
+                            "content": json.dumps(
+                                _independent_derivation_retry_instruction(independence_problem),
+                                default=str,
+                                sort_keys=True,
+                            ),
+                        })
+                        continue
             if result.verdict == "uncertain_missing_evidence" and round_idx < max_rounds:
                 try:
                     missing_requests = _structured_missing_evidence_requests(raw)
@@ -706,6 +980,7 @@ class ModelHooks:
                     results = inspector(missing_requests)
                     inspected = True
                     performed_refs |= _refs_from_inspections(missing_requests, results)
+                    performed_independent_refs |= _independent_derivation_refs(missing_requests, results)
                     last_inspection_results = list(results)
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
@@ -763,31 +1038,19 @@ class ModelHooks:
                     # Out of retries and the record is still structurally
                     # invalid: refuse the completion as a protocol event.
                     # This is not a harness judgment that the task is wrong.
-                    return json.dumps({
-                        "verdict": "uncertain_missing_evidence",
-                        "confidence": "high",
-                        "summary": (
-                            "Completion cannot be accepted: the completed verdict's "
-                            f"completion_evidence record is invalid ({record_problem})."
-                        ),
-                        "missing_evidence_requests": [
-                            "Return completed only with a completion_evidence record whose inspection_refs cite inspections performed in the verification round.",
-                        ],
-                        "findings": [
-                            {
-                                "finding_id": "vf-completion-evidence-record",
-                                "verdict": "uncertain_missing_evidence",
-                                "priority": "blocking",
-                                "summary": "Completed verdict lacked a valid requirement->observed completion_evidence record.",
-                                "evidence": [record_problem],
-                                "repair_instruction": (
-                                    "Surface inspectable current-state evidence for each completion requirement; "
-                                    "completion is accepted only with a resolvable completion_evidence record."
-                                ),
-                                "applies_to": ["completion_evidence"],
-                            },
-                        ],
-                    })
+                    return _refuse_completion_record(record_problem)
+                if require_independent_derivation:
+                    independence_problem = _completion_independence_problem(
+                        result, performed_independent_refs,
+                    )
+                    if independence_problem:
+                        # Out of retries and no cited inspection resolves to
+                        # an independent-derivation kind: refuse. This is the
+                        # Phase 1.5 closure for the false-clean failure mode
+                        # -- a model that only ever read solver-produced
+                        # artifacts cannot self-certify a machine-re-derivable
+                        # claim. Not a harness judgment that the task is wrong.
+                        return _refuse_completion_independence(independence_problem)
             return raw
         raise ModelOutputError("verifier exceeded bounded inspection rounds without returning a verdict")
 

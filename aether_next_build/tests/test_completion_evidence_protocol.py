@@ -16,12 +16,15 @@ from aether_next.compiler import CapabilityRegistry, ConfigCompiler
 from aether_next.model_hooks import (
     ModelHooks,
     VERIFIER_RUNTIME_CONTRACT,
+    _completion_independence_problem,
     _completion_record_problem,
+    _independent_derivation_refs,
     _refs_from_inspections,
 )
 from aether_next.runtime_ir import CapabilityDescriptor, EnvMap, RuntimeConfigIR
 from aether_next.verifier import (
     CompletionEvidenceEntry,
+    CompletionEvidenceShapeError,
     parse_model_verifier_result,
 )
 from aether_next.verifier_inspector import VerifierInspectionRequest
@@ -105,7 +108,12 @@ def _valid_record(refs: list[str]) -> list[dict[str, Any]]:
     ]
 
 
-def _run_verify(responses: list[str]) -> tuple[str, list[list[dict[str, str]]]]:
+def _run_verify(
+    responses: list[str],
+    *,
+    packet_overrides: dict[str, Any] | None = None,
+    inspector: Any = _grounded_inspector,
+) -> tuple[str, list[list[dict[str, str]]]]:
     calls: list[list[dict[str, str]]] = []
 
     def verifier_model(messages, *, max_output_tokens=8000):
@@ -117,11 +125,16 @@ def _run_verify(responses: list[str]) -> tuple[str, list[list[dict[str, str]]]]:
         solver_model=lambda m, *, max_output_tokens=8000: "{}",
         verifier_model=verifier_model,
     )
+    packet: dict[str, Any] = {
+        "reason": "solver_submit", "task_prompt": "Write out.txt", "artifacts_present": ["out.txt"],
+    }
+    if packet_overrides:
+        packet.update(packet_overrides)
     raw = hooks.verify_with_inspector(
-        {"reason": "solver_submit", "task_prompt": "Write out.txt", "artifacts_present": ["out.txt"]},
+        packet,
         _compiled(),
         ledger=_ledger_stub(),
-        inspector=_grounded_inspector,
+        inspector=inspector,
     )
     return raw, calls
 
@@ -185,6 +198,175 @@ def test_record_with_empty_falsification_field_is_rejected() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Bug fix: refs from a FAILED inspection must not satisfy the gate
+# ---------------------------------------------------------------------------
+
+_FAILED_READ_INSPECT_REQUEST = json.dumps({
+    "kind": "inspect",
+    "summary": "Read the missing file.",
+    "requests": [
+        {"request_id": "probe-1", "kind": "read_file", "path": "missing.txt"},
+    ],
+})
+
+
+def _failing_inspector(requests):
+    return [
+        {
+            "request_id": req.request_id,
+            "kind": req.kind,
+            "path": req.path,
+            "error": f"file not found: {req.path}",
+        }
+        for req in requests
+    ]
+
+
+def test_completed_citing_only_a_failed_inspection_ref_is_refused() -> None:
+    raw, calls = _run_verify(
+        [
+            _FAILED_READ_INSPECT_REQUEST,
+            _completed(_valid_record(["probe-1"])),
+            _completed(_valid_record(["probe-1"])),
+        ],
+        inspector=_failing_inspector,
+    )
+    parsed = parse_model_verifier_result(raw)
+    assert parsed.verdict == "uncertain_missing_evidence"
+    assert parsed.findings
+    assert parsed.findings[0].finding_id == "vf-completion-evidence-record"
+    assert "do not match any inspection" in parsed.summary
+    assert len(calls) == 3
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: a malformed completion_evidence record retries as a record
+# problem, never crashes into the generic "not valid protocol JSON" path
+# ---------------------------------------------------------------------------
+
+def _completed_with_malformed_record() -> str:
+    return json.dumps({
+        "verdict": "completed",
+        "confidence": "high",
+        "summary": "Deliverable matches the requirement.",
+        "completion_evidence": ["not-an-object", "also-not-an-object"],
+    })
+
+
+def test_malformed_completion_evidence_shape_retries_as_record_problem_not_json_crash() -> None:
+    raw, calls = _run_verify([
+        _INSPECT_REQUEST,
+        _completed_with_malformed_record(),
+        _completed(_valid_record(["probe-1"])),
+    ])
+    parsed = parse_model_verifier_result(raw)
+    assert parsed.verdict == "completed"
+    assert len(calls) == 3
+    retry_instruction = calls[2][-1]["content"]
+    # The SPECIFIC shape problem must be surfaced (proves correct routing)...
+    assert "completion_evidence" in retry_instruction
+    assert "must be an object" in retry_instruction
+    # ...never the generic malformed-JSON instruction, which would misdirect
+    # the model toward resending a bare verdict/confidence/summary.
+    assert "not valid protocol json" not in retry_instruction.lower()
+
+
+def test_malformed_completion_evidence_shape_refuses_when_retry_budget_exhausted() -> None:
+    raw, calls = _run_verify([
+        _INSPECT_REQUEST,
+        _completed_with_malformed_record(),
+        _completed_with_malformed_record(),
+    ])
+    parsed = parse_model_verifier_result(raw)
+    assert parsed.verdict == "uncertain_missing_evidence"
+    assert parsed.findings
+    assert parsed.findings[0].finding_id == "vf-completion-evidence-record"
+    assert "must be an object" in parsed.summary
+    assert len(calls) == 3
+
+
+def test_malformed_completion_evidence_raises_shape_specific_error() -> None:
+    with pytest.raises(CompletionEvidenceShapeError):
+        parse_model_verifier_result(json.dumps({
+            "verdict": "completed",
+            "confidence": "high",
+            "summary": "ok",
+            "completion_evidence": ["not-an-object"],
+        }))
+    # Still a ValueError: existing `except ValueError` / `pytest.raises
+    # (ValueError)` call sites keep working unchanged.
+    assert issubclass(CompletionEvidenceShapeError, ValueError)
+
+
+# ---------------------------------------------------------------------------
+# Independence-kind requirement (Phase 1.5): closes the gcode/video
+# false-clean gap left by the content-blind structural gate alone. See
+# FABLE5_BATCH_AUDIT_20260709T101515Z.md secs 4 and 6.
+# ---------------------------------------------------------------------------
+
+_READ_FILE_INSPECT_REQUEST = json.dumps({
+    "kind": "inspect",
+    "summary": "Read the output file directly.",
+    "requests": [
+        {"request_id": "probe-1", "kind": "read_file", "path": "out.txt"},
+    ],
+})
+
+_OVERLAY_INSPECT_REQUEST = json.dumps({
+    "kind": "inspect",
+    "summary": "Read the file, then independently recompute the value in the overlay.",
+    "requests": [
+        {"request_id": "probe-1", "kind": "read_file", "path": "out.txt"},
+        {"request_id": "probe-2", "kind": "overlay_run_command", "command": "python3 recompute.py"},
+    ],
+})
+
+_RE_DERIVABLE_PACKET = {"re_derivable_claims": ["the decoded value in out.txt is machine-re-derivable"]}
+
+
+def test_completed_with_only_read_file_refs_is_refused_when_independence_required() -> None:
+    raw, calls = _run_verify(
+        [
+            _READ_FILE_INSPECT_REQUEST,
+            _completed(_valid_record(["probe-1"])),
+            _completed(_valid_record(["probe-1"])),
+        ],
+        packet_overrides=_RE_DERIVABLE_PACKET,
+    )
+    parsed = parse_model_verifier_result(raw)
+    assert parsed.verdict == "uncertain_missing_evidence"
+    assert parsed.findings
+    assert parsed.findings[0].finding_id == "vf-completion-evidence-independence"
+    assert "independent-derivation" in parsed.summary
+    assert len(calls) == 3
+
+
+def test_completed_with_overlay_run_command_ref_is_accepted_when_independence_required() -> None:
+    raw, calls = _run_verify(
+        [
+            _OVERLAY_INSPECT_REQUEST,
+            _completed(_valid_record(["probe-1", "probe-2"])),
+        ],
+        packet_overrides=_RE_DERIVABLE_PACKET,
+    )
+    parsed = parse_model_verifier_result(raw)
+    assert parsed.verdict == "completed"
+    assert len(calls) == 2
+
+
+def test_completed_with_only_read_file_refs_is_accepted_when_independence_not_flagged() -> None:
+    # Same record/refs as the refused case above, but re_derivable_claims is
+    # unset: unchanged legacy behavior, no independence requirement applied.
+    raw, calls = _run_verify([
+        _READ_FILE_INSPECT_REQUEST,
+        _completed(_valid_record(["probe-1"])),
+    ])
+    parsed = parse_model_verifier_result(raw)
+    assert parsed.verdict == "completed"
+    assert len(calls) == 2
+
+
+# ---------------------------------------------------------------------------
 # Helper-level checks (content-blind semantics)
 # ---------------------------------------------------------------------------
 
@@ -206,6 +388,56 @@ def test_refs_collected_from_requests_and_results() -> None:
     request = VerifierInspectionRequest(request_id="r-1", kind="read_file", path="out.txt")
     refs = _refs_from_inspections((request,), [{"request_id": "r-1", "handle": "2:a-1:stdout"}])
     assert {"r-1", "out.txt", "2:a-1:stdout"} <= refs
+
+
+def test_refs_from_errored_inspection_result_are_excluded() -> None:
+    request = VerifierInspectionRequest(request_id="r-1", kind="read_file", path="missing.txt")
+    refs = _refs_from_inspections(
+        (request,),
+        [{"request_id": "r-1", "path": "missing.txt", "error": "file not found: missing.txt"}],
+    )
+    assert refs == set()
+
+
+def test_refs_from_negative_but_non_errored_probe_are_included() -> None:
+    # A probe that ran successfully and observed a negative result (port
+    # closed) is NOT an inspection error -- judging whether "closed" supports
+    # or contradicts a claim is content, and content stays the model's job.
+    request = VerifierInspectionRequest(request_id="r-1", kind="probe_port", target="127.0.0.1:9")
+    refs = _refs_from_inspections(
+        (request,),
+        [{"request_id": "r-1", "kind": "probe_port", "host": "127.0.0.1", "port": 9, "state": "closed"}],
+    )
+    assert "r-1" in refs
+
+
+def test_independent_derivation_refs_excludes_read_file_includes_overlay() -> None:
+    read_request = VerifierInspectionRequest(request_id="r-1", kind="read_file", path="out.txt")
+    overlay_request = VerifierInspectionRequest(request_id="r-2", kind="overlay_run_command", command="echo hi")
+    results = [
+        {"request_id": "r-1", "kind": "read_file", "path": "out.txt", "excerpt": "7"},
+        {"request_id": "r-2", "kind": "overlay_run_command", "exit_code": 0, "success": True, "stdout": "hi"},
+    ]
+    refs = _independent_derivation_refs((read_request, overlay_request), results)
+    assert refs == {"r-2"}
+
+
+def test_independent_derivation_refs_excludes_errored_overlay_command() -> None:
+    overlay_request = VerifierInspectionRequest(request_id="r-2", kind="overlay_run_command", command="echo hi")
+    results = [{"request_id": "r-2", "kind": "overlay_run_command", "error": "no overlay available"}]
+    refs = _independent_derivation_refs((overlay_request,), results)
+    assert refs == set()
+
+
+def test_completion_independence_problem_is_content_blind() -> None:
+    entry = CompletionEvidenceEntry(
+        requirement="anything", observed="anything", falsification_check="anything",
+        inspection_refs=("r-1", "r-2"),
+    )
+    result = type("_R", (), {"completion_evidence": (entry,)})()
+    assert _completion_independence_problem(result, {"r-2"}) == ""
+    problem = _completion_independence_problem(result, {"other"})
+    assert "independent-derivation" in problem
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +490,19 @@ def test_contract_advertises_completion_evidence_protocol() -> None:
     rules = " ".join(VERIFIER_RUNTIME_CONTRACT["rules"])
     assert "machine-re-derivable" in rules
     assert "overlay_run_command" in rules
+
+
+def test_contract_states_independence_kind_requirement_plainly() -> None:
+    rules = " ".join(VERIFIER_RUNTIME_CONTRACT["rules"])
+    assert "Runtime-enforced, not prompt-only" in rules
+    assert "re_derivable_claims" in rules
+    assert "independent-derivation inspection kind" in rules
+    for kind in (
+        "overlay_run_command", "rerun_check", "probe_port", "probe_http",
+        "probe_process", "perceive_artifact",
+    ):
+        assert kind in rules
+    assert "will be refused" in rules
 
 
 def test_architect_doctrine_requires_method_independent_minimum_evidence() -> None:

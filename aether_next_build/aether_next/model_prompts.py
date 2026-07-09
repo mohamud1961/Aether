@@ -95,6 +95,7 @@ VERIFIER_RUNTIME_CONTRACT = {
         "A completed verdict must include completion_evidence (see completion_evidence_shape): one entry per decisive completion claim, mapping the requirement to what your own inspection observed. Every entry's inspection_refs must cite inspections you actually performed in this verification round; an unreferenced or empty record is a protocol violation and the completion will be refused.",
         "When a claimed value is machine-re-derivable (counts, frame indices, field names, hashes, parsed values), decisive evidence must come from your own independent derivation -- overlay execution, probes, or your own perception of task inputs -- never from inspection of solver-produced artifacts alone.",
         "If the decisive region of an artifact cannot be read directly within inspection spans, derive the needed fact yourself with overlay_run_command instead of judging from excerpts, comments, or metadata.",
+        "Runtime-enforced, not prompt-only: when verifier_packet.re_derivable_claims names claim(s) the architect flagged as machine-re-derivable, a completed verdict's completion_evidence must cite at least one inspection_ref that resolves to an independent-derivation inspection kind -- overlay_run_command, rerun_check, probe_port, probe_http, probe_process, or perceive_artifact. Citing only read_file, read_output, inspect_recent_receipts, or inspect_artifact_history of a solver-produced artifact does not satisfy this and the completion will be refused.",
     ],
     "read_only_inspector": {
         "enabled": True,
