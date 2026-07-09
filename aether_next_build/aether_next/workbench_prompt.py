@@ -358,6 +358,9 @@ Fields that expect enum values, exact action/tool names, supported context modes
   "minimum_completion_evidence": [
     "Minimum direct evidence required before the reviewer may accept completion."
   ],
+  "re_derivable_claims": [
+    "Claim whose correctness is machine-re-derivable (counts, indices, hashes, values, etc.) that the verifier must verify independently (overlay command, live probe, own perception) rather than only reading solver-produced files."
+  ],
   "tool_policy": {
     "enabled_tools": [],
     "disabled_tools": []
@@ -549,6 +552,10 @@ For non-trivial tasks, this should usually include more than file existence or s
 Minimum evidence must be spec-anchored and method-independent. Each item names what the visible task requires and evidence that could contradict a wrong result. Never anchor a required-evidence item to solver-produced artifacts, solver-authored tests, solver-generated code, or "around the solver's reported values" -- evidence produced by the thing being checked cannot falsify it.
 
 When a deliverable's correctness is machine-re-derivable (counts, frame indices, field names, hashes, parsed or decoded values), require the reviewer to derive the value independently with its own read-only tools (overlay execution, probes, its own perception of task inputs) and compare it to the deliverable, rather than confirm the solver's artifact against itself.
+
+## re_derivable_claims
+
+List claims whose correctness is machine-re-derivable (e.g. video frame counts, index values, file hashes, stdout logs, decoded values). When any claim matches these, the verifier will require an independent-derivation inspection kind (like overlay command run, live service probe, or visual perception) before accepting a completed verdict.
 
 ## tool_policy
 

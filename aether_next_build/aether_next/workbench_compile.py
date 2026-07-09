@@ -97,6 +97,8 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
         advisory_notes.append("false_positive_risks=" + str(list(config.false_positive_risks)))
     if config.minimum_completion_evidence:
         advisory_notes.append("minimum_completion_evidence=" + str(list(config.minimum_completion_evidence)))
+    if config.re_derivable_claims:
+        advisory_notes.append("re_derivable_claims=" + str(list(config.re_derivable_claims)))
     if config.verification_policy.visible_smoke_tests:
         advisory_notes.append("visible_smoke_tests=" + str([dict(item) for item in config.verification_policy.visible_smoke_tests]))
         if smoke_result.checks:
@@ -139,6 +141,7 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
         evidence_requirements=config.evidence_requirements,
         false_positive_risks=config.false_positive_risks,
         minimum_completion_evidence=config.minimum_completion_evidence,
+        re_derivable_claims=config.re_derivable_claims,
     )
 
 
@@ -343,6 +346,11 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "status": "realized_advisory",
             "count": len(config.local_verification_limits),
             "realized_as": "RuntimeConfigIR.local_verification_limits, advisory_notes, and verifier packet metadata",
+        },
+        "re_derivable_claims": {
+            "status": "realized",
+            "count": len(config.re_derivable_claims),
+            "realized_as": "RuntimeConfigIR.re_derivable_claims and verifier packet metadata",
         },
         "expected_steps": {
             "status": "realized_advisory",

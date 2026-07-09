@@ -26,6 +26,7 @@ SUPPORTED_TOP_LEVEL_CONFIG_FIELDS = frozenset({
     "evidence_requirements",
     "false_positive_risks",
     "minimum_completion_evidence",
+    "re_derivable_claims",
     "tool_policy",
     "context_policy",
     "memory_policy",
@@ -147,6 +148,11 @@ class HarnessConfigIR:
     evidence_requirements: tuple[str, ...] = ()
     false_positive_risks: tuple[str, ...] = ()
     minimum_completion_evidence: tuple[str, ...] = ()
+    # Optional: claims whose correctness the reviewer can independently
+    # re-derive (counts, frame indices, decoded/parsed values, field names,
+    # hashes). Empty means unflagged -- unchanged legacy behavior. See
+    # verify_completion_protocol.py's independence-kind gate.
+    re_derivable_claims: tuple[str, ...] = ()
     context_policy: ContextPolicySpec = field(default_factory=ContextPolicySpec)
     memory_policy: MemoryPolicySpec = field(default_factory=MemoryPolicySpec)
     verification_policy: VerificationPolicySpec = field(default_factory=VerificationPolicySpec)
@@ -411,6 +417,7 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
         evidence_requirements=_tuple_str(data.get("evidence_requirements", ())),
         false_positive_risks=_tuple_str(data.get("false_positive_risks", ())),
         minimum_completion_evidence=_tuple_str(data.get("minimum_completion_evidence", ())),
+        re_derivable_claims=_tuple_str(data.get("re_derivable_claims", ())),
         tool_policy=ToolPolicySpec(
             enabled_tools=enabled,
             disabled_tools=_tuple_str(tools_raw.get("disabled_tools", ())),

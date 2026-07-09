@@ -556,3 +556,27 @@ def test_context_window_bounds_are_fail_closed() -> None:
         parse_harness_config_ir(_raw_config(model_context_window_tokens=500))
     with pytest.raises(ModelOutputError):
         parse_harness_config_ir(_raw_config(model_context_window_tokens="lots"))
+
+
+def test_architect_workbench_compiles_re_derivable_claims_and_reaches_runtime_ir() -> None:
+    raw = {
+        "schema_version": "harness_config.v1",
+        "task_understanding": "Write one output file.",
+        "success_definition": "out.txt exists and matches the prompt.",
+        "solver_system_prompt": {"role": "Careful file task solver"},
+        "verifier_system_prompt": {
+            "role": "Task-specific evidence verifier",
+            "success_criteria": ["out.txt matches the requested result"],
+            "required_evidence": ["artifact content checked against the task"],
+        },
+        "evidence_requirements": ["out.txt content matches the requested result"],
+        "minimum_completion_evidence": ["independent content evidence"],
+        "re_derivable_claims": ["the hash of out.txt matches the expected"],
+        "tool_policy": {"enabled_tools": ["read_file", "write_file", "run_command"]},
+        "context_policy": {"mode": "default_bounded"},
+    }
+    config = parse_harness_config_ir(json.dumps(raw))
+    assert config.re_derivable_claims == ("the hash of out.txt matches the expected",)
+    runtime_ir = harness_config_to_runtime_ir(config, _make_envmap())
+    assert runtime_ir.re_derivable_claims == ("the hash of out.txt matches the expected",)
+
