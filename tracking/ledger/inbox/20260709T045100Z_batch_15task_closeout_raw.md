@@ -1,0 +1,21 @@
+RAW_LEDGER_UPDATE
+- actor: Antigravity
+- task: Proteun / Aether-Next batch run closeout
+- event_type: experiment
+- summary: Completed the Aether-Next 15-task parallel batch run on D16 VM. Plucked results locally and deallocated VM.
+- observations:
+  - 14 out of 15 tasks completed. 11 tasks succeeded with reward 1.0 (78.5% success rate).
+  - 2 tasks failed with 0.0 reward due to model capability errors (false-clean verifications in video-processing and gcode-to-text).
+  - 1 task (write-compressor) was terminated manually at step 0 per user instruction.
+  - Successfully optimized local watchdog to use single SSH queries per poll and ServerAlive keep-alive timeout configuration, resolving socket hangs.
+  - Result pulling rsynced 12 MB of text logs, JSON results, and traces to the host, while excluding 4+ GB of heavy Docker snapshot directories.
+- inference: The upgraded D16 standard sizing is highly reliable and cost-effective, completing 15 complex model-led runs in ~3 hours with zero VM instability or resource starvation.
+- evidence_paths:
+  - aether_next_build/vm_goal_runs/20260709T000000_batch_15task_D16/
+  - tracking/ledger/inbox/vm_D16_run_watchdog_20260709T000000_batch_15task_D16.log
+- affected_components:
+  - watch_aether_vm_batch_20260709.sh
+- decision_change: none
+- unresolved_questions: Investigate video-processing and gcode-to-text false-clean verifier bugs.
+- confidence: high
+- commit_message: CLOSEOUT - complete 15-task run, pull results, deallocate VM

@@ -13,21 +13,46 @@ TASKS="log-summary-date-ranges gcode-to-text video-processing kv-store-grpc code
 mkdir -p "$(dirname "$LOG")"
 echo "watchdog_start=$(date -u +%Y-%m-%dT%H:%M:%SZ) run_root=$RUN_ROOT" >> "$LOG"
 
-while true; do
-  alive=0
-  summary=""
-  for task in $TASKS; do
-    pid=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa "azureuser@$IP" "cat '$RUN_ROOT/$task/pid' 2>/dev/null" 2>/dev/null || true)
-    if [ -n "$pid" ] && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa "azureuser@$IP" "ps -p '$pid' >/dev/null 2>&1" >/dev/null 2>&1; then
-      alive=$((alive + 1))
-      summary="$summary $task:$pid"
-    fi
-  done
+# Optimized SSH options to prevent hangs and timeout quickly
+SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/id_rsa)
 
-  echo "poll=$(date -u +%Y-%m-%dT%H:%M:%SZ) alive=$alive$summary" >> "$LOG"
+while true; do
+  # Perform a single SSH call to query all active task PIDs on the VM
+  active_report=$(ssh "${SSH_OPTS[@]}" "azureuser@$IP" "
+    for task in $TASKS; do
+      pid=\$(cat \"$RUN_ROOT/\$task/pid\" 2>/dev/null || true)
+      if [ -n \"\$pid\" ] && ps -p \"\$pid\" >/dev/null 2>&1; then
+        echo -n \" \$task:\$pid\"
+      fi
+    done
+  " 2>/dev/null || echo "ERROR_SSH")
+
+  if [ "$active_report" = "ERROR_SSH" ]; then
+    echo "poll=$(date -u +%Y-%m-%dT%H:%M:%SZ) error=SSH_FAILED" >> "$LOG"
+    sleep 30
+    continue
+  fi
+
+  # Trim leading spaces
+  summary=$(echo "$active_report" | xargs)
+  
+  # Count active tasks
+  if [ -z "$summary" ]; then
+    alive=0
+  else
+    alive=$(echo "$summary" | wc -w | xargs)
+  fi
+
+  echo "poll=$(date -u +%Y-%m-%dT%H:%M:%SZ) alive=$alive $summary" >> "$LOG"
 
   if [ "$alive" -eq 0 ]; then
-    echo "all_lanes_finished=$(date -u +%Y-%m-%dT%H:%M:%SZ); deallocating $VM_NAME" >> "$LOG"
+    echo "all_lanes_finished=$(date -u +%Y-%m-%dT%H:%M:%SZ); pulling results to host" >> "$LOG"
+    
+    # Pull results
+    mkdir -p "/Users/mohamud/Downloads/harnesseng/aether_next_build/vm_goal_runs/${RUN_ID}"
+    rsync -avz --exclude '__pycache__' -e "ssh -i ~/.ssh/id_rsa" "azureuser@$IP:/home/azureuser/harnesseng_vm/aether_next_build/vm_goal_runs/${RUN_ID}/" "/Users/mohamud/Downloads/harnesseng/aether_next_build/vm_goal_runs/${RUN_ID}/" >> "$LOG" 2>&1
+    
+    echo "pull_done=$(date -u +%Y-%m-%dT%H:%M:%SZ); deallocating $VM_NAME" >> "$LOG"
     az vm deallocate -g "$VM_RG" -n "$VM_NAME" >> "$LOG" 2>&1
     echo "deallocate_done=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$LOG"
     exit 0
