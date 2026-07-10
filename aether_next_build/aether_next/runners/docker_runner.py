@@ -354,7 +354,7 @@ def run_tbench_task(
         try:
             _progress(progress_callback, task_name, "kernel_run", f"running agent kernel with timeout {run_timeout_s}s")
             with _scoped_verifier_evidence_dir(task_name, trace_dir), _kernel_wall_timeout(run_timeout_s):
-                result = kernel.run(envmap, executor, hooks, trace=run_trace)
+                result = kernel.run(envmap, executor, hooks, trace=run_trace, run_timeout_s=run_timeout_s)
             _progress(progress_callback, task_name, "kernel_done", f"kernel status={result.status} step={result.step}")
         except KernelRunTimeout as exc:
             # The agent phase has TERMINATED (by wall clock).  The official

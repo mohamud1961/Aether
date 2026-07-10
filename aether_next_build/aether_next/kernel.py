@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Protocol, TYPE_CHECKING
 
@@ -123,6 +124,7 @@ class AetherNextKernel:
         hooks: KernelHooks,
         *,
         trace: RunTrace | None = None,
+        run_timeout_s: float | None = None,
     ) -> KernelResult:
         # Perception (e.g. vision transcription) needs the model hooks at
         # dispatch time; scoped to this run.
@@ -184,7 +186,39 @@ class AetherNextKernel:
         verifier_round_finding_sets: list[frozenset[str]] = []
         verifier_memo: dict[str, Any] = {}
         submit_without_evidence_rounds = 0
+        # Wall-clock backstop. The docker runner also arms a one-shot SIGALRM,
+        # but that alarm can be swallowed if it fires inside a broad except (the
+        # RC5 failure mode). This monotonic deadline is checked every iteration,
+        # so the loop terminates even if an interrupt was absorbed somewhere the
+        # re-raise guards did not cover -- belt to the SIGALRM suspenders.
+        deadline = (
+            time.monotonic() + run_timeout_s
+            if run_timeout_s is not None and run_timeout_s > 0
+            else None
+        )
         while step < self.max_steps:
+            if deadline is not None and time.monotonic() >= deadline:
+                ledger.record(Receipt(
+                    receipt_id=f"step-{step}:kernel_deadline_exceeded",
+                    step=step,
+                    kind="kernel_deadline_exceeded",
+                    success=False,
+                    summary=(
+                        f"kernel loop deadline reached ({run_timeout_s:g}s); terminating "
+                        "so the run can be graded instead of spinning past its budget"
+                    ),
+                    failure_class="timeout",
+                ))
+                return KernelResult(
+                    status="timeout",
+                    step=step,
+                    reconfigurations=reconfigurations,
+                    blockers=(f"kernel_deadline_exceeded_{run_timeout_s:g}s",),
+                    env_digest=compiled.env_digest,
+                    receipts=ledger.all_receipts(),
+                    architect_defect=bool(architect_defect_reasons),
+                    architect_defect_reasons=tuple(architect_defect_reasons),
+                )
             alerts = self.monitor_runner.run(compiled, ledger)
             context_packet = self.context_compiler.compile(compiled, ledger, alerts)
             messages = self.build_solver_messages(compiled, context_packet)
