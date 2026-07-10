@@ -295,6 +295,7 @@ def test_context_policy_default_bounded_exact_sections() -> None:
         "planned_checks",
         "pending_checks",
         "command_results",
+        "tool_results",
         "active_completion_findings",
         "files_already_read",
         "latest_file_reads",
@@ -326,6 +327,7 @@ def test_context_policy_rolling_recent_exact_sections() -> None:
         "active_completion_findings",
         "automatic_memory_available",
         "command_results",
+        "tool_results",
     }
 
 
@@ -345,6 +347,7 @@ def test_context_policy_failure_focused_exact_sections() -> None:
         "stuck",
         "automatic_memory_available",
         "command_results",
+        "tool_results",
     }
     assert "recent_progress" not in packet
     assert "artifacts_present" not in packet
@@ -361,6 +364,7 @@ def test_context_policy_latest_tool_result_only_exact_sections() -> None:
         "active_completion_findings",
         "stuck",
         "command_results",
+        "tool_results",
     }
     assert packet["latest_tool_result"]["kind"] == "check_result"
 

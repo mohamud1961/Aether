@@ -79,26 +79,36 @@ class ContextCompiler:
         ):
             if key in available and key not in out:
                 out[key] = available[key]
-        # The solver must always be able to see the output of commands it just
-        # ran, regardless of architect context_policy/recipe choice. Without
-        # this, the solver is told "produce X output" by an active finding
-        # while the actual X output from the command it already ran is
-        # invisible to it next step -- the harness discards the solver's own
-        # working memory and then blames it for repeating the command.
-        # Exception: if a recipe deliberately made command_results queryable-
-        # not-inline (a size/token decision, not an omission), the solver can
-        # still retrieve it on demand -- respect that explicit choice instead
-        # of re-inlining the full payload and defeating the recipe's budget.
-        if "command_results" in available and "command_results" not in out:
-            realization = packet.get("context_recipe_realization")
-            made_queryable = False
-            if isinstance(realization, dict):
-                made_queryable = any(
-                    item.get("selector") == "command_results"
-                    for item in realization.get("queryable_not_inline", []) or []
-                )
-            if not made_queryable:
-                out["command_results"] = available["command_results"]
+        # The solver must always see the output of tools it just used, not only
+        # shell commands.  Otherwise typed tools such as service probes, artifact
+        # inspection, process launch, read_output, and read_file write useful
+        # evidence into the ledger but vanish from the next model-visible packet.
+        # Respect an explicit recipe decision to make a result section queryable
+        # rather than inline; otherwise force the evidence into the packet.
+        realization = packet.get("context_recipe_realization")
+        queryable_selectors: set[str] = set()
+        if isinstance(realization, dict):
+            queryable_selectors = {
+                str(item.get("selector", ""))
+                for item in realization.get("queryable_not_inline", []) or []
+                if isinstance(item, dict)
+            }
+        # A recipe may externalize a dedicated section (command_results,
+        # file_reads, ...) as queryable-not-inline for token budget.  When it
+        # does, the corresponding receipt kind must also be dropped from the
+        # forced tool_results copy so the large payload the recipe chose to
+        # externalize cannot leak back in through this channel.
+        _queryable_kind_of = {"file_reads": "read_file", "file_writes": "write_file"}
+        suppressed_kinds = {
+            kind for selector, kind in _queryable_kind_of.items() if selector in queryable_selectors
+        }
+        if "tool_results" in available and "tool_results" not in out and "tool_results" not in queryable_selectors:
+            rows = available["tool_results"]
+            if suppressed_kinds:
+                rows = [row for row in rows if row.get("kind") not in suppressed_kinds]
+            out["tool_results"] = rows
+        if "command_results" in available and "command_results" not in out and "command_results" not in queryable_selectors:
+            out["command_results"] = available["command_results"]
         return out
 
     def _available_sections(
@@ -185,11 +195,25 @@ class ContextCompiler:
         if latest_reads:
             packet["latest_file_reads"] = latest_reads
 
+        max_recent = max(0, compiled.context_policy.max_recent_receipts)
+        # tool_results carries the typed-tool evidence that has no dedicated
+        # inline section of its own (service probes, artifact inspection,
+        # read_output, process launch/stop, ...).  run_command keeps its
+        # canonical home in command_results below; rendering it here too would
+        # double the largest payload in the packet and bypass a recipe that made
+        # command_results queryable-not-inline for token budget.
+        tool_results = [
+            self._receipt_inline_view(receipt)
+            for receipt in ledger.all_receipts()
+            if receipt.kind in _TOOL_RESULT_KINDS and receipt.kind != "run_command"
+        ][-max_recent:]
+        packet["tool_results"] = tool_results
+
         command_results = [
             self._receipt_inline_view(receipt)
             for receipt in ledger.all_receipts()
             if receipt.kind == "run_command"
-        ][-max(0, compiled.context_policy.max_recent_receipts):]
+        ][-max_recent:]
         packet["command_results"] = command_results
 
         memory_loop = self._memory_loop_feedback(ledger)
@@ -371,5 +395,9 @@ def _repair_hint(label: str, failure_kind: str, detail: str) -> str:
         target = label.split(":", 1)[1]
         return f"Adjust {target} to satisfy the file-size threshold."
     if detail:
-        return "Use the failure detail to change the artifact; avoid repeating the same verification action."
-    return "Change the artifact or strategy before rechecking."
+        return (
+            "Use the failure detail to make the underlying task condition true; "
+            "do not edit task tests or check files just to satisfy the checker. "
+            "If the check command itself is mis-invoked or environment-broken, report the blocker."
+        )
+    return "Change the task artifact or strategy before rechecking; do not patch tests/checks as a shortcut."

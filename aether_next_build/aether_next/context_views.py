@@ -55,6 +55,7 @@ _STANDARD_SECTION_KEYS = (
     "candidate_leaderboard",
     "installed_capabilities",
     "planned_checks",
+    "tool_results",
     "command_results",
 )
 
@@ -157,6 +158,14 @@ def queryable_receipt_meta(selector: str, receipts: list[Receipt], requested_cou
         "reason": "recipe_make_queryable_not_inline",
     }
 
+def _compact_text(value: Any, limit: int = 4000) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    half = max(1, (limit - 80) // 2)
+    return f"{text[:half]}\n... [truncated {len(text) - (2 * half)} chars] ...\n{text[-half:]}"
+
+
 def receipt_inline_view(receipt: Receipt) -> dict[str, Any]:
     row: dict[str, Any] = {
         "receipt_id": receipt.receipt_id,
@@ -168,12 +177,25 @@ def receipt_inline_view(receipt: Receipt) -> dict[str, Any]:
     if receipt.failure_class:
         row["failure_class"] = receipt.failure_class
     payload = receipt.payload
-    for key in ("path", "command", "check_id", "exit_code", "bytes", "query", "detail", "blocker_code", "stdout_handle", "stderr_handle", "file_handle", "offset", "span"):
+    for key in (
+        "path", "command", "check_id", "exit_code", "bytes", "query", "detail",
+        "blocker_code", "stdout_handle", "stderr_handle", "file_handle", "offset", "span",
+        "target", "service_name", "live", "fresh", "process_id", "interactive",
+        "mode", "media_type", "extraction_route", "extraction_authority",
+        "content_hash", "sha256", "owner", "permissions", "file_type", "status",
+    ):
         value = payload.get(key)
         if value not in (None, "", (), [], {}):
             row[key] = value
-    if receipt.kind == "read_file" and payload.get("excerpt"):
-        row["excerpt"] = str(payload["excerpt"])
+    if receipt.kind in {"read_file", "write_file"} and payload.get("excerpt"):
+        row["excerpt"] = _compact_text(payload["excerpt"], 4000)
+    if receipt.kind == "artifact_inspection":
+        extracted = payload.get("extracted_text") or payload.get("transcription") or payload.get("description")
+        if extracted:
+            row["extracted_text"] = _compact_text(extracted, 4000)
+        metadata = payload.get("metadata")
+        if isinstance(metadata, dict) and metadata:
+            row["metadata"] = {k: v for k, v in metadata.items() if v not in (None, "", (), [], {})}
     if receipt.kind == "run_command":
         stdout = str(payload.get("stdout", ""))
         stderr = str(payload.get("stderr", ""))
@@ -295,7 +317,7 @@ def maybe_compress(packet: dict[str, Any], policy: Any) -> dict[str, Any]:
     if estimated_tokens <= budget:
         return packet
     compressed = dict(packet)
-    preserved_exact = {"active_completion_findings", "pending_checks", "repeat_efficiency_guidance", "no_progress_controls", "action_constraints", "stuck", "command_results", "latest_file_reads", "solver_parse_errors", "blocked_denied_receipts", "output_handles"}
+    preserved_exact = {"active_completion_findings", "pending_checks", "repeat_efficiency_guidance", "no_progress_controls", "action_constraints", "stuck", "tool_results", "command_results", "latest_file_reads", "solver_parse_errors", "blocked_denied_receipts", "output_handles"}
     recipe = getattr(policy, "recipe", None)
     if recipe is not None:
         preserved_exact.update(str(item) for item in recipe.preserve_exact)

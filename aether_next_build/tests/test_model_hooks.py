@@ -343,7 +343,14 @@ class TestVerifierHook:
 
         assert parsed.verdict == "completed"
         assert seen["max_output_tokens"] == 6000
-        assert seen["messages"][0]["content"] == "Task-specific verifier prompt."
+        # The architect-authored verifier prompt must still reach the verifier
+        # verbatim; the runtime now prepends an operational inspection-protocol
+        # preamble (so the verifier knows it HAS read-only tools and how to emit
+        # inspection requests) instead of leaving it to guess.
+        system_prompt = seen["messages"][0]["content"]
+        assert system_prompt.endswith("Task-specific verifier prompt.")
+        assert "kind\":\"inspect\"" in system_prompt
+        assert "blocked_by_tooling" in system_prompt
         assert "verifier_runtime_contract" in seen["messages"][1]["content"]
         assert "verifier_packet" in seen["messages"][1]["content"]
 

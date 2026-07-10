@@ -178,6 +178,16 @@ def run_model_verifier_if_available(
         )
         result = parse_model_verifier_result(raw)
     except Exception as exc:
+        # A kernel wall-time interrupt is control flow, not a verifier failure.
+        # If it fires inside a verifier model call it must propagate so the
+        # runner terminates and grades -- otherwise it is recorded as a
+        # model_verifier_error and the loop keeps running past the budget
+        # (observed live: nginx-request-logging step_0008, "kernel loop exceeded
+        # 1800s" swallowed on the verifier path). The verifier's OWN 180s budget
+        # raises TimeoutError, which is a real verifier error and still handled
+        # below -- only the kernel-terminate signal is re-raised here.
+        if exc.__class__.__name__ == "KernelRunTimeout":
+            raise
         ledger.record(Receipt(
             receipt_id=f"step-{step}:model_verifier_error:{reason}",
             step=step,

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Mapping
@@ -239,7 +240,8 @@ def _perceive_artifact_result(
 
 
 def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap: EnvMap) -> dict[str, Any]:
-    path = normalize_relpath(request.path, envmap.workspace_root)
+    requested_path = str(request.path or "").strip()
+    path = normalize_relpath(requested_path, envmap.workspace_root) if any(token in requested_path for token in ("*", "?", "[")) else _resolve_read_path(requested_path, executor, envmap)
     if any(token in path for token in ("*", "?", "[")):
         matches = tuple(executor.glob(path))[: max(1, request.limit)]
         rows = []
@@ -254,29 +256,100 @@ def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap:
                 "bytes": len(content),
                 "content_hash": sha256(content.encode("utf-8", "replace")).hexdigest()[:16],
                 "excerpt": content[: min(1000, len(content))],
+                "read_only": True,
             })
         return {
             "request_id": request.request_id,
             "kind": request.kind,
             "path": path,
+            "requested_path": requested_path,
             "matched_paths": list(matches),
             "matches": rows,
+            "read_only": True,
         }
     try:
         content = executor.read_file(path)
     except FileNotFoundError:
-        return _error_result(request, f"file not found: {path}")
+        candidates = _candidate_paths(requested_path or path, executor, envmap, limit=max(1, request.limit))
+        if candidates:
+            return _error_result(
+                request,
+                f"file not found at {path}; candidate path(s) elsewhere: {', '.join(candidates)}",
+            ) | {"path": path, "requested_path": requested_path, "candidate_paths": candidates, "read_only": True}
+        return _error_result(request, f"file not found at {path}; no candidate paths found") | {
+            "path": path, "requested_path": requested_path, "read_only": True,
+        }
+    span = max(1, min(20000, int(getattr(request, "span", 4000) or 4000)))
     offset = max(0, int(getattr(request, "offset", 0) or 0))
-    excerpt = content[offset: offset + 4000]
+    anchor = "offset"
+    # Append-only service logs should default to current-state evidence.  A
+    # request may still force head/offset by supplying a positive offset.
+    if requested_path.lower().endswith((".log", ".out", ".err")) and offset == 0 and len(content) > span:
+        offset = max(0, len(content) - span)
+        anchor = "tail"
+    excerpt = content[offset: offset + span]
     return {
         "request_id": request.request_id,
         "kind": request.kind,
         "path": path,
+        "requested_path": requested_path,
         "bytes": len(content),
         "offset": offset,
+        "span": span,
+        "anchor": anchor,
         "content_hash": sha256(content.encode("utf-8", "replace")).hexdigest()[:16],
         "excerpt": excerpt,
+        "read_only": True,
     }
+
+
+def _resolve_read_path(requested_path: str, executor: Any, envmap: EnvMap) -> str:
+    if not requested_path:
+        return ""
+    # Absolute paths such as /var/log/... and /etc/nginx/... are legitimate
+    # verifier targets.  Do not silently remap them under /app.
+    if requested_path.startswith("/"):
+        try:
+            executor.read_file(requested_path)
+            return requested_path
+        except FileNotFoundError:
+            pass
+    normalized = normalize_relpath(requested_path, envmap.workspace_root)
+    try:
+        executor.read_file(normalized)
+        return normalized
+    except FileNotFoundError:
+        pass
+    candidates = _candidate_paths(requested_path, executor, envmap, limit=1)
+    if candidates:
+        return candidates[0]
+    return normalized
+
+
+def _candidate_paths(requested_path: str, executor: Any, envmap: EnvMap, *, limit: int = 5) -> list[str]:
+    basename = os.path.basename(str(requested_path).rstrip("/"))
+    if not basename:
+        return []
+    patterns = []
+    workspace_root = str(getattr(envmap, "workspace_root", "") or "").rstrip("/")
+    if workspace_root:
+        patterns.append(f"{workspace_root}/**/{basename}")
+    patterns.append(f"**/{basename}")
+    seen: set[str] = set()
+    matches: list[str] = []
+    for pattern in patterns:
+        try:
+            found = tuple(executor.glob(pattern))
+        except Exception:
+            found = ()
+        for path in found:
+            text = str(path)
+            if text not in seen:
+                seen.add(text)
+                matches.append(text)
+            if len(matches) >= limit:
+                return matches
+    return matches
 
 
 def _read_output_result(request: VerifierInspectionRequest, receipts: tuple[Any, ...]) -> dict[str, Any]:

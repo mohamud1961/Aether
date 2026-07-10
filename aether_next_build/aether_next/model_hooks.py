@@ -116,6 +116,11 @@ class ModelHooks:
             setattr(self, "last_raw_solver_output", raw)
             raise ModelOutputError(f"solver output could not be parsed: {exc}") from exc
         except Exception as exc:
+            # Kernel wall-time interrupts are control-flow, not model-output
+            # failures.  Re-raise them so the kernel/runner can terminate and
+            # grade instead of recording a fake solver parse error and looping.
+            if exc.__class__.__name__ in {"KernelRunTimeout"}:
+                raise
             self.last_parse_errors.append(str(exc))
             setattr(self, "last_raw_solver_output", raw)
             raise ModelOutputError(f"solver call failed: {exc}") from exc

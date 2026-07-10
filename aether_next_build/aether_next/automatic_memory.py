@@ -16,7 +16,11 @@ from .memory_query import receipt_to_memory_result
 from .runtime_ir import ActionRequest, EnvMap, normalize_relpath
 
 
-_AUTOMATIC_KINDS = frozenset({"read_file", "write_file", "run_command", "run_check"})
+_AUTOMATIC_KINDS = frozenset({
+    "read_file", "write_file", "run_command", "run_check",
+    "probe_service", "launch_process", "stop_process", "inspect_artifact",
+    "read_output", "grep_output", "read_file_page",
+})
 
 
 @dataclass(frozen=True)
@@ -51,7 +55,7 @@ def infer_action_target(action: ActionRequest, envmap: EnvMap) -> ActionTarget |
         command = _command_fingerprint(explicit_command)
         return ActionTarget(action.kind, explicit_type or "command", command, f"{action.kind}:{command}", True)
 
-    if action.kind in {"read_file", "write_file"}:
+    if action.kind in {"read_file", "write_file", "read_file_page", "inspect_artifact"}:
         path = normalize_relpath(str(action.arguments.get("path", "")), envmap.workspace_root)
         if path:
             return ActionTarget(action.kind, "file", path, f"{action.kind}:{path}")
@@ -63,6 +67,22 @@ def infer_action_target(action: ActionRequest, envmap: EnvMap) -> ActionTarget |
         check_id = str(action.arguments.get("check_id", "")).strip()
         if check_id:
             return ActionTarget(action.kind, "check", check_id, f"run_check:{check_id}")
+    if action.kind in {"probe_service", "stop_process"}:
+        target = str(action.arguments.get("target", "")).strip()
+        if target:
+            return ActionTarget(action.kind, "service", target, f"{action.kind}:{target}")
+    if action.kind == "launch_process":
+        service = str(action.arguments.get("service_name", "")).strip()
+        command = _command_fingerprint(str(action.arguments.get("command", "")))
+        key = service or command
+        if key:
+            return ActionTarget(action.kind, "process", key, f"launch_process:{key}")
+    if action.kind in {"read_output", "grep_output"}:
+        handle = str(action.arguments.get("handle", "")).strip()
+        pattern = str(action.arguments.get("pattern", "")).strip()
+        if handle:
+            key = f"{handle}|{pattern}" if action.kind == "grep_output" and pattern else handle
+            return ActionTarget(action.kind, "output", key, f"{action.kind}:{key}")
     return None
 
 
@@ -78,6 +98,24 @@ def _receipt_matches(receipt: Receipt, action: ActionRequest, target: ActionTarg
         return receipt.kind == "run_command" and _command_fingerprint(str(payload.get("command", ""))) == target.key
     if action.kind == "run_check":
         return receipt.kind == "check_result" and str(payload.get("check_id", "")).strip() == target.key
+    if action.kind == "probe_service":
+        return receipt.kind == "service_probe" and str(payload.get("target", "")).strip() == target.key
+    if action.kind == "stop_process":
+        return receipt.kind == "process_stop" and str(payload.get("target", "")).strip() == target.key
+    if action.kind == "launch_process":
+        return receipt.kind == "process_launch" and (
+            str(payload.get("service_name", "")).strip() == target.key
+            or _command_fingerprint(str(payload.get("command", ""))) == target.key
+        )
+    if action.kind == "inspect_artifact":
+        return receipt.kind == "artifact_inspection" and str(payload.get("path", "")).strip() == target.key
+    if action.kind == "read_file_page":
+        return receipt.kind == "read_file_page" and str(payload.get("path", "")).strip() == target.key
+    if action.kind in {"read_output", "grep_output"}:
+        handle = str(payload.get("handle", "")).strip()
+        pattern = str(payload.get("pattern", "")).strip()
+        key = f"{handle}|{pattern}" if action.kind == "grep_output" and pattern else handle
+        return receipt.kind == action.kind and key == target.key
     return False
 
 

@@ -213,6 +213,9 @@ class AetherNextKernel:
                     "content": (
                         "Your previous turn could not be parsed or validated. "
                         f"Error: {exc}. Emit exactly one valid solver turn JSON object using the allowed schema. "
+                        "Action kinds are nested inside an act turn; they are never top-level turn kinds. "
+                        "Example act: {\"kind\":\"act\",\"summary\":\"probe service\",\"actions\":[{\"action_id\":\"probe1\",\"kind\":\"probe_service\",\"capability_id\":\"service_probe\",\"arguments\":{\"target\":\"127.0.0.1:6665\"},\"intent\":\"confirm readiness\",\"expected_observation\":\"live or not_live\",\"if_fail_next\":\"inspect logs\"}]}. "
+                        "Example submit: {\"kind\":\"submit_outcome\",\"summary\":\"task is complete with cited evidence\"}. "
                         "Do not request reconfiguration; report a blocker only through the report_blocker action if needed."
                     ),
                 }]
@@ -236,7 +239,7 @@ class AetherNextKernel:
                         },
                     ))
                     if trace is not None:
-                        trace.add_step(step, context_packet, SolverTurn(kind="submit_outcome", summary="solver parse error placeholder"), ledger.all_receipts()[before_count:])
+                        trace.add_step(step, context_packet, SolverTurn(kind="solver_protocol_error", summary="solver parse error placeholder"), ledger.all_receipts()[before_count:])
                     self._fire_snapshot(step); step += 1; continue
             turn_errors = turn.validate(compiled.action_schema)
             if turn_errors:
@@ -353,33 +356,60 @@ class AetherNextKernel:
                     window = verifier_round_finding_sets[-self.STALEMATE_ROUNDS:]
                     if (
                         len(window) == self.STALEMATE_ROUNDS
-                        and window[0]
                         and all(entry == window[0] for entry in window)
                     ):
+                        if window[0]:
+                            ledger.record(Receipt(
+                                receipt_id=f"step-{step}:verifier_stalemate",
+                                step=step,
+                                kind="verifier_stalemate",
+                                success=False,
+                                summary=(
+                                    f"verifier stalemate: the same {len(window[0])} finding(s) "
+                                    f"survived {self.STALEMATE_ROUNDS} verification rounds with "
+                                    "intervening solver evidence; harness records the disagreement "
+                                    "and terminates without picking a winner"
+                                ),
+                                failure_class="verifier_stalemate",
+                                payload={
+                                    "rounds": self.STALEMATE_ROUNDS,
+                                    "finding_ids": sorted(window[0]),
+                                    "round_history": [sorted(entry) for entry in verifier_round_finding_sets],
+                                    "final_verifier_verdict": verdict.as_dict(),
+                                    "active_findings": ledger.active_finding_context(step + 1),
+                                },
+                            ))
+                            return KernelResult(
+                                status="verifier_stalemate", step=step,
+                                reconfigurations=reconfigurations,
+                                blockers=tuple(sorted(window[0])),
+                                env_digest=compiled.env_digest,
+                                receipts=ledger.all_receipts(),
+                                architect_defect=bool(architect_defect_reasons),
+                                architect_defect_reasons=tuple(architect_defect_reasons),
+                            )
                         ledger.record(Receipt(
-                            receipt_id=f"step-{step}:verifier_stalemate",
+                            receipt_id=f"step-{step}:verifier_blocked_stalemate",
                             step=step,
-                            kind="verifier_stalemate",
+                            kind="verifier_blocked_stalemate",
                             success=False,
                             summary=(
-                                f"verifier stalemate: the same {len(window[0])} finding(s) "
-                                f"survived {self.STALEMATE_ROUNDS} verification rounds with "
-                                "intervening solver evidence; harness records the disagreement "
-                                "and terminates without picking a winner"
+                                f"verifier blocked/uncertain without actionable findings for "
+                                f"{self.STALEMATE_ROUNDS} repeated verification rounds; "
+                                "harness records the disagreement and terminates without picking a winner"
                             ),
-                            failure_class="verifier_stalemate",
+                            failure_class="verifier_blocked_stalemate",
                             payload={
                                 "rounds": self.STALEMATE_ROUNDS,
-                                "finding_ids": sorted(window[0]),
                                 "round_history": [sorted(entry) for entry in verifier_round_finding_sets],
                                 "final_verifier_verdict": verdict.as_dict(),
                                 "active_findings": ledger.active_finding_context(step + 1),
                             },
                         ))
                         return KernelResult(
-                            status="verifier_stalemate", step=step,
+                            status="verifier_blocked_stalemate", step=step,
                             reconfigurations=reconfigurations,
-                            blockers=tuple(sorted(window[0])),
+                            blockers=(),
                             env_digest=compiled.env_digest,
                             receipts=ledger.all_receipts(),
                             architect_defect=bool(architect_defect_reasons),
