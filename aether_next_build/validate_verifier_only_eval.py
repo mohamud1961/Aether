@@ -118,9 +118,7 @@ def _validate_case(out_dir: Path, case: str) -> CaseValidation:
 
     if isinstance(packet, dict):
         for required in (
-            "task_prompt",
-            "success_definition",
-            "local_verification_limits",
+            "task_contract",
             "raw_state_candidates",
             "state_inspection_handles",
             "active_findings",

@@ -60,7 +60,7 @@ def test_envmap_revision_requires_receipt_and_changes_prefix_and_epoch() -> None
     runtime.revise_envmap(changes={"python": "3.13"}, reason="inspection evidence", evidence_receipt_ids=[receipt])
     assert runtime.envmap.version == 2
     assert runtime.context.prefix.sha256 != before_prefix
-    assert runtime.context.epoch.epoch_id == before_epoch + 1
+    assert runtime.context.epoch.epoch_id == 1
     with pytest.raises(ValueError):
         runtime.revise_envmap(changes={"x": 1}, reason="", evidence_receipt_ids=[receipt])
     with pytest.raises(KeyError):

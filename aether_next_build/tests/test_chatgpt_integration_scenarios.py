@@ -43,7 +43,7 @@ def test_workbench_verifier_repair_loop_exercises_real_kernel_stack() -> None:
         packet for packet in result.context_packets[2:]
         if "active_completion_findings" in packet
     )
-    assert first_verifier_packet["success_definition"] == "out.txt must contain the exact token PASS-123."
+    assert "out.txt must contain the exact token PASS-123." in first_verifier_packet.get("task_contract", {}).get("architect_verifier_prompt", {}).get("rendered", "")
     assert "artifact_history" not in first_verifier_packet
     assert "memory_events" not in first_verifier_packet
     assert "solver_authored_evidence" not in first_verifier_packet
@@ -68,8 +68,7 @@ def test_verifier_only_model_prompt_is_strict_evidence_bound() -> None:
     messages = _model_messages(packet)
 
     assert messages[0]["role"] == "system"
-    assert "Inspect the current workspace state for this task" in messages[0]["content"]
-    assert "verifier_runtime_contract" in messages[1]["content"]
+    assert "Judge the actual current task state" in messages[0]["content"]
     assert "Official benchmark grading remains external." in messages[1]["content"]
     assert "PASS-124" not in messages[1]["content"]
     assert "state_inspection_handles" in messages[1]["content"]

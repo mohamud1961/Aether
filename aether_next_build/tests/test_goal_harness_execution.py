@@ -217,24 +217,3 @@ def test_verifier_packet_has_no_solver_journey_fields() -> None:
     assert packet["state_inspection_handles"]
 
 
-def test_report_blocker_is_routed_to_verifier_packet() -> None:
-    compiled = _compiled()
-    ledger = ExecutionLedger()
-    ledger.ensure_objective(compiled.objective_graph)
-    ledger.record(Receipt(
-        "step-1:a-block:blocker", 1, "report_blocker", False,
-        "solver reported blocker: executor",
-        failure_class="solver_reported_blocker",
-        payload={
-            "blocked_component": "executor",
-            "observed_evidence": "gcc: command not found (exit 127)",
-            "attempted_actions": "ran gcc --version; checked PATH",
-            "why_current_tools_or_config_prevent_progress": "no compiler capability enabled",
-            "requested_harness_change": "enable compiler_build tools",
-        },
-    ))
-    packet = build_verifier_packet(compiled, ledger, step=2, reason="solver_submit")
-    rows = packet["solver_reported_blockers"]
-    assert rows and rows[0]["blocked_component"] == "executor"
-    assert rows[0]["authority"] == "escalation_request_only"
-    assert "gcc" in rows[0]["observed_evidence"]

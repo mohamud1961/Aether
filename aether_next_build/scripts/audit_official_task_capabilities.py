@@ -13,7 +13,10 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 import sys
-import tomllib
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

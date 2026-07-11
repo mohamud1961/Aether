@@ -344,7 +344,7 @@ def _ledger_from_trace(trace: Mapping[str, Any], *, replay_step: int) -> Executi
 
 def _fake_output(packet: Mapping[str, Any], *, variant: str) -> dict[str, Any]:
     text = json.dumps(packet, sort_keys=True).lower()
-    has_arch = variant == "architect_prompt" and bool(packet.get("architect_verifier_prompt", {}).get("rendered"))
+    has_arch = variant == "architect_prompt" and bool(packet.get("task_contract", {}).get("architect_verifier_prompt", {}).get("rendered"))
     has_query_loop = "memory_loop_feedback" in packet and packet.get("memory_loop_feedback")
     has_auto = "automatic_memory_findings" in packet and packet.get("automatic_memory_findings")
     failed_checks = packet.get("failed_or_empty_checks") or packet.get("deterministic_checks") or []
