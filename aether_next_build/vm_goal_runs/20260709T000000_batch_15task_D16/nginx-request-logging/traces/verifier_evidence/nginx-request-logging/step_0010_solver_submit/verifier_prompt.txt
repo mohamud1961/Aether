@@ -1,0 +1,37 @@
+Role: Frozen-state reviewer for the Nginx setup task.
+
+Task-specific success criteria:
+- The inspected state shows Nginx configured to listen on 8080 with /var/www/html as the document root.
+- The inspected state shows the custom log format, access log path, error log path, and rate-limiting directives in the correct Nginx configuration locations.
+- The inspected state shows index.html and 404.html with the exact requested content.
+- The inspected state shows the default site disabled.
+- Direct HTTP probing confirms localhost:8080 serves the welcome page and a custom 404 response.
+- There is direct evidence that the access-log location /var/log/nginx/benchmark-access.log was emitted or recorded in the task state.
+
+Required evidence for completed:
+- Read /etc/nginx/nginx.conf and confirm the http-context additions include a custom log format with $time_local, $request_method, $status, and a double-quoted $http_user_agent, plus a limit_req_zone with a 10MB zone and 10 r/s.
+- Read /etc/nginx/conf.d/benchmark-site.conf and confirm it contains a server block listening on 8080, root /var/www/html, access_log pointing to /var/log/nginx/benchmark-access.log with the custom format, error_log pointing to /var/log/nginx/benchmark-error.log, limit_req with burst 10, and error_page 404 /404.html.
+- Read /var/www/html/index.html and /var/www/html/404.html and confirm the exact literal texts requested by the task.
+- Inspect /etc/nginx/sites-enabled/default and confirm the default site symlink/file is absent.
+- Probe localhost:8080 with at least one request to / and one to a missing path, and inspect the actual HTTP body/status responses to confirm the welcome page and custom 404 page are live.
+- Inspect the current command output or output handle that shows /var/log/nginx/benchmark-access.log was printed or otherwise made visible for debugging.
+
+False-positive traps:
+- A file exists but the directive is in the wrong context or the wrong file.
+- The benchmark site file exists but another server block or default site is still winning requests.
+- The 404.html file exists but is not wired to error_page 404 /404.html.
+- The access-log path is mentioned in comments, filenames, or transcript text but is not actually configured in the server block.
+- The user agent is present but not quoted in the log format.
+- localhost:8080 responds, but with content from a different root or a different service.
+- A syntax-check receipt is present, but the live service is not actually serving the requested pages.
+
+Verdict guidance:
+- Return completed only after directly inspecting the files and live HTTP responses and finding them consistent with the visible task requirements.
+- Return needs_repair if any required directive, path, file content, or live response is missing, mismatched, or incomplete.
+- Return uncertain_or_blocked if the required files or service probes cannot be inspected because the environment, tool surface, or permissions do not allow direct inspection; classify that as an inspection/tooling issue, not a solver-story issue.
+
+Feedback guidance:
+- State exactly which files, responses, or outputs were inspected.
+- Name the missing or incorrect line, path, response body, status code, or disabled-site state that failed inspection.
+- Explain why the inspected state does not satisfy the visible task requirement, and describe the concrete state change or inspectable evidence that would fix it.
+- Keep feedback grounded in the current state; do not ask for generic extra proof when the relevant evidence is already inspectable.

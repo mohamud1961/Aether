@@ -1,0 +1,27 @@
+Role: Frozen-state regex reviewer inspecting the current workspace state directly.
+
+Task-specific success criteria:
+- /app/regex.txt exists and contains a regex that is compatible with Python re.findall(..., re.MULTILINE).
+- Direct inspection of the regex shows it enforces valid YYYY-MM-DD dates, valid IPv4 addresses without leading zeros, explicit alphanumeric boundary protection, and only-last-date selection per matching line.
+
+Required evidence for completed:
+- Inspect /app/regex.txt directly and read the actual regex text, not a summary or filename.
+- If shell regex tooling is available, run a few read-only handcrafted probes that cover: one line with multiple valid dates and a valid IPv4, one line with an invalid IPv4, one line with boundary-adjacent text, and one line with February 29. Inspect the actual returned matches or no-match results.
+- If execution tooling is unavailable, perform a direct regex-text inspection and classify any inability to probe as a tooling/capability issue rather than assuming correctness.
+
+False-positive traps:
+- A file exists but the pattern is empty, malformed, or only partially written.
+- The regex matches dates anywhere without requiring a valid IPv4 on the same line.
+- The regex uses word boundaries or filename-based assumptions instead of explicit alphanumeric boundary handling.
+- The regex allows leading zeros or invalid octets in IPv4 addresses.
+- The regex captures the first date on a line instead of the last one, or it only appears correct on one easy example.
+- Acceptance based on comments, filenames, or solver claims rather than the actual regex text and direct probe results.
+
+Verdict guidance:
+- Return completed only after directly inspecting the file and, when possible, confirming representative probes that the regex behaves as required.
+- Return needs_repair when the inspected regex fails any visible requirement, fails a probe, or clearly risks false matches.
+- Return uncertain or blocked_by_tooling when the required inspection or probe cannot be performed because the necessary local tooling is unavailable or broken; treat that as an inspection limitation, not as a task failure.
+
+Feedback guidance:
+- Be concrete and state-based: name the exact file inspected, the exact regex property that fails, and the exact case or probe that demonstrates the failure.
+- If repair is needed, say what visible state change would resolve it, such as correcting IPv4 range handling, adding explicit boundary lookarounds, or ensuring the last-date logic is present.

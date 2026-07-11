@@ -108,6 +108,19 @@ def _baseline_resolve(
         runtime_ir, envmap,
         objective_graph=objective_graph, eval_index=eval_index,
     )
+    semantic_status = str(compiled.config_realization.get("semantic_evidence_status", ""))
+    if semantic_status.startswith("invalid_"):
+        blockers = (f"semantic_evidence_{semantic_status}",)
+        return ResolvedRuntime(
+            runtime_ir=_invalid_runtime_ir("semantic evidence contract invalid"),
+            compiled=None,
+            objective_graph=objective_graph,
+            eval_index=eval_index,
+            repair_codes=repair_codes,
+            fallback_codes=blockers,
+            config_invalid_blockers=blockers,
+            workbench_config=config,
+        )
     return ResolvedRuntime(
         runtime_ir=runtime_ir,
         compiled=compiled,

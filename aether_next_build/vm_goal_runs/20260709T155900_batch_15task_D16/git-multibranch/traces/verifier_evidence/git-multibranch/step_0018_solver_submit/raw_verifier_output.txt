@@ -1,0 +1,20 @@
+{
+  "verdict": "needs_repair",
+  "confidence": 0.95,
+  "summary": "The live SSH/HTTPS probes in the packet are encouraging, but the current read-only inspection of the deployment log path failed: /var/log/git-deploy.log was not found. That means there is no direct current-state timing evidence proving main and dev deployments completed within 3 seconds, which is a visible requirement.",
+  "findings": [
+    {
+      "finding_id": "timing-log-missing-0",
+      "applies_to": [
+        "/var/log/git-deploy.log",
+        "deployment timing evidence"
+      ],
+      "summary": "The current state does not expose the deployment log or equivalent timestamps needed to prove push-to-deploy completion within the 3-second window.",
+      "evidence": [
+        "verifier_inspection_results: {\"error\": \"file not found: var/log/git-deploy.log\", \"kind\": \"read_file\", \"request_id\": \"auto-missing-evidence-0\"}",
+        "Packet receipts show successful SSH and HTTPS probe commands, but they do not substitute for a current inspectable push-to-deploy timing record."
+      ],
+      "repair_instruction": "Restore or expose a live deployment log or timestamp source (for example /var/log/git-deploy.log) and provide entries for both main and dev showing each push finished with duration_ms < 3000."
+    }
+  ]
+}

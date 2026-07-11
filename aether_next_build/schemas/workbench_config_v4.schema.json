@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aether-next.local/schemas/workbench_config_v4.schema.json",
+  "title": "Aether-Next WorkbenchConfig v4 reference acceptance schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_understanding", "success_definition", "clause_coverage", "solver_system_prompt", "verifier_system_prompt", "verifier_strategy", "context_policy", "memory_policy", "process_policy", "resource_policy", "reconfigure_policy"],
+  "properties": {
+    "schema_version": {"const": "workbench_config.v4"},
+    "task_understanding": {"type": "string", "minLength": 1},
+    "success_definition": {"type": "string", "minLength": 1},
+    "clause_coverage": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["clause_id", "solver_handling", "verifier_check"], "properties": {"clause_id": {"type": "string", "minLength": 1}, "solver_handling": {"type": "string", "minLength": 1}, "verifier_check": {"type": "string", "minLength": 1}}}},
+    "solver_system_prompt": {"type": "string", "minLength": 1},
+    "verifier_system_prompt": {"type": "string", "minLength": 1},
+    "verifier_strategy": {"type": "object", "additionalProperties": false, "required": ["clause_checks", "false_positive_traps"], "properties": {"clause_checks": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["clause_id", "inspection_route", "falsification_check", "required_evidence_class"], "properties": {"clause_id": {"type": "string", "minLength": 1}, "inspection_route": {"type": "string", "minLength": 1}, "fallback_route": {"type": ["string", "null"]}, "falsification_check": {"type": "string", "minLength": 1}, "required_evidence_class": {"enum": ["shape", "metadata_proxy", "solver_authored_test", "same_method", "behavioral", "exact_contract", "independent_semantic"]}}}}, "false_positive_traps": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "return_all_findings": {"type": "boolean", "default": true}}},
+    "context_policy": {"type": "object", "additionalProperties": false, "required": ["selectors"], "properties": {"selectors": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["kind", "representation"], "properties": {"kind": {"enum": ["task_contract", "env_fact", "file", "receipt", "artifact", "service_state", "job_state", "active_findings", "latest_result", "named_section"]}, "target": {"type": ["string", "null"]}, "representation": {"enum": ["full", "head_tail", "targeted_excerpt", "structured_summary", "handle_only"]}, "required": {"type": "boolean", "default": false}, "max_chars": {"type": "integer", "minimum": 1}, "pattern": {"type": ["string", "null"]}}}}, "max_events_before_compaction": {"type": "integer", "minimum": 2}, "max_dynamic_bytes": {"type": "integer", "minimum": 1024}}},
+    "memory_policy": {"type": "object", "additionalProperties": false, "properties": {"repeat_mode": {"enum": ["warn", "soft_block_exact_repeat", "require_state_change"]}, "require_query_before_repeat": {"type": "boolean"}, "require_query_before_overwrite": {"type": "boolean"}, "index_by": {"type": "array", "items": {"type": "string"}}}},
+    "process_policy": {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"enum": ["interactive", "service", "batch_job"]}, "readiness": {"type": "array", "items": {"type": "string"}}, "heartbeat_interval_s": {"type": "number", "exclusiveMinimum": 0}, "allow_equivalent_overlap": {"type": "boolean"}}},
+    "resource_policy": {"type": "object", "additionalProperties": false, "required": ["max_steps", "total_timeout_s", "command_timeout_s", "verifier_timeout_s"], "properties": {"max_steps": {"type": "integer", "minimum": 1}, "total_timeout_s": {"type": "number", "exclusiveMinimum": 0}, "command_timeout_s": {"type": "number", "exclusiveMinimum": 0}, "verifier_timeout_s": {"type": "number", "exclusiveMinimum": 0}}},
+    "reconfigure_policy": {"type": "object", "additionalProperties": false, "properties": {"enabled": {"type": "boolean"}, "max_versions": {"type": "integer", "minimum": 1}, "allowed_owners": {"type": "array", "items": {"type": "string"}}}},
+    "local_verification_limits": {"type": "array", "items": {"type": "string"}}
+  },
+  "not": {"anyOf": [{"required": ["selected_capabilities"]}, {"required": ["enabled_tools"]}, {"required": ["tool_policy"]}, {"required": ["tools"]}, {"required": ["capabilities"]}]}
+}

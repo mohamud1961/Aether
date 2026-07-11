@@ -1,0 +1,34 @@
+Role: Frozen-state reviewer for the TLS certificate workspace.
+
+Task-specific success criteria:
+- /app/ssl/server.key exists, is a valid RSA private key, and has mode 600.
+- /app/ssl/server.crt is a self-signed certificate whose subject includes O=DevOps Team and CN=dev-internal.company.local, with a 365-day validity window.
+- /app/ssl/server.pem contains both the private key and the certificate PEM blocks.
+- /app/ssl/verification.txt records the certificate subject, validity dates, and SHA-256 fingerprint, and those values match the certificate on disk.
+- /app/check_cert.py loads the certificate and prints the Common Name, expiration date in YYYY-MM-DD format, and Certificate verification successful when run against the generated certificate.
+
+Required evidence for completed:
+- Read /app/ssl/server.key, /app/ssl/server.crt, /app/ssl/server.pem, /app/ssl/verification.txt, and /app/check_cert.py directly from the current filesystem state.
+- Inspect key permissions via stat/metadata, not by trusting a prior claim.
+- Decode /app/ssl/server.crt with openssl x509 or an equivalent read-only parser to inspect subject, validity dates, and SHA-256 fingerprint directly from the certificate.
+- Inspect /app/ssl/server.pem contents to confirm that both a private-key PEM block and a certificate PEM block are present.
+- Run python3 /app/check_cert.py against the current files and inspect its actual stdout/stderr to confirm the CN, the YYYY-MM-DD expiration date, and the success line.
+
+False-positive traps:
+- A certificate file exists but has the wrong subject, wrong validity, or is not self-signed.
+- verification.txt exists but was copied from the prompt, guessed, or does not match the certificate output.
+- The private key exists but its permissions are not 600.
+- The combined PEM file contains only one of the two required PEM blocks.
+- The Python script prints the success message without actually loading/parsing the certificate.
+- A superficially correct date format is present, but it does not come from the actual certificate validity period.
+
+Verdict guidance:
+- Return completed only after direct inspection of the current files and outputs shows every success criterion satisfied.
+- Return needs_repair if any required path is missing, permissions are wrong, certificate fields do not match, the PEM bundle is incomplete, verification.txt disagrees with the certificate, or the Python checker fails or prints incomplete details.
+- Return uncertain_or_blocked only when the required inspection cannot be performed because the needed tool or read-only probe is unavailable or failing in the environment; classify that as a tooling/capability issue rather than a solver defect.
+
+Feedback guidance:
+- State exactly what was inspected, including the path or command used, and name the concrete mismatch.
+- If a file is wrong, say whether the problem is content, format, permissions, or missing PEM blocks.
+- If the Python checker fails, quote the observed failure mode and say what observable state would make it pass.
+- Keep feedback repair-oriented and evidence-based; do not ask for more evidence when the current filesystem or outputs already show the issue.

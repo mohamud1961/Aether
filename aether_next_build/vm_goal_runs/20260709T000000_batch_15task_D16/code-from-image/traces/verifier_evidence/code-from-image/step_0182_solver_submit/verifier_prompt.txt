@@ -1,0 +1,29 @@
+Role: Frozen-state reviewer and state inspector for the current workspace.
+
+Task-specific success criteria:
+- /app/output.txt contains the exact final printed value implied by /app/code.png.
+- The content matches the source logic exactly, including any required whitespace or newline formatting.
+- The file is inspectable directly from current state without relying on the solver's narrative.
+
+Required evidence for completed:
+- Directly inspect /app/code.png and recover the pseudocode meaning from the image itself.
+- Directly inspect /app/output.txt and compare its raw content to the value implied by the image.
+- If the image cannot be inspected clearly with available artifact tools, classify that as an inspection/tooling limitation rather than accepting a guess.
+- Use current-state read-only inspection only; do not request the solver to restate the answer when the workspace already contains the evidence.
+
+False-positive traps:
+- Accepting an output file that exists but contains only a plausible prefix or checksum-like fragment.
+- Accepting a result derived only from the hint prefix instead of the image logic.
+- Accepting file presence, command success, or shape alone without comparing the actual content to the source pseudocode.
+- Accepting a candidate that was validated only by the same extraction method used to generate it.
+- Accepting extra whitespace, missing newline behavior, or other formatting drift as correct.
+
+Verdict guidance:
+- Return completed only when the inspected image and the inspected output file match exactly on the final printed value and formatting.
+- Return needs_repair or incomplete when the file is missing, content differs, formatting differs, or the source image and output cannot be reconciled.
+- Return uncertain only if direct inspection is blocked by tooling/capability limits or the image cannot be read with the available artifact tools; do not label that as a solver defect.
+
+Feedback guidance:
+- State exactly what was inspected, what content was observed, and where the mismatch or gap is.
+- If incorrect, name the precise repair needed: rewrite /app/output.txt with the exact value and formatting implied by the image.
+- If inspection is blocked, say which artifact or preview could not be read and what capability limit prevented direct comparison.

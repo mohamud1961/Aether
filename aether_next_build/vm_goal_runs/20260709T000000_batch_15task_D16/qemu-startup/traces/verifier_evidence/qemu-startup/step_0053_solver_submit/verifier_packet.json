@@ -1,0 +1,436 @@
+{
+  "active_findings": [],
+  "architect_verifier_prompt": {
+    "hash": "7732a7bf4ea13124",
+    "rendered": "Role: Frozen-state reviewer for the current QEMU/telnet VM state.\n\nTask-specific success criteria:\n- The current workspace/runtime state contains a live QEMU guest that is still running in the background.\n- Local port 6665 is open and exposes the guest serial console.\n- A direct read of the current telnet/serial console shows the login prompt.\n- The evidence is current-state evidence, not a stale log or solver claim.\n\nRequired evidence for completed:\n- Inspect the current QEMU launch receipt, output handle, or equivalent process artifact for the actual command/handle used to start the VM.\n- Probe `127.0.0.1:6665` directly to confirm the port is open now.\n- Read the current telnet/serial output directly and confirm the presence of the guest login prompt.\n- If available, inspect the latest QEMU stdout/stderr or service output to confirm the VM is still active after the prompt is reached.\n\nFalse-positive traps:\n- A command log that merely claims QEMU was started without current-state confirmation.\n- A listening port with no actual guest prompt on the console.\n- An installer screen, boot menu, shell prompt, or other text that is not a login prompt.\n- A stale transcript from a previous run after the VM has already exited.\n- A telnet connection to the wrong host/port or to a different process.\n\nVerdict guidance:\n- Return completed only when direct inspection of the current state confirms all success criteria.\n- Return incomplete or needs repair when any one of the required elements is missing, wrong, or only evidenced by a stale artifact.\n- Return uncertain or blocked only when the inspection surface itself cannot read files, probe the port, or access the current output; treat that as an inspection/tooling issue, not a solver-state issue.\n\nFeedback guidance:\n- State exactly what was inspected: the launch artifact, the port probe, and the console transcript.\n- Name the concrete failure: closed port, dead process, wrong console text, wrong image/boot mode, or stale evidence.\n- Describe the smallest state change or new inspectable evidence that would resolve the issue, such as a corrected launch command, a live port probe, or a fresh console transcript showing the login prompt.",
+    "summary": "Role: Frozen-state reviewer for the current QEMU/telnet VM state."
+  },
+  "artifacts_present": [],
+  "config_realization": {
+    "architect_path": "workbench",
+    "context_policy": {
+      "compression_trigger_ratio": 0.6,
+      "include_sections": [],
+      "mode": "default_bounded"
+    },
+    "harness_config_realization_audit": {
+      "dispositions": {
+        "context_policy": {
+          "mode": "default_bounded",
+          "note": "supported modes are realized; custom sections are allowlisted; optional recipes are compiled into ContextPolicy and realized by ContextCompiler with explicit metadata",
+          "recipe": {
+            "always_include": [
+              "latest_launch",
+              "latest_port_probe",
+              "latest_console_transcript",
+              "active_findings"
+            ],
+            "include_last_failure": 1,
+            "include_recent": [
+              {
+                "count": 3,
+                "selector": "command_run"
+              },
+              {
+                "count": 2,
+                "selector": "launch_process"
+              },
+              {
+                "count": 3,
+                "selector": "probe_service"
+              },
+              {
+                "count": 3,
+                "selector": "read_output"
+              }
+            ],
+            "make_queryable_not_inline": [
+              "long boot logs",
+              "repeated probe histories"
+            ],
+            "preserve_exact": [
+              "QEMU launch command",
+              "port 6665 probe output",
+              "telnet transcript lines containing the prompt"
+            ],
+            "unsupported_fields": []
+          },
+          "recipe_declared": true,
+          "sections": [],
+          "status": "realized_partial"
+        },
+        "evidence_requirements": {
+          "count": 4,
+          "realized_as": "RuntimeConfigIR.evidence_requirements, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "expected_steps": {
+          "realized_as": "config_realization.expected_steps and result-row step_efficiency (advisory metric, never a gate)",
+          "status": "realized_advisory",
+          "value": 8
+        },
+        "failure_feedback_policy": {
+          "note": "active findings persist via ActiveFindingStore; policy variants are not compiled yet",
+          "persist_until": "resolved_or_superseded",
+          "status": "advisory_partial"
+        },
+        "false_positive_risks": {
+          "count": 5,
+          "realized_as": "RuntimeConfigIR.false_positive_risks, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "helper_script_policy": {
+          "directory": ".aether_tools",
+          "enabled": true,
+          "status": "realized"
+        },
+        "local_verification_limits": {
+          "count": 4,
+          "realized_as": "RuntimeConfigIR.local_verification_limits, advisory_notes, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "memory_policy": {
+          "automatic_repeat_mode": "soft_block_exact_repeat",
+          "index_by": [
+            "path",
+            "action_kind",
+            "check_id",
+            "failure_kind"
+          ],
+          "note": "automatic_repeat_mode is compiled into RuntimeConfigIR.automatic_memory_policy; legacy query-before fields remain advisory metadata while automatic memory replaces solver-called query rituals",
+          "require_query_before_overwrite": false,
+          "require_query_before_repeat": false,
+          "runtime_automatic_memory_policy": {
+            "mode": "soft_block_exact_repeat"
+          },
+          "status": "realized_partial"
+        },
+        "minimum_completion_evidence": {
+          "count": 3,
+          "realized_as": "RuntimeConfigIR.minimum_completion_evidence, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "model_verifier_policy": {
+          "enabled": true,
+          "realized_as": "RuntimeConfigIR.model_verifier_policy and kernel_verifier reason filtering",
+          "runs_on": [
+            "solver_submit"
+          ],
+          "status": "realized"
+        },
+        "schema_version": {
+          "evidence": "parse_harness_config_ir rejects non-harness_config.v1",
+          "status": "validated"
+        },
+        "solver_system_prompt": {
+          "inserted": true,
+          "realized_as": "RuntimeConfigIR.solver_identity_prompt",
+          "status": "realized"
+        },
+        "success_definition": {
+          "realized_as": "RuntimeConfigIR.success_definition and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "task_understanding": {
+          "realized_as": "RuntimeConfigIR.architect_summary",
+          "status": "realized"
+        },
+        "tool_policy": {
+          "always_available_tools": [
+            "grep_output",
+            "inspect_checks",
+            "inspect_diff",
+            "query_artifact_history",
+            "query_memory",
+            "read_file_page",
+            "read_output",
+            "record_observation",
+            "report_blocker",
+            "run_check"
+          ],
+          "architect_tool_guidance_recorded": true,
+          "architect_tool_selection_applied": false,
+          "audit_separately_tools": [
+            "run_experiment",
+            "register_candidate",
+            "reconfigure"
+          ],
+          "disabled_tools_declared": [],
+          "enabled_tools_declared": [
+            "read_file",
+            "write_file",
+            "run_command",
+            "launch_process",
+            "probe_service",
+            "stop_process",
+            "read_output",
+            "grep_output",
+            "query_memory",
+            "query_artifact_history",
+            "inspect_diff",
+            "record_observation",
+            "inspect_checks",
+            "run_check",
+            "report_blocker"
+          ],
+          "note": "Workbench stable-core mode does not hide core solver tools merely because the architect omitted them; real restrictions must come from env/safety/runtime capability availability.",
+          "runtime_allowed_tools_expected": [
+            "bootstrap_acquire",
+            "grep_output",
+            "inspect_artifact",
+            "inspect_checks",
+            "inspect_diff",
+            "launch_process",
+            "probe_service",
+            "query_artifact_history",
+            "query_memory",
+            "read_file",
+            "read_file_page",
+            "read_output",
+            "record_observation",
+            "report_blocker",
+            "run_check",
+            "run_command",
+            "stop_process",
+            "write_file"
+          ],
+          "selected_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "managed_process",
+            "network_fetch",
+            "service_probe",
+            "shell"
+          ],
+          "stable_core_solver_tools": [
+            "read_file",
+            "write_file",
+            "run_command",
+            "launch_process",
+            "probe_service",
+            "stop_process",
+            "inspect_artifact",
+            "bootstrap_acquire",
+            "query_memory",
+            "query_artifact_history",
+            "inspect_diff",
+            "record_observation",
+            "inspect_checks",
+            "run_check"
+          ],
+          "status": "advisory_not_applied_to_core_visibility",
+          "tool_policy_mode": "stable_core"
+        },
+        "verification_policy": {
+          "compiled_visible_smoke_checks": [],
+          "note": "safe typed visible smoke specs compile into internal CheckSpec evidence; unsupported or under-specified specs are rejected/quarantined and never become official grader authority",
+          "rejected_config_items": [],
+          "repair_warning_codes": [],
+          "repair_warnings": [],
+          "smoke_compile_rejections": [],
+          "status": "realized_partial",
+          "structural_checks": 0,
+          "visible_smoke_tests": 0
+        },
+        "verifier_system_prompt": {
+          "inserted": true,
+          "realized_as": "RuntimeConfigIR.verifier_identity_prompt and verifier packet/prompt metadata",
+          "status": "realized"
+        }
+      },
+      "guardrails": {
+        "schema_humility": {
+          "note": "Placeholder notation is reported when it appears to be hardened into list/array contracts; the harness does not rewrite the task or decide the correct semantic type.",
+          "realized_as": "architect prompt instruction, runtime manual guidance, advisory notes, and config_realization_audit guardrail",
+          "status": "realized_advisory",
+          "warnings": []
+        }
+      },
+      "has_silent_ignored_fields": false,
+      "missing_dispositions": [],
+      "top_level_fields": [
+        "context_policy",
+        "evidence_requirements",
+        "expected_steps",
+        "failure_feedback_policy",
+        "false_positive_risks",
+        "helper_script_policy",
+        "local_verification_limits",
+        "memory_policy",
+        "minimum_completion_evidence",
+        "model_verifier_policy",
+        "schema_version",
+        "solver_system_prompt",
+        "success_definition",
+        "task_understanding",
+        "tool_policy",
+        "verification_policy",
+        "verifier_system_prompt"
+      ]
+    },
+    "harness_config_schema_version": "harness_config.v1",
+    "tools_runtime_allowed": [
+      "bootstrap_acquire",
+      "grep_output",
+      "inspect_artifact",
+      "inspect_checks",
+      "inspect_diff",
+      "launch_process",
+      "probe_service",
+      "query_artifact_history",
+      "query_memory",
+      "read_file",
+      "read_file_page",
+      "read_output",
+      "record_observation",
+      "report_blocker",
+      "run_check",
+      "run_command",
+      "stop_process",
+      "write_file"
+    ],
+    "tools_visible_to_solver": [
+      "bootstrap_acquire",
+      "grep_output",
+      "inspect_artifact",
+      "inspect_checks",
+      "inspect_diff",
+      "launch_process",
+      "probe_service",
+      "query_artifact_history",
+      "query_memory",
+      "read_file",
+      "read_file_page",
+      "read_output",
+      "record_observation",
+      "report_blocker",
+      "run_check",
+      "run_command",
+      "stop_process",
+      "write_file"
+    ],
+    "verification_authority": {
+      "model_verifier": "internal_gate",
+      "official_grader": "external_benchmark"
+    },
+    "verification_policy": {
+      "check_plan_ids": [],
+      "official_grader_authority": "external_benchmark"
+    },
+    "workbench_rejected_config_items": [],
+    "workbench_repair_warning_codes": [],
+    "workbench_repair_warnings": []
+  },
+  "evidence_requirements": [
+    "A current QEMU launch command/receipt or background-process handle.",
+    "A direct probe showing `127.0.0.1:6665` is listening.",
+    "A telnet transcript or console read that visibly includes the guest login prompt.",
+    "Evidence that the VM remains running after the prompt is reached, such as a live process handle or continuing output stream."
+  ],
+  "false_positive_risks": [
+    "The VM may appear complete because QEMU started, but the serial console is not actually exposed on 6665.",
+    "The port may be open, but the guest may still be booting, in an installer, or not at a login prompt.",
+    "The prompt may be from an earlier stale run rather than the current background process.",
+    "The wrong architecture or boot order may produce a boot screen that looks plausible but never reaches a login prompt.",
+    "A same-method self-check could simply repeat the launch command output and miss that the telnet console is wrong."
+  ],
+  "local_verification_limits": [
+    {
+      "source": "runtime_config",
+      "statement": "Port openness is only a transport check; it does not by itself prove the guest has reached the login prompt."
+    },
+    {
+      "source": "runtime_config",
+      "statement": "If the ISO and qcow2 boot differently, the solver must use actual boot output to decide; local checks cannot infer the correct boot mode from filenames alone."
+    },
+    {
+      "source": "runtime_config",
+      "statement": "This environment lacks some common utilities such as `file`, `ps`, and `pgrep`, so verification should rely on the managed-process handle, QEMU output, telnet, and service probes instead of process-list tooling."
+    },
+    {
+      "source": "runtime_config",
+      "statement": "A local telnet check can show the current prompt, but it cannot guarantee indefinite future availability after completion."
+    }
+  ],
+  "minimum_completion_evidence": [
+    "Current-state proof of a running background QEMU guest.",
+    "Current-state proof that port 6665 is open.",
+    "A fresh telnet/serial transcript showing the guest login prompt on that port."
+  ],
+  "objective_graph": "{\"allowed_edit_roots\":[\".\"],\"deliverables\":[],\"output_schema\":{},\"output_schema_target\":\"\",\"package_requirements\":[],\"protected_paths\":[],\"service_requirements\":[],\"thresholds\":[]}",
+  "official_grader_authority": "external_benchmark",
+  "open_obligations": [],
+  "raw_state_candidates": [],
+  "reason": "solver_submit",
+  "recent_command_receipts": [
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app && qemu-img info alpine.iso && echo '---' && qemu-img info alpine-disk.qcow2",
+      "exit_code": 0,
+      "receipt_id": "step-9:inspect-images:cmd",
+      "stderr_handle": "9:inspect-images:stderr",
+      "stdout_handle": "9:inspect-images:stdout",
+      "step": 9
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "bash -lc \"for i in $(seq 1 180); do if (echo > /dev/tcp/127.0.0.1/6665) >/dev/null 2>&1; then break; fi; sleep 1; done; expect -c 'log_user 1; set timeout 300; spawn telnet 127.0.0.1 6665; expect { -re {(?i)login:} { puts {LOGIN_PROMPT}; exit 0 } timeout { puts {TIMEOUT}; exit 1 } eof { puts {EOF}; exit 2 } }'\"",
+      "exit_code": 2,
+      "receipt_id": "step-10:a-1:cmd",
+      "stderr_handle": "10:a-1:stderr",
+      "stdout_handle": "10:a-1:stdout",
+      "step": 10
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app\nrm -f /tmp/alpine-qemu.log\nnohup qemu-system-x86_64 -m 1024 -drive file=/app/alpine-disk.qcow2,if=virtio,format=qcow2 -cdrom /app/alpine.iso -boot order=dc -display none -serial telnet:127.0.0.1:6665,server,nowait -monitor none >/tmp/alpine-qemu.log 2>&1 &\npid=$!\necho \"QEMU_PID=$pid\"\nfor i in $(seq 1 180); do\n  if (echo > /dev/tcp/127.0.0.1/6665) >/dev/null 2>&1; then\n    echo \"PORT_6665_OPEN\"\n    break\n  fi\n  sleep 1\ndone\nif ! (echo > /dev/tcp/127.0.0.1/6665) >/dev/null 2>&1; then\n  echo \"PORT_6665_NOT_OPEN\"\n  tail -n 40 /tmp/alpine-qemu.log\n  exit 1\nfi\nexpect <<'EOF'\nlog_user 1\nset timeout 300\nspawn telnet 127.0.0.1 6665\nexpect {\n  -re {(?i)login:} { puts \"\\nLOGIN_PROMPT\"; exit 0 }\n  timeout { puts \"\\nTIMEOUT\"; exit 1 }\n  eof { puts \"\\nEOF\"; exit 2 }\n}\nEOF",
+      "exit_code": 0,
+      "receipt_id": "step-23:a-0:cmd",
+      "stderr_handle": "23:a-0:stderr",
+      "stdout_handle": "23:a-0:stdout",
+      "step": 23
+    }
+  ],
+  "solver_reported_blockers": [],
+  "state_inspection_handles": [
+    {
+      "bytes": 385,
+      "handle": "9:inspect-images:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "9:inspect-images:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 0,
+      "handle": "10:a-1:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 79,
+      "handle": "10:a-1:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 332,
+      "handle": "23:a-0:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "23:a-0:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    }
+  ],
+  "step": 53,
+  "success_definition": "A QEMU guest is running in the background, local TCP port 6665 is accepting telnet connections, and a telnet session to that port shows the guest login prompt. The evidence must come from the current runtime state, not from a claimed launch alone.",
+  "task_prompt": "Start the /app/alpine.iso image in qemu in such a way that I can connect to it via `telnet 127.0.0.1 6665`. When I run telnet I will expect to see the login prompt; I'll log in. You should just get me to this point. Start the image in the background and leave it running. Block until it's ready.\n"
+}

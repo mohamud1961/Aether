@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import queue
 import threading
-from typing import Any
+from typing import Any, Mapping
 
 from .ledger import ExecutionLedger, Receipt
 from .runtime_ir import CompiledRuntime
@@ -17,6 +17,7 @@ from .verifier_inspector import (
 )
 from .verifier_overlay import VerifierOverlay
 from .verifier_packets import build_verifier_packet, packet_state_signature
+from .verifier_recovery import VerifierRecoveryAction, VerifierRecoveryRouter
 
 def _verifier_command_budget_s(envmap: Any) -> int:
     """Task-declared verifier budget bounds overlay command execution."""
@@ -105,6 +106,7 @@ def run_model_verifier_if_available(
     reason: str,
     executor: Any | None = None,
     envmap: Any | None = None,
+    dynamic_state: Mapping[str, Any] | None = None,
     memo: dict[str, Any] | None = None,
 ) -> ModelVerifierResult | None:
     verify = getattr(hooks, "verify", None)
@@ -127,7 +129,59 @@ def run_model_verifier_if_available(
             },
         ))
         return None
-    packet = build_verifier_packet(compiled, ledger, step=step, reason=reason)
+    # A live kernel run may have a WorldState snapshot that is richer than the
+    # receipt ledger (named sections and explicit removals in particular).  Do
+    # not silently discard it at this boundary.  The verifier is fail-closed
+    # until both authorities are present: a missing snapshot or EnvMap must
+    # not be allowed to produce a completed model verdict from an incomplete
+    # packet.
+    if dynamic_state is None or envmap is None:
+        missing = []
+        if dynamic_state is None:
+            missing.append("dynamic_state")
+        if envmap is None:
+            missing.append("stable_envmap")
+        summary = "verifier state unavailable: missing " + ", ".join(missing)
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:verifier_state_unavailable:{reason}",
+            step=step,
+            kind="verifier_state_unavailable",
+            success=False,
+            summary=summary,
+            failure_class="dynamic_state_unavailable",
+            payload={
+                "reason": reason,
+                "available": False,
+                "missing": missing,
+                "source": "kernel",
+            },
+        ))
+        blocked = ModelVerifierResult(
+            verdict="blocked_by_harness_config",
+            confidence="high",
+            summary=summary,
+        )
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:model_verifier_result:state_unavailable:{reason}",
+            step=step,
+            kind="model_verifier_result",
+            success=False,
+            summary=f"model verifier verdict: {blocked.verdict}",
+            failure_class=blocked.verdict,
+            payload=blocked.as_dict(),
+        ))
+        return blocked
+    # Pass the stable environment authority and dynamic world snapshot into
+    # the neutral packet.  The packet builder deliberately does not receive
+    # Solver prompts, journey history, or model-authored proof.
+    packet = build_verifier_packet(
+        compiled,
+        ledger,
+        step=step,
+        reason=reason,
+        envmap=envmap,
+        dynamic_state=dynamic_state,
+    )
     signature = packet_state_signature(packet)
     if (
         memo is not None
@@ -177,6 +231,12 @@ def run_model_verifier_if_available(
             envmap=envmap,
         )
         result = parse_model_verifier_result(raw)
+        if _inspection_tooling_blocked(ledger, packet_signature=signature, step=step):
+            result = ModelVerifierResult(
+                verdict="blocked_by_tooling",
+                confidence="high",
+                summary="compiled Verifier inspection primary and fallback routes both failed",
+            )
     except Exception as exc:
         # A kernel wall-time interrupt is control flow, not a verifier failure.
         # If it fires inside a verifier model call it must propagate so the
@@ -197,6 +257,39 @@ def run_model_verifier_if_available(
             failure_class="model_verifier_error",
             payload={"reason": reason, "error": str(exc)},
         ))
+        # Provider/protocol/tool failures remain verifier-owned.  Record the
+        # bounded recovery decision, but do not manufacture a Solver finding
+        # or return a needs_repair verdict from this path.
+        recovery_router = _recovery_router(memo)
+        blocker_owner, blocker_verified = _verified_blocker_receipt(ledger, step=step, packet_signature=signature)
+        recovery = recovery_router.route(
+            ModelVerifierResult(
+                verdict="blocked_by_tooling",
+                confidence="high",
+                summary=f"verifier call failed: {exc}",
+            ),
+            packet_signature=signature,
+            blocker_owner=blocker_owner or "verifier_tooling",
+            blocker_verified=blocker_verified,
+            allowed_reconfigure_owners=_allowed_reconfigure_owners(compiled),
+        )
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:verifier_recovery_route:{reason}",
+            step=step,
+            kind="verifier_recovery_route",
+            success=recovery is not VerifierRecoveryAction.TERMINAL_INFRASTRUCTURE,
+            summary=f"verifier recovery route: {recovery.value}",
+            failure_class="verifier_tooling" if recovery is not VerifierRecoveryAction.RETURN_TO_SOLVER else "",
+            payload={
+                "reason": reason,
+                "packet_signature": signature,
+                "action": recovery.value,
+                "solver_repair_allowed": recovery is VerifierRecoveryAction.RETURN_TO_SOLVER,
+                "blocker_owner": blocker_owner or "verifier_tooling",
+                "blocker_verified": blocker_verified,
+                "error": str(exc),
+            },
+        ))
         _persist_verifier_bundle(
             step=step,
             reason=reason,
@@ -206,8 +299,58 @@ def run_model_verifier_if_available(
             active_findings_after=ledger.active_finding_context(step + 1),
             error=str(exc),
         )
-        return None
+        # A verifier/tool/provider failure is not an absent verdict.  Returning
+        # None here allowed the kernel's solver-driven completion path to run
+        # after a failed verifier call, creating a false clean.  Return an
+        # explicit verifier-owned block so completion remains impossible until
+        # the bounded recovery route succeeds or infrastructure terminates.
+        blocked = ModelVerifierResult(
+            verdict="blocked_by_tooling",
+            confidence="high",
+            summary=f"verifier call failed: {exc}",
+        )
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:model_verifier_result:{reason}:tooling_blocked",
+            step=step,
+            kind="model_verifier_result",
+            success=False,
+            summary=blocked.summary,
+            failure_class="verifier_tooling",
+            payload={
+                "reason": reason,
+                "verdict": blocked.verdict,
+                "confidence": blocked.confidence,
+                "summary": blocked.summary,
+            },
+        ))
+        return blocked
     ledger.apply_verifier_result(result, step=step, compiled=compiled)
+    recovery_router = _recovery_router(memo)
+    blocker_owner, blocker_verified = _verified_blocker_receipt(ledger, step=step, packet_signature=signature)
+    recovery = recovery_router.route(
+        result,
+        packet_signature=signature,
+        blocker_owner=blocker_owner,
+        blocker_verified=blocker_verified,
+        allowed_reconfigure_owners=_allowed_reconfigure_owners(compiled),
+    )
+    ledger.record(Receipt(
+        receipt_id=f"step-{step}:verifier_recovery_route:{reason}",
+        step=step,
+        kind="verifier_recovery_route",
+        success=recovery is not VerifierRecoveryAction.TERMINAL_INFRASTRUCTURE,
+        summary=f"verifier recovery route: {recovery.value}",
+        failure_class="" if recovery in {VerifierRecoveryAction.TERMINATE_SUCCESS, VerifierRecoveryAction.RETURN_TO_SOLVER} else "verifier_tooling",
+        payload={
+            "reason": reason,
+            "packet_signature": signature,
+            "action": recovery.value,
+            "solver_repair_allowed": recovery is VerifierRecoveryAction.RETURN_TO_SOLVER,
+            "blocker_owner": blocker_owner or ("harness_config" if result.verdict == "blocked_by_harness_config" else ""),
+            "blocker_verified": blocker_verified,
+            "verdict": result.verdict,
+        },
+    ))
     inspection_summary = _inspection_evidence_summary(ledger.all_receipts()[receipt_count_before_verify:])
     reviewer_classification = classify_verifier_outcome(result, inspection_summary=inspection_summary)
     active_after = ledger.active_finding_context(step + 1)
@@ -250,6 +393,63 @@ def run_model_verifier_if_available(
         memo["signature"] = signature
         memo["result"] = result
     return result
+
+
+def _recovery_router(memo: dict[str, Any] | None) -> VerifierRecoveryRouter:
+    """Get a per-run bounded router without changing the public kernel API."""
+    if memo is None:
+        return VerifierRecoveryRouter()
+    router = memo.get("recovery_router")
+    if isinstance(router, VerifierRecoveryRouter):
+        return router
+    router = VerifierRecoveryRouter()
+    memo["recovery_router"] = router
+    return router
+
+
+def _verified_blocker_receipt(ledger: ExecutionLedger, *, step: int, packet_signature: str) -> tuple[str, bool]:
+    """Read only a harness-issued blocker verification marker.
+
+    Model-authored summaries cannot authorize Architect reconfiguration.  A
+    separate receipt, emitted by the harness after checking the blocker owner
+    and evidence, is the sole authority consumed by the recovery router.
+    """
+    for receipt in reversed(ledger.all_receipts()):
+        if receipt.kind != "verifier_blocker_verified" or receipt.step > step:
+            continue
+        payload = receipt.payload if isinstance(receipt.payload, dict) else {}
+        owner = str(payload.get("blocker_owner", "")).strip()
+        receipt_signature = str(payload.get("packet_signature", "")).strip()
+        if receipt.success and owner and receipt_signature == packet_signature:
+            return owner, True
+    return "", False
+
+
+def _allowed_reconfigure_owners(compiled: CompiledRuntime) -> tuple[str, ...]:
+    policy = compiled.config_realization.get("reconfigure_policy", {})
+    if isinstance(policy, Mapping):
+        owners = tuple(
+            str(item).strip() for item in policy.get("allowed_owners", ())
+            if str(item).strip()
+        )
+        if owners:
+            return owners
+    return ("harness_config",)
+
+
+def _inspection_tooling_blocked(
+    ledger: ExecutionLedger, *, packet_signature: str, step: int,
+) -> bool:
+    for receipt in reversed(ledger.all_receipts()):
+        if receipt.kind != "verifier_blocker_verified" or receipt.step > step:
+            continue
+        payload = receipt.payload if isinstance(receipt.payload, dict) else {}
+        return (
+            receipt.success
+            and str(payload.get("blocker_owner", "")) == "verifier_tooling"
+            and str(payload.get("packet_signature", "")) == packet_signature
+        )
+    return False
 
 
 def _call_verify_with_timeout(
@@ -336,6 +536,16 @@ def _call_verify(
                 overlay=overlay,
                 hooks=hooks,
             )
+            results, recovery_rows = _execute_compiled_inspection_fallbacks(
+                requests,
+                results,
+                compiled=compiled,
+                ledger=ledger,
+                executor=executor,
+                envmap=envmap,
+                overlay=overlay,
+                hooks=hooks,
+            )
             ledger.record(Receipt(
                 receipt_id=f"step-{step}:model_verifier_inspection:{len(ledger.all_receipts())}",
                 step=step,
@@ -359,6 +569,35 @@ def _call_verify(
                     "results": results,
                 },
             ))
+            if recovery_rows:
+                failed_recovery = [row for row in recovery_rows if not bool(row.get("fallback_success"))]
+                if failed_recovery:
+                    # This is harness-issued evidence that the compiled
+                    # primary and fallback routes both failed.  It is the
+                    # only marker that may authorize verifier_tooling-owned
+                    # reconfiguration; the model's prose cannot do so.
+                    ledger.record(Receipt(
+                        receipt_id=f"step-{step}:verifier_blocker_verified:{len(ledger.all_receipts())}",
+                        step=step,
+                        kind="verifier_blocker_verified",
+                        success=True,
+                        summary="compiled primary and fallback inspection routes both failed",
+                        failure_class="verifier_tooling",
+                        payload={
+                            "blocker_owner": "verifier_tooling",
+                            "packet_signature": signature,
+                            "attempts": failed_recovery,
+                        },
+                    ))
+                ledger.record(Receipt(
+                    receipt_id=f"step-{step}:verifier_inspection_recovery:{len(ledger.all_receipts())}",
+                    step=step,
+                    kind="verifier_inspection_recovery",
+                    success=all(bool(row.get("fallback_success")) for row in recovery_rows),
+                    summary="compiled Verifier inspection fallback attempted",
+                    failure_class="verifier_tooling" if not all(bool(row.get("fallback_success")) for row in recovery_rows) else "",
+                    payload={"attempts": recovery_rows},
+                ))
             return results
 
         try:
@@ -377,6 +616,82 @@ def _call_verify(
                     payload=teardown,
                 ))
     return verify(packet, compiled, ledger)
+
+
+def _execute_compiled_inspection_fallbacks(
+    requests: tuple[VerifierInspectionRequest, ...],
+    results: list[dict[str, Any]],
+    *,
+    compiled: CompiledRuntime,
+    ledger: ExecutionLedger,
+    executor: Any,
+    envmap: Any,
+    overlay: Any,
+    hooks: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Run one compiler-declared fallback after a failed primary inspection."""
+    requirements = compiled.config_realization.get("compiled_evidence_requirements", ())
+    if not isinstance(requirements, (list, tuple)):
+        return results, []
+    by_route = {
+        str(item.get("inspection_route", "")).strip(): item
+        for item in requirements
+        if isinstance(item, Mapping) and str(item.get("inspection_route", "")).strip()
+    }
+    attempts: list[dict[str, Any]] = []
+    expanded = list(results)
+    for request, primary in zip(requests, results):
+        if not isinstance(primary, Mapping) or not primary.get("error"):
+            continue
+        route = _inspection_route(request)
+        contract = by_route.get(route)
+        fallback = str(contract.get("fallback_route", "")).strip() if contract else ""
+        if not fallback or fallback == route:
+            continue
+        fallback_request = _request_from_compiled_route(fallback, request)
+        if fallback_request is None:
+            attempts.append({"primary_route": route, "fallback_route": fallback, "fallback_success": False, "error": "unsupported fallback route"})
+            continue
+        fallback_rows = execute_verifier_inspection_requests(
+            (fallback_request,), compiled=compiled, ledger=ledger,
+            executor=executor, envmap=envmap, overlay=overlay, hooks=hooks,
+        )
+        fallback_row = dict(fallback_rows[0]) if fallback_rows else {"error": "fallback produced no result"}
+        fallback_row["route_role"] = "compiled_fallback"
+        expanded.append(fallback_row)
+        attempts.append({
+            "primary_route": route,
+            "fallback_route": fallback,
+            "primary_error": str(primary.get("error", "")),
+            "fallback_success": not bool(fallback_row.get("error")),
+            "fallback_request_id": fallback_request.request_id,
+        })
+    return expanded, attempts
+
+
+def _inspection_route(request: VerifierInspectionRequest) -> str:
+    target = request.path or request.handle or request.check_id or request.target
+    return f"{request.kind}:{target}" if target else request.kind
+
+
+def _request_from_compiled_route(route: str, original: VerifierInspectionRequest) -> VerifierInspectionRequest | None:
+    kind, separator, target = route.partition(":")
+    if not kind.strip():
+        return None
+    kind = kind.strip()
+    target = target.strip() if separator else ""
+    if kind not in {"read_file", "read_output", "inspect_artifact", "probe_port", "probe_http", "probe_process", "rerun_check", "inspect_recent_receipts", "inspect_artifact_history"}:
+        return None
+    return VerifierInspectionRequest(
+        request_id=f"fallback:{original.request_id}",
+        kind=kind,
+        path=target if kind not in {"read_output", "probe_port", "probe_http", "probe_process"} else (original.path if kind == "read_output" else ""),
+        handle=target if kind == "read_output" else "",
+        check_id=target if kind == "rerun_check" else "",
+        target=target if kind in {"probe_port", "probe_http", "probe_process"} else "",
+        limit=original.limit,
+        span=original.span,
+    )
 
 
 def _verifier_reason_allowed(compiled: CompiledRuntime, reason: str) -> bool:
@@ -405,7 +720,9 @@ def _persist_verifier_bundle(
     out_dir = Path(root) / f"step_{step:04d}_{safe_reason}"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "verifier_packet.json").write_text(json.dumps(packet, indent=2, sort_keys=True, default=str))
-    (out_dir / "verifier_prompt.txt").write_text(str(packet.get("architect_verifier_prompt", {}).get("rendered", "")))
+    # Verifier prompt/strategy are not part of the model-visible state packet;
+    # retain an explicit empty marker for bundle schema compatibility.
+    (out_dir / "verifier_prompt.txt").write_text("")
     if raw_output is not None:
         if isinstance(raw_output, str):
             (out_dir / "raw_verifier_output.txt").write_text(raw_output)

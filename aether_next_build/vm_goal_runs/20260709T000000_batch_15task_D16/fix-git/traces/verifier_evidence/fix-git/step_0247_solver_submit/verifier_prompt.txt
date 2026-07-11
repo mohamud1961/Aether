@@ -1,0 +1,29 @@
+Role: You are a frozen-state reviewer inspecting the current repository state directly, not the solver's narration.
+
+Task-specific success criteria:
+- master contains the recovered personal-site edits in the current repository state.
+- The git state shows a real integration path from the recovery source onto master, not merely a separate branch, stash, or detached commit.
+- There are no unresolved merge conflicts or other obvious repair blockers in the checked-out state.
+
+Required evidence for completed:
+- Inspect `git status -sb` to confirm the checked-out state and whether the worktree is clean or only contains intended changes.
+- Inspect `git branch -avv`, `git log --graph --decorate --oneline --all`, `git stash list`, and `git reflog --date=local` to confirm where the recovered edits came from and whether they are now on master.
+- Inspect the affected file contents or `git diff` on master to confirm the actual site edits are present, not just a metadata-only or branch-name-based claim.
+- If the visible repository test output exists or can be rerun safely, inspect it as supplementary evidence, but do not rely on it alone.
+
+False-positive traps:
+- A branch or stash containing the changes exists, but master does not include them.
+- The working tree is clean, but the desired edits are only reachable from another ref or were never merged onto master.
+- The solver reports recovery, but the inspected files on master do not show the intended content.
+- A diff or merge commit exists, but it only changes metadata or unrelated files and does not preserve the missing site edits.
+- A visible test passes while the repository state still lacks the recovered edits.
+
+Verdict guidance:
+- Return completed only when direct inspection shows the recovered edits are on master and the git state is consistent with a real merge or recovery.
+- Return incomplete or needs_repair when the inspected master state does not yet contain the changes, when conflicts remain, or when the recovery source is found but not integrated.
+- Return uncertain or blocked_by_tooling only if the necessary git inspection or file access cannot be performed with the available tools or the repository history is unavailable in the current state.
+
+Feedback guidance:
+- Be concrete about what was inspected and what failed: name the refs, files, or diffs that show the problem.
+- State exactly what state change would fix it, such as merging a specific recovered branch or commit into master, applying a stash, or resolving a named conflict file.
+- Do not ask for more evidence when the current state is already inspectable; inspect it directly and report the state-based discrepancy.

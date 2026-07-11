@@ -13,9 +13,12 @@ from .runtime_ir import (
     ContextRecipe,
     ContextRecipeRecent,
     EnvMap,
+    FIXED_KERNEL_TOOL_SURFACE,
+    KERNEL_INTERNAL_ACTION_KINDS,
     HelperToolPolicy,
     ModelVerifierPolicy,
     RuntimeConfigIR,
+    ReconfigurePolicy,
 )
 from .workbench_config import HarnessConfigIR, SUPPORTED_TOP_LEVEL_CONFIG_FIELDS
 
@@ -24,22 +27,9 @@ from .workbench_config import HarnessConfigIR, SUPPORTED_TOP_LEVEL_CONFIG_FIELDS
 # architect's tool_policy is recorded as guidance, never as a gate -- a
 # missing tool must never be a hidden harness ceiling (caught 2026-07-05 by
 # the Docker service-class smoke: launch_process was unreachable).
-STABLE_CORE_SOLVER_TOOLS = (
-    "read_file",
-    "write_file",
-    "run_command",
-    "launch_process",
-    "probe_service",
-    "stop_process",
-    "inspect_artifact",
-    "bootstrap_acquire",
-    "query_memory",
-    "query_artifact_history",
-    "inspect_diff",
-    "record_observation",
-    "inspect_checks",
-    "run_check",
-)
+# Compatibility alias retained for callers/tests of the previous workbench
+# compiler.  The inventory is kernel-owned and derived from ACTION_SCHEMA.
+STABLE_CORE_SOLVER_TOOLS = FIXED_KERNEL_TOOL_SURFACE
 
 AUDIT_SEPARATELY_TOOLS = (
     "run_experiment",
@@ -73,6 +63,7 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
         "vNext HarnessConfigIR compiled into RuntimeConfigIR.",
         "tool_policy_mode=stable_core",
         "architect_tool_selection_applied=False",
+        "fixed_kernel_tool_surface=" + str(list(FIXED_KERNEL_TOOL_SURFACE)),
         "architect tool policy is advisory; stable core tools are exposed unless the environment/safety layer forbids them.",
         "architect_requested_tools=" + str(list(config.tool_policy.enabled_tools)),
         "architect_disabled_tools_advisory=" + str(list(config.tool_policy.disabled_tools)),
@@ -108,6 +99,8 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
     advisory_notes.extend(schema_humility_warnings)
     if config.repair_warning_codes:
         advisory_notes.append("workbench_config_repairs=" + ",".join(config.repair_warning_codes))
+    if config.legacy_tool_selection_warning:
+        advisory_notes.append("legacy_tool_selection_warning=" + config.legacy_tool_selection_warning)
     return RuntimeConfigIR(
         architect_summary=config.task_understanding,
         solver_identity_prompt=config.solver_system_prompt.render(),
@@ -127,6 +120,10 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
             task_local_dir=config.helper_script_policy.directory.replace("/app/", ""),
         ),
         completion_policy=CompletionPolicy(),
+        reconfigure_policy=ReconfigurePolicy(
+            max_reconfigurations=config.reconfigure_policy.max_versions,
+            allowed_owners=config.reconfigure_policy.allowed_owners,
+        ),
         model_verifier_policy=ModelVerifierPolicy(
             enabled=bool(config.model_verifier_policy.enabled),
             runs_on=tuple(config.model_verifier_policy.runs_on),
@@ -142,6 +139,9 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
         false_positive_risks=config.false_positive_risks,
         minimum_completion_evidence=config.minimum_completion_evidence,
         re_derivable_claims=config.re_derivable_claims,
+        semantic_clause_coverage=tuple(asdict(item) for item in config.clause_coverage),
+        semantic_verifier_checks=tuple(asdict(item) for item in config.verifier_strategy),
+        semantic_false_positive_traps=config.verifier_false_positive_traps,
     )
 
 
@@ -211,10 +211,13 @@ def realization_preview(config: HarnessConfigIR, envmap: EnvMap) -> dict[str, ob
         "helper_scripts_enabled": ir.helper_tool_policy.allow_creation,
         "tool_policy_mode": "stable_core",
         "architect_tool_selection_applied": False,
+        "fixed_kernel_tool_surface": list(FIXED_KERNEL_TOOL_SURFACE),
         "advisory_notes": list(ir.advisory_notes),
         "repair_warning_codes": list(config.repair_warning_codes),
         "repair_warnings": list(config.repair_warnings),
         "rejected_config_items": [dict(item) for item in config.rejected_config_items],
+        "legacy_tool_selection_paths": list(config.legacy_tool_selection_paths),
+        "legacy_tool_selection_warning": config.legacy_tool_selection_warning,
         "realization_audit": config_realization_audit(config, envmap),
         "raw_config": asdict(config),
     }
@@ -227,7 +230,11 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
     changes current runtime architecture, not when it is merely parsed.
     """
     ir = harness_config_to_runtime_ir(config, envmap)
-    realized_tools = _realized_tools(ir.selected_capabilities, envmap)
+    # Stable-core Workbench always exposes the fixed generic solver surface;
+    # EnvMap capability gaps are runtime availability facts, not a reason to
+    # shrink the solver contract.  Keep the filtered view only for the legacy
+    # IR compatibility path.
+    realized_tools = list(FIXED_KERNEL_TOOL_SURFACE)
     smoke_count = len(config.verification_policy.visible_smoke_tests)
     smoke_compile = compile_visible_smoke_tests(config, envmap)
     structural_count = len(config.verification_policy.structural_checks)
@@ -255,6 +262,17 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "realized_as": "RuntimeConfigIR.verifier_identity_prompt and verifier packet/prompt metadata",
             "inserted": bool(ir.verifier_identity_prompt.strip()),
         },
+        "clause_coverage": {
+            "status": "compiled" if config.clause_coverage else "uncompiled_legacy_missing",
+            "count": len(config.clause_coverage),
+            "realized_as": "RuntimeConfigIR.semantic_clause_coverage and semantic evidence realization metadata",
+        },
+        "verifier_strategy": {
+            "status": "compiled" if config.verifier_strategy else "uncompiled_legacy_missing",
+            "count": len(config.verifier_strategy),
+            "false_positive_trap_count": len(config.verifier_false_positive_traps),
+            "realized_as": "RuntimeConfigIR.semantic_verifier_checks and verifier packet compiled evidence metadata",
+        },
         "evidence_requirements": {
             "status": "realized_advisory",
             "count": len(config.evidence_requirements),
@@ -275,9 +293,18 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "tool_policy_mode": "stable_core",
             "architect_tool_selection_applied": False,
             "architect_tool_guidance_recorded": True,
+            "legacy_compatibility_warning": (
+                "legacy_tool_selection_ignored: fixed kernel tool surface retained"
+                if config.tool_policy.enabled_tools or config.tool_policy.disabled_tools
+                else None
+            ),
+            "legacy_tool_selection_paths": list(config.legacy_tool_selection_paths),
+            "legacy_tool_selection_warning_code": config.legacy_tool_selection_warning,
             "enabled_tools_declared": list(config.tool_policy.enabled_tools),
             "disabled_tools_declared": list(config.tool_policy.disabled_tools),
             "stable_core_solver_tools": list(STABLE_CORE_SOLVER_TOOLS),
+            "fixed_kernel_tool_surface": list(FIXED_KERNEL_TOOL_SURFACE),
+            "kernel_internal_action_kinds": sorted(KERNEL_INTERNAL_ACTION_KINDS),
             "audit_separately_tools": list(AUDIT_SEPARATELY_TOOLS),
             "selected_capabilities": list(ir.selected_capabilities),
             "runtime_allowed_tools_expected": realized_tools,
@@ -316,11 +343,21 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "note": "automatic_repeat_mode is compiled into RuntimeConfigIR.automatic_memory_policy; legacy query-before fields remain advisory metadata while automatic memory replaces solver-called query rituals",
         },
         "verification_policy": {
-            "status": "realized_partial",
+            # ``structural_checks`` has no executor in the canonical
+            # Workbench path.  The parser rejects non-empty values before the
+            # Solver starts; keep this explicit in the audit as a defence
+            # against callers constructing HarnessConfigIR directly.
+            "status": "realized_partial" if structural_count == 0 else "unsupported_rejected_before_solver",
             "visible_smoke_tests": smoke_count,
             "compiled_visible_smoke_checks": [check.check_id for check in smoke_compile.checks],
             "smoke_compile_rejections": [dict(item) for item in smoke_compile.rejected],
             "structural_checks": structural_count,
+            "structural_checks_realized": structural_count == 0,
+            "structural_checks_note": (
+                "empty; no structural checks requested"
+                if structural_count == 0
+                else "not executable; parser must reject before Solver start"
+            ),
             "repair_warning_codes": list(config.repair_warning_codes),
             "repair_warnings": list(config.repair_warnings),
             "rejected_config_items": [dict(item) for item in config.rejected_config_items],
@@ -359,6 +396,8 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
         },
     }
     missing = [field for field in TOP_LEVEL_CONFIG_FIELDS if field not in dispositions]
+    if structural_count:
+        missing.append("structural_checks_not_realized")
     return {
         "top_level_fields": list(TOP_LEVEL_CONFIG_FIELDS),
         "dispositions": dispositions,

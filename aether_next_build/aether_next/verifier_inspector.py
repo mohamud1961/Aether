@@ -251,6 +251,9 @@ def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap:
             except FileNotFoundError:
                 rows.append({"path": matched, "error": "file_not_found"})
                 continue
+            except OSError as exc:
+                rows.append({"path": matched, "error": f"read error: {exc}"})
+                continue
             rows.append({
                 "path": matched,
                 "bytes": len(content),
@@ -277,6 +280,10 @@ def _read_file_result(request: VerifierInspectionRequest, executor: Any, envmap:
                 f"file not found at {path}; candidate path(s) elsewhere: {', '.join(candidates)}",
             ) | {"path": path, "requested_path": requested_path, "candidate_paths": candidates, "read_only": True}
         return _error_result(request, f"file not found at {path}; no candidate paths found") | {
+            "path": path, "requested_path": requested_path, "read_only": True,
+        }
+    except OSError as exc:
+        return _error_result(request, f"read error: {exc}") | {
             "path": path, "requested_path": requested_path, "read_only": True,
         }
     span = max(1, min(20000, int(getattr(request, "span", 4000) or 4000)))
@@ -314,12 +321,16 @@ def _resolve_read_path(requested_path: str, executor: Any, envmap: EnvMap) -> st
             return requested_path
         except FileNotFoundError:
             pass
+        except OSError:
+            return requested_path
     normalized = normalize_relpath(requested_path, envmap.workspace_root)
     try:
         executor.read_file(normalized)
         return normalized
     except FileNotFoundError:
         pass
+    except OSError:
+        return normalized
     candidates = _candidate_paths(requested_path, executor, envmap, limit=1)
     if candidates:
         return candidates[0]
@@ -327,14 +338,25 @@ def _resolve_read_path(requested_path: str, executor: Any, envmap: EnvMap) -> st
 
 
 def _candidate_paths(requested_path: str, executor: Any, envmap: EnvMap, *, limit: int = 5) -> list[str]:
-    basename = os.path.basename(str(requested_path).rstrip("/"))
+    clean_req = str(requested_path).strip().strip("/")
+    if clean_req.startswith("./"):
+        clean_req = clean_req[2:]
+    if not clean_req:
+        return []
+    
+    # We want to match paths that end with the requested path.
+    # Since fnmatch in real_executor doesn't support sophisticated suffix matching natively,
+    # we can just use **/basename and then filter the results to ensure they end with the requested suffix.
+    basename = os.path.basename(clean_req)
     if not basename:
         return []
+        
     patterns = []
     workspace_root = str(getattr(envmap, "workspace_root", "") or "").rstrip("/")
     if workspace_root:
         patterns.append(f"{workspace_root}/**/{basename}")
     patterns.append(f"**/{basename}")
+    
     seen: set[str] = set()
     matches: list[str] = []
     for pattern in patterns:
@@ -344,11 +366,13 @@ def _candidate_paths(requested_path: str, executor: Any, envmap: EnvMap, *, limi
             found = ()
         for path in found:
             text = str(path)
-            if text not in seen:
-                seen.add(text)
-                matches.append(text)
-            if len(matches) >= limit:
-                return matches
+            # Filter matches to ensure they actually end with the requested path snippet
+            if text.endswith(clean_req) or text.endswith(f"/{clean_req}"):
+                if text not in seen:
+                    seen.add(text)
+                    matches.append(text)
+                if len(matches) >= limit:
+                    return matches
     return matches
 
 

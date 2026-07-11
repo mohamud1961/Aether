@@ -303,6 +303,7 @@ def main(argv: list[str] | None = None) -> int:
         key_env=args.solver_key_env,
         endpoint_env=args.endpoint_env,
         effort=args.effort,
+        role="solver",
     )
     vision_model = None
     if args.vision_deploy_env:
@@ -318,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
         key_env=args.architect_key_env,
         endpoint_env=args.endpoint_env,
         effort=args.effort,
+        role="architect",
     )
 
     records: list[dict[str, Any]] = []

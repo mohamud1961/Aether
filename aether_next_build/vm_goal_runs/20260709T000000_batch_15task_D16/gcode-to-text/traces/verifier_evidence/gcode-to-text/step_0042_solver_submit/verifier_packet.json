@@ -1,0 +1,506 @@
+{
+  "active_findings": [],
+  "architect_verifier_prompt": {
+    "hash": "26c641e1c27c3693",
+    "rendered": "Role: Frozen-state reviewer for the current workspace state.\n\nTask-specific success criteria:\n- /app/out.txt exists and its contents exactly match the text that /app/text.gcode will print.\n- The inspected G-code and the output file provide direct, inspectable evidence for the same answer.\n- There is no visible mismatch in spelling, spacing, punctuation, or line structure that would change the printed text.\n\nRequired evidence for completed:\n- Directly inspect /app/text.gcode raw content around the candidate text and any surrounding toolpath or comment lines that support the derivation.\n- Directly inspect /app/out.txt contents, not merely file existence or size.\n- Compare the inspected G-code-derived text with the contents of /app/out.txt using the workspace state itself.\n- If needed, inspect additional nearby G-code lines to resolve whether a readable string is actually printed text or merely metadata.\n\nFalse-positive traps:\n- Accepting file existence alone as completion.\n- Accepting a string copied from a filename, title, object label, or isolated comment without corroboration from surrounding G-code.\n- Accepting an output file with the right shape but the wrong text, wrong spacing, or extra characters.\n- Accepting solver-reported evidence without direct inspection of the current files.\n- Accepting a repeated parse of /app/out.txt alone as if it independently confirms the G-code source.\n\nVerdict guidance:\n- Return completed only when direct inspection of both files shows that /app/out.txt matches the text actually implied by /app/text.gcode.\n- Return incomplete or needs repair when the output file is missing, mismatched, empty, or contains extra formatting that changes the answer.\n- Return uncertain or blocked only if the required file inspection itself cannot be performed with the available tools or the workspace state is inaccessible.\n\nFeedback guidance:\n- State exactly what was inspected, such as the relevant G-code lines and the current contents of /app/out.txt.\n- Explain the mismatch concretely: wrong text, extra whitespace, missing newline, or evidence that the answer was inferred from metadata instead of toolpath content.\n- Say what state change would resolve the issue, for example rewriting /app/out.txt with the exact derived text.",
+    "summary": "Role: Frozen-state reviewer for the current workspace state."
+  },
+  "artifacts_present": [
+    "out.txt"
+  ],
+  "config_realization": {
+    "architect_path": "workbench",
+    "context_policy": {
+      "compression_trigger_ratio": 0.6,
+      "include_sections": [],
+      "mode": "default_bounded"
+    },
+    "harness_config_realization_audit": {
+      "dispositions": {
+        "context_policy": {
+          "mode": "default_bounded",
+          "note": "supported modes are realized; custom sections are allowlisted; optional recipes are compiled into ContextPolicy and realized by ContextCompiler with explicit metadata",
+          "recipe": {
+            "always_include": [
+              "/app/text.gcode"
+            ],
+            "include_last_failure": 1,
+            "include_recent": [
+              {
+                "count": 2,
+                "selector": "file_reads"
+              },
+              {
+                "count": 2,
+                "selector": "command_results"
+              },
+              {
+                "count": 2,
+                "selector": "check_results"
+              },
+              {
+                "count": 4,
+                "selector": "observations"
+              }
+            ],
+            "make_queryable_not_inline": [
+              "long G-code excerpts"
+            ],
+            "preserve_exact": [
+              "/app/text.gcode",
+              "/app/out.txt"
+            ],
+            "unsupported_fields": []
+          },
+          "recipe_declared": true,
+          "sections": [],
+          "status": "realized_partial"
+        },
+        "evidence_requirements": {
+          "count": 4,
+          "realized_as": "RuntimeConfigIR.evidence_requirements, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "expected_steps": {
+          "realized_as": "config_realization.expected_steps and result-row step_efficiency (advisory metric, never a gate)",
+          "status": "realized_advisory",
+          "value": 7
+        },
+        "failure_feedback_policy": {
+          "note": "active findings persist via ActiveFindingStore; policy variants are not compiled yet",
+          "persist_until": "resolved_or_superseded",
+          "status": "advisory_partial"
+        },
+        "false_positive_risks": {
+          "count": 5,
+          "realized_as": "RuntimeConfigIR.false_positive_risks, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "helper_script_policy": {
+          "directory": ".aether_tools",
+          "enabled": true,
+          "status": "realized"
+        },
+        "local_verification_limits": {
+          "count": 2,
+          "realized_as": "RuntimeConfigIR.local_verification_limits, advisory_notes, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "memory_policy": {
+          "automatic_repeat_mode": "soft_block_exact_repeat",
+          "index_by": [
+            "path",
+            "action_kind",
+            "check_id",
+            "failure_kind"
+          ],
+          "note": "automatic_repeat_mode is compiled into RuntimeConfigIR.automatic_memory_policy; legacy query-before fields remain advisory metadata while automatic memory replaces solver-called query rituals",
+          "require_query_before_overwrite": false,
+          "require_query_before_repeat": false,
+          "runtime_automatic_memory_policy": {
+            "mode": "soft_block_exact_repeat"
+          },
+          "status": "realized_partial"
+        },
+        "minimum_completion_evidence": {
+          "count": 4,
+          "realized_as": "RuntimeConfigIR.minimum_completion_evidence, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "model_verifier_policy": {
+          "enabled": true,
+          "realized_as": "RuntimeConfigIR.model_verifier_policy and kernel_verifier reason filtering",
+          "runs_on": [
+            "solver_submit"
+          ],
+          "status": "realized"
+        },
+        "schema_version": {
+          "evidence": "parse_harness_config_ir rejects non-harness_config.v1",
+          "status": "validated"
+        },
+        "solver_system_prompt": {
+          "inserted": true,
+          "realized_as": "RuntimeConfigIR.solver_identity_prompt",
+          "status": "realized"
+        },
+        "success_definition": {
+          "realized_as": "RuntimeConfigIR.success_definition and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "task_understanding": {
+          "realized_as": "RuntimeConfigIR.architect_summary",
+          "status": "realized"
+        },
+        "tool_policy": {
+          "always_available_tools": [
+            "grep_output",
+            "inspect_checks",
+            "inspect_diff",
+            "query_artifact_history",
+            "query_memory",
+            "read_file_page",
+            "read_output",
+            "record_observation",
+            "report_blocker",
+            "run_check"
+          ],
+          "architect_tool_guidance_recorded": true,
+          "architect_tool_selection_applied": false,
+          "audit_separately_tools": [
+            "run_experiment",
+            "register_candidate",
+            "reconfigure"
+          ],
+          "disabled_tools_declared": [
+            "bootstrap_acquire",
+            "launch_process",
+            "probe_service",
+            "stop_process"
+          ],
+          "enabled_tools_declared": [
+            "read_file",
+            "read_file_page",
+            "write_file",
+            "run_command",
+            "read_output",
+            "grep_output",
+            "query_memory",
+            "query_artifact_history",
+            "inspect_diff",
+            "record_observation",
+            "inspect_checks",
+            "run_check",
+            "inspect_artifact"
+          ],
+          "note": "Workbench stable-core mode does not hide core solver tools merely because the architect omitted them; real restrictions must come from env/safety/runtime capability availability.",
+          "runtime_allowed_tools_expected": [
+            "bootstrap_acquire",
+            "grep_output",
+            "inspect_artifact",
+            "inspect_checks",
+            "inspect_diff",
+            "launch_process",
+            "probe_service",
+            "query_artifact_history",
+            "query_memory",
+            "read_file",
+            "read_file_page",
+            "read_output",
+            "record_observation",
+            "report_blocker",
+            "run_check",
+            "run_command",
+            "stop_process",
+            "write_file"
+          ],
+          "selected_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "managed_process",
+            "network_fetch",
+            "service_probe",
+            "shell"
+          ],
+          "stable_core_solver_tools": [
+            "read_file",
+            "write_file",
+            "run_command",
+            "launch_process",
+            "probe_service",
+            "stop_process",
+            "inspect_artifact",
+            "bootstrap_acquire",
+            "query_memory",
+            "query_artifact_history",
+            "inspect_diff",
+            "record_observation",
+            "inspect_checks",
+            "run_check"
+          ],
+          "status": "advisory_not_applied_to_core_visibility",
+          "tool_policy_mode": "stable_core"
+        },
+        "verification_policy": {
+          "compiled_visible_smoke_checks": [],
+          "note": "safe typed visible smoke specs compile into internal CheckSpec evidence; unsupported or under-specified specs are rejected/quarantined and never become official grader authority",
+          "rejected_config_items": [],
+          "repair_warning_codes": [],
+          "repair_warnings": [],
+          "smoke_compile_rejections": [],
+          "status": "realized_partial",
+          "structural_checks": 0,
+          "visible_smoke_tests": 0
+        },
+        "verifier_system_prompt": {
+          "inserted": true,
+          "realized_as": "RuntimeConfigIR.verifier_identity_prompt and verifier packet/prompt metadata",
+          "status": "realized"
+        }
+      },
+      "guardrails": {
+        "schema_humility": {
+          "note": "Placeholder notation is reported when it appears to be hardened into list/array contracts; the harness does not rewrite the task or decide the correct semantic type.",
+          "realized_as": "architect prompt instruction, runtime manual guidance, advisory notes, and config_realization_audit guardrail",
+          "status": "realized_advisory",
+          "warnings": []
+        }
+      },
+      "has_silent_ignored_fields": false,
+      "missing_dispositions": [],
+      "top_level_fields": [
+        "context_policy",
+        "evidence_requirements",
+        "expected_steps",
+        "failure_feedback_policy",
+        "false_positive_risks",
+        "helper_script_policy",
+        "local_verification_limits",
+        "memory_policy",
+        "minimum_completion_evidence",
+        "model_verifier_policy",
+        "schema_version",
+        "solver_system_prompt",
+        "success_definition",
+        "task_understanding",
+        "tool_policy",
+        "verification_policy",
+        "verifier_system_prompt"
+      ]
+    },
+    "harness_config_schema_version": "harness_config.v1",
+    "tools_runtime_allowed": [
+      "bootstrap_acquire",
+      "grep_output",
+      "inspect_artifact",
+      "inspect_checks",
+      "inspect_diff",
+      "launch_process",
+      "probe_service",
+      "query_artifact_history",
+      "query_memory",
+      "read_file",
+      "read_file_page",
+      "read_output",
+      "record_observation",
+      "report_blocker",
+      "run_check",
+      "run_command",
+      "stop_process",
+      "write_file"
+    ],
+    "tools_visible_to_solver": [
+      "bootstrap_acquire",
+      "grep_output",
+      "inspect_artifact",
+      "inspect_checks",
+      "inspect_diff",
+      "launch_process",
+      "probe_service",
+      "query_artifact_history",
+      "query_memory",
+      "read_file",
+      "read_file_page",
+      "read_output",
+      "record_observation",
+      "report_blocker",
+      "run_check",
+      "run_command",
+      "stop_process",
+      "write_file"
+    ],
+    "verification_authority": {
+      "model_verifier": "internal_gate",
+      "official_grader": "external_benchmark"
+    },
+    "verification_policy": {
+      "check_plan_ids": [],
+      "official_grader_authority": "external_benchmark"
+    },
+    "workbench_rejected_config_items": [],
+    "workbench_repair_warning_codes": [],
+    "workbench_repair_warnings": []
+  },
+  "evidence_requirements": [
+    "A readable inspection trace of /app/text.gcode that exposes the text being printed or the lines that establish it.",
+    "A readable inspection trace of the final /app/out.txt contents.",
+    "A direct comparison result showing that the written output matches the derived text.",
+    "Any intermediate notes or command receipts that clarify how the text was derived from the G-code, especially if the file contains multiple candidate strings."
+  ],
+  "false_positive_risks": [
+    "The file may contain several human-readable strings, but only one is the actual printed text.",
+    "The filename or comments may suggest a word that is not actually what the printer will display.",
+    "A superficially correct output file may still be wrong if spacing, capitalization, or punctuation differs.",
+    "A local search can confirm a candidate string exists, but not that it is the actual text to print unless the surrounding G-code is inspected too.",
+    "A self-check that reuses the same extraction method is not independent enough to rule out a mistaken interpretation."
+  ],
+  "local_verification_limits": [
+    {
+      "source": "runtime_config",
+      "statement": "Local inspection can confirm the answer from the current G-code and verify that /app/out.txt matches it, but it cannot prove how a physical printer would render the text on real hardware."
+    },
+    {
+      "source": "runtime_config",
+      "statement": "Because only a single visible input file is provided, the solver should treat the raw G-code as the authoritative source and avoid speculative interpretation when multiple candidate strings appear."
+    }
+  ],
+  "minimum_completion_evidence": [
+    "Direct inspection of /app/text.gcode showing the relevant text-bearing lines or toolpath context.",
+    "Direct inspection of /app/out.txt showing the exact final answer.",
+    "Independent confirmation that the two match, using a second read or different parsing path rather than the same extraction query.",
+    "Evidence that rules out reliance on filename-only or comment-only inference."
+  ],
+  "objective_graph": "{\"allowed_edit_roots\":[\".\"],\"deliverables\":[],\"output_schema\":{},\"output_schema_target\":\"\",\"package_requirements\":[],\"protected_paths\":[],\"service_requirements\":[],\"thresholds\":[]}",
+  "official_grader_authority": "external_benchmark",
+  "open_obligations": [],
+  "raw_state_candidates": [],
+  "reason": "solver_submit",
+  "recent_command_receipts": [
+    {
+      "authority": "audit_trail_only",
+      "command": "python3 - <<'PY'\nfrom pathlib import Path\np=Path('/app/text.gcode')\ntext=p.read_text(errors='replace')\n# Broad scan for human-readable lines/comments and word-like tokens.\nfor i,line in enumerate(text.splitlines(),1):\n    if ';' in line or any(ch.isalpha() for ch in line):\n        if i<=120 or 'M117' in line or 'text' in line.lower() or 'G1' in line or 'G0' in line:\n            print(f'{i}: {line}')\nPY",
+      "exit_code": 0,
+      "receipt_id": "step-0:inspect1:cmd",
+      "stderr_handle": "0:inspect1:stderr",
+      "stdout_handle": "0:inspect1:stdout",
+      "step": 0
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "python3 - <<'PY'\nfrom pathlib import Path\nlines=Path('/app/text.gcode').read_text(errors='replace').splitlines()\n# Show the metadata/comment cluster near the top and any M486 object labels.\nfor start,end in [(1,45),(45,120)]:\n    print(f'--- lines {start}-{end} ---')\n    for i in range(start, min(end, len(lines))+1):\n        print(f'{i}: {lines[i-1]}')\nPY",
+      "exit_code": 0,
+      "receipt_id": "step-1:inspect-top:cmd",
+      "stderr_handle": "1:inspect-top:stderr",
+      "stdout_handle": "1:inspect-top:stdout",
+      "step": 1
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "python3 - <<'PY'\nfrom pathlib import Path\nlines=Path('/app/text.gcode').read_text(errors='replace').splitlines()\nfor i,l in enumerate(lines,1):\n    if l.startswith('M486 A') or 'Embossed' in l or 'Shape-Box' in l or 'text' in l.lower():\n        print(f'{i}: {l}')\nPY",
+      "exit_code": 0,
+      "receipt_id": "step-10:a-0:cmd",
+      "stderr_handle": "10:a-0:stderr",
+      "stdout_handle": "10:a-0:stdout",
+      "step": 10
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "python3 - <<'PY'\nfrom pathlib import Path\nlines=Path('/app/text.gcode').read_text(errors='replace').splitlines()\n# Second, different inspection: show a focused window around the object labels and the first toolpath blocks after them.\nfor center in [26, 117]:\n    start=max(1, center-8)\n    end=min(len(lines), center+40)\n    print(f'--- window around line {center} ({start}-{end}) ---')\n    for i in range(start, end+1):\n        print(f'{i}: {lines[i-1]}')\nPY",
+      "exit_code": 0,
+      "receipt_id": "step-12:a-0:cmd",
+      "stderr_handle": "12:a-0:stderr",
+      "stdout_handle": "12:a-0:stdout",
+      "step": 12
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "python3 - <<'PY'\nfrom pathlib import Path\ntext=Path('/app/text.gcode').read_text(errors='replace')\n# Extract all M486 A-labels and nearby M486 state transitions in order.\nfor i,line in enumerate(text.splitlines(),1):\n    if line.startswith('M486 A') or line.startswith('M486 S'):\n        print(f'{i}: {line}')\nPY",
+      "exit_code": 0,
+      "receipt_id": "step-12:a-1:cmd",
+      "stderr_handle": "12:a-1:stderr",
+      "stdout_handle": "12:a-1:stdout",
+      "step": 12
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('/app/out.txt')\ncontent = p.read_text(errors='replace')\nprint(repr(content))\nprint(content == 'Embossed text')\nPY",
+      "exit_code": 0,
+      "receipt_id": "step-17:verify-1:cmd",
+      "stderr_handle": "17:verify-1:stderr",
+      "stdout_handle": "17:verify-1:stdout",
+      "step": 17
+    }
+  ],
+  "solver_reported_blockers": [],
+  "state_inspection_handles": [
+    {
+      "bytes": 1979087,
+      "handle": "0:inspect1:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "0:inspect1:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 1520,
+      "handle": "1:inspect-top:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "1:inspect-top:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 44,
+      "handle": "10:a-0:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "10:a-0:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 1661422,
+      "content_hash": "17f1dfca4f3b02bf",
+      "handle": "file:text.gcode",
+      "kind": "file",
+      "path": "text.gcode"
+    },
+    {
+      "bytes": 1718,
+      "handle": "12:a-0:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "12:a-0:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 707,
+      "handle": "12:a-1:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "12:a-1:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 13,
+      "content_hash": "",
+      "handle": "file:out.txt",
+      "kind": "file",
+      "path": "out.txt"
+    },
+    {
+      "bytes": 21,
+      "handle": "17:verify-1:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "17:verify-1:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    }
+  ],
+  "step": 42,
+  "success_definition": "The task is complete when /app/out.txt contains the exact printed text implied by /app/text.gcode, derived from direct inspection of the file contents rather than metadata or guesses. The answer should be written cleanly and verified against the raw G-code before final completion.",
+  "task_prompt": "I have provided a file called text.gcode. This is a gcode file for a Prusa MK4s. I'm trying to print some text onto an existing object. When I run the print, what will the text show? Write the output to /app/out.txt\n"
+}

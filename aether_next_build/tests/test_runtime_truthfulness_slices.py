@@ -125,3 +125,41 @@ def test_model_verifier_result_accepts_precise_new_taxonomy() -> None:
         summary="output values are wrong",
     )
     assert result.verdict == "incomplete_semantic_mismatch"
+
+
+def test_kernel_maintains_compact_world_state_for_verifier_packet() -> None:
+    class Hooks(_CapturingHooks):
+        def __init__(self) -> None:
+            super().__init__()
+            self.verifier_packets: list[dict] = []
+
+        def solve(self, messages, compiled):
+            if self._step == 0:
+                self._step += 1
+                return SolverTurn(
+                    kind="act",
+                    summary="write the requested artifact",
+                    actions=(ActionRequest(
+                        action_id="write",
+                        kind="write_file",
+                        capability_id="filesystem",
+                        arguments={"path": "out.txt", "content": "OK"},
+                        intent="create artifact",
+                        expected_observation="artifact exists",
+                        if_fail_next="stop",
+                    ),),
+                )
+            self._step += 1
+            return SolverTurn(kind="submit_outcome", summary="submit")
+
+        def verify(self, packet, compiled, ledger):
+            self.verifier_packets.append(packet)
+            return {"verdict": "blocked_by_tooling", "summary": "test verifier blocks"}
+
+    hooks = Hooks()
+    result = AetherNextKernel(max_steps=2).run(_env(), MemoryExecutor(workspace_root="/app"), hooks)
+    assert result.status != "completed"
+    assert hooks.verifier_packets
+    dynamic = hooks.verifier_packets[0]["dynamic_state"]
+    assert dynamic["runtime_facts"]["workspace_root"] == "/app"
+    assert dynamic["files"]["out.txt"]["status"] == "modified"

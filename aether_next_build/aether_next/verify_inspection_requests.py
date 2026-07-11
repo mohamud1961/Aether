@@ -7,6 +7,11 @@ packet's known artifact/output handles) into concrete read-only
 actually happened (and which of those are independent-derivation kinds) so
 the completion-evidence protocol in verify_completion_protocol.py can gate on
 them without re-deriving that bookkeeping itself.
+
+The completion_evidence refusal builders (``_refuse_completion_record`` /
+``_refuse_completion_independence``) were further extracted to
+verify_completion_gates.py, alongside the record/independence problem
+detectors they pair with, for the same 500-LOC cap.
 """
 from __future__ import annotations
 
@@ -304,77 +309,6 @@ def _independent_derivation_refs(requests: Any, results: Any) -> set[str]:
     return refs
 
 
-def _refuse_completion_record(problem: str) -> str:
-    """Build the uncertain_missing_evidence refusal for an invalid completion_evidence record.
-
-    Shared by the structural gate (missing/empty/unresolved refs) and the
-    malformed-shape path (present but wrong-typed record) -- same protocol
-    event either way: the completed verdict is refused, never silently
-    accepted or crashed on.
-    """
-    return json.dumps({
-        "verdict": "uncertain_missing_evidence",
-        "confidence": "high",
-        "summary": (
-            "Completion cannot be accepted: the completed verdict's "
-            f"completion_evidence record is invalid ({problem})."
-        ),
-        "missing_evidence_requests": [
-            "Return completed only with a completion_evidence record whose inspection_refs cite inspections performed in the verification round.",
-        ],
-        "findings": [
-            {
-                "finding_id": "vf-completion-evidence-record",
-                "verdict": "uncertain_missing_evidence",
-                "priority": "blocking",
-                "summary": "Completed verdict lacked a valid requirement->observed completion_evidence record.",
-                "evidence": [problem],
-                "repair_instruction": (
-                    "Surface inspectable current-state evidence for each completion requirement; "
-                    "completion is accepted only with a resolvable completion_evidence record."
-                ),
-                "applies_to": ["completion_evidence"],
-            },
-        ],
-    })
-
-
-def _refuse_completion_independence(problem: str) -> str:
-    """Build the uncertain_missing_evidence refusal for a missing independent-derivation ref.
-
-    Phase 1.5 closure for the false-clean failure mode: a completed verdict
-    whose record is structurally valid but backed only by inspection of
-    solver-produced artifacts, on a task whose decisive claims are flagged
-    machine-re-derivable, is refused rather than accepted.
-    """
-    return json.dumps({
-        "verdict": "uncertain_missing_evidence",
-        "confidence": "high",
-        "summary": (
-            "Completion cannot be accepted: the completed verdict's "
-            f"completion_evidence record is invalid ({problem})."
-        ),
-        "missing_evidence_requests": [
-            "Return completed only after independently deriving the decisive claim via overlay_run_command, rerun_check, a live probe, or your own perceive_artifact reading.",
-        ],
-        "findings": [
-            {
-                "finding_id": "vf-completion-evidence-independence",
-                "verdict": "uncertain_missing_evidence",
-                "priority": "blocking",
-                "summary": "Completed verdict did not cite an independent-derivation inspection for a machine-re-derivable claim.",
-                "evidence": [problem],
-                "repair_instruction": (
-                    "Independently re-derive the decisive claim (overlay execution, a live probe, "
-                    "or your own perception) rather than only reading solver-produced artifacts, "
-                    "then resubmit a completed verdict citing that inspection."
-                ),
-                "applies_to": ["completion_evidence"],
-            },
-        ],
-    })
-
-
 def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[VerifierInspectionRequest, ...]:
     """Minimal generic read-only evidence when a verifier completes uninspected.
 
@@ -409,6 +343,25 @@ def _default_completion_inspection_requests(packet: Mapping[str, Any]) -> tuple[
             if isinstance(item, Mapping):
                 path = str(item.get("path", "")).strip()
                 if path:
+                    raw_state_paths.append(path)
+    # Neutral verifier v2 packets carry current artifacts in compact dynamic
+    # state and exact state handles rather than the legacy artifact_evidence /
+    # latest_file_reads fields.  Prefer those paths for the mandatory first
+    # read so automatic inspection produces a resolvable evidence reference.
+    dynamic_state = packet.get("dynamic_state")
+    if isinstance(dynamic_state, Mapping):
+        dynamic_files = dynamic_state.get("files", {})
+        if isinstance(dynamic_files, Mapping):
+            for path in dynamic_files:
+                text = str(path).strip()
+                if text:
+                    artifact_paths.append(text)
+    state_handles = packet.get("state_inspection_handles", ())
+    if isinstance(state_handles, (list, tuple)):
+        for item in state_handles:
+            if isinstance(item, Mapping):
+                path = str(item.get("path", "") or item.get("handle", "")).strip()
+                if path and str(item.get("kind", "file")).strip() == "file":
                     raw_state_paths.append(path)
 
     def _dedupe(paths: list[str], *, seen: set[str] | None = None) -> list[str]:

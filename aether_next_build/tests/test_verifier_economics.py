@@ -20,6 +20,8 @@ from aether_next.runtime_ir import (
 )
 from aether_next.verifier_packets import packet_state_signature
 from aether_next.workbench_config import parse_harness_config_ir
+from aether_next.task_contract import TaskClause, TaskContract
+from aether_next.world import WorldState
 
 
 def _env() -> EnvMap:
@@ -101,8 +103,14 @@ class _RepairThenIdleHooks:
 
 def test_unchanged_state_reuses_verdict_without_model_call() -> None:
     hooks = _RepairThenIdleHooks()
+    world = WorldState(
+        task_contract=TaskContract.create(
+            "Write /app/out.txt",
+            [TaskClause("artifact", "out.txt is present")],
+        ),
+    )
     result = AetherNextKernel(max_steps=12, workbench_architect=_Workbench()).run(
-        _env(), MemoryExecutor(workspace_root="/app"), hooks,
+        _env(), MemoryExecutor(workspace_root="/app"), hooks, world_state=world,
     )
     # One real verifier round; every later submit on identical state reuses it
     # (or is gated by active-finding evidence pressure) until a bound fires.
@@ -199,6 +207,48 @@ def test_packet_signature_ignores_volatile_fields() -> None:
         {"kind": "file", "handle": "9:b:file", "path": "out.txt", "bytes": 9, "content_hash": "zzzz"},
     ]
     assert packet_state_signature(base) != packet_state_signature(changed)
+
+
+def test_packet_signature_includes_same_id_finding_and_obligation_content() -> None:
+    base = {
+        "open_obligations": [{
+            "obligation_id": "o-1",
+            "kind": "artifact",
+            "description": "out.txt exists",
+            "target": "out.txt",
+            "status": "open",
+            "evidence_ids": [],
+        }],
+        "active_findings": [{
+            "finding_id": "f-1",
+            "verdict": "needs_repair",
+            "priority": "blocking",
+            "summary": "content is wrong",
+            "evidence": ["file hash"],
+            "repair_instruction": "rewrite the file",
+            "age_steps": 1,
+            "stale_cycles": 0,
+        }],
+    }
+    changed_finding = {
+        **base,
+        "active_findings": [{
+            **base["active_findings"][0],
+            "summary": "content is missing",
+            "evidence": ["new file hash"],
+            "age_steps": 9,
+            "stale_cycles": 2,
+        }],
+    }
+    changed_obligation = {
+        **base,
+        "open_obligations": [{
+            **base["open_obligations"][0],
+            "description": "out.txt contains exact bytes",
+        }],
+    }
+    assert packet_state_signature(base) != packet_state_signature(changed_finding)
+    assert packet_state_signature(base) != packet_state_signature(changed_obligation)
 
 
 def test_prose_missing_evidence_requests_are_realized_as_inspections() -> None:

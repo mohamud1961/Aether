@@ -10,6 +10,7 @@ import from ``aether_next.model_hooks`` are re-exported here unchanged.
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any, Mapping, Protocol, runtime_checkable
 
 from .ledger import ExecutionLedger
@@ -58,10 +59,15 @@ class ModelHooks:
         solver_model: ModelCallable,
         verifier_model: ModelCallable | None = None,
         vision_model: Any | None = None,
+        run_id: str | None = None,
+        task_id: str | None = None,
     ) -> None:
         self._architect = architect_model
         self._solver = solver_model
         self._verifier = verifier_model or architect_model
+        self._run_id = run_id or uuid.uuid4().hex
+        self._task_id = task_id
+        self._quarantined_model_telemetry: list[dict[str, Any]] = []
         self.last_parse_errors: list[str] = []
         if vision_model is not None:
             # Exposed only when a vision route exists so the perception lane
@@ -70,9 +76,79 @@ class ModelHooks:
             self._vision = vision_model
 
             def perceive_image(prompt: str, image_b64: str, media_type: str) -> str:
+                scoped = getattr(self._vision, "call_with_telemetry_scope", None)
+                if callable(scoped):
+                    return str(scoped(
+                        prompt,
+                        image_b64,
+                        media_type,
+                        run_id=self._run_id,
+                        task_id=self._task_id,
+                    ))
                 return str(self._vision(prompt, image_b64, media_type))
 
             self.perceive_image = perceive_image
+
+    def drain_model_telemetry(self) -> tuple[dict[str, Any], ...]:
+        """Collect provider-call telemetry without making providers mandatory.
+
+        Model callables remain protocol-compatible plain callables.  Only
+        callables that implement ``drain_telemetry`` contribute rows; the
+        Azure text and vision Responses callables both implement it. Offline
+        test callables remain untouched.
+        """
+        rows: list[dict[str, Any]] = []
+        self._quarantined_model_telemetry = []
+        seen: set[int] = set()
+        for model in (
+            self._architect,
+            self._solver,
+            self._verifier,
+            getattr(self, "_vision", None),
+        ):
+            if model is None or id(model) in seen:
+                continue
+            seen.add(id(model))
+            drain = getattr(model, "drain_telemetry", None)
+            if not callable(drain):
+                continue
+            for row in drain() or ():
+                if isinstance(row, dict):
+                    snapshot = dict(row)
+                    if snapshot.get("run_id") == self._run_id:
+                        rows.append(snapshot)
+                    else:
+                        snapshot["telemetry_quarantine_reason"] = (
+                            "late_or_unscoped_event_not_owned_by_current_run"
+                        )
+                        snapshot["drained_by_run_id"] = self._run_id
+                        snapshot["drained_by_task_id"] = self._task_id
+                        self._quarantined_model_telemetry.append(snapshot)
+        return tuple(rows)
+
+    def drain_quarantined_model_telemetry(self) -> tuple[dict[str, Any], ...]:
+        """Return late/unscoped provider events excluded from this run row."""
+        rows = tuple(self._quarantined_model_telemetry)
+        self._quarantined_model_telemetry = []
+        return rows
+
+    def _call_text_model(
+        self,
+        model: ModelCallable,
+        messages: list[dict[str, str]],
+        *,
+        max_output_tokens: int,
+    ) -> str:
+        """Invoke a provider with this run's immutable attribution when supported."""
+        scoped = getattr(model, "call_with_telemetry_scope", None)
+        if callable(scoped):
+            return str(scoped(
+                messages,
+                max_output_tokens=max_output_tokens,
+                run_id=self._run_id,
+                task_id=self._task_id,
+            ))
+        return str(model(messages, max_output_tokens=max_output_tokens))
 
     def architect(self, request: Mapping[str, Any]) -> RuntimeConfigIR:
         self.last_parse_errors = []
@@ -81,7 +157,7 @@ class ModelHooks:
             {"role": "user", "content": json.dumps(request, default=str)},
         ]
         try:
-            raw = self._architect(messages, max_output_tokens=8000)
+            raw = self._call_text_model(self._architect, messages, max_output_tokens=8000)
             cap_index = request.get("capability_index", [])
             return parse_runtime_config_ir(raw, capability_index=cap_index)
         except Exception as exc:
@@ -103,7 +179,7 @@ class ModelHooks:
         self.last_parse_errors = []
         raw = ""
         try:
-            raw = self._solver(list(messages), max_output_tokens=16000)
+            raw = self._call_text_model(self._solver, list(messages), max_output_tokens=16000)
             turn = parse_solver_turn(raw)
             errors = turn.validate(compiled.action_schema)
             if not errors:
@@ -146,7 +222,11 @@ class ModelHooks:
             {"role": "user", "content": json.dumps(user_payload, default=str, sort_keys=True)},
         ]
         try:
-            return self._verifier(messages, max_output_tokens=_verifier_max_output_tokens())
+            return self._call_text_model(
+                self._verifier,
+                messages,
+                max_output_tokens=_verifier_max_output_tokens(),
+            )
         except Exception as exc:
             self.last_parse_errors.append(str(exc))
             raise
@@ -167,6 +247,22 @@ class ModelHooks:
         ``getattr(hooks, "verify_with_inspector")``) keep working unchanged.
         """
         return _verify_with_inspector_impl(self, packet, compiled, ledger, inspector)
+
+    def call_verifier(self, messages: list[dict[str, str]], *, max_output_tokens: int) -> str:
+        """Shared verifier entrypoint used by bounded inspector rounds."""
+        return self._call_text_model(
+            self._verifier,
+            messages,
+            max_output_tokens=max_output_tokens,
+        )
+
+    def call_architect_model(self, messages: list[dict[str, str]], *, max_output_tokens: int) -> str:
+        """Scoped architect callable for the WorkbenchArchitect, including repair calls."""
+        return self._call_text_model(
+            self._architect,
+            messages,
+            max_output_tokens=max_output_tokens,
+        )
 
     @staticmethod
     def _safe_fallback_turn() -> SolverTurn:

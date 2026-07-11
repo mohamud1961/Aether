@@ -5,8 +5,10 @@ This is the ONLY module allowed to ``import openai``.  It builds a
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import random
+import threading
 import time
 from typing import Any, Callable
 from urllib.parse import urlparse
@@ -106,6 +108,92 @@ def _normalize_endpoint(raw: str) -> str:
     return value.rstrip("/")
 
 
+def _prompt_cache_mode_from_env() -> str:
+    """Return the supported cache-key mode for the Azure Responses route.
+
+    Azure enables prompt caching provider-side.  This route additionally sends
+    a stable cache key by default so requests sharing an immutable
+    ``instructions`` prefix are more likely to stay cache-affine.  Operators
+    can disable only that routing hint with ``AETHER_PROMPT_CACHE_MODE=off``.
+    Extended retention is deliberately not exposed here: the active mini
+    deployment is safe only with the normal in-memory retention path.
+    """
+    mode = os.environ.get("AETHER_PROMPT_CACHE_MODE", "stable_prefix").strip().lower()
+    if mode not in {"stable_prefix", "off"}:
+        raise AzureModelError(
+            "AETHER_PROMPT_CACHE_MODE must be 'stable_prefix' or 'off'"
+        )
+    return mode
+
+
+def _prompt_cache_namespace_from_env() -> str:
+    """Return the bounded, operator-controlled cache affinity namespace.
+
+    This namespace is deliberately independent of task material.  It scopes
+    cache routing by an operator-selected protocol generation, while the
+    provider itself still decides whether the immutable leading prompt tokens
+    match and are cacheable.  It is not evidence of a cache hit.
+    """
+    namespace = os.environ.get("AETHER_PROMPT_CACHE_NAMESPACE", "aether-next-v1").strip()
+    if not namespace or len(namespace) > 128:
+        raise AzureModelError(
+            "AETHER_PROMPT_CACHE_NAMESPACE must be non-empty and at most 128 characters"
+        )
+    return namespace
+
+
+def _stable_prompt_cache_key(*, deployment: str, role: str, namespace: str) -> str:
+    """Build an opaque task-independent cache-routing shard.
+
+    The key contains only deployment, fixed role, and an operator namespace.
+    It never includes task prompt, EnvMap, architecture/config summaries,
+    receipts, or dynamic Responses input.  This avoids needless per-task key
+    partitioning without claiming cross-task prefix/cache reuse.
+    """
+    material = "\x00".join((deployment, role, namespace)).encode("utf-8")
+    # Responses prompt_cache_key is capped at 64 characters.  The fixed
+    # namespace prefix plus 48 hex chars remains deterministic and leaves
+    # ample collision resistance for a routing shard.
+    return "aether-next-" + hashlib.sha256(material).hexdigest()[:48]
+
+
+def _usage_field(value: Any, name: str, default: Any = None) -> Any:
+    """Read *name* from either an SDK object or a dict-shaped test payload."""
+    return value.get(name, default) if isinstance(value, dict) else getattr(value, name, default)
+
+
+def _usage_telemetry(response: Any) -> dict[str, Any]:
+    """Extract provider-reported usage without turning absence into zero.
+
+    A missing usage object or cached-token field is *unmeasured*, not a cache
+    miss.  This distinction is essential for later cost/result analysis.
+    """
+    usage = _usage_field(response, "usage")
+    if usage is None:
+        return {
+            "usage_status": "omitted",
+            "cache_metrics_status": "unmeasured",
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cached_input_tokens": None,
+            "reasoning_tokens": None,
+        }
+    input_details = _usage_field(usage, "input_tokens_details", {}) or {}
+    output_details = _usage_field(usage, "output_tokens_details", {}) or {}
+    missing = object()
+    cached = _usage_field(input_details, "cached_tokens", missing)
+    return {
+        "usage_status": "reported",
+        "cache_metrics_status": "reported" if cached is not missing else "unmeasured",
+        "input_tokens": _usage_field(usage, "input_tokens"),
+        "output_tokens": _usage_field(usage, "output_tokens"),
+        "total_tokens": _usage_field(usage, "total_tokens"),
+        "cached_input_tokens": None if cached is missing else cached,
+        "reasoning_tokens": _usage_field(output_details, "reasoning_tokens"),
+    }
+
+
 def _split_messages(messages: list[dict[str, str]]) -> tuple[str, str]:
     """Return (instructions, input_text) for the Responses API.
 
@@ -180,6 +268,7 @@ def make_azure_callable(
     key_env: str,
     endpoint_env: str = "AZURE_OPENAI_ENDPOINT",
     effort: str = "medium",
+    role: str = "unspecified",
     poll_interval_s: float | None = None,
     poll_timeout_s: float | None = None,
     max_retries: int | None = None,
@@ -260,6 +349,9 @@ def make_azure_callable(
         client=client,
         deployment=deployment,
         effort=effort,
+        role=role,
+        prompt_cache_mode=_prompt_cache_mode_from_env(),
+        prompt_cache_namespace=_prompt_cache_namespace_from_env(),
         poll_interval_s=resolved_poll_interval_s,
         poll_timeout_s=resolved_poll_timeout_s,
         max_retries=resolved_max_retries,
@@ -288,6 +380,9 @@ class AzureModelCallable:
         client: openai.OpenAI,
         deployment: str,
         effort: str,
+        role: str = "unspecified",
+        prompt_cache_mode: str = "stable_prefix",
+        prompt_cache_namespace: str = "aether-next-v1",
         poll_interval_s: float,
         poll_timeout_s: float,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -301,6 +396,13 @@ class AzureModelCallable:
         self._client = client
         self._deployment = deployment
         self._effort = effort
+        self._role = role
+        if prompt_cache_mode not in {"stable_prefix", "off"}:
+            raise ValueError("prompt_cache_mode must be 'stable_prefix' or 'off'")
+        self._prompt_cache_mode = prompt_cache_mode
+        if not prompt_cache_namespace or len(prompt_cache_namespace) > 128:
+            raise ValueError("prompt_cache_namespace must be non-empty and at most 128 characters")
+        self._prompt_cache_namespace = prompt_cache_namespace
         self._poll_interval_s = max(1.0, poll_interval_s)
         self._poll_timeout_s = max(30.0, poll_timeout_s)
         self._max_retries = max(0, max_retries)
@@ -312,12 +414,64 @@ class AzureModelCallable:
         # / random.random via the defaults above.
         self._retry_sleep = sleep
         self._rand = rand
+        self.last_call_telemetry: dict[str, Any] = {}
+        self._telemetry_events: list[dict[str, Any]] = []
+        self._telemetry_lock = threading.Lock()
+        self._next_logical_call_id = 0
+
+    def drain_telemetry(self) -> tuple[dict[str, Any], ...]:
+        """Return and clear immutable provider-attempt telemetry receipts.
+
+        Each row has a ``logical_call_id`` and ``attempt_ordinal``.  This
+        deliberately retains failed retries as well as completed attempts; it
+        is provider telemetry, not a billing estimate.
+        """
+        with self._telemetry_lock:
+            events = tuple(self._telemetry_events)
+            self._telemetry_events.clear()
+            return events
+
+    def _allocate_logical_call_id(self) -> int:
+        with self._telemetry_lock:
+            self._next_logical_call_id += 1
+            return self._next_logical_call_id
+
+    def _record_attempt(self, event: dict[str, Any]) -> None:
+        """Atomically retain one immutable provider-attempt receipt."""
+        snapshot = dict(event)
+        with self._telemetry_lock:
+            self.last_call_telemetry = snapshot
+            self._telemetry_events.append(snapshot)
 
     def __call__(
         self,
         messages: list[dict[str, str]],
         *,
         max_output_tokens: int = 8000,
+    ) -> str:
+        return self._call(messages, max_output_tokens=max_output_tokens, telemetry_scope=None)
+
+    def call_with_telemetry_scope(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_output_tokens: int = 8000,
+        run_id: str,
+        task_id: str | None,
+    ) -> str:
+        """Call with immutable task/run attribution supplied by ModelHooks."""
+        return self._call(
+            messages,
+            max_output_tokens=max_output_tokens,
+            telemetry_scope={"run_id": run_id, "task_id": task_id},
+        )
+
+    def _call(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_output_tokens: int,
+        telemetry_scope: dict[str, str | None] | None,
     ) -> str:
         """Send *messages* and return the model's output text.
 
@@ -331,9 +485,20 @@ class AzureModelCallable:
         :class:`AzureModelError` a caller would see without retry at all.
         """
         instructions, user_input = _split_messages(messages)
+        logical_call_id = self._allocate_logical_call_id()
+        attempts = 0
 
         def _attempt() -> str:
-            return self._call_once(instructions, user_input, max_output_tokens)
+            nonlocal attempts
+            attempts += 1
+            return self._call_once(
+                instructions,
+                user_input,
+                max_output_tokens,
+                logical_call_id=logical_call_id,
+                attempt_ordinal=attempts,
+                telemetry_scope=telemetry_scope,
+            )
 
         return _retry_call(
             _attempt,
@@ -346,79 +511,143 @@ class AzureModelCallable:
             rand=self._rand,
         )
 
-    def _call_once(self, instructions: str, user_input: str, max_output_tokens: int) -> str:
+    def _call_once(
+        self,
+        instructions: str,
+        user_input: str,
+        max_output_tokens: int,
+        *,
+        logical_call_id: int,
+        attempt_ordinal: int,
+        telemetry_scope: dict[str, str | None] | None,
+    ) -> str:
         """Run exactly one create+poll attempt. Never retries internally —
         that's ``__call__``'s job via ``_retry_call``."""
-        if self._rate_limiter is not None:
-            self._rate_limiter.acquire()
-
+        event: dict[str, Any] = {
+            "event_kind": "provider_attempt",
+            "logical_call_id": logical_call_id,
+            "attempt_ordinal": attempt_ordinal,
+            "provider": "azure_openai_responses",
+            "deployment": self._deployment,
+            "role": self._role,
+            "status": "in_progress",
+            "attempt_phase": "create",
+            "instructions_chars": len(instructions),
+            "input_chars": len(user_input),
+            "instructions_sha256": hashlib.sha256(instructions.encode("utf-8")).hexdigest(),
+            "max_output_tokens": max_output_tokens,
+            "prompt_cache_key_mode": self._prompt_cache_mode,
+            "prompt_cache_namespace": self._prompt_cache_namespace,
+            "prompt_cache_retention": "in_memory" if self._prompt_cache_mode == "stable_prefix" else None,
+            "usage_status": "unmeasured",
+            "cache_metrics_status": "unmeasured",
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cached_input_tokens": None,
+            "reasoning_tokens": None,
+        }
+        if telemetry_scope is not None:
+            event.update(telemetry_scope)
+        started = time.monotonic()
+        request: dict[str, Any] = {
+            "model": self._deployment,
+            "instructions": instructions,
+            "input": user_input,
+            "reasoning": {"effort": self._effort},
+            "max_output_tokens": max_output_tokens,
+            "background": True,
+        }
+        if self._prompt_cache_mode == "stable_prefix":
+            request["prompt_cache_key"] = _stable_prompt_cache_key(
+                deployment=self._deployment,
+                role=self._role,
+                namespace=self._prompt_cache_namespace,
+            )
+            # Never request extended retention from this generic mini route.
+            request["prompt_cache_retention"] = "in_memory"
         try:
-            job = self._client.responses.create(
-                model=self._deployment,
-                instructions=instructions,
-                input=user_input,
-                reasoning={"effort": self._effort},
-                max_output_tokens=max_output_tokens,
-                background=True,
-            )
-        except Exception as exc:
-            raise AzureModelError(f"responses.create failed: {exc}") from exc
+            if self._rate_limiter is not None:
+                self._rate_limiter.acquire()
+            job = self._client.responses.create(**request)
+            job_id = getattr(job, "id", None)
+            if not job_id:
+                raise AzureModelError("responses.create returned no job id")
+            event["job_id"] = str(job_id)
+            event["attempt_phase"] = "poll"
 
-        job_id = getattr(job, "id", None)
-        if not job_id:
-            raise AzureModelError("responses.create returned no job id")
+            # Poll until terminal status.
+            elapsed = 0.0
+            while getattr(job, "status", None) in ("queued", "in_progress"):
+                if elapsed >= self._poll_timeout_s:
+                    raise AzureModelError(
+                        f"background job {job_id} timed out after {elapsed:.0f}s "
+                        f"(status={getattr(job, 'status', None)})"
+                    )
+                time.sleep(self._poll_interval_s)
+                elapsed += self._poll_interval_s
+                try:
+                    job = self._client.responses.retrieve(job_id)
+                except Exception as exc:
+                    raise AzureModelError(
+                        f"responses.retrieve failed for {job_id}: {exc}"
+                    ) from exc
 
-        # Poll until terminal status.
-        elapsed = 0.0
-        while getattr(job, "status", None) in ("queued", "in_progress"):
-            if elapsed >= self._poll_timeout_s:
-                raise AzureModelError(
-                    f"background job {job_id} timed out after {elapsed:.0f}s "
-                    f"(status={getattr(job, 'status', None)})"
+            status = getattr(job, "status", None)
+            event.update({
+                "attempt_phase": "terminal",
+                "job_status": str(status),
+                "poll_elapsed_s": elapsed,
+                **_usage_telemetry(job),
+            })
+            if status == "completed":
+                text = _extract_output_text(job)
+                if not text:
+                    raise AzureModelError(
+                        f"background job {job_id} completed but produced no output text"
+                    )
+                event["status"] = "completed"
+                return text
+
+            if status == "incomplete":
+                partial = _extract_output_text(job)
+                if partial:
+                    event["status"] = "incomplete_with_output"
+                    return partial
+                detail = (
+                    getattr(job, "incomplete_details", None)
+                    or getattr(job, "error", None)
+                    or ""
                 )
-            time.sleep(self._poll_interval_s)
-            elapsed += self._poll_interval_s
-            try:
-                job = self._client.responses.retrieve(job_id)
-            except Exception as exc:
                 raise AzureModelError(
-                    f"responses.retrieve failed for {job_id}: {exc}"
-                ) from exc
-
-        status = getattr(job, "status", None)
-        if status == "completed":
-            text = _extract_output_text(job)
-            if not text:
-                raise AzureModelError(
-                    f"background job {job_id} completed but produced no output text"
+                    f"background job {job_id} incomplete with no usable text: {detail}"
                 )
-            return text
 
-        if status == "incomplete":
-            # max_output_tokens or other soft limits: return partial text if
-            # available so the caller's parser/fallback can handle it.
-            partial = _extract_output_text(job)
-            if partial:
-                return partial
-            detail = (
-                getattr(job, "incomplete_details", None)
-                or getattr(job, "error", None)
-                or ""
-            )
+            error_obj = getattr(job, "error", None)
+            detail = error_obj or getattr(job, "incomplete_details", None) or ""
+            code = getattr(error_obj, "code", None)
             raise AzureModelError(
-                f"background job {job_id} incomplete with no usable text: {detail}"
-            )
-
-        # Any other terminal status (failed, expired, cancelled, …). Carry
-        # the job's error code (if any) as the __cause__ so
-        # is_retryable_azure_error can tell a transient Azure-side failure
-        # (rate_limit_exceeded, server_error) from a genuine one.
-        error_obj = getattr(job, "error", None)
-        detail = error_obj or getattr(job, "incomplete_details", None) or ""
-        code = getattr(error_obj, "code", None)
-        raise AzureModelError(
-            f"background job {job_id} ended with status={status}: {detail}"
-        ) from _JobStatusFailure(code)
+                f"background job {job_id} ended with status={status}: {detail}"
+            ) from _JobStatusFailure(code)
+        except Exception as exc:
+            event.update({
+                "status": "failed",
+                "error_type": exc.__class__.__name__,
+                "error": str(exc)[:1000],
+            })
+            # The runner's wall-clock interrupt is control flow, not a
+            # provider failure.  Match ModelHooks' canonical handling without
+            # importing the runner here (which would create a provider/runner
+            # dependency cycle).  The finally block still records this
+            # interrupted provider attempt for cost/latency audit.
+            if exc.__class__.__name__ == "KernelRunTimeout":
+                raise
+            if isinstance(exc, AzureModelError):
+                raise
+            raise AzureModelError(f"responses.create failed: {exc}") from exc
+        finally:
+            event["elapsed_s"] = round(time.monotonic() - started, 3)
+            self._record_attempt(event)
 
 
 class AzureVisionCallable:
@@ -430,23 +659,116 @@ class AzureVisionCallable:
     def __init__(self, client: Any, deployment: str) -> None:
         self._client = client
         self._deployment = deployment
+        self._telemetry_events: list[dict[str, Any]] = []
+        self._telemetry_lock = threading.Lock()
+        self._next_logical_call_id = 0
+
+    def drain_telemetry(self) -> tuple[dict[str, Any], ...]:
+        """Return and clear immutable vision-call telemetry receipts."""
+        with self._telemetry_lock:
+            events = tuple(self._telemetry_events)
+            self._telemetry_events.clear()
+            return events
+
+    def _record_telemetry(self, event: dict[str, Any]) -> None:
+        with self._telemetry_lock:
+            self._telemetry_events.append(dict(event))
+
+    def _allocate_logical_call_id(self) -> int:
+        with self._telemetry_lock:
+            self._next_logical_call_id += 1
+            return self._next_logical_call_id
 
     def __call__(self, prompt: str, image_b64: str, media_type: str) -> str:
-        response = self._client.responses.create(
-            model=self._deployment,
-            input=[{
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": prompt},
-                    {
-                        "type": "input_image",
-                        "image_url": f"data:{media_type};base64,{image_b64}",
-                    },
-                ],
-            }],
-            max_output_tokens=8000,
+        return self._call(prompt, image_b64, media_type, telemetry_scope=None)
+
+    def call_with_telemetry_scope(
+        self,
+        prompt: str,
+        image_b64: str,
+        media_type: str,
+        *,
+        run_id: str,
+        task_id: str | None,
+    ) -> str:
+        return self._call(
+            prompt,
+            image_b64,
+            media_type,
+            telemetry_scope={"run_id": run_id, "task_id": task_id},
         )
-        return _extract_output_text(response)
+
+    def _call(
+        self,
+        prompt: str,
+        image_b64: str,
+        media_type: str,
+        *,
+        telemetry_scope: dict[str, str | None] | None,
+    ) -> str:
+        event: dict[str, Any] = {
+            "event_kind": "provider_attempt",
+            "logical_call_id": self._allocate_logical_call_id(),
+            "attempt_ordinal": 1,
+            "provider": "azure_openai_responses_vision",
+            "deployment": self._deployment,
+            "role": "vision",
+            "status": "in_progress",
+            "attempt_phase": "create",
+            "input_chars": len(prompt),
+            "image_base64_chars": len(image_b64),
+            "max_output_tokens": 8000,
+            # This synchronous multimodal route sends no cache key; do not
+            # imply cache support or a cache miss from absent provider fields.
+            "prompt_cache_key_mode": "not_requested",
+            "prompt_cache_retention": None,
+            "usage_status": "unmeasured",
+            "cache_metrics_status": "unmeasured",
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cached_input_tokens": None,
+            "reasoning_tokens": None,
+        }
+        if telemetry_scope is not None:
+            event.update(telemetry_scope)
+        started = time.monotonic()
+        try:
+            response = self._client.responses.create(
+                model=self._deployment,
+                input=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:{media_type};base64,{image_b64}",
+                        },
+                    ],
+                }],
+                max_output_tokens=8000,
+            )
+            event.update({
+                "attempt_phase": "terminal",
+                "job_id": str(getattr(response, "id", "")) or None,
+                "job_status": str(getattr(response, "status", "completed")),
+                **_usage_telemetry(response),
+            })
+            text = _extract_output_text(response)
+            if not text:
+                raise AzureModelError("vision response completed but produced no output text")
+            event["status"] = "completed"
+            return text
+        except Exception as exc:
+            event.update({
+                "status": "failed",
+                "error_type": exc.__class__.__name__,
+                "error": str(exc)[:1000],
+            })
+            raise
+        finally:
+            event["elapsed_s"] = round(time.monotonic() - started, 3)
+            self._record_telemetry(event)
 
 
 def make_azure_vision_callable(

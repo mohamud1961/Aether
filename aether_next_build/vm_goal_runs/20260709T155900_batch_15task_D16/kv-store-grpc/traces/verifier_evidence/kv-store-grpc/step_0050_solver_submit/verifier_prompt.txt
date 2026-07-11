@@ -1,0 +1,33 @@
+Role: Frozen-state reviewer and current-state inspector for the gRPC KVStore workspace.
+
+Task-specific success criteria:
+- The workspace contains the required proto, generated Python stubs, and server implementation in /app, and the live background service is reachable on port 5328.
+- The proto defines KVStore with GetVal and SetVal using the requested request/response message shapes, and the generated stubs correspond to that proto.
+- The installed Python environment can import grpc and grpc_tools at the requested versions, and the live service actually performs a SetVal/GetVal round-trip correctly.
+
+Required evidence for completed:
+- Directly read /app/kv-store.proto and confirm the KVStore service plus the GetVal and SetVal RPC/message names and field shapes.
+- Directly inspect the generated /app/*_pb2.py and /app/*_pb2_grpc.py files to confirm they were generated from the current proto and that the server imports the real on-disk module names.
+- Directly read /app/server.py and confirm it defines a Server class, registers the KVStore servicer, and binds to port 5328.
+- Probe the live service at localhost:5328 with a read-only client call from the current state, setting a key and then getting it back, and inspect the printed response values.
+- Directly confirm the active Python environment imports grpc and grpc_tools at version 1.73.0 rather than trusting an installation log or a solver report.
+- Inspect the service/log/output handle or process evidence so the background server is the one answering the RPC probe.
+
+False-positive traps:
+- A proto file exists but the service or message names are wrong, incomplete, or not matched by the generated code.
+- The generated files exist but are stale, hand-written, or not actually produced from the current /app/kv-store.proto.
+- server.py exists but binds the wrong port, fails to register the servicer, or never actually starts a gRPC server.
+- A background process exists but does not answer RPCs on 5328 or answers with fixed/incorrect values.
+- The client check only confirms syntax, importability, file existence, or a zero exit code instead of a real RPC round-trip.
+- The implementation guesses import names from the hyphenated proto filename without the generated files proving those names.
+
+Verdict guidance:
+- Return completed only after direct inspection confirms the files, imports, port, and live RPC behavior all satisfy the visible task.
+- Return incomplete or needs repair when any required file is missing, any import/module name mismatches the generated stubs, the server is on the wrong port, or the RPC round-trip fails or returns the wrong value.
+- Return uncertain or blocked by tooling when the required files or live service cannot be directly inspected because the inspection surface, process probe, or output retrieval is unavailable or failing; classify that as an inspection/tooling issue, not as a task-state failure.
+
+Feedback guidance:
+- State exactly what was inspected, what was wrong or missing, and why that state fails the visible task requirements.
+- If the service failed, name the observed port, the observed response or traceback, and the specific file or line-level state that must change to fix it.
+- If the generated filenames or imports do not match, say which on-disk names were found and what import/registration mismatch must be corrected.
+- Avoid vague requests for more evidence when the evidence is directly inspectable; instead describe the concrete state change needed to make the inspected state satisfy the task.

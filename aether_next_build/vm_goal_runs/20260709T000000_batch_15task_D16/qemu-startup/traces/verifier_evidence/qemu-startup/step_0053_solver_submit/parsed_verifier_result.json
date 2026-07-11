@@ -1,0 +1,45 @@
+{
+  "completion_evidence": [
+    {
+      "falsification_check": "If the guest had not been launched in the background, there would be no current PID-backed receipt and the same command would not have produced a live serial-console connection.",
+      "inspection_refs": [
+        "step-23:a-0:cmd",
+        "23:a-0:stdout"
+      ],
+      "observed": "The launch receipt shows `nohup qemu-system-x86_64 -m 1024 -drive file=/app/alpine-disk.qcow2,if=virtio,format=qcow2 -cdrom /app/alpine.iso -boot order=dc -display none -serial telnet:127.0.0.1:6665,server,nowait -monitor none >/tmp/alpine-qemu.log 2>&1 &` and prints `QEMU_PID=201`, indicating a background VM process was started.",
+      "requirement": "Current-state proof of a running background QEMU guest with the actual launch command/handle."
+    },
+    {
+      "falsification_check": "If port 6665 were closed, the probe would have failed and the receipt would not show `PORT_6665_OPEN` with exit code 0.",
+      "inspection_refs": [
+        "step-23:a-0:cmd",
+        "23:a-0:stdout"
+      ],
+      "observed": "The receipt includes a direct `/dev/tcp/127.0.0.1/6665` probe that reached `PORT_6665_OPEN`, and the command exited successfully.",
+      "requirement": "Current-state proof that local port 6665 is open."
+    },
+    {
+      "falsification_check": "If the serial console were not at a login prompt, the expect script would have timed out or ended on EOF instead of printing `LOGIN_PROMPT`.",
+      "inspection_refs": [
+        "step-23:a-0:cmd",
+        "23:a-0:stdout"
+      ],
+      "observed": "The telnet session to `127.0.0.1 6665` connected and printed `localhost login:`; the expect script then matched `login:` and emitted `LOGIN_PROMPT`.",
+      "requirement": "A fresh telnet/serial transcript showing the guest login prompt on that port."
+    },
+    {
+      "falsification_check": "If the VM had already exited, the telnet connection would not have succeeded and the serial prompt would not have been observed in the current receipt.",
+      "inspection_refs": [
+        "step-23:a-0:cmd",
+        "23:a-0:stdout"
+      ],
+      "observed": "The VM was launched with `nohup` in the background, and the same current receipt shows both the open port probe and the live telnet prompt read succeeding against that running process.",
+      "requirement": "Evidence that the VM remains active after the prompt is reached."
+    }
+  ],
+  "confidence": "0.96",
+  "findings": [],
+  "missing_evidence_requests": [],
+  "summary": "I inspected the current launch receipt, the live port probe, and the direct telnet console output. The receipt shows QEMU was started in the background with serial console on 127.0.0.1:6665, the port probe succeeded, and the current telnet session displayed `localhost login:` with a `LOGIN_PROMPT` match. That is current-state evidence of a running guest ready for login.",
+  "verdict": "completed"
+}

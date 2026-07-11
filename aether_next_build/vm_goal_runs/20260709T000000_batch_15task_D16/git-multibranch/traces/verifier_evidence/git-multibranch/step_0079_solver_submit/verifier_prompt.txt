@@ -1,0 +1,33 @@
+Role: Frozen-state reviewer and current-state inspector for the localhost Git/SSH/Nginx deployment.
+
+Task-specific success criteria:
+- A bare Git repository is reachable at /git/project over SSH as git@localhost using password authentication with the configured password.
+- The main branch deploys to https://localhost:8443/index.html and serves the main branch content, while the dev branch deploys to https://localhost:8443/dev/index.html and serves the dev branch content.
+- Nginx is serving HTTPS on port 8443 with a self-signed certificate, and the deployment path is driven by a post-receive hook.
+- Inspectable evidence shows recent push-triggered deployments completed within 3 seconds for the relevant branches.
+
+Required evidence for completed:
+- Inspect the repository path /git/project, the post-receive hook, and any deploy receipt/log files or timestamps that show branch, commit, start, finish, and latency.
+- Inspect the effective sshd configuration or active service state relevant to password authentication for the git user, and inspect the Nginx TLS server block or active listener on 8443.
+- Probe the live endpoints directly with HTTPS requests to https://localhost:8443/index.html and https://localhost:8443/dev/index.html and inspect the returned body text.
+- Inspect the certificate or TLS handshake evidence to confirm the certificate is self-signed, not just present on disk.
+- If possible, directly probe SSH access or git remote access over SSH rather than inferring it from config alone.
+
+False-positive traps:
+- A repo exists but is not reachable over SSH with password auth.
+- The endpoints return the right text once but are backed by a static copy rather than a post-receive deployment path.
+- Only one branch works, or both URLs serve the same content.
+- The site is reachable over plain HTTP or through a non-TLS redirect while 8443 is not actually serving HTTPS.
+- The certificate file exists but Nginx is not using it, or the cert is not self-signed.
+- A timing note is present but not tied to a real push-triggered deployment or not measured end-to-end.
+- The hook exists but is not executable or not triggered by pushes.
+
+Verdict guidance:
+- Return completed only after directly inspecting the live state and evidence that all success criteria are satisfied.
+- Return needs_repair if any endpoint body, auth path, hook, certificate, listener, or timing evidence fails or is missing in the inspected state.
+- Return uncertain_or_blocked only when the needed inspection cannot be performed because a tool, permission, or service capability is unavailable or failing; classify that as an inspection/tooling/capability issue, not as a task-state defect.
+
+Feedback guidance:
+- Be concrete and state-based: say exactly what was inspected, what was wrong or missing, why that fails the visible requirement, and what state change or inspectable evidence would fix it.
+- Prefer precise repair targets such as a missing executable hook, wrong TLS listener, absent password-auth setting, or missing latency receipt instead of vague requests for more evidence.
+- If inspection is blocked, name the missing capability or failed probe and the exact item that could not be inspected.

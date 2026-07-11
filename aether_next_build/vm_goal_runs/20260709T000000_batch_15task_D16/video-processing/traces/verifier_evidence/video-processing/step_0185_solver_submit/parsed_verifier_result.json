@@ -1,0 +1,45 @@
+{
+  "completion_evidence": [
+    {
+      "falsification_check": "This would be contradicted if the file were absent, unreadable, or only printed a hardcoded answer without decoding video frames. The direct read shows frame-by-frame analysis logic, so that contradiction did not occur.",
+      "inspection_refs": [
+        "auto-missing-evidence-0",
+        "file:jump_analyzer.py"
+      ],
+      "observed": "The inspected script begins with `import sys`, `import cv2`, `import numpy as np`, defines `analyze_video(path)`, reads frames from `cv2.VideoCapture`, computes frame-difference metrics, and writes `/app/output.toml` from `main()` after taking a video path argument.",
+      "requirement": "A runnable `/app/jump_analyzer.py` script in the workspace, and it must be a real video-analysis program with a clear input/output convention."
+    },
+    {
+      "falsification_check": "This would be contradicted by extra keys, missing keys, list syntax, quoted strings, or non-integer values. The parse check and direct read showed neither extra fields nor non-integer values.",
+      "inspection_refs": [
+        "auto-missing-evidence-1",
+        "39:verify-output-parse:stdout"
+      ],
+      "observed": "The direct file read showed `jump_takeoff_frame_number = 113` and `jump_land_frame_number = 119`, and the parsing check confirmed the keys were exactly `['jump_land_frame_number', 'jump_takeoff_frame_number']` with Python `int` values.",
+      "requirement": "A generated `/app/output.toml` with exactly `jump_takeoff_frame_number` and `jump_land_frame_number` as integer scalar values."
+    },
+    {
+      "falsification_check": "This would be contradicted if the rerun failed, wrote a different artifact, or produced different frame numbers. The rerun output and subsequent file read show the same saved TOML content was reproduced.",
+      "inspection_refs": [
+        "step-5:a-1:cmd",
+        "auto-missing-evidence-1",
+        "39:verify-output-parse:stdout"
+      ],
+      "observed": "The rerun command `python3 /app/jump_analyzer.py /app/example_video.mp4` completed successfully, and the regenerated `/app/output.toml` still contained the same two integer lines with values 113 and 119.",
+      "requirement": "Rerunning the script on `/app/example_video.mp4` must reproduce the saved output or an equivalent TOML artifact at `/app/output.toml`."
+    },
+    {
+      "falsification_check": "This would be contradicted if the sampled window showed no change, the motion transition occurred far away from the reported frames, or the reported frames fell entirely within a stable pre-jump or post-jump section. The sampled metrics instead bracket a distinct jump-transition window around the reported indices.",
+      "inspection_refs": [
+        "92:a-0:stdout"
+      ],
+      "observed": "The independent frame probe around frames 108-119 showed a low-contact regime before 113 and a clear rise in lower-body/bottom-band activity at 113-114, with another strong recovery by 119. Specifically, `bottom_mean` is low at 111-112, increases at 113-114, and peaks again at 119; `roi_mean` and `roi_gt18` also rise in the same neighborhood, which is consistent with takeoff around 113 and landing around 119.",
+      "requirement": "Direct inspection of decoded frames or sampled frame-window evidence must support the claimed takeoff and landing window."
+    }
+  ],
+  "confidence": "0.93",
+  "findings": [],
+  "missing_evidence_requests": [],
+  "summary": "I directly inspected `/app/jump_analyzer.py`, `/app/output.toml`, the rerun evidence on `/app/example_video.mp4`, and the sampled frame-window probe around the reported frames. The script is a real OpenCV-based analyzer that computes takeoff/landing from frame differences, the TOML file contains exactly the two required integer keys, the rerun reproduced the same saved output, and the sampled metrics around frames 113-119 are consistent with the jump transition window.",
+  "verdict": "completed"
+}

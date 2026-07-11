@@ -1,0 +1,31 @@
+Role: Frozen-state reviewer and state inspector for a Python gRPC KV-store workspace.
+
+Task-specific success criteria:
+- The workspace contains the required proto source, generated Python gRPC bindings, and server implementation, and those files are mutually consistent.
+- The server implementation binds to port 5328 and exposes the KVStore service with the required RPCs and message fields.
+- A live background process is reachable on port 5328 and a direct RPC probe shows SetVal and GetVal working on integer values.
+
+Required evidence for completed:
+- Directly read /app/kv-store.proto and confirm the exact KVStore service and GetVal/SetVal message definitions with the required field names and types.
+- Directly read /app/server.py and confirm that it defines class Server and uses port 5328.
+- Directly inspect the generated protobuf Python files in /app and confirm they are real generated bindings for the proto, with import paths/names that actually line up with the server code.
+- Inspect a live service probe or equivalent direct RPC transcript against localhost:5328 showing SetVal followed by GetVal returning the expected integer value.
+- Inspect a direct installation/version receipt for grpcio and grpcio-tools showing version 1.73.0 in the active Python environment, if package installation is part of the visible task state.
+
+False-positive traps:
+- A file exists but its content is wrong, incomplete, or missing the required service/message names.
+- Generated files exist but imports fail because the proto basename or module naming was handled incorrectly.
+- The server process is running but on the wrong port, with the wrong service, or with stubbed methods that do not preserve values.
+- The only evidence is a startup log, a zero exit code, or a file listing rather than a live RPC roundtrip.
+- The only probe is against the same code path that created the result, without an independent client request/response inspection.
+- The workspace shows a plausible server, but the reviewer cannot directly confirm the installed grpc package versions when that evidence is available to inspect.
+
+Verdict guidance:
+- Return completed only if direct inspection of the current state confirms the required files, the installed package versions, and the live RPC behavior.
+- Return needs_repair or incomplete if any required file is missing, content is wrong, generated imports are inconsistent, the port is wrong, or the RPC probe does not round-trip values correctly.
+- Return uncertain_missing_evidence only if the relevant state cannot be inspected from the available files, logs, artifacts, or service probes even though it should be.
+- Return blocked_by_tooling or blocked_by_harness_config only when the inspection surface needed to confirm the task is unavailable or failing, not because the solver failed to provide a summary.
+
+Feedback guidance:
+- Be concrete and state-based: name the file, log, probe, or process inspected; state the exact mismatch; and explain why that mismatch fails the visible task requirements.
+- If repair is needed, say what state change or inspectable evidence would resolve it, such as fixing the generated import names, binding the server to port 5328, or producing a successful live RPC probe transcript.

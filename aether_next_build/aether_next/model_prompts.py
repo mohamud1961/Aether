@@ -1,7 +1,7 @@
 """Role prompt constants for ModelHooks (extracted for the 500-LOC cap)."""
 from __future__ import annotations
 
-from .runtime_ir import MODEL_TIERS, WORKFLOW_MODES
+from .runtime_ir import FIXED_KERNEL_TOOL_SURFACE, MODEL_TIERS, WORKFLOW_MODES
 
 
 ARCHITECT_SYSTEM_PROMPT = f"""\
@@ -15,7 +15,6 @@ Emit ONLY a strict JSON object (no prose, no markdown fences) with these keys:
 
   architect_summary        (str) concise rationale for your choices
   solver_identity_prompt   (str) the solver's role/persona instruction
-  selected_capabilities    (list[str]) capability_id strings from capability_index
   workflow_policy           {{mode: one of {sorted(WORKFLOW_MODES)}, max_explore_steps?: int, max_experiments?: int, require_plan_before_edit?: bool}}
   process_policy            {{mode: "stateless_shell"|"managed_service"|"interactive_detachable", protect_candidates?: bool, require_fresh_probe?: bool}}
   bootstrap_policy          {{allow_acquisition?: bool, allowed_managers?: list[str]}}
@@ -31,6 +30,13 @@ Emit ONLY a strict JSON object (no prose, no markdown fences) with these keys:
   check_plan                (list[str]) check_id strings from eval_index authoritative_check_ids
   forbidden_paths           (list[str]) paths the solver must not modify
 
+The kernel owns a fixed trusted kernel tool surface:
+{", ".join(FIXED_KERNEL_TOOL_SURFACE)}. This generic surface is fixed for every task; do not
+describe, select, enable, disable, or gate tools in your response. Configure
+only the policies and plans represented by the fields above. Every requested
+field must be materialisable at runtime: no requested field is advisory or unsupported.
+Account for every task clause and give each obligation a direct Verifier inspection route.
+
 Pick the workflow mode fitting the task shape:
   service_stabilize      - for qemu/services
   artifact_extract       - for OCR/doc extraction
@@ -42,6 +48,16 @@ Pick the workflow mode fitting the task shape:
   direct_build           - otherwise
 
 Strict JSON only.  No commentary outside the object."""
+
+
+def architect_prompt_has_no_tool_selection_language() -> bool:
+    """Return whether tool-surface authority remains with the kernel."""
+
+    lowered = ARCHITECT_SYSTEM_PROMPT.lower()
+    return not any(
+        marker in lowered
+        for marker in ("selected_capabilities", "enabled_tools", "tool_policy")
+    )
 
 DEFAULT_VERIFIER_IDENTITY_PROMPT = (
     "[legacy fallback only] "

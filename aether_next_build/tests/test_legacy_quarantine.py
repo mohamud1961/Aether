@@ -24,7 +24,6 @@ _QUARANTINED_MODULE_NAMES = (
     "proof_contract",
     "contract_compile",
     "contract_hooks",
-    "task_contract",
 )
 
 
@@ -61,7 +60,7 @@ def test_importing_all_certified_modules_never_loads_reference_legacy() -> None:
         "assert not loaded, f'reference_legacy loaded: {loaded}'\n"
         "legacy = [name for name in sys.modules if any(\n"
         "    name == f'aether_next.{q}' for q in (\n"
-        "        'proof_contract', 'contract_compile', 'contract_hooks', 'task_contract'))]\n"
+        "        'proof_contract', 'contract_compile', 'contract_hooks'))]\n"
         "assert not legacy, f'legacy modules loaded under aether_next: {legacy}'\n"
         "print('CLEAN')\n"
     )

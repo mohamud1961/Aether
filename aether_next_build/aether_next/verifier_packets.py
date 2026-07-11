@@ -1,6 +1,8 @@
 """Evidence packet construction for model-led verification."""
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import asdict, is_dataclass
 from hashlib import sha256
 from typing import Any, Mapping
 
@@ -8,6 +10,35 @@ from .runtime_ir import stable_json
 
 from .ledger import ExecutionLedger
 from .runtime_ir import CompiledRuntime
+from .task_contract import TaskContract
+
+
+class _FrozenDict(dict):
+    """JSON-serialisable immutable mapping used for model-facing packets."""
+
+    def _blocked(self, *args: Any, **kwargs: Any) -> None:
+        raise TypeError("verifier packet is immutable")
+
+    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = _blocked
+
+
+class _FrozenList(list):
+    """JSON-serialisable immutable sequence used inside a verifier packet."""
+
+    def _blocked(self, *args: Any, **kwargs: Any) -> None:
+        raise TypeError("verifier packet is immutable")
+
+    __setitem__ = __delitem__ = append = extend = insert = pop = remove = reverse = sort = _blocked
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return _FrozenDict({str(key): _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return _FrozenList(_freeze(item) for item in value)
+    if isinstance(value, tuple):
+        return tuple(_freeze(item) for item in value)
+    return deepcopy(value)
 
 
 def _merged_config_realization(compiled: CompiledRuntime, ledger: ExecutionLedger) -> dict[str, Any]:
@@ -103,106 +134,230 @@ def _raw_state_candidates(realization: dict[str, Any]) -> list[dict[str, str]]:
     return rows[:8]
 
 
-def _solver_reported_blockers(ledger: ExecutionLedger, *, limit: int = 6) -> list[dict[str, Any]]:
-    """Blocker escalations the solver filed via the report_blocker action.
+def _task_contract_payload(compiled: CompiledRuntime, contract: TaskContract | None) -> dict[str, Any]:
+    """Return immutable task truth in one explicitly scoped payload.
 
-    report_blocker is the solver's only configuration signal and is
-    deliberately routed to the verifier: an escalation request to judge,
-    never proof that a blocker is real.
+    The production kernel currently compiles from ``EnvMap`` and therefore
+    does not always have a clause extractor result at this boundary.  When a
+    typed :class:`TaskContract` is available it is the sole authority.  The
+    compatibility fallback keeps the prompt inside the contract envelope and
+    never exposes it as an independent model-facing field.
     """
-    rows: list[dict[str, Any]] = []
-    for receipt in ledger.all_receipts():
-        if receipt.kind != "report_blocker":
-            continue
-        payload = receipt.payload or {}
-        rows.append({
-            "receipt_id": receipt.receipt_id,
-            "step": receipt.step,
-            "authority": "escalation_request_only",
-            "blocked_component": str(payload.get("blocked_component", "")),
-            "observed_evidence": str(payload.get("observed_evidence", ""))[:2000],
-            "attempted_actions": str(payload.get("attempted_actions", ""))[:2000],
-            "why_current_tools_or_config_prevent_progress": str(
-                payload.get("why_current_tools_or_config_prevent_progress", "")
-            )[:2000],
-            "requested_harness_change": str(payload.get("requested_harness_change", ""))[:1000],
+    if contract is not None:
+        return deepcopy(contract.as_payload())
+    clauses = []
+    for obligation in compiled.objective_graph.obligations:
+        clauses.append({
+            "clause_id": str(obligation.obligation_id),
+            "text": str(obligation.description),
+            "exact_atoms": [str(obligation.target)] if str(obligation.target).strip() else [],
         })
-    return rows[-max(0, limit):]
+    if not clauses:
+        clauses.append({
+            "clause_id": "compiled:objective",
+            "text": str(compiled.success_definition or "compiled objective"),
+            "exact_atoms": [],
+        })
+    return {"raw_task_prompt": str(compiled.task_prompt), "clauses": clauses}
 
 
-def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *, step: int, reason: str) -> dict[str, Any]:
-    """Build a state-only verifier packet.
+def _stable_envmap_payload(envmap: Any | None, compiled: CompiledRuntime) -> dict[str, Any]:
+    if envmap is not None and hasattr(envmap, "to_payload"):
+        return deepcopy(envmap.to_payload())
+    if envmap is not None and isinstance(envmap, Mapping):
+        facts = deepcopy(dict(envmap))
+    elif envmap is not None and hasattr(envmap, "workspace_root"):
+        capabilities: dict[str, Any] = {}
+        for key, value in sorted(dict(getattr(envmap, "capabilities", {}) or {}).items()):
+            capabilities[str(key)] = asdict(value) if is_dataclass(value) else deepcopy(value)
+        facts = {
+            "workspace_root": str(getattr(envmap, "workspace_root")),
+            "visible_files": sorted(str(item) for item in getattr(envmap, "visible_files", ()) or ()),
+            "visible_dirs": sorted(str(item) for item in getattr(envmap, "visible_dirs", ()) or ()),
+            "capabilities": capabilities,
+            "services": deepcopy(dict(getattr(envmap, "services", {}) or {})),
+            "resource_limits": deepcopy(dict(getattr(envmap, "resource_limits", {}) or {})),
+            "permissions": deepcopy(dict(getattr(envmap, "permissions", {}) or {})),
+            "interactive_features": deepcopy(dict(getattr(envmap, "interactive_features", {}) or {})),
+            "network_scope": str(getattr(envmap, "network_scope", "unknown")),
+            "file_tree": str(getattr(envmap, "file_tree", "")),
+            "file_map_summary": deepcopy(dict(getattr(envmap, "file_map_summary", {}) or {})),
+        }
+    else:
+        raise ValueError("stable EnvMap payload unavailable; refusing digest-only verifier state")
+    from .world import StableEnvMap
+    return StableEnvMap.create(facts).to_payload()
 
-    The solver's submit_outcome is only a trigger.  This packet deliberately
-    excludes solver journey/history: no solver claims, submit summaries,
-    command history, local checks, memory/no-progress analyses, or proof
-    contract outputs.  Solver history remains in traces/audit only.  The
-    verifier receives the task, architect-authored contract, active verifier
-    findings, and handles/candidates for independently inspecting current
-    frozen state.
+
+_STATE_TOP_LEVEL_KEYS = frozenset({
+    "schema_version", "state_version", "installed_packages", "runtime_facts",
+    "files", "services", "jobs", "artifacts", "processes", "named_sections",
+    "latest_result", "active_findings", "removed_services", "removed_jobs",
+})
+_STATE_FORBIDDEN_KEYS = frozenset({
+    "architect_verifier_prompt", "architect_prompt", "verifier_prompt", "verifier_system_prompt",
+    "solver_prompt", "solver_system_prompt", "task_prompt", "architect_strategy",
+    "solver_journey", "journey", "strategy", "verifier_strategy", "recent_actions",
+    "recent_receipts", "recent_command_receipts", "command_results", "stdout", "stderr",
+    "content", "raw_output", "raw_log", "command", "solver_reported_blockers",
+})
+_NORMALIZED_FORBIDDEN_KEYS = frozenset(
+    "".join(character for character in key.lower() if character.isalnum())
+    for key in _STATE_FORBIDDEN_KEYS
+) | frozenset({
+    "solverjourney", "solvernotes", "commandresult", "commandresults",
+    "commandoutput", "inspectionstrategy", "rawcommand", "rawcommands",
+    "stdouttext", "stderrtext", "stdoutoutput", "stderroutput",
+    "solverprompt", "verifierprompt", "architectprompt", "modelprompt",
+    "transcript", "conversation", "prompt", "strategy", "journey",
+})
+
+
+def _normalized_key(value: Any) -> str:
+    return "".join(character for character in str(value).lower() if character.isalnum())
+
+
+def _state_only_projection(value: Any, *, key: str = "") -> Any:
+    """Project supplied dynamic state to compact, non-journey metadata.
+
+    The production world already emits compact snapshots, but this boundary is
+    also called by compatibility adapters.  Do not trust an adapter to omit
+    raw command output or model-authored journey fields.
     """
-    realization = _merged_config_realization(compiled, ledger)
-    verification_authority = realization.get("verification_authority", {})
-    official_grader_authority = ""
-    if isinstance(verification_authority, dict):
-        official_grader_authority = str(verification_authority.get("official_grader", "")).strip()
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for raw_key, item in value.items():
+            name = str(raw_key)
+            if _normalized_key(name) in _NORMALIZED_FORBIDDEN_KEYS:
+                continue
+            result[name] = _state_only_projection(item, key=name)
+        return result
+    if isinstance(value, list):
+        return [_state_only_projection(item, key=key) for item in value]
+    if isinstance(value, tuple):
+        return [_state_only_projection(item, key=key) for item in value]
+    # Tool outputs may be captured as bytes (for example binary artifact or
+    # subprocess streams).  Keep the packet JSON-serialisable and compact in
+    # exactly the same way as large text values; the exact bytes remain
+    # available through the receipt/output handle rather than being replayed
+    # inline into the Verifier context.
+    if isinstance(value, (bytes, bytearray)):
+        raw = bytes(value)
+        return {
+            "status": "present",
+            "bytes": len(raw),
+            "sha256": sha256(raw).hexdigest(),
+        }
+    if isinstance(value, str) and len(value) > 512:
+        return {
+            "status": "present",
+            "chars": len(value),
+            "sha256": sha256(value.encode("utf-8", "surrogateescape")).hexdigest(),
+        }
+    return deepcopy(value)
 
-    state_handles: list[dict[str, Any]] = []
-    recent_command_receipts: list[dict[str, Any]] = []
+
+def _dynamic_state_payload(ledger: ExecutionLedger, dynamic_state: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Build compact current state without replaying receipt payloads."""
+    if dynamic_state is not None:
+        projected = _state_only_projection(dynamic_state)
+        # Keep the state envelope explicit and reject adapter-only journey keys.
+        return {
+            str(key): value
+            for key, value in projected.items()
+            if str(key) in _STATE_TOP_LEVEL_KEYS
+        }
+    return {
+        "schema_version": "dynamic_world_state.v1",
+        "artifacts": {path: {"status": "present"} for path in sorted(ledger.current_artifacts())},
+        "processes": ledger.live_processes(),
+        "state_version": len(ledger.all_receipts()),
+    }
+
+
+def _collect_state_handles(ledger: ExecutionLedger) -> list[dict[str, Any]]:
+    """Collect stable navigation handles, deduplicated by kind/handle."""
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for receipt in ledger.all_receipts():
         payload = receipt.payload or {}
         if payload.get("file_handle"):
-            state_handles.append({
-                "kind": "file",
-                "handle": payload.get("file_handle"),
-                "path": payload.get("path", ""),
+            handle = str(payload["file_handle"])
+            by_key.setdefault(("file", handle), {
+                "kind": "file", "handle": handle,
+                "path": str(payload.get("path", "")),
                 "bytes": payload.get("bytes"),
-                "content_hash": payload.get("content_hash", ""),
+                "content_hash": str(payload.get("content_hash", "")),
             })
         for key, stream in (("stdout_handle", "stdout"), ("stderr_handle", "stderr")):
             if payload.get(key):
-                state_handles.append({
-                    "kind": "output",
-                    "handle": payload.get(key),
-                    "stream": stream,
+                handle = str(payload[key])
+                by_key.setdefault(("output", handle), {
+                    "kind": "output", "handle": handle, "stream": stream,
                     "bytes": payload.get(f"{stream}_bytes", 0),
+                    "content_hash": str(payload.get(f"{stream}_hash", "")),
                 })
-        if receipt.kind == "run_command":
-            recent_command_receipts.append({
-                "receipt_id": receipt.receipt_id,
-                "step": receipt.step,
-                "command": str(payload.get("command", "")).strip(),
-                "exit_code": payload.get("exit_code"),
-                "stdout_handle": payload.get("stdout_handle", ""),
-                "stderr_handle": payload.get("stderr_handle", ""),
-                "authority": "audit_trail_only",
-            })
+    for path in sorted(ledger.current_artifacts()):
+        by_key.setdefault(("file", path), {"kind": "file", "handle": path, "path": path})
+    return list(by_key.values())[-32:]
 
+
+def build_verifier_packet(
+    compiled: CompiledRuntime | None = None,
+    ledger: ExecutionLedger | None = None,
+    *,
+    step: int = 0,
+    reason: str = "",
+    contract: TaskContract | None = None,
+    envmap: Any | None = None,
+    dynamic_state: Mapping[str, Any] | None = None,
+    snapshot_id: str | None = None,
+) -> dict[str, Any]:
+    """Build an immutable, neutral state-only verifier packet.
+
+    A submit action is only a trigger.  Solver prompts, journey narrative,
+    command history/receipts, solver claims/blockers, verifier strategy/traps
+    and model-authored proof are intentionally absent.  The packet contains
+    only immutable task truth, stable environment facts, compact dynamic
+    state, open obligations/findings, exact retrieval handles and compiled
+    evidence requirements.
+    """
+    if compiled is None or ledger is None:
+        raise TypeError("compiled and ledger are required")
+    realization = _merged_config_realization(compiled, ledger)
+    compiled_requirements = realization.get("compiled_evidence_requirements", ())
+    if not isinstance(compiled_requirements, (list, tuple)):
+        compiled_requirements = ()
+    compiled_requirements = [
+        deepcopy(item) for item in compiled_requirements if isinstance(item, Mapping)
+    ]
+    inspection_ceilings = realization.get("inspection_evidence_ceilings", {})
+    if not isinstance(inspection_ceilings, Mapping):
+        inspection_ceilings = {}
     packet = {
+        "schema_version": "verifier_packet.v2",
+        "snapshot_id": str(snapshot_id or f"step-{step}"),
         "reason": reason,
         "step": step,
-        "task_prompt": compiled.task_prompt,
-        "objective_graph": compiled.objective_graph.summary(),
-        "success_definition": compiled.success_definition or realization.get("success_definition", ""),
-        "architect_verifier_prompt": {
-            "rendered": compiled.verifier_identity_prompt or str(realization.get("verifier_identity_prompt", "")),
-            "summary": str(realization.get("verifier_system_prompt_summary", "")).strip(),
-            "hash": str(realization.get("verifier_prompt_hash", "")).strip(),
-        },
-        "evidence_requirements": list(compiled.evidence_requirements) or list(realization.get("evidence_requirements", []) or []),
-        "false_positive_risks": list(compiled.false_positive_risks) or list(realization.get("false_positive_risks", []) or []),
-        "minimum_completion_evidence": list(compiled.minimum_completion_evidence) or list(realization.get("minimum_completion_evidence", []) or []),
-        "re_derivable_claims": list(compiled.re_derivable_claims) or list(realization.get("re_derivable_claims", []) or []),
-        "local_verification_limits": _local_verification_limits(compiled, realization),
-        "config_realization": _config_realization_summary(realization),
-        "official_grader_authority": official_grader_authority,
-        "artifacts_present": sorted(ledger.current_artifacts()),
-        "raw_state_candidates": _raw_state_candidates(realization),
-        "state_inspection_handles": state_handles[-32:],
-        "recent_command_receipts": recent_command_receipts[-8:],
+        "task_contract": _task_contract_payload(compiled, contract),
+        "stable_envmap": _stable_envmap_payload(envmap, compiled),
+        "dynamic_state": _dynamic_state_payload(ledger, dynamic_state),
         "open_obligations": [item.as_dict() for item in ledger.open_obligations()],
         "active_findings": ledger.active_finding_context(step),
-        "solver_reported_blockers": _solver_reported_blockers(ledger),
+        "state_inspection_handles": _collect_state_handles(ledger),
+        # These fields are present only when the compiler supplied a structured
+        # semantic contract.  Plain prose evidence requirements remain
+        # advisory; the verifier gate must never infer clause thresholds from
+        # model-authored text.
+        "compiled_evidence_requirements": compiled_requirements,
+        "inspection_evidence_ceilings": deepcopy(dict(inspection_ceilings)),
+        "evidence_requirements": {
+            "required": list(compiled.evidence_requirements) or list(realization.get("evidence_requirements", []) or []),
+            "minimum_completion": list(compiled.minimum_completion_evidence) or list(realization.get("minimum_completion_evidence", []) or []),
+            "false_positive_risks": list(compiled.false_positive_risks) or list(realization.get("false_positive_risks", []) or []),
+            "re_derivable_claims": list(compiled.re_derivable_claims) or list(realization.get("re_derivable_claims", []) or []),
+            "local_limits": _local_verification_limits(compiled, realization),
+        },
+        "raw_state_candidates": _raw_state_candidates(realization),
     }
     forbidden = {
         "solver_claim",
@@ -227,7 +382,7 @@ def build_verifier_packet(compiled: CompiledRuntime, ledger: ExecutionLedger, *,
     leaked = forbidden.intersection(packet)
     if leaked:
         raise AssertionError(f"verifier packet leaked solver journey fields: {sorted(leaked)}")
-    return packet
+    return _freeze(packet)
 
 
 def packet_state_signature(packet: Mapping[str, Any]) -> str:
@@ -247,27 +402,37 @@ def packet_state_signature(packet: Mapping[str, Any]) -> str:
                 "bytes": handle.get("bytes"),
                 "content_hash": handle.get("content_hash", ""),
             })
+    def _material(value: Any) -> Any:
+        """Normalize packet content while dropping only volatile counters.
+
+        Finding and obligation IDs are not sufficient identity: a verifier can
+        revise the summary, evidence, status, or target while retaining the
+        same ID.  Keep every material field in the signature, but ignore age
+        bookkeeping so repeated judgments of unchanged state still coalesce.
+        """
+        if isinstance(value, Mapping):
+            return {
+                str(key): _material(item)
+                for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+                if str(key) not in {"age_steps", "stale_cycles"}
+            }
+        if isinstance(value, (list, tuple)):
+            return [_material(item) for item in value]
+        return deepcopy(value)
+
     material = {
-        "artifacts": sorted(str(a) for a in (packet.get("artifacts_present") or ())),
+        "task_contract": packet.get("task_contract", {}),
+        "stable_envmap": packet.get("stable_envmap", {}),
+        "dynamic_state": packet.get("dynamic_state", {}),
         "handles": handles,
         "obligations": sorted(
-            str(o.get("obligation_id", "")) for o in (packet.get("open_obligations") or ())
-            if isinstance(o, Mapping)
+            (_material(o) for o in (packet.get("open_obligations") or ()) if isinstance(o, Mapping)),
+            key=stable_json,
         ),
         "findings": sorted(
-            str(f.get("finding_id", "")) for f in (packet.get("active_findings") or ())
-            if isinstance(f, Mapping)
+            (_material(f) for f in (packet.get("active_findings") or ()) if isinstance(f, Mapping)),
+            key=stable_json,
         ),
-        "blockers": [
-            {
-                "component": b.get("blocked_component", ""),
-                "evidence": b.get("observed_evidence", ""),
-            }
-            for b in (packet.get("solver_reported_blockers") or ())
-            if isinstance(b, Mapping)
-        ],
-        "verifier_prompt_hash": str(
-            (packet.get("architect_verifier_prompt") or {}).get("hash", "")
-        ),
+        "evidence_requirements": packet.get("evidence_requirements", {}),
     }
     return sha256(stable_json(material).encode("utf-8")).hexdigest()[:16]

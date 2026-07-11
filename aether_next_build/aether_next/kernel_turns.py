@@ -17,13 +17,15 @@ from .kernel_dispatch import dispatch_action
 from .ledger import ExecutionLedger, Receipt
 from .no_progress import NoProgressController
 from .runtime_ir import CompiledRuntime, EnvMap, SolverTurn, normalize_relpath
+from .world import WorldState, WorldStateDeltaError
 
 if TYPE_CHECKING:
     from .tracing import RunTrace
 
 
 def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRuntime,
-                 executor: Executor, envmap: EnvMap, ledger: ExecutionLedger) -> None:
+                 executor: Executor, envmap: EnvMap, ledger: ExecutionLedger,
+                 world_state: WorldState | None = None) -> None:
     """Execute an act turn: validate, guard, dispatch, probe."""
     step_receipts: list[Receipt] = []
 
@@ -91,10 +93,93 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
             _record(NoProgressController.receipt(no_progress, step=step, action_id=action.action_id))
         handled = handle_kernel_owned_action(action, step, compiled, executor, envmap, ledger)
         if handled is not None:
-            _record(handled); continue
+            _record(handled)
+            _update_world_from_receipt(world_state, handled, step=step, ledger=ledger)
+            continue
         for receipt in dispatch_action(kernel, action, step, compiled, executor, envmap, ledger):
             _record(receipt)
+            _update_world_from_receipt(world_state, receipt, step=step, ledger=ledger)
     probe_checks(step, compiled, executor, envmap, ledger, tuple(step_receipts))
+
+
+def _update_world_from_receipt(
+    world_state: WorldState | None,
+    receipt: Receipt,
+    *,
+    step: int,
+    ledger: ExecutionLedger,
+) -> None:
+    """Project compact, receipt-backed state into the verifier WorldState.
+
+    The verifier must see current state, but never needs raw command output.
+    Keep only typed hashes/handles/status fields and treat malformed projection
+    as a harness-owned receipt rather than mutating state partially.
+    """
+    if world_state is None:
+        return
+    payload = receipt.payload if isinstance(receipt.payload, dict) else {}
+    delta: dict[str, Any] = {}
+    path = str(payload.get("path", "") or "").strip()
+    if receipt.kind in {"write_file", "read_file", "read_file_page"} and path:
+        delta["files"] = {
+            path: {
+                "status": "modified" if receipt.kind == "write_file" else "present",
+                "step": step,
+                "bytes": payload.get("bytes", payload.get("before_bytes", 0)),
+                "sha256": payload.get("after_content_hash", payload.get("content_hash", "")),
+                "handle": payload.get("file_handle", f"file:{path}"),
+            }
+        }
+    elif receipt.kind in {"run_command", "check_result", "schema_validation"}:
+        delta["latest_result"] = {
+            "status": "passed" if receipt.success else "failed",
+            "step": step,
+            "kind": receipt.kind,
+            "returncode": payload.get("exit_code", 0 if receipt.success else 1),
+            "stdout_handle": payload.get("stdout_handle", ""),
+            "stderr_handle": payload.get("stderr_handle", ""),
+            "sha256": payload.get("content_hash", ""),
+        }
+    elif receipt.kind in {"process_launch", "process_stop", "service_probe"}:
+        # Production process receipts use ``service_name`` / ``process_id``.
+        # Accept older aliases only as a read-side compatibility projection;
+        # the executor remains the sole owner of process creation/teardown.
+        identifier = str(
+            payload.get("service_name")
+            or payload.get("process_id")
+            or payload.get("service")
+            or payload.get("name")
+            or payload.get("process")
+            or ""
+        ).strip()
+        if identifier:
+            if receipt.kind == "process_stop":
+                state = "stopped"
+            elif receipt.kind == "process_launch":
+                state = "running" if receipt.success else "failed"
+            else:
+                state = "ready" if receipt.success else "not_ready"
+            delta["services"] = {identifier: {
+                "state": state,
+                "step": step,
+                "pid": payload.get("pid"),
+                "port": payload.get("port"),
+                "readiness": payload.get("readiness", receipt.success if receipt.kind == "service_probe" else None),
+            }}
+    if not delta:
+        return
+    try:
+        world_state.apply_delta(delta, step=step)
+    except WorldStateDeltaError as exc:
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:world_state_projection:{receipt.receipt_id}",
+            step=step,
+            kind="world_state_projection_failed",
+            success=False,
+            summary=f"world-state projection rejected receipt {receipt.receipt_id}: {exc}",
+            failure_class="harness_state_projection",
+            payload={"source_receipt_id": receipt.receipt_id},
+        ))
 
 
 def _automatic_memory_block_reason(compiled: CompiledRuntime, receipt: Receipt) -> str:

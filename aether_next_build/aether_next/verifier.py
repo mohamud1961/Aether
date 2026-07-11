@@ -79,6 +79,11 @@ class CompletionEvidenceEntry:
     observed: str
     falsification_check: str
     inspection_refs: tuple[str, ...] = ()
+    # Optional compiled semantic metadata.  Legacy verifier responses omit
+    # these fields and continue to use requirement text; V5-wired responses
+    # provide clause coverage and an evidence class for the runtime gate.
+    clause_ids: tuple[str, ...] = ()
+    evidence_class: str = ""
 
 
 @dataclass(frozen=True)
@@ -101,7 +106,7 @@ class ModelVerifierResult:
             "summary": self.summary,
             "findings": [asdict(finding) for finding in self.findings],
             "missing_evidence_requests": list(self.missing_evidence_requests),
-            "completion_evidence": [asdict(entry) for entry in self.completion_evidence],
+                "completion_evidence": [asdict(entry) for entry in self.completion_evidence],
         }
 
 
@@ -247,12 +252,20 @@ def _parse_completion_evidence(data: Mapping[str, Any]) -> tuple[CompletionEvide
         if not isinstance(refs_raw, (list, tuple)):
             raise CompletionEvidenceShapeError(f"completion_evidence[{idx}].inspection_refs must be a list")
         refs = tuple(str(ref).strip() for ref in refs_raw if str(ref).strip())
+        clause_raw = item.get("clause_ids", item.get("clauses", ()))
+        if isinstance(clause_raw, str):
+            clause_raw = [clause_raw]
+        if not isinstance(clause_raw, (list, tuple)):
+            raise CompletionEvidenceShapeError(f"completion_evidence[{idx}].clause_ids must be a list")
+        clause_ids = tuple(str(value).strip() for value in clause_raw if str(value).strip())
         entries.append(
             CompletionEvidenceEntry(
                 requirement=str(item.get("requirement", "")).strip(),
                 observed=str(item.get("observed", "")).strip(),
                 falsification_check=str(item.get("falsification_check", "")).strip(),
                 inspection_refs=refs,
+                clause_ids=clause_ids,
+                evidence_class=str(item.get("evidence_class", "")).strip(),
             )
         )
     return tuple(entries)

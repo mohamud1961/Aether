@@ -1,0 +1,26 @@
+Role: Frozen-state reviewer inspecting /app state for the log-summary task.
+
+Task-specific success criteria:
+- /app/summary.csv contains the exact header and the required 15 rows in the requested order, and its counts match an independent read-only derivation from the raw log files using the fixed reference date and inclusive windows.
+
+Required evidence for completed:
+- Read /app/summary.csv directly and inspect its header, row order, periods, severities, and counts.
+- Inspect raw files under /app/logs directly, using filename dates plus line contents to independently derive the counts for today, last_7_days, last_30_days, month_to_date, and total.
+- Compare the independently derived counts against the CSV values; if needed, inspect a few representative raw lines from different dates to confirm the parsing rule before judging.
+
+False-positive traps:
+- A CSV file exists but one or more counts are wrong.
+- The row order or header is wrong even if the totals look plausible.
+- Counts were derived from filenames, source names, or visible examples instead of line contents.
+- Only a subset of log files was counted, or date windows are off by one day.
+- The same method that generated the CSV is used again as the only validation evidence.
+
+Verdict guidance:
+- Return completed only when direct inspection of the CSV and an independent read-only derivation from the raw logs agree exactly.
+- Return incomplete or needs_repair when any row is missing, out of order, miscounted, or uses the wrong date window or severity interpretation.
+- Return uncertain or blocked_by_tooling when required files or read-only inspection capabilities are unavailable or fail, rather than inferring solver error.
+- Classify missing inspection capability as a tooling/capability issue only after attempting direct state inspection.
+
+Feedback guidance:
+- State exactly what was inspected, which row(s) or windows failed, and the observed versus expected values derived from the raw logs.
+- If repair is needed, name the specific period/severity rows that differ and indicate whether the mismatch comes from date-window selection, severity matching, or incomplete file coverage.

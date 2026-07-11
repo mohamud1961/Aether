@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -11,11 +12,15 @@ from aether_next.compiler import CapabilityRegistry, ConfigCompiler
 from aether_next.execution import CommandResult, MemoryExecutor
 from aether_next.kernel import AetherNextKernel
 from aether_next.kernel_verifier import run_model_verifier_if_available
+from aether_next.kernel_verifier import _execute_compiled_inspection_fallbacks
 from aether_next.ledger import ExecutionLedger, Receipt
 from aether_next.runners.docker_runner import KernelRunTimeout, _kernel_wall_timeout
 from aether_next.tracing import RunTrace
 from aether_next.verifier import ModelVerifierResult, VerifierFinding
+from aether_next.verifier_inspector import VerifierInspectionRequest
 from aether_next.verifier_packets import build_verifier_packet
+from aether_next.task_contract import TaskClause, TaskContract
+from aether_next.world import WorldState
 from aether_next.runtime_ir import (
     ActionRequest,
     AutomaticMemoryPolicy,
@@ -39,6 +44,15 @@ def _env(task_prompt: str = "Runtime enforcement diagnostic.") -> EnvMap:
             "shell": CapabilityDescriptor("shell", "Run shell", tool_names=("run_command",)),
         },
     )
+
+
+def _dynamic_state(**overrides: object) -> dict[str, object]:
+    state: dict[str, object] = {
+        "schema_version": "dynamic_world_state.v1",
+        "state_version": 0,
+    }
+    state.update(overrides)
+    return state
 
 
 def _runtime(**kwargs) -> RuntimeConfigIR:
@@ -200,7 +214,18 @@ def test_filter_false_clean_now_completes_when_verifier_claims_done() -> None:
         minimum_completion_evidence=("adversarial fixtures for XSS and clean HTML preservation",),
     )
 
-    result = AetherNextKernel(max_steps=2).run(_env("Create filter.py that removes JavaScript from HTML to prevent XSS."), executor, _Hooks(runtime, turns))
+    world = WorldState(
+        task_contract=TaskContract.create(
+            "Create filter.py that removes JavaScript from HTML to prevent XSS.",
+            [TaskClause("artifact", "filter.py is available")],
+        ),
+    )
+    result = AetherNextKernel(max_steps=2).run(
+        _env("Create filter.py that removes JavaScript from HTML to prevent XSS."),
+        executor,
+        _Hooks(runtime, turns),
+        world_state=world,
+    )
 
     assert result.status == "completed"
     proof = [receipt for receipt in result.receipts if receipt.kind == "proof_contract"]
@@ -317,8 +342,16 @@ def test_stale_active_finding_is_not_resolved_by_runtime_proof_contract() -> Non
 
 
 def test_verifier_packet_exposes_runtime_signals_without_static_verifier_governance_prompt() -> None:
-    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(_env())).compile(_runtime(), _env())
-    packet = build_verifier_packet(compiled, ExecutionLedger(), step=0, reason="deterministic_failure")
+    env = _env()
+    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(_runtime(), env)
+    packet = build_verifier_packet(
+        compiled,
+        ExecutionLedger(),
+        step=0,
+        reason="deterministic_failure",
+        envmap=env,
+        dynamic_state=_dynamic_state(),
+    )
     for field in ("state_inspection_handles", "raw_state_candidates", "active_findings", "open_obligations"):
         assert field in packet, f"{field!r} missing from state-only verifier packet schema"
     for forbidden in (
@@ -336,6 +369,61 @@ def test_verifier_packet_exposes_runtime_signals_without_static_verifier_governa
         assert forbidden not in packet
 
 
+def test_verifier_caller_forwards_world_snapshot_and_marks_missing_snapshot() -> None:
+    env = _env()
+    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(_runtime(), env)
+    contract = TaskContract.create("maintain runtime state", [TaskClause("state", "service state is observable")])
+    world = WorldState(
+        task_contract=contract,
+        named_sections={"plan": {"next": "submit"}},
+        removed_services=["web"],
+        removed_jobs=["trainer"],
+    )
+    ledger = ExecutionLedger()
+
+    class CapturingHooks(_Hooks):
+        def __init__(self, runtime: RuntimeConfigIR) -> None:
+            super().__init__(runtime, [])
+            self.packet = None
+
+        def verify(self, packet, compiled, ledger):
+            self.packet = packet
+            return json.dumps({"verdict": "completed", "summary": "state observed"})
+
+    hooks = CapturingHooks(_runtime())
+    snapshot = world.dynamic_snapshot()
+    result = run_model_verifier_if_available(
+        hooks,
+        compiled,
+        ledger,
+        step=1,
+        reason="solver_submit",
+        envmap=env,
+        dynamic_state=snapshot,
+    )
+    assert result is not None and result.verdict == "completed"
+    assert hooks.packet is not None
+    assert hooks.packet["dynamic_state"]["named_sections"] == {"plan": {"next": "submit"}}
+    assert hooks.packet["dynamic_state"]["removed_services"] == ["web"]
+    assert hooks.packet["dynamic_state"]["removed_jobs"] == ["trainer"]
+
+    hooks.packet = None
+    blocked = run_model_verifier_if_available(
+        hooks,
+        compiled,
+        ledger,
+        step=2,
+        reason="solver_submit",
+        envmap=env,
+        dynamic_state=None,
+    )
+    assert blocked is not None and blocked.verdict == "blocked_by_harness_config"
+    assert hooks.packet is None
+    unavailable = ledger.latest_receipt("verifier_state_unavailable")
+    assert unavailable is not None
+    assert unavailable.payload["available"] is False
+
+
 def test_model_verifier_persists_full_evidence_bundle(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("AETHER_VERIFIER_EVIDENCE_DIR", str(tmp_path))
     runtime = _runtime(
@@ -347,7 +435,15 @@ def test_model_verifier_persists_full_evidence_bundle(tmp_path, monkeypatch) -> 
     ledger = ExecutionLedger()
     hooks = _Hooks(runtime, [])
 
-    result = run_model_verifier_if_available(hooks, compiled, ledger, step=3, reason="solver_submit")
+    result = run_model_verifier_if_available(
+        hooks,
+        compiled,
+        ledger,
+        step=3,
+        reason="solver_submit",
+        envmap=_env(),
+        dynamic_state=_dynamic_state(),
+    )
 
     assert result is not None and result.verdict == "completed"
     bundle_dirs = list(tmp_path.iterdir())
@@ -363,6 +459,75 @@ def test_model_verifier_persists_full_evidence_bundle(tmp_path, monkeypatch) -> 
     assert verifier_receipt.payload["raw_verifier_output"]
     assert verifier_receipt.payload["parsed_verifier_result"]["verdict"] == "completed"
     assert "verifier_packet" in verifier_receipt.payload
+
+
+def test_verifier_exception_returns_explicit_tooling_block_not_absent_verdict() -> None:
+    env = _env()
+    runtime = _runtime()
+    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(runtime, env)
+    ledger = ExecutionLedger()
+
+    class RaisingHooks(_Hooks):
+        def verify(self, packet, compiled, ledger):
+            raise RuntimeError("provider unavailable")
+
+    result = run_model_verifier_if_available(
+        RaisingHooks(runtime, []),
+        compiled,
+        ledger,
+        step=4,
+        reason="solver_submit",
+        envmap=env,
+        dynamic_state=_dynamic_state(),
+    )
+    assert result is not None
+    assert result.verdict == "blocked_by_tooling"
+    assert ledger.latest_receipt("model_verifier_result") is not None
+    assert ledger.latest_receipt("model_verifier_result").success is False
+
+
+def test_compiled_inspection_fallback_executes_after_primary_failure() -> None:
+    env = _env()
+    runtime = _runtime()
+    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(runtime, env)
+    compiled = dataclasses.replace(compiled, config_realization={
+        "compiled_evidence_requirements": [{
+            "clause_id": "c1",
+            "inspection_route": "read_file:/app/missing.txt",
+            "fallback_route": "inspect_recent_receipts",
+            "minimum_class": "exact_contract",
+        }],
+    })
+    ledger = ExecutionLedger()
+    request = VerifierInspectionRequest("primary", "read_file", path="/app/missing.txt")
+    primary = [{"request_id": "primary", "kind": "read_file", "path": "/app/missing.txt", "error": "missing"}]
+    expanded, attempts = _execute_compiled_inspection_fallbacks(
+        (request,), primary, compiled=compiled, ledger=ledger,
+        executor=MemoryExecutor(workspace_root="/app"), envmap=env,
+        overlay=None, hooks=None,
+    )
+    assert attempts[0]["fallback_success"] is True
+    assert expanded[-1]["kind"] == "inspect_recent_receipts"
+
+
+def test_model_verifier_without_state_blocks_without_evidence_bundle(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("AETHER_VERIFIER_EVIDENCE_DIR", str(tmp_path))
+    env = _env()
+    runtime = _runtime(verifier_identity_prompt="v", success_definition="s")
+    compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(runtime, env)
+    ledger = ExecutionLedger()
+
+    class Hooks(_Hooks):
+        def verify(self, packet, compiled, ledger):
+            raise AssertionError("verifier must not run without EnvMap and dynamic state")
+
+    result = run_model_verifier_if_available(
+        Hooks(runtime, []), compiled, ledger, step=0, reason="solver_submit",
+    )
+
+    assert result is not None and result.verdict == "blocked_by_harness_config"
+    assert ledger.latest_receipt("verifier_state_unavailable") is not None
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_model_verifier_can_run_bounded_read_only_inspection_loop() -> None:
@@ -405,6 +570,7 @@ def test_model_verifier_can_run_bounded_read_only_inspection_loop() -> None:
         reason="solver_submit",
         executor=executor,
         envmap=_env(),
+        dynamic_state=_dynamic_state(),
     )
 
     assert result is not None and result.verdict == "completed"
@@ -431,14 +597,26 @@ def test_scoped_verifier_evidence_dir_prevents_cross_task_collision(tmp_path, mo
     with _scoped_verifier_evidence_dir("filter-js-from-html"):
         assert os.environ["AETHER_VERIFIER_EVIDENCE_DIR"] == str(Path(shared_root) / "filter-js-from-html")
         run_model_verifier_if_available(
-            hooks, compiled, ExecutionLedger(), step=0, reason="solver_submit",
+            hooks,
+            compiled,
+            ExecutionLedger(),
+            step=0,
+            reason="solver_submit",
+            envmap=_env(),
+            dynamic_state=_dynamic_state(),
         )
     assert os.environ["AETHER_VERIFIER_EVIDENCE_DIR"] == shared_root  # restored
 
     with _scoped_verifier_evidence_dir("sparql-university"):
         assert os.environ["AETHER_VERIFIER_EVIDENCE_DIR"] == str(Path(shared_root) / "sparql-university")
         run_model_verifier_if_available(
-            hooks, compiled, ExecutionLedger(), step=0, reason="solver_submit",
+            hooks,
+            compiled,
+            ExecutionLedger(),
+            step=0,
+            reason="solver_submit",
+            envmap=_env(),
+            dynamic_state=_dynamic_state(),
         )
     assert os.environ["AETHER_VERIFIER_EVIDENCE_DIR"] == shared_root  # restored
 

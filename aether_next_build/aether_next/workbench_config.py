@@ -17,12 +17,18 @@ from .runtime_ir import ACTION_SCHEMA, AUTOMATIC_MEMORY_POLICY_MODES, ContextRec
 ALLOWED_SMOKE_TEST_TYPES = frozenset(ALLOWED_VISIBLE_SMOKE_TEST_TYPES)
 UNSUPPORTED_VISIBLE_SMOKE_TEST_TYPE_CODE = "unsupported_visible_smoke_test_type_quarantined"
 RAW_COMMAND_VISIBLE_SMOKE_TEST_CODE = "raw_command_visible_smoke_test_quarantined"
+# Legacy Workbench output may still contain ``tool_policy``.  It is parsed only
+# for compatibility and is never allowed to control the kernel action surface.
+LEGACY_TOOL_SELECTION_WARNING_CODE = "legacy_tool_selection_ignored_fixed_kernel_surface"
 SUPPORTED_TOP_LEVEL_CONFIG_FIELDS = frozenset({
     "schema_version",
     "task_understanding",
     "success_definition",
     "solver_system_prompt",
     "verifier_system_prompt",
+    "clause_coverage",
+    "verifier_strategy",
+    "reconfigure_policy",
     "evidence_requirements",
     "false_positive_risks",
     "minimum_completion_evidence",
@@ -36,6 +42,11 @@ SUPPORTED_TOP_LEVEL_CONFIG_FIELDS = frozenset({
     "helper_script_policy",
     "local_verification_limits",
     "expected_steps",
+})
+
+SUPPORTED_EVIDENCE_CLASSES = frozenset({
+    "shape", "metadata_proxy", "solver_authored_test", "same_method",
+    "behavioral", "exact_contract", "independent_semantic",
 })
 
 
@@ -83,6 +94,29 @@ class VerifierPromptSpec:
             if values:
                 sections.append(title + ":\n" + "\n".join(f"- {v}" for v in values))
         return "\n\n".join(sections)
+
+
+@dataclass(frozen=True)
+class ClauseCoverageSpec:
+    clause_id: str
+    solver_handling: str
+    verifier_check: str
+
+
+@dataclass(frozen=True)
+class VerifierClauseCheckSpec:
+    clause_id: str
+    inspection_route: str
+    fallback_route: str | None
+    falsification_check: str
+    required_evidence_class: str
+
+
+@dataclass(frozen=True)
+class ReconfigurePolicySpec:
+    enabled: bool = True
+    max_versions: int = 2
+    allowed_owners: tuple[str, ...] = ("harness_config",)
 
 
 @dataclass(frozen=True)
@@ -145,6 +179,10 @@ class HarnessConfigIR:
     solver_system_prompt: SolverPromptSpec
     tool_policy: ToolPolicySpec
     verifier_system_prompt: VerifierPromptSpec = field(default_factory=lambda: VerifierPromptSpec(role="Task-specific evidence verifier"))
+    clause_coverage: tuple[ClauseCoverageSpec, ...] = ()
+    verifier_strategy: tuple[VerifierClauseCheckSpec, ...] = ()
+    verifier_false_positive_traps: tuple[str, ...] = ()
+    reconfigure_policy: ReconfigurePolicySpec = field(default_factory=ReconfigurePolicySpec)
     evidence_requirements: tuple[str, ...] = ()
     false_positive_risks: tuple[str, ...] = ()
     minimum_completion_evidence: tuple[str, ...] = ()
@@ -163,6 +201,8 @@ class HarnessConfigIR:
     repair_warning_codes: tuple[str, ...] = ()
     repair_warnings: tuple[str, ...] = ()
     rejected_config_items: tuple[dict[str, Any], ...] = ()
+    legacy_tool_selection_paths: tuple[str, ...] = ()
+    legacy_tool_selection_warning: str = ""
     expected_steps: int = 0
 
     def as_dict(self) -> dict[str, Any]:
@@ -192,6 +232,122 @@ def _dict_tuple(value: Any) -> tuple[dict[str, Any], ...]:
     if not isinstance(value, list):
         return ()
     return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
+def _parse_semantic_evidence_contract(
+    data: dict[str, Any],
+) -> tuple[tuple[ClauseCoverageSpec, ...], tuple[VerifierClauseCheckSpec, ...], tuple[str, ...]]:
+    """Parse optional V4-style clause coverage and verifier strategy fields.
+
+    Older v1 configs remain parseable but are marked uncompiled by the
+    compiler.  A config that supplies either structured section must supply a
+    complete, typed section; malformed or partial semantic contracts fail
+    before Solver start rather than degrading to prose-only evidence.
+    """
+    raw_coverage = data.get("clause_coverage", ())
+    if raw_coverage in (None, ()):
+        coverage: tuple[ClauseCoverageSpec, ...] = ()
+    else:
+        if not isinstance(raw_coverage, list):
+            raise ModelOutputError("clause_coverage must be a list")
+        rows: list[ClauseCoverageSpec] = []
+        for index, item in enumerate(raw_coverage):
+            if not isinstance(item, dict):
+                raise ModelOutputError(f"clause_coverage[{index}] must be an object")
+            unknown = sorted(set(item) - {"clause_id", "solver_handling", "verifier_check"})
+            if unknown:
+                raise ModelOutputError(f"unsupported fields in clause_coverage[{index}]: {', '.join(unknown)}")
+            values = {key: str(item.get(key, "")).strip() for key in ("clause_id", "solver_handling", "verifier_check")}
+            if not all(values.values()):
+                raise ModelOutputError(f"clause_coverage[{index}] requires clause_id, solver_handling, verifier_check")
+            rows.append(ClauseCoverageSpec(**values))
+        coverage = tuple(rows)
+
+    raw_strategy = data.get("verifier_strategy", {})
+    if raw_strategy in (None, {}):
+        return coverage, (), ()
+    _reject_unknown_nested_fields("verifier_strategy", raw_strategy)
+    if not isinstance(raw_strategy, dict):
+        raise ModelOutputError("verifier_strategy must be an object")
+    raw_checks = raw_strategy.get("clause_checks")
+    if not isinstance(raw_checks, list) or not raw_checks:
+        raise ModelOutputError("verifier_strategy.clause_checks must be a non-empty list")
+    checks: list[VerifierClauseCheckSpec] = []
+    for index, item in enumerate(raw_checks):
+        if not isinstance(item, dict):
+            raise ModelOutputError(f"verifier_strategy.clause_checks[{index}] must be an object")
+        allowed = {"clause_id", "inspection_route", "fallback_route", "falsification_check", "required_evidence_class"}
+        unknown = sorted(set(item) - allowed)
+        if unknown:
+            raise ModelOutputError(f"unsupported fields in verifier_strategy.clause_checks[{index}]: {', '.join(unknown)}")
+        values = {key: str(item.get(key, "")).strip() for key in ("clause_id", "inspection_route", "falsification_check", "required_evidence_class")}
+        if not all(values.values()):
+            raise ModelOutputError(f"verifier_strategy.clause_checks[{index}] is incomplete")
+        if values["required_evidence_class"] not in SUPPORTED_EVIDENCE_CLASSES:
+            raise ModelOutputError(f"unknown evidence class: {values['required_evidence_class']}")
+        fallback = item.get("fallback_route")
+        checks.append(VerifierClauseCheckSpec(
+            **values,
+            fallback_route=str(fallback).strip() if fallback is not None else None,
+        ))
+    traps = _tuple_str(raw_strategy.get("false_positive_traps", ()))
+    if not traps:
+        raise ModelOutputError("verifier_strategy.false_positive_traps must not be empty")
+    if raw_strategy.get("return_all_findings", True) is not True:
+        raise ModelOutputError("verifier_strategy.return_all_findings must remain true")
+    return coverage, tuple(checks), traps
+
+
+_NESTED_CONFIG_FIELDS: dict[str, frozenset[str]] = {
+    "solver_system_prompt": frozenset({
+        "role", "workflow", "self_verification", "memory_use", "stop_conditions", "avoid",
+    }),
+    "verifier_system_prompt": frozenset({
+        "role", "success_criteria", "required_evidence", "false_positive_traps",
+        "verdict_guidance", "feedback_guidance",
+    }),
+    "verifier_strategy": frozenset({"clause_checks", "false_positive_traps", "return_all_findings"}),
+    "reconfigure_policy": frozenset({"enabled", "max_versions", "allowed_owners"}),
+    # ``tool_policy`` is retained solely for legacy compatibility.  Its
+    # contents are recorded as non-authoritative guidance, but unknown keys
+    # are still rejected instead of silently discarded.
+    "tool_policy": frozenset({"enabled_tools", "disabled_tools"}),
+    "context_policy": frozenset({
+        "mode", "always_include", "include_on_failure", "model_context_window_tokens", "recipe",
+    }),
+    "context_policy.recipe": frozenset({
+        "always_include", "include_recent", "include_last_failure", "preserve_exact",
+        "make_queryable_not_inline",
+    }),
+    "memory_policy": frozenset({
+        "require_query_before_repeat", "require_query_before_overwrite", "index_by", "automatic_repeat_mode",
+    }),
+    "verification_policy": frozenset({"structural_checks", "visible_smoke_tests", "solver_callable_checks"}),
+    "model_verifier_policy": frozenset({"enabled", "runs_on"}),
+    "failure_feedback_policy": frozenset({"persist_until", "show_age_steps", "show_evidence"}),
+    "helper_script_policy": frozenset({"enabled", "directory", "trust_level"}),
+}
+
+
+def _reject_unknown_nested_fields(path: str, value: Any) -> None:
+    """Fail closed for unknown nested config keys.
+
+    Architect output is model-authored input.  Dropping a misspelled nested
+    field creates a false realization receipt, so every typed object is
+    checked before coercion/defaulting.  The visible-smoke quarantine path may
+    still salvage only its explicitly supported smoke-test entries; it does
+    not bypass this contract.
+    """
+    if value is None and path == "context_policy.recipe":
+        return
+    if not isinstance(value, dict):
+        raise ModelOutputError(f"{path} must be an object")
+    allowed = _NESTED_CONFIG_FIELDS[path]
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ModelOutputError(
+            f"unsupported fields in {path}: " + ", ".join(unknown)
+        )
 
 
 def _nonnegative_int(value: Any, *, default: int = 0) -> int:
@@ -243,6 +399,39 @@ def _validate_smoke_tests(items: tuple[dict[str, Any], ...]) -> None:
             raise ModelOutputError(f"unsupported visible smoke test type: {smoke_type}")
         if "command" in item:
             raise ModelOutputError("visible smoke tests must be typed specs, not raw commands")
+        allowed = {
+            "type", "path", "target", "artifact_path", "language", "contains",
+            "not_contains", "assertions", "min_bytes", "argv", "stdin_file",
+        }
+        unknown = sorted(set(item) - allowed)
+        if unknown:
+            raise ModelOutputError(
+                "unsupported fields in verification_policy.visible_smoke_tests item: "
+                + ", ".join(unknown)
+            )
+
+
+def _reject_unimplemented_structural_checks(value: Any) -> None:
+    """Reject verifier structural checks until a runtime owner exists.
+
+    The canonical compiler currently has an executable path for typed visible
+    smoke checks, but no evaluator for ``structural_checks``.  Accepting this
+    field and then retaining only its count in the realization receipt would
+    silently discard architect authority.  Fail closed before Solver start
+    rather than pretending the checks are enforced.
+    """
+    if value in (None, (), []):
+        return
+    if not isinstance(value, list):
+        raise ModelOutputError(
+            "verification_policy.structural_checks must be a list; "
+            "structural_checks are unsupported in canonical workbench mode"
+        )
+    raise ModelOutputError(
+        "verification_policy.structural_checks are unsupported in canonical "
+        "workbench mode; use supported typed visible_smoke_tests or explicit "
+        "verifier evidence requirements"
+    )
 
 
 def _load_harness_config_data(text: str) -> dict[str, Any]:
@@ -333,6 +522,18 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
             + ", ".join(unsupported_top_level)
         )
     solver_raw = data.get("solver_system_prompt", {})
+    for path in (
+        "solver_system_prompt", "verifier_system_prompt", "tool_policy",
+        "context_policy", "memory_policy", "verification_policy",
+        "model_verifier_policy", "failure_feedback_policy", "helper_script_policy",
+        "reconfigure_policy",
+    ):
+        _reject_unknown_nested_fields(path, data.get(path, {}))
+    context_raw_for_validation = data.get("context_policy", {})
+    if isinstance(context_raw_for_validation, dict):
+        _reject_unknown_nested_fields(
+            "context_policy.recipe", context_raw_for_validation.get("recipe", {})
+        )
     if not isinstance(solver_raw, dict) or not str(solver_raw.get("role", "")).strip():
         raise ModelOutputError("solver_system_prompt.role is required")
     verifier_raw = data.get("verifier_system_prompt", {})
@@ -382,6 +583,7 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
     if automatic_repeat_mode not in AUTOMATIC_MEMORY_POLICY_MODES:
         raise ModelOutputError(f"unsupported automatic memory repeat mode: {automatic_repeat_mode}")
     ver_raw = data.get("verification_policy", {}) if isinstance(data.get("verification_policy", {}), dict) else {}
+    _reject_unimplemented_structural_checks(ver_raw.get("structural_checks", ()))
     smoke_tests = _dict_tuple(ver_raw.get("visible_smoke_tests", ()))
     _validate_smoke_tests(smoke_tests)
     model_ver_raw = data.get("model_verifier_policy", {}) if isinstance(data.get("model_verifier_policy", {}), dict) else {}
@@ -393,6 +595,25 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
         )
     feedback_raw = data.get("failure_feedback_policy", {}) if isinstance(data.get("failure_feedback_policy", {}), dict) else {}
     helper_raw = data.get("helper_script_policy", {}) if isinstance(data.get("helper_script_policy", {}), dict) else {}
+    reconfigure_raw = data.get("reconfigure_policy", {})
+    if not isinstance(reconfigure_raw, dict):
+        raise ModelOutputError("reconfigure_policy must be an object")
+    allowed_owners = _tuple_str(reconfigure_raw.get("allowed_owners", ("harness_config",)))
+    invalid_owners = sorted(set(allowed_owners) - {"harness_config", "verifier_tooling", "environment"})
+    if invalid_owners or "solver_state" in allowed_owners:
+        raise ModelOutputError("unsupported reconfiguration owners: " + ", ".join(invalid_owners or ["solver_state"]))
+    try:
+        max_versions = int(reconfigure_raw.get("max_versions", 2))
+    except (TypeError, ValueError):
+        raise ModelOutputError("reconfigure_policy.max_versions must be an integer") from None
+    if max_versions < 1:
+        raise ModelOutputError("reconfigure_policy.max_versions must be >= 1")
+    reconfigure_policy = ReconfigurePolicySpec(
+        enabled=bool(reconfigure_raw.get("enabled", True)),
+        max_versions=max_versions,
+        allowed_owners=allowed_owners,
+    )
+    clause_coverage, verifier_strategy, verifier_false_positive_traps = _parse_semantic_evidence_contract(data)
     return HarnessConfigIR(
         schema_version="harness_config.v1",
         task_understanding=str(data.get("task_understanding", "")).strip(),
@@ -414,6 +635,10 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
             verdict_guidance=_tuple_str(verifier_raw.get("verdict_guidance", ())),
             feedback_guidance=_tuple_str(verifier_raw.get("feedback_guidance", ())),
         ),
+        clause_coverage=clause_coverage,
+        verifier_strategy=verifier_strategy,
+        verifier_false_positive_traps=verifier_false_positive_traps,
+        reconfigure_policy=reconfigure_policy,
         evidence_requirements=_tuple_str(data.get("evidence_requirements", ())),
         false_positive_risks=_tuple_str(data.get("false_positive_risks", ())),
         minimum_completion_evidence=_tuple_str(data.get("minimum_completion_evidence", ())),
@@ -455,6 +680,10 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
             trust_level=str(helper_raw.get("trust_level", "advisory")),
         ),
         local_verification_limits=_tuple_str(data.get("local_verification_limits", ())),
+        legacy_tool_selection_paths=("$.tool_policy",) if "tool_policy" in data else (),
+        legacy_tool_selection_warning=(
+            LEGACY_TOOL_SELECTION_WARNING_CODE if "tool_policy" in data else ""
+        ),
     )
 
 

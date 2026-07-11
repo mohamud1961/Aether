@@ -38,6 +38,8 @@ from ..run_adapter import ensure_certified_architect_mode, workbench_architect_f
 from ..result_metrics import run_metrics_for_row
 from ..runtime_ir import EnvMap, normalize_relpath
 from ..task_metadata_loader import load_task_instruction, load_task_metadata
+from ..task_contract import TaskClause, TaskContract
+from ..world import WorldState
 from .docker_exec_executor import DockerExecExecutor
 from .docker_helpers import detect_grader_command, ensure_image_available, seed_workspace_from_image
 
@@ -223,6 +225,7 @@ def run_tbench_task(
     container_id: str | None = None
     workspace_dir: str | None = None
     run_trace: Any = None
+    hooks: ModelHooks | None = None
 
     try:
         ensure_certified_architect_mode(architect_mode)
@@ -331,7 +334,12 @@ def run_tbench_task(
             task_metadata={"environment_probe": env_probe},
             task_toml=task_toml,
         )
-        hooks = ModelHooks(architect_model, solver_model, vision_model=vision_model)
+        hooks = ModelHooks(
+            architect_model,
+            solver_model,
+            vision_model=vision_model,
+            task_id=task_name,
+        )
 
         # Build snapshot callback: captures container_id + snapshot_dir from closure.
         snap_cb = None
@@ -341,8 +349,21 @@ def run_tbench_task(
 
         kernel = AetherNextKernel(
             max_steps=max_steps,
-            workbench_architect=workbench_architect_for(architect_model),
+            workbench_architect=workbench_architect_for(architect_model, hooks=hooks),
             snapshot_callback=snap_cb, snapshot_steps=snapshot_steps,
+        )
+        world_state = WorldState(
+            task_contract=TaskContract.create(
+                instruction_text,
+                (TaskClause("task:prompt", instruction_text),),
+            ),
+            env_facts={
+                "workspace_root": "/app",
+                "network_scope": envmap.network_scope,
+                "visible_file_count": len(envmap.visible_files),
+                "visible_dir_count": len(envmap.visible_dirs),
+                "container_id": container_id,
+            },
         )
 
         if trace_dir is not None:
@@ -354,7 +375,10 @@ def run_tbench_task(
         try:
             _progress(progress_callback, task_name, "kernel_run", f"running agent kernel with timeout {run_timeout_s}s")
             with _scoped_verifier_evidence_dir(task_name, trace_dir), _kernel_wall_timeout(run_timeout_s):
-                result = kernel.run(envmap, executor, hooks, trace=run_trace, run_timeout_s=run_timeout_s)
+                result = kernel.run(
+                    envmap, executor, hooks, world_state=world_state,
+                    trace=run_trace, run_timeout_s=run_timeout_s,
+                )
             _progress(progress_callback, task_name, "kernel_done", f"kernel status={result.status} step={result.step}")
         except KernelRunTimeout as exc:
             # The agent phase has TERMINATED (by wall clock).  The official
@@ -459,6 +483,8 @@ def run_tbench_task(
         )
         verifier_verdict = _latest_model_verifier_verdict(result)
         run_metrics = run_metrics_for_row(result, hooks.last_parse_errors)
+        model_call_telemetry = hooks.drain_model_telemetry()
+        quarantined_model_call_telemetry = hooks.drain_quarantined_model_telemetry()
 
         record: dict[str, Any] = {
             "task": task_name,
@@ -477,10 +503,13 @@ def run_tbench_task(
             "classifier_detail": classifier_detail,
             "model_parse_errors": run_metrics.pop("model_parse_errors"),
             "run_metrics": run_metrics,
+            "model_call_telemetry": list(model_call_telemetry),
+            "quarantined_late_model_telemetry": list(quarantined_model_call_telemetry),
             "grader_exit": grader_exit,
             "reward_source": reward_source,
             "grader_stdout_tail": grader_stdout, "grader_stderr_tail": grader_stderr,
             "receipt_summary": _receipt_summary(result),
+            "world_state_snapshot": world_state.dynamic_snapshot(),
             "run_provenance": dict(run_provenance or {}),
             "expected_steps": _expected_steps_from(result),
             "step_efficiency": _step_efficiency(result),
@@ -518,6 +547,13 @@ def run_tbench_task(
 
     except Exception as exc:
         record = _error_record(task_name, image, type(exc).__name__, str(exc), architect_mode=architect_mode)
+        if hooks is not None:
+            # A provider failure can abort the runner before the normal result
+            # record is built.  Do not lose the telemetry that explains it.
+            record["model_call_telemetry"] = list(hooks.drain_model_telemetry())
+            record["quarantined_late_model_telemetry"] = list(
+                hooks.drain_quarantined_model_telemetry()
+            )
         if trace_dir is not None and run_trace is not None:
             _write_trace_file_to_record(
                 record,
@@ -576,6 +612,8 @@ def _error_record(
         "classifier_confidence": "high",
         "classifier_detail": f"{error_kind}: {detail[:2000]}",
         "model_parse_errors": [],
+        "model_call_telemetry": [],
+        "quarantined_late_model_telemetry": [],
         "grader_exit": -1,
         "grader_stdout_tail": "",
         "grader_stderr_tail": "",
@@ -610,6 +648,8 @@ def _timeout_record(
         "classifier_confidence": "high",
         "classifier_detail": f"{error_kind}: {detail[:2000]}",
         "model_parse_errors": [],
+        "model_call_telemetry": [],
+        "quarantined_late_model_telemetry": [],
         "grader_exit": -1,
         "grader_stdout_tail": "",
         "grader_stderr_tail": "",

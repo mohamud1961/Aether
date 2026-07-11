@@ -1,0 +1,30 @@
+{
+  "completion_evidence": [],
+  "confidence": "0.68",
+  "findings": [
+    {
+      "applies_to": [
+        "_includes/about.md",
+        "_layouts/default.html"
+      ],
+      "created_step": 0,
+      "evidence": [
+        "The verifier packet records a completed cherry-pick of `650dba4`, but the current inspection evidence does not expose the resulting file contents on `master`.",
+        "The packet\u2019s earlier inspection results explicitly said `read_file` for `_includes/about.md` returned `file not found`, and `read_file` for `_layouts/default.html` returned `file not found`.",
+        "Step 26 ran `git show HEAD:_includes/about.md` and `git show HEAD:_layouts/default.html`, but the actual output text is not present in the packet, so the restored content cannot be directly verified from this state snapshot."
+      ],
+      "finding_id": "recovered-content-not-confirmed-on-master",
+      "keep_until": "resolved_or_superseded",
+      "priority": "blocking",
+      "repair_instruction": "On `master`, restore or confirm the recovered personal-site pages so that `git show HEAD:_includes/about.md` and `git show HEAD:_layouts/default.html` visibly return the intended recovered content. If those files are still absent, re-cherry-pick or merge the recovery commit into `master` and resolve any missing-content gaps.",
+      "stale_cycles": 0,
+      "status": "active",
+      "summary": "The restored personal-site content is not directly confirmed on `master` in the visible evidence.",
+      "superseded_by": "",
+      "verdict": "needs_repair"
+    }
+  ],
+  "missing_evidence_requests": [],
+  "summary": "The packet shows a recovery attempt via cherry-pick of `650dba4` and later checks on `master`, but the decisive file-level proof on `master` is still not exposed here. The earlier blocking finding remains active for `_includes/about.md` and `_layouts/default.html`, and the packet does not provide the actual restored content from `HEAD` to confirm the personal-site changes are really present on `master`.",
+  "verdict": "needs_repair"
+}

@@ -88,6 +88,15 @@ ALWAYS_AVAILABLE_ACTION_KINDS = frozenset({
 })
 KERNEL_INTERNAL_ACTION_KINDS = frozenset({"register_candidate", "run_experiment"})
 
+# One generic action surface is owned by the kernel.  Architect output may
+# describe workflow and evidence, but it cannot add, remove, or select these
+# actions.  Keep this derived from the canonical action schema so prompts,
+# compilation, and receipts cannot drift into separate tool inventories.
+FIXED_KERNEL_TOOL_SURFACE: tuple[str, ...] = tuple(
+    name for name, _args in ACTION_SCHEMA
+    if name not in KERNEL_INTERNAL_ACTION_KINDS
+)
+
 
 def action_schema_for_kinds(kinds: set[str] | frozenset[str]) -> tuple[tuple[str, tuple[str, ...]], ...]:
     return tuple((name, args) for name, args in ACTION_SCHEMA if name in kinds)
@@ -380,6 +389,7 @@ class WorkflowPolicy:
 @dataclass(frozen=True)
 class ReconfigurePolicy:
     max_reconfigurations: int = 2
+    allowed_owners: tuple[str, ...] = ("harness_config",)
     typed_triggers: tuple[str, ...] = (
         "missing_capability",
         "mode_mismatch",
@@ -430,6 +440,11 @@ class RuntimeConfigIR:
     # read of a solver-produced artifact. Optional; empty means unflagged
     # (unchanged legacy behavior).
     re_derivable_claims: tuple[str, ...] = ()
+    # Structured semantic evidence contract. Empty means legacy prose-only
+    # evidence and is explicitly marked uncompiled by ConfigCompiler.
+    semantic_clause_coverage: tuple[Mapping[str, Any], ...] = ()
+    semantic_verifier_checks: tuple[Mapping[str, Any], ...] = ()
+    semantic_false_positive_traps: tuple[str, ...] = ()
 
     def prompt_summary(self) -> str:
         payload = {

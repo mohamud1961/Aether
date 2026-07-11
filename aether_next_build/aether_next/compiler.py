@@ -13,6 +13,8 @@ from .analysis import (
 from .runtime_ir import (
     ACTION_SCHEMA,
     ALWAYS_AVAILABLE_ACTION_KINDS,
+    FIXED_KERNEL_TOOL_SURFACE,
+    KERNEL_INTERNAL_ACTION_KINDS,
     MODEL_TIERS,
     WORKFLOW_MODES,
     BootstrapPolicy,
@@ -432,12 +434,27 @@ class ConfigCompiler:
             if check.check_id in set(planned_check_ids)
         ]
 
-        # Filter action schema to only tools granted by selected capabilities,
-        # plus explicitly always-available memory/kernel affordances.
+        # Workbench mode owns one fixed generic solver surface.  Capability
+        # omission describes what the environment can actually execute; it
+        # must not silently remove a generic action from the solver contract
+        # (which would turn an unavailable environment feature into a
+        # harness-caused missing action).  The legacy/IR route retains its
+        # capability-filtered schema for compatibility.
         allowed_action_kinds = set(ALWAYS_AVAILABLE_ACTION_KINDS)
         for cap in selected_capabilities:
             allowed_action_kinds.update(cap.tool_names or _DEFAULT_CAPABILITY_TOOLS.get(cap.capability_id, ()))
-        action_schema = tuple((name, args) for name, args in ACTION_SCHEMA if name in allowed_action_kinds)
+        stable_core_mode = any(note == "tool_policy_mode=stable_core" for note in ir.advisory_notes)
+        if stable_core_mode:
+            action_schema = tuple(
+                (name, args) for name, args in ACTION_SCHEMA
+                if name in FIXED_KERNEL_TOOL_SURFACE
+            )
+        else:
+            action_schema = tuple(
+                (name, args)
+                for name, args in ACTION_SCHEMA
+                if name in allowed_action_kinds and name not in KERNEL_INTERNAL_ACTION_KINDS
+            )
         action_schema_dict = {name: list(args) for name, args in action_schema}
         solver_prompt_hash = sha256(ir.solver_identity_prompt.encode("utf-8")).hexdigest()[:16]
         verifier_prompt_hash = sha256(ir.verifier_identity_prompt.encode("utf-8")).hexdigest()[:16]
@@ -464,6 +481,57 @@ class ConfigCompiler:
             for item in ir.local_verification_limits
             if str(item).strip()
         ]
+        semantic_coverage = tuple(dict(item) for item in ir.semantic_clause_coverage)
+        semantic_checks = tuple(dict(item) for item in ir.semantic_verifier_checks)
+        coverage_ids = [str(item.get("clause_id", "")).strip() for item in semantic_coverage]
+        check_ids = [str(item.get("clause_id", "")).strip() for item in semantic_checks]
+        semantic_status = "uncompiled_prose_only"
+        if semantic_coverage or semantic_checks:
+            if not semantic_coverage or not semantic_checks:
+                semantic_status = "invalid_incomplete_clause_contract"
+            elif len(set(coverage_ids)) != len(coverage_ids) or len(set(check_ids)) != len(check_ids):
+                semantic_status = "invalid_duplicate_clause_contract"
+            elif set(coverage_ids) != set(check_ids):
+                semantic_status = "invalid_clause_route_coverage"
+            elif any(
+                not str(item.get("inspection_route", "")).strip()
+                or not str(item.get("falsification_check", "")).strip()
+                or not str(item.get("required_evidence_class", "")).strip()
+                for item in semantic_checks
+            ):
+                semantic_status = "invalid_incomplete_clause_contract"
+            else:
+                semantic_status = "compiled_routes_without_tool_ceilings"
+        ceiling_by_kind = {
+            "read_file": "exact_contract",
+            "read_output": "behavioral",
+            "inspect_artifact": "exact_contract",
+            "rerun_check": "behavioral",
+            "overlay_run_command": "behavioral",
+            "probe_port": "behavioral",
+            "probe_http": "behavioral",
+            "probe_process": "behavioral",
+            "inspect_recent_receipts": "metadata_proxy",
+            "inspect_artifact_history": "metadata_proxy",
+        }
+        inspection_ceilings = {}
+        for item in semantic_checks:
+            for key in ("inspection_route", "fallback_route"):
+                route = str(item.get(key, "")).strip()
+                if route:
+                    kind = route.split(":", 1)[0]
+                    ceiling = ceiling_by_kind.get(kind)
+                    if ceiling:
+                        inspection_ceilings[route] = ceiling
+        if semantic_status == "compiled_routes_without_tool_ceilings" and len(inspection_ceilings) < len({
+            str(item.get(key, "")).strip()
+            for item in semantic_checks
+            for key in ("inspection_route", "fallback_route")
+            if str(item.get(key, "")).strip()
+        }):
+            semantic_status = "invalid_unknown_inspection_route"
+        elif semantic_status == "compiled_routes_without_tool_ceilings":
+            semantic_status = "compiled"
         config_realization = {
             "tool_policy_mode": "stable_core" if stable_core_mode else "capability_selected",
             "architect_tool_selection_applied": not stable_core_mode,
@@ -472,6 +540,8 @@ class ConfigCompiler:
             "capabilities_realized": [cap.capability_id for cap in selected_capabilities],
             "tools_visible_to_solver": sorted(action_schema_dict),
             "tools_runtime_allowed": sorted(action_schema_dict),
+            "fixed_kernel_tool_surface": list(FIXED_KERNEL_TOOL_SURFACE),
+            "kernel_internal_action_kinds": sorted(KERNEL_INTERNAL_ACTION_KINDS),
             "tools_audit_separately": ["register_candidate", "run_experiment", "reconfigure"],
             "context_policy_mode": ir.context_policy.mode,
             "automatic_memory_policy": asdict(ir.automatic_memory_policy),
@@ -496,6 +566,24 @@ class ConfigCompiler:
             "false_positive_risks": list(ir.false_positive_risks),
             "minimum_completion_evidence": list(ir.minimum_completion_evidence),
             "re_derivable_claims": list(ir.re_derivable_claims),
+            "compiled_evidence_requirements": [
+                {
+                    "clause_id": str(item.get("clause_id", "")),
+                    "minimum_class": str(item.get("required_evidence_class", "")),
+                    "inspection_route": str(item.get("inspection_route", "")),
+                    "fallback_route": item.get("fallback_route"),
+                    "falsification_check": str(item.get("falsification_check", "")),
+                }
+                for item in ir.semantic_verifier_checks
+            ],
+            "inspection_evidence_ceilings": inspection_ceilings,
+            "semantic_evidence_status": semantic_status,
+            "semantic_clause_coverage": semantic_coverage,
+            "semantic_false_positive_traps": list(ir.semantic_false_positive_traps),
+            "reconfigure_policy": {
+                "max_versions": ir.reconfigure_policy.max_reconfigurations,
+                "allowed_owners": list(ir.reconfigure_policy.allowed_owners),
+            },
             "local_verification_limits": structured_local_verification_limits,
             "local_verification_limits_text": list(ir.local_verification_limits),
             "verification_authority": {

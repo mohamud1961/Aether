@@ -7,7 +7,7 @@ import pytest
 from aether_next.architect_quality import score_architect_config
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler
 from aether_next.runtime_manual import ALLOWED_VISIBLE_SMOKE_TEST_TYPES, build_runtime_manual
-from aether_next.runtime_ir import CapabilityDescriptor, EnvMap
+from aether_next.runtime_ir import CapabilityDescriptor, EnvMap, FIXED_KERNEL_TOOL_SURFACE
 from aether_next.workbench_compile import (
     TOP_LEVEL_CONFIG_FIELDS,
     config_realization_audit,
@@ -75,6 +75,12 @@ def _raw_config(**overrides):
 
 
 def test_workbench_architect_prompt_states_runtime_config_role() -> None:
+    """The production prompt delegates action authority to the kernel.
+
+    The former ``enabled_tools`` prose contract was superseded by the fixed
+    generic kernel surface.  Keep this assertion tied to the prompt's current
+    authority boundary so a stale architect-selection path cannot return.
+    """
     assert "design the best possible task-local workbench" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "You do not solve the task yourself" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "Visible validation surfaces means only" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
@@ -82,11 +88,14 @@ def test_workbench_architect_prompt_states_runtime_config_role() -> None:
     assert "Do not tell the solver that submit triggers a verifier" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "Repeated actions are an efficiency signal, not proof of failure" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "The reviewer must inspect state directly before judging" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert "Do not put explanatory prose inside enabled_tools" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "The kernel owns one fixed generic action surface for every task:" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert "Architect output must never select, enable, disable, rename, or gate actions." in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert all(tool in WORKBENCH_ARCHITECT_SYSTEM_PROMPT for tool in FIXED_KERNEL_TOOL_SURFACE)
     assert "Fields that expect enum values" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "Schema humility is mandatory" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "[integer]" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
-    assert '"enabled_tools": []' in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert '"enabled_tools"' not in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
+    assert '"tool_policy"' not in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "grader_hints" not in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
 
 def test_runtime_manual_allowed_smoke_enum_matches_parser_enum() -> None:
@@ -300,7 +309,14 @@ def test_workbench_visible_smoke_checks_become_compiler_injected_checks() -> Non
     assert any("file_size" in check.check_id for check in ir.compiler_injected_checks)
 
 
-def test_harness_config_ir_recipe_bridges_to_runtime_context_policy() -> None:
+def test_harness_config_ir_recipe_rejects_unknown_keys_before_runtime_bridge() -> None:
+    """Unknown recipe keys are rejected before any runtime realization.
+
+    The old test accepted and receipted ``unsupported_knob`` as an
+    ``unsupported_fields`` payload.  That permissive bridge was superseded by
+    the strict fail-closed parser contract; preserving it would hide a typo
+    in architect output and create a false realization receipt.
+    """
     raw = json.loads(_raw_config())
     raw["context_policy"] = {
         "mode": "retrieval_augmented",
@@ -313,16 +329,11 @@ def test_harness_config_ir_recipe_bridges_to_runtime_context_policy() -> None:
         },
     }
 
-    config = parse_harness_config_ir(json.dumps(raw))
-    ir = harness_config_to_runtime_ir(config, _env())
-
-    assert ir.context_policy.recipe is not None
-    assert ir.context_policy.recipe.include_recent[0].selector == "tool_results"
-    assert ir.context_policy.recipe.include_recent[0].count == 2
-    assert ir.context_policy.recipe.include_last_failure == 1
-    assert ir.context_policy.recipe.preserve_exact == ("pending_checks", "active_completion_findings")
-    assert ir.context_policy.recipe.make_queryable_not_inline == ("command_results",)
-    assert ir.context_policy.recipe.unsupported_fields == ("unsupported_knob",)
+    with pytest.raises(
+        Exception,
+        match=r"unsupported fields in context_policy\.recipe: unsupported_knob",
+    ):
+        parse_harness_config_ir(json.dumps(raw))
 
 
 def test_realization_preview_explains_configured_architecture() -> None:

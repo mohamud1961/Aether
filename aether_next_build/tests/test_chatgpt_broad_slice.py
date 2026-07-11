@@ -211,14 +211,18 @@ def test_verifier_packet_keeps_active_findings_but_excludes_solver_journey_chang
     finding = VerifierFinding("vf-nochange", 1, "needs_repair", "blocking", "fix out", applies_to=("out.txt",))
     ledger.apply_verifier_result(ModelVerifierResult("needs_repair", findings=(finding,)), step=1)
     ledger.record(Receipt("read-same", 2, "read_file", True, "read only", payload={"path": "out.txt", "content_hash": "same"}))
-    packet = build_verifier_packet(compiled, ledger, step=3, reason="solver_submit_success_candidate")
+    packet = build_verifier_packet(
+        compiled, ledger, step=3, reason="solver_submit_success_candidate", envmap={"workspace": "/app"}
+    )
     assert packet["active_findings"][0]["finding_id"] == "vf-nochange"
     assert "changes_since_active_findings" not in packet
     assert "recent_actions" not in packet
     assert "recent_receipts" not in packet
 
     ledger.record(Receipt("write-fix", 4, "write_file", True, "rewrote out", state_change=True, payload={"path": "out.txt", "modified_paths": ("out.txt",)}))
-    packet = build_verifier_packet(compiled, ledger, step=5, reason="solver_submit_success_candidate")
+    packet = build_verifier_packet(
+        compiled, ledger, step=5, reason="solver_submit_success_candidate", envmap={"workspace": "/app"}
+    )
     assert packet["active_findings"][0]["finding_id"] == "vf-nochange"
     assert "changes_since_active_findings" not in packet
 

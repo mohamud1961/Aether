@@ -1,3 +1,11 @@
+"""Aether-Next kernel: the solver/verifier control loop.
+
+The solver-turn parse-error handling (same-step retry) lives in
+kernel_solver_turn.py; the verifier-disagreement stalemate check lives in
+kernel_stalemate.py. Both were extracted from this module to hold it under
+the 500-LOC cap; each is a pure move of the corresponding branch out of
+``AetherNextKernel.run``, called back in unchanged.
+"""
 from __future__ import annotations
 
 import time
@@ -17,13 +25,16 @@ from .ledger import ExecutionLedger, Receipt
 from .monitors import IntegrityGuards, LocalOnlySafetyGuard, MonitorRunner
 from .no_progress import NoProgressController
 from .kernel_dispatch import dispatch_action
+from .kernel_solver_turn import handle_solver_parse_error
+from .kernel_stalemate import check_verifier_stalemate
 from .kernel_turns import run_act_turn, run_submit_turn
 from .kernel_reconfigure import verifier_triggered_reconfigure
 from .model_hooks import ModelOutputError
-from .redaction import redact_text_with_events
 from .runtime_ir import (
     CompiledRuntime, EnvMap, RuntimeConfigIR, SolverTurn,
 )
+from .world import WorldState
+from .task_contract import TaskClause, TaskContract
 
 if TYPE_CHECKING:
     from .tracing import RunTrace
@@ -123,6 +134,7 @@ class AetherNextKernel:
         executor: Executor,
         hooks: KernelHooks,
         *,
+        world_state: WorldState | None = None,
         trace: RunTrace | None = None,
         run_timeout_s: float | None = None,
     ) -> KernelResult:
@@ -157,12 +169,34 @@ class AetherNextKernel:
             realization["workbench_repair_warning_codes"] = list(resolved.workbench_config.repair_warning_codes)
             realization["workbench_repair_warnings"] = list(resolved.workbench_config.repair_warnings)
             realization["workbench_rejected_config_items"] = [dict(item) for item in resolved.workbench_config.rejected_config_items]
+            realization["legacy_tool_selection_paths"] = list(getattr(resolved.workbench_config, "legacy_tool_selection_paths", ()))
+            realization["legacy_tool_selection_warning"] = str(getattr(resolved.workbench_config, "legacy_tool_selection_warning", ""))
             realization["harness_config_realization_audit"] = config_realization_audit(
                 resolved.workbench_config, envmap,
             )
         else:
             realization["architect_path"] = "ir"
         ledger.record_config_realization(realization)
+        if world_state is None:
+            # The compiled task truth becomes the initial immutable contract;
+            # subsequent solver actions only update dynamic state.  This keeps
+            # direct callers safe while allowing adapters to inject a richer
+            # pre-existing WorldState when they have one.
+            world_state = WorldState(
+                task_contract=TaskContract.create(
+                    compiled.task_prompt,
+                    (TaskClause(
+                        "compiled:objective",
+                        compiled.success_definition or compiled.task_prompt,
+                    ),),
+                ),
+                env_facts={
+                    "workspace_root": envmap.workspace_root,
+                    "network_scope": envmap.network_scope,
+                    "visible_file_count": len(envmap.visible_files),
+                    "visible_dir_count": len(envmap.visible_dirs),
+                },
+            )
         if architect_repair_codes:
             ledger.record(Receipt(
                 receipt_id="config:architect_repair", step=0,
@@ -226,54 +260,11 @@ class AetherNextKernel:
             try:
                 turn = hooks.solve(messages, compiled)
             except ModelOutputError as exc:
-                raw_output = str(getattr(hooks, "last_raw_solver_output", "") or "")
-                redacted_output, redaction_events = redact_text_with_events(raw_output)
-                ledger.record(Receipt(
-                    receipt_id=f"step-{step}:solver_parse_error",
-                    step=step,
-                    kind="solver_parse_error",
-                    success=False,
-                    summary=f"solver output parse/validation error: {exc}",
-                    failure_class="solver_protocol_error",
-                    payload={
-                        "error": str(exc),
-                        "raw_output": raw_output[:20000],
-                        "raw_output_bytes": len(raw_output),
-                        "retry_attempted": True,
-                    },
-                ))
-                retry_messages = list(messages) + [{
-                    "role": "user",
-                    "content": (
-                        "Your previous turn could not be parsed or validated. "
-                        f"Error: {exc}. Emit exactly one valid solver turn JSON object using the allowed schema. "
-                        "Action kinds are nested inside an act turn; they are never top-level turn kinds. "
-                        "Example act: {\"kind\":\"act\",\"summary\":\"probe service\",\"actions\":[{\"action_id\":\"probe1\",\"kind\":\"probe_service\",\"capability_id\":\"service_probe\",\"arguments\":{\"target\":\"127.0.0.1:6665\"},\"intent\":\"confirm readiness\",\"expected_observation\":\"live or not_live\",\"if_fail_next\":\"inspect logs\"}]}. "
-                        "Example submit: {\"kind\":\"submit_outcome\",\"summary\":\"task is complete with cited evidence\"}. "
-                        "Do not request reconfiguration; report a blocker only through the report_blocker action if needed."
-                    ),
-                }]
-                try:
-                    turn = hooks.solve(retry_messages, compiled)
-                except ModelOutputError as retry_exc:
-                    raw_retry = str(getattr(hooks, "last_raw_solver_output", "") or "")
-                    redacted_retry, retry_redaction_events = redact_text_with_events(raw_retry)
-                    ledger.record(Receipt(
-                        receipt_id=f"step-{step}:solver_parse_error_retry",
-                        step=step,
-                        kind="solver_parse_error",
-                        success=False,
-                        summary=f"solver retry still invalid: {retry_exc}",
-                        failure_class="solver_protocol_error",
-                        payload={
-                            "error": str(retry_exc),
-                            "raw_output": raw_retry[:20000],
-                            "raw_output_bytes": len(raw_retry),
-                            "retry_attempted": False,
-                        },
-                    ))
-                    if trace is not None:
-                        trace.add_step(step, context_packet, SolverTurn(kind="solver_protocol_error", summary="solver parse error placeholder"), ledger.all_receipts()[before_count:])
+                turn = handle_solver_parse_error(
+                    hooks, exc, step, compiled, messages, ledger,
+                    context_packet, trace, before_count,
+                )
+                if turn is None:
                     self._fire_snapshot(step); step += 1; continue
             turn_errors = turn.validate(compiled.action_schema)
             if turn_errors:
@@ -287,7 +278,7 @@ class AetherNextKernel:
                 self._fire_snapshot(step); step += 1; continue
             if turn.kind == "act":
                 submit_without_evidence_rounds = 0
-                run_act_turn(self, turn, step, compiled, executor, envmap, ledger)
+                run_act_turn(self, turn, step, compiled, executor, envmap, ledger, world_state)
             elif turn.kind == "submit_outcome":
                 run_submit_turn(
                     self, step, compiled, executor, envmap, ledger, trace,
@@ -359,6 +350,7 @@ class AetherNextKernel:
                         reason="solver_submit",
                         executor=executor,
                         envmap=envmap,
+                        dynamic_state=(world_state.dynamic_snapshot() if world_state is not None else None),
                         memo=verifier_memo,
                     )
                 if verdict is not None and verdict.verdict == "completed":
@@ -381,88 +373,74 @@ class AetherNextKernel:
                 if trace is not None:
                     trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
                 if verdict is not None and verdict.verdict != "completed":
-                    active_ids = frozenset(
-                        str(item.get("finding_id", ""))
-                        for item in ledger.active_finding_context(step + 1)
-                        if str(item.get("finding_id", "")).strip()
+                    stalemate_result = check_verifier_stalemate(
+                        self, verdict, step, reconfigurations, compiled, ledger,
+                        architect_defect_reasons, verifier_round_finding_sets,
                     )
-                    verifier_round_finding_sets.append(active_ids)
-                    window = verifier_round_finding_sets[-self.STALEMATE_ROUNDS:]
-                    if (
-                        len(window) == self.STALEMATE_ROUNDS
-                        and all(entry == window[0] for entry in window)
-                    ):
-                        if window[0]:
-                            ledger.record(Receipt(
-                                receipt_id=f"step-{step}:verifier_stalemate",
-                                step=step,
-                                kind="verifier_stalemate",
-                                success=False,
-                                summary=(
-                                    f"verifier stalemate: the same {len(window[0])} finding(s) "
-                                    f"survived {self.STALEMATE_ROUNDS} verification rounds with "
-                                    "intervening solver evidence; harness records the disagreement "
-                                    "and terminates without picking a winner"
-                                ),
-                                failure_class="verifier_stalemate",
-                                payload={
-                                    "rounds": self.STALEMATE_ROUNDS,
-                                    "finding_ids": sorted(window[0]),
-                                    "round_history": [sorted(entry) for entry in verifier_round_finding_sets],
-                                    "final_verifier_verdict": verdict.as_dict(),
-                                    "active_findings": ledger.active_finding_context(step + 1),
-                                },
-                            ))
-                            return KernelResult(
-                                status="verifier_stalemate", step=step,
-                                reconfigurations=reconfigurations,
-                                blockers=tuple(sorted(window[0])),
-                                env_digest=compiled.env_digest,
-                                receipts=ledger.all_receipts(),
-                                architect_defect=bool(architect_defect_reasons),
-                                architect_defect_reasons=tuple(architect_defect_reasons),
-                            )
-                        ledger.record(Receipt(
-                            receipt_id=f"step-{step}:verifier_blocked_stalemate",
-                            step=step,
-                            kind="verifier_blocked_stalemate",
-                            success=False,
-                            summary=(
-                                f"verifier blocked/uncertain without actionable findings for "
-                                f"{self.STALEMATE_ROUNDS} repeated verification rounds; "
-                                "harness records the disagreement and terminates without picking a winner"
-                            ),
-                            failure_class="verifier_blocked_stalemate",
-                            payload={
-                                "rounds": self.STALEMATE_ROUNDS,
-                                "round_history": [sorted(entry) for entry in verifier_round_finding_sets],
-                                "final_verifier_verdict": verdict.as_dict(),
-                                "active_findings": ledger.active_finding_context(step + 1),
-                            },
-                        ))
-                        return KernelResult(
-                            status="verifier_blocked_stalemate", step=step,
-                            reconfigurations=reconfigurations,
-                            blockers=(),
-                            env_digest=compiled.env_digest,
-                            receipts=ledger.all_receipts(),
-                            architect_defect=bool(architect_defect_reasons),
-                            architect_defect_reasons=tuple(architect_defect_reasons),
-                        )
+                    if stalemate_result is not None:
+                        return stalemate_result
                 if (
                     verdict is not None
                     and verdict.verdict == "blocked_by_harness_config"
                     and canonical_workbench
                 ):
                     if not verifier_reconfigure_used:
-                        verifier_reconfigure_used = True
-                        compiled, reconfigured = verifier_triggered_reconfigure(
-                            self, hooks, compiler, envmap, compiled, ledger, verdict,
-                            current_step=step,
+                        # Reconfiguration is an exceptional owner transfer, not
+                        # a generic response to a blocked verdict.  It requires
+                        # a verifier recovery receipt that explicitly proves
+                        # the blocker owner and evidence gate; otherwise the
+                        # verifier lane remains fail-closed.
+                        recovery_receipt = next(
+                            (
+                                receipt for receipt in reversed(ledger.all_receipts())
+                                if receipt.kind == "verifier_recovery_route"
+                            ),
+                            None,
                         )
-                        if reconfigured:
-                            reconfigurations += 1
-                            architect_defect_reasons.append("verifier_triggered_reconfigure")
+                        recovery_payload = (
+                            recovery_receipt.payload
+                            if recovery_receipt is not None and isinstance(recovery_receipt.payload, dict)
+                            else {}
+                        )
+                        verified_owner = str(recovery_payload.get("blocker_owner", "")).strip()
+                        verified = bool(recovery_payload.get("blocker_verified", False))
+                        reconfigure_policy = compiled.config_realization.get("reconfigure_policy", {})
+                        allowed_owners = {
+                            str(item).strip()
+                            for item in (reconfigure_policy.get("allowed_owners", ()) if isinstance(reconfigure_policy, dict) else ())
+                            if str(item).strip()
+                        } or {"harness_config"}
+                        if (
+                            recovery_payload.get("action") == "reconfigure"
+                            and verified
+                            and verified_owner in allowed_owners
+                        ):
+                            verifier_reconfigure_used = True
+                            compiled, reconfigured = verifier_triggered_reconfigure(
+                                self, hooks, compiler, envmap, compiled, ledger, verdict,
+                                current_step=step,
+                            )
+                            if reconfigured:
+                                reconfigurations += 1
+                                architect_defect_reasons.append("verifier_triggered_reconfigure")
+                        else:
+                            ledger.record(Receipt(
+                                receipt_id=f"step-{step}:verifier_reconfigure_denied",
+                                step=step,
+                                kind="verifier_reconfigure_denied",
+                                success=False,
+                                summary=(
+                                    "blocked_by_harness_config lacked a verified allowed-owner "
+                                    "recovery receipt; reconfiguration denied"
+                                ),
+                                failure_class="config_invalid",
+                                payload={
+                                    "architect_defect": True,
+                                    "recovery_action": recovery_payload.get("action", ""),
+                                    "blocker_owner": verified_owner,
+                                    "blocker_verified": verified,
+                                },
+                            ))
                     else:
                         ledger.record(Receipt(
                             receipt_id=f"step-{step}:verifier_reconfigure_exhausted",

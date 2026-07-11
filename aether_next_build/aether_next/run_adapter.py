@@ -14,6 +14,8 @@ from .model_hooks import ModelHooks, ModelCallable
 from .real_executor import SubprocessExecutor
 from .result_metrics import run_metrics_for_row
 from .task_metadata_loader import load_task_metadata
+from .task_contract import TaskClause, TaskContract
+from .world import WorldState
 
 
 
@@ -48,10 +50,16 @@ def _receipt_summary(result: KernelResult) -> list[dict[str, Any]]:
     return items
 
 
-def workbench_architect_for(architect_model: ModelCallable) -> Any:
-    """Construct the certified workbench architect for a model callable."""
+def workbench_architect_for(architect_model: ModelCallable, *, hooks: ModelHooks | None = None) -> Any:
+    """Construct the certified workbench architect for a model callable.
+
+    Supplying the owning hooks preserves provider telemetry attribution for the
+    architect's initial and repair calls.  The raw-callable form remains for
+    compatibility with offline callers and existing tests.
+    """
     from .workbench_hooks import WorkbenchArchitect
-    return WorkbenchArchitect(architect_model)
+    model = hooks.call_architect_model if hooks is not None else architect_model
+    return WorkbenchArchitect(model)
 
 
 def run_task(
@@ -98,18 +106,39 @@ def run_task(
     ensure_certified_architect_mode(architect_mode)
 
     executor = SubprocessExecutor(workspace_root)
-    hooks = ModelHooks(architect_model, solver_model, verifier_model=verifier_model)
+    hooks = ModelHooks(
+        architect_model,
+        solver_model,
+        verifier_model=verifier_model,
+        task_id=Path(task_dir).name,
+    )
     kernel = AetherNextKernel(
         max_steps=max_steps,
-        workbench_architect=workbench_architect_for(architect_model),
+        workbench_architect=workbench_architect_for(architect_model, hooks=hooks),
     )
-
-    result = kernel.run(envmap, executor, hooks)
+    # Keep a task-scoped WorldState owned by the adapter so the production
+    # boundary, not only the kernel's direct-call fallback, carries state into
+    # every Verifier activation and can emit a final compact snapshot.
+    world_state = WorldState(
+        task_contract=TaskContract.create(
+            instruction_text,
+            (TaskClause("task:prompt", instruction_text),),
+        ),
+        env_facts={
+            "workspace_root": workspace_root,
+            "network_scope": envmap.network_scope,
+            "visible_file_count": len(envmap.visible_files),
+            "visible_dir_count": len(envmap.visible_dirs),
+        },
+    )
+    result = kernel.run(envmap, executor, hooks, world_state=world_state)
 
     classifier = HarnessLimiterClassifier()
     classification = classifier.classify(result)
 
     run_metrics = run_metrics_for_row(result, hooks.last_parse_errors)
+    model_call_telemetry = hooks.drain_model_telemetry()
+    quarantined_model_call_telemetry = hooks.drain_quarantined_model_telemetry()
 
     return {
         "architect_mode": architect_mode,
@@ -126,6 +155,9 @@ def run_task(
         "classifier_detail": classification.detail,
         "model_parse_errors": run_metrics.pop("model_parse_errors"),
         "run_metrics": run_metrics,
+        "model_call_telemetry": list(model_call_telemetry),
+        "quarantined_late_model_telemetry": list(quarantined_model_call_telemetry),
+        "world_state_snapshot": world_state.dynamic_snapshot(),
         "receipt_summary": _receipt_summary(result),
     }
 

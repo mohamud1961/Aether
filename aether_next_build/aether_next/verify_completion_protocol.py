@@ -1,6 +1,9 @@
 """Completion-evidence protocol enforcement and the verify_with_inspector loop.
 
-Extracted from model_hooks.py for the 500-LOC cap.
+Extracted from model_hooks.py for the 500-LOC cap. The record/independence
+gate helpers (problem detection, retry instructions, and refusal builders)
+were further extracted to verify_completion_gates.py for the same cap;
+imported back below unchanged.
 
 Design of record: audit addendum (FABLE5_ADVERSARIAL_AUDIT_20260708T165639Z.md)
 Concern 1 -- the harness checks presence, non-emptiness, and that
@@ -22,6 +25,14 @@ from .model_prompts import VERIFIER_RUNTIME_CONTRACT
 from .runtime_ir import CompiledRuntime
 from .verifier import CompletionEvidenceShapeError, parse_model_verifier_result
 from .verifier_inspector import parse_verifier_inspection_requests
+from .verify_completion_gates import (
+    _completion_independence_problem,
+    _completion_record_problem,
+    _completion_record_retry_instruction,
+    _independent_derivation_retry_instruction,
+    _refuse_completion_independence,
+    _refuse_completion_record,
+)
 from .verify_inspection_requests import (
     _completed_inspection_is_semantically_grounded,
     _default_completion_inspection_requests,
@@ -29,8 +40,6 @@ from .verify_inspection_requests import (
     _inspections_from_missing_evidence,
     _model_output_error,
     _refs_from_inspections,
-    _refuse_completion_independence,
-    _refuse_completion_record,
     _structured_missing_evidence_requests,
     _verifier_identity_prompt_for,
     _verifier_max_output_tokens,
@@ -38,93 +47,6 @@ from .verify_inspection_requests import (
 
 if TYPE_CHECKING:
     from .model_hooks import ModelHooks
-
-
-def _completion_record_problem(result: Any, performed_refs: set[str]) -> str:
-    """Structural validity of the completion_evidence record; '' when valid.
-
-    Presence, non-emptiness, and inspection_refs resolution only. The
-    reasoning content is never evaluated -- judging evidence quality stays
-    the verifier model's job; this only makes skipping the record visible.
-    """
-    entries = tuple(getattr(result, "completion_evidence", ()) or ())
-    if not entries:
-        return "completion_evidence is missing or empty"
-    problems: list[str] = []
-    for idx, entry in enumerate(entries):
-        if not entry.requirement or not entry.observed or not entry.falsification_check:
-            problems.append(
-                f"completion_evidence[{idx}] has an empty requirement/observed/falsification_check field"
-            )
-            continue
-        if not entry.inspection_refs:
-            problems.append(f"completion_evidence[{idx}].inspection_refs is empty")
-            continue
-        if not any(ref in performed_refs for ref in entry.inspection_refs):
-            problems.append(
-                f"completion_evidence[{idx}].inspection_refs {list(entry.inspection_refs)} "
-                "do not match any inspection performed this round"
-            )
-    return "; ".join(problems)
-
-
-def _completion_independence_problem(result: Any, independent_refs: set[str]) -> str:
-    """Whether a completed verdict cites an independent-derivation inspection.
-
-    '' when at least one completion_evidence.inspection_refs entry (anywhere
-    in the record) resolves to an independent-derivation inspection kind.
-    Callers gate this on the architect having flagged the task's claims as
-    machine-re-derivable (packet.re_derivable_claims) -- when not flagged,
-    this check is not consulted and behavior is unchanged.
-
-    Content-blind: this checks only the KIND of the cited inspection
-    (already resolved into ``independent_refs`` by
-    ``_independent_derivation_refs``), never whether the reasoning in the
-    record is correct.
-    """
-    entries = tuple(getattr(result, "completion_evidence", ()) or ())
-    cited: set[str] = set()
-    for entry in entries:
-        cited |= set(getattr(entry, "inspection_refs", ()) or ())
-    if cited & independent_refs:
-        return ""
-    return (
-        "no completion_evidence.inspection_refs resolve to an independent-derivation "
-        "inspection performed this round (overlay_run_command, rerun_check, probe_port, "
-        "probe_http, probe_process, or perceive_artifact); this task flags its decisive "
-        "claim(s) as machine-re-derivable, so reading a solver-produced artifact alone "
-        "is not sufficient"
-    )
-
-
-def _completion_record_retry_instruction(problem: str) -> dict[str, Any]:
-    return {
-        "instruction": (
-            "Protocol requires a completed verdict to carry completion_evidence "
-            "per verifier_runtime_contract.completion_evidence_shape: map each "
-            "decisive requirement to what your own inspection observed, cite "
-            "inspection_refs (request_id, path, handle, or target) of inspections "
-            "performed this round, and state the falsification_check. "
-            f"Current problem: {problem}. Return your final verdict again "
-            "with a valid record, or a different verdict if the inspected state "
-            "does not actually support completion."
-        ),
-    }
-
-
-def _independent_derivation_retry_instruction(problem: str) -> dict[str, Any]:
-    return {
-        "instruction": (
-            "This task's re_derivable_claims marks its decisive claim(s) as "
-            "machine-re-derivable. Protocol requires at least one completion_evidence "
-            "inspection_ref to resolve to an inspection you performed independently -- "
-            "overlay_run_command, rerun_check, a probe_port/probe_http/probe_process live "
-            "check, or your own perceive_artifact reading -- not only read_file, "
-            "read_output, or receipt/history inspection of a solver-produced artifact. "
-            f"Current problem: {problem}. Submit a bounded inspection request performing "
-            "that independent derivation, then return your final verdict."
-        ),
-    }
 
 
 def verify_with_inspector(
@@ -171,7 +93,10 @@ def verify_with_inspector(
     last_inspection_results: list[dict[str, Any]] = []
     for round_idx in range(max_rounds + 1):
         try:
-            raw = hooks._verifier(messages, max_output_tokens=_verifier_max_output_tokens())
+            raw = hooks.call_verifier(
+                messages,
+                max_output_tokens=_verifier_max_output_tokens(),
+            )
             setattr(hooks, "last_raw_verifier_output", raw)
         except Exception as exc:
             hooks.last_parse_errors.append(str(exc))
@@ -402,7 +327,7 @@ def verify_with_inspector(
             })
             continue
         if result.verdict == "completed" and inspected and round_idx < max_rounds:
-            record_problem = _completion_record_problem(result, performed_refs)
+            record_problem = _completion_record_problem(result, performed_refs, packet=packet)
             if record_problem and not record_retry_used:
                 # Content-blind protocol enforcement, mirroring the
                 # inspection-required gate: the record must exist and its
@@ -509,7 +434,7 @@ def verify_with_inspector(
                 ],
             })
         if result.verdict == "completed":
-            record_problem = _completion_record_problem(result, performed_refs)
+            record_problem = _completion_record_problem(result, performed_refs, packet=packet)
             if record_problem:
                 # Out of retries and the record is still structurally
                 # invalid: refuse the completion as a protocol event.

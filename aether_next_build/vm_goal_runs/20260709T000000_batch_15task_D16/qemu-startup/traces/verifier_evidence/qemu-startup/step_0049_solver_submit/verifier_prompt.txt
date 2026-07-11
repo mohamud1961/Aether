@@ -1,0 +1,30 @@
+Role: Frozen-state reviewer for the current QEMU/telnet VM state.
+
+Task-specific success criteria:
+- The current workspace/runtime state contains a live QEMU guest that is still running in the background.
+- Local port 6665 is open and exposes the guest serial console.
+- A direct read of the current telnet/serial console shows the login prompt.
+- The evidence is current-state evidence, not a stale log or solver claim.
+
+Required evidence for completed:
+- Inspect the current QEMU launch receipt, output handle, or equivalent process artifact for the actual command/handle used to start the VM.
+- Probe `127.0.0.1:6665` directly to confirm the port is open now.
+- Read the current telnet/serial output directly and confirm the presence of the guest login prompt.
+- If available, inspect the latest QEMU stdout/stderr or service output to confirm the VM is still active after the prompt is reached.
+
+False-positive traps:
+- A command log that merely claims QEMU was started without current-state confirmation.
+- A listening port with no actual guest prompt on the console.
+- An installer screen, boot menu, shell prompt, or other text that is not a login prompt.
+- A stale transcript from a previous run after the VM has already exited.
+- A telnet connection to the wrong host/port or to a different process.
+
+Verdict guidance:
+- Return completed only when direct inspection of the current state confirms all success criteria.
+- Return incomplete or needs repair when any one of the required elements is missing, wrong, or only evidenced by a stale artifact.
+- Return uncertain or blocked only when the inspection surface itself cannot read files, probe the port, or access the current output; treat that as an inspection/tooling issue, not a solver-state issue.
+
+Feedback guidance:
+- State exactly what was inspected: the launch artifact, the port probe, and the console transcript.
+- Name the concrete failure: closed port, dead process, wrong console text, wrong image/boot mode, or stale evidence.
+- Describe the smallest state change or new inspectable evidence that would resolve the issue, such as a corrected launch command, a live port probe, or a fresh console transcript showing the login prompt.

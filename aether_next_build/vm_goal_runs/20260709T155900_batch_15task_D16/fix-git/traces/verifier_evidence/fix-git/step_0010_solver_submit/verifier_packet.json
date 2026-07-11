@@ -1,0 +1,547 @@
+{
+  "active_findings": [],
+  "architect_verifier_prompt": {
+    "hash": "315e84d13d065f1d",
+    "rendered": "Role: You are a frozen-state Git reviewer inspecting the repository state directly, not the solver's narrative.\n\nTask-specific success criteria:\n- The inspected repository state shows that master now includes the recovered personal-site changes and that the changes are reachable from master history or current content.\n- The inspected state does not show unresolved merge conflicts or a stranded-only-in-another-place recovery that never reached master.\n\nRequired evidence for completed:\n- Inspect git status --short --branch in /app/personal-site and confirm the current branch and cleanliness or any explicitly explained residual state.\n- Inspect git branch -avv and git log --graph --decorate --oneline to see whether the recovery source was actually merged/cherry-picked into master.\n- Inspect git reflog and git stash list if needed to confirm where the work came from and whether it is still stranded elsewhere.\n- Inspect the relevant file content or git diff/git show for the recovered changes on master, not just the presence of a merge commit or branch pointer.\n\nFalse-positive traps:\n- A branch or stash entry exists with the right-looking changes, but master itself does not contain them.\n- The repo is on master and clean, but the actual missing content was never restored.\n- A merge or cherry-pick commit exists, but its file-level content does not match the recovered changes.\n- The solver created unrelated edits or a new commit message that implies success without the original changes being present.\n\nVerdict guidance:\n- Return completed only after directly inspecting repo state and confirming that master contains the intended recovered content and that the recovery path is visible in Git history or file contents.\n- Return incomplete or needs repair if the inspected state shows the changes are still missing, only present off-master, only partially restored, or conflicted.\n- Return uncertain or blocked_by_tooling if Git or filesystem inspection is unavailable, or if the workspace cannot be inspected directly enough to confirm the repository state.\n\nFeedback guidance:\n- Give concrete, state-based feedback: name the inspected branch/commit/stash/reflog entry, the file(s) checked, and the exact reason the state fails the visible task.\n- If repair is needed, say what observable state change would fix it, such as merging a specific commit into master, resolving a conflict in a named file, or restoring a specific missing hunk on master.\n- Avoid vague requests for more evidence when the necessary state can already be inspected directly.",
+    "summary": "Role: You are a frozen-state Git reviewer inspecting the repository state directly, not the solver's narrative."
+  },
+  "artifacts_present": [],
+  "config_realization": {
+    "architect_path": "workbench",
+    "context_policy": {
+      "compression_trigger_ratio": 0.6,
+      "include_sections": [],
+      "mode": "failure_focused"
+    },
+    "harness_config_realization_audit": {
+      "dispositions": {
+        "context_policy": {
+          "mode": "failure_focused",
+          "note": "supported modes are realized; custom sections are allowlisted; optional recipes are compiled into ContextPolicy and realized by ContextCompiler with explicit metadata",
+          "recipe": {
+            "always_include": [
+              "current_repo_state",
+              "active_findings",
+              "recent_git_history",
+              "recovery_candidates",
+              "latest_failure"
+            ],
+            "include_last_failure": 1,
+            "include_recent": [],
+            "make_queryable_not_inline": [
+              "long git logs",
+              "long diffs"
+            ],
+            "preserve_exact": [
+              "branch names",
+              "commit hashes",
+              "stash references",
+              "file paths"
+            ],
+            "unsupported_fields": []
+          },
+          "recipe_declared": true,
+          "sections": [],
+          "status": "realized_partial"
+        },
+        "evidence_requirements": {
+          "count": 4,
+          "realized_as": "RuntimeConfigIR.evidence_requirements, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "expected_steps": {
+          "realized_as": "config_realization.expected_steps and result-row step_efficiency (advisory metric, never a gate)",
+          "status": "realized_advisory",
+          "value": 8
+        },
+        "failure_feedback_policy": {
+          "note": "active findings persist via ActiveFindingStore; policy variants are not compiled yet",
+          "persist_until": "resolved_or_superseded",
+          "status": "advisory_partial"
+        },
+        "false_positive_risks": {
+          "count": 4,
+          "realized_as": "RuntimeConfigIR.false_positive_risks, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "helper_script_policy": {
+          "directory": ".aether_tools",
+          "enabled": true,
+          "status": "realized"
+        },
+        "local_verification_limits": {
+          "count": 3,
+          "realized_as": "RuntimeConfigIR.local_verification_limits, advisory_notes, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "memory_policy": {
+          "automatic_repeat_mode": "soft_block_exact_repeat",
+          "index_by": [
+            "path",
+            "action_kind",
+            "check_id",
+            "failure_kind"
+          ],
+          "note": "automatic_repeat_mode is compiled into RuntimeConfigIR.automatic_memory_policy; legacy query-before fields remain advisory metadata while automatic memory replaces solver-called query rituals",
+          "require_query_before_overwrite": false,
+          "require_query_before_repeat": false,
+          "runtime_automatic_memory_policy": {
+            "mode": "soft_block_exact_repeat"
+          },
+          "status": "realized_partial"
+        },
+        "minimum_completion_evidence": {
+          "count": 3,
+          "realized_as": "RuntimeConfigIR.minimum_completion_evidence, config_realization, and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "model_verifier_policy": {
+          "enabled": true,
+          "realized_as": "RuntimeConfigIR.model_verifier_policy and kernel_verifier reason filtering",
+          "runs_on": [
+            "solver_submit"
+          ],
+          "status": "realized"
+        },
+        "re_derivable_claims": {
+          "count": 3,
+          "realized_as": "RuntimeConfigIR.re_derivable_claims and verifier packet metadata",
+          "status": "realized"
+        },
+        "schema_version": {
+          "evidence": "parse_harness_config_ir rejects non-harness_config.v1",
+          "status": "validated"
+        },
+        "solver_system_prompt": {
+          "inserted": true,
+          "realized_as": "RuntimeConfigIR.solver_identity_prompt",
+          "status": "realized"
+        },
+        "success_definition": {
+          "realized_as": "RuntimeConfigIR.success_definition and verifier packet metadata",
+          "status": "realized_advisory"
+        },
+        "task_understanding": {
+          "realized_as": "RuntimeConfigIR.architect_summary",
+          "status": "realized"
+        },
+        "tool_policy": {
+          "always_available_tools": [
+            "grep_output",
+            "inspect_checks",
+            "inspect_diff",
+            "query_artifact_history",
+            "query_memory",
+            "read_file_page",
+            "read_output",
+            "record_observation",
+            "report_blocker",
+            "run_check"
+          ],
+          "architect_tool_guidance_recorded": true,
+          "architect_tool_selection_applied": false,
+          "audit_separately_tools": [
+            "run_experiment",
+            "register_candidate",
+            "reconfigure"
+          ],
+          "disabled_tools_declared": [],
+          "enabled_tools_declared": [
+            "read_file",
+            "read_file_page",
+            "write_file",
+            "run_command",
+            "read_output",
+            "grep_output",
+            "query_memory",
+            "query_artifact_history",
+            "inspect_diff",
+            "record_observation",
+            "inspect_checks",
+            "run_check"
+          ],
+          "note": "Workbench stable-core mode does not hide core solver tools merely because the architect omitted them; real restrictions must come from env/safety/runtime capability availability.",
+          "runtime_allowed_tools_expected": [
+            "bootstrap_acquire",
+            "grep_output",
+            "inspect_artifact",
+            "inspect_checks",
+            "inspect_diff",
+            "launch_process",
+            "probe_service",
+            "query_artifact_history",
+            "query_memory",
+            "read_file",
+            "read_file_page",
+            "read_output",
+            "record_observation",
+            "report_blocker",
+            "run_check",
+            "run_command",
+            "stop_process",
+            "write_file"
+          ],
+          "selected_capabilities": [
+            "artifact_inspection",
+            "filesystem",
+            "managed_process",
+            "network_fetch",
+            "service_probe",
+            "shell"
+          ],
+          "stable_core_solver_tools": [
+            "read_file",
+            "write_file",
+            "run_command",
+            "launch_process",
+            "probe_service",
+            "stop_process",
+            "inspect_artifact",
+            "bootstrap_acquire",
+            "query_memory",
+            "query_artifact_history",
+            "inspect_diff",
+            "record_observation",
+            "inspect_checks",
+            "run_check"
+          ],
+          "status": "advisory_not_applied_to_core_visibility",
+          "tool_policy_mode": "stable_core"
+        },
+        "verification_policy": {
+          "compiled_visible_smoke_checks": [],
+          "note": "safe typed visible smoke specs compile into internal CheckSpec evidence; unsupported or under-specified specs are rejected/quarantined and never become official grader authority",
+          "rejected_config_items": [],
+          "repair_warning_codes": [],
+          "repair_warnings": [],
+          "smoke_compile_rejections": [],
+          "status": "realized_partial",
+          "structural_checks": 0,
+          "visible_smoke_tests": 0
+        },
+        "verifier_system_prompt": {
+          "inserted": true,
+          "realized_as": "RuntimeConfigIR.verifier_identity_prompt and verifier packet/prompt metadata",
+          "status": "realized"
+        }
+      },
+      "guardrails": {
+        "schema_humility": {
+          "note": "Placeholder notation is reported when it appears to be hardened into list/array contracts; the harness does not rewrite the task or decide the correct semantic type.",
+          "realized_as": "architect prompt instruction, runtime manual guidance, advisory notes, and config_realization_audit guardrail",
+          "status": "realized_advisory",
+          "warnings": []
+        }
+      },
+      "has_silent_ignored_fields": false,
+      "missing_dispositions": [],
+      "top_level_fields": [
+        "context_policy",
+        "evidence_requirements",
+        "expected_steps",
+        "failure_feedback_policy",
+        "false_positive_risks",
+        "helper_script_policy",
+        "local_verification_limits",
+        "memory_policy",
+        "minimum_completion_evidence",
+        "model_verifier_policy",
+        "re_derivable_claims",
+        "schema_version",
+        "solver_system_prompt",
+        "success_definition",
+        "task_understanding",
+        "tool_policy",
+        "verification_policy",
+        "verifier_system_prompt"
+      ]
+    },
+    "harness_config_schema_version": "harness_config.v1",
+    "tools_runtime_allowed": [
+      "bootstrap_acquire",
+      "grep_output",
+      "inspect_artifact",
+      "inspect_checks",
+      "inspect_diff",
+      "launch_process",
+      "probe_service",
+      "query_artifact_history",
+      "query_memory",
+      "read_file",
+      "read_file_page",
+      "read_output",
+      "record_observation",
+      "report_blocker",
+      "run_check",
+      "run_command",
+      "stop_process",
+      "write_file"
+    ],
+    "tools_visible_to_solver": [
+      "bootstrap_acquire",
+      "grep_output",
+      "inspect_artifact",
+      "inspect_checks",
+      "inspect_diff",
+      "launch_process",
+      "probe_service",
+      "query_artifact_history",
+      "query_memory",
+      "read_file",
+      "read_file_page",
+      "read_output",
+      "record_observation",
+      "report_blocker",
+      "run_check",
+      "run_command",
+      "stop_process",
+      "write_file"
+    ],
+    "verification_authority": {
+      "model_verifier": "internal_gate",
+      "official_grader": "external_benchmark"
+    },
+    "verification_policy": {
+      "check_plan_ids": [
+        "check-82c0e141a7"
+      ],
+      "official_grader_authority": "external_benchmark"
+    },
+    "workbench_rejected_config_items": [],
+    "workbench_repair_warning_codes": [],
+    "workbench_repair_warnings": []
+  },
+  "evidence_requirements": [
+    "A direct Git status/branch inspection showing the repository is on master after recovery.",
+    "A direct history view showing the recovered source is reachable from master through a merge, cherry-pick, or equivalent Git relationship.",
+    "A file-level diff or content inspection showing the actual missing personal-site changes are present on master.",
+    "If recovery involved reflog or stash, a direct inspection of that source and the resulting master state."
+  ],
+  "false_positive_risks": [
+    "The solver may find a branch or stash with the changes but forget to integrate them into master.",
+    "The solver may make an unrelated commit on master, leaving the real missing content absent.",
+    "The solver may rely on a clean status or a merge commit name without checking the actual file content.",
+    "The solver may compare the wrong branch or baseline and conclude the repo is correct when the user-visible changes are not present."
+  ],
+  "local_verification_limits": [
+    {
+      "source": "runtime_config",
+      "statement": "Git-native inspection is authoritative for repository state, but a clean status alone is not enough unless the recovered content is also directly confirmed at the file level."
+    },
+    {
+      "source": "runtime_config",
+      "statement": "Do not assume external site build or deployment tooling is available; if a local site build is not runnable, rely on Git history and direct file inspection instead."
+    },
+    {
+      "source": "runtime_config",
+      "statement": "Do not use network fetches or package installation unless the recovery truly requires them; this task should normally be solvable with local Git operations."
+    }
+  ],
+  "minimum_completion_evidence": [
+    "git status --short --branch in /app/personal-site shows master as the current branch and no unresolved conflicts remain.",
+    "git log --graph --decorate --oneline or equivalent shows the recovery path into master is real and reachable.",
+    "At least one directly inspected recovered file or hunk on master matches the intended restored content, not just the file name or commit message."
+  ],
+  "objective_graph": "{\"allowed_edit_roots\":[\".\"],\"deliverables\":[],\"output_schema\":{},\"output_schema_target\":\"\",\"package_requirements\":[],\"protected_paths\":[],\"service_requirements\":[],\"thresholds\":[]}",
+  "official_grader_authority": "external_benchmark",
+  "open_obligations": [],
+  "raw_state_candidates": [
+    {
+      "authority": "candidate_only",
+      "path": "personal-site/_publications/merrillTransformingWearableData2024a.md",
+      "source": "envmap.likely_inputs"
+    },
+    {
+      "authority": "candidate_only",
+      "path": "personal-site/resources/pubpdfs/merrillTransformingWearableData2024a.pdf",
+      "source": "envmap.likely_inputs"
+    },
+    {
+      "authority": "candidate_only",
+      "path": "personal-site/resources/thumbnails/merrillTransformingWearableData2024a.png",
+      "source": "envmap.likely_inputs"
+    }
+  ],
+  "re_derivable_claims": [
+    "Whether the recovered work is reachable from master HEAD.",
+    "Which branch, commit, reflog entry, or stash entry originally contained the missing changes.",
+    "Whether the current master tree actually contains the restored file content."
+  ],
+  "reason": "solver_submit",
+  "recent_command_receipts": [
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && git status --short --branch && echo '---BRANCHES---' && git branch -avv && echo '---REFLOG---' && git reflog --date=iso -n 20 && echo '---STASH---' && git stash list",
+      "exit_code": 0,
+      "receipt_id": "step-0:inspect-repo-state:cmd",
+      "stderr_handle": "0:inspect-repo-state:stderr",
+      "stdout_handle": "0:inspect-repo-state:stdout",
+      "step": 0
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && git show --stat --summary --oneline 650dba4 -- && echo '---DIFF master..650dba4---' && git diff --stat d7d3e4b 650dba4 && echo '---FILES---' && git diff --name-only d7d3e4b 650dba4",
+      "exit_code": 0,
+      "receipt_id": "step-1:inspect-candidate-650dba4:cmd",
+      "stderr_handle": "1:inspect-candidate-650dba4:stderr",
+      "stdout_handle": "1:inspect-candidate-650dba4:stdout",
+      "step": 1
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && echo '---MASTER ABOUT---' && sed -n '1,120p' _includes/about.md && echo '---CANDIDATE ABOUT---' && git show 650dba4:_includes/about.md && echo '---MASTER DEFAULT---' && sed -n '1,220p' _layouts/default.html && echo '---CANDIDATE DEFAULT---' && git show 650dba4:_layouts/default.html",
+      "exit_code": 0,
+      "receipt_id": "step-2:a-0:cmd",
+      "stderr_handle": "2:a-0:stderr",
+      "stdout_handle": "2:a-0:stdout",
+      "step": 2
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && git cherry-pick 650dba4",
+      "exit_code": 1,
+      "receipt_id": "step-3:a-0:cmd",
+      "stderr_handle": "3:a-0:stderr",
+      "stdout_handle": "3:a-0:stdout",
+      "step": 3
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && git status --short --branch && echo '---LOG---' && git log --graph --decorate --oneline --max-count=5 && echo '---ABOUT MASTER---' && sed -n '1,40p' _includes/about.md && echo '---DEFAULT HEADERS---' && sed -n '1,80p' _layouts/default.html",
+      "exit_code": 0,
+      "receipt_id": "step-3:a-1:cmd",
+      "stderr_handle": "3:a-1:stderr",
+      "stdout_handle": "3:a-1:stdout",
+      "step": 3
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && git checkout --theirs -- _includes/about.md && git add _includes/about.md _layouts/default.html && GIT_EDITOR=: git cherry-pick --continue",
+      "exit_code": 0,
+      "receipt_id": "step-4:resolve-cherry-pick:cmd",
+      "stderr_handle": "4:resolve-cherry-pick:stderr",
+      "stdout_handle": "4:resolve-cherry-pick:stdout",
+      "step": 4
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && git status --short --branch && echo '---LOG---' && git log --graph --decorate --oneline --max-count=6 && echo '---ABOUT---' && sed -n '1,20p' _includes/about.md && echo '---DEFAULT-H1---' && grep -n 'Postdoc @ Stanford' _layouts/default.html",
+      "exit_code": 0,
+      "receipt_id": "step-4:verify-recovery:cmd",
+      "stderr_handle": "4:verify-recovery:stderr",
+      "stdout_handle": "4:verify-recovery:stdout",
+      "step": 4
+    },
+    {
+      "authority": "audit_trail_only",
+      "command": "cd /app/personal-site && python -m biblib.test",
+      "exit_code": 0,
+      "receipt_id": "step-6:verify-test-module:cmd",
+      "stderr_handle": "6:verify-test-module:stderr",
+      "stdout_handle": "6:verify-test-module:stdout",
+      "step": 6
+    }
+  ],
+  "solver_reported_blockers": [],
+  "state_inspection_handles": [
+    {
+      "bytes": 526,
+      "handle": "0:inspect-repo-state:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "0:inspect-repo-state:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 397,
+      "handle": "1:inspect-candidate-650dba4:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "1:inspect-candidate-650dba4:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 10768,
+      "handle": "2:a-0:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "2:a-0:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 89,
+      "handle": "3:a-0:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 353,
+      "handle": "3:a-0:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 3690,
+      "handle": "3:a-1:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "3:a-1:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 124,
+      "handle": "4:resolve-cherry-pick:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "4:resolve-cherry-pick:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 623,
+      "handle": "4:verify-recovery:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "4:verify-recovery:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    },
+    {
+      "bytes": 0,
+      "handle": "6:verify-test-module:stdout",
+      "kind": "output",
+      "stream": "stdout"
+    },
+    {
+      "bytes": 0,
+      "handle": "6:verify-test-module:stderr",
+      "kind": "output",
+      "stream": "stderr"
+    }
+  ],
+  "step": 10,
+  "success_definition": "The repository on master must now contain the user's missing personal-site changes, with direct Git evidence that the changes are reachable from master rather than stranded only in another branch, stash, or reflog entry. Completion should be evidenced by the repo state itself: correct content merged into master and a clean or otherwise fully explained Git status.",
+  "task_prompt": "I just made some changes to my personal site and checked out master, but now I can't find those changes. Please help me find them and merge them into master.\n"
+}

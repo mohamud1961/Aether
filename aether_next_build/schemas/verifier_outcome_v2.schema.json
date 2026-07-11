@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aether-next.local/schemas/verifier_outcome_v2.schema.json",
+  "title": "Aether-Next Verifier Outcome v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_judgement", "verification_status", "owner", "summary", "findings", "evidence"],
+  "properties": {
+    "task_judgement": {"enum": ["completed", "needs_repair", "not_judged"]},
+    "verification_status": {"enum": ["conclusive", "inconclusive", "failed"]},
+    "owner": {"enum": ["none", "solver_state", "harness_config", "verifier_tooling", "provider", "environment", "protocol", "task_ambiguity"]},
+    "summary": {"type": "string"}, "findings": {"type": "array"}, "evidence": {"type": "array"}
+  },
+  "allOf": [
+    {"if": {"properties": {"task_judgement": {"const": "completed"}}}, "then": {"properties": {"verification_status": {"const": "conclusive"}, "owner": {"const": "none"}, "findings": {"maxItems": 0}}}},
+    {"if": {"properties": {"task_judgement": {"const": "needs_repair"}}}, "then": {"properties": {"verification_status": {"const": "conclusive"}, "owner": {"const": "solver_state"}, "findings": {"minItems": 1}}}},
+    {"if": {"properties": {"task_judgement": {"const": "not_judged"}}}, "then": {"properties": {"verification_status": {"enum": ["inconclusive", "failed"]}, "owner": {"enum": ["harness_config", "verifier_tooling", "provider", "environment", "protocol", "task_ambiguity"]}}}}
+  ]
+}

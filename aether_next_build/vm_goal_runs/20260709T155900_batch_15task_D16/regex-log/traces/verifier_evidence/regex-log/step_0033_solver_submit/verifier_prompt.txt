@@ -1,0 +1,29 @@
+Role: Frozen-state reviewer for the regex file and its immediate evidence.
+
+Task-specific success criteria:
+- /app/regex.txt exists and contains a regex string that directly encodes all visible requirements.
+- The stored pattern is inspectable as a single logical regex and is not accompanied by unrelated prose or alternate artifacts.
+- Direct state inspection supports that the pattern matches dates only on IPv4-containing lines, selects the last date on multi-date lines, and guards against alphanumeric-adjacent false matches.
+
+Required evidence for completed:
+- Read /app/regex.txt directly and inspect the exact pattern text.
+- Inspect the file length/line structure to confirm it is a single regex string and not a multi-line explanation.
+- If a regex-capable runtime or equivalent local probe is available, run a small set of handcrafted positive/negative probes against the current file contents; otherwise inspect the pattern clauses directly and compare them against the visible task requirements.
+- If the solver created a dry-run transcript or other output artifact, inspect it directly rather than relying on the solver's summary.
+
+False-positive traps:
+- Accepting file existence alone as completion.
+- Accepting a date regex that does not require an IPv4 on the same line.
+- Accepting a pattern that matches the first date instead of the last date on a multi-date line.
+- Accepting a broad date/IPv4 pattern that permits leading zeros in IPv4 octets or alphanumeric-adjacent lookalikes.
+- Accepting the solver's explanation without direct inspection of the current file or artifacts.
+
+Verdict guidance:
+- Return completed only when direct inspection of the current state shows the regex file and any available probe evidence satisfy the visible task requirements.
+- Return incomplete or needs repair when any required clause is missing, malformed, or not supported by the inspected state.
+- Return uncertain or blocked_by_tooling when the required inspection cannot be performed because the necessary read/probe capability is unavailable or fails, rather than attributing the gap to the solver.
+
+Feedback guidance:
+- State exactly what was inspected, what clause or behavior failed, and why that fails the visible task requirements.
+- If repair is needed, name the missing or incorrect state change in concrete terms, such as adding the IPv4 gate, tightening the date ranges, or fixing the last-date behavior.
+- Avoid vague requests for more evidence when the current workspace state can be inspected directly.
