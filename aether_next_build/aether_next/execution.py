@@ -17,6 +17,8 @@ class CommandResult:
     stderr: str = ""
     modified_paths: tuple[str, ...] = ()
     produced_artifacts: tuple[str, ...] = ()
+    removed_paths: tuple[str, ...] = ()
+    state_delta: Mapping[str, Any] = None  # type: ignore[assignment]
     metrics: Mapping[str, float] = None  # type: ignore[assignment]
     provenance: tuple[str, ...] = ()
     # Truthful capture beyond the inline cap: when a stream exceeds the
@@ -33,6 +35,7 @@ class CommandResult:
         return self.exit_code == 0
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "state_delta", dict(self.state_delta or {}))
         object.__setattr__(self, "metrics", dict(self.metrics or {}))
         if self.stdout_bytes_total < 0:
             object.__setattr__(self, "stdout_bytes_total", len(self.stdout))

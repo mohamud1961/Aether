@@ -6,6 +6,7 @@ from typing import Iterable
 
 from .ledger import ExecutionLedger
 from .monitors import MonitorAlert
+from .proof_contract import evaluate_proof_contract
 from .runtime_ir import CompiledRuntime, MetricThreshold
 
 
@@ -174,6 +175,22 @@ class CompletionGate:
         thresholds = list(compiled.objective_graph.thresholds)
         threshold_blockers = self._threshold_blockers(thresholds, ledger)
         blockers.extend(threshold_blockers)
+
+        # Critical semantic clauses are completion obligations. The kernel does
+        # not interpret their domain meaning; it only enforces that a certified
+        # route produced sufficiently strong independent evidence and that no
+        # later disproof remains active.
+        if compiled.proof_contract:
+            for clause_decision in evaluate_proof_contract(compiled.proof_contract, ledger):
+                if clause_decision.satisfied:
+                    continue
+                blockers.append(
+                    Blocker(
+                        code=clause_decision.code,
+                        detail=clause_decision.detail,
+                        source=clause_decision.clause_id,
+                    )
+                )
 
         if compiled.completion_policy.require_all_obligations:
             open_obligations = [

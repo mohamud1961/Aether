@@ -25,6 +25,11 @@ from ..execution import (
 )
 from ..kernel import AetherNextKernel, KernelResult
 from ..model_hooks import ModelCallable, ModelHooks
+from ..model_request_contract import (
+    ExpectedModelRequest,
+    ModelRequestRealizationError,
+    preflight_model_requests,
+)
 from ..real_executor import (
     StreamSpooler,
     SubprocessExecutor,
@@ -40,7 +45,13 @@ from ..runtime_ir import EnvMap, normalize_relpath
 from ..task_metadata_loader import load_task_instruction, load_task_metadata
 from ..task_contract import TaskClause, TaskContract
 from ..world import WorldState
+from ..workspace_state import (
+    capture_workspace_state,
+    create_immutable_workspace_snapshot,
+)
+from ..verify_inspection_requests import _verifier_max_output_tokens
 from .docker_exec_executor import DockerExecExecutor
+from .grader_results import build_grader_detail
 from .docker_helpers import detect_grader_command, ensure_image_available, seed_workspace_from_image
 
 # Prevent git "dubious ownership" on bind-mounted workspaces (uid mismatch).
@@ -224,6 +235,9 @@ def run_tbench_task(
     task_name = Path(task_dir).name
     container_id: str | None = None
     workspace_dir: str | None = None
+    initial_snapshot_dir: str | None = None
+    initial_workspace_state: dict[str, Any] | None = None
+    initial_workspace_manifest_path: str | None = None
     run_trace: Any = None
     hooks: ModelHooks | None = None
 
@@ -235,6 +249,18 @@ def run_tbench_task(
             image,
             "invalid_architect_mode",
             str(exc),
+            architect_mode=architect_mode,
+        )
+
+    try:
+        model_request_preflight = preflight_model_requests((
+            (architect_model, ExpectedModelRequest("architect", 24000)),
+            (solver_model, ExpectedModelRequest("solver", 16000)),
+            (architect_model, ExpectedModelRequest("verifier", _verifier_max_output_tokens())),
+        ))
+    except ModelRequestRealizationError as exc:
+        return _error_record(
+            task_name, image, exc.code, exc.detail,
             architect_mode=architect_mode,
         )
 
@@ -261,6 +287,24 @@ def run_tbench_task(
         )
         if seed_error is not None:
             return _error_record(task_name, image, "workspace_seed_failed", seed_error, architect_mode=architect_mode)
+
+        # Capture pristine grader-visible task state before any model or
+        # container command. The immutable copy lives outside the mutable bind
+        # mount and is removed only after result evidence has been written.
+        pristine_state = capture_workspace_state(workspace_path)
+        initial_snapshot_dir = tempfile.mkdtemp(prefix=f"tbench_initial_{task_name}_")
+        shutil.rmtree(initial_snapshot_dir)
+        create_immutable_workspace_snapshot(workspace_path, initial_snapshot_dir)
+        initial_workspace_state = pristine_state.to_dict()
+        if trace_dir is not None:
+            manifest_dir = Path(trace_dir) / "initial_workspace"
+            manifest_dir.mkdir(parents=True, exist_ok=True)
+            manifest_path = manifest_dir / f"{task_name}.json"
+            manifest_path.write_text(
+                _json.dumps(initial_workspace_state, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            initial_workspace_manifest_path = str(manifest_path)
 
         # -- 2. Start long-lived container ------------------------------------
         task_dir_abs = str(Path(task_dir).resolve())
@@ -434,12 +478,16 @@ def run_tbench_task(
                 capture_output=True, text=True, errors="replace", timeout=run_timeout_s,
             )
             grader_exit = grader_proc.returncode
-            grader_stdout = grader_proc.stdout[-4000:]
-            grader_stderr = grader_proc.stderr[-4000:]
+            grader_stdout_full = grader_proc.stdout
+            grader_stderr_full = grader_proc.stderr
+            grader_stdout = grader_stdout_full[-4000:]
+            grader_stderr = grader_stderr_full[-4000:]
         except subprocess.TimeoutExpired as exc:
             grader_exit = -1
-            grader_stdout = str(exc.stdout or "")[-4000:]
-            grader_stderr = str(exc.stderr or "")[-4000:]
+            grader_stdout_full = str(exc.stdout or "")
+            grader_stderr_full = str(exc.stderr or "")
+            grader_stdout = grader_stdout_full[-4000:]
+            grader_stderr = grader_stderr_full[-4000:]
             grader_error = f"grader_timeout_after_{run_timeout_s}s"
 
         reward, grader_error, reward_source = _resolve_grader_reward(
@@ -450,21 +498,23 @@ def run_tbench_task(
         )
         _progress(progress_callback, task_name, "grader_done", f"reward={reward} source={reward_source} error={grader_error}")
 
-        # Capture CTRF detail if present (optional).
-        grader_detail: dict[str, Any] | None = None
+        # Capture optional CTRF without letting its final phase overwrite
+        # earlier visible grader failures. The official reward remains
+        # authoritative and contradictions are retained explicitly.
+        ctrf_text: str | None = None
         try:
             cp = subprocess.run(
                 ["docker", "exec", container_id, "cat", "/logs/verifier/ctrf.json"],
                 capture_output=True, text=True, errors="replace", timeout=10)
             if cp.returncode == 0 and cp.stdout.strip():
-                ctrf = _json.loads(cp.stdout)
-                tests = ctrf.get("results", {}).get("tests", [])
-                p = [t.get("name", "?") for t in tests if t.get("status") == "passed"]
-                f = [t.get("name", "?") for t in tests if t.get("status") == "failed"]
-                grader_detail = {"passed_count": len(p), "failed_count": len(f),
-                                 "passed_names": p[:20], "failed_names": f[:20]}
+                ctrf_text = cp.stdout
         except Exception:
-            pass  # CTRF is optional
+            pass
+        grader_detail = build_grader_detail(
+            reward=reward, grader_exit=grader_exit,
+            stdout=grader_stdout_full, stderr=grader_stderr_full,
+            ctrf_text=ctrf_text,
+        )
 
         # -- 5. Classify -------------------------------------------------------
         classifier = HarnessLimiterClassifier()
@@ -507,10 +557,18 @@ def run_tbench_task(
             "quarantined_late_model_telemetry": list(quarantined_model_call_telemetry),
             "grader_exit": grader_exit,
             "reward_source": reward_source,
+            "official_grader_status": grader_detail["official_status"],
             "grader_stdout_tail": grader_stdout, "grader_stderr_tail": grader_stderr,
             "receipt_summary": _receipt_summary(result),
             "world_state_snapshot": world_state.dynamic_snapshot(),
             "run_provenance": dict(run_provenance or {}),
+            "model_request_preflight": list(model_request_preflight),
+            "initial_workspace_state": {
+                "digest": (initial_workspace_state or {}).get("digest", ""),
+                "entry_count": (initial_workspace_state or {}).get("entry_count", 0),
+                "truncated": bool((initial_workspace_state or {}).get("truncated", False)),
+            },
+            "initial_workspace_manifest_path": initial_workspace_manifest_path,
             "expected_steps": _expected_steps_from(result),
             "step_efficiency": _step_efficiency(result),
             "run_timeout_s_effective": run_timeout_s,
@@ -524,8 +582,8 @@ def run_tbench_task(
         }
         if grader_error is not None:
             record["grader_error"] = grader_error
-        if grader_detail is not None:
-            record["grader_detail"] = grader_detail
+        record["grader_detail"] = grader_detail
+        record["grader_detail_conflict"] = not grader_detail["consistent_with_official_reward"]
         if kernel_timed_out:
             record["error"] = f"kernel_timeout_after_{run_timeout_s}s"
             record["error_detail"] = kernel_timeout_detail
@@ -574,6 +632,25 @@ def run_tbench_task(
             )
         if workspace_dir and os.path.isdir(workspace_dir):
             shutil.rmtree(workspace_dir, ignore_errors=True)
+        if initial_snapshot_dir and os.path.isdir(initial_snapshot_dir):
+            # Snapshot contents are read-only by design; restore owner write
+            # permission only for teardown, never during the episode.
+            for dirpath, dirnames, filenames in os.walk(initial_snapshot_dir):
+                for name in filenames:
+                    try:
+                        (Path(dirpath) / name).chmod(0o600)
+                    except OSError:
+                        pass
+                for name in dirnames:
+                    try:
+                        (Path(dirpath) / name).chmod(0o700)
+                    except OSError:
+                        pass
+            try:
+                Path(initial_snapshot_dir).chmod(0o700)
+            except OSError:
+                pass
+            shutil.rmtree(initial_snapshot_dir, ignore_errors=True)
 
 
 def _progress(

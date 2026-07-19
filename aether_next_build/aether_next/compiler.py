@@ -5,6 +5,7 @@ from hashlib import sha256
 from typing import Iterable
 
 from .compiler_prefix import PROTOCOL_CARD_SECTIONS
+from .proof_contract import certify_proof_contract
 from .analysis import (
     EvalIndexer,
     ObjectiveGraphBuilder,
@@ -367,6 +368,17 @@ class ConfigCompiler:
                 )
             )
 
+        _certified_contract, proof_issues = certify_proof_contract(
+            ir.semantic_clause_coverage, ir.semantic_verifier_checks,
+        )
+        for proof_issue in proof_issues:
+            issues.append(ConfigIssue(
+                proof_issue.code,
+                f"{proof_issue.clause_id}: {proof_issue.detail}".strip(": "),
+                severity="error",
+                fatal=True,
+            ))
+
         return issues
 
     def compile(
@@ -483,6 +495,14 @@ class ConfigCompiler:
         ]
         semantic_coverage = tuple(dict(item) for item in ir.semantic_clause_coverage)
         semantic_checks = tuple(dict(item) for item in ir.semantic_verifier_checks)
+        certified_proof_contract, proof_contract_issues = certify_proof_contract(
+            semantic_coverage, semantic_checks,
+        )
+        if proof_contract_issues:
+            raise ValueError("; ".join(
+                f"{item.code}: {item.clause_id}: {item.detail}"
+                for item in proof_contract_issues
+            ))
         coverage_ids = [str(item.get("clause_id", "")).strip() for item in semantic_coverage]
         check_ids = [str(item.get("clause_id", "")).strip() for item in semantic_checks]
         semantic_status = "uncompiled_prose_only"
@@ -579,6 +599,7 @@ class ConfigCompiler:
             "inspection_evidence_ceilings": inspection_ceilings,
             "semantic_evidence_status": semantic_status,
             "semantic_clause_coverage": semantic_coverage,
+            "certified_proof_contract": [item.as_dict() for item in certified_proof_contract],
             "semantic_false_positive_traps": list(ir.semantic_false_positive_traps),
             "reconfigure_policy": {
                 "max_versions": ir.reconfigure_policy.max_reconfigurations,
@@ -693,6 +714,7 @@ class ConfigCompiler:
             false_positive_risks=ir.false_positive_risks,
             minimum_completion_evidence=ir.minimum_completion_evidence,
             re_derivable_claims=ir.re_derivable_claims,
+            proof_contract=tuple(item.as_dict() for item in certified_proof_contract),
             config_realization=config_realization,
             architect_model_tier=ir.architect_model_tier,
             solver_model_tier=ir.solver_model_tier,

@@ -210,8 +210,9 @@ def dispatch_action(kernel: Any, action: ActionRequest, step: int, compiled: Com
             result.stdout + "\n" + result.stderr,
             exit_code=result.exit_code,
         ) if not result.success else ""
+        changed_paths = tuple(result.modified_paths) + tuple(result.removed_paths)
         integrity_violation = kernel.integrity_guards.validate_modified_paths(
-            compiled.objective_graph, result.modified_paths,
+            compiled.objective_graph, changed_paths,
         )
         payload: dict[str, Any] = {
             "command": command,
@@ -235,6 +236,10 @@ def dispatch_action(kernel: Any, action: ActionRequest, step: int, compiled: Com
             "artifact_paths": tuple(
                 normalize_relpath(p, envmap.workspace_root) for p in result.produced_artifacts
             ),
+            "removed_paths": tuple(
+                normalize_relpath(p, envmap.workspace_root) for p in result.removed_paths
+            ),
+            "state_delta": dict(result.state_delta),
             "candidate_id": action.candidate_id,
         }
         if integrity_violation:
@@ -249,7 +254,9 @@ def dispatch_action(kernel: Any, action: ActionRequest, step: int, compiled: Com
             kind="run_command",
             success=result.success,
             summary=f"command exit={result.exit_code}: {command}",
-            state_change=bool(result.modified_paths or result.produced_artifacts),
+            state_change=bool(
+                result.modified_paths or result.produced_artifacts or result.removed_paths
+            ),
             failure_class=failure_class,
             payload=payload,
         )]

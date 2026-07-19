@@ -386,8 +386,12 @@ class ExecutionLedger:
         step: int,
         compiled: CompiledRuntime | None = None,
     ) -> None:
-        del compiled
         self.findings.apply_result(result, step=step, resolve_stale_by_evidence=False)
+        if compiled is not None:
+            from .proof_contract import record_verifier_result_evidence
+            record_verifier_result_evidence(
+                self, result=result, compiled=compiled, step=step,
+            )
         self.record(Receipt(
             receipt_id=f"step-{step}:model_verifier", step=step,
             kind="model_verifier_result", success=result.verdict == "completed",

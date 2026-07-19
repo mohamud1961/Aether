@@ -503,6 +503,7 @@ class CompiledRuntime:
     false_positive_risks: tuple[str, ...] = ()
     minimum_completion_evidence: tuple[str, ...] = ()
     re_derivable_claims: tuple[str, ...] = ()
+    proof_contract: tuple[Mapping[str, Any], ...] = ()
     config_realization: Mapping[str, Any] = field(default_factory=dict)
 
     def prefix_messages(self) -> list[dict[str, str]]:

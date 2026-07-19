@@ -19,9 +19,9 @@ from ..real_executor import (
     StreamSpooler,
     SubprocessExecutor,
     _decode_partial,
-    _snapshot_mtimes,
 )
 from ..runtime_ir import EnvMap
+from ..workspace_state import capture_workspace_state, diff_workspace_states
 
 import logging
 import re
@@ -47,7 +47,6 @@ class DockerExecExecutor:
         self._host_root = str(Path(workspace_root_host).resolve())
         self._default_timeout_s = max(1, default_timeout_s)
         self._container_workdir = container_workdir
-        # Delegate host filesystem ops to a SubprocessExecutor on the host dir.
         self._host_exec = SubprocessExecutor(
             self._host_root, default_timeout_s=default_timeout_s,
         )
@@ -88,7 +87,7 @@ class DockerExecExecutor:
         effective_timeout = timeout_s if timeout_s > 0 else self._default_timeout_s
         effective_cwd = cwd or self._container_workdir
 
-        before = _snapshot_mtimes(self._host_root)
+        before_state = capture_workspace_state(self._host_root)
 
         docker_cmd = [
             "docker", "exec", "-w", effective_cwd,
@@ -118,23 +117,24 @@ class DockerExecExecutor:
         stdout, stdout_overflow = self._spooler.finalize(raw_stdout, "stdout")
         stderr, stderr_overflow = self._spooler.finalize(raw_stderr, "stderr")
 
-        after = _snapshot_mtimes(self._host_root)
-
-        modified: list[str] = []
-        produced: list[str] = []
-        for rel, mtime in after.items():
-            if rel not in before:
-                produced.append(rel)
-            elif before[rel] != mtime:
-                modified.append(rel)
+        after_state = capture_workspace_state(self._host_root)
+        state_delta = diff_workspace_states(before_state, after_state)
+        modified = sorted(
+            set(state_delta["content_changed_paths"])
+            | set(state_delta["metadata_changed_paths"])
+        )
+        produced = tuple(state_delta["created_paths"])
+        removed = tuple(state_delta["removed_paths"])
 
         return CommandResult(
             command=command,
             exit_code=exit_code,
             stdout=stdout,
             stderr=stderr,
-            modified_paths=tuple(sorted(modified)),
-            produced_artifacts=tuple(sorted(produced)),
+            modified_paths=tuple(modified),
+            produced_artifacts=produced,
+            removed_paths=removed,
+            state_delta=state_delta,
             metrics={},
             stdout_overflow_path=stdout_overflow,
             stderr_overflow_path=stderr_overflow,
@@ -210,7 +210,6 @@ class DockerExecExecutor:
         return self._probe_process_name(target)
 
     def _probe_process_name(self, target: str) -> ProbeResult:
-        """Probe whether a named process is running inside the container."""
         docker_cmd = [
             "docker", "exec", self._container_id,
             "pgrep", "-f", target,
@@ -275,7 +274,6 @@ class DockerExecExecutor:
             )
 
     def stop_process(self, target: str) -> bool:
-        """Kill a process by name inside the container."""
         docker_cmd = [
             "docker", "exec", self._container_id,
             "pkill", "-f", target,
@@ -292,7 +290,6 @@ class DockerExecExecutor:
             return False
 
 
-
 _log = logging.getLogger(__name__)
 
 
@@ -305,14 +302,11 @@ def _parse_tcp_probe_target(target: str) -> tuple[str, int] | None:
         if 0 < port <= 65535:
             return ("127.0.0.1", port)
         return None
-    # Keep process names such as "python3 server.py" on the process-probe path.
     if any(ch.isspace() for ch in raw):
         return None
     host, sep, port_text = raw.rpartition(":")
     if not sep or not port_text.isdigit():
         return None
-    # Avoid treating arbitrary labels with colons as TCP unless the endpoint is
-    # plausibly host-like. This remains generic and task-agnostic.
     clean_host = host.strip() or "127.0.0.1"
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", clean_host):
         return None
