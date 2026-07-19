@@ -127,6 +127,39 @@ def _historical_launch_commands(trace: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(commands))
 
 
+def _restore_historical_launches(
+    executor: DockerExecExecutor,
+    commands: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    """Replay recorded launches when, and only when, the trace recorded one.
+
+    A frozen task may be a file-only case with no background process.  The
+    absence of a launch command is therefore evaluator metadata, not a fatal
+    replay error.  It is retained in the row so a later audit can distinguish
+    "nothing to restore" from an attempted launch that failed.
+    """
+    if not commands:
+        return [{
+            "kind": "historical_process_restore",
+            "status": "not_applicable",
+            "reason": "no_explicit_background_launch_in_trace",
+        }]
+
+    receipts: list[dict[str, Any]] = []
+    for command in commands:
+        result = executor.run_command(command, timeout_s=60)
+        receipts.append({
+            "kind": "historical_process_restore",
+            "status": "attempted",
+            "command": command,
+            "success": result.success,
+            "exit_code": result.exit_code,
+            "stdout": result.stdout[:4000],
+            "stderr": result.stderr[:4000],
+        })
+    return receipts
+
+
 def _start_container_replay(image: str, workspace: str) -> str:
     """Start an isolated task-image container with the snapshot mounted at /app."""
     if not image.strip():
@@ -235,19 +268,9 @@ def _run_case(
         envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root="/app")
         overlay = VerifierOverlay(executor, "/app")
         if restore_live_processes:
-            commands = tuple(case["historical_launch_commands"])
-            if not commands:
-                raise RuntimeError("trace has no explicit historical background launch to restore")
-            for command in commands:
-                result = executor.run_command(command, timeout_s=60)
-                setup_receipts.append({
-                    "kind": "historical_process_restore",
-                    "command": command,
-                    "success": result.success,
-                    "exit_code": result.exit_code,
-                    "stdout": result.stdout[:4000],
-                    "stderr": result.stderr[:4000],
-                })
+            setup_receipts.extend(_restore_historical_launches(
+                executor, tuple(case["historical_launch_commands"]),
+            ))
     else:
         executor = SubprocessExecutor(workspace)
         envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root=workspace)

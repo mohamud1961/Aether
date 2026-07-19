@@ -71,3 +71,13 @@ def test_historical_launch_extraction_uses_full_execution_receipt_when_action_is
     })
 
     assert commands == ("nohup python3 /app/server.py >/app/server.log 2>&1 &",)
+
+
+def test_no_historical_launch_is_recorded_not_treated_as_a_replay_failure() -> None:
+    receipts = _MODULE._restore_historical_launches(None, ())
+
+    assert receipts == [{
+        "kind": "historical_process_restore",
+        "status": "not_applicable",
+        "reason": "no_explicit_background_launch_in_trace",
+    }]
