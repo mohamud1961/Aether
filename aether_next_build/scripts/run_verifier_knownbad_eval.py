@@ -25,9 +25,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import uuid
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -38,6 +42,7 @@ if _BUILD_DIR not in sys.path:
 
 from aether_next.model_hooks import ModelHooks  # noqa: E402
 from aether_next.real_executor import SubprocessExecutor  # noqa: E402
+from aether_next.runners.docker_exec_executor import DockerExecExecutor  # noqa: E402
 from aether_next.runtime_ir import EnvMap  # noqa: E402
 from aether_next.verifier import parse_model_verifier_result  # noqa: E402
 from aether_next.verifier_inspector import (  # noqa: E402
@@ -62,6 +67,86 @@ DEFAULT_CASES: tuple[tuple[str, str, str], ...] = (
     ("log-summary-date-ranges", "20260707T152214Z_sentinel", "known_good"),
     ("code-from-image", "20260707T162100Z_sentinel_steps200", "known_good"),
 )
+
+
+def _inspection_environment_validity(
+    inspection_rounds: list[dict[str, Any]],
+) -> tuple[bool, tuple[str, ...]]:
+    """Classify evaluator-owned inspection failures before scoring a verdict.
+
+    A frozen-state replay is not a semantic model measurement when its own
+    workspace translation failed.  This intentionally checks only generic
+    execution symptoms (a command trying to enter an absent workspace), not
+    task names, expected answers, or model verdict text.
+    """
+    issues: list[str] = []
+    for round_data in inspection_rounds:
+        for row in round_data.get("results", ()):
+            if not isinstance(row, Mapping):
+                continue
+            text = "\n".join(
+                str(row.get(key, ""))
+                for key in ("error", "stderr", "stdout")
+            ).lower()
+            if "no such file or directory" in text and ("cd:" in text or "workspace" in text):
+                issues.append("inspection_workspace_path_unavailable")
+    return (not issues, tuple(sorted(set(issues))))
+
+
+def _historical_launch_commands(trace: Mapping[str, Any]) -> tuple[str, ...]:
+    """Extract explicit background launches from recorded solver actions.
+
+    This is a replay fixture operation, not a planner: it replays only command
+    fragments that the historical trace already executed and labels them as
+    evaluator-owned setup.  It intentionally does not infer a service command
+    from a task name, source filename, or model output.
+    """
+    commands: list[str] = []
+    for step in trace.get("steps", ()) or ():
+        turn = step.get("turn", {}) if isinstance(step, Mapping) else {}
+        for action in turn.get("actions", ()) if isinstance(turn, Mapping) else ():
+            if not isinstance(action, Mapping):
+                continue
+            command = str((action.get("arguments") or {}).get("command", ""))
+            for line in command.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("nohup ") and stripped.endswith("&"):
+                    commands.append(stripped)
+    return tuple(dict.fromkeys(commands))
+
+
+def _start_container_replay(image: str, workspace: str) -> str:
+    """Start an isolated task-image container with the snapshot mounted at /app."""
+    if not image.strip():
+        raise RuntimeError("trace has no task image for container replay")
+    name = f"aether-knownbad-{uuid.uuid4().hex[:12]}"
+    proc = subprocess.run(
+        [
+            "docker", "run", "-d", "--rm", "--name", name,
+            "-v", f"{os.path.abspath(workspace)}:/app",
+            "-w", "/app", image, "sleep", "infinity",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=120,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"container replay start failed: {(proc.stderr or proc.stdout).strip()[:1000]}")
+    return proc.stdout.strip()
+
+
+def _stop_container_replay(container_id: str) -> None:
+    if container_id:
+        subprocess.run(
+            ["docker", "rm", "-f", container_id],
+            check=False,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=60,
+        )
 
 
 def _final_submit_step(trace: Mapping[str, Any]) -> int:
@@ -103,6 +188,8 @@ def _load_case(task: str, run_dir: str) -> dict[str, Any]:
         "compiled": compiled,
         "ledger": ledger,
         "submit_step": submit_step,
+        "task_image": str(trace.get("image", "")),
+        "historical_launch_commands": _historical_launch_commands(trace),
     }
 
 
@@ -122,13 +209,37 @@ def _run_case(
     verifier_model: Callable[..., str] | None,
     vision_model: Callable[..., str] | None,
     scratch_root: Path,
+    runtime_mode: str,
+    restore_live_processes: bool,
 ) -> dict[str, Any]:
     compiled = case["compiled"]
     ledger = case["ledger"]
     workspace = _workspace_copy(case["snapshot"], scratch_root)
-    executor = SubprocessExecutor(workspace)
-    envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root=workspace)
-    overlay = VerifierOverlay(executor, workspace)
+    container_id = ""
+    setup_receipts: list[dict[str, Any]] = []
+    if runtime_mode == "container_replay":
+        container_id = _start_container_replay(str(case["task_image"]), workspace)
+        executor = DockerExecExecutor(container_id, workspace, container_workdir="/app")
+        envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root="/app")
+        overlay = VerifierOverlay(executor, "/app")
+        if restore_live_processes:
+            commands = tuple(case["historical_launch_commands"])
+            if not commands:
+                raise RuntimeError("trace has no explicit historical background launch to restore")
+            for command in commands:
+                result = executor.run_command(command, timeout_s=60)
+                setup_receipts.append({
+                    "kind": "historical_process_restore",
+                    "command": command,
+                    "success": result.success,
+                    "exit_code": result.exit_code,
+                    "stdout": result.stdout[:4000],
+                    "stderr": result.stderr[:4000],
+                })
+    else:
+        executor = SubprocessExecutor(workspace)
+        envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root=workspace)
+        overlay = VerifierOverlay(executor, workspace)
     hooks_for_inspection = None
     if vision_model is not None:
         hooks_for_inspection = ModelHooks(
@@ -137,7 +248,7 @@ def _run_case(
             vision_model=vision_model,
         )
 
-    inspection_log: list[dict[str, Any]] = []
+    inspection_rounds: list[dict[str, Any]] = []
 
     def inspector(requests: tuple[VerifierInspectionRequest, ...]) -> list[dict[str, Any]]:
         results = execute_verifier_inspection_requests(
@@ -149,7 +260,10 @@ def _run_case(
             overlay=overlay,
             hooks=hooks_for_inspection,
         )
-        inspection_log.extend(results)
+        inspection_rounds.append({
+            "requests": [asdict(request) for request in requests],
+            "results": results,
+        })
         return results
 
     packet = build_verifier_packet(
@@ -166,6 +280,8 @@ def _run_case(
         "snapshot": case["snapshot"],
         "packet_bytes": len(json.dumps(packet, default=str)),
         "packet_handles": len(packet.get("state_inspection_handles", []) or []),
+        "runtime_mode": runtime_mode,
+        "runtime_setup": setup_receipts,
     }
     try:
         if mode == "dry":
@@ -199,17 +315,40 @@ def _run_case(
             "summary": parsed.summary,
             "findings": [asdict(f) for f in parsed.findings],
             "completion_evidence": [asdict(e) for e in parsed.completion_evidence],
-            "inspections_performed": len(inspection_log),
+            "inspections_performed": sum(
+                len(round_data["results"]) for round_data in inspection_rounds
+            ),
             "prediction": "HIT" if converted == expected_converted else "MISS",
         })
+        valid, issues = _inspection_environment_validity(inspection_rounds)
+        row.update({
+            "measurement_valid": valid,
+            "measurement_issues": list(issues),
+            "raw_verifier_output": raw,
+            "inspection_rounds": inspection_rounds,
+        })
+        if not valid:
+            row["prediction"] = "INVALID_ENVIRONMENT"
         return row
     finally:
         overlay.teardown()
+        _stop_container_replay(container_id)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=["dry", "model"], required=True)
+    parser.add_argument(
+        "--runtime-mode",
+        choices=["frozen_subprocess", "container_replay"],
+        default="frozen_subprocess",
+        help="Replay frozen files locally or mount them at /app in the trace task image.",
+    )
+    parser.add_argument(
+        "--restore-live-processes",
+        action="store_true",
+        help="Replay explicit historical nohup launches inside a container replay.",
+    )
     parser.add_argument("--tasks", default=",".join(case[0] for case in DEFAULT_CASES))
     parser.add_argument("--deploy-env", default="AZURE_OPENAI_GPT54_MINI_DEPLOYMENT")
     parser.add_argument("--key-env", default="AZURE_OPENAI_GPT54_MINI_KEY")
@@ -244,6 +383,8 @@ def main() -> int:
             rows.append(_run_case(
                 case, mode=args.mode, verifier_model=verifier_model,
                 vision_model=vision_model, scratch_root=scratch_root,
+                runtime_mode=args.runtime_mode,
+                restore_live_processes=args.restore_live_processes,
             ))
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
