@@ -57,6 +57,12 @@ def handle_solver_parse_error(
             "retry_attempted": True,
         },
     ))
+    ledger.record_accounting(
+        receipt_id=f"step-{step}:solver_malformed_attempt:{ledger.accounting_value('solver_malformed_provider_attempts') + 1}",
+        step=step,
+        counter="solver_malformed_provider_attempts",
+        event="primary_solver_call_malformed",
+    )
     retry_messages = list(messages) + [{
         "role": "user",
         "content": (
@@ -69,6 +75,18 @@ def handle_solver_parse_error(
         ),
     }]
     try:
+        ledger.record_accounting(
+            receipt_id=f"step-{step}:solver_protocol_correction:{ledger.accounting_value('solver_protocol_correction_calls') + 1}",
+            step=step,
+            counter="solver_protocol_correction_calls",
+            event="same_step_protocol_correction",
+        )
+        ledger.record_accounting(
+            receipt_id=f"step-{step}:solver_provider_turn:{ledger.accounting_value('solver_provider_turns') + 1}",
+            step=step,
+            counter="solver_provider_turns",
+            event="protocol_correction_solver_call",
+        )
         return hooks.solve(retry_messages, compiled)
     except ModelOutputError as retry_exc:
         raw_retry = str(getattr(hooks, "last_raw_solver_output", "") or "")
@@ -87,6 +105,12 @@ def handle_solver_parse_error(
                 "retry_attempted": False,
             },
         ))
+        ledger.record_accounting(
+            receipt_id=f"step-{step}:solver_malformed_attempt:{ledger.accounting_value('solver_malformed_provider_attempts') + 1}",
+            step=step,
+            counter="solver_malformed_provider_attempts",
+            event="protocol_correction_malformed",
+        )
         turn = SolverTurn(kind="act", summary="solver parse error placeholder", actions=())
         if trace is not None:
             trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])

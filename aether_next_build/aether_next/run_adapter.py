@@ -115,6 +115,7 @@ def run_task(
     kernel = AetherNextKernel(
         max_steps=max_steps,
         workbench_architect=workbench_architect_for(architect_model, hooks=hooks),
+        certified_production=True,
     )
     # Keep a task-scoped WorldState owned by the adapter so the production
     # boundary, not only the kernel's direct-call fallback, carries state into

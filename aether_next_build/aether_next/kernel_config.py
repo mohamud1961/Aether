@@ -119,7 +119,7 @@ def _baseline_resolve(
             repair_codes=repair_codes,
             fallback_codes=blockers,
             config_invalid_blockers=blockers,
-            workbench_config=config,
+            workbench_config=None,
         )
     return ResolvedRuntime(
         runtime_ir=runtime_ir,

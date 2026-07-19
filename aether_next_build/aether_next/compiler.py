@@ -5,7 +5,7 @@ from hashlib import sha256
 from typing import Iterable
 
 from .compiler_prefix import PROTOCOL_CARD_SECTIONS
-from .proof_contract import certify_proof_contract
+from .proof_contract import ROUTE_EVIDENCE_CEILINGS, certify_proof_contract
 from .analysis import (
     EvalIndexer,
     ObjectiveGraphBuilder,
@@ -522,32 +522,24 @@ class ConfigCompiler:
                 semantic_status = "invalid_incomplete_clause_contract"
             else:
                 semantic_status = "compiled_routes_without_tool_ceilings"
-        ceiling_by_kind = {
-            "read_file": "exact_contract",
-            "read_output": "behavioral",
-            "inspect_artifact": "exact_contract",
-            "rerun_check": "behavioral",
-            "overlay_run_command": "behavioral",
-            "probe_port": "behavioral",
-            "probe_http": "behavioral",
-            "probe_process": "behavioral",
-            "inspect_recent_receipts": "metadata_proxy",
-            "inspect_artifact_history": "metadata_proxy",
-        }
+        # The realization receipt and the proof evaluator must share one
+        # route-ceiling authority.  A duplicated local table previously made
+        # a certified overlay route fail as "unknown" before preflight.
+        ceiling_by_kind = ROUTE_EVIDENCE_CEILINGS
         inspection_ceilings = {}
         for item in semantic_checks:
             for key in ("inspection_route", "fallback_route"):
-                route = str(item.get(key, "")).strip()
+                route = str(item.get(key) or "").strip()
                 if route:
                     kind = route.split(":", 1)[0]
                     ceiling = ceiling_by_kind.get(kind)
                     if ceiling:
                         inspection_ceilings[route] = ceiling
         if semantic_status == "compiled_routes_without_tool_ceilings" and len(inspection_ceilings) < len({
-            str(item.get(key, "")).strip()
+            str(item.get(key) or "").strip()
             for item in semantic_checks
             for key in ("inspection_route", "fallback_route")
-            if str(item.get(key, "")).strip()
+            if str(item.get(key) or "").strip()
         }):
             semantic_status = "invalid_unknown_inspection_route"
         elif semantic_status == "compiled_routes_without_tool_ceilings":

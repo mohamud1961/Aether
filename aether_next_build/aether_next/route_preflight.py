@@ -16,6 +16,14 @@ class RoutePreflightIssue:
     route: str
     detail: str
 
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "code": self.code,
+            "clause_id": self.clause_id,
+            "route": self.route,
+            "detail": self.detail,
+        }
+
 
 @dataclass(frozen=True)
 class RoutePreflightRow:

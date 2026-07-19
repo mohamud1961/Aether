@@ -42,6 +42,11 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
                 summary=f"invalid action: {'; '.join(action_errors)}",
                 failure_class="action_validation",
             ))
+            _record(ledger.record_accounting(
+                receipt_id=f"step-{step}:{action.action_id}:refused_invalid",
+                step=step, counter="solver_refused_actions",
+                event="action_validation_failed", action_id=action.action_id,
+            ))
             continue
         safety_violation = kernel.safety_guard.violation(compiled, action)
         if safety_violation:
@@ -49,6 +54,11 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
                 receipt_id=f"step-{step}:{action.action_id}:safety", step=step,
                 kind="safety_block", success=False,
                 summary=safety_violation, failure_class="safety_violation",
+            ))
+            _record(ledger.record_accounting(
+                receipt_id=f"step-{step}:{action.action_id}:refused_safety",
+                step=step, counter="solver_refused_actions",
+                event="safety_violation", action_id=action.action_id,
             ))
             continue
         if action.kind == "write_file":
@@ -65,7 +75,45 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
                         summary=violation, failure_class="integrity_violation",
                         payload={"integrity_violation": violation},
                     ))
+                    _record(ledger.record_accounting(
+                        receipt_id=f"step-{step}:{action.action_id}:refused_integrity",
+                        step=step, counter="solver_refused_actions",
+                        event="integrity_violation", action_id=action.action_id,
+                    ))
                     continue
+        if (
+            kernel.max_accepted_task_actions is not None
+            and ledger.accounting_value("solver_accepted_task_actions")
+            >= kernel.max_accepted_task_actions
+        ):
+            _record(Receipt(
+                receipt_id=f"step-{step}:{action.action_id}:action_budget",
+                step=step,
+                kind="action_budget_refused",
+                success=False,
+                summary=(
+                    f"accepted task-action limit reached: {kernel.max_accepted_task_actions}; "
+                    "action was not dispatched"
+                ),
+                failure_class="accepted_action_budget_exhausted",
+                payload={"action_id": action.action_id, "action_kind": action.kind},
+            ))
+            _record(ledger.record_accounting(
+                receipt_id=f"step-{step}:{action.action_id}:refused_action",
+                step=step,
+                counter="solver_refused_actions",
+                event="accepted_action_budget_exhausted",
+                action_id=action.action_id,
+            ))
+            continue
+        _record(ledger.record_accounting(
+            receipt_id=f"step-{step}:{action.action_id}:accepted_action",
+            step=step,
+            counter="solver_accepted_task_actions",
+            event="accepted_for_dispatch",
+            action_id=action.action_id,
+            detail=f"accepted solver action {action.kind}",
+        ))
         if compiled.automatic_memory_policy.mode != "off":
             automatic = automatic_memory_receipt(
                 action, step=step, envmap=envmap, ledger=ledger,

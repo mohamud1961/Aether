@@ -30,6 +30,7 @@ from .kernel_stalemate import check_verifier_stalemate
 from .kernel_turns import run_act_turn, run_submit_turn
 from .kernel_reconfigure import verifier_triggered_reconfigure
 from .model_hooks import ModelOutputError
+from .route_preflight import preflight_proof_routes
 from .runtime_ir import (
     CompiledRuntime, EnvMap, RuntimeConfigIR, SolverTurn,
 )
@@ -55,6 +56,7 @@ class KernelResult:
     # clean passes.
     architect_defect: bool = False
     architect_defect_reasons: tuple[str, ...] = ()
+    accounting: Mapping[str, int] | None = None
 
 def _completed_result(
     step: int, reconfigurations: int, decision: Any,
@@ -72,6 +74,7 @@ def _completed_result(
         blockers=(), env_digest=compiled.env_digest, receipts=ledger.all_receipts(),
         architect_defect=bool(architect_defect_reasons),
         architect_defect_reasons=architect_defect_reasons,
+        accounting=ledger.accounting_snapshot(),
     )
 
 
@@ -95,11 +98,20 @@ class AetherNextKernel:
         self,
         *,
         max_steps: int = 24,
+        max_solver_turns: int | None = None,
+        max_accepted_task_actions: int | None = None,
+        certified_production: bool = False,
         workbench_architect: Any | None = None,
         snapshot_callback: Callable[[int], None] | None = None,
         snapshot_steps: tuple[int, ...] = (),
     ) -> None:
         self.max_steps = max(1, int(max_steps))
+        self.max_solver_turns = max(1, int(max_solver_turns)) if max_solver_turns is not None else self.max_steps
+        self.max_accepted_task_actions = (
+            max(1, int(max_accepted_task_actions))
+            if max_accepted_task_actions is not None else None
+        )
+        self.certified_production = bool(certified_production)
         self.workbench_architect = workbench_architect
         self.snapshot_callback, self._snapshot_steps = snapshot_callback, frozenset(snapshot_steps)
         self.monitor_runner = MonitorRunner()
@@ -176,7 +188,37 @@ class AetherNextKernel:
             )
         else:
             realization["architect_path"] = "ir"
+        realization["certified_production_reconfiguration"] = {
+            "enabled": not self.certified_production,
+            "policy": (
+                "legacy_test_mode" if not self.certified_production
+                else "suspended_model_authored_reconfiguration"
+            ),
+        }
         ledger.record_config_realization(realization)
+        route_rows, route_issues = preflight_proof_routes(compiled, executor, envmap)
+        ledger.record(Receipt(
+            receipt_id="config:route_preflight",
+            step=0,
+            kind="route_preflight",
+            success=not bool(route_issues),
+            summary=(
+                "compiled proof routes available"
+                if not route_issues else "compiled proof routes unavailable"
+            ),
+            failure_class="config_invalid" if route_issues else "",
+            payload={
+                "rows": [row.as_dict() for row in route_rows],
+                "issues": [issue.as_dict() for issue in route_issues],
+            },
+        ))
+        if route_issues:
+            return KernelResult(
+                status="config_invalid", step=0, reconfigurations=0,
+                blockers=tuple(f"{issue.code}:{issue.clause_id}" for issue in route_issues),
+                env_digest=compiled.env_digest, receipts=ledger.all_receipts(),
+                accounting=ledger.accounting_snapshot(),
+            )
         if world_state is None:
             # The compiled task truth becomes the initial immutable contract;
             # subsequent solver actions only update dynamic state.  This keeps
@@ -231,6 +273,27 @@ class AetherNextKernel:
             else None
         )
         while step < self.max_steps:
+            if ledger.accounting_value("solver_provider_turns") >= self.max_solver_turns:
+                ledger.record(Receipt(
+                    receipt_id=f"step-{step}:solver_turn_budget_exhausted",
+                    step=step, kind="solver_turn_budget_exhausted", success=False,
+                    summary=(
+                        f"maximum solver provider turns reached: {self.max_solver_turns}; "
+                        "accepted task-action budget is tracked separately"
+                    ),
+                    failure_class="solver_turn_budget_exhausted",
+                    payload={"max_solver_turns": self.max_solver_turns,
+                             "accounting": ledger.accounting_snapshot()},
+                ))
+                return KernelResult(
+                    status="solver_turn_budget_exhausted", step=step,
+                    reconfigurations=reconfigurations,
+                    blockers=("solver_turn_budget_exhausted",),
+                    env_digest=compiled.env_digest, receipts=ledger.all_receipts(),
+                    architect_defect=bool(architect_defect_reasons),
+                    architect_defect_reasons=tuple(architect_defect_reasons),
+                    accounting=ledger.accounting_snapshot(),
+                )
             if deadline is not None and time.monotonic() >= deadline:
                 ledger.record(Receipt(
                     receipt_id=f"step-{step}:kernel_deadline_exceeded",
@@ -258,6 +321,10 @@ class AetherNextKernel:
             messages = self.build_solver_messages(compiled, context_packet)
             before_count = len(ledger.all_receipts())
             try:
+                ledger.record_accounting(
+                    receipt_id=f"step-{step}:solver_provider_turn:{ledger.accounting_value('solver_provider_turns') + 1}",
+                    step=step, counter="solver_provider_turns", event="primary_solver_call",
+                )
                 turn = hooks.solve(messages, compiled)
             except ModelOutputError as exc:
                 turn = handle_solver_parse_error(
@@ -280,6 +347,10 @@ class AetherNextKernel:
                 submit_without_evidence_rounds = 0
                 run_act_turn(self, turn, step, compiled, executor, envmap, ledger, world_state)
             elif turn.kind == "submit_outcome":
+                ledger.record_accounting(
+                    receipt_id=f"step-{step}:solver_submission_turn:{ledger.accounting_value('solver_submission_turns') + 1}",
+                    step=step, counter="solver_submission_turns", event="submit_outcome",
+                )
                 run_submit_turn(
                     self, step, compiled, executor, envmap, ledger, trace,
                 )
@@ -339,6 +410,7 @@ class AetherNextKernel:
                             receipts=ledger.all_receipts(),
                             architect_defect=bool(architect_defect_reasons),
                             architect_defect_reasons=tuple(architect_defect_reasons),
+                            accounting=ledger.accounting_snapshot(),
                         )
                 else:
                     submit_without_evidence_rounds = 0
@@ -383,6 +455,7 @@ class AetherNextKernel:
                     verdict is not None
                     and verdict.verdict == "blocked_by_harness_config"
                     and canonical_workbench
+                    and not self.certified_production
                 ):
                     if not verifier_reconfigure_used:
                         # Reconfiguration is an exceptional owner transfer, not
@@ -454,6 +527,20 @@ class AetherNextKernel:
                             failure_class="config_invalid",
                             payload={"architect_defect": True},
                         ))
+                elif (
+                    verdict is not None
+                    and verdict.verdict == "blocked_by_harness_config"
+                    and canonical_workbench
+                    and self.certified_production
+                ):
+                    ledger.record(Receipt(
+                        receipt_id=f"step-{step}:verifier_reconfigure_suspended",
+                        step=step,
+                        kind="verifier_reconfigure_suspended",
+                        success=True,
+                        summary="production certified policy suspended model-authored reconfiguration",
+                        payload={"policy": "certified_production_no_reconfigure"},
+                    ))
                 if (
                     decision is not None
                     and canonical_workbench
@@ -477,6 +564,7 @@ class AetherNextKernel:
             env_digest=compiled.env_digest, receipts=ledger.all_receipts(),
             architect_defect=bool(architect_defect_reasons),
             architect_defect_reasons=tuple(architect_defect_reasons),
+            accounting=ledger.accounting_snapshot(),
         )
 
     @staticmethod

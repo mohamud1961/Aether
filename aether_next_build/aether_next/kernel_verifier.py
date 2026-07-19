@@ -220,6 +220,12 @@ def run_model_verifier_if_available(
         payload={"reason": reason, "packet": packet},
     ))
     try:
+        ledger.record_accounting(
+            receipt_id=f"step-{step}:verifier_provider_call:{ledger.accounting_value('verifier_provider_calls') + 1}",
+            step=step,
+            counter="verifier_provider_calls",
+            event="verifier_call",
+        )
         raw = _call_verify_with_timeout(
             hooks,
             verify,
@@ -527,6 +533,17 @@ def _call_verify(
         )
 
         def _inspector(requests: tuple[VerifierInspectionRequest, ...]) -> list[dict[str, Any]]:
+            for request in requests:
+                ledger.record_accounting(
+                    receipt_id=(
+                        f"step-{step}:verifier_inspection_request:"
+                        f"{request.request_id}:{ledger.accounting_value('verifier_inspection_requests') + 1}"
+                    ),
+                    step=step,
+                    counter="verifier_inspection_requests",
+                    event="verifier_read_only_inspection",
+                    detail=f"verifier inspection requested: {request.kind}",
+                )
             results = execute_verifier_inspection_requests(
                 requests,
                 compiled=compiled,

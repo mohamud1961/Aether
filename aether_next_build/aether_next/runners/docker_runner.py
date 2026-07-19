@@ -395,6 +395,7 @@ def run_tbench_task(
             max_steps=max_steps,
             workbench_architect=workbench_architect_for(architect_model, hooks=hooks),
             snapshot_callback=snap_cb, snapshot_steps=snapshot_steps,
+            certified_production=True,
         )
         world_state = WorldState(
             task_contract=TaskContract.create(

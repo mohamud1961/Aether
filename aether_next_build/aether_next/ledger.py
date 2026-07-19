@@ -94,6 +94,10 @@ class ExecutionLedger:
         self.failure_counts: Counter[str] = Counter()
         self.reconfigure_causes: list[str] = []
         self.findings = ActiveFindingStore()
+        # ``step`` is a trace position, not an execution budget.  Keep the
+        # independently auditable quantities here and append a receipt for
+        # every increment so result rows never infer them from step numbers.
+        self._accounting: Counter[str] = Counter()
 
     def seed_capabilities(self, capability_ids: list[str] | tuple[str, ...] | set[str]) -> None:
         for capability_id in capability_ids:
@@ -233,8 +237,41 @@ class ExecutionLedger:
         reconfigure_cause = str(payload.get("reconfigure_cause", "")).strip()
         if reconfigure_cause:
             self.reconfigure_causes.append(reconfigure_cause)
-
         self._reconcile_objective()
+
+    def record_accounting(
+        self,
+        *,
+        receipt_id: str,
+        step: int,
+        counter: str,
+        event: str,
+        action_id: str = "",
+        detail: str = "",
+    ) -> Receipt:
+        """Append one immutable accounting event and update its exact counter."""
+        self._accounting[counter] += 1
+        receipt = Receipt(
+            receipt_id=receipt_id,
+            step=step,
+            kind="runtime_accounting",
+            success=True,
+            summary=detail or f"{counter}: {event}",
+            payload={
+                "counter": counter,
+                "event": event,
+                "value": self._accounting[counter],
+                "action_id": action_id,
+            },
+        )
+        self.record(receipt)
+        return receipt
+
+    def accounting_value(self, counter: str) -> int:
+        return int(self._accounting[counter])
+
+    def accounting_snapshot(self) -> dict[str, int]:
+        return dict(sorted(self._accounting.items()))
 
     def _reconcile_objective(self) -> None:
         if self.objective_graph is None:
