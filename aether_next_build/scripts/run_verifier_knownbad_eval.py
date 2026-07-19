@@ -152,7 +152,13 @@ def _run_case(
         inspection_log.extend(results)
         return results
 
-    packet = build_verifier_packet(compiled, ledger, step=int(case["submit_step"]), reason="solver_submit")
+    packet = build_verifier_packet(
+        compiled,
+        ledger,
+        step=int(case["submit_step"]),
+        reason="solver_submit",
+        envmap=envmap,
+    )
     row: dict[str, Any] = {
         "task": case["task"],
         "run_dir": case["run_dir"],
