@@ -34,6 +34,9 @@ from aether_next.verifier_packets import build_verifier_packet
 from aether_next.workbench_config import parse_harness_config_ir
 
 
+_BUILD_ROOT = Path(__file__).resolve().parents[1]
+
+
 def _env() -> EnvMap:
     return EnvMap(
         task_prompt="Create out.txt containing OK.",
@@ -238,10 +241,11 @@ def test_uncertain_missing_evidence_does_not_resolve_existing_active_finding() -
 def test_verifier_only_fake_runner_writes_evidence_bundle(tmp_path: Path) -> None:
     out = tmp_path / "verifier_eval"
     completed = subprocess.run(
-        [sys.executable, "run_verifier_only_eval.py", "--mode", "fake", "--out-dir", str(out)],
+        [sys.executable, str(_BUILD_ROOT / "run_verifier_only_eval.py"), "--mode", "fake", "--out-dir", str(out)],
         check=True,
         text=True,
         capture_output=True,
+        cwd=_BUILD_ROOT,
     )
     summary = json.loads(completed.stdout)
     assert len(summary["rows"]) == 6

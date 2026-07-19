@@ -197,7 +197,7 @@ def test_verifier_packet_has_no_solver_journey_fields() -> None:
         "cmd", 1, "run_command", True, "solver command",
         payload={"command": "echo solver says OK", "stdout": "solver proof", "stdout_handle": "1:a:stdout", "stdout_full": "solver proof"},
     ))
-    packet = build_verifier_packet(compiled, ledger, step=2, reason="solver_submit")
+    packet = build_verifier_packet(compiled, ledger, step=2, reason="solver_submit", envmap=_env())
     for forbidden in (
         "solver_claim",
         "submit_summary",
@@ -215,5 +215,4 @@ def test_verifier_packet_has_no_solver_journey_fields() -> None:
     ):
         assert forbidden not in packet
     assert packet["state_inspection_handles"]
-
 

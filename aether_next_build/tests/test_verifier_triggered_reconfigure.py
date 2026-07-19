@@ -1,9 +1,8 @@
-"""Verifier-triggered single-shot reconfiguration.
+"""Certified production does not permit model-authored reconfiguration.
 
-Only a verifier ``blocked_by_harness_config`` verdict may trigger a mid-run
-reconfiguration; it re-invokes the real workbench architect with the verdict
-as evidence, happens at most once per run, and is ALWAYS recorded as an
-architect defect -- even when the task subsequently passes.
+The legacy reconfiguration implementation remains an audit/reference surface,
+but a certified run must preserve its original contract rather than allowing a
+Verifier response to rewrite it mid-episode.
 """
 from __future__ import annotations
 
@@ -124,38 +123,34 @@ _BLOCKED = {
 }
 
 
-def test_blocked_verdict_triggers_single_reconfigure_recorded_as_architect_defect() -> None:
+def test_certified_run_suspends_blocked_verdict_reconfiguration() -> None:
     architect = RecordingWorkbenchArchitect()
     hooks = BlockedThenCompletedHooks([_BLOCKED])
-    result = AetherNextKernel(max_steps=6, workbench_architect=architect).run(
+    result = AetherNextKernel(
+        max_steps=6, workbench_architect=architect, certified_production=True,
+    ).run(
         _env(), MemoryExecutor(workspace_root="/app"), hooks,
     )
 
-    assert result.status == "completed"
-    assert result.reconfigurations == 1
-    assert result.architect_defect is True
-    assert "verifier_triggered_reconfigure" in result.architect_defect_reasons
-
-    # The workbench architect was re-invoked with the verdict as evidence.
-    assert len(architect.configure_calls) == 2
-    ctx = architect.configure_calls[1]["reconfigure_context"]
-    assert ctx["reason"] == "verifier_blocked_by_harness_config"
-    assert ctx["verifier_verdict"]["verdict"] == "blocked_by_harness_config"
-
-    receipt = next(r for r in result.receipts if r.kind == "verifier_triggered_reconfigure")
-    assert receipt.payload["architect_defect"] is True
+    assert result.status == "solver_submit_stalemate"
+    assert result.reconfigurations == 0
+    assert result.architect_defect is False
+    assert len(architect.configure_calls) == 1
+    assert any(r.kind == "verifier_reconfigure_suspended" for r in result.receipts)
 
 
-def test_second_blocked_verdict_is_exhausted_not_a_second_reconfigure() -> None:
+def test_certified_run_never_consumes_reconfiguration_budget() -> None:
     architect = RecordingWorkbenchArchitect()
     hooks = BlockedThenCompletedHooks([_BLOCKED, dict(_BLOCKED)])
-    result = AetherNextKernel(max_steps=8, workbench_architect=architect).run(
+    result = AetherNextKernel(
+        max_steps=8, workbench_architect=architect, certified_production=True,
+    ).run(
         _env(), MemoryExecutor(workspace_root="/app"), hooks,
     )
 
-    assert result.reconfigurations == 1
-    assert len(architect.configure_calls) == 2  # initial + one reconfigure only
-    assert any(r.kind == "verifier_reconfigure_exhausted" for r in result.receipts)
+    assert result.reconfigurations == 0
+    assert len(architect.configure_calls) == 1
+    assert any(r.kind == "verifier_reconfigure_suspended" for r in result.receipts)
 
 
 def test_clean_run_has_no_architect_defect() -> None:

@@ -132,20 +132,18 @@ def _ledger(compiled: Any) -> ExecutionLedger:
 
 
 def _fake_verifier_output(packet: dict[str, Any]) -> dict[str, Any]:
-    has_architect_prompt = bool(packet.get("architect_verifier_prompt", {}).get("rendered"))
-    if not has_architect_prompt:
-        return {
-            "verdict": "uncertain_missing_evidence",
-            "confidence": "medium",
-            "summary": "The packet has failed evidence, but the generic verifier prompt does not specify the task-specific repair bar.",
-            "missing_evidence_requests": ["Provide task-specific completion evidence and latest artifact content."],
-        }
+    """Deterministic state-only evaluator used to validate packet isolation.
+
+    Architect strategy must never be present in a model-visible Verifier packet.
+    This fixture therefore judges the observable active finding and obligation,
+    rather than using the old prompt-presence proxy.
+    """
     return {
         "verdict": "needs_repair",
         "confidence": "high",
         "summary": "The packet still has an active finding that out.txt lacks DONE, the out.txt obligation is open, and no fresh post-repair evidence is present.",
         "findings": [{
-            "finding_id": "vf-architect-repeat-no-repair",
+            "finding_id": "vf-repeat-no-repair",
             "summary": "The active repair finding is unresolved: out.txt lacks DONE and no later write/change is present.",
             "evidence": [
                 "active_findings: out.txt still lacks DONE with evidence 'out.txt excerpt TODO'",
@@ -173,7 +171,13 @@ def run(out_dir: Path) -> dict[str, Any]:
     for variant, architect_prompt in (("generic", False), ("architect_prompt", True)):
         compiled = _compiled(architect_prompt=architect_prompt)
         ledger = _ledger(compiled)
-        packet = build_verifier_packet(compiled, ledger, step=5, reason="replay")
+        packet = build_verifier_packet(
+            compiled,
+            ledger,
+            step=5,
+            reason="replay",
+            envmap=_env(),
+        )
         raw = _fake_verifier_output(packet)
         parsed = parse_model_verifier_result(raw)
         ledger.apply_verifier_result(parsed, step=5)
@@ -189,16 +193,15 @@ def run(out_dir: Path) -> dict[str, Any]:
             "variant": variant,
             "verdict": parsed.verdict,
             "finding_count": len(parsed.findings),
-            "architect_prompt_present": architect_prompt,
+            "architect_prompt_requested": architect_prompt,
             **judgement,
         })
     summary = {
         "mode": "fake_replay",
         "rows": rows,
-        "architect_prompt_improved_actionability": (
-            rows[1]["specific_repair"]
-            and rows[1]["verdict"] == "needs_repair"
-            and not rows[0]["specific_repair"]
+        "state_only_packet_actionable": all(
+            row["specific_repair"] and row["verdict"] == "needs_repair"
+            for row in rows
         ),
     }
     (out_dir / "verifier_prompt_replay_eval.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
@@ -209,7 +212,7 @@ def run(out_dir: Path) -> dict[str, Any]:
             f"evidence_bound={row['evidence_bound']} actionable={row['actionable']} specific_repair={row['specific_repair']}"
         )
     report.append("")
-    report.append(f"architect_prompt_improved_actionability={summary['architect_prompt_improved_actionability']}")
+    report.append(f"state_only_packet_actionable={summary['state_only_packet_actionable']}")
     (out_dir / "VERIFIER_PROMPT_REPLAY_REPORT.md").write_text("\n".join(report) + "\n")
     return summary
 

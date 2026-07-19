@@ -220,7 +220,7 @@ def test_verifier_packet_includes_automatic_memory_findings() -> None:
         },
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=2, reason="no_progress")
+    packet = build_verifier_packet(compiled, ledger, step=2, reason="no_progress", envmap=_env())
     assert "automatic_memory_findings" not in packet
 
     solver_context = ContextCompiler().compile(compiled, ledger, [])

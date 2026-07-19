@@ -7,7 +7,7 @@ from aether_next.integration_scenarios import (
     run_disabled_tool_guard_scenario,
     run_workbench_verifier_repair_scenario,
 )
-from run_verifier_only_eval import _case_semantic_wrong, _model_messages
+from run_verifier_only_eval import _case_semantic_wrong, _env as _verifier_env, _model_messages
 from aether_next.verifier_packets import build_verifier_packet
 
 _BUILD_ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +43,10 @@ def test_workbench_verifier_repair_loop_exercises_real_kernel_stack() -> None:
         packet for packet in result.context_packets[2:]
         if "active_completion_findings" in packet
     )
-    assert "out.txt must contain the exact token PASS-123." in first_verifier_packet.get("task_contract", {}).get("architect_verifier_prompt", {}).get("rendered", "")
+    # The Verifier receives immutable task truth, not the Architect's private
+    # inspection strategy or prompt.  The real task contract remains visible.
+    assert first_verifier_packet["task_contract"]["raw_task_prompt"] == "Create out.txt containing the exact token PASS-123."
+    assert "architect_verifier_prompt" not in json.dumps(first_verifier_packet, sort_keys=True)
     assert "artifact_history" not in first_verifier_packet
     assert "memory_events" not in first_verifier_packet
     assert "solver_authored_evidence" not in first_verifier_packet
@@ -64,7 +67,13 @@ def test_stable_core_tools_prevent_architect_omission_from_hiding_shell() -> Non
 
 def test_verifier_only_model_prompt_is_strict_evidence_bound() -> None:
     item = _case_semantic_wrong()
-    packet = build_verifier_packet(item["compiled"], item["ledger"], step=3, reason=item["reason"])
+    packet = build_verifier_packet(
+        item["compiled"],
+        item["ledger"],
+        step=3,
+        reason=item["reason"],
+        envmap=_verifier_env(item["compiled"].task_prompt),
+    )
     messages = _model_messages(packet)
 
     assert messages[0]["role"] == "system"
@@ -104,7 +113,7 @@ def test_verifier_only_validator_accepts_fake_bundle_and_writes_report(tmp_path:
 
     out_dir = tmp_path / "verifier_fake"
     subprocess.run(
-        [sys.executable, "run_verifier_only_eval.py", "--mode", "fake", "--out-dir", str(out_dir)],
+        [sys.executable, str(_BUILD_ROOT / "run_verifier_only_eval.py"), "--mode", "fake", "--out-dir", str(out_dir)],
         cwd=_BUILD_ROOT,
         check=True,
         text=True,

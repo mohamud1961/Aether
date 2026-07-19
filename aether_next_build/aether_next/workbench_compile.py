@@ -363,6 +363,13 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "rejected_config_items": [dict(item) for item in config.rejected_config_items],
             "note": "safe typed visible smoke specs compile into internal CheckSpec evidence; unsupported or under-specified specs are rejected/quarantined and never become official grader authority",
         },
+        "reconfigure_policy": {
+            "status": "realized_policy_gated",
+            "enabled": config.reconfigure_policy.enabled,
+            "max_versions": config.reconfigure_policy.max_versions,
+            "allowed_owners": list(config.reconfigure_policy.allowed_owners),
+            "realized_as": "RuntimeConfigIR.reconfigure_policy; certified production kernels suspend model-authored reconfiguration",
+        },
         "model_verifier_policy": {
             "status": "realized",
             "enabled": config.model_verifier_policy.enabled,

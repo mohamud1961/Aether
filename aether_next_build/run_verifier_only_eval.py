@@ -339,7 +339,13 @@ def run(mode: str, out_dir: Path) -> dict[str, Any]:
     for item in _cases():
         case_id = item["case_id"]
         case_dir = out_dir / case_id; case_dir.mkdir(exist_ok=True)
-        packet = build_verifier_packet(item["compiled"], item["ledger"], step=len(item["ledger"].all_receipts()) + 1, reason=item["reason"])
+        packet = build_verifier_packet(
+            item["compiled"],
+            item["ledger"],
+            step=len(item["ledger"].all_receipts()) + 1,
+            reason=item["reason"],
+            envmap=_env(item["compiled"].task_prompt),
+        )
         try:
             raw = (
                 _fake_output(case_id, packet)

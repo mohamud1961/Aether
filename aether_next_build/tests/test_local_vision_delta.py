@@ -23,6 +23,9 @@ from aether_next.runtime_ir import (
 from aether_next.verifier import parse_model_verifier_result
 
 
+_BUILD_ROOT = Path(__file__).resolve().parents[1]
+
+
 def _action(kind: str, args: dict, *, action_id: str = "a", cap: str = "shell") -> ActionRequest:
     return ActionRequest(
         action_id=action_id,
@@ -140,7 +143,7 @@ def test_official_capability_audit_script_ignores_solution_and_tests(tmp_path: P
     md_path = tmp_path / "audit.md"
     subprocess.check_call([
         sys.executable,
-        "scripts/audit_official_task_capabilities.py",
+        str(_BUILD_ROOT / "scripts" / "audit_official_task_capabilities.py"),
         str(root),
         "--csv", str(csv_path),
         "--md", str(md_path),

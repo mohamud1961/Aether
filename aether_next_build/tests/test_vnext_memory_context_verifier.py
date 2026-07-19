@@ -692,25 +692,24 @@ def test_verifier_packet_contains_state_contract_for_fake_verifier() -> None:
         payload={"check_id": _check_id_out(), "command": "test -e out.txt", "passed": False, "detail": "missing"},
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=2, reason="deterministic_failure")
+    packet = build_verifier_packet(compiled, ledger, step=2, reason="deterministic_failure", envmap=_env())
 
     assert packet["reason"] == "deterministic_failure"
-    assert packet["task_prompt"] == compiled.task_prompt
-    assert packet["success_definition"] == "out.txt exists and visible checks pass."
-    assert packet["local_verification_limits"] == [
+    assert packet["task_contract"]["raw_task_prompt"] == compiled.task_prompt
+    assert packet["evidence_requirements"]["local_limits"] == [
         {
             "source": "runtime_config",
             "statement": "local checks cannot prove hidden grader expectations",
         }
     ]
     assert "solver_system_prompt" not in packet
-    assert packet["official_grader_authority"] == "external_benchmark"
+    assert "official_grader_authority" not in packet
     assert "deterministic_checks" not in packet
     assert "recent_receipts" not in packet
     assert "solver_authored_evidence" not in packet
-    assert "out.txt" in packet["artifacts_present"]
+    assert packet["dynamic_state"]["artifacts"]["out.txt"]["status"] == "present"
     assert any(item.get("handle") == "file:out.txt" for item in packet["state_inspection_handles"])
-    assert packet["config_realization"]["tools_visible_to_solver"] == compiled.config_realization["tools_visible_to_solver"]
+    assert "config_realization" not in packet
 
 
 def test_verifier_packet_includes_envmap_raw_state_candidates_as_non_authoritative() -> None:
@@ -730,7 +729,7 @@ def test_verifier_packet_includes_envmap_raw_state_candidates_as_non_authoritati
         },
     )
     compiled = ConfigCompiler(CapabilityRegistry.from_envmap(env)).compile(_ir(), env)
-    packet = build_verifier_packet(compiled, ExecutionLedger(), step=0, reason="solver_submit")
+    packet = build_verifier_packet(compiled, ExecutionLedger(), step=0, reason="solver_submit", envmap=env)
 
     assert packet["raw_state_candidates"] == [
         {
@@ -758,23 +757,13 @@ def test_verifier_packet_excludes_solver_command_stdout_but_exposes_output_handl
         },
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=3, reason="deterministic_failure")
+    packet = build_verifier_packet(compiled, ledger, step=3, reason="deterministic_failure", envmap=_env())
 
     assert "solver_authored_evidence" not in packet
     assert "command_results" not in packet
     assert "BEFORE==AFTER True" not in json.dumps(packet)
     assert any(item.get("handle") == "out:cmd-1:stdout" for item in packet["state_inspection_handles"])
-    assert packet["recent_command_receipts"] == [
-        {
-            "receipt_id": "cmd-1",
-            "step": 3,
-            "command": "python3 compare.py",
-            "exit_code": 0,
-            "stdout_handle": "out:cmd-1:stdout",
-            "stderr_handle": "",
-            "authority": "audit_trail_only",
-        }
-    ]
+    assert "recent_command_receipts" not in packet
 
 
 def test_verifier_packet_has_no_privileged_solver_or_proof_fields() -> None:
@@ -791,7 +780,7 @@ def test_verifier_packet_has_no_privileged_solver_or_proof_fields() -> None:
         },
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=3, reason="solver_submit")
+    packet = build_verifier_packet(compiled, ledger, step=3, reason="solver_submit", envmap=_env())
     forbidden_names = {
         "solver_claim",
         "solver_claims",
@@ -833,9 +822,9 @@ def test_recent_command_receipts_are_audit_trail_not_privileged_proof() -> None:
         },
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=3, reason="solver_submit")
+    packet = build_verifier_packet(compiled, ledger, step=3, reason="solver_submit", envmap=_env())
 
-    assert packet["recent_command_receipts"][0]["authority"] == "audit_trail_only"
+    assert "recent_command_receipts" not in packet
     dumped = json.dumps(packet)
     assert "task solved perfectly" not in dumped
     assert "solver_claim" not in dumped
@@ -871,22 +860,20 @@ def test_verifier_packet_includes_workbench_realization_and_repair_metadata() ->
         ledger,
         step=0,
         reason="solver_submit",
+        envmap=envmap,
+        dynamic_state={},
     )
 
     assert result is not None and result.verdict == "completed"
     packet = hooks.verify_packets[0]
-    assert packet["success_definition"] == "out.txt exists and contains the requested content."
-    assert packet["local_verification_limits"] == [
+    assert packet["task_contract"]["raw_task_prompt"] == compiled.task_prompt
+    assert packet["evidence_requirements"]["local_limits"] == [
         {
             "source": "runtime_config",
             "statement": "local checks cannot prove hidden grader behavior",
         }
     ]
-    assert packet["config_realization"]["architect_path"] == "workbench"
-    assert packet["config_realization"]["harness_config_schema_version"] == "harness_config.v1"
-    assert packet["config_realization"]["workbench_repair_warning_codes"] == [UNSUPPORTED_VISIBLE_SMOKE_TEST_TYPE_CODE]
-    assert packet["config_realization"]["workbench_rejected_config_items"][0]["status"] == "quarantined"
-    assert packet["config_realization"]["verification_policy"]["official_grader_authority"] == "external_benchmark"
+    assert "config_realization" not in packet
 
 
 def test_active_verifier_finding_persists_with_age_and_memory_since_finding() -> None:
@@ -1031,6 +1018,8 @@ def test_model_verifier_policy_runs_on_filters_verifier_reasons() -> None:
         ledger,
         step=3,
         reason="deterministic_failure",
+        envmap=_env(),
+        dynamic_state={},
     )
     ran = run_model_verifier_if_available(
         hooks,
@@ -1038,6 +1027,8 @@ def test_model_verifier_policy_runs_on_filters_verifier_reasons() -> None:
         ledger,
         step=4,
         reason="solver_submit",
+        envmap=_env(),
+        dynamic_state={},
     )
 
     assert skipped is None
@@ -1064,15 +1055,14 @@ def test_model_verifier_timeout_records_error_after_packet(monkeypatch) -> None:
         ledger,
         step=9,
         reason="solver_submit",
+        envmap=_env(),
+        dynamic_state={},
     )
 
     receipts = ledger.all_receipts()
-    assert result is None
-    assert receipts[-2].kind == "model_verifier_packet"
-    assert receipts[-2].payload["packet"]["reason"] == "solver_submit"
-    assert receipts[-1].kind == "model_verifier_error"
-    assert receipts[-1].failure_class == "model_verifier_error"
-    assert "timed out" in receipts[-1].summary
+    assert result is not None and result.verdict == "blocked_by_tooling"
+    assert any(receipt.kind == "model_verifier_packet" and receipt.payload["packet"]["reason"] == "solver_submit" for receipt in receipts)
+    assert any(receipt.kind == "model_verifier_error" and "timed out" in receipt.summary for receipt in receipts)
 
 
 def test_parse_model_verifier_result_accepts_json_string_and_normalizes_findings() -> None:
@@ -1142,7 +1132,7 @@ def test_verifier_packet_keeps_findings_and_state_handles_not_artifact_history()
         payload={"path": "out.txt", "modified_paths": ("out.txt",), "artifact_paths": ("out.txt",), "file_handle": "file:out.txt"},
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=5, reason="deterministic_success_candidate")
+    packet = build_verifier_packet(compiled, ledger, step=5, reason="deterministic_success_candidate", envmap=_env())
 
     assert packet["active_findings"][0]["finding_id"] == "vf-artifact"
     assert any(item.get("handle") == "file:out.txt" for item in packet["state_inspection_handles"])
@@ -1165,7 +1155,7 @@ def test_verifier_packet_excludes_secret_observation_payloads_from_model_visible
         },
     ))
 
-    packet = build_verifier_packet(compiled, ledger, step=2, reason="deterministic_failure")
+    packet = build_verifier_packet(compiled, ledger, step=2, reason="deterministic_failure", envmap=_env())
 
     assert "observations" not in packet
     assert "sk-live-secret" not in json.dumps(packet)
@@ -1226,8 +1216,8 @@ def test_compiled_visible_smoke_is_compiled_but_not_put_in_state_only_verifier_p
     ledger.ensure_objective(_objective())
     ledger.record(Receipt("cfg", 0, "config_realization", True, "realized", payload={"config_realization": realization}))
 
-    packet = build_verifier_packet(compiled, ledger, step=1, reason="deterministic_failure")
+    packet = build_verifier_packet(compiled, ledger, step=1, reason="deterministic_failure", envmap=env)
 
     assert "deterministic_checks" not in packet
-    assert packet["config_realization"]["verification_policy"]
-    assert compiled_smoke_ids[0] in json.dumps(packet["config_realization"])
+    assert "config_realization" not in packet
+    assert compiled_smoke_ids[0] not in json.dumps(packet)
