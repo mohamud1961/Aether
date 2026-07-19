@@ -102,16 +102,28 @@ def _historical_launch_commands(trace: Mapping[str, Any]) -> tuple[str, ...]:
     from a task name, source filename, or model output.
     """
     commands: list[str] = []
+    source_commands: list[str] = []
     for step in trace.get("steps", ()) or ():
         turn = step.get("turn", {}) if isinstance(step, Mapping) else {}
         for action in turn.get("actions", ()) if isinstance(turn, Mapping) else ():
             if not isinstance(action, Mapping):
                 continue
-            command = str((action.get("arguments") or {}).get("command", ""))
-            for line in command.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("nohup ") and stripped.endswith("&"):
-                    commands.append(stripped)
+            source_commands.append(str((action.get("arguments") or {}).get("command", "")))
+        # Trace action arguments can be deliberately truncated for context
+        # hygiene, while execution receipts retain the complete command.  The
+        # receipt is execution authority, so use it as a fallback rather than
+        # guessing the omitted launch fragment.
+        for observation in step.get("observations", ()) if isinstance(step, Mapping) else ():
+            if not isinstance(observation, Mapping):
+                continue
+            summary = str(observation.get("summary", ""))
+            if summary.startswith("command exit=") and ":" in summary:
+                source_commands.append(summary.split(":", 1)[1])
+    for command in source_commands:
+        for line in command.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("nohup ") and stripped.endswith("&"):
+                commands.append(stripped)
     return tuple(dict.fromkeys(commands))
 
 

@@ -55,3 +55,19 @@ def test_historical_launch_extraction_replays_only_explicit_background_command()
     })
 
     assert commands == ("nohup python3 /app/server.py >/app/server.log 2>&1 &",)
+
+
+def test_historical_launch_extraction_uses_full_execution_receipt_when_action_is_truncated() -> None:
+    commands = _MODULE._historical_launch_commands({
+        "steps": [{
+            "turn": {"actions": [{"arguments": {"command": "build... [truncated]"}}]},
+            "observations": [{
+                "summary": (
+                    "command exit=0: python3 build.py\n"
+                    "nohup python3 /app/server.py >/app/server.log 2>&1 &"
+                ),
+            }],
+        }],
+    })
+
+    assert commands == ("nohup python3 /app/server.py >/app/server.log 2>&1 &",)
