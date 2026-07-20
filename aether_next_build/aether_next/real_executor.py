@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .evidence_finalization import export_content_addressed_files
 from .execution import (
     ArtifactInspection,
     CommandResult,
@@ -127,6 +128,18 @@ class StreamSpooler:
         )
         return inline, path
 
+    def overflow_paths(self) -> tuple[str, ...]:
+        if self._spool_dir is None or not os.path.isdir(self._spool_dir):
+            return ()
+        return tuple(
+            str(path)
+            for path in sorted(Path(self._spool_dir).iterdir())
+            if path.is_file()
+        )
+
+    def export_to(self, destination: str) -> dict[str, Any]:
+        return export_content_addressed_files(self.overflow_paths(), destination)
+
 
 def _snapshot_mtimes(root: str) -> dict[str, float]:
     """Return {relative_path: mtime} for files under *root*, bounded."""
@@ -171,6 +184,9 @@ class SubprocessExecutor:
             workspace_root,
             default_timeout_s=self._default_timeout_s,
         )
+
+    def export_spools(self, destination: str) -> dict[str, Any]:
+        return self._spooler.export_to(destination)
 
     # ---- Filesystem --------------------------------------------------------
 

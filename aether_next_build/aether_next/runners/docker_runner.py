@@ -16,6 +16,10 @@ from typing import Any, Callable, Iterator
 
 from ..classifier import HarnessLimiterClassifier, reconcile_grader_alignment
 from ..envmap_builder import build_envmap_from_task
+from ..evidence_finalization import (
+    copy_snapshot, executing_source_identity, finalize_evidence_directory,
+    sha256_file, write_manifest,
+)
 from ..environment_probe import probe_environment
 from ..execution import (
     ArtifactInspection,
@@ -230,6 +234,37 @@ def _build_task_container_command(
     ]
 
 
+def _checked_process(
+    args: list[str],
+    *,
+    label: str,
+    timeout: int,
+) -> tuple[subprocess.CompletedProcess[str] | None, str | None]:
+    """Run one infrastructure command and preserve an exact failure."""
+    try:
+        proc = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"{label}: {type(exc).__name__}: {exc}"
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        return proc, f"{label}: exit={proc.returncode}: {detail[:2000]}"
+    return proc, None
+
+
+def _evidence_directory(task_name: str, trace_dir: str | None) -> Path:
+    if trace_dir:
+        root = Path(trace_dir) / "run_evidence" / task_name
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    return Path(tempfile.mkdtemp(prefix=f"aether_run_evidence_{task_name}_"))
+
+
 
 def run_tbench_task(
     *,
@@ -259,6 +294,10 @@ def run_tbench_task(
     initial_workspace_manifest_path: str | None = None
     run_trace: Any = None
     hooks: ModelHooks | None = None
+    executor: DockerExecExecutor | None = None
+    run_evidence_dir: Path | None = None
+    source_identity: dict[str, Any] = {}
+    evidence_paths: dict[str, Any] = {}
 
     try:
         ensure_certified_architect_mode(architect_mode)
@@ -291,6 +330,14 @@ def run_tbench_task(
     run_timeout_s, run_timeout_policy = _effective_run_timeout_s(run_timeout_s, task_toml)
 
     try:  # outer try: catch ALL exceptions so the pilot never gets a raise
+        run_evidence_dir = _evidence_directory(task_name, trace_dir)
+        source_identity = executing_source_identity(Path(__file__).resolve().parents[2])
+        source_identity_path = run_evidence_dir / "executing_source_identity.json"
+        source_identity_path.write_text(
+            _json.dumps(source_identity, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        evidence_paths["executing_source_identity"] = str(source_identity_path)
         # -- 1. Temp workspace + seed ----------------------------------------
         _progress(progress_callback, task_name, "workspace_create", "creating temporary workspace")
         workspace_dir = tempfile.mkdtemp(prefix=f"tbench_{task_name}_")
@@ -319,6 +366,17 @@ def run_tbench_task(
         shutil.rmtree(initial_snapshot_dir)
         create_immutable_workspace_snapshot(workspace_path, initial_snapshot_dir)
         initial_workspace_state = pristine_state.to_dict()
+        assert run_evidence_dir is not None
+        initial_manifest = copy_snapshot(
+            initial_snapshot_dir,
+            run_evidence_dir / "initial_workspace",
+        )
+        initial_workspace_manifest_path = str(
+            run_evidence_dir / "initial_workspace.manifest.json"
+        )
+        evidence_paths["initial_workspace"] = str(run_evidence_dir / "initial_workspace")
+        evidence_paths["initial_workspace_manifest"] = initial_workspace_manifest_path
+        evidence_paths["initial_workspace_aggregate_sha256"] = initial_manifest["aggregate_sha256"]
         if trace_dir is not None:
             manifest_dir = Path(trace_dir) / "initial_workspace"
             manifest_dir.mkdir(parents=True, exist_ok=True)
@@ -327,7 +385,7 @@ def run_tbench_task(
                 _json.dumps(initial_workspace_state, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
-            initial_workspace_manifest_path = str(manifest_path)
+            evidence_paths["initial_workspace_state_manifest"] = str(manifest_path)
 
         # -- 2. Start long-lived container ------------------------------------
         task_dir_abs = str(Path(task_dir).resolve())
@@ -469,6 +527,22 @@ def run_tbench_task(
             _progress(progress_callback, task_name, "snapshot_final", "copying final workspace snapshot")
             _docker_snapshot(container_id, os.path.join(snapshot_dir, task_name, "final"))
 
+        # Preserve the exact agent-visible terminal state before official
+        # surfaces or grader code can mutate /app.
+        assert run_evidence_dir is not None
+        agent_final_manifest = copy_snapshot(
+            workspace_path,
+            run_evidence_dir / "agent_final_workspace",
+        )
+        evidence_paths["agent_final_workspace"] = str(run_evidence_dir / "agent_final_workspace")
+        evidence_paths["agent_final_workspace_manifest"] = str(
+            run_evidence_dir / "agent_final_workspace.manifest.json"
+        )
+        evidence_paths["agent_final_workspace_aggregate_sha256"] = agent_final_manifest["aggregate_sha256"]
+        if executor is not None:
+            spool_manifest = executor.export_spools(str(run_evidence_dir / "command_spools"))
+            evidence_paths["command_spools"] = spool_manifest
+
         # -- 4. Score with official grader ------------------------------------
         # Ensure the verifier output directory exists inside the container.
         # Introduce official task/test surfaces only after the agent has
@@ -476,40 +550,58 @@ def run_tbench_task(
         # /task or /tests mounts, so pre-terminal code cannot inspect grader
         # or solution material.
         _progress(progress_callback, task_name, "grader_prepare", "mounting official task/test surfaces after agent termination")
-        subprocess.run(
+        surface_errors: list[str] = []
+        _proc, error = _checked_process(
             ["docker", "exec", container_id, "bash", "-lc", "rm -rf /task /tests && mkdir -p /task /tests"],
-            capture_output=True, text=True, errors="replace", timeout=30,
+            label="grader_prepare_directories",
+            timeout=30,
         )
-        subprocess.run(
+        if error:
+            surface_errors.append(error)
+        _proc, error = _checked_process(
             ["docker", "cp", f"{task_dir_abs}/.", f"{container_id}:/task"],
-            capture_output=True, text=True, errors="replace", timeout=60,
+            label="grader_copy_task_surface",
+            timeout=60,
         )
+        if error:
+            surface_errors.append(error)
         if os.path.isdir(tests_mount):
-            subprocess.run(
+            _proc, error = _checked_process(
                 ["docker", "cp", f"{tests_mount}/.", f"{container_id}:/tests"],
-                capture_output=True, text=True, errors="replace", timeout=60,
+                label="grader_copy_tests_surface",
+                timeout=60,
             )
+            if error:
+                surface_errors.append(error)
 
         grader_cmd = detect_grader_command(task_dir_abs)
         grader_error = None
-        try:
-            _progress(progress_callback, task_name, "grader_run", grader_cmd)
-            grader_proc = subprocess.run(
-                ["docker", "exec", "-w", "/app", container_id, "bash", "-lc", grader_cmd],
-                capture_output=True, text=True, errors="replace", timeout=run_timeout_s,
-            )
-            grader_exit = grader_proc.returncode
-            grader_stdout_full = grader_proc.stdout
-            grader_stderr_full = grader_proc.stderr
-            grader_stdout = grader_stdout_full[-4000:]
-            grader_stderr = grader_stderr_full[-4000:]
-        except subprocess.TimeoutExpired as exc:
+        if surface_errors:
             grader_exit = -1
-            grader_stdout_full = str(exc.stdout or "")
-            grader_stderr_full = str(exc.stderr or "")
-            grader_stdout = grader_stdout_full[-4000:]
+            grader_stdout_full = ""
+            grader_stderr_full = "\n".join(surface_errors)
+            grader_stdout = ""
             grader_stderr = grader_stderr_full[-4000:]
-            grader_error = f"grader_timeout_after_{run_timeout_s}s"
+            grader_error = "grader_surface_prepare_failed: " + "; ".join(surface_errors)
+        else:
+            try:
+                _progress(progress_callback, task_name, "grader_run", grader_cmd)
+                grader_proc = subprocess.run(
+                    ["docker", "exec", "-w", "/app", container_id, "bash", "-lc", grader_cmd],
+                    capture_output=True, text=True, errors="replace", timeout=run_timeout_s,
+                )
+                grader_exit = grader_proc.returncode
+                grader_stdout_full = grader_proc.stdout
+                grader_stderr_full = grader_proc.stderr
+                grader_stdout = grader_stdout_full[-4000:]
+                grader_stderr = grader_stderr_full[-4000:]
+            except subprocess.TimeoutExpired as exc:
+                grader_exit = -1
+                grader_stdout_full = str(exc.stdout or "")
+                grader_stderr_full = str(exc.stderr or "")
+                grader_stdout = grader_stdout_full[-4000:]
+                grader_stderr = grader_stderr_full[-4000:]
+                grader_error = f"grader_timeout_after_{run_timeout_s}s"
 
         reward, grader_error, reward_source = _resolve_grader_reward(
             container_id=container_id,
@@ -536,6 +628,16 @@ def run_tbench_task(
             stdout=grader_stdout_full, stderr=grader_stderr_full,
             ctrf_text=ctrf_text,
         )
+
+        post_grader_manifest = copy_snapshot(
+            workspace_path,
+            run_evidence_dir / "post_grader_workspace",
+        )
+        evidence_paths["post_grader_workspace"] = str(run_evidence_dir / "post_grader_workspace")
+        evidence_paths["post_grader_workspace_manifest"] = str(
+            run_evidence_dir / "post_grader_workspace.manifest.json"
+        )
+        evidence_paths["post_grader_workspace_aggregate_sha256"] = post_grader_manifest["aggregate_sha256"]
 
         # -- 5. Classify -------------------------------------------------------
         classifier = HarnessLimiterClassifier()
@@ -583,6 +685,9 @@ def run_tbench_task(
             "receipt_summary": _receipt_summary(result),
             "world_state_snapshot": world_state.dynamic_snapshot(),
             "run_provenance": dict(run_provenance or {}),
+            "executing_source_identity": source_identity,
+            "run_evidence_dir": str(run_evidence_dir),
+            "run_evidence": dict(evidence_paths),
             "model_request_preflight": list(model_request_preflight),
             "initial_workspace_state": {
                 "digest": (initial_workspace_state or {}).get("digest", ""),
@@ -623,6 +728,39 @@ def run_tbench_task(
                 run_trace=run_trace,
             )
 
+        result_record_path = run_evidence_dir / "result_record.json"
+        result_record_path.write_text(
+            _json.dumps(record, indent=2, sort_keys=True, default=str),
+            encoding="utf-8",
+        )
+        evidence_paths["result_record"] = str(result_record_path)
+        required_paths: list[str] = [
+            str(run_evidence_dir / "executing_source_identity.json"),
+            str(run_evidence_dir / "initial_workspace"),
+            str(run_evidence_dir / "agent_final_workspace"),
+            str(run_evidence_dir / "post_grader_workspace"),
+            str(run_evidence_dir / "command_spools" / "manifest.json"),
+            str(result_record_path),
+        ]
+        if record.get("trace_path") and Path(str(record["trace_path"])).exists():
+            required_paths.append(str(record["trace_path"]))
+        marker = finalize_evidence_directory(
+            run_evidence_dir,
+            required_paths=required_paths,
+            metadata={
+                "task": task_name,
+                "image": image,
+                "kernel_status": result.status,
+                "reward": reward,
+                "source_commit": source_identity.get("commit", ""),
+                "source_tree": source_identity.get("tree", ""),
+                "source_clean": source_identity.get("clean", False),
+            },
+        )
+        record["evidence_finalization"] = marker
+        # FINALIZED.json is deliberately the last evidence write.  The returned
+        # in-memory record includes its pointer; the durable pre-finalisation
+        # result record is one of the checksummed inputs to the marker.
         return record
 
     except Exception as exc:

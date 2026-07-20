@@ -89,6 +89,9 @@ class DockerExecExecutor:
             container_workdir=workspace_root,
         )
 
+    def export_spools(self, destination: str) -> dict[str, Any]:
+        return self._spooler.export_to(destination)
+
     def run_command(
         self,
         command: str,
