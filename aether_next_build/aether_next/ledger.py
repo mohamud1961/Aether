@@ -161,16 +161,39 @@ class ExecutionLedger:
             self._mark_obligation("integrity:clean", "failed", receipt.receipt_id)
 
         process_id = str(payload.get("process_id", "")).strip()
-        if process_id:
-            self.processes[process_id] = {
-                "process_id": process_id,
-                "name": str(payload.get("service_name") or payload.get("name") or ""),
-                "command": str(payload.get("command", "")),
-                "live": bool(payload.get("live", receipt.success)),
-                "detail": str(payload.get("detail", receipt.summary)),
-                "step": receipt.step,
-                "kind": receipt.kind,
-            }
+        if process_id and receipt.kind in {"process_launch", "process_stop"}:
+            service_name = str(payload.get("service_name") or payload.get("name") or "").strip()
+            process_generation = str(payload.get("process_generation", "")).strip()
+            if receipt.kind == "process_stop":
+                for existing_id, existing in self.processes.items():
+                    if existing_id == process_id or (service_name and existing.get("name") == service_name):
+                        existing["live"] = False
+                        existing["detail"] = str(payload.get("detail", receipt.summary))
+                        existing["stopped_by"] = receipt.receipt_id
+                if service_name:
+                    self._mark_obligation(f"service:{service_name}", "open", receipt.receipt_id)
+            else:
+                if receipt.kind == "process_launch" and service_name:
+                    for existing_id, existing in self.processes.items():
+                        if existing_id != process_id and existing.get("name") == service_name:
+                            existing["live"] = False
+                            existing["superseded_by"] = process_id
+                    self._mark_obligation(f"service:{service_name}", "open", receipt.receipt_id)
+                self.processes[process_id] = {
+                    "process_id": process_id,
+                    "name": service_name,
+                    "command": str(payload.get("command", "")),
+                    "live": bool(payload.get("live", receipt.success)),
+                    "detail": str(payload.get("detail", receipt.summary)),
+                    "pid": payload.get("pid"),
+                    "start_time_ticks": str(payload.get("start_time_ticks", "")),
+                    "command_sha256": str(payload.get("command_sha256", "")),
+                    "process_generation": process_generation,
+                    "stdout_log": str(payload.get("stdout_log", "")),
+                    "stderr_log": str(payload.get("stderr_log", "")),
+                    "step": receipt.step,
+                    "kind": receipt.kind,
+                }
 
         if receipt.kind == "check_result":
             check_id = str(payload.get("check_id", "")).strip()
@@ -202,8 +225,21 @@ class ExecutionLedger:
 
         if receipt.kind == "service_probe":
             service_name = str(payload.get("service_name", "")).strip()
-            if service_name and bool(payload.get("live", False)):
+            probe_process_id = str(payload.get("process_id", "")).strip()
+            probe_generation = str(payload.get("process_generation", "")).strip()
+            registered = self.processes.get(probe_process_id)
+            generation_verified = bool(payload.get("process_generation_verified", False))
+            current_generation = (
+                registered is not None
+                and bool(registered.get("live", False))
+                and probe_generation
+                and probe_generation == str(registered.get("process_generation", ""))
+                and service_name == str(registered.get("name", ""))
+            )
+            if service_name and bool(payload.get("live", False)) and generation_verified and current_generation:
                 self._mark_obligation(f"service:{service_name}", "satisfied", receipt.receipt_id)
+            elif service_name:
+                self._mark_obligation(f"service:{service_name}", "open", receipt.receipt_id)
 
         for capability_id in payload.get("capabilities_added", ()) or ():
             item = str(capability_id).strip()
@@ -321,10 +357,11 @@ class ExecutionLedger:
 
         for process in self.processes.values():
             service_name = str(process.get("name", "")).strip()
-            if service_name and bool(process.get("live", False)):
-                recent_probe = self.last_probe_step(service_name)
+            generation = str(process.get("process_generation", "")).strip()
+            if service_name and generation and bool(process.get("live", False)):
+                recent_probe = self.last_verified_probe(service_name, generation)
                 if recent_probe is not None:
-                    self._mark_obligation(f"service:{service_name}", "satisfied", "reconcile")
+                    self._mark_obligation(f"service:{service_name}", "satisfied", recent_probe.receipt_id)
 
         if self.integrity_violations:
             self._mark_obligation("integrity:clean", "failed", "reconcile")
@@ -513,14 +550,30 @@ class ExecutionLedger:
         )
         return [candidate.as_dict() for candidate in candidates[: max(0, limit)]]
 
-    def last_probe_step(self, service_name: str) -> int | None:
+    def last_verified_probe(self, service_name: str, process_generation: str) -> Receipt | None:
         for receipt in reversed(self.receipts):
-            if receipt.kind != "service_probe":
+            if receipt.kind != "service_probe" or not receipt.success:
                 continue
-            payload_name = str(receipt.payload.get("service_name", "")).strip()
-            if payload_name == service_name:
-                return receipt.step
+            payload = receipt.payload
+            if str(payload.get("service_name", "")).strip() != service_name:
+                continue
+            if str(payload.get("process_generation", "")).strip() != process_generation:
+                continue
+            if not bool(payload.get("process_generation_verified", False)):
+                continue
+            return receipt
         return None
+
+    def last_probe_step(self, service_name: str) -> int | None:
+        current = [
+            item for item in self.processes.values()
+            if item.get("name") == service_name and item.get("live")
+        ]
+        if not current:
+            return None
+        generation = str(current[-1].get("process_generation", ""))
+        receipt = self.last_verified_probe(service_name, generation)
+        return receipt.step if receipt is not None else None
 
     def latest_receipt(self, kind: str) -> Receipt | None:
         for receipt in reversed(self.receipts):

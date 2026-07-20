@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import fnmatch
+import hashlib
 import re
 from typing import Any, Callable, Mapping, Protocol
 
@@ -52,6 +53,12 @@ class ProcessHandle:
     live: bool = True
     endpoint: str = ""
     detail: str = ""
+    pid: int | None = None
+    start_time_ticks: str = ""
+    command_sha256: str = ""
+    process_generation: str = ""
+    stdout_log: str = ""
+    stderr_log: str = ""
 
 @dataclass(frozen=True)
 class ProbeResult:
@@ -60,6 +67,10 @@ class ProbeResult:
     detail: str = ""
     fresh: bool = True
     service_name: str = ""
+    process_id: str = ""
+    process_generation: str = ""
+    process_generation_verified: bool = False
+    endpoint_owner_pids: tuple[int, ...] = ()
 
 @dataclass(frozen=True)
 class ArtifactInspection:
@@ -231,6 +242,12 @@ class ProcessOrchestratorV2:
                 "interactive": handle.interactive,
                 "live": handle.live,
                 "detail": handle.detail,
+                "pid": handle.pid,
+                "start_time_ticks": handle.start_time_ticks,
+                "command_sha256": handle.command_sha256,
+                "process_generation": handle.process_generation,
+                "stdout_log": handle.stdout_log,
+                "stderr_log": handle.stderr_log,
                 "candidate_id": action.candidate_id,
             },
         )
@@ -249,13 +266,17 @@ class ProcessOrchestratorV2:
             kind="service_probe",
             success=probe.live,
             summary=f"probe {target}: {'live' if probe.live else 'not_live'}",
-            state_change=probe.live,
+            state_change=False,
             failure_class="" if probe.live else "service_not_ready",
             payload={
                 "target": probe.target,
                 "service_name": probe.service_name or target,
                 "live": probe.live,
                 "detail": probe.detail,
+                "process_id": probe.process_id,
+                "process_generation": probe.process_generation,
+                "process_generation_verified": probe.process_generation_verified,
+                "endpoint_owner_pids": list(probe.endpoint_owner_pids),
                 "candidate_id": action.candidate_id,
             },
         )
@@ -440,7 +461,14 @@ class MemoryExecutor:
         if handler is not None:
             handle = handler(self, name, command, interactive)
         else:
-            process_id = f"proc-{len(self.processes) + 1}"
+            ordinal = len(self.processes) + 1
+            pid = 10_000 + ordinal
+            start_ticks = str(ordinal)
+            command_sha256 = hashlib.sha256(command.encode("utf-8")).hexdigest()
+            generation = hashlib.sha256(
+                f"memory\0{pid}\0{start_ticks}\0{command_sha256}".encode("utf-8")
+            ).hexdigest()[:24]
+            process_id = f"process:{generation}"
             handle = ProcessHandle(
                 process_id=process_id,
                 name=name,
@@ -449,35 +477,60 @@ class MemoryExecutor:
                 live=True,
                 endpoint=f"local://{name}",
                 detail="started",
+                pid=pid,
+                start_time_ticks=start_ticks,
+                command_sha256=command_sha256,
+                process_generation=generation,
             )
+        # A new generation supersedes earlier generations with the same name.
+        for existing_id, existing in tuple(self.processes.items()):
+            if existing.name == handle.name and existing.live:
+                self.processes[existing_id] = replace(existing, live=False, detail="superseded")
         self.processes[handle.process_id] = handle
         return handle
 
+    def _registered_process(self, target: str) -> ProcessHandle | None:
+        direct = self.processes.get(target)
+        if direct is not None:
+            return direct
+        matches = [handle for handle in self.processes.values() if handle.name == target]
+        return matches[-1] if matches else None
+
     def probe_process(self, target: str) -> ProbeResult:
-        for handle in self.processes.values():
-            if handle.process_id == target or handle.name == target:
-                return ProbeResult(
-                    target=target,
-                    live=handle.live,
-                    detail=handle.detail or ("live" if handle.live else "dead"),
-                    service_name=handle.name,
-                )
-        return ProbeResult(target=target, live=False, detail="not found", service_name=target)
+        handle = self._registered_process(target)
+        if handle is None:
+            return ProbeResult(target=target, live=False, detail="not found", service_name=target)
+        return ProbeResult(
+            target=target,
+            live=handle.live,
+            detail=handle.detail or ("live" if handle.live else "dead"),
+            service_name=handle.name,
+            process_id=handle.process_id,
+            process_generation=handle.process_generation,
+            process_generation_verified=bool(handle.live and handle.process_generation),
+            endpoint_owner_pids=((handle.pid,) if handle.pid is not None else ()),
+        )
 
     def stop_process(self, target: str) -> bool:
-        for process_id, handle in list(self.processes.items()):
-            if process_id == target or handle.name == target:
-                self.processes[process_id] = ProcessHandle(
-                    process_id=handle.process_id,
-                    name=handle.name,
-                    command=handle.command,
-                    interactive=handle.interactive,
-                    live=False,
-                    endpoint=handle.endpoint,
-                    detail="stopped",
-                )
-                return True
-        return False
+        handle = self._registered_process(target)
+        if handle is None:
+            return False
+        self.processes[handle.process_id] = ProcessHandle(
+            process_id=handle.process_id,
+            name=handle.name,
+            command=handle.command,
+            interactive=handle.interactive,
+            live=False,
+            endpoint=handle.endpoint,
+            detail="stopped",
+            pid=handle.pid,
+            start_time_ticks=handle.start_time_ticks,
+            command_sha256=handle.command_sha256,
+            process_generation=handle.process_generation,
+            stdout_log=handle.stdout_log,
+            stderr_log=handle.stderr_log,
+        )
+        return True
 
     def inspect_artifact(self, path: str, mode: str) -> ArtifactInspection:
         normalized = normalize_relpath(path, self.workspace_root)

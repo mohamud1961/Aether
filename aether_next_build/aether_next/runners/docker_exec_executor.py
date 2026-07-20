@@ -5,6 +5,8 @@ operations act on the host bind-mounted workspace.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 import uuid
 from pathlib import Path
@@ -51,6 +53,7 @@ class DockerExecExecutor:
             self._host_root, default_timeout_s=default_timeout_s,
         )
         self._spooler = StreamSpooler()
+        self._process_registry: dict[str, ProcessHandle] = {}
 
     # ---- Filesystem (host-side, bind-mounted) --------------------------------
 
@@ -154,48 +157,71 @@ class DockerExecExecutor:
         cwd: str | None = None,
     ) -> ProcessHandle:
         effective_cwd = cwd or self._container_workdir
-        process_id = f"docker-proc-{uuid.uuid4().hex[:8]}"
-
+        launch_nonce = uuid.uuid4().hex[:12]
+        command_sha256 = hashlib.sha256(command.encode("utf-8")).hexdigest()
+        stdout_log = f"/tmp/aether-processes/{launch_nonce}.stdout.log"
+        stderr_log = f"/tmp/aether-processes/{launch_nonce}.stderr.log"
+        wrapper = (
+'set -eu\nmkdir -p /tmp/aether-processes\nnohup bash -lc "$1" >"$2" 2>"$3" </dev/null &\npid=$!\ni=0\nwhile [ $i -lt 20 ] && [ ! -r /proc/$pid/stat ]; do i=$((i+1)); sleep 0.05; done\nstart=$(awk \'{print $22}\' /proc/$pid/stat 2>/dev/null || true)\nif [ -z "$start" ]; then exit 42; fi\nprintf \'%s\\t%s\\n\' "$pid" "$start"\n'
+        )
         docker_cmd = [
-            "docker", "exec", "-d", "-w", effective_cwd,
+            "docker", "exec", "-w", effective_cwd,
             self._container_id,
-            "bash", "-lc", command,
+            "bash", "-lc", wrapper, "_", command, stdout_log, stderr_log,
         ]
         try:
-            subprocess.run(
+            proc = subprocess.run(
                 docker_cmd,
                 capture_output=True,
-                text=True, errors="replace",
+                text=True,
+                errors="replace",
                 timeout=30,
                 check=True,
             )
-        except subprocess.CalledProcessError as exc:
+            fields = proc.stdout.strip().split("\t")
+            if len(fields) != 2 or not fields[0].isdigit() or not fields[1].isdigit():
+                raise ValueError(f"invalid launch identity: {proc.stdout!r}")
+            pid = int(fields[0])
+            start_ticks = fields[1]
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as exc:
+            detail = str(exc)
+            if isinstance(exc, subprocess.CalledProcessError):
+                detail = str(exc.stderr or exc.stdout or exc)
             return ProcessHandle(
-                process_id=process_id,
+                process_id=f"failed:{launch_nonce}",
                 name=name,
                 command=command,
                 interactive=interactive,
                 live=False,
-                detail=f"docker exec -d failed: {exc.stderr or exc.stdout}",
-            )
-        except subprocess.TimeoutExpired:
-            return ProcessHandle(
-                process_id=process_id,
-                name=name,
-                command=command,
-                interactive=interactive,
-                live=False,
-                detail="docker exec -d timed out",
+                detail=f"process launch failed: {detail}",
+                command_sha256=command_sha256,
+                stdout_log=stdout_log,
+                stderr_log=stderr_log,
             )
 
-        return ProcessHandle(
+        generation = hashlib.sha256(
+            f"{self._container_id}\0{pid}\0{start_ticks}\0{command_sha256}".encode("utf-8")
+        ).hexdigest()[:24]
+        process_id = f"process:{generation}"
+        handle = ProcessHandle(
             process_id=process_id,
             name=name,
             command=command,
             interactive=interactive,
             live=True,
-            detail=f"launched in container {self._container_id[:12]}",
+            detail=f"pid={pid} start_ticks={start_ticks} container={self._container_id[:12]}",
+            pid=pid,
+            start_time_ticks=start_ticks,
+            command_sha256=command_sha256,
+            process_generation=generation,
+            stdout_log=stdout_log,
+            stderr_log=stderr_log,
         )
+        # A new launch generation supersedes earlier registered generations of
+        # the same service name for proof purposes, even if the old OS process
+        # remains alive until explicitly stopped.
+        self._process_registry[process_id] = handle
+        return handle
 
     def probe_process(self, target: str) -> ProbeResult:
         """Probe a live service endpoint or named process inside the container.
@@ -209,85 +235,180 @@ class DockerExecExecutor:
             return self._probe_tcp_endpoint(target, *tcp_target)
         return self._probe_process_name(target)
 
+    def _registered_process(self, target: str) -> ProcessHandle | None:
+        direct = self._process_registry.get(target)
+        if direct is not None:
+            return direct
+        matches = [item for item in self._process_registry.values() if item.name == target]
+        return matches[-1] if matches else None
+
     def _probe_process_name(self, target: str) -> ProbeResult:
-        docker_cmd = [
-            "docker", "exec", self._container_id,
-            "pgrep", "-f", target,
-        ]
-        try:
-            proc = subprocess.run(
-                docker_cmd,
-                capture_output=True,
-                text=True, errors="replace",
-                timeout=10,
-            )
-            alive = proc.returncode == 0
-            return ProbeResult(
-                target=target,
-                live=alive,
-                detail=proc.stdout.strip() if alive else "not found",
-                service_name=target,
-            )
-        except subprocess.TimeoutExpired:
+        handle = self._registered_process(target)
+        if handle is None or handle.pid is None or not handle.start_time_ticks:
             return ProbeResult(
                 target=target,
                 live=False,
-                detail="probe timed out",
+                detail="no registered process generation",
                 service_name=target,
             )
+        code = (
+            "import json,os,sys\n"
+            f"pid={handle.pid!r}; expected={handle.start_time_ticks!r}\n"
+            "path=f'/proc/{pid}/stat'\n"
+            "try:\n"
+            " data=open(path,encoding='utf-8').read().split()\n"
+            " start=data[21]\n"
+            " alive=start==expected\n"
+            "except Exception as exc:\n"
+            " print(json.dumps({'alive':False,'error':str(exc)})); sys.exit(1)\n"
+            "print(json.dumps({'alive':alive,'pid':pid,'start_time_ticks':start}))\n"
+            "sys.exit(0 if alive else 1)\n"
+        )
+        try:
+            proc = subprocess.run(
+                ["docker", "exec", self._container_id, "python3", "-c", code],
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired:
+            return ProbeResult(target=target, live=False, detail="probe timed out", service_name=handle.name)
+        alive = proc.returncode == 0
+        return ProbeResult(
+            target=target,
+            live=alive,
+            detail=(proc.stdout or proc.stderr).strip() or ("live" if alive else "not live"),
+            service_name=handle.name,
+            process_id=handle.process_id,
+            process_generation=handle.process_generation,
+            process_generation_verified=alive,
+            endpoint_owner_pids=((handle.pid,) if alive and handle.pid is not None else ()),
+        )
 
     def _probe_tcp_endpoint(self, target: str, host: str, port: int) -> ProbeResult:
-        code = (
-            "import socket,sys\n"
-            "s=socket.socket()\n"
-            "s.settimeout(5)\n"
-            f"rc=s.connect_ex(({host!r},{port}))\n"
-            "s.close()\n"
-            "print('open' if rc == 0 else f'closed rc={rc}')\n"
-            "sys.exit(0 if rc == 0 else 1)\n"
-        )
-        docker_cmd = [
-            "docker", "exec", self._container_id,
-            "python3", "-c", code,
-        ]
+        # Resolve listener socket inode(s) and owning PID(s) from /proc using
+        # only Python stdlib.  Liveness without a registered owner is reported
+        # but cannot satisfy a service-generation obligation.
+        code = r'''import json, os, socket, sys
+port = int(sys.argv[1])
+inodes = set()
+for table in ('/proc/net/tcp', '/proc/net/tcp6'):
+    try:
+        lines = open(table, encoding='utf-8').read().splitlines()[1:]
+    except OSError:
+        continue
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 10 or parts[3] != '0A':
+            continue
+        local = parts[1]
+        try:
+            local_port = int(local.rsplit(':', 1)[1], 16)
+        except Exception:
+            continue
+        if local_port == port:
+            inodes.add(parts[9])
+owners = set()
+if inodes:
+    for pid_name in os.listdir('/proc'):
+        if not pid_name.isdigit():
+            continue
+        fd_dir = f'/proc/{pid_name}/fd'
+        try:
+            names = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in names:
+            try:
+                link = os.readlink(f'{fd_dir}/{fd}')
+            except OSError:
+                continue
+            if link.startswith('socket:[') and link[8:-1] in inodes:
+                owners.add(int(pid_name)); break
+print(json.dumps({'live': bool(inodes), 'owner_pids': sorted(owners), 'inodes': sorted(inodes)}))
+sys.exit(0 if inodes else 1)
+'''
         try:
             proc = subprocess.run(
-                docker_cmd,
+                ["docker", "exec", self._container_id, "python3", "-c", code, str(port)],
                 capture_output=True,
-                text=True, errors="replace",
+                text=True,
+                errors="replace",
                 timeout=10,
             )
-            alive = proc.returncode == 0
-            detail = (proc.stdout or proc.stderr).strip()
-            return ProbeResult(
-                target=target,
-                live=alive,
-                detail=detail or ("open" if alive else "closed"),
-                service_name=target,
-            )
         except subprocess.TimeoutExpired:
-            return ProbeResult(
-                target=target,
-                live=False,
-                detail="tcp probe timed out",
-                service_name=target,
-            )
+            return ProbeResult(target=target, live=False, detail="tcp ownership probe timed out", service_name=target)
+        try:
+            payload = json.loads(proc.stdout or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        live = bool(payload.get("live", False)) and proc.returncode == 0
+        owner_pids = tuple(int(item) for item in payload.get("owner_pids", ()) if str(item).isdigit())
+        registered = [
+            item for item in self._process_registry.values()
+            if item.pid in owner_pids and item.live
+        ]
+        # Latest registered owner wins only when its PID/start generation is
+        # still current.  Verify that exact identity before binding endpoint.
+        owner = registered[-1] if registered else None
+        if owner is not None:
+            verified = self._probe_process_name(owner.process_id)
+            if not verified.live:
+                owner = None
+        return ProbeResult(
+            target=target,
+            live=live,
+            detail=json.dumps(payload, sort_keys=True),
+            service_name=(owner.name if owner is not None else target),
+            process_id=(owner.process_id if owner is not None else ""),
+            process_generation=(owner.process_generation if owner is not None else ""),
+            process_generation_verified=bool(owner is not None and live),
+            endpoint_owner_pids=owner_pids,
+        )
 
     def stop_process(self, target: str) -> bool:
-        docker_cmd = [
-            "docker", "exec", self._container_id,
-            "pkill", "-f", target,
-        ]
+        handle = self._registered_process(target)
+        if handle is None or handle.pid is None or not handle.start_time_ticks:
+            return False
+        # Verify PID reuse has not occurred before signalling the exact process.
+        probe = self._probe_process_name(handle.process_id)
+        if not probe.live:
+            self._process_registry[handle.process_id] = ProcessHandle(
+                **{**handle.__dict__, "live": False, "detail": "already not live"}
+            )
+            return False
+        code = (
+            "import os,signal,sys,time\n"
+            f"pid={handle.pid!r}; expected={handle.start_time_ticks!r}\n"
+            "def current():\n"
+            " try: return open(f'/proc/{pid}/stat',encoding='utf-8').read().split()[21]\n"
+            " except Exception: return ''\n"
+            "if current()!=expected: sys.exit(2)\n"
+            "os.kill(pid, signal.SIGTERM)\n"
+            "for _ in range(20):\n"
+            " if current()!=expected: sys.exit(0)\n"
+            " time.sleep(0.05)\n"
+            "os.kill(pid, signal.SIGKILL)\n"
+            "sys.exit(0)\n"
+        )
         try:
             proc = subprocess.run(
-                docker_cmd,
+                ["docker", "exec", self._container_id, "python3", "-c", code],
                 capture_output=True,
-                text=True, errors="replace",
+                text=True,
+                errors="replace",
                 timeout=10,
             )
-            return proc.returncode == 0
         except subprocess.TimeoutExpired:
             return False
+        stopped = proc.returncode == 0
+        if stopped:
+            self._process_registry[handle.process_id] = ProcessHandle(
+                **{**handle.__dict__, "live": False, "detail": "stopped"}
+            )
+        return stopped
+
 
 
 _log = logging.getLogger(__name__)
