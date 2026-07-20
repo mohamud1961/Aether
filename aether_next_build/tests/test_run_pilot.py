@@ -23,6 +23,7 @@ def test_run_pilot_persists_in_progress_row_before_task_runner_returns(
     monkeypatch.setattr(run_pilot, "_resolve_task_image", lambda _task_dir: "demo:latest")
 
     def fake_run_tbench_task(**kwargs):
+        assert kwargs["network_scope"] == "loopback_only"
         rows = json.loads(out_path.read_text(encoding="utf-8"))
         assert rows == [
             {
@@ -77,6 +78,8 @@ def test_run_pilot_persists_in_progress_row_before_task_runner_returns(
             "demo-task",
             "--out",
             str(out_path),
+            "--network-scope",
+            "loopback_only",
         ],
     )
 

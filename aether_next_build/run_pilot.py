@@ -230,6 +230,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Timeout in seconds for Docker command/grader execution (default: 1800).",
     )
     ap.add_argument(
+        "--network-scope",
+        choices=["loopback_only", "external_unrestricted"],
+        default=None,
+        help="Optional explicit pre-container network scope. Omit to use public task metadata/default policy.",
+    )
+    ap.add_argument(
         "--trace-dir",
         default=None,
         help="Directory to write per-task JSON trace files for step-by-step audit. "
@@ -425,6 +431,7 @@ def main(argv: list[str] | None = None) -> int:
                 snapshot_steps=snap_steps,
                 run_provenance={**run_provenance, "task_hash": _task_hash(task_dir)},
                 progress_callback=_record_progress,
+                network_scope=args.network_scope,
             )
         except Exception as exc:
             record = {

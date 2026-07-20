@@ -51,9 +51,9 @@ from aether_next.workbench_config import parse_harness_config_ir  # noqa: E402
 
 
 DEFAULT_CASES = (
-    ("filter-js-from-html", "narrow_real_task_traces_20260630_043152/filter-js-from-html.trace.json"),
-    ("sparql-university", "narrow_real_task_traces_20260630_043152/sparql-university.trace.json"),
-    ("openssl-selfsigned-cert", "narrow_real_task_traces_20260630_043152/openssl-selfsigned-cert.trace.json"),
+    ("filter-js-from-html", str(Path(_BUILD_DIR) / "narrow_real_task_traces_20260630_043152/filter-js-from-html.trace.json")),
+    ("sparql-university", str(Path(_BUILD_DIR) / "narrow_real_task_traces_20260630_043152/sparql-university.trace.json")),
+    ("openssl-selfsigned-cert", str(Path(_BUILD_DIR) / "narrow_real_task_traces_20260630_043152/openssl-selfsigned-cert.trace.json")),
 )
 
 
@@ -87,7 +87,7 @@ def _load_architect_configs() -> dict[str, Any]:
         "architect_only_eval_architect_skill_remaining4_v8_auto_memory/architect_only_eval.json",
         "architect_only_eval_architect_skill_financial_v9_48k/architect_only_eval.json",
     ):
-        path = Path(rel)
+        path = Path(_BUILD_DIR) / rel
         if not path.exists():
             continue
         for row in _load_json(path):
@@ -342,9 +342,11 @@ def _ledger_from_trace(trace: Mapping[str, Any], *, replay_step: int) -> Executi
     return ledger
 
 
-def _fake_output(packet: Mapping[str, Any], *, variant: str) -> dict[str, Any]:
+def _fake_output(
+    packet: Mapping[str, Any], *, variant: str, architect_prompt: str = "",
+) -> dict[str, Any]:
     text = json.dumps(packet, sort_keys=True).lower()
-    has_arch = variant == "architect_prompt" and bool(packet.get("task_contract", {}).get("architect_verifier_prompt", {}).get("rendered"))
+    has_arch = variant == "architect_prompt" and bool(architect_prompt.strip())
     has_query_loop = "memory_loop_feedback" in packet and packet.get("memory_loop_feedback")
     has_auto = "automatic_memory_findings" in packet and packet.get("automatic_memory_findings")
     failed_checks = packet.get("failed_or_empty_checks") or packet.get("deterministic_checks") or []
@@ -432,7 +434,14 @@ def _run_one(task: str, trace_path: Path, *, mode: str, out_dir: Path, configs: 
             minimum_completion_evidence=min_evidence if prompt else (),
         )
         ledger = _ledger_from_trace(trace, replay_step=replay_step)
-        packet = build_verifier_packet(compiled, ledger, step=replay_step, reason="max_steps")
+        replay_envmap = EnvMap(
+            task_prompt=_section(trace, "task_prompt"),
+            workspace_root="/app",
+        )
+        packet = build_verifier_packet(
+            compiled, ledger, step=replay_step, reason="max_steps",
+            envmap=replay_envmap,
+        )
         raw: Any
         parse_error = ""
         parsed: ModelVerifierResult | None = None
@@ -440,7 +449,11 @@ def _run_one(task: str, trace_path: Path, *, mode: str, out_dir: Path, configs: 
             raw = {"blocked": config_error}
             parse_error = config_error
         else:
-            raw = _fake_output(packet, variant=variant) if mode == "fake" else _model_output(packet, architect_prompt=prompt)
+            raw = (
+                _fake_output(packet, variant=variant, architect_prompt=prompt)
+                if mode == "fake"
+                else _model_output(packet, architect_prompt=prompt)
+            )
             try:
                 parsed = parse_model_verifier_result(raw)
                 ledger.apply_verifier_result(parsed, step=replay_step)
@@ -450,6 +463,7 @@ def _run_one(task: str, trace_path: Path, *, mode: str, out_dir: Path, configs: 
         variant_dir = out_dir / task / variant
         variant_dir.mkdir(parents=True, exist_ok=True)
         (variant_dir / "verifier_packet.json").write_text(json.dumps(packet, indent=2, sort_keys=True, default=str))
+        (variant_dir / "verifier_prompt.txt").write_text(prompt, encoding="utf-8")
         (variant_dir / "raw_output.json").write_text(json.dumps(raw, indent=2, sort_keys=True, default=str) if not isinstance(raw, str) else raw)
         (variant_dir / "parsed_result.json").write_text(json.dumps(parsed.as_dict() if parsed else {"parse_error": parse_error}, indent=2, sort_keys=True))
         (variant_dir / "active_findings_after.json").write_text(json.dumps(ledger.active_finding_context(replay_step + 1), indent=2, sort_keys=True))
@@ -479,6 +493,13 @@ def _run_one(task: str, trace_path: Path, *, mode: str, out_dir: Path, configs: 
                 or bool(architect.get("specific_repair")) and not bool(generic.get("specific_repair"))
             )
         ),
+        "prompt_only_invention_blocked": bool(
+            architect.get("parse_ok")
+            and generic.get("parse_ok")
+            and architect.get("verdict") == generic.get("verdict")
+            and int(architect.get("finding_count", 0)) == int(generic.get("finding_count", 0))
+            and not architect.get("config_error")
+        ),
     }
 
 
@@ -494,6 +515,7 @@ def run(*, mode: str, out_dir: Path, cases: tuple[tuple[str, str], ...] = DEFAUL
             "cases": len(rows),
             "ok": sum(1 for row in rows if row["status"] == "ok"),
             "architect_prompt_improved": sum(1 for row in rows if row["architect_prompt_improved"]),
+            "prompt_only_invention_blocked": sum(1 for row in rows if row["prompt_only_invention_blocked"]),
         },
     }
     (out_dir / "trace_verifier_replay_ab.json").write_text(json.dumps(summary, indent=2, sort_keys=True, default=str))
