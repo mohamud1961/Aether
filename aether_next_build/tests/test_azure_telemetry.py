@@ -1,6 +1,7 @@
 """No-network tests for Azure Responses cache layout and telemetry."""
 from __future__ import annotations
 
+from types import SimpleNamespace
 import pytest
 
 from aether_next.model_hooks import ModelHooks
@@ -17,8 +18,15 @@ class _Job:
     def __init__(self, *, usage=None, status="completed", job_id="job-telemetry", error=None) -> None:
         self.id = job_id
         self.status = status
-        self.output_text = "{}"
-        self.output = []
+        self.output_text = "AGGREGATED-NON-AUTHORITY"
+        self.output = [
+            SimpleNamespace(
+                id=f"{job_id}-message",
+                type="message",
+                role="assistant",
+                content=[SimpleNamespace(type="output_text", text="{}")],
+            )
+        ]
         self.error = error
         self.incomplete_details = None
         self.usage = usage

@@ -6,6 +6,7 @@ This is the ONLY module allowed to ``import openai``.  It builds a
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import random
 import threading
@@ -32,6 +33,15 @@ except ModuleNotFoundError:  # pragma: no cover - provider construction requires
 
 class AzureModelError(Exception):
     """Raised when the Azure Responses API returns an unrecoverable error."""
+
+
+class AzureProviderOutputError(AzureModelError):
+    """A provider response cannot safely authorise one structured model turn."""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        self.code = str(code)
+        self.detail = str(detail)
+        super().__init__(self.code if not self.detail else f"{self.code}: {self.detail}")
 
 
 # Background-job error codes (``job.error.code``, an openai
@@ -244,22 +254,128 @@ def _split_messages(messages: list[dict[str, str]]) -> tuple[str, str]:
     return "You are a helpful assistant.", "Proceed."
 
 
-def _extract_output_text(response: Any) -> str:
-    """Pull the output text from a completed Responses API object."""
-    # Prefer .output_text convenience accessor.
+def _strict_structured_json(text: str) -> tuple[str, str]:
+    """Return canonical JSON plus the exact accepted body.
+
+    Exactly one top-level object is accepted.  One optional enclosing JSON
+    fence is permitted; leading/trailing prose, arrays, comments, or a second
+    object are rejected by the ordinary strict JSON decoder.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        raise AzureProviderOutputError("provider_empty_assistant_message")
+    body = raw
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        if len(lines) < 3 or lines[0].strip().lower() not in {"```", "```json"} or lines[-1].strip() != "```":
+            raise AzureProviderOutputError("provider_invalid_json_fence")
+        body = "\n".join(lines[1:-1]).strip()
+        if "```" in body:
+            raise AzureProviderOutputError("provider_nested_json_fence")
     try:
-        text = response.output_text
-        if text:
-            return str(text)
-    except (AttributeError, TypeError):
-        pass
-    # Fall back to walking the output items manually.
-    for item in getattr(response, "output", None) or []:
-        for chunk in getattr(item, "content", None) or []:
-            piece = getattr(chunk, "text", None)
+        parsed = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise AzureProviderOutputError(
+            "provider_structured_output_invalid_json",
+            f"line={exc.lineno} column={exc.colno} {exc.msg}",
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise AzureProviderOutputError(
+            "provider_structured_output_not_object",
+            type(parsed).__name__,
+        )
+    canonical = json.dumps(parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return canonical, body
+
+
+def _raw_assistant_messages(response: Any) -> tuple[tuple[dict[str, Any], ...], bool]:
+    """Extract assistant message items without consulting response.output_text.
+
+    The boolean reports a mixed executable/tool-call item.  Provider reasoning
+    items are harmless metadata and are ignored, while any function/computer
+    call mixed with text makes the response ambiguous and fail-closed.
+    """
+    rows: list[dict[str, Any]] = []
+    mixed_call = False
+    for index, item in enumerate(_usage_field(response, "output", ()) or ()):
+        item_type = str(_usage_field(item, "type", "") or "")
+        role = str(_usage_field(item, "role", "") or "")
+        if item_type.endswith("_call") or item_type in {
+            "function_call", "computer_call", "custom_tool_call",
+        }:
+            mixed_call = True
+        if item_type != "message" or role != "assistant":
+            continue
+        parts: list[str] = []
+        for chunk in _usage_field(item, "content", ()) or ():
+            piece = _usage_field(chunk, "text")
+            if piece is None:
+                piece = _usage_field(chunk, "output_text")
             if piece:
-                return str(piece)
-    return ""
+                parts.append(str(piece))
+        message = "".join(parts)
+        if not message:
+            continue
+        rows.append({
+            "index": index,
+            "item_id": str(_usage_field(item, "id", "") or ""),
+            "item_type": item_type,
+            "text": message,
+            "text_sha256": hashlib.sha256(message.encode("utf-8")).hexdigest(),
+            "text_bytes": len(message.encode("utf-8")),
+        })
+    return tuple(rows), mixed_call
+
+
+def canonicalize_structured_output(response: Any) -> tuple[str, dict[str, Any]]:
+    """Select one unambiguous structured assistant message from raw items."""
+    messages, mixed_call = _raw_assistant_messages(response)
+    receipt: dict[str, Any] = {
+        "response_id": str(_usage_field(response, "id", "") or ""),
+        "raw_provider_status": str(_usage_field(response, "status", "") or ""),
+        "extraction_path": "response.output[].message.content[].text",
+        "candidate_message_count": len(messages),
+        "candidate_hashes": tuple(row["text_sha256"] for row in messages),
+        "provider_duplicate_output": False,
+    }
+    if mixed_call:
+        raise AzureProviderOutputError("provider_mixed_message_and_tool_output")
+    if not messages:
+        raise AzureProviderOutputError("provider_no_assistant_message")
+    canonical_rows: list[tuple[dict[str, Any], str]] = []
+    for row in messages:
+        canonical, _body = _strict_structured_json(str(row["text"]))
+        canonical_rows.append((row, canonical))
+    canonical_forms = {canonical for _row, canonical in canonical_rows}
+    if len(canonical_forms) != 1:
+        raise AzureProviderOutputError("multiple_distinct_assistant_outputs")
+    source, canonical = canonical_rows[0]
+    receipt.update({
+        "canonical_item_index": source["index"],
+        "canonical_item_id": source["item_id"],
+        "canonical_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        "provider_duplicate_output": len(messages) > 1,
+        "provider_duplicate_semantic_equivalent": len(messages) > 1,
+    })
+    return canonical, receipt
+
+
+def _extract_plain_output_text(response: Any) -> str:
+    """Extract one unambiguous plain assistant message for the vision lane."""
+    messages, mixed_call = _raw_assistant_messages(response)
+    if mixed_call:
+        raise AzureProviderOutputError("provider_mixed_message_and_tool_output")
+    if not messages:
+        raise AzureProviderOutputError("provider_no_assistant_message")
+    unique = {str(row["text"]) for row in messages}
+    if len(unique) != 1:
+        raise AzureProviderOutputError("multiple_distinct_assistant_outputs")
+    return str(messages[0]["text"])
+
+
+def _extract_output_text(response: Any) -> str:
+    """Compatibility name for strict structured-output extraction."""
+    return canonicalize_structured_output(response)[0]
 
 
 def make_azure_callable(
@@ -601,26 +717,24 @@ class AzureModelCallable:
                 **_usage_telemetry(job),
             })
             if status == "completed":
-                text = _extract_output_text(job)
-                if not text:
-                    raise AzureModelError(
-                        f"background job {job_id} completed but produced no output text"
-                    )
+                try:
+                    text, output_receipt = canonicalize_structured_output(job)
+                except AzureProviderOutputError as exc:
+                    event["provider_output_error"] = exc.code
+                    raise
+                event.update(output_receipt)
                 event["status"] = "completed"
                 return text
 
             if status == "incomplete":
-                partial = _extract_output_text(job)
-                if partial:
-                    event["status"] = "incomplete_with_output"
-                    return partial
-                detail = (
-                    getattr(job, "incomplete_details", None)
-                    or getattr(job, "error", None)
-                    or ""
-                )
-                raise AzureModelError(
-                    f"background job {job_id} incomplete with no usable text: {detail}"
+                # Partial text is evidence, never an executable model turn.
+                # Even syntactically valid JSON may be a truncated semantic
+                # decision, so quarantine the whole provider response.
+                event["provider_output_error"] = "provider_output_incomplete"
+                event["status"] = "incomplete"
+                raise AzureProviderOutputError(
+                    "provider_output_incomplete",
+                    str(getattr(job, "incomplete_details", None) or ""),
                 )
 
             error_obj = getattr(job, "error", None)
@@ -635,6 +749,8 @@ class AzureModelCallable:
                 "error_type": exc.__class__.__name__,
                 "error": str(exc)[:1000],
             })
+            if isinstance(exc, AzureProviderOutputError):
+                event["provider_output_error"] = exc.code
             # The runner's wall-clock interrupt is control flow, not a
             # provider failure.  Match ModelHooks' canonical handling without
             # importing the runner here (which would create a provider/runner
@@ -754,7 +870,7 @@ class AzureVisionCallable:
                 "job_status": str(getattr(response, "status", "completed")),
                 **_usage_telemetry(response),
             })
-            text = _extract_output_text(response)
+            text = _extract_plain_output_text(response)
             if not text:
                 raise AzureModelError("vision response completed but produced no output text")
             event["status"] = "completed"

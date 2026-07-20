@@ -15,6 +15,7 @@ local stand-ins.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 import httpx
 import openai
 import pytest
@@ -82,8 +83,17 @@ class _FakeJob:
     ) -> None:
         self.id = job_id
         self.status = status
+        # Aggregated output_text is retained only to prove the provider does
+        # not use it as authority.  The canonical message lives in raw items.
         self.output_text = output_text
-        self.output: list = []
+        self.output = ([
+            SimpleNamespace(
+                id=f"{job_id}-message",
+                type="message",
+                role="assistant",
+                content=[SimpleNamespace(type="output_text", text=output_text)],
+            )
+        ] if output_text else [])
         self.error = error
         self.incomplete_details = None
 
@@ -330,7 +340,7 @@ class TestAzureModelCallableRetriesThenSucceeds:
             [
                 _FakeHTTPError(429, "rate limited"),
                 _FakeHTTPError(429, "rate limited"),
-                _FakeJob(status="completed", output_text="hello"),
+                _FakeJob(status="completed", output_text='{"value":"hello"}'),
             ]
         )
         sleeper = _RecordingSleep()
@@ -338,7 +348,7 @@ class TestAzureModelCallableRetriesThenSucceeds:
 
         result = model([{"role": "user", "content": "hi"}])
 
-        assert result == "hello"
+        assert result == '{"value":"hello"}'
         assert client.create_calls == 3
         assert len(sleeper.calls) == 2
         assert sleeper.calls[1] > sleeper.calls[0], "backoff grew between retries"
@@ -347,7 +357,7 @@ class TestAzureModelCallableRetriesThenSucceeds:
         client = _FakeClient(
             [
                 _FakeJob(status="failed", error=_FakeJobError("rate_limit_exceeded")),
-                _FakeJob(status="completed", output_text="done"),
+                _FakeJob(status="completed", output_text='{"value":"done"}'),
             ]
         )
         sleeper = _RecordingSleep()
@@ -355,7 +365,7 @@ class TestAzureModelCallableRetriesThenSucceeds:
 
         result = model([{"role": "user", "content": "hi"}])
 
-        assert result == "done"
+        assert result == '{"value":"done"}'
         assert client.create_calls == 2
         assert len(sleeper.calls) == 1
 
@@ -369,14 +379,14 @@ class TestAzureModelCallableUsesRateLimiter:
                 acquire_calls["n"] += 1
 
         client = _FakeClient(
-            [_FakeHTTPError(429), _FakeJob(status="completed", output_text="ok")]
+            [_FakeHTTPError(429), _FakeJob(status="completed", output_text='{"value":"ok"}')]
         )
         sleeper = _RecordingSleep()
         model = _model(client, sleeper=sleeper, max_retries=3, rate_limiter=_SpyLimiter())
 
         result = model([{"role": "user", "content": "hi"}])
 
-        assert result == "ok"
+        assert result == '{"value":"ok"}'
         assert acquire_calls["n"] == 2, "one acquire() per create() attempt"
 
 
