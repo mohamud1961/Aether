@@ -37,7 +37,6 @@ def build_architect_request(
             "interactive_features": dict(envmap.interactive_features),
             "task_metadata": _model_facing_task_metadata(envmap.task_metadata),
             "visible_task_materials": _visible_task_materials(envmap.task_metadata),
-            "task_capability_requirements": list(envmap.task_metadata.get("task_capability_requirements", envmap.task_metadata.get("capability_requirements", ())) or ()),
             "available_action_affordances": list(envmap.task_metadata.get("available_action_affordances", ()) or ()),
             "observed_environment_support": dict(envmap.task_metadata.get("observed_environment_support", {}) or {}),
             "reviewer_probe_support": dict(envmap.task_metadata.get("reviewer_probe_support", {}) or {}),
@@ -77,8 +76,7 @@ def _model_facing_task_metadata(task_metadata: Mapping[str, Any]) -> dict[str, A
         "model_facing_resource_budget",
         "agent_timeout_sec",
         "verifier_timeout_sec",
-        "static_task_hints",
-        "required_tool_hints",
+        "instruction_path_references",
         "env_fact_policy",
         "visible_validation_surfaces",
     }

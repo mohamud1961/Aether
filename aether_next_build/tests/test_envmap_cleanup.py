@@ -57,23 +57,42 @@ def test_architect_request_excludes_benchmark_metadata_but_keeps_visible_surface
     assert metadata["agent_timeout_sec"] == 900
     assert model_env["visible_task_materials"]["visible_validation_surfaces"]
     assert "visible_material_summary" in model_env["visible_task_materials"]
-    assert isinstance(model_env["task_capability_requirements"], list)
+    assert "task_capability_requirements" not in model_env
+    assert "instruction_tool_hints" not in model_env["file_map_summary"]
+    assert "instruction_language_hints" not in model_env["file_map_summary"]
     assert model_env["available_action_affordances"]
     assert "observed_environment_support" in model_env
     assert "reviewer_probe_support" in model_env
 
 
-def test_envmap_layers_mark_requirements_as_inferred_not_availability(tmp_path: Path) -> None:
+def test_envmap_exposes_media_facts_without_task_family_strategy(tmp_path: Path) -> None:
     (tmp_path / "video.mp4").write_bytes(b"fake")
     envmap = build_envmap_from_task(str(tmp_path), "Find the takeoff frame in the video.")
     request = build_architect_request(envmap, ConfigCompiler(CapabilityRegistry.from_envmap(envmap)))
     model_env = request["envmap"]
 
-    reqs = model_env["task_capability_requirements"]
-    assert any(req["capability"] == "video_processing" for req in reqs)
-    assert all(req["inferred_not_fact"] is True for req in reqs)
+    assert "task_capability_requirements" not in model_env
+    assert "capability_requirements" not in envmap.task_metadata
+    assets = model_env["visible_task_materials"]["declared_assets"]
+    assert any(item["path"] == "video.mp4" and item["mime_type"] == "video/mp4" for item in assets)
+    assert all("strategy" not in str(item).lower() for item in assets)
     assert any(item["action"] == "run_command" for item in model_env["available_action_affordances"])
     assert model_env["reviewer_probe_support"]["can_read_files"] is True
+
+
+def test_architect_request_contains_no_prompt_derived_tool_or_language_strategy(tmp_path: Path) -> None:
+    (tmp_path / "input.gcode").write_text("G1 X0 Y0\n", encoding="utf-8")
+    envmap = build_envmap_from_task(
+        str(tmp_path),
+        "Use Python and ffmpeg to inspect the G-code and create /app/out.txt.",
+    )
+    request = build_architect_request(envmap, ConfigCompiler(CapabilityRegistry.from_envmap(envmap)))
+    serialized = str(request["envmap"])
+    assert "task_capability_requirements" not in serialized
+    assert "required_tool_hints" not in serialized
+    assert "instruction_tool_hints" not in serialized
+    assert "instruction_language_hints" not in serialized
+    assert request["envmap"]["task_metadata"]["instruction_path_references"]["output_paths"] == ["/app/out.txt"]
 
 
 def test_timeout_budget_does_not_create_semantic_long_running_requirement() -> None:

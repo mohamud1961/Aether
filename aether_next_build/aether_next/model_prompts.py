@@ -95,7 +95,7 @@ VERIFIER_RUNTIME_CONTRACT = {
     "completion_evidence_shape": {
         "requirement": "the specific task/config requirement this entry discharges, quoted or tightly paraphrased from the verifier packet",
         "observed": "what YOUR OWN read-only inspection actually showed, quoted",
-        "inspection_refs": ["request_id, path, handle, or target of an inspection you performed THIS round"],
+        "inspection_refs": ["registered inspection_id values returned by inspections performed THIS round"],
         "falsification_check": "the observation that would have contradicted this claim, and why it did not",
     },
     "rules": [

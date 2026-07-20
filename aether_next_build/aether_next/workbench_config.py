@@ -177,7 +177,7 @@ class HarnessConfigIR:
     task_understanding: str
     success_definition: str
     solver_system_prompt: SolverPromptSpec
-    tool_policy: ToolPolicySpec
+    tool_policy: ToolPolicySpec = field(default_factory=lambda: ToolPolicySpec(enabled_tools=()))
     verifier_system_prompt: VerifierPromptSpec = field(default_factory=lambda: VerifierPromptSpec(role="Task-specific evidence verifier"))
     clause_coverage: tuple[ClauseCoverageSpec, ...] = ()
     verifier_strategy: tuple[VerifierClauseCheckSpec, ...] = ()
@@ -523,12 +523,14 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
         )
     solver_raw = data.get("solver_system_prompt", {})
     for path in (
-        "solver_system_prompt", "verifier_system_prompt", "tool_policy",
+        "solver_system_prompt", "verifier_system_prompt",
         "context_policy", "memory_policy", "verification_policy",
         "model_verifier_policy", "failure_feedback_policy", "helper_script_policy",
         "reconfigure_policy",
     ):
         _reject_unknown_nested_fields(path, data.get(path, {}))
+    if "tool_policy" in data:
+        _reject_unknown_nested_fields("tool_policy", data.get("tool_policy", {}))
     context_raw_for_validation = data.get("context_policy", {})
     if isinstance(context_raw_for_validation, dict):
         _reject_unknown_nested_fields(
@@ -553,7 +555,7 @@ def parse_harness_config_ir(text: str) -> HarnessConfigIR:
         raise ModelOutputError("verifier_system_prompt.required_evidence must not be empty")
     tools_raw = data.get("tool_policy", {})
     if not isinstance(tools_raw, dict):
-        raise ModelOutputError("tool_policy object is required")
+        raise ModelOutputError("legacy tool_policy must be an object when present")
     enabled = _tuple_str(tools_raw.get("enabled_tools", ()))
     # Empty enabled_tools means "no architect tool preference" in stable-core mode.
     # The harness still exposes the stable core toolset unless env/safety forbids it.

@@ -195,7 +195,6 @@ class _StubWorkbenchArchitectModel:
                 "verdict_guidance": ["completed requires current evidence; needs_repair names the missing or wrong state"],
                 "feedback_guidance": ["give concrete repair feedback tied to observed state"],
             },
-            "tool_policy": {"enabled_tools": ["read_file", "write_file", "run_command", "query_memory", "run_check"]},
             "context_policy": {"mode": "retrieval_augmented", "always_include": ["recent_progress", "pending_checks"]},
             "model_verifier_policy": {"enabled": True},
             "failure_feedback_policy": {"persist_until": "resolved_or_superseded"},

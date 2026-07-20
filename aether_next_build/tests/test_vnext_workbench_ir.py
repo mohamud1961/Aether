@@ -355,8 +355,9 @@ def test_config_realization_audit_accounts_for_every_top_level_field() -> None:
     assert audit["missing_dispositions"] == []
     assert set(dispositions) == set(TOP_LEVEL_CONFIG_FIELDS)
     assert dispositions["solver_system_prompt"]["status"] == "realized"
-    assert dispositions["tool_policy"]["status"] == "advisory_not_applied_to_core_visibility"
-    assert dispositions["tool_policy"]["tool_policy_mode"] == "stable_core"
+    assert dispositions["tool_policy"]["status"] == "legacy_input_ignored_if_present"
+    assert dispositions["tool_policy"]["canonical_schema_field"] is False
+    assert dispositions["tool_policy"]["tool_policy_mode"] == "fixed_kernel_surface"
     assert dispositions["tool_policy"]["architect_tool_selection_applied"] is False
     assert dispositions["context_policy"]["status"] == "realized_partial"
     assert dispositions["memory_policy"]["status"] == "realized_partial"
@@ -402,7 +403,8 @@ def test_config_realization_audit_reports_declared_and_runtime_allowed_tools() -
     audit = config_realization_audit(config, _env())
     tools = audit["dispositions"]["tool_policy"]
 
-    assert "run_command" in tools["enabled_tools_declared"]
+    assert "run_command" in tools["legacy_enabled_tools_declared"]
+    assert tools["canonical_schema_field"] is False
     assert "run_command" in tools["runtime_allowed_tools_expected"]
     assert "read_file" in tools["runtime_allowed_tools_expected"]
     assert "query_memory" in tools["runtime_allowed_tools_expected"]
@@ -422,7 +424,8 @@ def test_workbench_stable_core_ignores_architect_omitted_run_command() -> None:
     assert "filesystem" in ir.selected_capabilities
     assert "run_command" in tools["runtime_allowed_tools_expected"]
     assert tools["architect_tool_selection_applied"] is False
-    assert tools["enabled_tools_declared"] == ["read_file", "write_file", "query_memory"]
+    assert tools["legacy_enabled_tools_declared"] == ["read_file", "write_file", "query_memory"]
+    assert tools["status"] == "legacy_input_ignored_if_present"
 
 
 def test_workbench_stable_core_does_not_expose_internal_experiment_tools() -> None:
@@ -461,6 +464,15 @@ def test_workbench_memory_policy_mode_compiles_into_runtime_and_receipt() -> Non
     assert runtime.automatic_memory_policy.mode == "soft_block_exact_repeat"
     assert runtime.config_realization["automatic_memory_policy"]["mode"] == "soft_block_exact_repeat"
     assert audit["dispositions"]["memory_policy"]["automatic_repeat_mode"] == "soft_block_exact_repeat"
+
+
+def test_canonical_workbench_config_requires_no_tool_policy() -> None:
+    raw = json.loads(_raw_config())
+    raw.pop("tool_policy", None)
+    config = parse_harness_config_ir(json.dumps(raw))
+    assert config.tool_policy.enabled_tools == ()
+    assert config.tool_policy.disabled_tools == ()
+    assert config.legacy_tool_selection_paths == ()
 
 
 def test_workbench_rejects_unknown_automatic_memory_mode() -> None:

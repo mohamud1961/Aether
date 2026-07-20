@@ -64,9 +64,6 @@ def harness_config_to_runtime_ir(config: HarnessConfigIR, envmap: EnvMap) -> Run
         "tool_policy_mode=stable_core",
         "architect_tool_selection_applied=False",
         "fixed_kernel_tool_surface=" + str(list(FIXED_KERNEL_TOOL_SURFACE)),
-        "architect tool policy is advisory; stable core tools are exposed unless the environment/safety layer forbids them.",
-        "architect_requested_tools=" + str(list(config.tool_policy.enabled_tools)),
-        "architect_disabled_tools_advisory=" + str(list(config.tool_policy.disabled_tools)),
         f"context_policy={config.context_policy.mode}",
         f"model_verifier_enabled={config.model_verifier_policy.enabled}",
         f"failure_feedback_persist_until={config.failure_feedback_policy.persist_until}",
@@ -289,27 +286,20 @@ def config_realization_audit(config: HarnessConfigIR, envmap: EnvMap) -> dict[st
             "realized_as": "RuntimeConfigIR.minimum_completion_evidence, config_realization, and verifier packet metadata",
         },
         "tool_policy": {
-            "status": "advisory_not_applied_to_core_visibility",
-            "tool_policy_mode": "stable_core",
+            "status": "legacy_input_ignored_if_present",
+            "canonical_schema_field": False,
+            "tool_policy_mode": "fixed_kernel_surface",
             "architect_tool_selection_applied": False,
-            "architect_tool_guidance_recorded": True,
-            "legacy_compatibility_warning": (
-                "legacy_tool_selection_ignored: fixed kernel tool surface retained"
-                if config.tool_policy.enabled_tools or config.tool_policy.disabled_tools
-                else None
-            ),
+            "legacy_enabled_tools_declared": list(config.tool_policy.enabled_tools),
+            "legacy_disabled_tools_declared": list(config.tool_policy.disabled_tools),
             "legacy_tool_selection_paths": list(config.legacy_tool_selection_paths),
             "legacy_tool_selection_warning_code": config.legacy_tool_selection_warning,
-            "enabled_tools_declared": list(config.tool_policy.enabled_tools),
-            "disabled_tools_declared": list(config.tool_policy.disabled_tools),
-            "stable_core_solver_tools": list(STABLE_CORE_SOLVER_TOOLS),
             "fixed_kernel_tool_surface": list(FIXED_KERNEL_TOOL_SURFACE),
             "kernel_internal_action_kinds": sorted(KERNEL_INTERNAL_ACTION_KINDS),
-            "audit_separately_tools": list(AUDIT_SEPARATELY_TOOLS),
             "selected_capabilities": list(ir.selected_capabilities),
             "runtime_allowed_tools_expected": realized_tools,
             "always_available_tools": sorted(ALWAYS_AVAILABLE_ACTION_KINDS),
-            "note": "Workbench stable-core mode does not hide core solver tools merely because the architect omitted them; real restrictions must come from env/safety/runtime capability availability.",
+            "note": "Canonical Architect output has no tool-selection field. Legacy input is recorded and ignored.",
         },
         "context_policy": {
             "status": "realized_partial",

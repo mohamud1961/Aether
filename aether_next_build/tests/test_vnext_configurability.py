@@ -235,8 +235,10 @@ def test_envmap_builder_adds_file_tree_and_summary(tmp_path: Path) -> None:
 
     assert "/app" in envmap.file_tree
     assert "input.csv" in envmap.file_tree
-    assert "data/input.csv" in envmap.file_map_summary["likely_inputs"]
-    assert "check_result.py" in envmap.file_map_summary["likely_tests_or_checkers"]
+    assert envmap.file_map_summary["extension_counts"][".csv"] == 1
+    assert envmap.file_map_summary["extension_counts"][".py"] == 1
+    assert "likely_inputs" not in envmap.file_map_summary
+    assert "likely_tests_or_checkers" not in envmap.file_map_summary
 
 
 def test_envmap_builder_surfaces_instruction_tool_and_output_hints(tmp_path: Path) -> None:
@@ -248,14 +250,17 @@ def test_envmap_builder_surfaces_instruction_tool_and_output_hints(tmp_path: Pat
         "Use python3 and openssl to write /app/out.txt from /app/input.txt.",
     )
 
-    assert envmap.file_map_summary["instruction_tool_hints"] == ["python3", "openssl"]
+    assert "instruction_tool_hints" not in envmap.file_map_summary
+    assert "instruction_language_hints" not in envmap.file_map_summary
     assert envmap.file_map_summary["instruction_output_paths"] == ["/app/out.txt", "/app/input.txt"]
+    assert envmap.task_metadata["instruction_path_references"]["output_paths"] == ["/app/out.txt", "/app/input.txt"]
     assert envmap.file_map_summary["instruction_referenced_paths"] == ["out.txt", "input.txt"]
     assert envmap.file_map_summary["instruction_referenced_missing_paths"] == ["out.txt", "input.txt"]
     assert envmap.file_map_summary["prompt_declared_output_paths"] == ["out.txt"]
     assert envmap.file_map_summary["prompt_declared_output_visible_paths"] == []
     assert envmap.file_map_summary["prompt_declared_output_missing_paths"] == ["out.txt"]
-    assert envmap.task_metadata["static_task_hints"]["tool_hints"] == ["python3", "openssl"]
+    assert "static_task_hints" not in envmap.task_metadata
+    assert "required_tool_hints" not in envmap.task_metadata
 
 
 def test_envmap_builder_tracks_alias_matches_for_referenced_paths(tmp_path: Path) -> None:
@@ -361,7 +366,9 @@ def test_architect_request_contains_full_workbench_manual_contract(tmp_path: Pat
     assert request["envmap"]["file_map_summary"]["visible_file_count"] == 1
     assert request["envmap"]["environment_probe"]["schema_version"] == "environment_probe.v1"
     assert request["capability_index"]
-    assert "tool_policy" in manual["hard_configurable"]
+    assert "tool_policy" not in manual["hard_configurable"]
+    assert manual["tools"]["architect_does_not_choose_tools"] is True
+    assert "run_command" in manual["tools"]["stable_core_solver_tools"]
     assert "solver_system_prompt" in manual["soft_configurable"]
     assert "hard_config" in manual["config_authority"]
     assert manual["role_contract"]["architect_does"][0] == "designs the task-specific solver system prompt"
@@ -526,7 +533,8 @@ def test_workbench_kernel_boot_path_uses_stable_core_tools_and_receipt() -> None
     audit = payload["harness_config_realization_audit"]
     assert audit["has_silent_ignored_fields"] is False
     dispositions = audit["dispositions"]
-    assert dispositions["tool_policy"]["tool_policy_mode"] == "stable_core"
+    assert dispositions["tool_policy"]["tool_policy_mode"] == "fixed_kernel_surface"
+    assert dispositions["tool_policy"]["canonical_schema_field"] is False
     assert dispositions["tool_policy"]["architect_tool_selection_applied"] is False
     assert dispositions["memory_policy"]["status"] == "realized_partial"
     assert dispositions["memory_policy"]["automatic_repeat_mode"] == "advisory"

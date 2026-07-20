@@ -70,7 +70,7 @@ def build_runtime_manual() -> dict[str, Any]:
                 "Did I write an elite task-specific verifier prompt with completed evidence, false-positive traps, verdict rules, and feedback style?",
                 "Did I emit evidence_requirements, false_positive_risks, and minimum_completion_evidence that match the prompts and checks?",
                 "Did I explain what local checks cannot prove?",
-                "Did I avoid using tool_policy as hard authority over stable core visibility?",
+                "Did I avoid selecting or gating the kernel-owned fixed tool surface?",
             ],
             "repair_rule": "If a proposed check cannot compile, rewrite it as a supported typed visible smoke test or move it to local_verification_limits.",
         },
@@ -96,7 +96,6 @@ def build_runtime_manual() -> dict[str, Any]:
             ),
         },
         "hard_configurable": [
-            "tool_policy",
             "context_policy",
             "memory_policy",
             "verification_policy",
@@ -116,7 +115,7 @@ def build_runtime_manual() -> dict[str, Any]:
         "tools": {
             "action_schema": action_schema,
             "always_available": sorted(ALWAYS_AVAILABLE_ACTION_KINDS),
-            "rule": "The solver should see and call only compiled/realized tools. In Workbench stable-core mode, architect tool_policy is guidance and does not hide core tools.",
+            "rule": "The solver sees the kernel-owned fixed generic surface subject only to real environment and safety availability; Architect output does not select tools.",
             "solver_callable_verification_tools": ["inspect_checks", "run_check"],
             "stable_core_solver_tools": [
                 "read_file",
@@ -132,7 +131,7 @@ def build_runtime_manual() -> dict[str, Any]:
             "architect_does_not_choose_tools": True,
             "audit_separately": ["run_experiment", "register_candidate", "reconfigure"],
             "capability_selection_guidance": [
-                "In Workbench stable-core mode, tool_policy is task-specific guidance, not hard authority for core tool visibility.",
+                "Architect output must not select, enable, disable, rename, or gate core actions.",
                 "Mention run_command as likely useful when success likely requires executing a program, running a validator, invoking a CLI, generating artifacts with a tool, compiling, testing, probing a service, or running scripts.",
                 "Filesystem-only guidance is appropriate only when the task can be solved and usefully checked by reading/writing files without executing anything.",
                 "If an execution-required task cannot use run_command because the environment forbids it, explain that limit in local_verification_limits.",

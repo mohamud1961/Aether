@@ -358,13 +358,9 @@ def run_tbench_task(
             default_timeout_s=min(run_timeout_s, 300),
             container_workdir="/app",
         )
-        static_hints = envmap.task_metadata.get("static_task_hints", {})
-        required_tool_hints = envmap.task_metadata.get("required_tool_hints", ())
-        extra_command_names = (
-            tuple(required_tool_hints)
-            if isinstance(required_tool_hints, (list, tuple))
-            else tuple(static_hints.get("tool_hints", ())) if isinstance(static_hints, dict) else ()
-        )
+        # Probe a stable generic command/package inventory.  Task semantics do
+        # not select or prioritise tools in trusted code.
+        extra_command_names: tuple[str, ...] = ()
         _progress(progress_callback, task_name, "environment_probe", "probing task runtime capabilities")
         env_probe = probe_environment(
             executor,

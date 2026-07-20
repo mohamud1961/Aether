@@ -122,10 +122,11 @@ def test_envmap_ingests_public_task_metadata_as_hints_not_facts(tmp_path: Path) 
     assert envmap.task_metadata["internal_task_metadata"]["category"] == "video-processing"
     assert envmap.task_metadata["resource_budget"]["agent_timeout_sec"] == 3600
     assert "docker_image" not in envmap.task_metadata["model_facing_resource_budget"]
-    needs = {item["capability"] for item in envmap.task_metadata["capability_requirements"]}
-    assert "video_processing" in needs
-    assert envmap.task_metadata["env_fact_policy"]["capability_requirements_are_facts"] is False
-    assert "ffmpeg" in envmap.task_metadata["required_tool_hints"]
+    assert "capability_requirements" not in envmap.task_metadata
+    assert "task_capability_requirements" not in envmap.task_metadata
+    assert envmap.task_metadata["env_fact_policy"]["semantic_task_classification_present"] is False
+    assert envmap.task_metadata["model_facing_resource_budget"]["agent_timeout_sec"] == 3600
+    assert "required_tool_hints" not in envmap.task_metadata
 
 
 def test_official_capability_audit_script_ignores_solution_and_tests(tmp_path: Path) -> None:

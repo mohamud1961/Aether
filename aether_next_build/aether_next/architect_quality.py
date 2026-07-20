@@ -135,10 +135,6 @@ def score_config_contract(config: HarnessConfigIR | None, realization_preview: d
         missing.append("model_verifier_runs_on_solver_submit_only")
     if not config.local_verification_limits:
         missing.append("local_verification_limits")
-    if not config.tool_policy.enabled_tools:
-        warnings.append("no_architect_tool_preference_declared")
-    if config.tool_policy.disabled_tools:
-        warnings.append("architect_disabled_tools_advisory_present")
     if realization_preview:
         audit = realization_preview.get("realization_audit", {})
         if isinstance(audit, dict) and audit.get("has_silent_ignored_fields"):

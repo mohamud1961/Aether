@@ -1,30 +1,18 @@
 """Build an EnvMap from a task directory for Aether-Next runs."""
 from __future__ import annotations
 
+import mimetypes
 import os
 from pathlib import Path
 import re
 from typing import Any
 
 from .runtime_ir import CapabilityDescriptor, EnvMap
-from .task_capability import classify_capability_needs, flatten_task_toml, required_tool_hints
+from .task_public_metadata import flatten_task_toml
 
 
 _SKIP_DIRS = {".git", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cache"}
 _MAX_VISIBLE = 2_000
-_TOOL_HINT_VOCAB: tuple[str, ...] = (
-    "python", "python3", "r", "rscript", "node", "npm", "git", "ssh", "sshd",
-    "nginx", "openssl", "ffmpeg", "ffprobe", "qemu", "qemu-system-i386", "qemu-system-x86_64", "qemu-img",
-    "docker", "make", "cmake", "gcc", "g++", "clang", "clang++", "pkg-config",
-    "curl", "wget", "sqlite3", "psql", "mysql", "java", "R", "Rscript", "julia", "octave",
-    "tesseract", "pdftotext", "convert", "magick", "readelf", "objdump", "strings", "file", "gdb",
-    "cargo", "rustc", "ocaml", "opam", "dune", "coqtop", "coqc", "ssh", "sshd", "telnet", "expect",
-    "pip", "uv", "grpcurl",
-)
-_LANGUAGE_HINT_VOCAB: tuple[str, ...] = (
-    "python", "javascript", "typescript", "r", "rust", "c", "c++", "java",
-    "bash", "shell", "sql", "sparql", "ocaml", "cobol",
-)
 _PROMPT_DELIVERABLE_RE = re.compile(
     r"(?:write|create|produce|save|output|submit)\s+`?(/app/[\w./-]+)`?",
     re.IGNORECASE,
@@ -113,20 +101,16 @@ def _build_file_tree(files: tuple[str, ...], dirs: tuple[str, ...], *, limit: in
 
 
 def _build_file_map_summary(files: tuple[str, ...], dirs: tuple[str, ...]) -> dict[str, object]:
-    """Build heuristic file-map hints without reading file contents."""
+    """Build factual path/extension counts without assigning task roles."""
     top_level = sorted({item.split("/", 1)[0] for item in (*files, *dirs) if item})
-    likely_tests = [p for p in files if any(part in p.lower() for part in ("test", "check", "verify"))][:25]
-    likely_inputs = [p for p in files if any(part in p.lower() for part in ("input", "data", "sample", "graph", "log"))][:25]
-    likely_existing = [p for p in files if p.lower().endswith((
-        ".py", ".js", ".ts", ".sh", ".sparql", ".sql", ".c", ".cc", ".cpp", ".h", ".hpp",
-        ".rs", ".ml", ".mli", ".R", ".r", ".stan", ".cbl", ".proto", ".toml",
-        ".yaml", ".yml", ".html", ".css", ".java", ".go", ".rb", ".pl",
-    )) or p.rsplit("/", 1)[-1].lower() in {"makefile", "cmakelists.txt", "cargo.toml", "dune"}][:25]
+    extension_counts: dict[str, int] = {}
+    for path in files:
+        suffix = Path(path).suffix.lower()
+        if suffix:
+            extension_counts[suffix] = extension_counts.get(suffix, 0) + 1
     return {
         "top_level": top_level[:50],
-        "likely_inputs": likely_inputs,
-        "likely_existing_solution_files": likely_existing,
-        "likely_tests_or_checkers": likely_tests,
+        "extension_counts": dict(sorted(extension_counts.items())),
         "visible_file_count": len(files),
         "visible_dir_count": len(dirs),
     }
@@ -202,14 +186,15 @@ def _build_visible_materials(files: tuple[str, ...], dirs: tuple[str, ...]) -> d
             declared_assets.append({
                 "path": path,
                 "extension": ext,
-                "kind": _material_kind(path),
-                "evidence": "visible workspace file",
+                "mime_type": mimetypes.guess_type(path)[0] or "application/octet-stream",
+                "evidence": "visible workspace file metadata",
             })
         if any(token in lower for token in _EXAMPLE_TOKENS) and len(visible_examples) < 60:
             visible_examples.append({
                 "path": path,
-                "kind": _material_kind(path),
-                "evidence": "visible file name indicates example/sample/fixture/input/output",
+                "extension": ext,
+                "mime_type": mimetypes.guess_type(path)[0] or "application/octet-stream",
+                "evidence": "visible filename contains example/sample/fixture/input/output token",
             })
         if ext and parent != ".":
             row = grouped.setdefault(parent, {"dir": parent, "file_count": 0, "extensions": {}})
@@ -240,34 +225,6 @@ def _build_visible_materials(files: tuple[str, ...], dirs: tuple[str, ...]) -> d
     }
 
 
-def _material_kind(path: str) -> str:
-    lower = path.lower()
-    ext = Path(lower).suffix
-    if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
-        return "video"
-    if ext in {".png", ".jpg", ".jpeg", ".pdf"}:
-        return "visual_or_document"
-    if ext in {".csv", ".tsv", ".json", ".jsonl", ".log", ".txt"}:
-        return "data_or_text"
-    if ext in {".ttl", ".rdf", ".sparql", ".sql", ".db", ".sqlite", ".sqlite3"}:
-        return "query_or_database"
-    if ext in {".gcode", ".gco", ".nc"}:
-        return "geometry_or_toolpath"
-    if ext in {".py", ".js", ".ts", ".sh", ".c", ".cpp", ".rs", ".R", ".r", ".stan"}:
-        return "source_or_script"
-    if ext in {".pem", ".crt", ".key"}:
-        return "security_artifact"
-    return "visible_file"
-
-
-def _extract_vocab_hits(text: str, vocab: tuple[str, ...]) -> list[str]:
-    lowered = text.lower()
-    hits: list[str] = []
-    for item in vocab:
-        pattern = r"(?<![a-z0-9_])" + re.escape(item.lower()) + r"(?![a-z0-9_])"
-        if re.search(pattern, lowered):
-            hits.append(item)
-    return hits
 
 
 def _extract_output_paths(text: str, *, limit: int = 12) -> list[str]:
@@ -277,9 +234,8 @@ def _extract_output_paths(text: str, *, limit: int = 12) -> list[str]:
 
 
 def _static_task_hints(instruction_text: str) -> dict[str, object]:
+    """Exact prompt path references only; no inferred tools or task families."""
     return {
-        "tool_hints": _extract_vocab_hits(instruction_text, _TOOL_HINT_VOCAB),
-        "language_hints": _extract_vocab_hits(instruction_text, _LANGUAGE_HINT_VOCAB),
         "output_paths": _extract_output_paths(instruction_text),
         "prompt_declared_output_paths": list(dict.fromkeys(
             match.group(1).rstrip(".,:;)")
@@ -530,8 +486,6 @@ def build_envmap_from_task(
         visible_files=visible_files,
         visible_dirs=visible_dirs,
     )
-    summary["instruction_tool_hints"] = list(static_hints["tool_hints"])
-    summary["instruction_language_hints"] = list(static_hints["language_hints"])
     summary["instruction_output_paths"] = list(static_hints["output_paths"])
     summary.update(path_classification)
     metadata = dict(task_metadata or {})
@@ -549,23 +503,15 @@ def build_envmap_from_task(
                 k: v for k, v in budget.items()
                 if k in {"agent_timeout_sec", "verifier_timeout_sec", "build_timeout_sec", "cpus", "memory", "storage"}
             })
-    metadata.setdefault("static_task_hints", dict(static_hints))
-    capability_needs = classify_capability_needs(
-        instruction_text,
-        task_metadata=metadata,
-        visible_files=visible_files,
-    )
-    metadata["capability_requirements"] = [need.as_dict() for need in capability_needs]
-    metadata["required_tool_hints"] = list(required_tool_hints(capability_needs, static_hints["tool_hints"]))
+    metadata.setdefault("instruction_path_references", dict(static_hints))
     metadata["env_fact_policy"] = {
-        "rule": "EnvMap facts must be probed_true/probed_false/unknown; capability_requirements are inferred hints, not facts",
-        "capability_requirements_are_facts": False,
+        "rule": "EnvMap exposes visible/probed facts only; task semantics and strategy belong to the Architect",
+        "semantic_task_classification_present": False,
     }
     metadata["visible_validation_surfaces"] = visible_validation_surfaces
     metadata["declared_assets"] = visible_materials["declared_assets"]
     metadata["visible_examples"] = visible_materials["visible_examples"]
     metadata["visible_material_summary"] = visible_materials["visible_material_summary"]
-    metadata["task_capability_requirements"] = [need.as_dict() for need in capability_needs]
     metadata["available_action_affordances"] = _action_affordances(capabilities)
     metadata["observed_environment_support"] = _observed_environment_support(metadata.get("environment_probe") if isinstance(metadata.get("environment_probe"), dict) else {})
     metadata["reviewer_probe_support"] = _reviewer_probe_support(metadata.get("environment_probe") if isinstance(metadata.get("environment_probe"), dict) else {}, capabilities)
@@ -573,8 +519,6 @@ def build_envmap_from_task(
     summary["declared_assets"] = visible_materials["declared_assets"]
     summary["visible_examples"] = visible_materials["visible_examples"]
     summary["visible_material_summary"] = visible_materials["visible_material_summary"]
-    summary["capability_requirements"] = [need.as_dict() for need in capability_needs]
-    summary["required_tool_hints"] = list(metadata["required_tool_hints"])
     probe = metadata.get("environment_probe") if isinstance(metadata.get("environment_probe"), dict) else {}
     if network_scope == "unknown" and isinstance(probe, dict):
         network_probe = probe.get("network") if isinstance(probe.get("network"), dict) else {}
