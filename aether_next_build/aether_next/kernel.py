@@ -63,7 +63,14 @@ def _completed_result(
     compiled: CompiledRuntime, ledger: ExecutionLedger,
     architect_defect_reasons: tuple[str, ...] = (),
 ) -> KernelResult:
-    """Build a completed ``KernelResult`` from a ready gate decision."""
+    """Build a completed ``KernelResult`` only from a ready gate decision.
+
+    This helper is the final mechanical completion boundary.  A model verdict
+    may contribute semantic evidence, but it can never override current gate
+    blockers.  Keep the guard here as defence in depth for every caller.
+    """
+    if not bool(getattr(decision, "ready", False)):
+        raise ValueError("completed result requires a ready completion decision")
     used_ids = set(decision.used_check_ids)
     return KernelResult(
         status="completed", step=step, reconfigurations=reconfigurations,
@@ -426,11 +433,45 @@ class AetherNextKernel:
                         memo=verifier_memo,
                     )
                 if verdict is not None and verdict.verdict == "completed":
+                    # Verifier completion is semantic evidence, not completion
+                    # authority.  Re-evaluate every mechanical blocker after
+                    # the Verifier/proof bridge has recorded its current-round
+                    # evidence.  Never reuse the pre-Verifier submit decision.
+                    ready_decision = self.completion_gate.evaluate(
+                        compiled, ledger, self.monitor_runner.run(compiled, ledger),
+                    )
+                    if not ready_decision.ready:
+                        ledger.record(Receipt(
+                            receipt_id=f"step-{step}:verifier_completed_gate_not_ready",
+                            step=step,
+                            kind="verifier_completed_gate_not_ready",
+                            success=False,
+                            summary=(
+                                "Verifier returned completed but the fresh deterministic "
+                                "completion gate still has blockers"
+                            ),
+                            failure_class="completion_gate_not_ready",
+                            payload={
+                                "blockers": [
+                                    {"code": blocker.code, "detail": blocker.detail,
+                                     "source": blocker.source}
+                                    for blocker in ready_decision.blockers
+                                ],
+                            },
+                        ))
+                        if trace is not None:
+                            trace.add_step(
+                                step, context_packet, turn,
+                                ledger.all_receipts()[before_count:],
+                            )
+                        self._fire_snapshot(step)
+                        step += 1
+                        continue
                     if trace is not None:
-                        trace.add_step(step, context_packet, turn, ledger.all_receipts()[before_count:])
-                    ready_decision = decision
-                    if ready_decision is None:
-                        ready_decision = self.completion_gate.evaluate(compiled, ledger, self.monitor_runner.run(compiled, ledger))
+                        trace.add_step(
+                            step, context_packet, turn,
+                            ledger.all_receipts()[before_count:],
+                        )
                     return _completed_result(
                         step, reconfigurations, ready_decision, compiled, ledger,
                         tuple(architect_defect_reasons),
