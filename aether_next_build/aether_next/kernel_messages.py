@@ -77,6 +77,7 @@ def _model_facing_task_metadata(task_metadata: Mapping[str, Any]) -> dict[str, A
         "agent_timeout_sec",
         "verifier_timeout_sec",
         "instruction_path_references",
+        "network_policy",
         "env_fact_policy",
         "visible_validation_surfaces",
     }

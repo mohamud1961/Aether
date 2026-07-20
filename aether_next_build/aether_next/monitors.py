@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from urllib.parse import urlparse
 
 from .ledger import ExecutionLedger
 from .runtime_ir import ActionRequest, CompiledRuntime, ObjectiveGraph
@@ -45,41 +44,50 @@ class IntegrityGuards:
 
 
 class LocalOnlySafetyGuard:
-    _URL_RE = re.compile(r"https?://[^\s'\"`]+", re.IGNORECASE)
-    _SSH_RE = re.compile(r"\bssh\s+(?:-[^\s]+\s+)*(?:[^@\s]+@)?([A-Za-z0-9_.-]+)\b", re.IGNORECASE)
+    """Defence-in-depth validation for structured network targets.
 
-    def violation(self, compiled: CompiledRuntime, action: ActionRequest) -> str | None:
-        if not compiled.refusal_policy.allowed_local_categories:
+    Container policy is the egress boundary. Arbitrary shell command text is
+    never treated as enforceable network policy.
+    """
+
+    def violation(
+        self,
+        compiled: CompiledRuntime,
+        action: ActionRequest,
+        *,
+        network_scope: str = "unknown",
+    ) -> str | None:
+        del compiled
+        if network_scope == "external_unrestricted":
             return None
-        if not compiled.refusal_policy.forbid_external_targets:
+        target = ""
+        for key in ("target", "url", "host", "endpoint"):
+            value = action.arguments.get(key)
+            if value not in (None, ""):
+                target = str(value).strip()
+                break
+        if not target or not self._is_external_target(target):
             return None
+        return (
+            f"structured external target {target!r} is outside enforced "
+            f"network scope {network_scope!r}"
+        )
 
-        for text in self._iter_strings(action.arguments):
-            for url in self._URL_RE.findall(text):
-                host = (urlparse(url).hostname or "").lower()
-                if host and host not in {"localhost", "127.0.0.1", "::1"}:
-                    return f"external target blocked by local-only policy: {url}"
-            ssh_match = self._SSH_RE.search(text)
-            if ssh_match:
-                host = ssh_match.group(1).lower()
-                if host not in {"localhost", "127.0.0.1", "::1"}:
-                    return f"external target blocked by local-only policy: ssh {host}"
-        return None
-
-    def _iter_strings(self, value: object) -> list[str]:
-        if isinstance(value, str):
-            return [value]
-        if isinstance(value, dict):
-            items: list[str] = []
-            for item in value.values():
-                items.extend(self._iter_strings(item))
-            return items
-        if isinstance(value, (list, tuple, set)):
-            items = []
-            for item in value:
-                items.extend(self._iter_strings(item))
-            return items
-        return []
+    @staticmethod
+    def _is_external_target(target: str) -> bool:
+        lowered = target.lower().strip()
+        if lowered.startswith(("127.", "localhost", "::1", "[::1]")):
+            return False
+        if lowered.startswith(("http://localhost", "https://localhost")):
+            return False
+        if re.match(r"^https?://127\.", lowered):
+            return False
+        if re.match(r"^(?:127(?:\.\d{1,3}){3}|localhost|::1)(?::\d+)?$", lowered):
+            return False
+        return bool(
+            re.match(r"^[a-z][a-z0-9+.-]*://", lowered)
+            or re.match(r"^[a-z0-9.-]+:\d+$", lowered)
+        )
 
 
 class MonitorRunner:

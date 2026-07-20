@@ -523,10 +523,8 @@ def build_envmap_from_task(
     if network_scope == "unknown" and isinstance(probe, dict):
         network_probe = probe.get("network") if isinstance(probe.get("network"), dict) else {}
         status = str(network_probe.get("status", "")).strip()
-        if status == "probed_true":
-            network_scope = "open_external_network"
-        elif status == "probed_false":
-            network_scope = "probed_no_external_network"
+        if status in {"probed_true", "probed_false"}:
+            network_scope = "unenforced_probe_observation"
 
     return EnvMap(
         task_prompt=instruction_text,

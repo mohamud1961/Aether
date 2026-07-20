@@ -188,7 +188,7 @@ def test_envmap_network_scope_is_unknown_unless_probe_proves_value() -> None:
         "Do task",
         task_metadata={"environment_probe": {"network": {"status": "probed_false"}}},
     )
-    assert probed.network_scope == "probed_no_external_network"
+    assert probed.network_scope == "unenforced_probe_observation"
 
 
 def test_verifier_packet_has_no_solver_journey_fields() -> None:

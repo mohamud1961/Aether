@@ -278,37 +278,20 @@ class TestModelTiersCarried:
 
 class TestClassifierSafetyBlock:
     def test_safety_block_classifies_as_safety_policy_failure(self) -> None:
-        """A run with a safety_block receipt that never completes should classify
-        as safety_policy_failure."""
-        envmap = _make_envmap()
-        executor = MemoryExecutor(workspace_root="/app")
-
-        # Use local-only refusal policy so the safety guard fires.
-        ir = _make_ir(
-            refusal_policy=RefusalPolicy(
-                allowed_local_categories=("code_generation",),
-                forbid_external_targets=True,
-            ),
+        result = KernelResult(
+            status="incomplete",
+            step=1,
+            reconfigurations=0,
+            receipts=(Receipt(
+                receipt_id="safety:1",
+                step=0,
+                kind="safety_block",
+                success=False,
+                summary="structured external target blocked by enforced scope",
+                failure_class="safety_violation",
+            ),),
         )
-        # Generate multiple safety-blocked actions so max_steps is exhausted
-        # without ever completing.
-        turns = [
-            _act_turn(
-                _action(
-                    "run_command",
-                    {"command": f"curl https://evil.example.com/{i}"},
-                    action_id=f"a-external-{i}",
-                ),
-            )
-            for i in range(5)
-        ]
-        hooks = FakeHooks(ir, turns)
-        kernel = AetherNextKernel(max_steps=3)
-        result = kernel.run(envmap, executor, hooks)
-
-        assert result.status == "incomplete"
-        classifier = HarnessLimiterClassifier()
-        classification = classifier.classify(result)
+        classification = HarnessLimiterClassifier().classify(result)
         assert classification.label == "safety_policy_failure"
         assert classification.confidence == "high"
 

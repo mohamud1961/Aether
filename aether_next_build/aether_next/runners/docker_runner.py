@@ -25,6 +25,7 @@ from ..execution import (
 )
 from ..kernel import AetherNextKernel, KernelResult
 from ..model_hooks import ModelCallable, ModelHooks
+from ..network_policy import resolve_network_policy
 from ..model_request_contract import (
     ExpectedModelRequest,
     ModelRequestRealizationError,
@@ -212,6 +213,23 @@ def _docker_snapshot(container_id: str, dest: str) -> None:
     except Exception as exc:
         _log.warning("snapshot to %s failed: %s", dest, exc)
 
+def _build_task_container_command(
+    *,
+    image: str,
+    workspace_dir: str,
+    network_policy: Any,
+) -> list[str]:
+    """Build the exact certified task-container launch command."""
+    return [
+        "docker", "run", "-d",
+        *network_policy.docker_args,
+        "-v", f"{workspace_dir}:/app",
+        "-w", "/app",
+        image,
+        "sleep", "infinity",
+    ]
+
+
 
 def run_tbench_task(
     *,
@@ -228,6 +246,7 @@ def run_tbench_task(
     snapshot_steps: tuple[int, ...] = (),
     run_provenance: dict[str, Any] | None = None,
     progress_callback: Callable[[str, str], None] | None = None,
+    network_scope: str | None = None,
 ) -> dict[str, Any]:
     """Run one Terminal-Bench task end-to-end.  Never raises -- errors are
     captured into the record so that a pilot loop can continue.
@@ -265,6 +284,10 @@ def run_tbench_task(
         )
 
     task_toml = _load_task_toml(task_dir)
+    try:
+        network_policy = resolve_network_policy(task_toml, explicit_scope=network_scope)
+    except ValueError as exc:
+        return _error_record(task_name, image, "invalid_network_scope", str(exc), architect_mode=architect_mode)
     run_timeout_s, run_timeout_policy = _effective_run_timeout_s(run_timeout_s, task_toml)
 
     try:  # outer try: catch ALL exceptions so the pilot never gets a raise
@@ -311,13 +334,11 @@ def run_tbench_task(
         tests_mount = os.path.join(task_dir_abs, "tests")
 
         _progress(progress_callback, task_name, "container_start", "starting solver container")
-        docker_run_cmd = [
-            "docker", "run", "-d",
-            "-v", f"{workspace_dir}:/app",
-            "-w", "/app",
-            image,
-            "sleep", "infinity",
-        ]
+        docker_run_cmd = _build_task_container_command(
+            image=image,
+            workspace_dir=workspace_dir,
+            network_policy=network_policy,
+        )
         start = subprocess.run(
             docker_run_cmd,
             capture_output=True,
@@ -349,6 +370,8 @@ def run_tbench_task(
             workspace_dir,
             instruction_text,
             workspace_root="/app",
+            network_scope=network_policy.scope,
+            task_metadata={"network_policy": network_policy.as_dict()},
             task_toml=task_toml,
         )
 
@@ -371,7 +394,8 @@ def run_tbench_task(
             workspace_dir,
             instruction_text,
             workspace_root="/app",
-            task_metadata={"environment_probe": env_probe},
+            network_scope=network_policy.scope,
+            task_metadata={"environment_probe": env_probe, "network_policy": network_policy.as_dict()},
             task_toml=task_toml,
         )
         hooks = ModelHooks(
@@ -570,6 +594,7 @@ def run_tbench_task(
             "step_efficiency": _step_efficiency(result),
             "run_timeout_s_effective": run_timeout_s,
             "run_timeout_policy": run_timeout_policy,
+            "network_policy": network_policy.as_dict(),
             **reconcile_grader_alignment(
                 reward=reward,
                 grader_error=grader_error,

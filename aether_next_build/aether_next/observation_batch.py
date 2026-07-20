@@ -88,7 +88,7 @@ def execute_observation_batch(
                 step,
                 f"operations[{index}] invalid: {'; '.join(errors)}",
             ),)
-        safety_violation = kernel.safety_guard.violation(compiled, child)
+        safety_violation = kernel.safety_guard.violation(compiled, child, network_scope=envmap.network_scope)
         if safety_violation:
             return (_validation_receipt(
                 action,

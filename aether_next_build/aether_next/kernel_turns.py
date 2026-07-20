@@ -71,7 +71,7 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
                 event="action_validation_failed", action_id=action.action_id,
             ))
             continue
-        safety_violation = kernel.safety_guard.violation(compiled, action)
+        safety_violation = kernel.safety_guard.violation(compiled, action, network_scope=envmap.network_scope)
         if safety_violation:
             _record(Receipt(
                 receipt_id=f"step-{step}:{action.action_id}:safety", step=step,
