@@ -6,6 +6,7 @@ compiler-realized tool/context/check policy, memory tools, and verifier gating.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -15,6 +16,7 @@ from .compiler import CapabilityRegistry, ConfigCompiler
 from .execution import CommandResult, MemoryExecutor
 from .kernel import AetherNextKernel, KernelResult
 from .kernel_config import resolve_runtime
+from .inspection_registry import register_inspection_results
 from .runtime_ir import (
     ActionRequest,
     CapabilityDescriptor,
@@ -26,7 +28,8 @@ from .runtime_ir import (
     RuntimeConfigIR,
     SolverTurn,
 )
-from .verifier import ModelVerifierResult, VerifierFinding
+from .verifier import CompletionEvidenceEntry, ModelVerifierResult, VerifierFinding
+from .verifier_inspector import VerifierInspectionRequest
 from .workbench_config import HarnessConfigIR, parse_harness_config_ir
 
 
@@ -69,8 +72,10 @@ class ScriptedHooks:
         fallback_ir: RuntimeConfigIR,
         turns: Iterable[SolverTurn],
         verifier_outputs: Iterable[Any],
+        executor: MemoryExecutor | None = None,
     ) -> None:
         self.fallback_ir = fallback_ir
+        self.executor = executor
         self.turns = list(turns)
         self.verifier_outputs = list(verifier_outputs)
         self.context_packets: list[dict[str, Any]] = []
@@ -90,9 +95,50 @@ class ScriptedHooks:
 
     def verify(self, packet: dict[str, Any], compiled: Any, ledger: Any) -> Any:
         self.verifier_packets.append(packet)
-        if not self.verifier_outputs:
-            return {"verdict": "completed", "confidence": "medium", "summary": "No blocking findings in packet evidence."}
-        return self.verifier_outputs.pop(0)
+        output: Any = (
+            self.verifier_outputs.pop(0)
+            if self.verifier_outputs
+            else {"verdict": "completed", "confidence": "medium", "summary": "No blocking findings in packet evidence."}
+        )
+        if (
+            isinstance(output, dict)
+            and output.get("verdict") == "completed"
+            and self.executor is not None
+            and ledger.findings.active
+        ):
+            finding = next(iter(ledger.findings.active.values()))
+            path = next((target for target in finding.applies_to if self.executor.exists(target)), "out.txt")
+            content = self.executor.read_file(path)
+            request = VerifierInspectionRequest(
+                request_id=f"repair-read-{len(self.verifier_packets)}",
+                kind="read_file",
+                path=path,
+            )
+            rows = register_inspection_results(
+                (request,),
+                ({
+                    "request_id": request.request_id,
+                    "kind": "read_file",
+                    "path": path,
+                    "excerpt": content,
+                    "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                    "read_only": True,
+                },),
+                ledger=ledger,
+                step=max((receipt.step for receipt in ledger.all_receipts()), default=0),
+                requester="scripted_verifier",
+                executor=self.executor,
+                overlay=None,
+                packet_signature="scripted-current-state",
+            )
+            output = dict(output)
+            output["completion_evidence"] = [{
+                "requirement": finding.summary,
+                "observed": f"current {path} contains {content.strip()}",
+                "inspection_refs": [rows[0]["inspection_id"]],
+                "falsification_check": "different current content would preserve the finding",
+            }]
+        return output
 
 
 class _ExistsHooks:
@@ -166,7 +212,7 @@ def run_workbench_verifier_repair_scenario() -> IntegrationScenarioResult:
         },
         {"verdict": "completed", "confidence": "high", "summary": "out.txt now contains exact PASS-123 and smoke evidence passed."},
     ]
-    hooks = ScriptedHooks(fallback_ir=fallback_ir, turns=turns, verifier_outputs=verifier_outputs)
+    hooks = ScriptedHooks(fallback_ir=fallback_ir, turns=turns, verifier_outputs=verifier_outputs, executor=executor)
     result = AetherNextKernel(max_steps=8, workbench_architect=workbench).run(env, executor, hooks)
     receipts = [_receipt_view(receipt) for receipt in result.receipts]
     return IntegrationScenarioResult(

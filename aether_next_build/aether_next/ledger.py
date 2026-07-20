@@ -461,7 +461,17 @@ class ExecutionLedger:
         step: int,
         compiled: CompiledRuntime | None = None,
     ) -> None:
-        self.findings.apply_result(result, step=step, resolve_stale_by_evidence=False)
+        resolved_finding_ids: set[str] = set()
+        if result.verdict == "completed":
+            from .finding_evidence import resolved_finding_ids_for_completed
+            resolved_finding_ids = resolved_finding_ids_for_completed(self, result)
+        self.findings.apply_result(
+            result,
+            step=step,
+            resolve_stale_by_evidence=False,
+            task_state_generation=self.task_state_generation(),
+            resolved_finding_ids=resolved_finding_ids,
+        )
         if compiled is not None:
             from .proof_contract import record_verifier_result_evidence
             record_verifier_result_evidence(
@@ -471,7 +481,7 @@ class ExecutionLedger:
             receipt_id=f"step-{step}:model_verifier", step=step,
             kind="model_verifier_result", success=result.verdict == "completed",
             summary=f"model verifier verdict: {result.verdict}",
-            state_change=result.verdict == "completed",
+            state_change=False,
             failure_class="" if result.verdict == "completed" else result.verdict,
             payload=result.as_dict(),
         ))

@@ -38,6 +38,11 @@ class VerifierFinding:
     keep_until: str = "resolved_or_superseded"
     status: str = "active"
     superseded_by: str = ""
+    owner: str = "solver_state"
+    observed_task_state_generation: int = -1
+    supporting_inspection_ids: tuple[str, ...] = ()
+    repair_condition: str = ""
+    required_evidence_route: str = ""
     # Number of verifier calls since this finding was created (or last
     # re-mentioned/superseded) where the verifier's result did not touch it at
     # all -- i.e. a non-completed verdict that simply left it sitting there
@@ -121,10 +126,18 @@ class ActiveFindingStore:
         *,
         step: int,
         resolve_stale_by_evidence: bool = False,
+        task_state_generation: int = -1,
+        resolved_finding_ids: set[str] | None = None,
     ) -> None:
         if result.verdict == "completed":
-            for finding in list(self.active.values()):
-                self.archive(finding.finding_id, status="resolved")
+            resolved = set(resolved_finding_ids or ())
+            for finding_id, finding in list(self.active.items()):
+                if finding_id in resolved:
+                    self.archive(finding_id, status="resolved_by_current_evidence")
+                else:
+                    self.active[finding_id] = replace(
+                        finding, stale_cycles=finding.stale_cycles + 1,
+                    )
             return
         touched_ids: set[str] = set()
         for finding in result.findings:
@@ -138,6 +151,15 @@ class ActiveFindingStore:
                 repair_instruction=finding.repair_instruction,
                 applies_to=finding.applies_to,
                 keep_until=finding.keep_until,
+                owner=finding.owner,
+                observed_task_state_generation=(
+                    finding.observed_task_state_generation
+                    if finding.observed_task_state_generation >= 0
+                    else int(task_state_generation)
+                ),
+                supporting_inspection_ids=finding.supporting_inspection_ids,
+                repair_condition=finding.repair_condition or finding.repair_instruction,
+                required_evidence_route=finding.required_evidence_route,
             )
             touched_ids |= self._supersede_overlapping(updated)
             touched_ids.add(updated.finding_id)
@@ -173,6 +195,11 @@ class ActiveFindingStore:
             keep_until=finding.keep_until,
             status=status,
             superseded_by=superseded_by,
+            owner=finding.owner,
+            observed_task_state_generation=finding.observed_task_state_generation,
+            supporting_inspection_ids=finding.supporting_inspection_ids,
+            repair_condition=finding.repair_condition,
+            required_evidence_route=finding.required_evidence_route,
         )
 
     def invalidate(self, finding_id: str) -> None:
@@ -391,6 +418,11 @@ def _parse_findings(data: dict[str, Any], *, default_verdict: str) -> tuple[Veri
             repair_instruction=repair,
             applies_to=_string_tuple(item.get("applies_to") or item.get("targets") or item.get("paths") or ()),
             keep_until=str(item.get("keep_until", "resolved_or_superseded")).strip() or "resolved_or_superseded",
+            owner=str(item.get("owner", "solver_state")).strip() or "solver_state",
+            observed_task_state_generation=_signed_int(item.get("observed_task_state_generation", -1), default=-1),
+            supporting_inspection_ids=_string_tuple(item.get("supporting_inspection_ids") or item.get("inspection_refs") or ()),
+            repair_condition=str(item.get("repair_condition", "")).strip(),
+            required_evidence_route=str(item.get("required_evidence_route", "")).strip(),
         ))
     return tuple(parsed)
 
@@ -432,6 +464,13 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple)):
         return tuple(str(item).strip() for item in value if str(item).strip())
     return ()
+
+
+def _signed_int(value: Any, *, default: int = -1) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _nonnegative_int(value: Any) -> int:

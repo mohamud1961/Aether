@@ -31,7 +31,7 @@ from aether_next.runtime_ir import (
     SolverTurn,
 )
 from aether_next.smoke_compile import compile_visible_smoke_tests
-from aether_next.verifier import ModelVerifierResult, VerifierFinding, parse_model_verifier_result
+from aether_next.verifier import CompletionEvidenceEntry, ModelVerifierResult, VerifierFinding, parse_model_verifier_result
 from aether_next.verifier_packets import build_verifier_packet
 from aether_next.workbench_compile import config_realization_audit, harness_config_to_runtime_ir
 from aether_next.workbench_config import UNSUPPORTED_VISIBLE_SMOKE_TEST_TYPE_CODE, parse_workbench_architect_output
@@ -905,10 +905,38 @@ def test_completed_verifier_result_resolves_active_findings() -> None:
     ledger.apply_verifier_result(ModelVerifierResult("needs_repair", findings=(finding,)), step=1)
     assert ledger.active_finding_context(step=2)
 
-    ledger.apply_verifier_result(ModelVerifierResult("completed", summary="fixed"), step=3)
+    ledger.record(Receipt(
+        receipt_id="inspection:resolved-out",
+        step=3,
+        kind="inspection_record",
+        success=True,
+        summary="current out.txt is fixed",
+        payload={
+            "inspection_id": "inspection:resolved-out",
+            "route": "read_file:out.txt",
+            "route_kind": "read_file",
+            "target_identity": "path:out.txt",
+            "target_generation": "content_hash:fixed",
+            "task_state_generation": ledger.task_state_generation(),
+            "tool_identity": "test.inspector",
+            "result_hash": "fixed",
+            "evidence_ceiling": "exact_contract",
+            "eligible_for_proof": True,
+        },
+    ))
+    ledger.apply_verifier_result(ModelVerifierResult(
+        "completed",
+        summary="fixed",
+        completion_evidence=(CompletionEvidenceEntry(
+            requirement="out.txt is fixed",
+            observed="current inspection confirms fixed content",
+            falsification_check="wrong content would contradict",
+            inspection_refs=("inspection:resolved-out",),
+        ),),
+    ), step=3)
 
     assert ledger.active_finding_context(step=4) == []
-    assert ledger.findings.archived["vf-resolve"].status == "resolved"
+    assert ledger.findings.archived["vf-resolve"].status == "resolved_by_current_evidence"
 
 
 def test_overlapping_verifier_finding_supersedes_prior_finding() -> None:

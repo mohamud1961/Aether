@@ -610,40 +610,9 @@ class AetherNextKernel:
 
     @staticmethod
     def _active_findings_need_intervening_evidence(ledger: ExecutionLedger) -> bool:
-        active_findings = ledger.active_finding_context(len(ledger.all_receipts()))
-        if not active_findings:
-            return False
-        evidence_kinds = {
-            "read_file",
-            "write_file",
-            "run_command",
-            "bootstrap_acquire",
-            "launch_process",
-            "probe_service",
-            "stop_process",
-            "inspect_artifact",
-            "query_artifact_history",
-            "inspect_diff",
-            "record_observation",
-            "query_memory",
-            "register_candidate",
-            "run_experiment",
-            # A verifier-triggered reconfiguration changes the workbench the
-            # findings were raised against; the verifier must re-judge rather
-            # than being starved by its own config finding.
-            "verifier_triggered_reconfigure",
-        }
-        # Compare by ledger position, not step number: evidence recorded in
-        # the same step as (but after) the verifier result still counts.
-        receipts = ledger.all_receipts()
-        last_verifier_index = -1
-        for index, receipt in enumerate(receipts):
-            if receipt.kind == "model_verifier_result":
-                last_verifier_index = index
-        for receipt in receipts[last_verifier_index + 1:]:
-            if receipt.kind in evidence_kinds:
-                return False
-        return True
+        from .finding_evidence import active_findings_need_relevant_evidence
+
+        return active_findings_need_relevant_evidence(ledger)
 
     def _fire_snapshot(self, step: int) -> None:
         if self.snapshot_callback is not None and step in self._snapshot_steps:
