@@ -96,15 +96,18 @@ def test_solver_turns_and_accepted_actions_are_separate_receipted_counters() -> 
         )
         for index in (1, 2)
     )
-    hooks = _Hooks([SolverTurn(kind="act", summary="two observations", actions=actions)])
+    hooks = _Hooks([
+        SolverTurn(kind="act", summary="first observation", actions=(actions[0],)),
+        SolverTurn(kind="act", summary="second observation", actions=(actions[1],)),
+    ])
     result = AetherNextKernel(
-        max_steps=3, max_solver_turns=1, max_accepted_task_actions=1,
+        max_steps=3, max_solver_turns=2, max_accepted_task_actions=1,
     ).run(_env(), MemoryExecutor(workspace_root="/app"), hooks)
 
     assert result.status == "solver_turn_budget_exhausted"
     assert result.accounting == {
         "solver_accepted_task_actions": 1,
-        "solver_provider_turns": 1,
+        "solver_provider_turns": 2,
         "solver_refused_actions": 1,
     }
     events = [receipt.payload["event"] for receipt in result.receipts if receipt.kind == "runtime_accounting"]

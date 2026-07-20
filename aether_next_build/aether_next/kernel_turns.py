@@ -16,6 +16,7 @@ from .kernel_checks import probe_checks
 from .kernel_dispatch import dispatch_action
 from .ledger import ExecutionLedger, Receipt
 from .no_progress import NoProgressController
+from .observation_batch import execute_observation_batch, mutation_generation
 from .runtime_ir import CompiledRuntime, EnvMap, SolverTurn, normalize_relpath
 from .world import WorldState, WorldStateDeltaError
 
@@ -32,6 +33,28 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
     def _record(r: Receipt) -> None:
         ledger.record(r)
         step_receipts.append(r)
+
+    # SolverTurn.validate already guarantees one action frontier.  Persist the
+    # compact decision before execution so intent and the exact next
+    # observation remain causally paired.
+    action = turn.actions[0]
+    _record(Receipt(
+        receipt_id=f"step-{step}:{action.action_id}:solver_decision_state",
+        step=step,
+        kind="solver_decision_state",
+        success=True,
+        summary=turn.summary,
+        payload={
+            "current_subgoal": turn.summary,
+            "evidence_gap": turn.evidence_gap,
+            "action_id": action.action_id,
+            "action_kind": action.kind,
+            "intent": action.intent,
+            "expected_observation": action.expected_observation,
+            "if_fail_next": action.if_fail_next,
+            "mutation_generation": mutation_generation(ledger),
+        },
+    ))
 
     for action in turn.actions:
         action_errors = action.validate(compiled.action_schema)
@@ -139,6 +162,18 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
         no_progress = kernel.no_progress_controller.evaluate(action, ledger)
         if no_progress is not None:
             _record(NoProgressController.receipt(no_progress, step=step, action_id=action.action_id))
+        if action.kind == "observe_batch":
+            for receipt in execute_observation_batch(
+                kernel,
+                action,
+                step=step,
+                compiled=compiled,
+                executor=executor,
+                envmap=envmap,
+                ledger=ledger,
+            ):
+                _record(receipt)
+            continue
         handled = handle_kernel_owned_action(action, step, compiled, executor, envmap, ledger)
         if handled is not None:
             _record(handled)
@@ -147,6 +182,35 @@ def run_act_turn(kernel: Any, turn: SolverTurn, step: int, compiled: CompiledRun
         for receipt in dispatch_action(kernel, action, step, compiled, executor, envmap, ledger):
             _record(receipt)
             _update_world_from_receipt(world_state, receipt, step=step, ledger=ledger)
+
+    action_results = [
+        receipt for receipt in step_receipts
+        if receipt.kind not in {
+            "runtime_accounting", "solver_decision_state", "automatic_memory",
+            "automatic_memory_advisory", "no_progress_control",
+        }
+    ]
+    if any(receipt.state_change for receipt in action_results):
+        progress = "state_changed"
+    elif any(receipt.success for receipt in action_results):
+        progress = "new_evidence"
+    else:
+        progress = "no_relevant_progress"
+    _record(Receipt(
+        receipt_id=f"step-{step}:{action.action_id}:solver_progress_assessment",
+        step=step,
+        kind="solver_progress_assessment",
+        success=progress != "no_relevant_progress",
+        summary=f"deterministic progress classification: {progress}",
+        failure_class="" if progress != "no_relevant_progress" else progress,
+        payload={
+            "classification": progress,
+            "action_id": action.action_id,
+            "action_kind": action.kind,
+            "result_receipt_ids": [receipt.receipt_id for receipt in action_results],
+            "mutation_generation": mutation_generation(ledger),
+        },
+    ))
     probe_checks(step, compiled, executor, envmap, ledger, tuple(step_receipts))
 
 

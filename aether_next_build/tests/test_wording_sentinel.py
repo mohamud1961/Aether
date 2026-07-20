@@ -67,26 +67,29 @@ class _WordyButCorrectHooks:
             return SolverTurn(
                 kind="act",
                 summary="previous run failed with an error; writing corrected notes now",
-                actions=(
-                    ActionRequest(
-                        action_id="a-write",
-                        kind="write_file",
-                        capability_id="filesystem",
-                        arguments={"path": "notes.md", "content": _SCARY_TEXT},
-                        intent="write the deliverable with unusual wording",
-                        expected_observation="notes.md exists",
-                        if_fail_next="report blocker",
-                    ),
-                    ActionRequest(
-                        action_id="a-show",
-                        kind="run_command",
-                        capability_id="shell",
-                        arguments={"command": "cat notes.md"},
-                        intent="display mismatch/error wording without failing",
-                        expected_observation="scary words on stdout, exit 0",
-                        if_fail_next="report blocker",
-                    ),
-                ),
+                actions=(ActionRequest(
+                    action_id="a-write",
+                    kind="write_file",
+                    capability_id="filesystem",
+                    arguments={"path": "notes.md", "content": _SCARY_TEXT},
+                    intent="write the deliverable with unusual wording",
+                    expected_observation="notes.md exists",
+                    if_fail_next="report blocker",
+                ),),
+            )
+        if self.calls == 2:
+            return SolverTurn(
+                kind="act",
+                summary="display the written notes after observing the write",
+                actions=(ActionRequest(
+                    action_id="a-show",
+                    kind="run_command",
+                    capability_id="shell",
+                    arguments={"command": "cat notes.md"},
+                    intent="display mismatch/error wording without failing",
+                    expected_observation="scary words on stdout, exit 0",
+                    if_fail_next="report blocker",
+                ),),
             )
         return SolverTurn(kind="submit_outcome", summary="error-free despite the word failed appearing")
 

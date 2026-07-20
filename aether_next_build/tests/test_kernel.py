@@ -174,7 +174,7 @@ class TestSolverIsInvoked:
 
 class TestActTurnDispatchesReadWriteRun:
     def test_act_turn_dispatches_read_write_run(self) -> None:
-        """An act turn with read_file + write_file + run_command produces the right receipts."""
+        """Independent state-changing frontiers execute only after observation."""
         envmap = _make_envmap()
         executor = MemoryExecutor(workspace_root="/app", files={"src/main.py": "print('hi')"})
 
@@ -189,7 +189,12 @@ class TestActTurnDispatchesReadWriteRun:
             _action("run_command", {"command": "echo hello"}, action_id="a-run-1"),
         ]
         ir = _make_ir()
-        hooks = FakeHooks(ir, [_act_turn(*actions), _submit_turn()])
+        hooks = FakeHooks(ir, [
+            _act_turn(actions[0]),
+            _act_turn(actions[1]),
+            _act_turn(actions[2]),
+            _submit_turn(),
+        ])
         kernel = AetherNextKernel(max_steps=5)
         result = kernel.run(envmap, executor, hooks)
 

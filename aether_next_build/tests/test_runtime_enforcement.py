@@ -198,8 +198,10 @@ def test_no_progress_reset_does_not_permanently_disable_after_one_write() -> Non
 def test_filter_false_clean_now_completes_when_verifier_claims_done() -> None:
     sample_command = "python3 - <<'PY'\nprint('in_place_ok onclick javascript:')\nPY"
     turns = [
-        SolverTurn(kind="act", summary="write and sample", actions=(
+        SolverTurn(kind="act", summary="write filter", actions=(
             _action("write_file", {"path": "filter.py", "content": "print('ok')"}, action_id="write"),
+        )),
+        SolverTurn(kind="act", summary="sample after observing write", actions=(
             _action("run_command", {"command": sample_command}, action_id="sample", cap="shell"),
         )),
         SolverTurn(kind="submit_outcome", summary="submit after one sample"),
@@ -220,7 +222,7 @@ def test_filter_false_clean_now_completes_when_verifier_claims_done() -> None:
             [TaskClause("artifact", "filter.py is available")],
         ),
     )
-    result = AetherNextKernel(max_steps=2).run(
+    result = AetherNextKernel(max_steps=3).run(
         _env("Create filter.py that removes JavaScript from HTML to prevent XSS."),
         executor,
         _Hooks(runtime, turns),

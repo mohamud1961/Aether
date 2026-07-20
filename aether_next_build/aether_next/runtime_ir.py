@@ -51,6 +51,7 @@ MODEL_TIERS = frozenset({"mini", "strong", "codex", "vision", "default"})
 ACTION_SCHEMA: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("read_file", ("path",)),
     ("read_file_page", ("path",)),
+    ("observe_batch", ("operations",)),
     ("read_output", ("handle",)),
     ("grep_output", ("handle", "pattern")),
     ("write_file", ("path", "content")),
@@ -72,6 +73,7 @@ ACTION_SCHEMA: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 ALWAYS_AVAILABLE_ACTION_KINDS = frozenset({
+    "observe_batch",
     "query_memory",
     "query_artifact_history",
     "inspect_diff",
@@ -87,6 +89,22 @@ ALWAYS_AVAILABLE_ACTION_KINDS = frozenset({
     "read_file_page",
 })
 KERNEL_INTERNAL_ACTION_KINDS = frozenset({"register_candidate", "run_experiment"})
+
+# Only these operations may be children of one observation batch.  No shell
+# command, HTTP request, check execution, process action, write, or unknown
+# helper is assumed read-only merely from its name.
+CERTIFIED_READ_ONLY_ACTION_KINDS = frozenset({
+    "read_file",
+    "read_file_page",
+    "read_output",
+    "grep_output",
+    "query_memory",
+    "query_artifact_history",
+    "inspect_diff",
+    "inspect_artifact",
+    "inspect_checks",
+    "probe_service",
+})
 
 # One generic action surface is owned by the kernel.  Architect output may
 # describe workflow and evidence, but it cannot add, remove, or select these
@@ -563,6 +581,7 @@ class SolverTurn:
     actions: tuple[ActionRequest, ...] = ()
     requested_check_ids: tuple[str, ...] = ()
     claimed_artifacts: tuple[str, ...] = ()
+    evidence_gap: str = ""
 
     def validate(self, action_schema: tuple[tuple[str, tuple[str, ...]], ...] = ACTION_SCHEMA) -> tuple[str, ...]:
         errors: list[str] = []
@@ -570,8 +589,8 @@ class SolverTurn:
             errors.append(f"unknown turn kind: {self.kind}")
         if not self.summary.strip():
             errors.append("summary is required")
-        if self.kind == "act" and not self.actions:
-            errors.append("act turns require at least one action")
+        if self.kind == "act" and len(self.actions) != 1:
+            errors.append("act turns require exactly one action frontier")
         if self.kind != "act" and self.actions:
             errors.append(f"{self.kind} turns may not carry actions")
         for action in self.actions:

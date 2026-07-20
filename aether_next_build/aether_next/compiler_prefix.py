@@ -52,6 +52,8 @@ PROTOCOL_CARD_SECTIONS: tuple[tuple[str, str], ...] = (
                         "required_fields": {
                             "always": ["kind", "summary"],
                             "act": ["actions"],
+                            "act_cardinality": "exactly_one_action_frontier",
+                            "recommended_turn_fields": ["evidence_gap"],
                             "act_action_fields": ["kind", "arguments"],
                             "recommended_action_fields": [
                                 "action_id",
@@ -63,6 +65,8 @@ PROTOCOL_CARD_SECTIONS: tuple[tuple[str, str], ...] = (
                         "action_schema_section": "action_schema",
                         "notes": [
                             "Only action kinds listed in action_schema are callable.",
+                            "An act turn contains exactly one action frontier.",
+                            "Use observe_batch only for bounded independent certified read-only operations; commands, checks, network requests, writes, and process actions must run alone.",
                             "Kernel-owned memory and check affordances are listed in action_schema when available.",
                             "Do not request reconfiguration. Report concrete harness blockers with the report_blocker action.",
                         ],

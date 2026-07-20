@@ -210,5 +210,7 @@ def parse_solver_turn(text: str) -> SolverTurn:
     for optional_key in ("requested_check_ids", "claimed_artifacts"):
         if optional_key in data:
             turn_kwargs[optional_key] = _coerce_tuple(data[optional_key])
+    if "evidence_gap" in data:
+        turn_kwargs["evidence_gap"] = str(data.get("evidence_gap", "")).strip()
 
     return SolverTurn(**turn_kwargs)

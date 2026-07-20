@@ -120,17 +120,16 @@ def test_kernel_owned_memory_tools_record_observations_history_and_diff() -> Non
             )
 
         def solve(self, messages, compiled):
-            return SolverTurn(
-                kind="act",
-                summary="use memory tools",
-                actions=(
-                    ActionRequest("obs", "record_observation", "kernel", {"observation": "out.txt must contain OK", "path": "out.txt"}, "record", "saved", "continue"),
-                    ActionRequest("hist", "query_artifact_history", "kernel", {"path": "out.txt"}, "history", "events", "continue"),
-                    ActionRequest("diff", "inspect_diff", "kernel", {"path": "out.txt"}, "diff", "summary", "continue"),
-                ),
+            turns = (
+                ActionRequest("obs", "record_observation", "kernel", {"observation": "out.txt must contain OK", "path": "out.txt"}, "record", "saved", "continue"),
+                ActionRequest("hist", "query_artifact_history", "kernel", {"path": "out.txt"}, "history", "events", "continue"),
+                ActionRequest("diff", "inspect_diff", "kernel", {"path": "out.txt"}, "diff", "summary", "continue"),
             )
+            index = getattr(self, "turn_index", 0)
+            self.turn_index = index + 1
+            return SolverTurn(kind="act", summary="use one memory tool", actions=(turns[index],))
 
-    result = AetherNextKernel(max_steps=1).run(env, executor, Hooks())
+    result = AetherNextKernel(max_steps=3).run(env, executor, Hooks())
     kinds = [receipt.kind for receipt in result.receipts]
     assert "record_observation" in kinds
     assert "query_artifact_history" in kinds

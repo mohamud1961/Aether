@@ -130,15 +130,23 @@ def run_workbench_verifier_repair_scenario() -> IntegrationScenarioResult:
         selected_capabilities=("filesystem",),
     )
     turns = [
-        SolverTurn(kind="act", summary="first attempt", actions=(
+        SolverTurn(kind="act", summary="inspect input", actions=(
             _act("read-input", "read_file", {"path": "input.txt"}),
+        )),
+        SolverTurn(kind="act", summary="first implementation", actions=(
             _act("write-wrong", "write_file", {"path": "out.txt", "content": "PASS-124\n"}),
         )),
         SolverTurn(kind="submit_outcome", summary="submit first attempt"),
-        SolverTurn(kind="act", summary="repair after completion finding", actions=(
-            _act("hist", "query_artifact_history", {"path": "out.txt"}, capability="kernel"),
-            _act("diff", "inspect_diff", {"path": "out.txt"}, capability="kernel"),
+        SolverTurn(kind="act", summary="inspect repair evidence", actions=(
+            _act("repair-observations", "observe_batch", {"operations": [
+                {"request_id": "hist", "kind": "query_artifact_history", "arguments": {"path": "out.txt"}},
+                {"request_id": "diff", "kind": "inspect_diff", "arguments": {"path": "out.txt"}},
+            ]}, capability="kernel"),
+        )),
+        SolverTurn(kind="act", summary="record verifier requirement", actions=(
             _act("obs", "record_observation", {"observation": "Verifier requires exact PASS-123 token", "path": "out.txt"}, capability="kernel"),
+        )),
+        SolverTurn(kind="act", summary="repair after completion finding", actions=(
             _act("write-fixed", "write_file", {"path": "out.txt", "content": "PASS-123\n"}),
         )),
         SolverTurn(kind="submit_outcome", summary="submit repaired artifact"),
@@ -159,7 +167,7 @@ def run_workbench_verifier_repair_scenario() -> IntegrationScenarioResult:
         {"verdict": "completed", "confidence": "high", "summary": "out.txt now contains exact PASS-123 and smoke evidence passed."},
     ]
     hooks = ScriptedHooks(fallback_ir=fallback_ir, turns=turns, verifier_outputs=verifier_outputs)
-    result = AetherNextKernel(max_steps=4, workbench_architect=workbench).run(env, executor, hooks)
+    result = AetherNextKernel(max_steps=8, workbench_architect=workbench).run(env, executor, hooks)
     receipts = [_receipt_view(receipt) for receipt in result.receipts]
     return IntegrationScenarioResult(
         scenario_id="workbench_verifier_repair_loop",
@@ -220,15 +228,17 @@ def run_disabled_tool_guard_scenario() -> IntegrationScenarioResult:
     hooks = ScriptedHooks(
         fallback_ir=RuntimeConfigIR(architect_summary="fallback", solver_identity_prompt="fallback", selected_capabilities=("filesystem",)),
         turns=[
-            SolverTurn(kind="act", summary="try disabled shell then write", actions=(
+            SolverTurn(kind="act", summary="exercise stable-core shell", actions=(
                 _act("bad-shell", "run_command", {"command": "echo OK > out.txt"}, capability="shell"),
+            )),
+            SolverTurn(kind="act", summary="write artifact after observing shell result", actions=(
                 _act("good-write", "write_file", {"path": "out.txt", "content": "OK\n"}),
             )),
             SolverTurn(kind="submit_outcome", summary="submit written artifact"),
         ],
         verifier_outputs=[{"verdict": "completed", "summary": "out.txt exists and smoke evidence passed."}],
     )
-    result = AetherNextKernel(max_steps=2, workbench_architect=workbench).run(env, executor, hooks)
+    result = AetherNextKernel(max_steps=3, workbench_architect=workbench).run(env, executor, hooks)
     receipts = [_receipt_view(receipt) for receipt in result.receipts]
     return IntegrationScenarioResult(
         scenario_id="stable_core_tool_guard",

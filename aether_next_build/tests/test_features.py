@@ -350,11 +350,10 @@ class TestClassifierModelLimit:
         turns = [
             _act_turn(
                 _action("run_command", {"command": "echo step1"}, action_id="a-step-1"),
-                _action("write_file", {"path": "out.txt", "content": "data"},
-                        action_id="a-write-1", capability_id="filesystem"),
             ),
             _act_turn(
-                _action("run_command", {"command": "echo step2"}, action_id="a-step-2"),
+                _action("write_file", {"path": "out.txt", "content": "data"},
+                        action_id="a-write-1", capability_id="filesystem"),
             ),
             # More turns than max_steps to force incomplete.
             _act_turn(

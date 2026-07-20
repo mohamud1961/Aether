@@ -97,15 +97,13 @@ class _ReadBackHooks:
                 if_fail_next="report blocker",
             ),))
         if self._step == 2:
-            return SolverTurn(kind="act", summary="page the tail by handle", actions=(ActionRequest(
-                action_id="a-read", kind="read_output", capability_id="shell",
-                arguments={"handle": "0:a-big:stdout", "offset": 10, "span": 20000},
-                intent="read full output by handle", expected_observation="tail bytes",
-                if_fail_next="report blocker",
-            ), ActionRequest(
-                action_id="a-grep", kind="grep_output", capability_id="shell",
-                arguments={"handle": "0:a-big:stdout", "pattern": "TAIL_MARKER"},
-                intent="grep the full output", expected_observation="marker found",
+            return SolverTurn(kind="act", summary="page and grep the captured output", actions=(ActionRequest(
+                action_id="a-observe-output", kind="observe_batch", capability_id="shell",
+                arguments={"operations": [
+                    {"request_id": "a-read", "kind": "read_output", "arguments": {"handle": "0:a-big:stdout", "offset": 10, "span": 20000}},
+                    {"request_id": "a-grep", "kind": "grep_output", "arguments": {"handle": "0:a-big:stdout", "pattern": "TAIL_MARKER"}},
+                ]},
+                intent="read and grep one immutable captured stream", expected_observation="tail bytes and marker",
                 if_fail_next="report blocker",
             ),))
         return SolverTurn(kind="submit_outcome", summary="done")
