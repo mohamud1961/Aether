@@ -106,7 +106,9 @@ def test_kernel_records_parse_error_and_retries_once() -> None:
     assert "solver_parse_error" in kinds
     assert "write_file" in kinds
     receipt = next(r for r in result.receipts if r.kind == "solver_parse_error")
-    assert receipt.payload["raw_output"] == "broken turn"
+    assert receipt.payload["redacted_output"] == "broken turn"
+    assert "raw_output" not in receipt.payload
+    assert receipt.payload["raw_output_storage"] == "protected_provider_evidence_only"
 
 
 class _ReconfigHooks:

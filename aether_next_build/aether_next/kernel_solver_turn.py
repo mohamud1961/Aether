@@ -9,6 +9,7 @@ existing ``hooks: Any`` parameter, to avoid a cycle with kernel.py's
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Mapping, TYPE_CHECKING
 
 from .ledger import ExecutionLedger, Receipt
@@ -52,8 +53,11 @@ def handle_solver_parse_error(
         failure_class="solver_protocol_error",
         payload={
             "error": str(exc),
-            "raw_output": raw_output[:20000],
-            "raw_output_bytes": len(raw_output),
+            "redacted_output": redacted_output[:20000],
+            "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
+            "raw_output_bytes": len(raw_output.encode("utf-8")),
+            "redaction_events": list(redaction_events),
+            "raw_output_storage": "protected_provider_evidence_only",
             "retry_attempted": True,
         },
     ))
@@ -100,8 +104,11 @@ def handle_solver_parse_error(
             failure_class="solver_protocol_error",
             payload={
                 "error": str(retry_exc),
-                "raw_output": raw_retry[:20000],
-                "raw_output_bytes": len(raw_retry),
+                "redacted_output": redacted_retry[:20000],
+                "raw_output_sha256": hashlib.sha256(raw_retry.encode("utf-8")).hexdigest(),
+                "raw_output_bytes": len(raw_retry.encode("utf-8")),
+                "redaction_events": list(retry_redaction_events),
+                "raw_output_storage": "protected_provider_evidence_only",
                 "retry_attempted": False,
             },
         ))

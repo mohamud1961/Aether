@@ -11,17 +11,31 @@ from aether_next.runtime_ir import (
 
 
 class ParityExecutor:
-    def __init__(self, *, solver_python: bool = True, verifier_python: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        solver_python: bool = True,
+        verifier_python: bool = True,
+        in_overlay: bool = False,
+    ) -> None:
         self.solver_python = solver_python
         self.verifier_python = verifier_python
+        self.in_overlay = in_overlay
+
+    def for_workspace(self, workspace_root: str) -> "ParityExecutor":
+        assert ".verifier_overlay_" in workspace_root
+        return ParityExecutor(
+            solver_python=self.solver_python,
+            verifier_python=self.verifier_python,
+            in_overlay=True,
+        )
 
     def run_command(self, command: str, *, cwd: str | None = None, timeout_s: int = 30) -> CommandResult:
-        del timeout_s
+        del timeout_s, cwd
         if command.startswith("rm -rf ") or command.startswith("cp -a ") or " && cp -a " in command:
             return CommandResult(command, 0, "", "")
         if command.startswith("command -v python3"):
-            in_overlay = bool(cwd and ".verifier_overlay_" in cwd)
-            available = self.verifier_python if in_overlay else self.solver_python
+            available = self.verifier_python if self.in_overlay else self.solver_python
             return CommandResult(command, 0 if available else 127, "/usr/bin/python3\n" if available else "", "not found" if not available else "")
         return CommandResult(command, 0, "", "")
 

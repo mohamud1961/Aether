@@ -28,17 +28,49 @@ _SKIP_DIRS = {".git", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cac
 _MAX_SCAN_ENTRIES = 5_000
 
 
-def _resolve_safe(workspace_root: str, path: str) -> str:
-    """Resolve *path* relative to *workspace_root*, clamping escapes."""
-    norm = normalize_relpath(path, workspace_root)
-    root = Path(workspace_root).resolve()
-    candidate = (root / norm).resolve()
-    if not str(candidate).startswith(str(root)):
-        # Clamp to workspace root -- never operate outside.
-        candidate = root / Path(norm).name
-        candidate = candidate.resolve()
-        if not str(candidate).startswith(str(root)):
-            return str(root)
+def _resolve_safe(
+    workspace_root: str,
+    path: str,
+    *,
+    for_write: bool = False,
+) -> str:
+    """Resolve one workspace path or fail closed on escape/symlink ambiguity.
+
+    String-prefix checks are unsafe (``/app`` is a prefix of ``/app_evil``).
+    Reads resolve the complete path and require it to remain beneath the real
+    workspace root. Writes resolve the parent, reject a symlink destination,
+    and require the resulting directory entry to remain beneath the root.
+    """
+    raw = str(path or "").strip()
+    if not raw:
+        raise PermissionError("empty workspace path")
+    root = Path(workspace_root).resolve(strict=True)
+    if raw == "/app" or raw.startswith("/app/"):
+        norm = normalize_relpath(raw, "/app")
+        lexical = root / norm
+    elif Path(raw).is_absolute():
+        norm = raw
+        lexical = Path(raw)
+    else:
+        norm = normalize_relpath(raw, workspace_root)
+        lexical = root / norm
+    if lexical == root or norm in {"", "."}:
+        candidate = root
+    elif for_write:
+        parent = lexical.parent.resolve(strict=False)
+        try:
+            parent.relative_to(root)
+        except ValueError as exc:
+            raise PermissionError(f"path escapes workspace: {raw}") from exc
+        candidate = parent / lexical.name
+        if candidate.is_symlink():
+            raise PermissionError(f"refusing write through symlink: {raw}")
+    else:
+        candidate = lexical.resolve(strict=False)
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise PermissionError(f"path escapes workspace: {raw}") from exc
     return str(candidate)
 
 
@@ -103,7 +135,10 @@ def _snapshot_mtimes(root: str) -> dict[str, float]:
     root_path = Path(root)
     try:
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in _SKIP_DIRS and not (Path(dirpath) / d).is_symlink()
+            ]
             for fname in filenames:
                 full = os.path.join(dirpath, fname)
                 try:
@@ -130,6 +165,13 @@ class SubprocessExecutor:
         self._spooler = StreamSpooler()
         os.makedirs(self._root, exist_ok=True)
 
+    def for_workspace(self, workspace_root: str) -> "SubprocessExecutor":
+        """Return a new executor constrained to a trusted isolated workspace."""
+        return SubprocessExecutor(
+            workspace_root,
+            default_timeout_s=self._default_timeout_s,
+        )
+
     # ---- Filesystem --------------------------------------------------------
 
     def read_file(self, path: str) -> str:
@@ -147,7 +189,7 @@ class SubprocessExecutor:
             return fh.read()
 
     def write_file(self, path: str, content: str) -> None:
-        resolved = _resolve_safe(self._root, path)
+        resolved = _resolve_safe(self._root, path, for_write=True)
         os.makedirs(os.path.dirname(resolved), exist_ok=True)
         # The workspace is bind-mounted into a container that runs as root; a
         # run_command executed via docker exec can create/overwrite a file at
@@ -175,7 +217,10 @@ class SubprocessExecutor:
         root_path = Path(self._root)
         matches: list[str] = []
         for dirpath, dirnames, filenames in os.walk(self._root):
-            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in _SKIP_DIRS and not (Path(dirpath) / d).is_symlink()
+            ]
             for fname in filenames:
                 full = os.path.join(dirpath, fname)
                 rel = os.path.relpath(full, self._root)
@@ -194,7 +239,9 @@ class SubprocessExecutor:
         cwd: str | None = None,
         timeout_s: int = 30,
     ) -> CommandResult:
-        effective_cwd = cwd or self._root
+        effective_cwd = _resolve_safe(self._root, cwd or self._root)
+        if not os.path.isdir(effective_cwd):
+            raise NotADirectoryError(effective_cwd)
         effective_timeout = timeout_s if timeout_s > 0 else self._default_timeout_s
 
         before = _snapshot_mtimes(self._root)
@@ -429,7 +476,10 @@ class SubprocessExecutor:
         visible_dirs: list[str] = []
         count = 0
         for dirpath, dirnames, filenames in os.walk(self._root):
-            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in _SKIP_DIRS and not (Path(dirpath) / d).is_symlink()
+            ]
             rel_dir = os.path.relpath(dirpath, self._root)
             if rel_dir != ".":
                 visible_dirs.append(rel_dir)

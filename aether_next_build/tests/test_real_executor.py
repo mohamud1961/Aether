@@ -178,10 +178,7 @@ class TestRefreshEnvmap:
 
 
 class TestPathSafety:
-    def test_path_escape_clamped(self, executor: SubprocessExecutor, workspace: str) -> None:
-        # Attempting to write outside workspace should be clamped.
-        executor.write_file("../../etc/passwd", "nope")
-        # File should end up inside workspace, not at /etc/passwd.
-        assert not os.path.exists("/etc/passwd_test_canary")
-        # The file should exist somewhere under workspace.
-        assert executor.exists("passwd")
+    def test_path_escape_fails_closed(self, executor: SubprocessExecutor, workspace: str) -> None:
+        with pytest.raises(PermissionError, match="escapes workspace"):
+            executor.write_file("../../etc/passwd", "nope")
+        assert not os.path.exists(os.path.join(workspace, "passwd"))

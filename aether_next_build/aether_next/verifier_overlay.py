@@ -44,6 +44,7 @@ class VerifierOverlay:
         self._executor = executor
         self._workspace_root = workspace_root.rstrip("/") or "/"
         self._overlay_root: str | None = None
+        self._overlay_executor: Any | None = None
         self._setup_error: str = ""
         self._max_command_timeout_s = max(30, int(max_command_timeout_s))
 
@@ -69,7 +70,13 @@ class VerifierOverlay:
                 f"{(result.stderr or result.stdout)[:500]}"
             )
             return {"error": self._setup_error}
+        factory = getattr(self._executor, "for_workspace", None)
+        if not callable(factory):
+            self._setup_error = "executor cannot create a constrained overlay workspace"
+            self._executor.run_command(f"rm -rf {_shell_quote(candidate)}", timeout_s=120)
+            return {"error": self._setup_error}
         self._overlay_root = candidate
+        self._overlay_executor = factory(candidate)
         return {"overlay_root": candidate, "created": True}
 
     def run_command(self, command: str, *, timeout_s: int | None = None) -> dict[str, Any]:
@@ -81,9 +88,9 @@ class VerifierOverlay:
         if "error" in state:
             return {"error": state["error"]}
         requested = self._max_command_timeout_s if timeout_s is None else int(timeout_s)
-        result = self._executor.run_command(
+        assert self._overlay_executor is not None
+        result = self._overlay_executor.run_command(
             command,
-            cwd=self._overlay_root,
             timeout_s=max(1, min(requested, self._max_command_timeout_s)),
         )
         return {
@@ -115,7 +122,8 @@ class VerifierOverlay:
             f"mkdir -p {_shell_quote(parent)} && "
             f"printf '%s' {_shell_quote(encoded)} | base64 -d > {_shell_quote(target)}"
         )
-        result = self._executor.run_command(cmd, timeout_s=60)
+        assert self._overlay_executor is not None
+        result = self._overlay_executor.run_command(cmd, timeout_s=60)
         if not result.success:
             return {"error": f"fixture write failed: {(result.stderr or result.stdout)[:500]}"}
         return {
@@ -130,6 +138,7 @@ class VerifierOverlay:
         if self._overlay_root is None:
             return {"removed": False}
         target, self._overlay_root = self._overlay_root, None
+        self._overlay_executor = None
         result = self._executor.run_command(
             f"rm -rf {_shell_quote(target)}", timeout_s=120,
         )

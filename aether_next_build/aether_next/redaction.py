@@ -54,7 +54,10 @@ def redact_text_with_events(text: str) -> tuple[str, list[dict[str, int | str]]]
 
     raw = str(text or "")
     patterns: tuple[tuple[str, str], ...] = (
-        ("secret_assignment", r"(?i)\b(api[_-]?key|token|secret|password|credential|auth)\s*[:=]\s*([^\s,'\";}]+)"),
+        (
+            "secret_assignment",
+            r"(?i)(?<![A-Za-z0-9_])[\"']?(api[_-]?key|token|secret|password|credential|auth)[\"']?\s*[:=]\s*[\"']?([^\s,\"';}]+)",
+        ),
         ("bearer_token", r"(?i)\bbearer\s+([A-Za-z0-9._~+\-/]+=*)"),
         ("private_key_block", r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
