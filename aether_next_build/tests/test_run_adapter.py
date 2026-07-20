@@ -180,6 +180,21 @@ class _StubVerifierModel:
                 "kind": "inspect",
                 "requests": [{"request_id": "r1", "kind": "read_file", "path": "out.txt"}],
             })
+        inspection_ids: list[str] = []
+        for message in reversed(messages):
+            try:
+                payload = json.loads(message.get("content", ""))
+            except (TypeError, json.JSONDecodeError):
+                continue
+            rows = payload.get("verifier_inspection_results") if isinstance(payload, dict) else None
+            if isinstance(rows, list):
+                inspection_ids = [
+                    str(row.get("inspection_id", "")).strip()
+                    for row in rows
+                    if isinstance(row, dict) and str(row.get("inspection_id", "")).strip()
+                ]
+                if inspection_ids:
+                    break
         return json.dumps({
             "verdict": "completed",
             "confidence": "high",
@@ -187,7 +202,7 @@ class _StubVerifierModel:
             "completion_evidence": [{
                 "requirement": "out.txt contains the requested result",
                 "observed": "read_file inspection of out.txt showed the requested content",
-                "inspection_refs": ["out.txt"],
+                "inspection_refs": inspection_ids,
                 "falsification_check": "differing file content would have contradicted completion",
             }],
         })

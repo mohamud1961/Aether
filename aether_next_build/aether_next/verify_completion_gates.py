@@ -30,6 +30,7 @@ def _completion_record_problem(
     performed_refs: set[str],
     *,
     packet: Mapping[str, Any] | None = None,
+    inspection_ceilings: Mapping[str, Any] | None = None,
 ) -> str:
     """Structural validity of the completion_evidence record; '' when valid.
 
@@ -78,9 +79,11 @@ def _completion_record_problem(
                 except ValueError:
                     problems.append(f"unknown compiled evidence class for clause {clause_id}: {minimum}")
         if requirements:
-            ceilings_raw = packet.get("inspection_evidence_ceilings", {})
-            if not isinstance(ceilings_raw, Mapping):
-                ceilings_raw = {}
+            packet_ceilings = packet.get("inspection_evidence_ceilings", {})
+            if not isinstance(packet_ceilings, Mapping):
+                packet_ceilings = {}
+            ceilings_raw = dict(packet_ceilings)
+            ceilings_raw.update(dict(inspection_ceilings or {}))
             errors = validate_compiled_evidence(
                 entries,
                 requirements=requirements,
@@ -97,8 +100,8 @@ def _completion_record_retry_instruction(problem: str) -> dict[str, Any]:
             "Protocol requires a completed verdict to carry completion_evidence "
             "per verifier_runtime_contract.completion_evidence_shape: map each "
             "decisive requirement to what your own inspection observed, cite "
-            "inspection_refs (request_id, path, handle, or target) of inspections "
-            "performed this round, and state the falsification_check. "
+            "inspection_refs containing the registered inspection_id values returned "
+            "by inspections performed this round, and state the falsification_check. "
             f"Current problem: {problem}. Return your final verdict again "
             "with a valid record, or a different verdict if the inspected state "
             "does not actually support completion."
@@ -122,7 +125,7 @@ def _refuse_completion_record(problem: str) -> str:
             f"completion_evidence record is invalid ({problem})."
         ),
         "missing_evidence_requests": [
-            "Return completed only with a completion_evidence record whose inspection_refs cite inspections performed in the verification round.",
+            "Return completed only with completion_evidence.inspection_refs containing registered inspection_id values from this verification round.",
         ],
         "findings": [
             {

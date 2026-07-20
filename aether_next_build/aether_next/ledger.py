@@ -98,6 +98,11 @@ class ExecutionLedger:
         # independently auditable quantities here and append a receipt for
         # every increment so result rows never infer them from step numbers.
         self._accounting: Counter[str] = Counter()
+        # Monotonic mutation generation for grader-visible task state.  This is
+        # deliberately separate from trace steps, provider turns, checks, and
+        # Verifier judgments so proof freshness cannot be advanced by prose or
+        # control-plane receipts.
+        self._task_state_generation = 0
 
     def seed_capabilities(self, capability_ids: list[str] | tuple[str, ...] | set[str]) -> None:
         for capability_id in capability_ids:
@@ -131,6 +136,8 @@ class ExecutionLedger:
             return
         self._seen_receipts.add(receipt.receipt_id)
         self.receipts.append(receipt)
+        if self._changes_task_state(receipt):
+            self._task_state_generation += 1
 
         if receipt.failure_class:
             self.failure_counts[receipt.failure_class] += 1
@@ -238,6 +245,37 @@ class ExecutionLedger:
         if reconfigure_cause:
             self.reconfigure_causes.append(reconfigure_cause)
         self._reconcile_objective()
+
+
+    @staticmethod
+    def _changes_task_state(receipt: Receipt) -> bool:
+        """Whether a receipt advances grader-visible task-state generation."""
+        if not receipt.state_change:
+            return False
+        if receipt.kind in {
+            "write_file",
+            "run_command",
+            "bootstrap_acquire",
+            "process_launch",
+            "process_stop",
+            "run_experiment",
+        }:
+            return True
+        payload = receipt.payload if isinstance(receipt.payload, dict) else {}
+        state_delta = payload.get("state_delta")
+        if isinstance(state_delta, dict) and any(
+            value not in (None, "", (), [], {}) for value in state_delta.values()
+        ):
+            return True
+        return bool(
+            tuple(payload.get("modified_paths", ()) or ())
+            or tuple(payload.get("created_paths", ()) or ())
+            or tuple(payload.get("removed_paths", ()) or ())
+        )
+
+    def task_state_generation(self) -> int:
+        """Current grader-visible mutation generation."""
+        return int(self._task_state_generation)
 
     def record_accounting(
         self,

@@ -184,7 +184,11 @@ def validate_compiled_evidence(
             continue
         for ref in refs:
             ceiling_raw = ceilings.get(ref)
-            if ceiling_raw is None:
+            if ceiling_raw is None or not str(ceiling_raw).strip():
+                errors.append(EvidenceValidationError(
+                    "missing_inspection_ceiling",
+                    f"inspection {ref} has no registered evidence ceiling",
+                ))
                 continue
             try:
                 ceiling = ceiling_raw if isinstance(ceiling_raw, EvidenceClass) else EvidenceClass(str(ceiling_raw))

@@ -232,30 +232,17 @@ def _paired_non_errored_inspections(
 
 
 def _refs_from_inspections(requests: Any, results: Any) -> set[str]:
-    """Identifiers of inspections that happened and did NOT error this round.
+    """Canonical IDs of successful registered inspections from this round.
 
-    Used only for content-blind referential-integrity checks on the
-    completed verdict's completion_evidence record: an entry must cite at
-    least one of these (request_id, path, handle, target, or check_id). A
-    ref that resolves only to a failed inspection is excluded -- citing a
-    file-not-found read as "evidence" must never satisfy the gate.
+    Paths, handles, request IDs, and targets are useful display aliases but are
+    not evidence authority.  Completion records must cite ``inspection_id``
+    values created by the kernel registry before the result reached the model.
     """
     refs: set[str] = set()
-    for request, row in _paired_non_errored_inspections(requests, results):
-        for value in (
-            getattr(request, "request_id", ""),
-            getattr(request, "path", ""),
-            getattr(request, "handle", ""),
-            getattr(request, "target", ""),
-            getattr(request, "check_id", ""),
-        ):
-            text = str(value).strip()
-            if text:
-                refs.add(text)
-        for key in ("request_id", "path", "handle", "target", "check_id"):
-            text = str(row.get(key, "")).strip()
-            if text:
-                refs.add(text)
+    for _request, row in _paired_non_errored_inspections(requests, results):
+        inspection_id = str(row.get("inspection_id", "")).strip()
+        if inspection_id and bool(row.get("eligible_for_proof", False)):
+            refs.add(inspection_id)
     return refs
 
 
@@ -281,31 +268,14 @@ _INDEPENDENT_DERIVATION_KINDS = frozenset({
 
 
 def _independent_derivation_refs(requests: Any, results: Any) -> set[str]:
-    """Subset of ``_refs_from_inspections`` limited to independent-derivation kinds.
-
-    Same non-errored pairing as ``_refs_from_inspections``; additionally
-    requires the REQUEST's kind to be in ``_INDEPENDENT_DERIVATION_KINDS``.
-    Content-blind: this checks only the KIND of the cited inspection, never
-    whether its observed content actually supports the claim.
-    """
+    """Canonical registered IDs for independent-derivation inspections."""
     refs: set[str] = set()
     for request, row in _paired_non_errored_inspections(requests, results):
         if str(getattr(request, "kind", "")).strip() not in _INDEPENDENT_DERIVATION_KINDS:
             continue
-        for value in (
-            getattr(request, "request_id", ""),
-            getattr(request, "path", ""),
-            getattr(request, "handle", ""),
-            getattr(request, "target", ""),
-            getattr(request, "check_id", ""),
-        ):
-            text = str(value).strip()
-            if text:
-                refs.add(text)
-        for key in ("request_id", "path", "handle", "target", "check_id"):
-            text = str(row.get(key, "")).strip()
-            if text:
-                refs.add(text)
+        inspection_id = str(row.get("inspection_id", "")).strip()
+        if inspection_id and bool(row.get("eligible_for_proof", False)):
+            refs.add(inspection_id)
     return refs
 
 

@@ -22,6 +22,7 @@ from aether_next.model_hooks import (
     _refs_from_inspections,
 )
 from aether_next.runtime_ir import CapabilityDescriptor, EnvMap, RuntimeConfigIR
+from aether_next.proof_contract import ROUTE_EVIDENCE_CEILINGS
 from aether_next.verifier import (
     CompletionEvidenceEntry,
     CompletionEvidenceShapeError,
@@ -73,14 +74,21 @@ _INSPECT_REQUEST = json.dumps({
 })
 
 
+def _inspection_id(request_id: str) -> str:
+    return f"inspection:test:{request_id}"
+
+
 def _grounded_inspector(requests):
     return [
         {
             "request_id": req.request_id,
+            "inspection_id": _inspection_id(req.request_id),
             "kind": req.kind,
             "handle": req.handle,
             "path": req.path,
             "excerpt": "observed value=7 matches requirement value=7",
+            "eligible_for_proof": True,
+            "evidence_ceiling": ROUTE_EVIDENCE_CEILINGS[req.kind],
         }
         for req in requests
     ]
@@ -147,12 +155,12 @@ def test_completed_without_record_gets_one_protocol_retry_then_accepts_valid_rec
     raw, calls = _run_verify([
         _INSPECT_REQUEST,
         _completed(None),
-        _completed(_valid_record(["probe-1"])),
+        _completed(_valid_record([_inspection_id("probe-1")])),
     ])
     parsed = parse_model_verifier_result(raw)
     assert parsed.verdict == "completed"
     assert len(parsed.completion_evidence) == 1
-    assert parsed.completion_evidence[0].inspection_refs == ("probe-1",)
+    assert parsed.completion_evidence[0].inspection_refs == (_inspection_id("probe-1"),)
     assert len(calls) == 3
     retry_instruction = calls[2][-1]["content"]
     assert "completion_evidence" in retry_instruction
@@ -177,7 +185,7 @@ def test_completed_with_unresolvable_refs_is_refused_as_protocol_event() -> None
 def test_completed_with_valid_record_is_accepted_without_retry() -> None:
     raw, calls = _run_verify([
         _INSPECT_REQUEST,
-        _completed(_valid_record(["5:a-1:stdout"])),
+        _completed(_valid_record([_inspection_id("probe-1")])),
     ])
     parsed = parse_model_verifier_result(raw)
     assert parsed.verdict == "completed"
@@ -185,7 +193,7 @@ def test_completed_with_valid_record_is_accepted_without_retry() -> None:
 
 
 def test_record_with_empty_falsification_field_is_rejected() -> None:
-    record = _valid_record(["probe-1"])
+    record = _valid_record([_inspection_id("probe-1")])
     record[0]["falsification_check"] = ""
     raw, _calls = _run_verify([
         _INSPECT_REQUEST,
@@ -214,8 +222,11 @@ def _failing_inspector(requests):
     return [
         {
             "request_id": req.request_id,
+            "inspection_id": _inspection_id(req.request_id),
             "kind": req.kind,
             "path": req.path,
+            "eligible_for_proof": False,
+            "evidence_ceiling": ROUTE_EVIDENCE_CEILINGS[req.kind],
             "error": f"file not found: {req.path}",
         }
         for req in requests
@@ -226,8 +237,8 @@ def test_completed_citing_only_a_failed_inspection_ref_is_refused() -> None:
     raw, calls = _run_verify(
         [
             _FAILED_READ_INSPECT_REQUEST,
-            _completed(_valid_record(["probe-1"])),
-            _completed(_valid_record(["probe-1"])),
+            _completed(_valid_record([_inspection_id("probe-1")])),
+            _completed(_valid_record([_inspection_id("probe-1")])),
         ],
         inspector=_failing_inspector,
     )
@@ -257,7 +268,7 @@ def test_malformed_completion_evidence_shape_retries_as_record_problem_not_json_
     raw, calls = _run_verify([
         _INSPECT_REQUEST,
         _completed_with_malformed_record(),
-        _completed(_valid_record(["probe-1"])),
+        _completed(_valid_record([_inspection_id("probe-1")])),
     ])
     parsed = parse_model_verifier_result(raw)
     assert parsed.verdict == "completed"
@@ -328,8 +339,8 @@ def test_completed_with_only_read_file_refs_is_refused_when_independence_require
     raw, calls = _run_verify(
         [
             _READ_FILE_INSPECT_REQUEST,
-            _completed(_valid_record(["probe-1"])),
-            _completed(_valid_record(["probe-1"])),
+            _completed(_valid_record([_inspection_id("probe-1")])),
+            _completed(_valid_record([_inspection_id("probe-1")])),
         ],
         packet_overrides=_RE_DERIVABLE_PACKET,
     )
@@ -345,7 +356,7 @@ def test_completed_with_overlay_run_command_ref_is_accepted_when_independence_re
     raw, calls = _run_verify(
         [
             _OVERLAY_INSPECT_REQUEST,
-            _completed(_valid_record(["probe-1", "probe-2"])),
+            _completed(_valid_record([_inspection_id("probe-1"), _inspection_id("probe-2")])),
         ],
         packet_overrides=_RE_DERIVABLE_PACKET,
     )
@@ -359,7 +370,7 @@ def test_completed_with_only_read_file_refs_is_accepted_when_independence_not_fl
     # unset: unchanged legacy behavior, no independence requirement applied.
     raw, calls = _run_verify([
         _READ_FILE_INSPECT_REQUEST,
-        _completed(_valid_record(["probe-1"])),
+        _completed(_valid_record([_inspection_id("probe-1")])),
     ])
     parsed = parse_model_verifier_result(raw)
     assert parsed.verdict == "completed"
@@ -384,10 +395,15 @@ def test_completion_record_problem_is_content_blind() -> None:
     assert "missing or empty" in _completion_record_problem(empty, {"probe-1"})
 
 
-def test_refs_collected_from_requests_and_results() -> None:
+def test_refs_include_only_registered_inspection_ids() -> None:
     request = VerifierInspectionRequest(request_id="r-1", kind="read_file", path="out.txt")
-    refs = _refs_from_inspections((request,), [{"request_id": "r-1", "handle": "2:a-1:stdout"}])
-    assert {"r-1", "out.txt", "2:a-1:stdout"} <= refs
+    refs = _refs_from_inspections((request,), [{
+        "request_id": "r-1",
+        "inspection_id": "inspection:test:r-1",
+        "handle": "2:a-1:stdout",
+        "eligible_for_proof": True,
+    }])
+    assert refs == {"inspection:test:r-1"}
 
 
 def test_refs_from_errored_inspection_result_are_excluded() -> None:
@@ -406,20 +422,28 @@ def test_refs_from_negative_but_non_errored_probe_are_included() -> None:
     request = VerifierInspectionRequest(request_id="r-1", kind="probe_port", target="127.0.0.1:9")
     refs = _refs_from_inspections(
         (request,),
-        [{"request_id": "r-1", "kind": "probe_port", "host": "127.0.0.1", "port": 9, "state": "closed"}],
+        [{
+            "request_id": "r-1",
+            "inspection_id": "inspection:test:r-1",
+            "kind": "probe_port",
+            "host": "127.0.0.1",
+            "port": 9,
+            "state": "closed",
+            "eligible_for_proof": True,
+        }],
     )
-    assert "r-1" in refs
+    assert refs == {"inspection:test:r-1"}
 
 
 def test_independent_derivation_refs_excludes_read_file_includes_overlay() -> None:
     read_request = VerifierInspectionRequest(request_id="r-1", kind="read_file", path="out.txt")
     overlay_request = VerifierInspectionRequest(request_id="r-2", kind="overlay_run_command", command="echo hi")
     results = [
-        {"request_id": "r-1", "kind": "read_file", "path": "out.txt", "excerpt": "7"},
-        {"request_id": "r-2", "kind": "overlay_run_command", "exit_code": 0, "success": True, "stdout": "hi"},
+        {"request_id": "r-1", "inspection_id": "inspection:test:r-1", "kind": "read_file", "path": "out.txt", "excerpt": "7", "eligible_for_proof": True},
+        {"request_id": "r-2", "inspection_id": "inspection:test:r-2", "kind": "overlay_run_command", "exit_code": 0, "success": True, "stdout": "hi", "eligible_for_proof": True},
     ]
     refs = _independent_derivation_refs((read_request, overlay_request), results)
-    assert refs == {"r-2"}
+    assert refs == {"inspection:test:r-2"}
 
 
 def test_independent_derivation_refs_excludes_errored_overlay_command() -> None:

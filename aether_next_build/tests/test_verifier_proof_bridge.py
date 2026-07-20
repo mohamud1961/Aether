@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler
 from aether_next.completion import CompletionGate
-from aether_next.ledger import ExecutionLedger
+from aether_next.ledger import ExecutionLedger, Receipt
 from aether_next.runtime_ir import (
     CapabilityDescriptor,
     CompletionPolicy,
@@ -59,6 +59,26 @@ def test_completed_verifier_clause_evidence_becomes_durable_proof() -> None:
     compiled = _compiled()
     ledger = ExecutionLedger()
     ledger.ensure_objective(compiled.objective_graph)
+    ledger.record(Receipt(
+        receipt_id="inspection-client",
+        step=4,
+        kind="inspection_record",
+        success=True,
+        summary="independent client round trip passed",
+        payload={
+            "inspection_id": "inspection-client",
+            "request_id": "client",
+            "route_kind": "overlay_run_command",
+            "route": "overlay_run_command:python3 independent_client.py",
+            "target_identity": "target:independent-client",
+            "target_generation": "result:client-pass",
+            "task_state_generation": ledger.task_state_generation(),
+            "tool_identity": "test.verifier_overlay",
+            "result_hash": "client-pass-hash",
+            "evidence_ceiling": "exact_contract",
+            "eligible_for_proof": True,
+        },
+    ))
     ledger.apply_verifier_result(
         ModelVerifierResult(
             verdict="completed",

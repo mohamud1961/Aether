@@ -206,8 +206,14 @@ def record_clause_evidence(
     supports_clause: bool,
     observation: str,
     state_generation: str = "",
+    task_state_generation: int | None = None,
+    inspection_ids: Sequence[str] = (),
 ) -> Receipt:
     """Record one current proof/disproof observation for a clause."""
+    current_generation = (
+        ledger.task_state_generation()
+        if task_state_generation is None else int(task_state_generation)
+    )
     receipt = Receipt(
         receipt_id=receipt_id,
         step=step,
@@ -223,7 +229,9 @@ def record_clause_evidence(
             "provenance": provenance,
             "supports_clause": bool(supports_clause),
             "observation": observation,
-            "state_generation": state_generation,
+            "state_generation": state_generation or str(current_generation),
+            "task_state_generation": current_generation,
+            "inspection_ids": [str(item) for item in inspection_ids if str(item).strip()],
         },
     )
     ledger.record(receipt)
@@ -236,6 +244,7 @@ def evaluate_proof_contract(
 ) -> tuple[ClauseEvidenceDecision, ...]:
     """Evaluate current receipted proof without interpreting task semantics."""
     decisions: list[ClauseEvidenceDecision] = []
+    current_generation = ledger.task_state_generation()
     proof_receipts = [receipt for receipt in ledger.all_receipts() if receipt.kind == "proof_evidence"]
     for raw_clause in clauses:
         clause = raw_clause if isinstance(raw_clause, CertifiedProofClause) else CertifiedProofClause(
@@ -271,11 +280,15 @@ def evaluate_proof_contract(
             ))
             continue
         candidates: list[Receipt] = []
+        stale_candidates: list[Receipt] = []
+        allowed_routes = {clause.verifier_route}
+        if clause.fallback_route:
+            allowed_routes.add(clause.fallback_route)
         for receipt in matching:
             if not receipt.success:
                 continue
             payload = receipt.payload
-            if str(payload.get("route", "")).strip() != clause.verifier_route:
+            if str(payload.get("route", "")).strip() not in allowed_routes:
                 continue
             evidence_class = str(payload.get("evidence_class", "")).strip()
             if _strength(evidence_class) < _strength(clause.required_evidence_class):
@@ -284,8 +297,28 @@ def evaluate_proof_contract(
                 provenance = str(payload.get("provenance", "")).strip()
                 if provenance not in INDEPENDENT_PROVENANCE:
                     continue
+            try:
+                evidence_generation = int(payload.get("task_state_generation"))
+            except (TypeError, ValueError):
+                evidence_generation = -1
+            if evidence_generation != current_generation:
+                stale_candidates.append(receipt)
+                continue
             candidates.append(receipt)
         if not candidates:
+            if stale_candidates:
+                generations = sorted({
+                    int(item.payload.get("task_state_generation", -1))
+                    for item in stale_candidates
+                })
+                decisions.append(ClauseEvidenceDecision(
+                    clause.clause_id,
+                    False,
+                    "stale_clause_evidence",
+                    f"proof observed task generation(s) {generations}; current generation={current_generation}",
+                    tuple(item.receipt_id for item in stale_candidates),
+                ))
+                continue
             strongest = max(
                 (_strength(str(receipt.payload.get("evidence_class", ""))) for receipt in matching if receipt.success),
                 default=-1,
@@ -305,6 +338,38 @@ def evaluate_proof_contract(
             (accepted.receipt_id,),
         ))
     return tuple(decisions)
+
+
+def _registered_inspection_support(
+    ledger: ExecutionLedger,
+    *,
+    inspection_ids: Sequence[str],
+    allowed_routes: set[str],
+    evidence_class: str,
+) -> Receipt | None:
+    """Strongest successful registered inspection matching a proof route."""
+    from .inspection_registry import inspection_records_by_id
+
+    registry = inspection_records_by_id(ledger)
+    candidates: list[Receipt] = []
+    for inspection_id in inspection_ids:
+        receipt = registry.get(str(inspection_id))
+        if receipt is None or not receipt.success:
+            continue
+        payload = receipt.payload
+        if not bool(payload.get("eligible_for_proof", False)):
+            continue
+        if str(payload.get("route", "")).strip() not in allowed_routes:
+            continue
+        if _strength(str(payload.get("evidence_ceiling", ""))) < _strength(evidence_class):
+            continue
+        candidates.append(receipt)
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda item: _strength(str(item.payload.get("evidence_ceiling", ""))),
+    )
 
 
 def record_verifier_result_evidence(
@@ -332,25 +397,72 @@ def record_verifier_result_evidence(
 
     if getattr(result, "verdict", "") == "completed":
         for entry_index, entry in enumerate(getattr(result, "completion_evidence", ())):
+            inspection_ids = tuple(
+                str(item).strip()
+                for item in getattr(entry, "inspection_refs", ())
+                if str(item).strip()
+            )
+            evidence_class = str(getattr(entry, "evidence_class", "")).strip()
             for clause_id in getattr(entry, "clause_ids", ()):
                 clause_id = str(clause_id).strip()
                 contract = contract_by_id.get(clause_id)
                 if contract is None:
                     continue
-                evidence_class = str(getattr(entry, "evidence_class", "")).strip()
+                allowed_routes = {
+                    str(contract.get("verifier_route", "")).strip(),
+                    str(contract.get("fallback_route", "")).strip(),
+                } - {""}
+                chosen = _registered_inspection_support(
+                    ledger,
+                    inspection_ids=inspection_ids,
+                    allowed_routes=allowed_routes,
+                    evidence_class=evidence_class,
+                )
+                if chosen is None:
+                    rejected = record_clause_evidence(
+                        ledger,
+                        receipt_id=f"step-{step}:proof:{clause_id}:rejected:{entry_index}",
+                        step=step,
+                        clause_id=clause_id,
+                        route="unregistered_inspection",
+                        evidence_class="model_claim",
+                        provenance="verifier_inspection",
+                        supports_clause=False,
+                        observation=(
+                            f"completion evidence for {clause_id} did not cite a successful "
+                            "registered inspection on an allowed route"
+                        ),
+                        inspection_ids=inspection_ids,
+                    )
+                    rejected.payload.update({
+                        "source": "model_verifier_completion_evidence_rejected",
+                        "allowed_routes": sorted(allowed_routes),
+                    })
+                    recorded.append(rejected)
+                    continue
+                actual = chosen.payload
                 receipt = record_clause_evidence(
                     ledger,
                     receipt_id=f"step-{step}:proof:{clause_id}:completed:{entry_index}",
                     step=step,
                     clause_id=clause_id,
-                    route=str(contract.get("verifier_route", "")),
+                    route=str(actual.get("route", "")),
                     evidence_class=evidence_class,
                     provenance="verifier_inspection",
                     supports_clause=True,
                     observation=str(getattr(entry, "observed", "") or getattr(entry, "requirement", "")),
+                    state_generation=str(actual.get("target_generation", "")),
+                    task_state_generation=int(actual.get("task_state_generation", -1)),
+                    inspection_ids=inspection_ids,
                 )
                 receipt.payload.update({
-                    "inspection_refs": list(getattr(entry, "inspection_refs", ())),
+                    "inspection_refs": list(inspection_ids),
+                    "selected_inspection_id": str(actual.get("inspection_id", chosen.receipt_id)),
+                    "target_identity": str(actual.get("target_identity", "")),
+                    "target_generation": str(actual.get("target_generation", "")),
+                    "result_hash": str(actual.get("result_hash", "")),
+                    "tool_identity": str(actual.get("tool_identity", "")),
+                    "actual_evidence_ceiling": str(actual.get("evidence_ceiling", "")),
                     "falsification_check": str(getattr(entry, "falsification_check", "")),
                     "source": "model_verifier_completion_evidence",
                 })

@@ -9,6 +9,7 @@ import threading
 from typing import Any, Mapping
 
 from .ledger import ExecutionLedger, Receipt
+from .inspection_registry import register_inspection_results
 from .runtime_ir import CompiledRuntime
 from .verifier import ModelVerifierResult, classify_verifier_outcome, parse_model_verifier_result
 from .verifier_inspector import (
@@ -524,6 +525,7 @@ def _call_verify(
     executor: Any | None = None,
     envmap: Any | None = None,
 ) -> Any:
+    signature = packet_state_signature(packet)
     verify_with_inspector = getattr(hooks, "verify_with_inspector", None)
     if callable(verify_with_inspector) and executor is not None and envmap is not None:
         overlay = VerifierOverlay(
@@ -562,6 +564,19 @@ def _call_verify(
                 envmap=envmap,
                 overlay=overlay,
                 hooks=hooks,
+            )
+            # Register actual performed inspections before returning them to
+            # the Verifier.  The enriched rows expose the only IDs completion
+            # evidence may cite; route/ceiling/generation are kernel-derived.
+            results = register_inspection_results(
+                requests,
+                results,
+                ledger=ledger,
+                step=step,
+                requester="model_verifier",
+                executor=executor,
+                overlay=overlay,
+                packet_signature=signature,
             )
             ledger.record(Receipt(
                 receipt_id=f"step-{step}:model_verifier_inspection:{len(ledger.all_receipts())}",

@@ -21,6 +21,7 @@ import json
 from typing import TYPE_CHECKING, Any, Mapping
 
 from .ledger import ExecutionLedger
+from .inspection_registry import inspection_ceilings_from_results
 from .model_prompts import VERIFIER_RUNTIME_CONTRACT
 from .runtime_ir import CompiledRuntime
 from .verifier import CompletionEvidenceShapeError, parse_model_verifier_result
@@ -90,6 +91,7 @@ def verify_with_inspector(
     require_independent_derivation = bool(packet.get("re_derivable_claims"))
     performed_refs: set[str] = set()
     performed_independent_refs: set[str] = set()
+    performed_ceilings: dict[str, str] = {}
     last_inspection_results: list[dict[str, Any]] = []
     for round_idx in range(max_rounds + 1):
         try:
@@ -155,6 +157,7 @@ def verify_with_inspector(
             inspected = True
             performed_refs |= _refs_from_inspections(requests, results)
             performed_independent_refs |= _independent_derivation_refs(requests, results)
+            performed_ceilings.update(inspection_ceilings_from_results(results))
             last_inspection_results = list(results)
             messages.append({"role": "assistant", "content": raw})
             messages.append({
@@ -176,6 +179,7 @@ def verify_with_inspector(
                 inspected = True
                 performed_refs |= _refs_from_inspections(auto_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
+                performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
@@ -229,6 +233,7 @@ def verify_with_inspector(
                 inspected = True
                 performed_refs |= _refs_from_inspections(auto_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
+                performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
@@ -263,6 +268,7 @@ def verify_with_inspector(
                 inspected = True
                 performed_refs |= _refs_from_inspections(auto_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
+                performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
@@ -327,7 +333,10 @@ def verify_with_inspector(
             })
             continue
         if result.verdict == "completed" and inspected and round_idx < max_rounds:
-            record_problem = _completion_record_problem(result, performed_refs, packet=packet)
+            record_problem = _completion_record_problem(
+                result, performed_refs, packet=packet,
+                inspection_ceilings=performed_ceilings,
+            )
             if record_problem and not record_retry_used:
                 # Content-blind protocol enforcement, mirroring the
                 # inspection-required gate: the record must exist and its
@@ -382,6 +391,7 @@ def verify_with_inspector(
                 inspected = True
                 performed_refs |= _refs_from_inspections(missing_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(missing_requests, results)
+                performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
@@ -434,7 +444,10 @@ def verify_with_inspector(
                 ],
             })
         if result.verdict == "completed":
-            record_problem = _completion_record_problem(result, performed_refs, packet=packet)
+            record_problem = _completion_record_problem(
+                result, performed_refs, packet=packet,
+                inspection_ceilings=performed_ceilings,
+            )
             if record_problem:
                 # Out of retries and the record is still structurally
                 # invalid: refuse the completion as a protocol event.

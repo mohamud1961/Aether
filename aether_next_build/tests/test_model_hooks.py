@@ -107,6 +107,25 @@ def _valid_verifier_json(refs: tuple[str, ...] | None = None) -> str:
     return json.dumps(payload)
 
 
+def _inspection_ids_from_messages(messages: list[dict[str, str]]) -> tuple[str, ...]:
+    for message in reversed(messages):
+        try:
+            payload = json.loads(message.get("content", ""))
+        except (TypeError, json.JSONDecodeError):
+            continue
+        rows = payload.get("verifier_inspection_results") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            continue
+        ids = tuple(
+            str(row.get("inspection_id", "")).strip()
+            for row in rows
+            if isinstance(row, dict) and str(row.get("inspection_id", "")).strip()
+        )
+        if ids:
+            return ids
+    return ()
+
+
 def _valid_act_json(**overrides: Any) -> str:
     data: dict[str, Any] = {
         "kind": "act",
@@ -427,7 +446,7 @@ class TestVerifierHook:
                         {"request_id": "read-out", "kind": "read_file", "path": "out.txt", "limit": 1}
                     ],
                 })
-            return _valid_verifier_json(refs=("out.txt",))
+            return _valid_verifier_json(refs=_inspection_ids_from_messages(messages))
 
         hooks = ModelHooks(
             architect_model=_stub_model(_valid_architect_json()),
@@ -439,7 +458,15 @@ class TestVerifierHook:
 
         def inspector(requests):
             inspections.append(requests)
-            return [{"request_id": "read-out", "kind": "read_file", "path": "out.txt", "excerpt": "DONE"}]
+            return [{
+                "request_id": "read-out",
+                "inspection_id": "inspection:test:read-out",
+                "kind": "read_file",
+                "path": "out.txt",
+                "excerpt": "DONE",
+                "evidence_ceiling": "exact_contract",
+                "eligible_for_proof": True,
+            }]
 
         raw = hooks.verify_with_inspector(
             {"reason": "solver_submit", "task_prompt": "Write hello.py"},
@@ -733,7 +760,7 @@ class TestEndToEnd:
                     "kind": "inspect",
                     "requests": [{"request_id": "r1", "kind": "read_file", "path": "hello.txt"}],
                 })
-            return _valid_verifier_json(refs=("hello.txt",))
+            return _valid_verifier_json(refs=_inspection_ids_from_messages(messages))
 
         hooks = ModelHooks(
             architect_model=_stub_model(arch_response),
@@ -799,7 +826,7 @@ class TestEndToEnd:
             verifier_calls["n"] += 1
             if verifier_calls["n"] == 1:
                 return _valid_verifier_json()
-            return _valid_verifier_json(refs=("results.json",))
+            return _valid_verifier_json(refs=_inspection_ids_from_messages(messages))
 
         hooks = ModelHooks(
             architect_model=_stub_model(_valid_architect_json()),
