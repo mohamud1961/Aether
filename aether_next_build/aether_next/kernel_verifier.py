@@ -19,6 +19,9 @@ from .verifier_inspector import (
 from .verifier_overlay import VerifierOverlay
 from .verifier_packets import build_verifier_packet, packet_state_signature
 from .verifier_recovery import VerifierRecoveryAction, VerifierRecoveryRouter
+from .verifier_generation import (
+    GenerationBoundLedger, VerifierGeneration, VerifierGenerationExpired,
+)
 
 def _verifier_command_budget_s(envmap: Any) -> int:
     """Task-declared verifier budget bounds overlay command execution."""
@@ -471,44 +474,73 @@ def _call_verify_with_timeout(
     envmap: Any | None = None,
 ) -> Any:
     timeout_s = float(os.environ.get("AETHER_MODEL_VERIFIER_TIMEOUT_S", "180"))
-    if timeout_s <= 0:
+    generation = VerifierGeneration()
+    guarded_ledger = GenerationBoundLedger(ledger, generation)
+
+    def invoke() -> Any:
         return _call_verify(
             hooks,
             verify,
             packet,
             compiled,
-            ledger,
+            guarded_ledger,
             step=step,
             executor=executor,
             envmap=envmap,
+            generation=generation,
         )
+
+    if timeout_s <= 0:
+        try:
+            return invoke()
+        finally:
+            generation.expire("completed_without_thread_timeout")
 
     results: queue.Queue[tuple[bool, Any]] = queue.Queue(maxsize=1)
 
     def _target() -> None:
         try:
-            results.put((
-                True,
-                _call_verify(
-                    hooks,
-                    verify,
-                    packet,
-                    compiled,
-                    ledger,
-                    step=step,
-                    executor=executor,
-                    envmap=envmap,
-                ),
-            ))
+            value = invoke()
+            try:
+                results.put_nowait((True, value))
+            except queue.Full:
+                generation.quarantine("late_verifier_result", value)
         except Exception as exc:  # pragma: no cover - exercised through caller
-            results.put((False, exc))
+            try:
+                results.put_nowait((False, exc))
+            except queue.Full:
+                generation.quarantine("late_verifier_exception", exc)
 
-    thread = threading.Thread(target=_target, name="aether-model-verifier", daemon=True)
+    thread = threading.Thread(
+        target=_target,
+        name=f"aether-model-verifier:{generation.generation_id}",
+        daemon=True,
+    )
     thread.start()
     try:
         ok, value = results.get(timeout=timeout_s)
     except queue.Empty as exc:
-        raise TimeoutError(f"model verifier timed out after {timeout_s:.0f}s") from exc
+        generation.expire(f"timeout_after_{timeout_s:.3f}s")
+        ledger.record(Receipt(
+            receipt_id=f"step-{step}:verifier_generation_expired:{generation.generation_id}",
+            step=step,
+            kind="verifier_generation_expired",
+            success=False,
+            summary=f"Verifier generation expired after {timeout_s:.3f}s",
+            failure_class="verifier_timeout",
+            payload={
+                "generation_id": generation.generation_id,
+                "timeout_s": timeout_s,
+                "authority_revoked": True,
+                "late_ledger_mutations_allowed": False,
+                "late_tool_dispatch_allowed": False,
+            },
+        ))
+        raise TimeoutError(
+            f"model verifier timed out after {timeout_s:.3f}s; "
+            f"generation={generation.generation_id} authority revoked"
+        ) from exc
+    generation.expire("result_delivered")
     if ok:
         return value
     raise value
@@ -519,12 +551,15 @@ def _call_verify(
     verify: Any,
     packet: dict[str, Any],
     compiled: CompiledRuntime,
-    ledger: ExecutionLedger,
+    ledger: Any,
     *,
     step: int,
     executor: Any | None = None,
     envmap: Any | None = None,
+    generation: VerifierGeneration | None = None,
 ) -> Any:
+    if generation is not None:
+        generation.require_active()
     signature = packet_state_signature(packet)
     verify_with_inspector = getattr(hooks, "verify_with_inspector", None)
     if callable(verify_with_inspector) and executor is not None and envmap is not None:
@@ -535,6 +570,8 @@ def _call_verify(
         )
 
         def _inspector(requests: tuple[VerifierInspectionRequest, ...]) -> list[dict[str, Any]]:
+            if generation is not None:
+                generation.require_active()
             for request in requests:
                 ledger.record_accounting(
                     receipt_id=(
@@ -565,6 +602,8 @@ def _call_verify(
                 overlay=overlay,
                 hooks=hooks,
             )
+            if generation is not None:
+                generation.require_active()
             # Register actual performed inspections before returning them to
             # the Verifier.  The enriched rows expose the only IDs completion
             # evidence may cite; route/ceiling/generation are kernel-derived.
@@ -647,6 +686,8 @@ def _call_verify(
                     summary=f"verifier overlay removed: {teardown.get('overlay_root')}",
                     payload=teardown,
                 ))
+    if generation is not None:
+        generation.require_active()
     return verify(packet, compiled, ledger)
 
 
