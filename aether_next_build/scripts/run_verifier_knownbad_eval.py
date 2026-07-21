@@ -429,6 +429,23 @@ def _run_case(
         _stop_container_replay(container_id)
 
 
+def _model_callables(args: Any) -> tuple[Callable[..., str], Callable[..., str] | None]:
+    """Construct the text and optional semantic-vision routes explicitly."""
+    from aether_next.providers.azure_model import make_azure_callable, make_azure_vision_callable
+
+    verifier_model = make_azure_callable(
+        deployment_env=args.deploy_env, key_env=args.key_env, endpoint_env=args.endpoint_env,
+        role="verifier",
+    )
+    vision_model = None
+    if args.vision_deploy_env:
+        vision_model = make_azure_vision_callable(
+            deployment_env=args.vision_deploy_env, key_env=args.key_env,
+            endpoint_env=args.endpoint_env,
+        )
+    return verifier_model, vision_model
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=["dry", "model"], required=True)
@@ -454,17 +471,7 @@ def main() -> int:
     verifier_model = None
     vision_model = None
     if args.mode == "model":
-        from aether_next.providers.azure_model import make_azure_callable
-
-        verifier_model = make_azure_callable(
-            deployment_env=args.deploy_env, key_env=args.key_env, endpoint_env=args.endpoint_env,
-            role="verifier",
-        )
-        if args.vision_deploy_env:
-            vision_model = make_azure_callable(
-                deployment_env=args.vision_deploy_env, key_env=args.key_env,
-                endpoint_env=args.endpoint_env,
-            )
+        verifier_model, vision_model = _model_callables(args)
 
     wanted = {name.strip() for name in args.tasks.split(",") if name.strip()}
     rows: list[dict[str, Any]] = []

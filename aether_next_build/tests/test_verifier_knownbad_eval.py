@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_verifier_knownbad_eval.py"
@@ -113,3 +114,33 @@ def test_model_telemetry_fields_are_hash_only_and_route_diagnostic() -> None:
         "candidate_hashes": ["abc123"],
         "candidate_message_count": 1,
     }]
+
+
+def test_verifier_uses_dedicated_semantic_vision_callable(monkeypatch) -> None:
+    from aether_next.providers import azure_model
+
+    calls: list[tuple[str, dict]] = []
+    text_route = object()
+    vision_route = object()
+
+    def text_factory(**kwargs):
+        calls.append(("text", kwargs))
+        return text_route
+
+    def vision_factory(**kwargs):
+        calls.append(("vision", kwargs))
+        return vision_route
+
+    monkeypatch.setattr(azure_model, "make_azure_callable", text_factory)
+    monkeypatch.setattr(azure_model, "make_azure_vision_callable", vision_factory)
+    verifier, vision = _MODULE._model_callables(SimpleNamespace(
+        deploy_env="TEXT_DEPLOYMENT", key_env="KEY", endpoint_env="ENDPOINT",
+        vision_deploy_env="VISION_DEPLOYMENT",
+    ))
+
+    assert verifier is text_route
+    assert vision is vision_route
+    assert calls == [
+        ("text", {"deployment_env": "TEXT_DEPLOYMENT", "key_env": "KEY", "endpoint_env": "ENDPOINT", "role": "verifier"}),
+        ("vision", {"deployment_env": "VISION_DEPLOYMENT", "key_env": "KEY", "endpoint_env": "ENDPOINT"}),
+    ]
