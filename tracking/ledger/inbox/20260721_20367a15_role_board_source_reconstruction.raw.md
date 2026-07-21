@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: Reconstruct provenance-complete Aether source and qualify Solver/Verifier rerun gate
+- event_type: implementation
+- summary: Rebuilt a clean integration branch from manifest-verified certified commit aa800976 and committed generic provider/evaluator repairs as 20367a15. The new source passes the complete deterministic certification suite before any VM model call.
+- observations: The VM certification manifest for aa800976 matched all 85 files in its clean local base. The damaged later checkout differed only in model_hooks.py, providers/azure_model.py, and runners/docker_exec_executor.py before the audited generic role fixes were transplanted. Full deterministic certification from committed 20367a15 passed all 17 cases with FINALIZED aggregate 4618c7323d1a30728441ff0e9cc1429049823376d4e66c3283ffc6533a200839 and marker d0612879a3700bdafd6959556be56cb572c874bbdf2a1746274146f2a0096a51. Focused provider/evaluator tests: 98 passed. The in-sandbox full suite had only three denied loopback-bind tests; the same suite passed outside the sandbox. Built-in codex review could not initialize because the local Codex state database is readonly; manual adversarial review is still required.
+- inference: The source-provenance gate is now satisfied for a new clean integration candidate, but it is a new integration commit, not retroactive proof that the old broken checkout was canonical. Fresh Linux VM certification remains required before VM-only role-board launches.
+- evidence_paths: tracking/handoffs/20260721T_source_reconstructed_local_certification/; tracking/handoffs/20260721T_source_reconstructed_local_certification_unsandboxed/; /private/tmp/aether-qualified-certification-20367a15/; aether_next_build/aether_next/model_hooks.py; aether_next_build/providers/azure_model.py; aether_next_build/scripts/run_solver_checkpoint_eval.py; aether_next_build/scripts/run_verifier_knownbad_eval.py
+- affected_components: source provenance; Azure Responses role preservation; Solver role evaluator; Verifier role evaluator
+- decision_change: Proceed to fresh VM deterministic certification of 20367a15. Do not launch Architect, perception, official boards, or either role board until that certification is sealed and reviewed.
+- unresolved_questions: Fresh VM certification outcome; manual adversarial review finding disposition; role board promotion outcomes.
+- confidence: high
+- commit_message: docs(evidence): record reconstructed role-board certification gate
