@@ -51,6 +51,17 @@ def test_missing_vision_route_invalidates_the_evaluator_measurement() -> None:
     assert issues == ("inspection_vision_route_unavailable",)
 
 
+def test_bounded_verifier_inspection_exhaustion_is_scoreable_protocol_failure() -> None:
+    from aether_next.model_hooks import ModelOutputError
+
+    assert _MODULE._is_bounded_verifier_protocol_failure(ModelOutputError(
+        "verifier exceeded bounded inspection rounds without returning a verdict"
+    )) is True
+    assert _MODULE._is_bounded_verifier_protocol_failure(ModelOutputError(
+        "verifier output could not be parsed: invalid JSON"
+    )) is False
+
+
 def test_historical_launch_extraction_replays_only_explicit_background_command() -> None:
     commands = _MODULE._historical_launch_commands({
         "steps": [{
