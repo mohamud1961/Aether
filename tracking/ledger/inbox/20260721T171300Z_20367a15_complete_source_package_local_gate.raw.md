@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex orchestrator
+- task: complete manifest-generated Aether source package and local extracted-package gate
+- event_type: implementation
+- summary: Built a reproducible complete Git-tree package for production commit 20367a15 and passed the authoritative local extracted-package certification 17/17 with a clean final source manifest.
+- observations: Package contains 7,988 blobs plus one declared gitlink; archive SHA-256 b2bf351f6f95262cd409c5da246de35a5e5ac3c6ab4ccef238c7a3fb7245beb7. Manifest found zero missing, unexpected, hash-mismatched, credential-path, or provider-assignment candidates. It disclosed 36 private-key-like records under committed openssl-selfsigned-cert fixtures/traces. Sandboxed certification was invalid from three denied loopback binds; unrestricted certification passed 17/17 with final marker dbc466354e9a0c7c6c1395294362acb5c38c8025a1326df65b9f327a3740abfe. Two generated deterministic-integration artifact directories were preserved outside source and final manifest verification returned clean.
+- inference: The prior VM 16/17 failure is addressable by complete Git-tree transport; the package is locally admissible for one authoritative VM certification. Synthetic committed TLS fixture keys are non-operational historical evidence, not Azure/OpenAI credentials.
+- evidence_paths: tracking/handoffs/20367a15_complete_source_package_20260721/README.md; tracking/handoffs/20367a15_complete_source_package_20260721/source-package-manifest.json; tracking/handoffs/20367a15_complete_source_package_20260721/local-certification-evidence.tar.gz
+- affected_components: source packaging; deterministic certification; VM provenance gate
+- decision_change: VM certification gate is now open; model role boards remain closed until VM 17/17.
+- unresolved_questions: Whether the complete archive transfers intact and certifies 17/17 under fresh Linux VM conditions.
+- confidence: high
+- commit_message: Add exact-source packaging and local certification evidence
