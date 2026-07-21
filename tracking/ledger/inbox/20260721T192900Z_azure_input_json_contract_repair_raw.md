@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex qualification orchestrator
+- task: repair and re-qualify Azure JSON-mode provider request contract
+- event_type: regression
+- summary: The first VM Solver rerun finalized with 24 immutable rows but was invalid for model-quality promotion because 18 requests were rejected by Azure for missing JSON in input messages; a generic provider repair now places the structured-output contract in both Responses instructions and input.
+- observations: VM Solver run 04d387878958733e used clean source commit 6f678b5a/tree c9a01199 and finalized marker aed12d0bd1777949e5ce33e721c206afaa4c23c8bca5274bccc7d5420f0aa585. Its aggregate was 24 attempts, provider/protocol validity 0.25, decisive actions 6, and strict promotion false. Eighteen rows contain Azure HTTP 400 saying input messages must contain json. Six rows completed and scored as expected, so the board does not measure Solver quality across the full set. Commit dabc1153 adds JSON contract injection to input as well as instructions, extends native source preflight, and adds a no-network Azure-equivalent rejection test. Focused suite passed 73 tests; local certification passed 17/17 with marker 4989a58d75354f4062d1edac7bb8d61c60e19cb965c045e7f0d7efd3bbefcfb5.
+- inference: The prior repair covered the instructions surface but not Azure's input-message enforcement surface. This is a provider/request-contract failure, not a Solver-model capability result. The repaired request builder has a deterministic reproducer, but VM certification and a bounded unchanged Solver rerun remain required before any model-quality claim.
+- evidence_paths: /private/tmp/aether-solver-24-v1-evidence/summary.json; /private/tmp/aether-solver-24-v1-evidence/FINALIZED.json; /private/tmp/aether-solver-24-v1-evidence/gateway-manifest.json; /private/tmp/aether-certification-dabc1153-local-v1/summary.json; /private/tmp/aether-certification-dabc1153-local-v1/FINALIZED.json; /private/tmp/aether-source-package-dabc1153-v1/source-package-manifest.json
+- affected_components: aether_next/providers/azure_model.py; model_request_contract.py; Azure Responses provider boundary; Solver checkpoint board
+- decision_change: Freeze broader model boards. Fresh VM certification of dabc1153 and a single unchanged Solver 24-decision rerun are required; classify all provider-invalid rows separately.
+- unresolved_questions: Whether Azure accepts the generic developer input contract on the same live route; Solver quality remains unmeasured until a full provider-valid board completes; bounded Verifier diagnostics remain pending.
+- confidence: high
+- commit_message: Cover Azure JSON mode input messages
