@@ -46,11 +46,15 @@ def _native_azure_preflight(
             "model_request_preflight_unavailable",
             f"cannot inspect native Azure request builder: {exc}",
         ) from exc
-    required_fragment = '"max_output_tokens": max_output_tokens'
-    if required_fragment not in source:
+    required_fragments = (
+        '"max_output_tokens": max_output_tokens',
+        '"text": {"format": {"type": "json_object"}}',
+        "instructions = _prepare_json_object_instructions(instructions)",
+    )
+    if any(fragment not in source for fragment in required_fragments):
         raise ModelRequestRealizationError(
             "model_request_preflight_invalid",
-            "native Azure request builder no longer directly forwards max_output_tokens",
+            "native Azure request builder no longer satisfies the structured-output contract",
         )
     return {
         "provider": "azure_openai_responses",
@@ -59,6 +63,8 @@ def _native_azure_preflight(
         "effort": str(getattr(model, "_effort", "")).strip(),
         "max_output_tokens": int(expected.max_output_tokens),
         "background": True,
+        "structured_output_mode": "json_object",
+        "explicit_json_instruction": True,
         "certification": "native_request_builder_source_contract",
     }
 
@@ -104,6 +110,14 @@ def preflight_model_request(
             "model_request_preflight_invalid",
             f"{expected.logical_role} preflight must identify provider and model",
         )
+    if provider == "azure_openai_responses":
+        if realized.get("structured_output_mode") != "json_object" or not bool(
+            realized.get("explicit_json_instruction")
+        ):
+            raise ModelRequestRealizationError(
+                "model_request_json_contract_invalid",
+                f"{expected.logical_role} Azure preflight must prove json_object mode and explicit JSON instruction",
+            )
     return {
         "logical_role": expected.logical_role,
         "expected_max_output_tokens": int(expected.max_output_tokens),
@@ -113,6 +127,8 @@ def preflight_model_request(
         "provider_role": str(realized.get("provider_role", "")).strip(),
         "effort": str(realized.get("effort", "")).strip(),
         "background": bool(realized.get("background", False)),
+        "structured_output_mode": str(realized.get("structured_output_mode", "")).strip(),
+        "explicit_json_instruction": bool(realized.get("explicit_json_instruction", False)),
         "certification": str(realized.get("certification", "explicit_preflight_contract")),
         "status": "matched",
     }

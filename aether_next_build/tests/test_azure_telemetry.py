@@ -92,7 +92,8 @@ def test_operator_cache_shard_ignores_task_suffix_and_retains_reported_usage() -
     ]) == "{}"
 
     first, second = client.requests
-    assert first["instructions"] == prefix
+    assert first["instructions"].startswith(prefix)
+    assert "return exactly one valid json object" in first["instructions"].lower()
     assert first["input"] != second["input"]
     assert isinstance(first["input"], list)
     assert first["input"][0]["role"] == "user"
@@ -111,6 +112,41 @@ def test_operator_cache_shard_ignores_task_suffix_and_retains_reported_usage() -
     assert events[0]["logical_call_id"] != events[1]["logical_call_id"]
     assert events[0]["attempt_ordinal"] == 1
     assert events[0]["instructions_sha256"]
+
+
+def test_json_mode_adds_an_explicit_instruction_for_all_system_solver_messages() -> None:
+    """Reproduce the role-board shape Azure rejected before generation.
+
+    Solver checkpoint calls contain only system messages.  The Responses
+    adapter promotes the last one to input, so neither side may rely on a
+    task's incidental wording to satisfy Azure's JSON-mode requirement.
+    """
+    client = _Client([_Job()])
+    model = _model(client)
+
+    assert model([
+        {"role": "system", "content": "Choose one causal next action."},
+        {"role": "system", "content": "Current evidence is incomplete."},
+    ]) == "{}"
+
+    request = client.requests[0]
+    assert request["text"] == {"format": {"type": "json_object"}}
+    assert "json" in request["instructions"].lower()
+    assert "return exactly one valid json object" in request["instructions"].lower()
+
+
+def test_json_mode_contract_is_identical_across_a_bounded_retry() -> None:
+    client = _Client([
+        _Job(status="failed", error=SimpleNamespace(code="rate_limit_exceeded")),
+        _Job(),
+    ])
+    model = _model(client, max_retries=1, rand=lambda: 0.0)
+
+    assert model([{"role": "system", "content": "No structured keyword here."}]) == "{}"
+
+    first, second = client.requests
+    assert first["instructions"] == second["instructions"]
+    assert "return exactly one valid json object" in first["instructions"].lower()
 
 
 def test_omitted_usage_is_unmeasured_not_a_zero_cache_miss() -> None:

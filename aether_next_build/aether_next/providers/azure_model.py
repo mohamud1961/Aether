@@ -51,6 +51,11 @@ class AzureProviderOutputError(AzureModelError):
 # on a call that will never succeed.
 _RETRYABLE_JOB_ERROR_CODES = frozenset({"rate_limit_exceeded", "server_error"})
 
+_JSON_OBJECT_RESPONSE_INSTRUCTION = (
+    "Return exactly one valid JSON object. Do not include markdown fences, "
+    "prose, or multiple candidate responses."
+)
+
 
 class _JobStatusFailure(Exception):
     """Internal marker: a background job reached a terminal failure status.
@@ -302,6 +307,29 @@ def _responses_input_text(input_payload: str | list[dict[str, str]]) -> str:
     if isinstance(input_payload, str):
         return input_payload
     return json.dumps(input_payload, sort_keys=True, separators=(",", ":"))
+
+
+def _prepare_json_object_instructions(instructions: str) -> str:
+    """Make Azure JSON-mode's textual requirement explicit before dispatch.
+
+    Azure rejects ``text.format=json_object`` requests unless the model-facing
+    material mentions JSON.  Aether's structured-output boundary is generic,
+    so the provider adapter owns this invariant rather than relying on task or
+    role prompts to happen to contain that word.  The returned string is used
+    for the initial request and every retry of the same logical call.
+    """
+    prepared = "\n\n".join(part for part in (
+        str(instructions).strip(),
+        "[structured_output_contract] " + _JSON_OBJECT_RESPONSE_INSTRUCTION,
+    ) if part)
+    if "json" not in prepared.lower():
+        # Fail locally before a provider request can spend budget. This should
+        # be unreachable while the constant above remains valid, but protects
+        # future edits to the request builder.
+        raise AzureModelError(
+            "json_object_request_contract_invalid: explicit JSON instruction missing"
+        )
+    return prepared
 
 
 def _strict_structured_json(text: str) -> tuple[str, str]:
@@ -728,6 +756,21 @@ class AzureModelCallable:
             rand=self._rand,
         )
 
+    def preflight_request(self, *, max_output_tokens: int, logical_role: str) -> dict[str, Any]:
+        """Describe the native request contract without making a provider call."""
+        return {
+            "provider": "azure_openai_responses",
+            "model": self._deployment,
+            "provider_role": self._role,
+            "logical_role": logical_role,
+            "effort": self._effort,
+            "max_output_tokens": int(max_output_tokens),
+            "background": True,
+            "structured_output_mode": "json_object",
+            "explicit_json_instruction": True,
+            "certification": "native_json_object_request_contract",
+        }
+
     def _call_once(
         self,
         instructions: str,
@@ -740,6 +783,10 @@ class AzureModelCallable:
     ) -> str:
         """Run exactly one create+poll attempt. Never retries internally —
         that's ``__call__``'s job via ``_retry_call``."""
+        # Preflight at the exact provider boundary. Each bounded retry enters
+        # here independently, so no retry variant can bypass JSON-mode's
+        # textual request requirement.
+        instructions = _prepare_json_object_instructions(instructions)
         event: dict[str, Any] = {
             "event_kind": "provider_attempt",
             "logical_call_id": logical_call_id,
