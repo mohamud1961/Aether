@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import tarfile
@@ -31,9 +32,8 @@ PRIVATE_KEY_MARKERS = (
     b"-----BEGIN EC PRIVATE KEY-----",
     b"-----BEGIN OPENSSH PRIVATE KEY-----",
 )
-PROVIDER_CREDENTIAL_MARKERS = (
-    b"AZURE_OPENAI_API_KEY=",
-    b"OPENAI_API_KEY=",
+PROVIDER_CREDENTIAL_ASSIGNMENT = re.compile(
+    rb"(?m)^\s*(?:export\s+)?(?:AZURE_OPENAI_API_KEY|OPENAI_API_KEY)\s*=\s*\S+"
 )
 
 
@@ -113,9 +113,20 @@ def _content_audit(root: Path, records: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         path = root / record["path"]
         data = path.read_bytes()
-        if any(marker in data for marker in PRIVATE_KEY_MARKERS):
+        # Match material, not the scanner's own string constants.  A PEM header
+        # is credential material only when it begins a content line; the source
+        # code represents these headers inside quoted byte literals.
+        if any(
+            line.lstrip().startswith(marker)
+            for line in data.splitlines()
+            for marker in PRIVATE_KEY_MARKERS
+        ):
             private_key_candidates.append(record["path"])
-        if any(marker in data for marker in PROVIDER_CREDENTIAL_MARKERS):
+        # Restrict this to an actual non-empty assignment at the start of a
+        # content line.  Searching for the bare token makes this scanner flag
+        # its own detection constants, which prevents a legitimate package
+        # from being built without finding a credential.
+        if PROVIDER_CREDENTIAL_ASSIGNMENT.search(data):
             provider_credential_candidates.append(record["path"])
     return {
         "provider_credential_assignment_candidates": provider_credential_candidates,
