@@ -104,3 +104,42 @@ def test_checkpoint_score_separates_optional_audit_commitment_from_protocol() ->
 
     assert score["passed"] is True
     assert score["advisory_findings"]
+
+
+def test_checkpoint_uses_production_same_step_protocol_correction() -> None:
+    module = _load_runner_module()
+    from aether_next.model_hooks import ModelOutputError
+    from aether_next.runtime_ir import ActionRequest, SolverTurn
+
+    class Hooks:
+        def __init__(self) -> None:
+            self.calls: list[list[dict[str, str]]] = []
+            self.last_raw_solver_output = '{"not":"a solver turn"}'
+
+        def solve(self, messages, compiled):
+            self.calls.append(messages)
+            if len(self.calls) == 1:
+                raise ModelOutputError("missing required field: kind")
+            self.last_raw_solver_output = '{"kind":"act"}'
+            return SolverTurn(
+                kind="act",
+                summary="inspect current state",
+                actions=(ActionRequest(
+                    action_id="read-1", kind="read_file", capability_id="filesystem",
+                    arguments={"path": "config.json"}, intent="inspect config",
+                    expected_observation="current configuration", if_fail_next="inspect parent",
+                ),),
+            )
+
+    case = json.loads(CASES.read_text(encoding="utf-8"))["cases"][0]
+    hooks = Hooks()
+    turn, ledger, initial_error = module._solve_with_production_protocol_correction(
+        hooks, module.build_solver_messages(module._compiled(case), dict(case["context"])),
+        module._compiled(case),
+    )
+
+    assert turn.kind == "act"
+    assert initial_error == "missing required field: kind"
+    assert len(hooks.calls) == 2
+    assert "previous turn could not be parsed" in hooks.calls[1][-1]["content"]
+    assert any(receipt.kind == "solver_parse_error" for receipt in ledger.all_receipts())

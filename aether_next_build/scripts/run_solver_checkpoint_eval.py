@@ -20,7 +20,9 @@ from aether_next.evidence_finalization import (  # noqa: E402
     finalize_evidence_directory,
     sha256_file,
 )
+from aether_next.kernel_solver_turn import handle_solver_parse_error  # noqa: E402
 from aether_next.kernel_messages import build_solver_messages  # noqa: E402
+from aether_next.ledger import ExecutionLedger  # noqa: E402
 from aether_next.model_hooks import ModelHooks, ModelOutputError  # noqa: E402
 from aether_next.providers.azure_model import make_azure_callable  # noqa: E402
 from aether_next.redaction import redact_text_with_events  # noqa: E402
@@ -183,6 +185,31 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _solve_with_production_protocol_correction(
+    hooks: ModelHooks,
+    messages: list[dict[str, str]],
+    compiled: Any,
+) -> tuple[SolverTurn, ExecutionLedger, str]:
+    """Exercise the kernel's bounded malformed-output contract for one turn."""
+    ledger = ExecutionLedger()
+    before_count = len(ledger.all_receipts())
+    try:
+        ledger.record_accounting(
+            receipt_id="checkpoint:solver_provider_turn:1",
+            step=1,
+            counter="solver_provider_turns",
+            event="primary_solver_call",
+        )
+        return hooks.solve(messages, compiled), ledger, ""
+    except ModelOutputError as exc:
+        turn = handle_solver_parse_error(
+            hooks, exc, 1, compiled, messages, ledger, None, None, before_count,
+        )
+        if turn is None:
+            raise RuntimeError("production protocol correction returned no turn") from exc
+        return turn, ledger, str(exc)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases-file", default=str(_BUILD_ROOT / "evals" / "solver_checkpoints.v1.json"))
@@ -251,13 +278,21 @@ def main(argv: list[str] | None = None) -> int:
         for sample in range(1, samples + 1):
             hooks = ModelHooks(model, model, run_id=f"solver-checkpoint:{case['id']}:{sample}", task_id=str(case["id"]))
             raw = ""
+            protocol_ledger = ExecutionLedger()
+            initial_protocol_error = ""
             try:
-                turn = hooks.solve(messages, compiled)
+                turn, protocol_ledger, initial_protocol_error = _solve_with_production_protocol_correction(
+                    hooks, messages, compiled,
+                )
                 raw = str(getattr(hooks, "last_raw_solver_output", ""))
                 score = _score_turn(turn, case["expected"])
-                parse_valid = True
+                retry_failed = any(
+                    receipt.receipt_id == "step-1:solver_parse_error_retry"
+                    for receipt in protocol_ledger.all_receipts()
+                )
+                parse_valid = not retry_failed
                 protocol_valid = not turn.validate(compiled.action_schema)
-                error = ""
+                error = "" if parse_valid else "same-step protocol correction remained invalid"
             except ModelOutputError as exc:
                 turn = None
                 raw = str(getattr(hooks, "last_raw_solver_output", ""))
@@ -291,6 +326,18 @@ def main(argv: list[str] | None = None) -> int:
                     ],
                 },
                 "error": error,
+                "initial_protocol_error": initial_protocol_error,
+                "production_protocol_receipts": [
+                    {
+                        "receipt_id": receipt.receipt_id,
+                        "kind": receipt.kind,
+                        "success": receipt.success,
+                        "failure_class": receipt.failure_class,
+                        "summary": receipt.summary,
+                        "payload": receipt.payload,
+                    }
+                    for receipt in protocol_ledger.all_receipts()
+                ],
                 "raw_output_redacted": redacted,
                 "raw_output_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
                 "redaction_events": redaction_events,

@@ -529,6 +529,11 @@ def test_contract_states_independence_kind_requirement_plainly() -> None:
     assert "will be refused" in rules
 
 
+def test_contract_respects_structured_record_delimiters() -> None:
+    rules = " ".join(VERIFIER_RUNTIME_CONTRACT["rules"])
+    assert "declared record grammar or field delimiters" in rules
+
+
 def test_architect_doctrine_requires_method_independent_minimum_evidence() -> None:
     assert "method-independent" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
     assert "machine-re-derivable" in WORKBENCH_ARCHITECT_SYSTEM_PROMPT
@@ -603,4 +608,3 @@ def test_architect_workbench_compiles_re_derivable_claims_and_reaches_runtime_ir
     assert config.re_derivable_claims == ("the hash of out.txt matches the expected",)
     runtime_ir = harness_config_to_runtime_ir(config, _make_envmap())
     assert runtime_ir.re_derivable_claims == ("the hash of out.txt matches the expected",)
-

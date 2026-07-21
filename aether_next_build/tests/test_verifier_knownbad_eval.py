@@ -37,6 +37,19 @@ def test_task_inspection_failure_without_workspace_translation_stays_scoreable()
     assert issues == ()
 
 
+def test_missing_vision_route_invalidates_the_evaluator_measurement() -> None:
+    valid, issues = _MODULE._inspection_environment_validity([{
+        "requests": [],
+        "results": [{
+            "kind": "perceive_artifact",
+            "error": "no vision model available for perceive_artifact",
+        }],
+    }])
+
+    assert valid is False
+    assert issues == ("inspection_vision_route_unavailable",)
+
+
 def test_historical_launch_extraction_replays_only_explicit_background_command() -> None:
     commands = _MODULE._historical_launch_commands({
         "steps": [{

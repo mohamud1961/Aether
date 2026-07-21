@@ -116,6 +116,11 @@ def _inspection_environment_validity(
             ).lower()
             if "no such file or directory" in text and ("cd:" in text or "workspace" in text):
                 issues.append("inspection_workspace_path_unavailable")
+            if (
+                str(row.get("kind", "")) == "perceive_artifact"
+                and "no vision model available for perceive_artifact" in text
+            ):
+                issues.append("inspection_vision_route_unavailable")
     return (not issues, tuple(sorted(set(issues))))
 
 
@@ -397,11 +402,12 @@ def _run_case(
             row["prediction"] = "INVALID_ENVIRONMENT"
         return row
     except (AzureModelError, ModelOutputError) as exc:
+        valid, issues = _inspection_environment_validity(inspection_rounds)
         row.update({
             "mode": "model",
             "measurement_valid": False,
-            "measurement_issues": ["provider_or_model_output_invalid"],
-            "prediction": "INVALID_PROVIDER",
+            "measurement_issues": list(issues) if not valid else ["provider_or_model_output_invalid"],
+            "prediction": "INVALID_ENVIRONMENT" if not valid else "INVALID_PROVIDER",
             "provider_error_type": type(exc).__name__,
             "provider_error": str(exc),
             "inspection_rounds": inspection_rounds,
@@ -494,7 +500,9 @@ def main() -> int:
         args.out_dir,
         required_paths=(source_path, args.out_dir / "knownbad_eval_rows.json", report_path),
         metadata={
-            "status": "invalid" if any(row.get("prediction") == "INVALID_PROVIDER" for row in rows) else "completed",
+            "status": "invalid" if any(
+                str(row.get("prediction", "")).startswith("INVALID_") for row in rows
+            ) else "completed",
             "source_commit": source.get("commit", ""),
         },
     )
