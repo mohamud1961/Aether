@@ -50,6 +50,7 @@ def _native_azure_preflight(
         '"max_output_tokens": max_output_tokens',
         '"text": {"format": {"type": "json_object"}}',
         "instructions = _prepare_json_object_instructions(instructions)",
+        "user_input = _prepare_json_object_input(user_input)",
     )
     if any(fragment not in source for fragment in required_fragments):
         raise ModelRequestRealizationError(
@@ -65,6 +66,7 @@ def _native_azure_preflight(
         "background": True,
         "structured_output_mode": "json_object",
         "explicit_json_instruction": True,
+        "json_instruction_in_input": True,
         "certification": "native_request_builder_source_contract",
     }
 
@@ -111,12 +113,14 @@ def preflight_model_request(
             f"{expected.logical_role} preflight must identify provider and model",
         )
     if provider == "azure_openai_responses":
-        if realized.get("structured_output_mode") != "json_object" or not bool(
-            realized.get("explicit_json_instruction")
+        if (
+            realized.get("structured_output_mode") != "json_object"
+            or not bool(realized.get("explicit_json_instruction"))
+            or not bool(realized.get("json_instruction_in_input"))
         ):
             raise ModelRequestRealizationError(
                 "model_request_json_contract_invalid",
-                f"{expected.logical_role} Azure preflight must prove json_object mode and explicit JSON instruction",
+                f"{expected.logical_role} Azure preflight must prove json_object mode and explicit JSON instruction in input",
             )
     return {
         "logical_role": expected.logical_role,
@@ -129,6 +133,7 @@ def preflight_model_request(
         "background": bool(realized.get("background", False)),
         "structured_output_mode": str(realized.get("structured_output_mode", "")).strip(),
         "explicit_json_instruction": bool(realized.get("explicit_json_instruction", False)),
+        "json_instruction_in_input": bool(realized.get("json_instruction_in_input", False)),
         "certification": str(realized.get("certification", "explicit_preflight_contract")),
         "status": "matched",
     }

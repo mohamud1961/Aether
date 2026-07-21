@@ -332,6 +332,26 @@ def _prepare_json_object_instructions(instructions: str) -> str:
     return prepared
 
 
+def _prepare_json_object_input(
+    input_payload: str | list[dict[str, str]],
+) -> str | list[dict[str, str]]:
+    """Place the JSON-mode contract in Responses ``input`` as well.
+
+    Some Azure Responses routes enforce the textual JSON-mode requirement
+    against ``input`` messages specifically, rather than against the separate
+    ``instructions`` field.  Keeping the same generic contract in both
+    model-visible surfaces makes the request valid for either interpretation
+    without relying on incidental wording in a task or role prompt.
+    """
+    contract_message = {
+        "role": "developer",
+        "content": "[structured_output_contract] " + _JSON_OBJECT_RESPONSE_INSTRUCTION,
+    }
+    if isinstance(input_payload, str):
+        return contract_message["content"] + "\n\n" + input_payload
+    return [contract_message, *input_payload]
+
+
 def _strict_structured_json(text: str) -> tuple[str, str]:
     """Return canonical JSON plus the exact accepted body.
 
@@ -768,6 +788,7 @@ class AzureModelCallable:
             "background": True,
             "structured_output_mode": "json_object",
             "explicit_json_instruction": True,
+            "json_instruction_in_input": True,
             "certification": "native_json_object_request_contract",
         }
 
@@ -787,6 +808,7 @@ class AzureModelCallable:
         # here independently, so no retry variant can bypass JSON-mode's
         # textual request requirement.
         instructions = _prepare_json_object_instructions(instructions)
+        user_input = _prepare_json_object_input(user_input)
         event: dict[str, Any] = {
             "event_kind": "provider_attempt",
             "logical_call_id": logical_call_id,

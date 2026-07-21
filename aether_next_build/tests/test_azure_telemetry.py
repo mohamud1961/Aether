@@ -1,6 +1,7 @@
 """No-network tests for Azure Responses cache layout and telemetry."""
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 import pytest
 
@@ -38,6 +39,13 @@ class _Responses:
 
     def create(self, **kwargs):
         self._outer.requests.append(kwargs)
+        if self._outer.require_json_in_input and "json" not in json.dumps(
+            kwargs["input"], sort_keys=True
+        ).lower():
+            raise RuntimeError(
+                "Response input messages must contain the word 'json' in some form "
+                "to use 'text.format' of type 'json_object'."
+            )
         effect = self._outer.effects.pop(0)
         if isinstance(effect, BaseException):
             raise effect
@@ -48,9 +56,10 @@ class _Responses:
 
 
 class _Client:
-    def __init__(self, effects) -> None:
+    def __init__(self, effects, *, require_json_in_input: bool = False) -> None:
         self.effects = list(effects)
         self.requests: list[dict] = []
+        self.require_json_in_input = require_json_in_input
         self.responses = _Responses(self)
 
 
@@ -96,7 +105,9 @@ def test_operator_cache_shard_ignores_task_suffix_and_retains_reported_usage() -
     assert "return exactly one valid json object" in first["instructions"].lower()
     assert first["input"] != second["input"]
     assert isinstance(first["input"], list)
-    assert first["input"][0]["role"] == "user"
+    assert first["input"][0]["role"] == "developer"
+    assert "json" in first["input"][0]["content"].lower()
+    assert first["input"][1]["role"] == "user"
     assert first["text"] == {"format": {"type": "json_object"}}
     assert first["prompt_cache_key"] == second["prompt_cache_key"]
     assert len(first["prompt_cache_key"]) <= 64
@@ -133,6 +144,21 @@ def test_json_mode_adds_an_explicit_instruction_for_all_system_solver_messages()
     assert request["text"] == {"format": {"type": "json_object"}}
     assert "json" in request["instructions"].lower()
     assert "return exactly one valid json object" in request["instructions"].lower()
+    assert "json" in json.dumps(request["input"], sort_keys=True).lower()
+
+
+def test_json_mode_survives_azure_input_message_requirement() -> None:
+    """Reproduce the live Azure route that ignored ``instructions`` alone."""
+    client = _Client([_Job()], require_json_in_input=True)
+    model = _model(client)
+
+    assert model([
+        {"role": "system", "content": "Choose one causal next action."},
+        {"role": "system", "content": "Current evidence is incomplete."},
+    ]) == "{}"
+
+    request = client.requests[0]
+    assert "json" in json.dumps(request["input"], sort_keys=True).lower()
 
 
 def test_json_mode_contract_is_identical_across_a_bounded_retry() -> None:
@@ -147,6 +173,8 @@ def test_json_mode_contract_is_identical_across_a_bounded_retry() -> None:
     first, second = client.requests
     assert first["instructions"] == second["instructions"]
     assert "return exactly one valid json object" in first["instructions"].lower()
+    assert first["input"] == second["input"]
+    assert "json" in json.dumps(first["input"], sort_keys=True).lower()
 
 
 def test_omitted_usage_is_unmeasured_not_a_zero_cache_miss() -> None:

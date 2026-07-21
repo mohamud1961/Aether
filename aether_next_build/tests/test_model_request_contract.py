@@ -52,6 +52,7 @@ class AzureCallableMissingJsonContract:
             "background": True,
             "structured_output_mode": "json_object",
             "explicit_json_instruction": False,
+            "json_instruction_in_input": False,
         }
 
 
@@ -104,3 +105,4 @@ def test_native_azure_callable_uses_audited_direct_forwarding_contract() -> None
     assert row["certification"] == "native_json_object_request_contract"
     assert row["structured_output_mode"] == "json_object"
     assert row["explicit_json_instruction"] is True
+    assert row["json_instruction_in_input"] is True
