@@ -53,7 +53,9 @@ def main() -> int:
             digest = ""
             kind = "unsupported"
         actual_mode = f"{stat.S_IMODE(path.lstat().st_mode):04o}"
-        mode_matches = kind == "symlink" or actual_mode == record["mode"]
+        expected_executable = record["git_mode"] == "100755"
+        actual_executable = bool(stat.S_IMODE(path.lstat().st_mode) & 0o111)
+        mode_matches = kind == "symlink" or expected_executable == actual_executable
         if (
             digest != record["sha256"]
             or kind != record["kind"]
@@ -68,6 +70,8 @@ def main() -> int:
                     "actual_sha256": digest,
                     "expected_mode": record["mode"],
                     "actual_mode": actual_mode,
+                    "expected_executable": str(expected_executable).lower(),
+                    "actual_executable": str(actual_executable).lower(),
                 }
             )
 

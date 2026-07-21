@@ -220,6 +220,7 @@ def main() -> int:
         "source_commit": commit,
         "source_tree": tree,
         "construction": "git archive of the complete tracked commit tree",
+        "mode_semantics": "Git executable-bit class is authoritative across extraction platforms",
         "tracked_entry_count": len(entries) + len(gitlinks),
         "tracked_blob_count": len(entries),
         "gitlink_count": len(gitlinks),
