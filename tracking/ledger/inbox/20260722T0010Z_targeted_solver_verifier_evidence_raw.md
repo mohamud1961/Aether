@@ -1,0 +1,13 @@
+RAW_LEDGER_UPDATE
+- actor: Codex
+- task: bounded targeted Solver and Verifier evidence collection
+- event_type: experiment
+- summary: Fresh VM-certified source adc210c3 completed two targeted role-evaluation runs; Solver targeted retries passed, while Verifier remains non-promotable because one known-good measurement missed and the image row was correctly classified invalid_environment.
+- observations: Solver Gateway run e4a24115775e70f8 exited 0 with 6/6 parse-valid, protocol-valid, decisive rows (3/3 derived_representation_lineage and 3/3 submission_coherence), sealed FINALIZED sha256 034b16038e6738abb83cbb8937e49faaaa012ca881377ab56aa4edeb15c9bcab. Verifier run fbec701a6e8818ac exited 0 and sealed FINALIZED sha256 1ef7faa46c65671058900053c8bcb85c64af5ba707d89bbcb34876563c2685ed. log-summary-date-ranges is measurement_valid true but prediction MISS/uncertain_missing_evidence; its overlay commands used /app paths in frozen_subprocess and saw no full logs/CSV. code-from-image is measurement_valid false with inspection_vision_route_unavailable and prediction INVALID_ENVIRONMENT; no vision route/OCR capability was present. Both packages report clean commit adc210c3fa339790594cd965fc25397321235055 and tree ec43dba69f7eb707ba2e9321e4e7744839956698.
+- inference: The production-equivalent Solver correction contract repairs the two targeted residual protocol cases. The Verifier invalid-environment classification is now honest, but the valid log-summary measurement exposes a separate evaluator runtime path/EnvMap mismatch; neither result promotes the full Verifier gate.
+- evidence_paths: /private/tmp/aether-targeted-evidence-qxDOyu/summary.json; /private/tmp/aether-targeted-evidence-qxDOyu/FINALIZED.json; /private/tmp/aether-targeted-evidence-qxDOyu/verifier/knownbad_eval_rows.json; /private/tmp/aether-targeted-evidence-qxDOyu/verifier/FINALIZED.json; /private/tmp/aether-targeted-evidence-qxDOyu/runs/solver/manifest.json; /private/tmp/aether-targeted-evidence-qxDOyu/runs/verifier/manifest.json
+- affected_components: solver checkpoint evaluator; verifier known-bad evaluator; VM/Gateway lifecycle
+- decision_change: Do not run full role qualification yet. Diagnose and repair the generic frozen-subprocess overlay workspace mapping, and provision/configure a genuine vision route before remeasuring the image case.
+- unresolved_questions: Why does read_file translate /app paths while overlay_run_command in frozen_subprocess executes against a non-/app cwd; what approved vision deployment/route is available for the verifier lane.
+- confidence: high
+- commit_message: HOLD - evidence-only targeted role-board result requires next-goal diagnosis
