@@ -94,6 +94,9 @@ def test_operator_cache_shard_ignores_task_suffix_and_retains_reported_usage() -
     first, second = client.requests
     assert first["instructions"] == prefix
     assert first["input"] != second["input"]
+    assert isinstance(first["input"], list)
+    assert first["input"][0]["role"] == "user"
+    assert first["text"] == {"format": {"type": "json_object"}}
     assert first["prompt_cache_key"] == second["prompt_cache_key"]
     assert len(first["prompt_cache_key"]) <= 64
     assert "context_packet" not in first["prompt_cache_key"]

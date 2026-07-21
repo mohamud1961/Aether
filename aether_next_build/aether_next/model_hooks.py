@@ -180,6 +180,10 @@ class ModelHooks:
         raw = ""
         try:
             raw = self._call_text_model(self._solver, list(messages), max_output_tokens=16000)
+            # Keep the selected provider output for both successful and failed
+            # turns.  The production trace protects/redacts it at persistence;
+            # callers need the same source fact when diagnosing a valid turn.
+            setattr(self, "last_raw_solver_output", raw)
             turn = parse_solver_turn(raw)
             errors = turn.validate(compiled.action_schema)
             if not errors:

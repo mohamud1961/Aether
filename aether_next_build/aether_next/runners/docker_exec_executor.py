@@ -84,7 +84,7 @@ class DockerExecExecutor:
         """Return an executor for a trusted isolated path in this container."""
         return DockerExecExecutor(
             self._container_id,
-            self._workspace_dir,
+            self._host_root,
             default_timeout_s=self._default_timeout_s,
             container_workdir=workspace_root,
         )

@@ -135,11 +135,17 @@ def _score_turn(turn: SolverTurn, expected: Mapping[str, Any]) -> dict[str, Any]
         "if_fail_next": bool(action and str(action.if_fail_next).strip()) if expected_kind == "act" else True,
     }
     missing_commitment = [key for key, value in commitment.items() if not value]
+    # These fields are useful diagnostic signals, but are deliberately not
+    # production-schema requirements.  The runtime treats them as audit
+    # metadata, so a board that marks them as protocol failures would be
+    # measuring a stricter, evaluator-invented contract.
+    commitment_findings = []
     if missing_commitment:
-        findings.append("missing decision commitment fields: " + ", ".join(missing_commitment))
+        commitment_findings.append("missing advisory commitment fields: " + ", ".join(missing_commitment))
     return {
         "passed": not findings,
         "findings": findings,
+        "advisory_findings": commitment_findings,
         "commitment": commitment,
         "turn_kind": turn.kind,
         "action_kind": action.kind if action else "",

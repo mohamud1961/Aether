@@ -76,3 +76,31 @@ def test_every_checkpoint_compiles_against_production_action_schema() -> None:
         compiled = module._compiled(case)
         assert compiled.action_schema
         assert compiled.task_prompt == case["task_prompt"]
+
+
+def test_checkpoint_score_separates_optional_audit_commitment_from_protocol() -> None:
+    module = _load_runner_module()
+    from aether_next.runtime_ir import ActionRequest, SolverTurn
+
+    turn = SolverTurn(
+        kind="act",
+        summary="inspect the file",
+        actions=(ActionRequest(
+            action_id="read-1",
+            kind="read_file",
+            capability_id="filesystem",
+            arguments={"path": "config.json"},
+            intent="",
+            expected_observation="",
+            if_fail_next="",
+        ),),
+        evidence_gap="",
+    )
+    score = module._score_turn(turn, {
+        "turn_kind": "act",
+        "allowed_action_kinds": ["read_file"],
+        "argument_equals": {"path": "config.json"},
+    })
+
+    assert score["passed"] is True
+    assert score["advisory_findings"]

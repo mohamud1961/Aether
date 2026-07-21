@@ -254,6 +254,56 @@ def _split_messages(messages: list[dict[str, str]]) -> tuple[str, str]:
     return "You are a helpful assistant.", "Proceed."
 
 
+def _split_responses_input(
+    messages: list[dict[str, str]],
+) -> tuple[str, str | list[dict[str, str]]]:
+    """Split messages while preserving non-system roles for Responses input.
+
+    ``_split_messages`` remains available for legacy callers and pure string
+    tests. Live Responses calls must retain the distinction between a prior
+    assistant turn and the user observation that follows it; flattening both
+    into one string makes a bounded verifier repair round ambiguous to the
+    model.
+    """
+    system_parts: list[str] = []
+    input_messages: list[dict[str, str]] = []
+    allowed_roles = {"user", "assistant", "developer"}
+    for msg in messages:
+        role = str(msg.get("role", "user") or "user")
+        content = str(msg.get("content", "") or "")
+        if role == "system":
+            system_parts.append(content)
+            continue
+        if role not in allowed_roles:
+            role = "user"
+        input_messages.append({"role": role, "content": content})
+
+    instructions = "\n\n".join(system_parts)
+    if input_messages:
+        return instructions or "You are a helpful assistant.", input_messages
+    if len(system_parts) > 1:
+        return "\n\n".join(system_parts[:-1]), [{
+            "role": "user",
+            "content": system_parts[-1],
+        }]
+    if len(system_parts) == 1:
+        return "You are a helpful assistant.", [{
+            "role": "user",
+            "content": system_parts[0],
+        }]
+    return "You are a helpful assistant.", [{
+        "role": "user",
+        "content": "Proceed.",
+    }]
+
+
+def _responses_input_text(input_payload: str | list[dict[str, str]]) -> str:
+    """Canonical text form used only for telemetry sizes and hashes."""
+    if isinstance(input_payload, str):
+        return input_payload
+    return json.dumps(input_payload, sort_keys=True, separators=(",", ":"))
+
+
 def _strict_structured_json(text: str) -> tuple[str, str]:
     """Return canonical JSON plus the exact accepted body.
 
@@ -327,8 +377,19 @@ def _raw_assistant_messages(response: Any) -> tuple[tuple[dict[str, Any], ...], 
     return tuple(rows), mixed_call
 
 
-def canonicalize_structured_output(response: Any) -> tuple[str, dict[str, Any]]:
-    """Select one unambiguous structured assistant message from raw items."""
+def canonicalize_structured_output(
+    response: Any,
+    *,
+    allow_verifier_inspection_sequence: bool = False,
+) -> tuple[str, dict[str, Any]]:
+    """Select one structured assistant message, fail-closed by default.
+
+    The verifier protocol has one narrowly defined multi-message recovery:
+    when a response contains a valid read-only inspection envelope followed
+    by another distinct JSON message, return the earliest inspection envelope
+    so the runtime can execute it and request a fresh verdict.  Later messages
+    remain quarantined in the receipt.  All other ambiguity is rejected.
+    """
     messages, mixed_call = _raw_assistant_messages(response)
     receipt: dict[str, Any] = {
         "response_id": str(_usage_field(response, "id", "") or ""),
@@ -348,7 +409,33 @@ def canonicalize_structured_output(response: Any) -> tuple[str, dict[str, Any]]:
         canonical_rows.append((row, canonical))
     canonical_forms = {canonical for _row, canonical in canonical_rows}
     if len(canonical_forms) != 1:
-        raise AzureProviderOutputError("multiple_distinct_assistant_outputs")
+        if allow_verifier_inspection_sequence:
+            for selected_index, (source, canonical) in enumerate(canonical_rows):
+                if not _is_verifier_inspection_request(canonical):
+                    continue
+                receipt.update({
+                    "canonical_item_index": source["index"],
+                    "canonical_item_id": source["item_id"],
+                    "canonical_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                    "provider_multi_message_recovery": "verifier_inspection_sequence",
+                    "quarantined_candidate_hashes": [
+                        row["text_sha256"]
+                        for row, _candidate in canonical_rows[selected_index + 1:]
+                    ],
+                })
+                return canonical, receipt
+        # Keep the ambiguity fail-closed, but retain enough non-content
+        # metadata to distinguish a provider transport duplication from a
+        # genuinely different model decision.  Never persist model text here.
+        detail = json.dumps({
+            "candidate_count": len(canonical_rows),
+            "candidate_hashes": [row["text_sha256"] for row, _canonical in canonical_rows],
+            "candidate_bytes": [row["text_bytes"] for row, _canonical in canonical_rows],
+            "candidate_item_ids": [row["item_id"] for row, _canonical in canonical_rows],
+            "candidate_top_level_keys": [sorted(json.loads(canonical).keys()) for _row, canonical in canonical_rows],
+            "candidate_verdicts": [json.loads(canonical).get("verdict") for _row, canonical in canonical_rows],
+        }, sort_keys=True, separators=(",", ":"))
+        raise AzureProviderOutputError("multiple_distinct_assistant_outputs", detail)
     source, canonical = canonical_rows[0]
     receipt.update({
         "canonical_item_index": source["index"],
@@ -358,6 +445,20 @@ def canonicalize_structured_output(response: Any) -> tuple[str, dict[str, Any]]:
         "provider_duplicate_semantic_equivalent": len(messages) > 1,
     })
     return canonical, receipt
+
+
+def _is_verifier_inspection_request(canonical: str) -> bool:
+    """Recognize the generic read-only inspection envelope, without task data."""
+    try:
+        value = json.loads(canonical)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(value, dict) or value.get("kind") != "inspect":
+        return False
+    requests = value.get("requests")
+    if not isinstance(requests, list) or not requests:
+        return False
+    return all(isinstance(item, dict) and str(item.get("kind", "")).strip() for item in requests)
 
 
 def _extract_plain_output_text(response: Any) -> str:
@@ -600,7 +701,7 @@ class AzureModelCallable:
         a non-transient failure or retry exhaustion propagates the same
         :class:`AzureModelError` a caller would see without retry at all.
         """
-        instructions, user_input = _split_messages(messages)
+        instructions, user_input = _split_responses_input(messages)
         logical_call_id = self._allocate_logical_call_id()
         attempts = 0
 
@@ -630,7 +731,7 @@ class AzureModelCallable:
     def _call_once(
         self,
         instructions: str,
-        user_input: str,
+        user_input: str | list[dict[str, str]],
         max_output_tokens: int,
         *,
         logical_call_id: int,
@@ -649,8 +750,11 @@ class AzureModelCallable:
             "status": "in_progress",
             "attempt_phase": "create",
             "instructions_chars": len(instructions),
-            "input_chars": len(user_input),
+            "input_chars": len(_responses_input_text(user_input)),
             "instructions_sha256": hashlib.sha256(instructions.encode("utf-8")).hexdigest(),
+            "input_sha256": hashlib.sha256(
+                _responses_input_text(user_input).encode("utf-8")
+            ).hexdigest(),
             "max_output_tokens": max_output_tokens,
             "prompt_cache_key_mode": self._prompt_cache_mode,
             "prompt_cache_namespace": self._prompt_cache_namespace,
@@ -672,6 +776,10 @@ class AzureModelCallable:
             "input": user_input,
             "reasoning": {"effort": self._effort},
             "max_output_tokens": max_output_tokens,
+            # The runtime consumes exactly one structured model turn at a
+            # time. JSON mode is a provider-side contract for that turn; it
+            # complements (and does not replace) the fail-closed parser below.
+            "text": {"format": {"type": "json_object"}},
             "background": True,
         }
         if self._prompt_cache_mode == "stable_prefix":
@@ -718,7 +826,10 @@ class AzureModelCallable:
             })
             if status == "completed":
                 try:
-                    text, output_receipt = canonicalize_structured_output(job)
+                    text, output_receipt = canonicalize_structured_output(
+                        job,
+                        allow_verifier_inspection_sequence=self._role == "verifier",
+                    )
                 except AzureProviderOutputError as exc:
                     event["provider_output_error"] = exc.code
                     raise

@@ -40,7 +40,12 @@ _BUILD_DIR = str(Path(__file__).resolve().parent.parent)
 if _BUILD_DIR not in sys.path:
     sys.path.insert(0, _BUILD_DIR)
 
-from aether_next.model_hooks import ModelHooks  # noqa: E402
+from aether_next.evidence_finalization import (  # noqa: E402
+    executing_source_identity,
+    finalize_evidence_directory,
+)
+from aether_next.model_hooks import ModelHooks, ModelOutputError  # noqa: E402
+from aether_next.providers.azure_model import AzureModelError  # noqa: E402
 from aether_next.real_executor import SubprocessExecutor  # noqa: E402
 from aether_next.runners.docker_exec_executor import DockerExecExecutor  # noqa: E402
 from aether_next.runtime_ir import EnvMap  # noqa: E402
@@ -59,6 +64,12 @@ from run_trace_verifier_replay_ab import (  # noqa: E402
 )
 
 _RUNS = Path(_BUILD_DIR) / "vm_goal_runs"
+_MODEL_TEXT_TELEMETRY_FIELDS = frozenset({
+    "text",
+    "raw_verifier_output",
+    "assistant_output",
+    "content",
+})
 
 DEFAULT_CASES: tuple[tuple[str, str, str], ...] = (
     ("kv-store-grpc", "20260707T162100Z_sentinel_steps200", "known_bad"),
@@ -67,6 +78,21 @@ DEFAULT_CASES: tuple[tuple[str, str, str], ...] = (
     ("log-summary-date-ranges", "20260707T152214Z_sentinel", "known_good"),
     ("code-from-image", "20260707T162100Z_sentinel_steps200", "known_good"),
 )
+
+
+def _hash_only_provider_telemetry(
+    rows: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep provider route metadata while excluding model-authored text."""
+    return [
+        {
+            key: value
+            for key, value in row.items()
+            if key not in _MODEL_TEXT_TELEMETRY_FIELDS
+        }
+        for row in rows
+        if isinstance(row, Mapping)
+    ]
 
 
 def _inspection_environment_validity(
@@ -318,6 +344,7 @@ def _run_case(
         "runtime_mode": runtime_mode,
         "runtime_setup": setup_receipts,
     }
+    hooks: ModelHooks | None = None
     try:
         if mode == "dry":
             # Plumbing proof without a model: execute one representative
@@ -333,12 +360,16 @@ def _run_case(
             })
             return row
         assert verifier_model is not None
+        model_run_id = f"verifier-knownbad:{uuid.uuid4().hex}"
         hooks = ModelHooks(
             architect_model=lambda m, *, max_output_tokens=8000: "{}",
             solver_model=lambda m, *, max_output_tokens=8000: "{}",
             verifier_model=verifier_model,
             vision_model=vision_model,
+            run_id=model_run_id,
+            task_id=str(case["task"]),
         )
+        row["model_run_id"] = model_run_id
         raw = hooks.verify_with_inspector(packet, compiled, ledger, inspector=inspector)
         parsed = parse_model_verifier_result(raw)
         converted = parsed.verdict != "completed"
@@ -365,7 +396,29 @@ def _run_case(
         if not valid:
             row["prediction"] = "INVALID_ENVIRONMENT"
         return row
+    except (AzureModelError, ModelOutputError) as exc:
+        row.update({
+            "mode": "model",
+            "measurement_valid": False,
+            "measurement_issues": ["provider_or_model_output_invalid"],
+            "prediction": "INVALID_PROVIDER",
+            "provider_error_type": type(exc).__name__,
+            "provider_error": str(exc),
+            "inspection_rounds": inspection_rounds,
+        })
+        return row
     finally:
+        if hooks is not None:
+            # Provider receipts are diagnostic evidence, not model content:
+            # preserve route/status/job/usage metadata and hash-only output
+            # identity so a bounded-loop failure can distinguish provider
+            # sequencing from repeated verifier inspection requests.
+            row["model_call_telemetry"] = _hash_only_provider_telemetry(
+                hooks.drain_model_telemetry()
+            )
+            row["quarantined_model_call_telemetry"] = _hash_only_provider_telemetry(
+                hooks.drain_quarantined_model_telemetry()
+            )
         overlay.teardown()
         _stop_container_replay(container_id)
 
@@ -399,6 +452,7 @@ def main() -> int:
 
         verifier_model = make_azure_callable(
             deployment_env=args.deploy_env, key_env=args.key_env, endpoint_env=args.endpoint_env,
+            role="verifier",
         )
         if args.vision_deploy_env:
             vision_model = make_azure_callable(
@@ -425,14 +479,26 @@ def main() -> int:
         shutil.rmtree(scratch_root, ignore_errors=True)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    source = executing_source_identity(_BUILD_DIR)
+    source_path = args.out_dir / "source_identity.json"
+    source_path.write_text(json.dumps(source, indent=2, sort_keys=True), encoding="utf-8")
     (args.out_dir / "knownbad_eval_rows.json").write_text(
         json.dumps({"rows": rows}, indent=2, sort_keys=True, default=str), encoding="utf-8",
     )
     lines = ["# Known-bad Verifier Eval", "", "| Task | Expectation | Verdict | Prediction |", "|---|---|---|---|"]
     for row in rows:
         lines.append(f"| {row['task']} | {row['expectation']} | {row.get('verdict','')} | {row.get('prediction','')} |")
-    (args.out_dir / "KNOWNBAD_EVAL.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(json.dumps({"rows": len(rows), "out_dir": str(args.out_dir)}, sort_keys=True))
+    report_path = args.out_dir / "KNOWNBAD_EVAL.md"
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    marker = finalize_evidence_directory(
+        args.out_dir,
+        required_paths=(source_path, args.out_dir / "knownbad_eval_rows.json", report_path),
+        metadata={
+            "status": "invalid" if any(row.get("prediction") == "INVALID_PROVIDER" for row in rows) else "completed",
+            "source_commit": source.get("commit", ""),
+        },
+    )
+    print(json.dumps({"rows": len(rows), "out_dir": str(args.out_dir), "final_marker": marker}, sort_keys=True))
     return 0
 
 

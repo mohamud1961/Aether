@@ -81,3 +81,22 @@ def test_no_historical_launch_is_recorded_not_treated_as_a_replay_failure() -> N
         "status": "not_applicable",
         "reason": "no_explicit_background_launch_in_trace",
     }]
+
+
+def test_model_telemetry_fields_are_hash_only_and_route_diagnostic() -> None:
+    receipt = {
+        "event_kind": "provider_attempt",
+        "job_id": "opaque-job-id",
+        "candidate_hashes": ["abc123"],
+        "candidate_message_count": 1,
+        "text": "must-not-be-recorded",
+    }
+
+    captured = _MODULE._hash_only_provider_telemetry([receipt])
+
+    assert captured == [{
+        "event_kind": "provider_attempt",
+        "job_id": "opaque-job-id",
+        "candidate_hashes": ["abc123"],
+        "candidate_message_count": 1,
+    }]

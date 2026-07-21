@@ -1,7 +1,7 @@
 """Unit tests for _split_messages — no network, pure logic only."""
 from __future__ import annotations
 
-from aether_next.providers.azure_model import _split_messages
+from aether_next.providers.azure_model import _split_messages, _split_responses_input
 
 
 class TestSplitMessagesMixed:
@@ -60,3 +60,19 @@ class TestSplitMessagesEmpty:
     def test_input_is_non_empty(self) -> None:
         instructions, input_text = _split_messages([])
         assert input_text, "input must be non-empty even with no messages"
+
+
+def test_responses_input_preserves_assistant_and_user_roles() -> None:
+    instructions, input_items = _split_responses_input([
+        {"role": "system", "content": "Verifier contract"},
+        {"role": "user", "content": "Inspect the workspace"},
+        {"role": "assistant", "content": '{"kind":"inspect"}'},
+        {"role": "user", "content": "Here are the observations"},
+    ])
+
+    assert instructions == "Verifier contract"
+    assert input_items == [
+        {"role": "user", "content": "Inspect the workspace"},
+        {"role": "assistant", "content": '{"kind":"inspect"}'},
+        {"role": "user", "content": "Here are the observations"},
+    ]

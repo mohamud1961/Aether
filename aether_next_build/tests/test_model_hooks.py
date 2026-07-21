@@ -327,6 +327,35 @@ class TestSolverGarbage:
         assert hooks.last_parse_errors
         assert getattr(hooks, "last_raw_solver_output") == "totally broken output 💥"
 
+    def test_valid_turn_preserves_selected_raw_output(self) -> None:
+        envmap = _make_envmap()
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(envmap)).compile(
+            RuntimeConfigIR(
+                architect_summary="test",
+                solver_identity_prompt="test",
+                selected_capabilities=("shell", "filesystem"),
+            ),
+            envmap,
+        )
+        raw = json.dumps({
+            "kind": "act",
+            "summary": "inspect current state",
+            "actions": [{
+                "action_id": "read-1",
+                "kind": "read_file",
+                "capability_id": "filesystem",
+                "arguments": {"path": "config.json"},
+            }],
+        })
+        hooks = ModelHooks(
+            architect_model=_stub_model(_valid_architect_json()),
+            solver_model=_stub_model(raw),
+        )
+
+        hooks.solve([], compiled)
+
+        assert getattr(hooks, "last_raw_solver_output") == raw
+
 
 # ---------------------------------------------------------------------------
 # 6. Verifier hook uses verifier prompt and returns parseable JSON
