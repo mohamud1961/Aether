@@ -2,6 +2,7 @@
 """Run model-free, Docker-free integration scenarios for Aether-Next vNext."""
 from __future__ import annotations
 
+import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,8 +29,19 @@ def _report(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
-    out_dir = Path("deterministic_integration_eval_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"))
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="directory for the auditable scenario bundle (default: timestamped cwd directory)",
+    )
+    args = parser.parse_args(argv)
+    out_dir = (
+        Path(args.out_dir)
+        if args.out_dir
+        else Path("deterministic_integration_eval_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"))
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = [result.as_dict() for result in run_all_integration_scenarios()]
     for row in rows:

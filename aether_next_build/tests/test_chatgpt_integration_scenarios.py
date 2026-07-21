@@ -88,8 +88,9 @@ def test_deterministic_integration_runner_writes_auditable_bundle(tmp_path: Path
     import subprocess
     import sys
 
+    out_dir = tmp_path / "deterministic_integration"
     proc = subprocess.run(
-        [sys.executable, "run_deterministic_integration_eval.py"],
+        [sys.executable, "run_deterministic_integration_eval.py", "--out-dir", str(out_dir)],
         cwd=_BUILD_ROOT,
         check=True,
         text=True,
@@ -97,7 +98,7 @@ def test_deterministic_integration_runner_writes_auditable_bundle(tmp_path: Path
         stderr=subprocess.PIPE,
     )
     payload = json.loads(proc.stdout)
-    out_dir = (_BUILD_ROOT / payload["out_dir"]).resolve()
+    out_dir = Path(payload["out_dir"]).resolve()
     assert out_dir.exists()
     assert (out_dir / "summary.json").exists()
     assert (out_dir / "DETERMINISTIC_INTEGRATION_REPORT.md").exists()

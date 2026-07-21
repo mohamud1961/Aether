@@ -103,7 +103,10 @@ def _run_pytest_case(
             findings=tuple(f"missing target: {item}" for item in missing),
         )
 
-    command = [sys.executable, "-m", "pytest"]
+    # Certification executes from a source checkout.  Pytest's cache is
+    # disposable runner state, not source evidence, so keep it out of that
+    # checkout and retain the authoritative case outputs under ``case_dir``.
+    command = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider"]
     if kind == "pytest_collect":
         command.extend(["--collect-only", "-q"])
     else:
