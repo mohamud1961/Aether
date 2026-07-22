@@ -31,6 +31,32 @@ Classification: robust within this one trace, confidence medium. It is consisten
 
 The text and visual observations succeeded. The next verifier provider call returned multiple distinct assistant outputs, which was quarantined. Classification: `provider_failure`; no model-quality conclusion.
 
+## Comparison lens for the observation-first ablation
+
+This table is the fixed read-only lens for interpreting the next three log
+samples. `Observed` means preserved request/result or command evidence;
+`inferred` means a constrained explanation from that evidence. It does not
+claim access to unretained intermediate model text.
+
+| Stage | Sample 1 | Sample 2 | Sample 3 |
+| --- | --- | --- | --- |
+| Initial facts visible | `summary.csv` auto-read; task categories. Observed. | `summary.csv` auto-read; task categories. Observed. | `summary.csv` auto-read; task categories. Observed. |
+| Important representation unknown | Raw line grammar and whether category words occur outside the authoritative field. Observed as uninspected. | Same unknown. Observed as uninspected before the combined command. | Same unknown before its first raw-line read. Observed. |
+| First material inspection | Listed available logs. Observed. | Combined file discovery, raw-line display, recomputation, and comparison. Observed. | Listed workspace, then read CSV and representative raw lines. Observed. |
+| Method commitment point | No executable parser submitted. Observed. | Whole-line token-search parser authored before raw-line observations were returned. Observed. | Bracket-field parser authored after cited raw-line observations. Observed. |
+| Why evidence appeared sufficient | No sufficient evidence was claimed; it returned uncertain. Observed. | Exact numerical agreement plus successful command are the likely completion affordance. Inferred. | Prior structural observations plus independent recomputation and comparison. Observed. |
+| First unsafe assumption | None established; the run is incomplete, not unsafe. | Task category words were treated as adequate authority for a whole-line parser. Observed. | None in the preserved route; one run is insufficient to prove general safety. |
+
+### Predeclared interpretation of new rows
+
+For each new log sample, first classify: (1) whether the first model turn
+obtained representation evidence, (2) whether any method-bearing command cites
+only earlier observations or explicit task facts, (3) whether a command uses an
+unknown representation fact discovered inside that same command, (4) whether
+the stated method and executed command agree, and (5) whether the final verdict
+follows independent execution evidence. A provider-invalid row remains invalid
+measurement rather than a model-quality row.
+
 ## Ranked hypotheses
 
 1. **Observation-order / same-command discovery and execution** — high. Sample 2 authored a parser before raw lines were returned; sample 3 observed raw lines first and used a direct structural parser.

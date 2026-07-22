@@ -161,6 +161,12 @@ def test_model_telemetry_fields_are_hash_only_and_route_diagnostic() -> None:
     }]
 
 
+def test_forensic_turn_hash_is_stable_across_mapping_order() -> None:
+    assert _MODULE._json_sha256({"b": 2, "a": ["x"]}) == _MODULE._json_sha256(
+        {"a": ["x"], "b": 2}
+    )
+
+
 def test_verifier_uses_dedicated_semantic_vision_callable(monkeypatch) -> None:
     from aether_next.providers import azure_model
 

@@ -24,6 +24,7 @@ Modes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -82,6 +83,13 @@ DEFAULT_CASES: tuple[tuple[str, str, str], ...] = (
 _EXECUTING_INSPECTION_KINDS = frozenset({
     "overlay_run_command", "overlay_write_fixture", "rerun_check",
 })
+
+
+def _json_sha256(value: Any) -> str:
+    """Stable evidence identity for retained evaluator turn material."""
+    return hashlib.sha256(
+        json.dumps(value, default=str, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def _observation_only_request_errors(
@@ -361,6 +369,7 @@ def _run_case(
         envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root=workspace)
         overlay = VerifierOverlay(executor, workspace)
     inspection_rounds: list[dict[str, Any]] = []
+    verifier_turn_trace: list[dict[str, Any]] = []
     hooks: ModelHooks | None = None
     model_run_id = ""
     if mode == "model":
@@ -381,8 +390,21 @@ def _run_case(
                         "command, a rerun, a fixture write, or a method/command proposal."
                     ),
                 })
+            turn_index = verifier_turns
             verifier_turns += 1
-            return verifier_model(outbound, max_output_tokens=max_output_tokens)
+            raw = verifier_model(outbound, max_output_tokens=max_output_tokens)
+            # Evaluator-only forensic retention.  This records what the model
+            # was actually sent and explicitly returned; it does not alter
+            # prompts, routing, rounds, parsing, scoring, or production code.
+            verifier_turn_trace.append({
+                "turn_index": turn_index,
+                "max_output_tokens": max_output_tokens,
+                "messages": outbound,
+                "messages_sha256": _json_sha256(outbound),
+                "raw_assistant_output": raw,
+                "raw_assistant_output_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+            })
+            return raw
 
         # The verifier and every inspection route share one hook instance so
         # text and vision receipts have the same immutable run/task lineage.
@@ -471,6 +493,8 @@ def _run_case(
             "first_model_turn_observation_only_then_normal_bounded_verifier_rounds"
             if observation_first else "normal_bounded_verifier_rounds"
         ),
+        "verifier_packet": packet,
+        "verifier_packet_sha256": _json_sha256(packet),
     }
     try:
         if mode == "dry":
@@ -560,6 +584,7 @@ def _run_case(
             row["quarantined_model_call_telemetry"] = _hash_only_provider_telemetry(
                 hooks.drain_quarantined_model_telemetry()
             )
+        row["verifier_turn_trace"] = verifier_turn_trace
         overlay.teardown()
         _stop_container_replay(container_id)
 
