@@ -399,6 +399,8 @@ class TestVerifierHook:
         assert system_prompt.endswith("Task-specific verifier prompt.")
         assert "kind\":\"inspect\"" in system_prompt
         assert "blocked_by_tooling" in system_prompt
+        assert "authoritative_source" in system_prompt
+        assert "proxy_risk" in system_prompt
         assert "verifier_runtime_contract" in seen["messages"][1]["content"]
         assert "verifier_packet" in seen["messages"][1]["content"]
 

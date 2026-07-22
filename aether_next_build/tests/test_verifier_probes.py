@@ -9,6 +9,8 @@ import tempfile
 import threading
 from pathlib import Path
 
+import pytest
+
 from aether_next.compiler import CapabilityRegistry, ConfigCompiler
 from aether_next.execution import CommandResult
 from aether_next.ledger import ExecutionLedger, Receipt
@@ -211,6 +213,50 @@ def test_inspection_request_parser_aliases_run_check_to_rerun_check() -> None:
         "requests": [{"kind": "run_check", "check_id": "c1", "request_id": "r1"}],
     })
     assert requests[0].kind == "rerun_check"
+
+
+def test_overlay_command_request_requires_nonsemantic_method_grounding() -> None:
+    with pytest.raises(ValueError, match="method-grounding fields: authoritative_source, method, proxy_risk"):
+        parse_verifier_inspection_requests({
+            "kind": "inspect",
+            "requests": [{
+                "kind": "overlay_run_command",
+                "request_id": "derive",
+                "claim": "The reported values match the source data.",
+                "command": "python3 derive.py",
+            }],
+        })
+
+    with pytest.raises(ValueError, match="method-grounding fields: authoritative_source"):
+        parse_verifier_inspection_requests({
+            "kind": "inspect",
+            "requests": [{
+                "kind": "overlay_run_command",
+                "request_id": "derive",
+                "claim": "The reported values match the source data.",
+                "authoritative_source": None,
+                "method": "Parse the structured field.",
+                "proxy_risk": "Free text can look similar.",
+                "command": "python3 derive.py",
+            }],
+        })
+
+    request = parse_verifier_inspection_requests({
+        "kind": "inspect",
+        "requests": [{
+            "kind": "overlay_run_command",
+            "request_id": "derive",
+            "claim": "The reported values match the source data.",
+            "authoritative_source": "The structured value field in each source record.",
+            "method": "Parse that field directly and aggregate it.",
+            "proxy_risk": "Free-text may contain value-like tokens.",
+            "command": "python3 derive.py",
+        }],
+    })[0]
+
+    assert request.authoritative_source == "The structured value field in each source record."
+    assert request.method == "Parse that field directly and aggregate it."
+    assert request.proxy_risk == "Free-text may contain value-like tokens."
 
 
 def test_read_file_inspection_supports_globbed_paths() -> None:

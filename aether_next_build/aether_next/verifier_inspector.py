@@ -31,6 +31,10 @@ class VerifierInspectionRequest:
     target: str = ""
     offset: int = 0
     span: int = 4000
+    claim: str = ""
+    authoritative_source: str = ""
+    method: str = ""
+    proxy_risk: str = ""
 
 
 def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRequest, ...]:
@@ -51,6 +55,17 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
             kind = "rerun_check"
         if not kind:
             continue
+        grounding = {
+            field: str(item.get(field) or "").strip()
+            for field in ("claim", "authoritative_source", "method", "proxy_risk")
+        }
+        if kind == "overlay_run_command":
+            missing = [field for field, value in grounding.items() if not value]
+            if missing:
+                raise ValueError(
+                    "overlay_run_command requires method-grounding fields: "
+                    + ", ".join(missing)
+                )
         parsed.append(
             VerifierInspectionRequest(
                 request_id=str(item.get("request_id", f"inspect-{idx}")).strip() or f"inspect-{idx}",
@@ -65,6 +80,7 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
                 target=str(item.get("target", "")).strip(),
                 offset=max(0, int(item.get("offset", 0) or 0)),
                 span=max(1, int(item.get("span", item.get("limit", 4000)) or 4000)),
+                **grounding,
             )
         )
     if not parsed:

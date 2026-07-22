@@ -328,7 +328,15 @@ _OVERLAY_INSPECT_REQUEST = json.dumps({
     "summary": "Read the file, then independently recompute the value in the overlay.",
     "requests": [
         {"request_id": "probe-1", "kind": "read_file", "path": "out.txt"},
-        {"request_id": "probe-2", "kind": "overlay_run_command", "command": "python3 recompute.py"},
+        {
+            "request_id": "probe-2",
+            "kind": "overlay_run_command",
+            "claim": "The reported value matches the source data.",
+            "authoritative_source": "The structured source record used for the value.",
+            "method": "Parse that record directly and recompute the value.",
+            "proxy_risk": "A broader textual proxy could select unrelated content.",
+            "command": "python3 recompute.py",
+        },
     ],
 })
 
