@@ -215,7 +215,7 @@ class ModelHooks:
         user_payload = {
             "verifier_runtime_contract": VERIFIER_RUNTIME_CONTRACT,
             "verifier_packet": dict(packet),
-            "compiled_summary": compiled.task_prompt[:500],
+            "authoritative_task_prompt": compiled.task_prompt,
             "ledger_receipt_count": len(ledger.all_receipts()),
         }
         messages = [

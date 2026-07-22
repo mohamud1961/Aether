@@ -32,8 +32,8 @@ class VerifierInspectionRequest:
     offset: int = 0
     span: int = 4000
     claim: str = ""
-    authoritative_source: str = ""
-    method: str = ""
+    authoritative_source_refs: tuple[str, ...] = ()
+    method_summary: str = ""
     proxy_risk: str = ""
 
 
@@ -55,17 +55,39 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
             kind = "rerun_check"
         if not kind:
             continue
-        grounding = {
-            field: str(item.get(field) or "").strip()
-            for field in ("claim", "authoritative_source", "method", "proxy_risk")
-        }
         if kind == "overlay_run_command":
+            plan = item.get("verification_plan")
+            execution = item.get("execution")
+            if not isinstance(plan, Mapping):
+                raise ValueError("overlay_run_command requires verification_plan object")
+            if not isinstance(execution, Mapping):
+                raise ValueError("overlay_run_command requires execution object")
+            refs_raw = plan.get("authoritative_source_refs")
+            if isinstance(refs_raw, str):
+                refs_raw = [refs_raw]
+            refs = tuple(str(ref or "").strip() for ref in refs_raw or () if str(ref or "").strip())
+            grounding = {
+                "claim": str(plan.get("claim") or "").strip(),
+                "method_summary": str(plan.get("method_summary") or "").strip(),
+                "proxy_risk": str(plan.get("proxy_risk") or "").strip(),
+            }
             missing = [field for field, value in grounding.items() if not value]
+            if not refs:
+                missing.append("authoritative_source_refs")
             if missing:
                 raise ValueError(
-                    "overlay_run_command requires method-grounding fields: "
+                    "overlay_run_command requires verification_plan fields: "
                     + ", ".join(missing)
                 )
+            if str(execution.get("kind") or "").strip() != "overlay_run_command":
+                raise ValueError("overlay_run_command execution.kind must be overlay_run_command")
+            command = str(execution.get("command") or "").strip()
+            if not command:
+                raise ValueError("overlay_run_command requires execution.command")
+        else:
+            refs = ()
+            grounding = {"claim": "", "method_summary": "", "proxy_risk": ""}
+            command = str(item.get("command", ""))
         parsed.append(
             VerifierInspectionRequest(
                 request_id=str(item.get("request_id", f"inspect-{idx}")).strip() or f"inspect-{idx}",
@@ -75,17 +97,39 @@ def parse_verifier_inspection_requests(value: Any) -> tuple[VerifierInspectionRe
                 check_id=str(item.get("check_id", "")).strip(),
                 receipt_kind=str(item.get("receipt_kind", "")).strip(),
                 limit=max(1, int(item.get("limit", 5) or 5)),
-                command=str(item.get("command", "")),
+                command=command,
                 content=str(item.get("content", "")),
                 target=str(item.get("target", "")).strip(),
                 offset=max(0, int(item.get("offset", 0) or 0)),
                 span=max(1, int(item.get("span", item.get("limit", 4000)) or 4000)),
+                authoritative_source_refs=refs,
                 **grounding,
             )
         )
     if not parsed:
         raise ValueError("inspection request contained no valid entries")
     return tuple(parsed)
+
+
+TASK_PROMPT_REF = "task:prompt"
+
+
+def invalid_authoritative_source_refs(
+    requests: tuple[VerifierInspectionRequest, ...], *, available_refs: set[str],
+) -> tuple[str, ...]:
+    """Content-blind causal check for overlay-command provenance.
+
+    The kernel verifies only that the references existed before this request;
+    it never decides whether a referenced source semantically supports a method.
+    """
+    invalid: list[str] = []
+    for request in requests:
+        if request.kind != "overlay_run_command":
+            continue
+        unknown = sorted(set(request.authoritative_source_refs) - available_refs)
+        if unknown:
+            invalid.append(f"{request.request_id}: unknown or not-yet-observed refs {', '.join(unknown)}")
+    return tuple(invalid)
 
 
 def execute_verifier_inspection_requests(

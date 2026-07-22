@@ -94,7 +94,7 @@ def _grounded_inspector(requests):
     ]
 
 
-def _completed(record: list[dict[str, Any]] | None) -> str:
+def _completed(record: list[dict[str, Any]] | None, *, method_validity: dict[str, Any] | None = None) -> str:
     payload: dict[str, Any] = {
         "verdict": "completed",
         "confidence": "high",
@@ -102,6 +102,8 @@ def _completed(record: list[dict[str, Any]] | None) -> str:
     }
     if record is not None:
         payload["completion_evidence"] = record
+    if method_validity is not None:
+        payload["method_validity"] = method_validity
     return json.dumps(payload)
 
 
@@ -114,6 +116,15 @@ def _valid_record(refs: list[str]) -> list[dict[str, Any]]:
             "falsification_check": "a differing independently derived value would have contradicted the file",
         }
     ]
+
+
+def _valid_method_validity(execution_ref: str, source_refs: list[str]) -> dict[str, Any]:
+    return {
+        "observed_structure": "The source record was observed before execution.",
+        "executed_rule": "The command used the observed structure directly.",
+        "authoritative_source_refs": source_refs,
+        "execution_ref": execution_ref,
+    }
 
 
 def _run_verify(
@@ -331,11 +342,13 @@ _OVERLAY_INSPECT_REQUEST = json.dumps({
         {
             "request_id": "probe-2",
             "kind": "overlay_run_command",
-            "claim": "The reported value matches the source data.",
-            "authoritative_source": "The structured source record used for the value.",
-            "method": "Parse that record directly and recompute the value.",
-            "proxy_risk": "A broader textual proxy could select unrelated content.",
-            "command": "python3 recompute.py",
+            "verification_plan": {
+                "claim": "The reported value matches the source data.",
+                "authoritative_source_refs": ["task:prompt"],
+                "method_summary": "Parse that record directly and recompute the value.",
+                "proxy_risk": "A broader textual proxy could select unrelated content.",
+            },
+            "execution": {"kind": "overlay_run_command", "command": "python3 recompute.py"},
         },
     ],
 })
@@ -364,13 +377,95 @@ def test_completed_with_overlay_run_command_ref_is_accepted_when_independence_re
     raw, calls = _run_verify(
         [
             _OVERLAY_INSPECT_REQUEST,
-            _completed(_valid_record([_inspection_id("probe-1"), _inspection_id("probe-2")])),
+            _completed(
+                _valid_record([_inspection_id("probe-1"), _inspection_id("probe-2")]),
+                method_validity=_valid_method_validity(_inspection_id("probe-2"), ["task:prompt"]),
+            ),
         ],
         packet_overrides=_RE_DERIVABLE_PACKET,
     )
     parsed = parse_model_verifier_result(raw)
     assert parsed.verdict == "completed"
     assert len(calls) == 2
+
+
+def test_overlay_command_cannot_cite_same_round_observation() -> None:
+    raw, calls = _run_verify([
+        json.dumps({
+            "kind": "inspect",
+            "requests": [
+                {"request_id": "source", "kind": "read_file", "path": "out.txt"},
+                {
+                    "request_id": "derive",
+                    "kind": "overlay_run_command",
+                    "verification_plan": {
+                        "claim": "The output matches the source.",
+                        "authoritative_source_refs": ["inspection:future:source"],
+                        "method_summary": "Parse the observed source.",
+                        "proxy_risk": "A proxy can be misleading.",
+                    },
+                    "execution": {"kind": "overlay_run_command", "command": "python3 derive.py"},
+                },
+            ],
+        }),
+        _INSPECT_REQUEST,
+        _completed(_valid_record([_inspection_id("probe-1")])),
+    ])
+    assert parse_model_verifier_result(raw).verdict == "completed"
+    correction = json.loads(calls[1][-1]["content"])
+    assert "same round" in correction["instruction"]
+    assert correction["available_authoritative_source_refs"] == ["task:prompt"]
+
+
+def test_overlay_command_accepts_prior_inspection_reference() -> None:
+    source_request = json.dumps({
+        "kind": "inspect",
+        "requests": [{"request_id": "source", "kind": "read_file", "path": "out.txt"}],
+    })
+    command_request = json.dumps({
+        "kind": "inspect",
+        "requests": [{
+            "request_id": "derive",
+            "kind": "overlay_run_command",
+            "verification_plan": {
+                "claim": "The output matches the source.",
+                "authoritative_source_refs": [_inspection_id("source")],
+                "method_summary": "Parse the previously observed source.",
+                "proxy_risk": "A proxy can be misleading.",
+            },
+            "execution": {"kind": "overlay_run_command", "command": "python3 derive.py"},
+        }],
+    })
+    raw, calls = _run_verify([
+        source_request,
+        command_request,
+        _completed(
+            _valid_record([_inspection_id("source"), _inspection_id("derive")]),
+            method_validity=_valid_method_validity(_inspection_id("derive"), [_inspection_id("source")]),
+        ),
+    ])
+    assert parse_model_verifier_result(raw).verdict == "completed"
+    assert len(calls) == 3
+
+
+def test_missing_execution_command_gets_field_specific_correction() -> None:
+    missing_command = json.dumps({
+        "kind": "inspect",
+        "requests": [{
+            "request_id": "derive",
+            "kind": "overlay_run_command",
+            "verification_plan": {
+                "claim": "The output matches the source.",
+                "authoritative_source_refs": ["task:prompt"],
+                "method_summary": "python3 derive.py",
+                "proxy_risk": "A proxy can be misleading.",
+            },
+            "execution": {"kind": "overlay_run_command", "command": ""},
+        }],
+    })
+    raw, calls = _run_verify([missing_command, _INSPECT_REQUEST, _completed(_valid_record([_inspection_id("probe-1")]))])
+    assert parse_model_verifier_result(raw).verdict == "completed"
+    assert "Put executable text in execution.command" in json.loads(calls[1][-1]["content"])["instruction"]
 
 
 def test_completed_with_only_read_file_refs_is_accepted_when_independence_not_flagged() -> None:

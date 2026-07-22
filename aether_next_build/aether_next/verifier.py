@@ -92,6 +92,20 @@ class CompletionEvidenceEntry:
 
 
 @dataclass(frozen=True)
+class MethodValidityRecord:
+    """Model-authored link from an executed verifier method to prior evidence.
+
+    The runtime validates only populated fields and reference identity.  It
+    never decides whether the model's extraction rule is semantically correct.
+    """
+
+    observed_structure: str
+    executed_rule: str
+    authoritative_source_refs: tuple[str, ...]
+    execution_ref: str
+
+
+@dataclass(frozen=True)
 class ModelVerifierResult:
     verdict: str
     confidence: str = "medium"
@@ -99,6 +113,7 @@ class ModelVerifierResult:
     findings: tuple[VerifierFinding, ...] = ()
     missing_evidence_requests: tuple[str, ...] = ()
     completion_evidence: tuple[CompletionEvidenceEntry, ...] = ()
+    method_validity: MethodValidityRecord | None = None
 
     def __post_init__(self) -> None:
         if self.verdict not in VERIFIER_VERDICTS:
@@ -112,6 +127,7 @@ class ModelVerifierResult:
             "findings": [asdict(finding) for finding in self.findings],
             "missing_evidence_requests": list(self.missing_evidence_requests),
                 "completion_evidence": [asdict(entry) for entry in self.completion_evidence],
+            "method_validity": asdict(self.method_validity) if self.method_validity else None,
         }
 
 
@@ -250,7 +266,31 @@ def parse_model_verifier_result(value: Any) -> ModelVerifierResult:
         findings=findings,
         missing_evidence_requests=missing,
         completion_evidence=_parse_completion_evidence(data),
+        method_validity=_parse_method_validity(data),
     )
+
+
+def _parse_method_validity(data: Mapping[str, Any]) -> MethodValidityRecord | None:
+    raw = data.get("method_validity")
+    if raw in (None, "", ()):
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("method_validity must be an object")
+    refs_raw = raw.get("authoritative_source_refs", ())
+    if isinstance(refs_raw, str):
+        refs_raw = [refs_raw]
+    if not isinstance(refs_raw, (list, tuple)):
+        raise ValueError("method_validity.authoritative_source_refs must be a list")
+    refs = tuple(str(ref or "").strip() for ref in refs_raw if str(ref or "").strip())
+    observed = str(raw.get("observed_structure") or "").strip()
+    rule = str(raw.get("executed_rule") or "").strip()
+    execution_ref = str(raw.get("execution_ref") or "").strip()
+    if not observed or not rule or not refs or not execution_ref:
+        raise ValueError(
+            "method_validity requires observed_structure, executed_rule, "
+            "authoritative_source_refs, and execution_ref"
+        )
+    return MethodValidityRecord(observed, rule, refs, execution_ref)
 
 
 def _parse_completion_evidence(data: Mapping[str, Any]) -> tuple[CompletionEvidenceEntry, ...]:

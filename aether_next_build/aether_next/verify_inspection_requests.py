@@ -42,12 +42,14 @@ def _verifier_identity_prompt_for(compiled: Any) -> str:
             "read_output, rerun_check, overlay_run_command, probe_port, probe_http, "
             "probe_process, inspect_artifact, and perceive_artifact. Do not claim "
             "blocked_by_tooling or that you cannot inspect until a concrete inspection "
-            "request has failed. For every overlay_run_command request, include non-empty "
-            "claim, authoritative_source, method, and proxy_risk fields. State the source "
-            "field or structure that determines the value, the direct parsing or measurement "
-            "method, and why a broader proxy could mislead. The command must implement your "
-            "stated method. This is a verification commitment, not a request for hidden reasoning; "
-            "the runtime checks only that the fields are present and does not decide task semantics.\n\n"
+            "request has failed. An overlay_run_command request must use the nested shape "
+            "{verification_plan:{claim,authoritative_source_refs,method_summary,proxy_risk},"
+            "execution:{kind:'overlay_run_command',command:'...'}}. Source references must name "
+            "task:prompt only when the task itself fully defines the method, or inspection IDs "
+            "returned by earlier completed rounds. First observe any environmental structure that "
+            "the task does not define; do not batch a parser with the reads it depends on. The "
+            "command must implement the stated method. This is a verification commitment, not a "
+            "request for hidden reasoning; the runtime checks only field shape and provenance, not task semantics.\n\n"
         )
         return operational + prompt
     raise _model_output_error("architect-authored verifier prompt is required")

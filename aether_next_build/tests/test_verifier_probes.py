@@ -215,29 +215,30 @@ def test_inspection_request_parser_aliases_run_check_to_rerun_check() -> None:
     assert requests[0].kind == "rerun_check"
 
 
-def test_overlay_command_request_requires_nonsemantic_method_grounding() -> None:
-    with pytest.raises(ValueError, match="method-grounding fields: authoritative_source, method, proxy_risk"):
+def test_overlay_command_request_requires_provenance_bound_plan_and_execution() -> None:
+    with pytest.raises(ValueError, match="verification_plan object"):
         parse_verifier_inspection_requests({
             "kind": "inspect",
             "requests": [{
                 "kind": "overlay_run_command",
                 "request_id": "derive",
-                "claim": "The reported values match the source data.",
                 "command": "python3 derive.py",
             }],
         })
 
-    with pytest.raises(ValueError, match="method-grounding fields: authoritative_source"):
+    with pytest.raises(ValueError, match="authoritative_source_refs"):
         parse_verifier_inspection_requests({
             "kind": "inspect",
             "requests": [{
                 "kind": "overlay_run_command",
                 "request_id": "derive",
-                "claim": "The reported values match the source data.",
-                "authoritative_source": None,
-                "method": "Parse the structured field.",
-                "proxy_risk": "Free text can look similar.",
-                "command": "python3 derive.py",
+                "verification_plan": {
+                    "claim": "The reported values match the source data.",
+                    "authoritative_source_refs": None,
+                    "method_summary": "Parse the structured field.",
+                    "proxy_risk": "Free text can look similar.",
+                },
+                "execution": {"kind": "overlay_run_command", "command": "python3 derive.py"},
             }],
         })
 
@@ -246,16 +247,18 @@ def test_overlay_command_request_requires_nonsemantic_method_grounding() -> None
         "requests": [{
             "kind": "overlay_run_command",
             "request_id": "derive",
-            "claim": "The reported values match the source data.",
-            "authoritative_source": "The structured value field in each source record.",
-            "method": "Parse that field directly and aggregate it.",
-            "proxy_risk": "Free-text may contain value-like tokens.",
-            "command": "python3 derive.py",
+            "verification_plan": {
+                "claim": "The reported values match the source data.",
+                "authoritative_source_refs": ["inspection:1:0:source"],
+                "method_summary": "Parse that field directly and aggregate it.",
+                "proxy_risk": "Free-text may contain value-like tokens.",
+            },
+            "execution": {"kind": "overlay_run_command", "command": "python3 derive.py"},
         }],
     })[0]
 
-    assert request.authoritative_source == "The structured value field in each source record."
-    assert request.method == "Parse that field directly and aggregate it."
+    assert request.authoritative_source_refs == ("inspection:1:0:source",)
+    assert request.method_summary == "Parse that field directly and aggregate it."
     assert request.proxy_risk == "Free-text may contain value-like tokens."
 
 

@@ -109,6 +109,7 @@ VERIFIER_RUNTIME_CONTRACT = {
         "Numeric agreement between two runs of the same method proves nothing: before returning completed on data-derived outputs, independently spot-check a small raw sample against the produced artifact via read-only inspection or overlay execution.",
         "Shape-only checks (existence, size, syntax, content literals) are never sufficient evidence of semantic correctness.",
         "A completed verdict must include completion_evidence (see completion_evidence_shape): one entry per decisive completion claim, mapping the requirement to what your own inspection observed. Every entry's inspection_refs must cite inspections you actually performed in this verification round; an unreferenced or empty record is a protocol violation and the completion will be refused.",
+        "After any overlay_run_command, every final verdict must include method_validity: observed_structure, executed_rule, authoritative_source_refs, and execution_ref. Cite the completed overlay inspection and only source refs available before that command. This is an auditable method record, not hidden reasoning.",
         "When a claimed value is machine-re-derivable (counts, frame indices, field names, hashes, parsed values), decisive evidence must come from your own independent derivation -- overlay execution, probes, or your own perception of task inputs -- never from inspection of solver-produced artifacts alone.",
         "When inspecting structured records, classify entries using the declared record grammar or field delimiters. Do not treat a category word appearing inside a free-text payload as the record's category.",
         "If the decisive region of an artifact cannot be read directly within inspection spans, derive the needed fact yourself with overlay_run_command instead of judging from excerpts, comments, or metadata.",
@@ -129,7 +130,16 @@ VERIFIER_RUNTIME_CONTRACT = {
                     "handle": "command-output handle such as 5:a-1:stdout when using read_output",
                     "check_id": "compiled check id when needed",
                     "receipt_kind": "receipt kind filter when needed",
-                    "command": "command to execute for overlay_run_command",
+                    "verification_plan": {
+                        "claim": "the verification claim",
+                        "authoritative_source_refs": ["task:prompt or earlier inspection_id"],
+                        "method_summary": "direct measurement method",
+                        "proxy_risk": "why a broader proxy can mislead",
+                    },
+                    "execution": {
+                        "kind": "overlay_run_command",
+                        "command": "command to execute only after its source refs were observed",
+                    },
                     "content": "fixture file content for overlay_write_fixture",
                     "target": "host:port for probe_port, URL for probe_http, process pattern for probe_process",
                     "offset": 0,
@@ -149,6 +159,7 @@ VERIFIER_RUNTIME_CONTRACT = {
             "Use overlay_write_fixture + overlay_run_command to test the deliverable against YOUR OWN inputs, not only the solver's.",
             "For service tasks, judge the live state with probe_port/probe_http/probe_process rather than the solver's captured output.",
             "Prefer the smallest observation that resolves uncertainty.",
+            "Causal boundary: you may batch independent read-only observations, but may not run a command whose method depends on observations requested in that same round. Inspect first; use returned inspection IDs in a later request. task:prompt is valid only when the task itself fully defines the source structure and method.",
         ],
     },
 }

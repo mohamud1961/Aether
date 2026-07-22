@@ -403,6 +403,9 @@ class TestVerifierHook:
         assert "proxy_risk" in system_prompt
         assert "verifier_runtime_contract" in seen["messages"][1]["content"]
         assert "verifier_packet" in seen["messages"][1]["content"]
+        payload = json.loads(seen["messages"][1]["content"])
+        assert payload["authoritative_task_prompt"] == compiled.task_prompt
+        assert "compiled_summary" not in payload
 
     def test_default_completion_inspection_prioritizes_artifact_and_raw_state(self) -> None:
         packet = {

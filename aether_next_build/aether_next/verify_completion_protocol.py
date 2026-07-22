@@ -25,7 +25,7 @@ from .inspection_registry import inspection_ceilings_from_results
 from .model_prompts import VERIFIER_RUNTIME_CONTRACT
 from .runtime_ir import CompiledRuntime
 from .verifier import CompletionEvidenceShapeError, parse_model_verifier_result
-from .verifier_inspector import parse_verifier_inspection_requests
+from .verifier_inspector import TASK_PROMPT_REF, invalid_authoritative_source_refs, parse_verifier_inspection_requests
 from .verify_completion_gates import (
     _completion_independence_problem,
     _completion_record_problem,
@@ -69,7 +69,7 @@ def verify_with_inspector(
     user_payload = {
         "verifier_runtime_contract": VERIFIER_RUNTIME_CONTRACT,
         "verifier_packet": dict(packet),
-        "compiled_summary": compiled.task_prompt[:500],
+        "authoritative_task_prompt": compiled.task_prompt,
         "ledger_receipt_count": len(ledger.all_receipts()),
     }
     messages: list[dict[str, str]] = [
@@ -92,6 +92,9 @@ def verify_with_inspector(
     performed_refs: set[str] = set()
     performed_independent_refs: set[str] = set()
     performed_ceilings: dict[str, str] = {}
+    available_authoritative_refs: set[str] = {TASK_PROMPT_REF}
+    executed_overlay_refs: set[str] = set()
+    method_validity_retry_used = False
     last_inspection_results: list[dict[str, Any]] = []
     for round_idx in range(max_rounds + 1):
         try:
@@ -134,25 +137,52 @@ def verify_with_inspector(
             except Exception as inspection_exc:
                 hooks.last_parse_errors.append(f"{verdict_exc}; {inspection_exc}")
                 if round_idx < max_rounds:
+                    if "execution.command" in str(inspection_exc):
+                        instruction = (
+                            "Your overlay command was not executed because execution.command is required. "
+                            "Put executable text in execution.command, not in verification_plan.method_summary. "
+                            "Return the same inspect object with verification_plan as prose and execution "
+                            "as {kind:'overlay_run_command', command:'...'}; do not add prose outside JSON."
+                        )
+                    else:
+                        instruction = (
+                            "Your previous verifier message was not valid protocol JSON. "
+                            "Return exactly one JSON object and no prose. The object must "
+                            "be either a final verifier verdict with fields verdict, "
+                            "confidence, and summary, or an inspection request with "
+                            "kind='inspect' and a non-empty requests list."
+                        )
                     messages.append({"role": "assistant", "content": raw})
                     messages.append({
                         "role": "user",
                         "content": json.dumps(
-                            {
-                                "instruction": (
-                                    "Your previous verifier message was not valid protocol JSON. "
-                                    "Return exactly one JSON object and no prose. The object must "
-                                    "be either a final verifier verdict with fields verdict, "
-                                    "confidence, and summary, or an inspection request with "
-                                    "kind='inspect' and a non-empty requests list."
-                                ),
-                            },
+                            {"instruction": instruction},
                             default=str,
                             sort_keys=True,
                         ),
                     })
                     continue
                 raise
+            invalid_refs = invalid_authoritative_source_refs(
+                requests, available_refs=available_authoritative_refs,
+            )
+            if invalid_refs:
+                hooks.last_parse_errors.extend(invalid_refs)
+                if round_idx < max_rounds:
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({"role": "user", "content": json.dumps({
+                        "instruction": (
+                            "Do not execute a command from evidence requested in this same round. "
+                            "Every execution.verification_plan.authoritative_source_refs entry must "
+                            "be task:prompt or an inspection_id returned by an earlier successful round. "
+                            "First request independent read-only observations, then use their returned "
+                            "inspection IDs in a later command request."
+                        ),
+                        "available_authoritative_source_refs": sorted(available_authoritative_refs),
+                        "protocol_errors": list(invalid_refs),
+                    }, default=str, sort_keys=True)})
+                    continue
+                raise _model_output_error("verifier inspection request cited unavailable authoritative source refs")
             if round_idx >= max_rounds:
                 raise _model_output_error(
                     "verifier requested inspection after the final synthesis turn"
@@ -160,6 +190,12 @@ def verify_with_inspector(
             results = inspector(requests)
             inspected = True
             performed_refs |= _refs_from_inspections(requests, results)
+            available_authoritative_refs |= _refs_from_inspections(requests, results)
+            executed_overlay_refs |= {
+                str(row.get("inspection_id", "")).strip()
+                for request, row in zip(requests, results)
+                if request.kind == "overlay_run_command" and not row.get("error")
+            }
             performed_independent_refs |= _independent_derivation_refs(requests, results)
             performed_ceilings.update(inspection_ceilings_from_results(results))
             last_inspection_results = list(results)
@@ -169,6 +205,7 @@ def verify_with_inspector(
                 "content": json.dumps(
                     {
                         "verifier_inspection_results": results,
+                        "available_authoritative_source_refs": sorted(available_authoritative_refs),
                         "instruction": (
                             "Use these observations together with the original verifier_packet and "
                             + ("return a final verdict now; no further inspection is available." if round_idx == max_rounds - 1 else "return either a final verdict or another bounded inspection request.")
@@ -179,12 +216,44 @@ def verify_with_inspector(
                 ),
             })
             continue
+        if executed_overlay_refs:
+            validity = result.method_validity
+            invalid_validity = (
+                validity is None
+                or validity.execution_ref not in executed_overlay_refs
+                or not set(validity.authoritative_source_refs) <= available_authoritative_refs
+            )
+            if invalid_validity and round_idx < max_rounds and not method_validity_retry_used:
+                method_validity_retry_used = True
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({"role": "user", "content": json.dumps({
+                    "instruction": (
+                        "Before a final verdict after overlay execution, include method_validity with "
+                        "observed_structure, executed_rule, authoritative_source_refs, and execution_ref. "
+                        "execution_ref must name the completed overlay inspection; source refs must be "
+                        "task:prompt or earlier successful inspection IDs. State only your audit record, "
+                        "not hidden reasoning."
+                    ),
+                    "available_authoritative_source_refs": sorted(available_authoritative_refs),
+                    "completed_overlay_execution_refs": sorted(executed_overlay_refs),
+                }, default=str, sort_keys=True)})
+                continue
+            if invalid_validity:
+                return json.dumps({
+                    "verdict": "uncertain_missing_evidence",
+                    "confidence": "high",
+                    "summary": "Final verifier verdict cannot be accepted without a provenance-bound method-validity record.",
+                    "missing_evidence_requests": [
+                        "Provide method_validity linking the observed source structure, executed rule, source refs, and completed overlay execution.",
+                    ],
+                })
         if result.verdict == "blocked_by_tooling" and not inspected and round_idx < max_rounds:
             auto_requests = _default_completion_inspection_requests(packet)
             if auto_requests:
                 results = inspector(auto_requests)
                 inspected = True
                 performed_refs |= _refs_from_inspections(auto_requests, results)
+                available_authoritative_refs |= _refs_from_inspections(auto_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
                 performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
@@ -239,6 +308,7 @@ def verify_with_inspector(
                 results = inspector(auto_requests)
                 inspected = True
                 performed_refs |= _refs_from_inspections(auto_requests, results)
+                available_authoritative_refs |= _refs_from_inspections(auto_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
                 performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
@@ -274,6 +344,7 @@ def verify_with_inspector(
                 results = inspector(auto_requests)
                 inspected = True
                 performed_refs |= _refs_from_inspections(auto_requests, results)
+                available_authoritative_refs |= _refs_from_inspections(auto_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(auto_requests, results)
                 performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
@@ -397,6 +468,7 @@ def verify_with_inspector(
                 results = inspector(missing_requests)
                 inspected = True
                 performed_refs |= _refs_from_inspections(missing_requests, results)
+                available_authoritative_refs |= _refs_from_inspections(missing_requests, results)
                 performed_independent_refs |= _independent_derivation_refs(missing_requests, results)
                 performed_ceilings.update(inspection_ceilings_from_results(results))
                 last_inspection_results = list(results)
