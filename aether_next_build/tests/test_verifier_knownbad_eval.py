@@ -83,6 +83,19 @@ def test_evaluator_binds_successful_inspections_to_scoped_proof_refs() -> None:
     assert "eligible_for_proof" not in results[1]
 
 
+def test_observation_only_phase_rejects_execution_but_allows_reads() -> None:
+    errors = _MODULE._observation_only_request_errors((
+        VerifierInspectionRequest(request_id="read", kind="read_file", path="out.txt"),
+        VerifierInspectionRequest(request_id="derive", kind="overlay_run_command", command="python3 check.py"),
+        VerifierInspectionRequest(request_id="rerun", kind="rerun_check", check_id="c1"),
+    ))
+
+    assert errors == (
+        "derive: overlay_run_command is unavailable during the observation-only phase",
+        "rerun: rerun_check is unavailable during the observation-only phase",
+    )
+
+
 def test_historical_launch_extraction_replays_only_explicit_background_command() -> None:
     commands = _MODULE._historical_launch_commands({
         "steps": [{

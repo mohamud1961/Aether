@@ -79,6 +79,21 @@ DEFAULT_CASES: tuple[tuple[str, str, str], ...] = (
     ("code-from-image", "20260707T162100Z_sentinel_steps200", "known_good"),
 )
 
+_EXECUTING_INSPECTION_KINDS = frozenset({
+    "overlay_run_command", "overlay_write_fixture", "rerun_check",
+})
+
+
+def _observation_only_request_errors(
+    requests: tuple[VerifierInspectionRequest, ...],
+) -> tuple[str, ...]:
+    """Evaluator-only first-turn guard for a causal observation ablation."""
+    return tuple(
+        f"{request.request_id}: {request.kind} is unavailable during the observation-only phase"
+        for request in requests
+        if request.kind in _EXECUTING_INSPECTION_KINDS
+    )
+
 
 def _hash_only_provider_telemetry(
     rows: tuple[dict[str, Any], ...] | list[dict[str, Any]],
@@ -325,6 +340,7 @@ def _run_case(
     scratch_root: Path,
     runtime_mode: str,
     restore_live_processes: bool,
+    observation_first: bool = False,
 ) -> dict[str, Any]:
     compiled = case["compiled"]
     ledger = case["ledger"]
@@ -350,20 +366,47 @@ def _run_case(
     if mode == "model":
         assert verifier_model is not None
         model_run_id = f"verifier-knownbad:{uuid.uuid4().hex}"
+        verifier_turns = 0
+
+        def phased_verifier_model(messages, *, max_output_tokens=8000):
+            nonlocal verifier_turns
+            outbound = list(messages)
+            if observation_first and verifier_turns == 0:
+                outbound.append({
+                    "role": "user",
+                    "content": (
+                        "This is an observation-only phase. Return only non-executing read-only "
+                        "inspection requests that reveal any environmental representation needed "
+                        "before designing a verification method. Do not return a verdict, an overlay "
+                        "command, a rerun, a fixture write, or a method/command proposal."
+                    ),
+                })
+            verifier_turns += 1
+            return verifier_model(outbound, max_output_tokens=max_output_tokens)
+
         # The verifier and every inspection route share one hook instance so
         # text and vision receipts have the same immutable run/task lineage.
         hooks = ModelHooks(
             architect_model=lambda m, *, max_output_tokens=8000: "{}",
             solver_model=lambda m, *, max_output_tokens=8000: "{}",
-            verifier_model=verifier_model,
+            verifier_model=phased_verifier_model,
             vision_model=vision_model,
             run_id=model_run_id,
             task_id=str(case["task"]),
         )
 
     def inspector(requests: tuple[VerifierInspectionRequest, ...]) -> list[dict[str, Any]]:
+        observation_errors = (
+            _observation_only_request_errors(requests)
+            if observation_first and not inspection_rounds
+            else ()
+        )
+        allowed_requests = tuple(
+            request for request in requests
+            if request.kind not in _EXECUTING_INSPECTION_KINDS or not observation_errors
+        )
         results = execute_verifier_inspection_requests(
-            requests,
+            allowed_requests,
             compiled=compiled,
             ledger=ledger,
             executor=executor,
@@ -376,15 +419,36 @@ def _run_case(
         # cite identifiers it was never shown.
         round_number = len(inspection_rounds) + 1
         results = _bind_evaluator_inspection_proof_refs(
-            requests,
+            allowed_requests,
             results,
             round_number=round_number,
         )
+        rejected_by_id = {
+            request.request_id: {"request_id": request.request_id, "kind": request.kind, "error": error}
+            for request, error in zip(
+                (item for item in requests if item.kind in _EXECUTING_INSPECTION_KINDS),
+                observation_errors,
+            )
+        }
+        results_by_id = {
+            str(result.get("request_id", "")): result
+            for result in results
+            if str(result.get("request_id", ""))
+        }
+        all_results = [
+            results_by_id.get(request.request_id, rejected_by_id.get(request.request_id, {
+                "request_id": request.request_id,
+                "kind": request.kind,
+                "error": "observation request produced no result",
+            }))
+            for request in requests
+        ]
         inspection_rounds.append({
             "requests": [asdict(request) for request in requests],
-            "results": results,
+            "results": all_results,
+            "phase": "observation_only" if observation_first and len(inspection_rounds) == 0 else "normal",
         })
-        return results
+        return all_results
 
     packet = build_verifier_packet(
         compiled,
@@ -402,6 +466,11 @@ def _run_case(
         "packet_handles": len(packet.get("state_inspection_handles", []) or []),
         "runtime_mode": runtime_mode,
         "runtime_setup": setup_receipts,
+        "observation_first": observation_first,
+        "interaction_sequence": (
+            "first_model_turn_observation_only_then_normal_bounded_verifier_rounds"
+            if observation_first else "normal_bounded_verifier_rounds"
+        ),
     }
     try:
         if mode == "dry":
@@ -531,6 +600,11 @@ def main() -> int:
     parser.add_argument("--key-env", default="AZURE_OPENAI_GPT54_MINI_KEY")
     parser.add_argument("--endpoint-env", default="AZURE_OPENAI_ENDPOINT")
     parser.add_argument("--vision-deploy-env", default="")
+    parser.add_argument(
+        "--observation-first",
+        action="store_true",
+        help="Evaluator-only causal ablation: reserve the first model turn for non-executing observation.",
+    )
     parser.add_argument("--out-dir", type=Path, default=Path("verifier_knownbad_eval_out"))
     args = parser.parse_args()
 
@@ -553,6 +627,7 @@ def main() -> int:
                 vision_model=vision_model, scratch_root=scratch_root,
                 runtime_mode=args.runtime_mode,
                 restore_live_processes=args.restore_live_processes,
+                observation_first=args.observation_first,
             ))
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
