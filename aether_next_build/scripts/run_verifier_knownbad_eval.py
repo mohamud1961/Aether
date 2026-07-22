@@ -368,6 +368,10 @@ def _run_case(
         executor = SubprocessExecutor(workspace)
         envmap = EnvMap(task_prompt=compiled.task_prompt, workspace_root=workspace)
         overlay = VerifierOverlay(executor, workspace)
+    # Match production's generic environment discovery before constructing the
+    # verifier packet.  A frozen evaluator must not hide paths that a normal
+    # runtime exposes through EnvMap.visible_files/visible_dirs.
+    envmap = executor.refresh_envmap(envmap)
     inspection_rounds: list[dict[str, Any]] = []
     verifier_turn_trace: list[dict[str, Any]] = []
     hooks: ModelHooks | None = None
