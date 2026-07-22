@@ -19,10 +19,29 @@ from typing import Any
 
 
 _OVERLAY_COMMAND_TIMEOUT_S = 300
+_OVERLAY_INLINE_OUTPUT_CAP = 4_000
 
 
 def _shell_quote(text: str) -> str:
     return "'" + text.replace("'", "'\\''") + "'"
+
+
+def _bounded_output(text: str, *, cap: int = _OVERLAY_INLINE_OUTPUT_CAP) -> tuple[str, bool]:
+    """Keep both command-output boundaries visible to the verifier.
+
+    An independent check commonly emits setup diagnostics before its decisive
+    summary.  A head-only cut can therefore conceal the actual result and
+    turn a successful inspection into artificial missing evidence.  Retain a
+    bounded head and tail, with an explicit boundary marker, rather than
+    silently discarding the tail.
+    """
+    if len(text) <= cap:
+        return text, False
+    marker = f"\n... [overlay output truncated: {len(text)} chars; tail follows]\n"
+    budget = max(1, cap - len(marker))
+    head_size = budget // 2
+    tail_size = budget - head_size
+    return text[:head_size] + marker + text[-tail_size:], True
 
 
 class VerifierOverlay:
@@ -120,13 +139,19 @@ class VerifierOverlay:
         escape = self._symlink_escape_error(self._overlay_root or "")
         if escape:
             return {"error": escape}
+        stdout, stdout_truncated = _bounded_output(result.stdout)
+        stderr, stderr_truncated = _bounded_output(result.stderr)
         return {
             "overlay_root": self._overlay_root,
             "command": command,
             "exit_code": result.exit_code,
             "success": result.success,
-            "stdout": result.stdout[:4000],
-            "stderr": result.stderr[:4000],
+            "stdout": stdout,
+            "stderr": stderr,
+            "stdout_bytes": getattr(result, "stdout_bytes_total", len(result.stdout)),
+            "stderr_bytes": getattr(result, "stderr_bytes_total", len(result.stderr)),
+            "stdout_truncated": stdout_truncated,
+            "stderr_truncated": stderr_truncated,
             "timed_out": getattr(result, "timed_out", False),
         }
 

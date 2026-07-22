@@ -85,6 +85,26 @@ def test_write_fixture_lands_in_overlay_only_and_teardown_removes_everything() -
         assert overlay.teardown() == {"removed": False}
 
 
+def test_overlay_command_keeps_decisive_tail_when_output_exceeds_inline_cap() -> None:
+    with tempfile.TemporaryDirectory() as root:
+        overlay = VerifierOverlay(SubprocessExecutor(root), root)
+        try:
+            result = overlay.run_command(
+                "printf 'HEAD_MARKER\\n'; "
+                "python3 -c \"print('x' * 5000)\"; "
+                "printf 'DECISIVE_TOTALS=verified\\n'"
+            )
+
+            assert result["success"] is True
+            assert result["stdout_truncated"] is True
+            assert result["stdout_bytes"] > len(result["stdout"])
+            assert "HEAD_MARKER" in result["stdout"]
+            assert "DECISIVE_TOTALS=verified" in result["stdout"]
+            assert "tail follows" in result["stdout"]
+        finally:
+            overlay.teardown()
+
+
 def test_fixture_path_escapes_are_rejected() -> None:
     with tempfile.TemporaryDirectory() as root:
         executor = SubprocessExecutor(root)
