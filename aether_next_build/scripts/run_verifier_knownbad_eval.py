@@ -124,6 +124,30 @@ def _inspection_environment_validity(
     return (not issues, tuple(sorted(set(issues))))
 
 
+def _bind_evaluator_inspection_proof_refs(
+    requests: tuple[VerifierInspectionRequest, ...],
+    results: list[dict[str, Any]],
+    *,
+    round_number: int,
+) -> list[dict[str, Any]]:
+    """Expose stable evaluator-owned proof references for successful inspections.
+
+    Production inspection execution registers these fields before presenting
+    results to the verifier.  The frozen-state evaluator invokes the executor
+    directly, so it must create the same *scoped* association itself.  Errors
+    are deliberately never eligible proof: the model may see them as context,
+    but cannot cite them as completed inspection evidence.
+    """
+    for request, result in zip(requests, results):
+        if result.get("error"):
+            continue
+        result["inspection_id"] = (
+            f"verifier-inspection:{round_number}:{request.request_id}"
+        )
+        result["eligible_for_proof"] = True
+    return results
+
+
 def _is_bounded_verifier_protocol_failure(exc: Exception) -> bool:
     """Recognize a verifier that exhausted valid inspection rounds without a verdict.
 
@@ -132,9 +156,10 @@ def _is_bounded_verifier_protocol_failure(exc: Exception) -> bool:
     receives valid inspection results and still never returns a verdict is a
     scoreable failure of the model-facing protocol.
     """
-    return isinstance(exc, ModelOutputError) and str(exc) == (
-        "verifier exceeded bounded inspection rounds without returning a verdict"
-    )
+    return isinstance(exc, ModelOutputError) and str(exc) in {
+        "verifier exceeded bounded inspection rounds without returning a verdict",
+        "verifier requested inspection after the final synthesis turn",
+    }
 
 
 def _historical_launch_commands(trace: Mapping[str, Any]) -> tuple[str, ...]:
@@ -345,6 +370,15 @@ def _run_case(
             envmap=envmap,
             overlay=overlay,
             hooks=hooks,
+        )
+        # The production verifier registry exposes stable proof refs.  This
+        # evaluator must preserve that contract rather than asking a model to
+        # cite identifiers it was never shown.
+        round_number = len(inspection_rounds) + 1
+        results = _bind_evaluator_inspection_proof_refs(
+            requests,
+            results,
+            round_number=round_number,
         )
         inspection_rounds.append({
             "requests": [asdict(request) for request in requests],

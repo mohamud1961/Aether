@@ -512,6 +512,64 @@ class TestVerifierHook:
         assert len(seen["calls"]) == 2
         assert "verifier_inspection_results" in seen["calls"][1][-1]["content"]
 
+    def test_verify_with_inspector_reserves_last_turn_for_verdict_synthesis(self) -> None:
+        envmap = _make_envmap()
+        compiled = ConfigCompiler(CapabilityRegistry.from_envmap(envmap)).compile(
+            RuntimeConfigIR(
+                architect_summary="summary",
+                solver_identity_prompt="solver",
+                selected_capabilities=("shell", "filesystem"),
+                verifier_identity_prompt="Task-specific verifier prompt.",
+            ),
+            envmap,
+        )
+        seen: dict[str, Any] = {"calls": []}
+
+        def verifier_model(messages, *, max_output_tokens=8000):
+            seen["calls"].append(messages)
+            return json.dumps({
+                "kind": "inspect",
+                "summary": "Keep inspecting.",
+                "requests": [{
+                    "request_id": f"read-{len(seen['calls'])}",
+                    "kind": "read_file",
+                    "path": "out.txt",
+                }],
+            })
+
+        hooks = ModelHooks(
+            architect_model=_stub_model(_valid_architect_json()),
+            solver_model=_stub_model(_valid_submit_json()),
+            verifier_model=verifier_model,
+        )
+        inspections: list[tuple[Any, ...]] = []
+
+        def inspector(requests):
+            inspections.append(requests)
+            return [{
+                "request_id": requests[0].request_id,
+                "inspection_id": f"inspection:test:{requests[0].request_id}",
+                "kind": "read_file",
+                "path": "out.txt",
+                "excerpt": "DONE",
+                "evidence_ceiling": "exact_contract",
+                "eligible_for_proof": True,
+            }]
+
+        with pytest.raises(ModelOutputError, match="final synthesis turn"):
+            hooks.verify_with_inspector(
+                {"reason": "solver_submit", "task_prompt": "Write hello.py"},
+                compiled,
+                ledger=type("_L", (), {"all_receipts": lambda self: []})(),
+                inspector=inspector,
+            )
+
+        assert len(inspections) == 3
+        assert len(seen["calls"]) == 4
+        assert "return a final verdict now; no further inspection is available" in (
+            seen["calls"][3][-1]["content"]
+        )
+
     def test_verify_with_inspector_auto_realizes_transcript_missing_evidence_as_read_output(self) -> None:
         envmap = _make_envmap()
         compiled = ConfigCompiler(CapabilityRegistry.from_envmap(envmap)).compile(

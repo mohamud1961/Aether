@@ -153,6 +153,10 @@ def verify_with_inspector(
                     })
                     continue
                 raise
+            if round_idx >= max_rounds:
+                raise _model_output_error(
+                    "verifier requested inspection after the final synthesis turn"
+                )
             results = inspector(requests)
             inspected = True
             performed_refs |= _refs_from_inspections(requests, results)
@@ -165,7 +169,10 @@ def verify_with_inspector(
                 "content": json.dumps(
                     {
                         "verifier_inspection_results": results,
-                        "instruction": "Use these observations together with the original verifier_packet and return either a final verdict or another bounded inspection request.",
+                        "instruction": (
+                            "Use these observations together with the original verifier_packet and "
+                            + ("return a final verdict now; no further inspection is available." if round_idx == max_rounds - 1 else "return either a final verdict or another bounded inspection request.")
+                        ),
                     },
                     default=str,
                     sort_keys=True,

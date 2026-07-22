@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+from aether_next.verifier_inspector import VerifierInspectionRequest
+
 
 _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_verifier_knownbad_eval.py"
 _SPEC = importlib.util.spec_from_file_location("run_verifier_knownbad_eval", _SCRIPT)
@@ -60,6 +62,25 @@ def test_bounded_verifier_inspection_exhaustion_is_scoreable_protocol_failure() 
     assert _MODULE._is_bounded_verifier_protocol_failure(ModelOutputError(
         "verifier output could not be parsed: invalid JSON"
     )) is False
+    assert _MODULE._is_bounded_verifier_protocol_failure(ModelOutputError(
+        "verifier requested inspection after the final synthesis turn"
+    )) is True
+
+
+def test_evaluator_binds_successful_inspections_to_scoped_proof_refs() -> None:
+    results = _MODULE._bind_evaluator_inspection_proof_refs(
+        (
+            VerifierInspectionRequest(request_id="read-output", kind="read_file", path="out.txt"),
+            VerifierInspectionRequest(request_id="failed-probe", kind="probe_port", target="localhost:9999"),
+        ),
+        [{"kind": "read_file"}, {"kind": "probe_port", "error": "connection refused"}],
+        round_number=2,
+    )
+
+    assert results[0]["inspection_id"] == "verifier-inspection:2:read-output"
+    assert results[0]["eligible_for_proof"] is True
+    assert "inspection_id" not in results[1]
+    assert "eligible_for_proof" not in results[1]
 
 
 def test_historical_launch_extraction_replays_only_explicit_background_command() -> None:
