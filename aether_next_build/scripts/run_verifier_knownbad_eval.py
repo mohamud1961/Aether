@@ -92,6 +92,33 @@ def _json_sha256(value: Any) -> str:
     ).hexdigest()
 
 
+def _append_evaluator_trace(path: Path, event: Mapping[str, Any]) -> None:
+    """Persist evaluator call evidence before any protocol parsing occurs."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(dict(event), default=str, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _protocol_invalid_row(
+    row: dict[str, Any], exc: ValueError, *,
+    inspection_rounds: list[dict[str, Any]], raw_verifier_output: str,
+) -> dict[str, Any]:
+    """Fail closed on malformed verifier protocol without losing the package."""
+    row.update({
+        "mode": "model",
+        "measurement_valid": False,
+        "measurement_issues": ["verifier_protocol_invalid"],
+        "prediction": "INVALID_PROTOCOL",
+        "protocol_error_type": type(exc).__name__,
+        "protocol_error": str(exc),
+        "raw_verifier_output": raw_verifier_output,
+        "inspection_rounds": inspection_rounds,
+    })
+    return row
+
+
 def _observation_only_request_errors(
     requests: tuple[VerifierInspectionRequest, ...],
 ) -> tuple[str, ...]:
@@ -349,6 +376,7 @@ def _run_case(
     runtime_mode: str,
     restore_live_processes: bool,
     observation_first: bool = False,
+    forensic_trace_path: Path | None = None,
 ) -> dict[str, Any]:
     compiled = case["compiled"]
     ledger = case["ledger"]
@@ -380,8 +408,10 @@ def _run_case(
         assert verifier_model is not None
         model_run_id = f"verifier-knownbad:{uuid.uuid4().hex}"
         verifier_turns = 0
+        last_raw_verifier_output = ""
 
         def phased_verifier_model(messages, *, max_output_tokens=8000):
+            nonlocal last_raw_verifier_output
             nonlocal verifier_turns
             outbound = list(messages)
             if observation_first and verifier_turns == 0:
@@ -396,7 +426,34 @@ def _run_case(
                 })
             turn_index = verifier_turns
             verifier_turns += 1
-            raw = verifier_model(outbound, max_output_tokens=max_output_tokens)
+            outbound_event = {
+                "event": "outbound_verifier_request",
+                "turn_index": turn_index,
+                "max_output_tokens": max_output_tokens,
+                "messages": outbound,
+                "messages_sha256": _json_sha256(outbound),
+            }
+            if forensic_trace_path is not None:
+                _append_evaluator_trace(forensic_trace_path, outbound_event)
+            try:
+                raw = verifier_model(outbound, max_output_tokens=max_output_tokens)
+            except Exception as exc:
+                if forensic_trace_path is not None:
+                    _append_evaluator_trace(forensic_trace_path, {
+                        "event": "verifier_provider_exception",
+                        "turn_index": turn_index,
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    })
+                raise
+            last_raw_verifier_output = raw
+            if forensic_trace_path is not None:
+                _append_evaluator_trace(forensic_trace_path, {
+                    "event": "raw_verifier_response",
+                    "turn_index": turn_index,
+                    "raw_assistant_output": raw,
+                    "raw_assistant_output_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+                })
             # Evaluator-only forensic retention.  This records what the model
             # was actually sent and explicitly returned; it does not alter
             # prompts, routing, rounds, parsing, scoring, or production code.
@@ -542,6 +599,18 @@ def _run_case(
         if not valid:
             row["prediction"] = "INVALID_ENVIRONMENT"
         return row
+    except ValueError as exc:
+        if forensic_trace_path is not None:
+            _append_evaluator_trace(forensic_trace_path, {
+                "event": "verifier_protocol_invalid",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "inspection_rounds_completed": len(inspection_rounds),
+            })
+        return _protocol_invalid_row(
+            row, exc, inspection_rounds=inspection_rounds,
+            raw_verifier_output=last_raw_verifier_output if mode == "model" else "",
+        )
     except (AzureModelError, ModelOutputError) as exc:
         valid, issues = _inspection_environment_validity(inspection_rounds)
         if not valid:
@@ -589,6 +658,8 @@ def _run_case(
                 hooks.drain_quarantined_model_telemetry()
             )
         row["verifier_turn_trace"] = verifier_turn_trace
+        if forensic_trace_path is not None:
+            row["verifier_turn_trace_path"] = str(forensic_trace_path)
         overlay.teardown()
         _stop_container_replay(container_id)
 
@@ -651,12 +722,14 @@ def main() -> int:
                 continue
             case = _load_case(task, run_dir)
             case["expectation"] = expectation
+            trace_path = args.out_dir / "verifier_turn_traces" / f"{task}.jsonl"
             rows.append(_run_case(
                 case, mode=args.mode, verifier_model=verifier_model,
                 vision_model=vision_model, scratch_root=scratch_root,
                 runtime_mode=args.runtime_mode,
                 restore_live_processes=args.restore_live_processes,
                 observation_first=args.observation_first,
+                forensic_trace_path=trace_path if args.mode == "model" else None,
             ))
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
@@ -673,9 +746,17 @@ def main() -> int:
         lines.append(f"| {row['task']} | {row['expectation']} | {row.get('verdict','')} | {row.get('prediction','')} |")
     report_path = args.out_dir / "KNOWNBAD_EVAL.md"
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    required_paths: tuple[Path, ...] = (
+        source_path, args.out_dir / "knownbad_eval_rows.json", report_path,
+    )
+    if args.mode == "model":
+        required_paths += tuple(
+            args.out_dir / "verifier_turn_traces" / f"{row['task']}.jsonl"
+            for row in rows
+        )
     marker = finalize_evidence_directory(
         args.out_dir,
-        required_paths=(source_path, args.out_dir / "knownbad_eval_rows.json", report_path),
+        required_paths=required_paths,
         metadata={
             "status": "invalid" if any(
                 str(row.get("prediction", "")).startswith("INVALID_") for row in rows

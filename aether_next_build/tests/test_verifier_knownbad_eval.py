@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
+import json
 
 from aether_next.verifier_inspector import VerifierInspectionRequest
 
@@ -165,6 +166,37 @@ def test_forensic_turn_hash_is_stable_across_mapping_order() -> None:
     assert _MODULE._json_sha256({"b": 2, "a": ["x"]}) == _MODULE._json_sha256(
         {"a": ["x"], "b": 2}
     )
+
+
+def test_protocol_invalid_row_is_unscored_and_preserves_raw_output() -> None:
+    row = _MODULE._protocol_invalid_row(
+        {"task": "generic-case"},
+        ValueError("unknown verifier verdict: "),
+        inspection_rounds=[{"requests": [], "results": []}],
+        raw_verifier_output='{"verdict":""}',
+    )
+
+    assert row["prediction"] == "INVALID_PROTOCOL"
+    assert row["measurement_valid"] is False
+    assert row["measurement_issues"] == ["verifier_protocol_invalid"]
+    assert row["raw_verifier_output"] == '{"verdict":""}'
+    assert row["inspection_rounds"] == [{"requests": [], "results": []}]
+
+
+def test_forensic_trace_is_durable_jsonl(tmp_path: Path) -> None:
+    trace_path = tmp_path / "turns" / "case.jsonl"
+    _MODULE._append_evaluator_trace(trace_path, {
+        "event": "raw_verifier_response",
+        "turn_index": 0,
+        "raw_assistant_output": '{"kind":"inspect","requests":[]}',
+    })
+
+    rows = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    assert rows == [{
+        "event": "raw_verifier_response",
+        "turn_index": 0,
+        "raw_assistant_output": '{"kind":"inspect","requests":[]}',
+    }]
 
 
 def test_verifier_uses_dedicated_semantic_vision_callable(monkeypatch) -> None:
