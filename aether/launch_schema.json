@@ -1,0 +1,435 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aether.launch.v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "package",
+    "runtime",
+    "task",
+    "harbor",
+    "model",
+    "evidence",
+    "provider",
+    "budget",
+    "retry",
+    "metadata"
+  ],
+  "$defs": {
+    "role_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_provider_creates",
+        "max_input_tokens",
+        "max_output_tokens",
+        "input_gbp_per_million",
+        "output_gbp_per_million"
+      ],
+      "properties": {
+        "max_provider_creates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_input_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input_gbp_per_million": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+)?$"
+        },
+        "output_gbp_per_million": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+)?$"
+        }
+      }
+    },
+    "provider_budget_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "budget_id",
+        "model_id",
+        "currency",
+        "budget_constrained",
+        "total_cap_gbp",
+        "provider_max_retries",
+        "provider_sdk_max_retries",
+        "agent_timeout_sec",
+        "vm_incremental_cap_gbp",
+        "roles"
+      ],
+      "properties": {
+        "schema_version": {
+          "enum": [
+            "aether.provider_budget.v1",
+            "aether.provider_budget.v2"
+          ]
+        },
+        "budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "model_id": {
+          "const": "gpt-5.6-luna"
+        },
+        "currency": {
+          "const": "GBP"
+        },
+        "budget_constrained": {
+          "const": true
+        },
+        "total_cap_gbp": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+)?$"
+        },
+        "provider_max_retries": {
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "provider_sdk_max_retries": {
+          "const": 0
+        },
+        "solver_turn_budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runtime_limits": {
+          "$ref": "#/$defs/runtime_budget_limits"
+        },
+        "agent_timeout_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "vm_incremental_cap_gbp": {
+          "const": "0"
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "solver",
+            "verifier",
+            "vision"
+          ],
+          "properties": {
+            "solver": {
+              "$ref": "#/$defs/role_budget"
+            },
+            "verifier": {
+              "$ref": "#/$defs/role_budget"
+            },
+            "vision": {
+              "$ref": "#/$defs/role_budget"
+            }
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "solver_turn_budget"
+          ],
+          "properties": {
+            "schema_version": {
+              "const": "aether.provider_budget.v1"
+            },
+            "provider_max_retries": {
+              "const": 0
+            }
+          },
+          "not": {
+            "required": [
+              "runtime_limits"
+            ]
+          }
+        },
+        {
+          "required": [
+            "runtime_limits"
+          ],
+          "properties": {
+            "schema_version": {
+              "const": "aether.provider_budget.v2"
+            },
+            "provider_max_retries": {
+              "enum": [
+                0,
+                1
+              ]
+            }
+          },
+          "not": {
+            "required": [
+              "solver_turn_budget"
+            ]
+          }
+        }
+      ]
+    },
+    "runtime_budget_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "solver_turn_budget",
+        "solver_max_output_tokens",
+        "verifier_max_output_tokens",
+        "vision_max_output_tokens"
+      ],
+      "properties": {
+        "solver_turn_budget": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "solver_max_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verifier_max_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vision_max_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "aether.launch.v2"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "closure_sha256",
+        "file_count"
+      ],
+      "properties": {
+        "name": {
+          "const": "aether-runtime"
+        },
+        "version": {
+          "type": "string"
+        },
+        "closure_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_path",
+        "profile_id",
+        "profile_sha256",
+        "tool_schema_sha256"
+      ],
+      "properties": {
+        "runtime_path": {
+          "const": "persistent_v0"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "profile_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tool_schema_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "closure_sha256",
+        "file_count"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "closure_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "harbor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "agent_selector"
+      ],
+      "properties": {
+        "version": {
+          "const": "0.20.0"
+        },
+        "agent_selector": {
+          "type": "string"
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "deployment_env"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string"
+        },
+        "deployment_env": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root"
+      ],
+      "properties": {
+        "root": {
+          "type": "string"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls_allowed",
+        "canary_receipt_path",
+        "canary_receipt_sha256"
+      ],
+      "properties": {
+        "calls_allowed": {
+          "type": "boolean"
+        },
+        "canary_receipt_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canary_receipt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "budget": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract",
+            "contract_sha256"
+          ],
+          "properties": {
+            "contract": {
+              "$ref": "#/$defs/provider_budget_contract"
+            },
+            "contract_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_attempts",
+        "max_retries"
+      ],
+      "properties": {
+        "max_attempts": {
+          "const": 1
+        },
+        "max_retries": {
+          "const": 0
+        }
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}

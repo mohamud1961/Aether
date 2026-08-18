@@ -105,12 +105,18 @@ def build_binding(raw_task: str, contract_payload: Mapping[str, Any]) -> dict[st
     """Build the compact hash binding placed beside the raw task."""
     raw_hash = text_sha256(raw_task)
     contract_hash = canonical_hash(contract_payload)
+    schema_version = str(contract_payload.get("schema_version", "") or "")
+    relationship = (
+        "raw_task_is_sole_semantic_authority"
+        if schema_version == "persistent_v11_raw"
+        else "contract_is_additive_not_replacement"
+    )
     return {
         "schema_version": RAW_TASK_SCHEMA_VERSION,
         "label": RAW_TASK_LABEL,
         "raw_task_sha256": raw_hash,
         "contract_sha256": contract_hash,
-        "relationship": "contract_is_additive_not_replacement",
+        "relationship": relationship,
     }
 
 
@@ -168,7 +174,10 @@ def validate_solver_messages(
         raise RawTaskAuthorityError("Solver raw-task binding has the wrong schema version")
     if binding.get("label") != RAW_TASK_LABEL:
         raise RawTaskAuthorityError("Solver raw-task binding has the wrong label")
-    if binding.get("relationship") != "contract_is_additive_not_replacement":
+    if binding.get("relationship") not in {
+        "contract_is_additive_not_replacement",
+        "raw_task_is_sole_semantic_authority",
+    }:
         raise RawTaskAuthorityError("Solver raw-task binding has the wrong authority relationship")
     if binding.get("raw_task_sha256") != text_sha256(expected_raw_task):
         raise RawTaskAuthorityError("Solver raw-task hash does not match the visible task")
@@ -196,7 +205,10 @@ def validate_verifier_packet(packet: Mapping[str, Any], *, expected_raw_task: st
         raise RawTaskAuthorityError("Verifier raw-task binding has the wrong schema version")
     if binding.get("label") != RAW_TASK_LABEL:
         raise RawTaskAuthorityError("Verifier raw-task binding has the wrong label")
-    if binding.get("relationship") != "contract_is_additive_not_replacement":
+    if binding.get("relationship") not in {
+        "contract_is_additive_not_replacement",
+        "raw_task_is_sole_semantic_authority",
+    }:
         raise RawTaskAuthorityError("Verifier raw-task binding has the wrong authority relationship")
     if binding.get("raw_task_sha256") != expected_raw_hash:
         raise RawTaskAuthorityError("Verifier raw-task binding does not match its text")

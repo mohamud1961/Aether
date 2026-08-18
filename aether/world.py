@@ -149,25 +149,42 @@ class WorldState:
                 return {
                     "status": "present",
                     "chars": len(value),
-                    "sha256": hashlib.sha256(value.encode("utf-8", "surrogateescape")).hexdigest(),
+                    "content_sha256": hashlib.sha256(value.encode("utf-8", "surrogateescape")).hexdigest(),
                 }
             if isinstance(value, Mapping):
-                allowed = {"status", "step", "sha256", "bytes", "chars", "size", "modified_at", "state", "kind", "pid", "port", "returncode", "readiness", "stdout_handle", "stderr_handle", "handle", "file_handle", "job_id", "completed", "job_succeeded", "process_generation", "process_generation_verified", "lifecycle_authority"}
+                allowed = {"status", "step", "content_sha256", "content_sha256_provenance", "bytes", "chars", "size", "modified_at", "state", "kind", "pid", "port", "returncode", "readiness", "stdout_handle", "stderr_handle", "handle", "file_handle", "job_id", "completed", "job_succeeded", "process_generation", "process_generation_verified", "lifecycle_authority"}
                 row = {str(k): deepcopy(v) for k, v in value.items() if k in allowed}
+                upstream_content_sha = row.get("content_sha256")
+                upstream_content_provenance = row.get("content_sha256_provenance")
                 if not row:
                     row = {"status": "present", "keys": sorted(str(k) for k in value)}
                 else:
                     omitted = sorted(str(k) for k in value if k not in allowed)
                     if omitted:
                         row["omitted_keys"] = omitted
-                # A digest makes omitted fields and same-shaped updates visible
-                # to atomic no-op detection while keeping large values compact.
-                row["sha256"] = hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
+                if (
+                    isinstance(upstream_content_sha, str)
+                    and len(upstream_content_sha) == 64
+                    and all(char in "0123456789abcdef" for char in upstream_content_sha.lower())
+                    and upstream_content_provenance == "captured_bytes"
+                ):
+                    # Only an explicit hash of retained bytes is content
+                    # identity. A generic ``sha256`` can be metadata, a
+                    # transport digest, or model-authored text.
+                    row["content_sha256"] = upstream_content_sha
+                else:
+                    row.pop("content_sha256", None)
+                    row.pop("content_sha256_provenance", None)
+                    row["content_identity"] = "unknown"
+                # This digest identifies the compact metadata row, not file
+                # bytes. It must never overwrite a captured content identity.
+                row["metadata_digest"] = hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
                 return row
             return {
                 "status": "present",
                 "type": type(value).__name__,
-                "sha256": hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest(),
+                "content_identity": "unknown",
+                "metadata_digest": hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest(),
             }
         return {
             "schema_version": "dynamic_world_state.v1",
