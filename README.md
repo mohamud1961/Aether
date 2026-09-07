@@ -1,83 +1,167 @@
-# HarnessEng
+# Aether
 
-HarnessEng is an eval-first agentic harness workspace: a Python runtime, real
-eval packs, variant families, research synthesis, and an AI-native workflow
-layer for running agent work as governed loops.
+> **Make the model the limit.**
 
-## Repository Map
+Aether is a model-led execution runtime for autonomous computer work. Its research goal is simple: **as models get better, their agents should get better too—without adding another intelligence above the model.**
 
-- `harness/aether2/` is the active Python harness line.
-- `eval_suite/` contains custom evals organized by capability family and
-  whole-harness surface, including boards, result rows, scoreboards, and
-  scorecard-style summaries where evidence exists.
-- `variants/` contains mechanism-family and whole-harness variant surfaces,
-  including real variant implementations, hypotheses, tournament records, and
-  scoreboards/scorecards where runs were actually scored.
-- `research/` contains promoted deep-synthesis outputs, run analyses,
-  planning artifacts, reviews, mechanism maps, failure taxonomies, and case
-  studies.
-- `docs/` is the public documentation hub: architecture maps, publication
-  boundaries, public evidence indexes, schemas, and reviewer-facing case
-  studies.
-- `workflows/` is the AI-native engineering operating layer: loop
-  orchestration, skills, run operations, synthesis, planning, review,
-  handoff, automation, and repair workflows.
+The model owns cognition and strategy. Aether supplies the execution substrate: tools, files, computer access, state, recovery, evidence and bounded action.
 
-## Eval And Variant Discipline
+```text
+MODEL                    AETHER                         WORLD
+intelligence             capability                    real work
+understand               observe                       code
+choose                   act                           services
+adapt          ->         remember          ->          applications
+                         recover                       computers
+                         trace
 
-The project treats eval evidence as the promotion authority. A mechanism or
-harness line is not considered improved because a trace looks convincing or a
-plan is well written. It needs a task contract, grader or verifier, result
-rows, and a scored decision surface.
+                         bounded by
+                         sandbox · permissions · isolation · evidence
+```
 
-Variants are organized at two levels:
+## The research question
 
-- family-level variants compare competing mechanisms inside one capability
-  family;
-- whole-harness variants compare larger runtime stacks and orchestration
-  routes.
+Can we build an agent where improvements in model intelligence translate directly into improvements in real-world capability—without growing more hand-built intelligence around the model?
 
-Scoreboards and scorecards are included only where real scored data exists.
-Missing score data is left explicit rather than filled with placeholder claims.
+Aether is testing a specific architectural split:
 
-## AI-Native Engineering Layer
+- **The model decides.** It chooses the approach, changes course and decides what capability it needs next.
+- **Aether executes and preserves reality.** It exposes current state, carries out actions, keeps durable evidence and makes failures observable.
+- **Review is independent but not sovereign.** A read-only verifier can challenge completion claims and surface missing evidence; it does not own the task strategy.
+- **The benchmark grader stays outside Aether.** Official grading remains external to model context and agent control.
 
-The `workflows/` folder is not a showcase folder. It is the operating system
-for using agents effectively:
+## Why this matters
 
-- orchestrator threads gather context and dispatch bounded work;
-- specialist threads and subagents execute, analyze, review, or repair;
-- every material worker hands evidence back to the orchestrator;
-- maker/checker loops separate implementation from review;
-- eval, review, and run-analysis skills decide whether to promote, kill, or
-  rerun work;
-- memory lives in files, ledgers, scoreboards, and handoffs so the loop can
-  continue across sessions.
+A capable model can still fail as an agent because the software around it loses state, hides decisive observations, executes something differently than expected, mishandles recovery, or declares success/failure for the wrong reason.
 
-## Aether Runtime Capability Slices
+Aether is an attempt to make that surrounding layer quieter and more dependable.
 
-The public tree includes Python-native Aether capability slices for the
-agent-runtime features expected of a serious AI-native harness. These are owned
-HarnessEng interfaces with public eval coverage and provenance boundaries:
+The long-term design target is:
 
-- skills and bounded context loading;
-- MCP-style registry/runtime contracts;
-- subagent loading and structured handoffs;
-- hooks, permissions, and visible denial ordering;
-- tool/runtime surfaces used by the harness and eval packs.
+> **better model → better agent**
 
-See `docs/provenance/` for publication boundaries and `docs/publication/` for
-the public evidence index.
+and to make that relationship dependable rather than accidental.
 
-## Start Here
+## Early evidence
 
-1. Read `PUBLIC_REVIEWER_GUIDE.md` for the shortest hiring/reviewer narrative.
-2. Read `docs/publication/public_evidence_index.md` for the shortest
-   reviewer-friendly path.
-3. Read `workflows/agentic-engineer-capability-map.md` for the AI-native
-   engineering capability map.
-4. Read `workflows/phases/README.md` and `workflows/use-cases/README.md` for
-   the staged workflow and practical playbooks.
-5. Read `workflows/loop-engineering/README.md` for the orchestration loop.
-6. Read `eval_suite/README.md` and `variants/README.md` to inspect the scored
-   eval and variant surfaces.
+The clearest current signal is Terminal-Bench 2.1 `configure-git-webserver`.
+
+| Configuration | Model | Result |
+|---|---|---:|
+| Aether | **GPT-5.6 Luna** (smaller model) | **1.00 · PASS** |
+| Codex | GPT-5.6 Terra | **0.00 · FAIL** on the same named challenge |
+
+Aether's pass is preserved in the project evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently lists Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration.
+
+**This is an early signal, not a causal A/B.** The model-and-agent configurations differ. The funded experiment is the matched comparison: same model, same challenge, same computer, same time limit, repeated across tasks and model generations.
+
+See [`evidence/`](evidence/) for the public evidence index and exact caveats as artifacts are promoted.
+
+## Current qualification status
+
+Aether is a working research system, not a claimed benchmark winner.
+
+The latest sealed held-out campaign produced:
+
+- **10** raw held-out tasks;
+- **8** validly graded rows;
+- **3 / 8** valid passes;
+- **0** demonstrated generic Aether production defects in the audited rows;
+- intact Solver continuation on every started valid row;
+- **0** Solver parse errors;
+- runtime mechanical integrity **accepted**;
+- benchmark competitiveness **not demonstrated**.
+
+That result is intentionally public-facing context, not something to hide. The research question is whether the runtime can preserve model capability reliably—not whether one current model configuration already dominates a leaderboard.
+
+## More autonomy, more control
+
+Aether's safety-relevant bet is that model autonomy over *thinking* does not require unbounded autonomy over *acting*.
+
+The production boundary is designed around:
+
+- isolated execution environments;
+- explicit capability and permission surfaces;
+- one observed action frontier at a time;
+- durable action/result receipts;
+- evidence provenance and freshness;
+- controlled recovery rather than silent retries;
+- independent read-only completion review;
+- no hidden grader access in model context;
+- complete run traces suitable for post-hoc audit.
+
+See [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
+
+## Nine months of independent development
+
+Aether has been built independently for **nine months** through implementation, live runs, failure analysis, architecture changes and repeated removal of mechanisms that did not earn their complexity.
+
+The existing public repository already contains more than **1,300 genuine commits** from the earlier HarnessEng research phase. The current internal research lineage is much larger, but it is **not being dumped wholesale into the public repository**: historical run archives, held-out benchmark material and private operational data require publication review first.
+
+This public refresh preserves the real public history and promotes the current Aether runtime and selected evidence on top of it.
+
+See [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
+
+## Three-month research programme
+
+Funding buys the decisive experiment, not the first prototype.
+
+**Month 1 — Harden.** Remove Aether-side failure modes and tighten execution, permission, trace and evidence guarantees.
+
+**Month 2 — Compare.** Run controlled comparisons under the same model, task, machine and time limit against strong existing agent configurations.
+
+**Month 3 — Simplify + publish.** Remove mechanisms that do not create repeatable value; publish methods, traces, costs, successes, failures and limitations.
+
+See [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
+
+## Production architecture
+
+The current production line is intentionally narrow:
+
+```text
+task
+  ↓
+Harbor lifecycle
+  ↓
+Aether runtime
+  ↕
+model ↔ observed world
+  ↓
+read-only completion review
+  ↓
+external official grader
+```
+
+Aether does **not** use a production Architect, semantic planner, strategy swarm, benchmark-specific solve packs, hidden-grader integration or a second benchmark runner.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Repository map
+
+The public refresh is converging on a small review surface:
+
+- `aether/` — current production runtime and Harbor adapter;
+- `tests/` — deterministic production-bound tests;
+- `evidence/` — small, public-safe evidence packets and case studies;
+- `docs/` — architecture, safety boundary, research programme and history;
+- `tools/` — release/publication checks.
+
+Historical HarnessEng research remains in Git history. Old top-level research surfaces are being retired from the current public tree as their useful evidence is promoted into the smaller structure above.
+
+## Quick checks
+
+Once the current runtime import lands on this public branch:
+
+```bash
+python -m pytest -q tests
+python tools/check_production_surface.py
+```
+
+The public release will also include a provider-free cold-start path before it is linked from the funding website.
+
+## Researcher
+
+**Mohamud Mohamud** — independent researcher  
+[mohamud1961@gmail.com](mailto:mohamud1961@gmail.com)
+
+Aether was built before the funding pitch. The next phase is to turn the strongest signals from nine months of engineering into controlled, inspectable research evidence.
