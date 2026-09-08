@@ -37,24 +37,29 @@ jobs:
 
       - name: Record exact qualification environment
         run: |
-          python -VV > qualification-python.txt
-          python -m pip --version >> qualification-python.txt
-          python -m pip freeze | LC_ALL=C sort > qualification-environment.txt
-          printf 'commit=%s\n' "$GITHUB_SHA" > qualification-run.txt
-          printf 'runner_os=%s\n' "$RUNNER_OS" >> qualification-run.txt
-          printf 'runner_arch=%s\n' "$RUNNER_ARCH" >> qualification-run.txt
-          printf 'workflow_run_id=%s\n' "$GITHUB_RUN_ID" >> qualification-run.txt
+          mkdir -p qualification-receipt
+          python -VV > qualification-receipt/python.txt
+          python -m pip --version >> qualification-receipt/python.txt
+          python -m pip freeze | LC_ALL=C sort > qualification-receipt/environment.txt
+          printf 'commit=%s\n' "$GITHUB_SHA" > qualification-receipt/run.txt
+          printf 'runner_os=%s\n' "$RUNNER_OS" >> qualification-receipt/run.txt
+          printf 'runner_arch=%s\n' "$RUNNER_ARCH" >> qualification-receipt/run.txt
+          printf 'workflow_run_id=%s\n' "$GITHUB_RUN_ID" >> qualification-receipt/run.txt
+
+      - name: Record static production import graph
+        run: |
+          python tools/runtime_surface_report.py \
+            --json qualification-receipt/runtime-surface.json \
+            --text qualification-receipt/runtime-surface.txt
+          cat qualification-receipt/runtime-surface.txt
 
       - name: Verify tracked-files-only public release
         run: python tools/cold_verify_public_release.py
 
-      - name: Upload qualification environment receipt
+      - name: Upload qualification receipt
         uses: actions/upload-artifact@v4
         with:
-          name: qualification-environment-${{ github.sha }}
-          path: |
-            qualification-python.txt
-            qualification-environment.txt
-            qualification-run.txt
+          name: qualification-receipt-${{ github.sha }}
+          path: qualification-receipt/
           if-no-files-found: error
           retention-days: 30
