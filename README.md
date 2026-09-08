@@ -13,6 +13,7 @@ The model owns the thinking and strategy. Aether gives it dependable access to t
 **Five-minute diligence path:** [`PUBLIC_REVIEWER_GUIDE.md`](PUBLIC_REVIEWER_GUIDE.md)  
 **Evidence index:** [`evidence/MANIFEST.json`](evidence/MANIFEST.json)  
 **Runtime surface:** [`docs/RUNTIME_SURFACE.md`](docs/RUNTIME_SURFACE.md)  
+**License:** [`LICENSE`](LICENSE) · [`Third-party notices`](docs/provenance/third_party_notices.md)
 **Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards
 
 ## Why this matters

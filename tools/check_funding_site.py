@@ -14,6 +14,8 @@ HTML_PATH = PUBLIC / "funding-cards.html"
 BRIEF_PATH = PUBLIC / "aether-research-brief.md"
 ROOT_VERCEL = ROOT / "vercel.json"
 NESTED_VERCEL = PUBLIC / "vercel.json"
+CANONICAL_REPO = "https://github.com/mohamud1961/Aether"
+TERRA_TRIAL = "https://hub.harborframework.com/jobs/77fc16b9-8db9-4d61-a172-dba037aba20b/trials/34c57d03-071d-449d-8a77-3add87915162"
 
 
 class FundingSiteError(RuntimeError):
@@ -62,10 +64,18 @@ def _rewrite_pairs(config: dict[str, object]) -> list[tuple[str, str]]:
 
 
 def _require_markers(text: str, markers: tuple[str, ...], *, label: str) -> int:
-    missing = [marker for marker in markers if marker not in text]
+    folded = text.casefold()
+    missing = [marker for marker in markers if marker.casefold() not in folded]
     if missing:
         _fail(f"{label} missing required proof/caveat markers: {missing}")
     return len(markers)
+
+
+def _forbid_markers(text: str, markers: tuple[str, ...], *, label: str) -> None:
+    folded = text.casefold()
+    found = [marker for marker in markers if marker.casefold() in folded]
+    if found:
+        _fail(f"{label} contains stale or disallowed markers: {found}")
 
 
 def main() -> int:
@@ -75,7 +85,11 @@ def main() -> int:
         PUBLIC / "aether-funding-cards.js",
         PUBLIC / "aether-research-brief.md",
         PUBLIC / "vercel.json",
+        PUBLIC / "LICENSE",
+        PUBLIC / "THIRD_PARTY_NOTICES.md",
         ROOT_VERCEL,
+        ROOT / "LICENSE",
+        ROOT / "docs" / "provenance" / "third_party_notices.md",
     )
     for path in required_files:
         if not path.is_file():
@@ -133,19 +147,23 @@ def main() -> int:
         if not target.is_file():
             _fail(f"funding page references missing local asset/path: {raw}")
 
-    canonical_repo = "https://github.com/mohamud1961/Aether"
-    if canonical_repo not in external_refs:
+    if CANONICAL_REPO not in external_refs:
         _fail("funding page no longer links to the canonical public repository")
+    if TERRA_TRIAL not in external_refs:
+        _fail("funding page no longer links to the exact public Terra trial")
 
     proof_markers = _require_markers(
         html,
         (
-            "9 MONTHS",
-            "3 months · £30,000",
+            "nine months",
+            "three months",
             "configure-git-webserver",
-            "reported reward",
-            "not yet a matched causal A/B",
-            "exact public Terra per-task receipt is still pending",
+            "GPT-5.6 Terra + Codex",
+            "GPT-5.6 Luna + Aether",
+            "0.00",
+            "1.00",
+            "not matched",
+            "causal",
             "CODE + EVIDENCE",
         ),
         label="funding page",
@@ -156,15 +174,41 @@ def main() -> int:
         brief,
         (
             "nine months",
-            "£30,000",
-            "not yet a causal head-to-head result",
-            "exact public Terra per-task receipt",
-            "701 passed, 1 skipped",
-            "https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml",
-            "https://github.com/mohamud1961/Aether/blob/master/evidence/MANIFEST.json",
-            "https://github.com/mohamud1961/Aether/tree/master/evidence/qualification",
+            "3-month research programme",
+            "causal comparison",
+            "exact Terra trial receipt",
+            "VALID_PASS",
+            "verifier_blocked_stalemate",
+            "https://github.com/mohamud1961/Aether/blob/master/evidence/terminal-bench/configure-git-webserver/README.md",
+            "https://github.com/mohamud1961/Aether/blob/master/evidence/terminal-bench/configure-git-webserver/aether-luna-result.json",
+            TERRA_TRIAL,
         ),
         label="research brief",
+    )
+
+    _forbid_markers(
+        html + "\n" + brief,
+        (
+            "£30,000",
+            "exact public Terra per-task receipt is still pending",
+            "/Users/",
+            ".gateway-runtime",
+            "harnesseng_priv",
+        ),
+        label="funding-site publication surface",
+    )
+
+    site_notice = (PUBLIC / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    _require_markers(
+        site_notice,
+        ("does not relicense", "fonts", "upstream owners"),
+        label="site third-party notice",
+    )
+    root_notice = (ROOT / "docs" / "provenance" / "third_party_notices.md").read_text(encoding="utf-8")
+    _require_markers(
+        root_notice,
+        ("relicense dependencies", "website/public", "upstream owners"),
+        label="repository third-party notice",
     )
 
     print(
