@@ -37,12 +37,12 @@ The safety boundary is part of the architecture: more useful autonomy inside a c
 
 On the same named Terminal-Bench 2.1 challenge, `configure-git-webserver`:
 
-- **GPT-5.6 Terra + Codex** — reward **0.00** — **FAILED**
+- **GPT-5.6 Terra + Codex** — reported reward **0.00** — **FAILED**
 - **GPT-5.6 Luna + Aether** — reward **1.00** — **PASSED**
 
 The challenge requires an autonomous agent to configure Git over SSH, automatically deploy pushed code, and serve the result from a live web server.
 
-The Terra + Codex result is publicly reported by Terminal-Bench. The Luna + Aether result is preserved in Aether's run evidence.
+Aether's Luna pass is preserved in the public evidence. Terminal-Bench independently verifies the Terra + Codex submission configuration and aggregate leaderboard result; the exact public Terra per-task receipt for this named challenge is still pending.
 
 This is an important signal, not yet a causal head-to-head result. The model-and-agent configurations differ. The next research phase will repeat comparisons under matched conditions.
 
