@@ -12,6 +12,7 @@ The model owns the thinking and strategy. Aether gives it dependable access to t
 
 **Five-minute diligence path:** [`PUBLIC_REVIEWER_GUIDE.md`](PUBLIC_REVIEWER_GUIDE.md)  
 **Evidence index:** [`evidence/MANIFEST.json`](evidence/MANIFEST.json)  
+**Runtime surface:** [`docs/RUNTIME_SURFACE.md`](docs/RUNTIME_SURFACE.md)  
 **Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards
 
 ## Why this matters
@@ -70,20 +71,24 @@ That mixed result is intentionally public. The research question is whether the 
 
 ### Live clean-room proof
 
-The repository now verifies itself on every push and pull request using a provider-free GitHub Actions job. The first current-master cold run reproduced the public package from tracked files only and reported:
+Every push and pull request to `master` is qualified on a clean GitHub runner from a depth-1 tracked checkout. The workflow is provider-free and its third-party Actions are pinned to immutable commit SHAs.
+
+The current release surface is about **4.6 MiB of tracked files**, despite a much larger historical Git lineage. The production Python surface contains **100 modules / 1.83 MB of Python source**; **97 / 100** are statically connected to the canonical entrypoints. The three static exceptions are two task-environment transport bridges that are intentionally uploaded and executed inside Harbor, plus the provider namespace marker—not unexplained alternate runtimes.
+
+The hard gate checks:
 
 ```text
-PUBLIC_RELEASE_VALID
+publication hygiene: VALID
 production surface: VALID
-100 production Python modules scanned
-100 benchmark-neutrality task identifiers checked
-701 passed, 1 skipped
-AETHER_IMPORT_OK
+public evidence manifest: internally consistent
+benchmark-neutrality identifiers checked: 100
+deterministic suite: 701 passed, 1 skipped
+clean import: OK
 ```
 
-The run used **329 tracked files**, no private workspace state and no model-provider credentials. Inspect the live workflow at [Public qualification](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml).
+Each run also uploads a commit-bound qualification receipt containing the exact Python/package environment, current tracked-tree measurement and complete static import graph.
 
-See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md), [`evidence/qualification/`](evidence/qualification/) and [`evidence/MANIFEST.json`](evidence/MANIFEST.json).
+See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md), [`docs/RUNTIME_SURFACE.md`](docs/RUNTIME_SURFACE.md), [`evidence/qualification/`](evidence/qualification/) and [`evidence/MANIFEST.json`](evidence/MANIFEST.json).
 
 ## More autonomy, more control
 
@@ -111,7 +116,9 @@ Aether has been built independently for **nine months** through implementation, 
 
 The public repository preserves more than **1,300 genuine commits** from the earlier research phase. The current internal research lineage is much larger, but historical run archives, held-out material and private operational data are not being dumped into the public repository without publication review.
 
-See [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
+The full Git history is intentionally much larger than the current release tree. Ordinary reviewers can use a depth-1 clone; the historical lineage is there for provenance, not because the current agent needs hundreds of megabytes of code.
+
+See [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md) and [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
 ## Three-month funded experiment
 
@@ -152,13 +159,13 @@ For the implementation-level version, see [`docs/ARCHITECTURE.md`](docs/ARCHITEC
 
 ## Repository map
 
-The current public review surface is deliberately small:
+The current public review surface is deliberately separated by authority:
 
 - `aether/` — current production runtime;
 - `tests/` — curated deterministic production qualification suite;
 - `evidence/` — selected public-safe evidence packets, sealed aggregate evidence and the machine-readable evidence manifest;
-- `docs/` — architecture, safety boundary, qualification, history and research programme;
-- `tools/` — fail-closed release/publication checks;
+- `docs/` — current architecture, runtime surface, safety boundary, evidence pipeline, limitations, qualification, history and research programme;
+- `tools/` — fail-closed release, runtime-surface and evidence checks;
 - `.github/workflows/` — live provider-free qualification on current GitHub source;
 - `website/` — the funding/research site and brief;
 - `research/` — explicitly historical research archive; useful for development context, **not** current production authority;
@@ -171,6 +178,9 @@ Historical architectures remain in Git history. They are not presented as the cu
 ```bash
 python tools/check_public_release.py
 python tools/check_production_surface.py
+python tools/check_public_evidence.py
+python tools/release_surface_report.py --text release-surface.txt --json release-surface.json
+python tools/runtime_surface_report.py --text runtime-surface.txt --json runtime-surface.json
 python -m pytest -q tests
 ```
 
@@ -193,7 +203,9 @@ Aether keeps complete internal execution evidence, but **complete internal trace
 
 Where a raw trajectory is not public, the repository says so explicitly and preserves hashes/run identifiers where available. A reconstructed narrative is never presented as a raw trace.
 
-See [`evidence/MANIFEST.json`](evidence/MANIFEST.json).
+The cold qualification now also fails if the evidence manifest loses referenced files or if key public claims drift from the sealed/result JSON they summarize.
+
+See [`evidence/MANIFEST.json`](evidence/MANIFEST.json) and [`docs/EVIDENCE_PIPELINE.md`](docs/EVIDENCE_PIPELINE.md).
 
 ## Researcher
 
