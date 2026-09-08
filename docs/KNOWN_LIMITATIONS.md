@@ -24,13 +24,13 @@ It is deliberately labelled **selected**. It is useful for capability/failure-at
 
 It must not be read as representative Aether benchmark performance.
 
-## 3. The Terra + Codex per-task comparator receipt is still pending
+## 3. The Terra + Codex receipt is public, but the comparison is not causal
 
 Terminal-Bench's official public submission independently verifies the GPT-5.6 Terra max + Codex 0.144.1 configuration and its 445-trial aggregate.
 
-The exact public per-task receipt proving `configure-git-webserver = 0.00` has not yet been attached to this repository.
+The [exact public Harbor trial receipt](https://hub.harborframework.com/jobs/77fc16b9-8db9-4d61-a172-dba037aba20b/trials/34c57d03-071d-449d-8a77-3add87915162) records the named `configure-git-webserver` trial as completed with official reward `0.00`. It identifies the task, model, agent version and reasoning effort, but does not expose a causal failure explanation.
 
-Therefore the website/repository wording remains **reported 0.00**, and the comparison is a motivating signal rather than a causal A/B.
+The Luna + Aether record uses a different model, agent, version, environment and run configuration. Therefore the two records are a motivating signal rather than a causal A/B or a general advantage claim.
 
 ## 4. Full raw trajectories are not all public
 
@@ -69,13 +69,23 @@ To preserve the exact environment behind each public green run, CI records and u
 
 This makes the qualification environment inspectable without pretending the package has a stronger dependency-freeze policy than it currently does.
 
-## 7. Public source is not yet licensed for general reuse
+## 7. Licence scope is deliberately limited
 
-The repository is public, but no top-level software license has yet been selected.
+The public Aether runtime and deliberately selected project-owned documentation
+are released under the project-owned MIT notice at the repository root. The
+static funding-site candidate under `website/public/` carries its own site
+licence and third-party notice.
 
-Until that changes, Aether should be described as a **public research runtime / public source**, not as an open-source package that others are already licensed to modify and redistribute.
+These notices do not relicense dependencies, copied or translated third-party
+source, benchmark fixtures, generated evidence, private research material,
+linked external content, or other files whose provenance has not been checked.
 
-This is a legal/publication decision, not a runtime-performance limitation.
+See [`docs/provenance/third_party_notices.md`](provenance/third_party_notices.md)
+for the current exception boundary. Any future slice that deliberately
+publishes third-party source must add its exact source, licence and attribution
+evidence before publication.
+
+This is a legal/publication boundary, not a runtime-performance limitation.
 
 ## 8. Current evidence cannot establish the long-term thesis by itself
 
