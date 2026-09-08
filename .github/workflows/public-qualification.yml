@@ -63,6 +63,24 @@ jobs:
             --text qualification-receipt/runtime-surface.txt
           cat qualification-receipt/runtime-surface.txt
 
+      - name: Build and verify distributable wheel
+        run: |
+          mkdir -p qualification-receipt/wheel
+          python -m pip wheel . --no-deps -w qualification-receipt/wheel
+          WHEEL="$(find qualification-receipt/wheel -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "$WHEEL"
+          python tools/wheel_surface_report.py "$WHEEL" \
+            --json qualification-receipt/wheel-surface.json \
+            --text qualification-receipt/wheel-surface.txt
+          cat qualification-receipt/wheel-surface.txt
+          rm -rf /tmp/aether-wheel-install
+          python -m pip install --no-deps --target /tmp/aether-wheel-install "$WHEEL"
+          (
+            cd /tmp
+            PYTHONPATH=/tmp/aether-wheel-install python -c "import aether, aether.launch, aether.harbor_agent; import importlib.metadata as m; assert m.version('aether-runtime') == '0.3.0'; print('AETHER_WHEEL_IMPORT_OK', aether.__file__)"
+          )
+          rm -rf /tmp/aether-wheel-install
+
       - name: Verify tracked-files-only public release
         run: python tools/cold_verify_public_release.py
 
