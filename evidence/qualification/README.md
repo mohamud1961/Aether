@@ -1,14 +1,18 @@
-# Held-out qualification: H10
+# Held-out qualification: what Aether actually did
 
-This is the most important aggregate evidence in the public release because it is not flattering.
+This directory contains the sealed September 2026 held-out qualification artifact used in the public funding/research story.
 
-The sealed 7 September 2026 H10 campaign used **10 held-out tasks** under a frozen candidate and frozen execution rules. It was not tuned during the campaign.
+The important point is that it contains **wins, valid misses and invalid rows together**.
 
-## Result
+## Final H10 record
+
+[`H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json`](H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json)
+
+Recorded aggregate:
 
 | Measure | Result |
 | --- | ---: |
-| Raw tasks | 10 |
+| Raw held-out tasks | 10 |
 | Validly graded rows | 8 |
 | Valid passes | 3 |
 | Valid grader misses | 5 |
@@ -16,49 +20,45 @@ The sealed 7 September 2026 H10 campaign used **10 held-out tasks** under a froz
 | Benchmark retries | 0 |
 | Reruns | 0 |
 | Task substitutions | 0 |
-| Mid-campaign tuning/repair | 0 |
+| Mid-campaign tuning/repair | no |
 | Solver parse errors | 0 |
-| Solver continuity breaks on started rows | 0 |
+| Solver continuation breaks on started rows | 0 |
 | Demonstrated generic Aether production defects | 0 |
 
-The final sealed verdict says:
+The sealed verdict is deliberately mixed:
 
-- **Aether runtime mechanical integrity: ACCEPTED**
-- **Benchmark competitiveness: NOT DEMONSTRATED**
-- **Performance: NOT COMPETITIVE ON H10 SAMPLE**
-- **Benchmark execution readiness after host remediation: READY**
+- **Aether runtime mechanical integrity:** `ACCEPTED`
+- **benchmark competitiveness:** `NOT_DEMONSTRATED`
+- **performance verdict:** `NOT_COMPETITIVE_ON_H10_SAMPLE`
 
-The complete machine-readable verdict is [`H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json`](H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json).
+## Why publish a weak-looking benchmark sample?
 
-## Why publish a weak score?
+Because the funding proposition is a research proposition.
 
-Because Aether is a research project, not a leaderboard marketing exercise.
+Aether is not asking a funder to accept a claim that it already dominates current agents. The three-month programme is intended to determine which parts of the runtime preserve model capability, which parts merely add complexity, and whether matched comparisons support the design thesis.
 
-The campaign separates two questions that are easy to blur:
+A public evidence surface that only contains successful traces would make that research story less credible.
 
-1. **Did the runtime mechanically do what it claimed?** The audit accepted that part.
-2. **Did the model-agent system solve enough held-out tasks to be competitive?** No. Only 3 of 8 validly graded rows passed.
+## What the H10 record does establish
 
-That distinction is central to the next research programme. The goal is not to rename model/task misses as harness failures, and not to hide infrastructure-invalid rows. It is to measure which system changes actually improve agent capability under frozen, matched conditions.
+Within this specific sealed campaign it establishes:
 
-## Governance
+- the candidate was frozen before the campaign;
+- each selected task consumed one attempt;
+- invalid infrastructure/provider rows remained invalid;
+- no failed task was substituted or rerun;
+- no mid-campaign production repair was used to improve the board;
+- the audited valid misses were not attributed to a demonstrated generic production defect;
+- the runtime was mechanically strong enough to proceed to future research on untouched tasks.
 
-The sealed record states:
+It does **not** establish general benchmark competitiveness, superiority to another agent, or general safety.
 
-- one attempt per task;
-- zero benchmark retries;
-- every row consumed exactly once;
-- no substitutions;
-- no H10 rerun authorized;
-- no mid-campaign production tuning or repair;
-- production diff from the frozen candidate after H10: `EMPTY`.
+## Particularly useful rows
 
-Two invalid rows exposed benchmark-environment/provider/host-infrastructure issues. They remain part of the final evidence rather than being silently replaced.
+- `configure-git-webserver` — valid pass, official reward **1.0**.
+- `build-cython-ext` — valid pass, official reward **1.0**.
+- `build-pmars` — valid pass, official reward **1.0**.
+- `break-filter-js-from-html` — valid miss where an out-of-workspace action was correctly rejected; see [`../safety/workspace-boundary-rejection/`](../safety/workspace-boundary-rejection/).
+- `batched-eval-parity` — invalid provider/host-infrastructure row, retained as invalid rather than converted into a model result.
 
-## What this supports
-
-This supports a narrow credibility claim:
-
-> By September 2026, Aether had reached a mechanically qualified runtime baseline suitable for further controlled experiments, while its held-out task performance remained clearly insufficient to claim benchmark competitiveness.
-
-It does **not** support a claim that Aether is broadly better than existing agents.
+The raw sealed JSON is the authority. This README is only a human-readable guide.
