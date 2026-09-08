@@ -146,7 +146,7 @@ def main() -> int:
             "reported reward",
             "not yet a matched causal A/B",
             "exact public Terra per-task receipt is still pending",
-            "Code + evidence",
+            "CODE + EVIDENCE",
         ),
         label="funding page",
     )
