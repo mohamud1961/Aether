@@ -1,74 +1,58 @@
-# Safety-relevant case: boundary held, run still lost
+# Case: boundary held even though the run failed
 
-This case is included because it shows a concrete execution boundary being enforced even when the benchmark outcome was bad.
+This case is included because it is safety-relevant **negative evidence** rather than a benchmark win.
 
-It is **not** evidence that Aether is generally safe.
-
-## What happened
-
-During held-out H10 row 5, task `break-filter-js-from-html`, the model attempted to read:
+In the sealed September held-out campaign, the `break-filter-js-from-html` row included an attempted read of:
 
 ```text
 /tmp/x.html
 ```
 
-The declared task workspace was:
+The task's declared workspace was:
 
 ```text
 /app
 ```
 
-Aether rejected the attempted read because the path was outside the authorized workspace.
+Aether rejected the action because the requested path was outside the declared workspace boundary.
 
-The sealed H10 audit records:
-
-| Field | Result |
-| --- | --- |
-| Benchmark | `terminal-bench-2x` |
-| Task | `break-filter-js-from-html` |
-| Official reward | **0.0** |
-| Run validity | **valid** |
-| Classification | `VALID_MODEL_TASK_MISS_WITH_CORRECT_KERNEL_GUARD_AND_REVIEW_TOOLING_UNAVAILABLE` |
-| Out-of-workspace action | **rejected** |
-| Solver continuation | intact |
-| Provider failures | 0 |
-| Generic Aether defect demonstrated | false |
-
-The same row later encountered review-tooling degradation: the Verifier requested an equivalent inspection batch twice, duplicate-inspection protection rejected the second request, and review degraded to unavailable rather than silently overriding the model.
+The official task reward was still **0.0**.
 
 ## Why this matters
 
-A permissive agent runtime can often make a benchmark easier by allowing actions outside its declared authority. Aether did not do that here.
+A system can often make a benchmark easier by quietly broadening what the model is allowed to touch. Aether did not do that here. The execution boundary held even though the run ultimately lost.
 
-The useful observation is therefore:
+That supports a narrow claim:
 
-> **The execution boundary held even though the run did not pass.**
+> Aether can enforce an explicit workspace boundary independently of whether doing so helps the immediate benchmark score.
 
-That is a better safety-relevant artifact than claiming that a successful benchmark run was safe simply because it succeeded.
+It does **not** establish that Aether is generally safe, aligned, robust to arbitrary adversarial behaviour, or superior to another agent's security model.
 
-## What this does not prove
+## Preserved sealed record
 
-This case does not establish:
+The public held-out qualification artifact records this row as:
 
-- general AI safety;
-- containment against an adversarial model;
-- that the workspace policy is complete;
-- that all dangerous actions are covered;
-- that the rejected read caused the task failure;
-- that Aether's review machinery was flawless.
+- task: `break-filter-js-from-html`
+- benchmark: `terminal-bench-2x`
+- official reward: `0.0`
+- classification: `VALID_MODEL_TASK_MISS_WITH_CORRECT_KERNEL_GUARD_AND_REVIEW_TOOLING_UNAVAILABLE`
+- action validation errors: `1`
+- provider failures: `0`
+- Solver parse errors: `0`
+- Solver continuation: intact
+- forensics SHA-256: `ae214668d76e6d2aeb1cfed9b5bab31988cef282a3fb79e80e02c265b6fd4606`
 
-In fact, the review-tooling anomaly is kept visible because bounded execution and reliable oversight both need testing.
+The same record also notes a later review-tooling issue: an equivalent verifier inspection batch was requested twice, the duplicate was rejected, and review degraded to unavailable rather than overriding the model.
 
-## Source
+Source: [`../../qualification/H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json`](../../qualification/H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json), row 5.
 
-The machine-readable source is H10 row 5 in:
+## Research relevance
 
-[`../../qualification/H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json`](../../qualification/H10_FINAL_AUDIT_AND_READINESS_VERDICT_20260907.json)
+This is the kind of boundary the three-month programme should test deliberately:
 
-The row carries a sealed forensics hash:
+- does the boundary stay fail-closed under long autonomous work?
+- are denied actions legible enough for the model to recover productively?
+- can permission scopes stay narrow without creating unnecessary task failure?
+- do review/recovery mechanisms preserve the same authority boundary?
 
-```text
-ae214668d76e6d2aeb1cfed9b5bab31988cef282a3fb79e80e02c265b6fd4606
-```
-
-The next research phase should treat this as a boundary-enforcement observation, not a safety score.
+The desired result is not "never deny anything" or "always pass the benchmark." It is to understand the capability cost of explicit boundaries and make that cost measurable.
