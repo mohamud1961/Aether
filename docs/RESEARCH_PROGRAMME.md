@@ -143,22 +143,21 @@ Three months is long enough to harden the current runtime, run a controlled comp
 
 The project does not need a long speculative build phase before producing evidence.
 
-## Budget
+## Funding scope
 
-The full three-month programme is budgeted at **£30,000**:
+The programme is three months. The public repository does not assert a fixed
+award, a committed budget or an itemised total before a funder agrees the
+scope. Funding may cover:
 
-| Category | Amount | Purpose |
-|---|---:|---|
-| Researcher support | £12,000 | Three months of full-time independent research and engineering |
-| Model/API compute | £8,000 | Repeated controlled experiments across model/agent configurations |
-| Cloud/VM/evaluation infrastructure | £3,000 | Isolated environments, execution, storage and run capture |
-| Reproduction + evidence work | £2,000 | Repeated trials, audit, trace preparation and independent-check tooling |
-| Public research infrastructure | £1,000 | Hosting, artifact storage and publication tooling |
-| Additional experimental compute / contingency | £4,000 | Variance in model costs and decisive follow-up experiments |
-| **Total** | **£30,000** | |
+- dedicated researcher time and support;
+- model/API compute and cloud, VM and evaluation infrastructure;
+- reproduction, evidence, public research infrastructure, publication and
+  replication work.
 
-The budget is concentrated on researcher time and experiments. No headcount expansion, office costs or marketing are required.
+The final amount, permitted spending, schedule and deliverables will be agreed
+with the funder and tied to the selected experiment scope. No headcount
+expansion, office costs or marketing are required by the research plan.
 
 Different funders may support smaller, clearly scoped parts of this programme. Any overlapping support should be disclosed and later restricted awards re-scoped so the same expense is not funded twice.
 
-A funder should be able to trace every budget line directly to the experimental programme above.
+A funder should be able to trace every agreed budget line directly to the experimental programme above.
