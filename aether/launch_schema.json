@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aether.launch.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "package", "runtime", "task", "harbor", "model", "evidence", "provider", "retry", "metadata"],
+  "properties": {
+    "schema_version": {"const": "aether.launch.v1"},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"},
+    "package": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "version", "closure_sha256", "file_count"],
+      "properties": {
+        "name": {"const": "aether-runtime"}, "version": {"type": "string"},
+        "closure_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "file_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["runtime_path", "profile_id", "profile_sha256", "tool_schema_sha256"],
+      "properties": {
+        "runtime_path": {"const": "pcr_v0"}, "profile_id": {"type": "string"},
+        "profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "tool_schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "closure_sha256", "file_count"],
+      "properties": {"path": {"type": "string"}, "closure_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "file_count": {"type": "integer", "minimum": 1}}
+    },
+    "harbor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "agent_selector"],
+      "properties": {"version": {"const": "0.20.0"}, "agent_selector": {"type": "string"}}
+    },
+    "model": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_id", "deployment_env"],
+      "properties": {"model_id": {"type": "string"}, "deployment_env": {"type": "string"}}
+    },
+    "evidence": {"type": "object", "additionalProperties": false, "required": ["root"], "properties": {"root": {"type": "string"}}},
+    "provider": {"type": "object", "additionalProperties": false, "required": ["calls_allowed"], "properties": {"calls_allowed": {"type": "boolean"}}},
+    "retry": {"type": "object", "additionalProperties": false, "required": ["max_attempts", "max_retries"], "properties": {"max_attempts": {"const": 1}, "max_retries": {"const": 0}}},
+    "metadata": {"type": "object"}
+  }
+}

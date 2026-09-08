@@ -1,25 +1,34 @@
-# Python project config for harnesseng
-# Dependencies: litellm, docker, pytest
-
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aether"
-version = "0.1.0"
-description = "Public HarnessEng package exposing the canonical harness.aether2 namespace and runner.aether2 compatibility"
+name = "aether-runtime"
+version = "0.3.0"
+description = "Aether PCR runtime and Harbor adapter"
 requires-python = ">=3.11"
 dependencies = [
+    "jsonschema",
     "litellm",
-    "docker",
-    "pytest",
+    "pymupdf",
     "pyyaml",
-    "pypdf",
+    "rapidocr-onnxruntime",
+    "websocket-client>=1.8,<2",
 ]
 
+[project.optional-dependencies]
+test = ["pytest"]
+harbor = ["harbor==0.20.0"]
+
+[project.scripts]
+aether = "aether.launch:main"
+
 [tool.setuptools.packages.find]
-include = ["harness*", "runner*"]
+where = ["."]
+include = ["aether*"]
+
+[tool.setuptools.package-data]
+aether = ["harbor_runtime_lock.json", "launch_schema.json", "harbor_subreaper_linux_x86_64"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
