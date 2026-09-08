@@ -1,181 +1,152 @@
-# Public Reviewer Guide
+# Aether — reviewer guide
 
-## Short Pitch
+If you have five minutes, this is the shortest path through the project.
 
-I do not just prompt coding agents. I build the loops, skills, evals, memory,
-review gates, and runtime surfaces that make agents ship reliably.
+## 1. Start with the thesis
 
-HarnessEng is my proof artifact: an Aether-native agent harness, eval suite,
-variant system, research layer, and workflow operating system for serious
-AI-native engineering.
+Read [`README.md`](README.md).
 
-## What I Shipped
+Aether asks whether improvements in model intelligence can translate more directly into improvements in agent capability.
 
-- A Python agent runtime under `harness/aether2/`.
-- A public eval surface under `eval_suite/`, with real task packs, fixtures,
-  graders/verifiers, boards, result rows, and scorecards where evidence exists.
-- A variant surface under `variants/`, with real mechanism-family and
-  whole-harness variants, tournament records, and keep/kill decisions.
-- A workflow operating layer under `workflows/`, covering orchestration,
-  planning, skill authoring, run operations, review, analysis, and handoff
-  discipline.
-- A public evidence path under `docs/publication/public_evidence_index.md`.
+The design split is deliberate:
 
-## How Agents Wrote Most Of It
+- **the model owns cognition and strategy**;
+- **Aether owns execution reality**: tools, observations, persistence, recovery, permissions, custody and evidence;
+- **the benchmark grader remains external**.
 
-The workflow was orchestrator-led:
+The target is:
 
-1. I set the objective, boundaries, stop conditions, and evidence requirements.
-2. Specialist agent threads handled bounded slices: eval packs, runtime
-   capability slices, workflow skills, research synthesis, migration notes, and
-   public documentation.
-3. Each worker had to hand back files changed, tests run, evidence paths,
-   unresolved risks, and external-state status.
-4. I integrated the work, checked claims against the tree, cleaned public/private
-   boundaries, and rejected or repaired weak outputs.
+> **better model → better agent**
 
-The core pattern is documented in:
+without growing a second hidden intelligence around the model.
 
-- `workflows/loop-engineering/README.md`
-- `workflows/agentic-engineer-capability-map.md`
-- `workflows/skills/loop-orchestrator.md`
-- `workflows/skills/handoff-writing.md`
+## 2. Inspect the current architecture
 
-## What The Agents Got Wrong
+Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-The agents repeatedly tried to make progress look cleaner than it was:
+The current production package is [`aether/`](aether/), not the historical `harness/aether2` line that exists in earlier Git history.
 
-- treating good-looking traces or docs as evidence before eval rows existed;
-- overusing broad planning language instead of concrete score surfaces;
-- leaving public-facing language that sounded derivative or source-branded;
-- sometimes producing handoff summaries that were useful but not enough to
-  close a slice without independent tree inspection.
+Useful current modules include:
 
-Those are exactly the failure modes I expect from agentic coding: fake progress,
-context drift, overclaiming, and self-review softness.
+- `aether/kernel.py` — runtime control loop;
+- `aether/model_interface.py` — model boundary;
+- `aether/real_executor.py` — execution;
+- `aether/context_views.py` / `aether/history_query.py` — context and queryable history;
+- `aether/harbor_agent.py` / `aether/harbor_runtime.py` — benchmark integration;
+- `aether/inspection_registry.py` / `aether/verifier.py` — evidence and review;
+- `aether/redaction.py` / workspace and permission surfaces — execution boundary.
 
-## What I Did About It
+## 3. Check the safety boundary
 
-I built guardrails around the agents instead of trusting their confidence:
+Read [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
 
-- eval-first gates before promotion;
-- maker/checker separation for implementation and review;
-- deterministic smoke packs for runtime capabilities;
-- source and publication hygiene checks;
-- explicit complete/partial/blocked handoffs;
-- scoreboards and scorecards instead of narrative-only claims;
-- public/private packaging rules so the repo remains safe to review.
+Aether does not equate model autonomy with unrestricted machine authority. The research direction is to give the model greater freedom over **thinking** while keeping **actions** bounded, permissioned, isolated and inspectable.
 
-The clearest public case study is:
+Then inspect the negative safety-relevant case:
 
-- `docs/case-studies/aether-runtime-capability-migration.md`
+[`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/)
 
-## My TDD-With-Agents Workflow
+The runtime rejected an out-of-workspace read during a held-out task. The task still failed. That case is published because the boundary held even when doing so did not produce a benchmark win.
 
-My default agentic TDD loop is:
+## 4. Inspect the strongest selected case
 
-1. Freeze the expected behavior before implementation.
-2. Add or select a focused eval, smoke pack, unit test, or sentinel.
-3. Run a baseline or known-bad check when feasible.
-4. Let the implementation agent make the smallest bounded change.
-5. Run the fixed checks.
-6. Use a separate review pass to attack the result.
-7. Promote only if the target check and regression sentinels stay clean.
+Read:
 
-Relevant artifacts:
+[`evidence/terminal-bench/configure-git-webserver/`](evidence/terminal-bench/configure-git-webserver/)
 
-- `workflows/skills/agentic-tdd-and-verification.md`
-- `workflows/skills/eval-first-implementation-slice.md`
-- `workflows/skills/review-repair-loop.md`
-- `eval_suite/README.md`
+A GPT-5.6 Luna + Aether run received official reward **1.0**, while Aether's own review path still ended `verifier_blocked_stalemate` after three verifier path-escape failures.
 
-## My Skill / MCP / Hook / Subagent Setup
+This is useful because it exposes the attribution problem directly:
 
-The repo includes native Aether runtime capability slices for the exact
-agentic surfaces I would use on client projects:
+> the task-visible artifact can be correct while the harness still mishandles completion.
 
-- Skills: `harness/aether2/skills/`
-- MCP-style registry/runtime: `harness/aether2/tools/mcp.py`
-- Hooks: `harness/aether2/hooks/`
-- Permissions: `harness/aether2/tools/permissions.py`
-- Subagents and handoffs: `harness/aether2/agents/`
+The case is explicitly labelled selected. It is not presented as representative benchmark performance or as proof that Aether is generally better than another agent.
 
-Each has public eval evidence:
+## 5. Read the negative aggregate evidence
 
-- `eval_suite/families/tooling/skill_loader_contract_smoke/README.md`
-- `eval_suite/families/tooling/mcp_registry_contract_smoke/README.md`
-- `eval_suite/families/environment/runtime_policy_hook_smoke/README.md`
-- `eval_suite/families/orchestration/subagent_handoff_contract_smoke/README.md`
+Read:
 
-## Best Under-The-Hood Story
+[`evidence/qualification/`](evidence/qualification/)
 
-The strongest under-the-hood story is the eval-driven Aether flywheel.
+The sealed H10 held-out campaign produced:
 
-I did not just ask agents to improve a harness. I built an operating loop where
-agent work had to pass through:
+- 10 raw tasks;
+- 8 validly graded rows;
+- 3 valid passes;
+- 5 valid grader misses;
+- 2 invalid infrastructure/provider rows;
+- 0 benchmark retries;
+- 0 reruns;
+- 0 task substitutions;
+- no mid-campaign tuning or repair.
 
-- planning and bounded task packets;
-- specialist implementation threads;
-- explicit handoffs and durable memory;
-- eval or smoke-pack gates before capability claims;
-- maker/checker review and repair;
-- scoreboards, scorecards, or validation rows;
-- public/private packaging review.
+Its final verdict says both:
 
-The concrete proof is the Aether runtime capability set:
+> **Aether runtime mechanical integrity: ACCEPTED**
 
-- hooks and permissions;
-- MCP-style tools;
-- skills and bounded context loading;
-- subagents and structured handoffs.
+and:
 
-Each capability has code, a public contract, and a small eval surface. That is
-the important part: the agents did not merely generate implementation. They
-were forced into a flywheel where evidence changed the next action.
+> **Benchmark competitiveness: NOT DEMONSTRATED**
 
-Why this matters for agentic product teams:
+The project publishes both because the research question is not served by hiding failed rows.
 
-- It proves I can work under the hood, not just prompt an agent.
-- It proves I can design skills, subagents, hooks, MCP-style tools, memory, and
-  handoff systems.
-- It proves I can keep agents honest with tests, evals, review gates, and
-  score surfaces.
-- It proves I can translate messy agent work into a reviewer-safe public story
-  without overclaiming.
+## 6. Verify the implementation baseline
 
-## Flywheel Alignment
+The curated public production suite currently reports:
 
-Agent Flywheel emphasizes planning-first development, self-contained work
-units, coordinated agent swarms, durable operating manuals, and repeated
-review/test/hardening loops.
+```text
+701 passed, 1 skipped
+```
 
-HarnessEng already has the same deeper pattern, expressed in repo-native terms:
+The fail-closed production-surface guard reports `VALID` and checks the installed production package against frozen benchmark-neutrality authorities.
 
-- markdown plans and synthesis docs: `research/`, `docs/`, `workflows/synthesis/`;
-- self-contained work packets: `workflows/templates/multi-thread-handoff.md`
-  and the handoff skills;
-- agent operating manuals: `AGENTS.md` and `workflows/orchestration/`;
-- specialist agents and review loops: `workflows/prompts/`, `workflows/skills/`;
-- durable memory: handoffs, scoreboards, ledgers, and public evidence indexes;
-- hardening loops: eval packs, scoreboards, review-repair, and provenance
-  review.
+See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md).
 
-My edge is that I combine the flywheel style with eval discipline: agents do
-not just keep spinning until something looks good. They loop against explicit
-checks, evidence rows, review gates, and stop conditions.
+Re-run locally with:
 
-## What I Would Say In A Hiring Application
+```bash
+python tools/check_production_surface.py
+pytest -q tests
+```
 
-This repo is my agentic engineering proof artifact. It shows how I orchestrate
-coding agents, design reusable skills, manage context and memory, separate
-maker/checker roles, build MCP-style and hook-based runtime surfaces, and use
-evals to stop agents from cheating themselves into false progress.
+## 7. Understand the nine-month development path
 
-The best place to start is:
+Read [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
 
-1. `PUBLIC_REVIEWER_GUIDE.md`
-2. `docs/publication/public_evidence_index.md`
-3. `workflows/agentic-engineer-capability-map.md`
-4. `docs/case-studies/aether-runtime-capability-migration.md`
-5. `eval_suite/README.md`
-6. `variants/README.md`
+Aether has been built independently for nine months. The public Git history already contains more than 1,300 genuine commits; the internal research lineage is much larger. Commit volume is not treated as proof of quality. The value of the history is that it records repeated architecture changes, failed hypotheses, qualification work and evidence-driven simplification before fundraising began.
+
+## 8. See what funding is meant to answer
+
+Read [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
+
+The proposed three-month programme is not “build the first prototype.” Aether already exists.
+
+The programme is designed to answer whether the central relationship can become dependable under matched evaluation:
+
+- same underlying model;
+- same task and environment;
+- comparable budgets;
+- repeated trials;
+- independent grading;
+- selection rules fixed before evaluation;
+- negative results published.
+
+## Evidence standard
+
+The public evidence directory is intentionally small.
+
+Aether does not use:
+
+- selected traces as representative aggregate performance;
+- invalid infrastructure rows as model failures;
+- different model-agent pairs as causal proof of a harness effect;
+- hidden benchmark grader state as agent input;
+- commit count as a performance metric.
+
+The best place to inspect those rules is [`evidence/README.md`](evidence/README.md).
+
+## Researcher
+
+**Mohamud Mohamud**  
+Independent researcher  
+**mohamud1961@gmail.com**
