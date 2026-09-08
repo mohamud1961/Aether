@@ -2,48 +2,36 @@
 
 > **Make the model the limit.**
 
-Aether is a model-led execution runtime for autonomous computer work. Its research goal is simple: **as models get better, their agents should get better too—without adding another intelligence above the model.**
+Aether is an open research agent runtime built around one question:
 
-The model owns cognition and strategy. Aether supplies the execution substrate: tools, files, computer access, state, recovery, evidence and bounded action.
+> **As models get better, can their agents get better too—without adding more hand-built intelligence around the model?**
+
+The model owns the thinking and strategy. Aether gives it dependable access to tools, files, computers, memory, recovery and evidence inside a bounded execution environment.
 
 **Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards  
 **Five-minute diligence path:** [`PUBLIC_REVIEWER_GUIDE.md`](PUBLIC_REVIEWER_GUIDE.md)
 
-```text
-MODEL                    AETHER                         WORLD
-intelligence             capability                    real work
-understand               observe                       code
-choose                   act                           services
-adapt          ->         remember          ->          applications
-                         recover                       computers
-                         trace
-
-                         bounded by
-                         sandbox · permissions · isolation · evidence
-```
-
-## The research question
-
-Can we build an agent where improvements in model intelligence translate directly into improvements in real-world capability—without growing more hand-built intelligence around the model?
-
-Aether is testing a specific architectural split:
-
-- **The model decides.** It chooses the approach, changes course and decides what capability it needs next.
-- **Aether executes and preserves reality.** It exposes current state, carries out actions, keeps durable evidence and makes failures observable.
-- **Review is independent but not sovereign.** A read-only verifier can challenge completion claims and surface missing evidence; it does not own the task strategy.
-- **The benchmark grader stays outside Aether.** Official grading remains external to model context and agent control.
-
 ## Why this matters
 
-A capable model can still fail as an agent because the software around it loses state, hides decisive observations, executes something differently than expected, mishandles recovery, or declares success/failure for the wrong reason.
+A capable model can still become a weak agent because the software around it loses state, hides an important observation, executes something differently than expected, mishandles recovery, or declares completion for the wrong reason.
 
-Aether is an attempt to make that surrounding layer quieter and more dependable.
+Aether is testing whether that surrounding layer can become quieter and more dependable.
 
-The long-term design target is:
+The design target is simple:
 
 > **better model → better agent**
 
 and to make that relationship dependable rather than accidental.
+
+## The architectural bet
+
+Aether separates three jobs:
+
+- **The model decides.** It chooses the approach, changes course and decides what capability it needs next.
+- **Aether executes and preserves reality.** It exposes current state, carries out actions, keeps durable evidence and makes failures observable.
+- **Completion review is independent but not sovereign.** A read-only verifier can challenge a completion claim and surface missing evidence, but it does not own the task strategy.
+
+Official benchmark evaluation stays outside Aether and outside the model's context.
 
 ## Early evidence
 
@@ -54,9 +42,9 @@ The clearest current signal is Terminal-Bench 2.1 `configure-git-webserver`.
 | Aether | **GPT-5.6 Luna** (**smaller model**) | **1.00 · PASS** |
 | Codex | GPT-5.6 Terra | **0.00 · reported FAIL** on the same named challenge |
 
-Aether's Luna pass is preserved in the project evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently verifies Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration.
+Aether's Luna pass is preserved in the public evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently verifies Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration.
 
-**This is an early signal, not a causal A/B.** The model-and-agent configurations differ, and the exact public Terra per-task receipt has not yet been attached to this repository. The funded experiment is the matched comparison: same underlying model, same task/environment, comparable budgets, repeated trials and independent grading.
+**This is an early signal, not a causal A/B.** The model-and-agent configurations differ, and the exact public Terra per-task receipt has not yet been attached to this repository. The funded experiment is the matched comparison: same underlying model, same task/environment, comparable budgets, repeated trials and independent evaluation.
 
 See [`evidence/terminal-bench/configure-git-webserver/`](evidence/terminal-bench/configure-git-webserver/) for the exact evidence boundary.
 
@@ -67,15 +55,15 @@ Aether is a working research system, not a claimed benchmark winner.
 The latest sealed held-out campaign produced:
 
 - **10** raw held-out tasks;
-- **8** validly graded rows;
+- **8** validly evaluated rows;
 - **3 / 8** valid passes;
 - **0** demonstrated generic Aether production defects in the audited rows;
-- intact Solver continuation on every started valid row;
-- **0** Solver parse errors;
+- intact model continuation on every started valid row;
+- **0** model-response parse errors;
 - runtime mechanical integrity **accepted**;
 - benchmark competitiveness **not demonstrated**.
 
-That result is intentionally public-facing context, not something to hide. The research question is whether the runtime can preserve model capability reliably—not whether one current model configuration already dominates a leaderboard.
+That mixed result is intentionally public. The research question is whether the runtime can preserve model capability reliably—not whether one current configuration already dominates a leaderboard.
 
 The curated public production suite currently passes:
 
@@ -93,7 +81,7 @@ See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md) and [`evidence/qualificatio
 
 ## More autonomy, more control
 
-Aether's safety-relevant bet is that model autonomy over *thinking* does not require unbounded autonomy over *acting*.
+Aether's safety-relevant bet is that giving the model more freedom over *thinking* does not require giving it unrestricted authority over *acting*.
 
 The production boundary is designed around:
 
@@ -104,10 +92,10 @@ The production boundary is designed around:
 - evidence provenance and freshness;
 - controlled recovery rather than silent retries;
 - independent read-only completion review;
-- no hidden grader access in model context;
+- no access to hidden evaluation state;
 - complete run traces suitable for post-hoc audit.
 
-The held-out safety-relevant case in [`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/) shows Aether rejecting an out-of-workspace action even though the run ultimately failed. That is evidence of an enforced boundary, **not** a claim of general AI safety.
+The held-out case in [`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/) shows Aether rejecting an out-of-workspace action even though the run ultimately failed. That is evidence of an enforced boundary, **not** a claim of general AI safety.
 
 See [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
 
@@ -115,15 +103,16 @@ See [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
 
 Aether has been built independently for **nine months** through implementation, live runs, failure analysis, architecture changes and repeated removal of mechanisms that did not earn their complexity.
 
-The existing public repository already contains more than **1,300 genuine commits** from the earlier HarnessEng research phase. The current internal research lineage is much larger, but it is **not being dumped wholesale into the public repository**: historical run archives, held-out benchmark material and private operational data require publication review first.
-
-This public refresh preserves the real public history and promotes the current Aether runtime and selected evidence on top of it.
+The public repository preserves more than **1,300 genuine commits** from the earlier research phase. The current internal research lineage is much larger, but historical run archives, held-out material and private operational data are not being dumped into the public repository without publication review.
 
 See [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
 
-## Three-month research programme
+## Three-month funded experiment
 
 Funding buys the decisive experiment, not the first prototype.
+
+**Programme:** 3 months  
+**Full budget:** **£30,000**
 
 **Month 1 — Establish + harden.** Freeze a reproducible baseline and comparison protocol, measure failure modes, and repair only observed Aether-side problems.
 
@@ -131,16 +120,16 @@ Funding buys the decisive experiment, not the first prototype.
 
 **Month 3 — Simplify + publish.** Remove mechanisms that do not create repeatable value; publish methods, traces, costs, successes, failures and limitations.
 
-See [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
+See [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md) and the [funding/research site](https://aether-worldclass-preview.vercel.app/funding-cards).
 
 ## Production architecture
 
-The current production line is intentionally narrow:
+At a high level:
 
 ```text
 task
   ↓
-Harbor lifecycle
+controlled task environment
   ↓
 Aether runtime
   ↕
@@ -148,25 +137,25 @@ model ↔ observed world
   ↓
 read-only completion review
   ↓
-external official grader
+independent official evaluation
 ```
 
-Aether does **not** use a production Architect, semantic planner, strategy swarm, benchmark-specific solve packs, hidden-grader integration or a second benchmark runner.
+Aether does **not** use a production Architect, strategy swarm, benchmark-specific solve packs, hidden evaluation access or a second benchmark runner.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+For the implementation-level version, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Repository map
 
-The current public review surface is deliberately small:
+The public review surface is deliberately small:
 
-- `aether/` — current production runtime and Harbor adapter;
+- `aether/` — current production runtime;
 - `tests/` — curated deterministic production qualification suite;
 - `evidence/` — selected public-safe evidence packets, including negative evidence;
-- `docs/` — current architecture, safety boundary, qualification, history and research programme;
+- `docs/` — architecture, safety boundary, qualification, history and research programme;
 - `tools/` — release/publication checks;
 - `website/` — the funding/research site and brief.
 
-Historical HarnessEng/Aether-2 research remains in Git history. It is not presented as the current architecture.
+Historical architectures remain in Git history. They are not presented as the current system.
 
 ## Quick checks
 
@@ -176,13 +165,11 @@ python tools/check_production_surface.py
 python -m pytest -q tests
 ```
 
-For a tracked-files-only simulation that excludes all untracked workspace state:
+For a tracked-files-only simulation that excludes untracked workspace state:
 
 ```bash
 python tools/cold_verify_public_release.py
 ```
-
-The public package is designed so a reviewer can inspect the runtime without access to private benchmark archives or provider credentials.
 
 ## Researcher
 
