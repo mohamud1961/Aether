@@ -48,14 +48,14 @@ The clearest current signal is Terminal-Bench 2.1 `configure-git-webserver`.
 
 | Configuration | Model | Result |
 |---|---|---:|
-| Aether | **GPT-5.6 Luna** (smaller model) | **1.00 · PASS** |
-| Codex | GPT-5.6 Terra | **0.00 · FAIL** on the same named challenge |
+| Aether | **GPT-5.6 Luna** (**smaller model**) | **1.00 · PASS** |
+| Codex | GPT-5.6 Terra | **0.00 · reported FAIL** on the same named challenge |
 
-Aether's pass is preserved in the project evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently lists Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration.
+Aether's Luna pass is preserved in the project evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently verifies Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration.
 
-**This is an early signal, not a causal A/B.** The model-and-agent configurations differ. The funded experiment is the matched comparison: same model, same challenge, same computer, same time limit, repeated across tasks and model generations.
+**This is an early signal, not a causal A/B.** The model-and-agent configurations differ, and the exact public Terra per-task receipt has not yet been attached to this repository. The funded experiment is the matched comparison: same underlying model, same task/environment, comparable budgets, repeated trials and independent grading.
 
-See [`evidence/`](evidence/) for the public evidence index and exact caveats as artifacts are promoted.
+See [`evidence/terminal-bench/configure-git-webserver/`](evidence/terminal-bench/configure-git-webserver/) for the exact evidence boundary.
 
 ## Current qualification status
 
@@ -74,6 +74,20 @@ The latest sealed held-out campaign produced:
 
 That result is intentionally public-facing context, not something to hide. The research question is whether the runtime can preserve model capability reliably—not whether one current model configuration already dominates a leaderboard.
 
+The curated public production suite currently passes:
+
+```text
+701 passed, 1 skipped
+```
+
+and the fail-closed production-surface guard reports:
+
+```text
+VALID
+```
+
+See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md) and [`evidence/qualification/`](evidence/qualification/).
+
 ## More autonomy, more control
 
 Aether's safety-relevant bet is that model autonomy over *thinking* does not require unbounded autonomy over *acting*.
@@ -89,6 +103,8 @@ The production boundary is designed around:
 - independent read-only completion review;
 - no hidden grader access in model context;
 - complete run traces suitable for post-hoc audit.
+
+The held-out safety-relevant case in [`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/) shows Aether rejecting an out-of-workspace action even though the run ultimately failed. That is evidence of an enforced boundary, **not** a claim of general AI safety.
 
 See [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
 
@@ -106,9 +122,9 @@ See [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
 
 Funding buys the decisive experiment, not the first prototype.
 
-**Month 1 — Harden.** Remove Aether-side failure modes and tighten execution, permission, trace and evidence guarantees.
+**Month 1 — Establish + harden.** Freeze a reproducible baseline and comparison protocol, measure failure modes, and repair only observed Aether-side problems.
 
-**Month 2 — Compare.** Run controlled comparisons under the same model, task, machine and time limit against strong existing agent configurations.
+**Month 2 — Compare.** Run controlled comparisons using the same underlying model, task/environment and comparable budgets against strong existing agent configurations.
 
 **Month 3 — Simplify + publish.** Remove mechanisms that do not create repeatable value; publish methods, traces, costs, successes, failures and limitations.
 
@@ -138,26 +154,25 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Repository map
 
-The public refresh is converging on a small review surface:
+The current public review surface is deliberately small:
 
 - `aether/` — current production runtime and Harbor adapter;
-- `tests/` — deterministic production-bound tests;
-- `evidence/` — small, public-safe evidence packets and case studies;
-- `docs/` — architecture, safety boundary, research programme and history;
-- `tools/` — release/publication checks.
+- `tests/` — curated deterministic production qualification suite;
+- `evidence/` — selected public-safe evidence packets, including negative evidence;
+- `docs/` — current architecture, safety boundary, qualification, history and research programme;
+- `tools/` — release/publication checks;
+- `website/` — the funding/research site and brief.
 
-Historical HarnessEng research remains in Git history. Old top-level research surfaces are being retired from the current public tree as their useful evidence is promoted into the smaller structure above.
+Historical HarnessEng/Aether-2 research remains in Git history. It is not presented as the current architecture.
 
 ## Quick checks
-
-Once the current runtime import lands on this public branch:
 
 ```bash
 python -m pytest -q tests
 python tools/check_production_surface.py
 ```
 
-The public release will also include a provider-free cold-start path before it is linked from the funding website.
+The public package is designed so a reviewer can inspect the runtime without access to private benchmark archives or provider credentials.
 
 ## Researcher
 
