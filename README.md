@@ -6,6 +6,9 @@ Aether is a model-led execution runtime for autonomous computer work. Its resear
 
 The model owns cognition and strategy. Aether supplies the execution substrate: tools, files, computer access, state, recovery, evidence and bounded action.
 
+**Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards  
+**Five-minute diligence path:** [`PUBLIC_REVIEWER_GUIDE.md`](PUBLIC_REVIEWER_GUIDE.md)
+
 ```text
 MODEL                    AETHER                         WORLD
 intelligence             capability                    real work
