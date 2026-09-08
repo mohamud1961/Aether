@@ -45,11 +45,11 @@ The clearest current signal is Terminal-Bench 2.1 `configure-git-webserver`.
 | Configuration | Model | Result |
 |---|---|---:|
 | Aether | **GPT-5.6 Luna** (**smaller model**) | **1.00 · PASS** |
-| Codex | GPT-5.6 Terra | **0.00 · reported FAIL** on the same named challenge |
+| Codex | GPT-5.6 Terra | **0.00 · official reward** on the same named challenge |
 
-Aether's Luna pass is preserved in the public evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently verifies Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration.
+Aether's Luna pass is preserved in the public evidence and was reproduced again in the sealed September held-out campaign. Terminal-Bench independently verifies Codex + GPT-5.6 Terra as an official 2.1 leaderboard configuration. The [public Harbor trial receipt](https://hub.harborframework.com/jobs/77fc16b9-8db9-4d61-a172-dba037aba20b/trials/34c57d03-071d-449d-8a77-3add87915162) records the named Terra + Codex trial as completed with reward 0.00.
 
-**This is an early signal, not a causal A/B.** The model-and-agent configurations differ, and the exact public Terra per-task receipt has not yet been attached to this repository. The funded experiment is the matched comparison: same underlying model, same task/environment, comparable budgets, repeated trials and independent evaluation.
+**This is an early signal, not a causal A/B.** The linked records use different model-and-agent configurations, versions, environments and run conditions, so they do not establish a causal comparison or general advantage. The funded experiment is the matched comparison: same underlying model, same task/environment, comparable budgets, repeated trials and independent evaluation.
 
 See [`evidence/terminal-bench/configure-git-webserver/`](evidence/terminal-bench/configure-git-webserver/) for the exact evidence boundary.
 
@@ -126,7 +126,7 @@ See [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md) and [`docs/GETT
 Funding buys the decisive experiment, not the first prototype.
 
 **Programme:** 3 months  
-**Full budget:** **£30,000**
+**Funding scope:** a focused three-month research programme; the requested amount, permitted spending and deliverables will be agreed with the funder.
 
 **Month 1 — Establish + harden.** Freeze a reproducible baseline and comparison protocol, measure failure modes, and repair only observed Aether-side problems.
 

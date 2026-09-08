@@ -24,13 +24,13 @@ It is deliberately labelled **selected**. It is useful for capability/failure-at
 
 It must not be read as representative Aether benchmark performance.
 
-## 3. The Terra + Codex per-task comparator receipt is still pending
+## 3. The Terra + Codex receipt is public, but the comparison is not causal
 
 Terminal-Bench's official public submission independently verifies the GPT-5.6 Terra max + Codex 0.144.1 configuration and its 445-trial aggregate.
 
-The exact public per-task receipt proving `configure-git-webserver = 0.00` has not yet been attached to this repository.
+The [exact public Harbor trial receipt](https://hub.harborframework.com/jobs/77fc16b9-8db9-4d61-a172-dba037aba20b/trials/34c57d03-071d-449d-8a77-3add87915162) records the named `configure-git-webserver` trial as completed with official reward `0.00`. It identifies the task, model, agent version and reasoning effort, but does not expose a causal failure explanation.
 
-Therefore the website/repository wording remains **reported 0.00**, and the comparison is a motivating signal rather than a causal A/B.
+The Luna + Aether record uses a different model, agent, version, environment and run configuration. Therefore the two records are a motivating signal rather than a causal A/B or a general advantage claim.
 
 ## 4. Full raw trajectories are not all public
 

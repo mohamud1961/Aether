@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / "website" / "public"
 HTML_PATH = PUBLIC / "funding-cards.html"
 BRIEF_PATH = PUBLIC / "aether-research-brief.md"
+README_PATH = ROOT / "README.md"
+LIMITATIONS_PATH = ROOT / "docs" / "KNOWN_LIMITATIONS.md"
 ROOT_VERCEL = ROOT / "vercel.json"
 NESTED_VERCEL = PUBLIC / "vercel.json"
 CANONICAL_REPO = "https://github.com/mohamud1961/Aether"
@@ -89,6 +91,8 @@ def main() -> int:
         PUBLIC / "THIRD_PARTY_NOTICES.md",
         ROOT_VERCEL,
         ROOT / "LICENSE",
+        README_PATH,
+        LIMITATIONS_PATH,
         ROOT / "docs" / "provenance" / "third_party_notices.md",
     )
     for path in required_files:
@@ -186,11 +190,40 @@ def main() -> int:
         label="research brief",
     )
 
+    readme = README_PATH.read_text(encoding="utf-8")
+    proof_markers += _require_markers(
+        readme,
+        (
+            TERRA_TRIAL,
+            "official reward",
+            "not a causal A/B",
+            "same underlying model",
+            "Funding scope",
+        ),
+        label="repository README",
+    )
+
+    limitations = LIMITATIONS_PATH.read_text(encoding="utf-8")
+    proof_markers += _require_markers(
+        limitations,
+        (
+            TERRA_TRIAL,
+            "completed with official reward",
+            "does not expose a causal failure explanation",
+            "motivating signal rather than a causal A/B",
+        ),
+        label="known limitations",
+    )
+
     _forbid_markers(
-        html + "\n" + brief,
+        html + "\n" + brief + "\n" + readme + "\n" + limitations,
         (
             "£30,000",
+            "full budget",
             "exact public Terra per-task receipt is still pending",
+            "per-task comparator receipt is still pending",
+            "exact public Terra per-task receipt has not yet been attached",
+            "reported 0.00",
             "/Users/",
             ".gateway-runtime",
             "harnesseng_priv",
