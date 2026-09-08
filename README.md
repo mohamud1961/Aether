@@ -146,14 +146,16 @@ For the implementation-level version, see [`docs/ARCHITECTURE.md`](docs/ARCHITEC
 
 ## Repository map
 
-The public review surface is deliberately small:
+The current public review surface is deliberately small:
 
 - `aether/` — current production runtime;
 - `tests/` — curated deterministic production qualification suite;
 - `evidence/` — selected public-safe evidence packets, including negative evidence;
 - `docs/` — architecture, safety boundary, qualification, history and research programme;
 - `tools/` — release/publication checks;
-- `website/` — the funding/research site and brief.
+- `website/` — the funding/research site and brief;
+- `research/` — explicitly historical research archive; useful for development context, **not** current production authority;
+- `tracking/` — frozen historical provenance/selection authorities retained because changing those files would invalidate their evidence hashes; **not** a current product surface.
 
 Historical architectures remain in Git history. They are not presented as the current system.
 
