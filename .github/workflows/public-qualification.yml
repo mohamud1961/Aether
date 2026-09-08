@@ -35,5 +35,26 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
 
+      - name: Record exact qualification environment
+        run: |
+          python -VV > qualification-python.txt
+          python -m pip --version >> qualification-python.txt
+          python -m pip freeze | LC_ALL=C sort > qualification-environment.txt
+          printf 'commit=%s\n' "$GITHUB_SHA" > qualification-run.txt
+          printf 'runner_os=%s\n' "$RUNNER_OS" >> qualification-run.txt
+          printf 'runner_arch=%s\n' "$RUNNER_ARCH" >> qualification-run.txt
+          printf 'workflow_run_id=%s\n' "$GITHUB_RUN_ID" >> qualification-run.txt
+
       - name: Verify tracked-files-only public release
         run: python tools/cold_verify_public_release.py
+
+      - name: Upload qualification environment receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualification-environment-${{ github.sha }}
+          path: |
+            qualification-python.txt
+            qualification-environment.txt
+            qualification-run.txt
+          if-no-files-found: error
+          retention-days: 30
