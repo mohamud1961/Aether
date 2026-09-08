@@ -4,7 +4,7 @@
 
 Aether is a next-generation AI agent architecture designed so better models become better agents.
 
-The model remains the source of intelligence. Aether gives it capability, memory, recovery and safe computer access without putting another intelligence above it.
+The model remains the source of intelligence. Aether gives it capability, memory, recovery and bounded computer access without putting another intelligence above it.
 
 > The next generation of models needs a next generation of agent.
 
