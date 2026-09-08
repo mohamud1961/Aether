@@ -22,10 +22,13 @@ jobs:
 
     steps:
       - name: Check out tracked source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: pip
@@ -46,6 +49,13 @@ jobs:
           printf 'runner_arch=%s\n' "$RUNNER_ARCH" >> qualification-receipt/run.txt
           printf 'workflow_run_id=%s\n' "$GITHUB_RUN_ID" >> qualification-receipt/run.txt
 
+      - name: Record current tracked release surface
+        run: |
+          python tools/release_surface_report.py \
+            --json qualification-receipt/release-surface.json \
+            --text qualification-receipt/release-surface.txt
+          cat qualification-receipt/release-surface.txt
+
       - name: Record static production import graph
         run: |
           python tools/runtime_surface_report.py \
@@ -57,7 +67,7 @@ jobs:
         run: python tools/cold_verify_public_release.py
 
       - name: Upload qualification receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qualification-receipt-${{ github.sha }}
           path: qualification-receipt/
