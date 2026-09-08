@@ -1,4 +1,4 @@
-# Aether — reviewer guide
+# Aether — five-minute reviewer guide
 
 If you have five minutes, this is the shortest path through the project.
 
@@ -8,11 +8,11 @@ Read [`README.md`](README.md).
 
 Aether asks whether improvements in model intelligence can translate more directly into improvements in agent capability.
 
-The design split is deliberate:
+The design split is simple:
 
 - **the model owns cognition and strategy**;
-- **Aether owns execution reality**: tools, observations, persistence, recovery, permissions, custody and evidence;
-- **the benchmark grader remains external**.
+- **Aether owns reliable interaction with the computer**: tools, observations, state, recovery, permissions and evidence;
+- **official evaluation stays outside the agent**.
 
 The target is:
 
@@ -20,49 +20,23 @@ The target is:
 
 without growing a second hidden intelligence around the model.
 
-## 2. Inspect the current architecture
-
-Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-The current production package is [`aether/`](aether/), not the historical `harness/aether2` line that exists in earlier Git history.
-
-Useful current modules include:
-
-- `aether/kernel.py` — runtime control loop;
-- `aether/model_interface.py` — model boundary;
-- `aether/real_executor.py` — execution;
-- `aether/context_views.py` / `aether/history_query.py` — context and queryable history;
-- `aether/harbor_agent.py` / `aether/harbor_runtime.py` — benchmark integration;
-- `aether/inspection_registry.py` / `aether/verifier.py` — evidence and review;
-- `aether/redaction.py` / workspace and permission surfaces — execution boundary.
-
-## 3. Check the safety boundary
-
-Read [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
-
-Aether does not equate model autonomy with unrestricted machine authority. The research direction is to give the model greater freedom over **thinking** while keeping **actions** bounded, permissioned, isolated and inspectable.
-
-Then inspect the negative safety-relevant case:
-
-[`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/)
-
-The runtime rejected an out-of-workspace read during a held-out task. The task still failed. That case is published because the boundary held even when doing so did not produce a benchmark win.
-
-## 4. Inspect the strongest selected case
+## 2. Look at the strongest selected case
 
 Read:
 
 [`evidence/terminal-bench/configure-git-webserver/`](evidence/terminal-bench/configure-git-webserver/)
 
-A GPT-5.6 Luna + Aether run received official reward **1.0**, while Aether's own review path still ended `verifier_blocked_stalemate` after three verifier path-escape failures.
+A GPT-5.6 Luna + Aether run received official reward **1.0** on Terminal-Bench 2.1 `configure-git-webserver`.
 
-This is useful because it exposes the attribution problem directly:
+The important part is not just the pass. Aether's own completion review still ended `verifier_blocked_stalemate` after three path-escape failures even though the task-visible artifact passed externally.
 
-> the task-visible artifact can be correct while the harness still mishandles completion.
+That makes the case useful for the research question:
 
-The case is explicitly labelled selected. It is not presented as representative benchmark performance or as proof that Aether is generally better than another agent.
+> the model can produce the right result while the surrounding agent system still mishandles completion.
 
-## 5. Read the negative aggregate evidence
+The case is explicitly labelled selected. It is not presented as representative benchmark performance or as causal proof that Aether is better than another agent.
+
+## 3. Read the negative aggregate evidence
 
 Read:
 
@@ -71,9 +45,9 @@ Read:
 The sealed H10 held-out campaign produced:
 
 - 10 raw tasks;
-- 8 validly graded rows;
+- 8 validly evaluated rows;
 - 3 valid passes;
-- 5 valid grader misses;
+- 5 valid misses;
 - 2 invalid infrastructure/provider rows;
 - 0 benchmark retries;
 - 0 reruns;
@@ -90,7 +64,51 @@ and:
 
 The project publishes both because the research question is not served by hiding failed rows.
 
-## 6. Verify the implementation baseline
+## 4. Check the safety boundary
+
+Read [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
+
+Aether does not equate model autonomy with unrestricted machine authority. The model gets more freedom over **thinking** while **actions** remain permissioned, isolated and inspectable.
+
+Then inspect:
+
+[`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/)
+
+During a held-out task, Aether rejected an attempt to read outside the permitted workspace. The task still failed. The case is published because the boundary held even when doing so did not produce a benchmark win.
+
+## 5. See what funding is meant to answer
+
+Read [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
+
+Aether has already been built independently for **nine months**. The proposed funded phase is a **three-month, £30,000** research programme—not a request to build the first prototype.
+
+The central experiment uses matched conditions:
+
+- same underlying model;
+- same task and environment;
+- comparable resource budgets;
+- repeated trials fixed in advance;
+- independent official evaluation;
+- negative results published.
+
+The point is to determine whether the architecture itself helps model capability translate into agent performance.
+
+## 6. Inspect the implementation if you want to go deeper
+
+Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+The current production package is [`aether/`](aether/). Historical architectures remain in Git history but are not presented as the current system.
+
+Useful current modules include:
+
+- `aether/kernel.py` — runtime control loop;
+- `aether/model_interface.py` — model boundary;
+- `aether/real_executor.py` — execution;
+- `aether/context_views.py` / `aether/history_query.py` — context and queryable history;
+- `aether/inspection_registry.py` / `aether/verifier.py` — evidence and completion review;
+- `aether/redaction.py` plus workspace/permission surfaces — execution boundary.
+
+## 7. Verify the implementation baseline
 
 The curated public production suite currently reports:
 
@@ -98,7 +116,7 @@ The curated public production suite currently reports:
 701 passed, 1 skipped
 ```
 
-The fail-closed production-surface guard reports `VALID` and checks the installed production package against frozen benchmark-neutrality authorities.
+The fail-closed production-surface guard reports `VALID`.
 
 See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md).
 
@@ -109,27 +127,13 @@ python tools/check_production_surface.py
 pytest -q tests
 ```
 
-## 7. Understand the nine-month development path
+## 8. Understand the development path
 
 Read [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
 
-Aether has been built independently for nine months. The public Git history already contains more than 1,300 genuine commits; the internal research lineage is much larger. Commit volume is not treated as proof of quality. The value of the history is that it records repeated architecture changes, failed hypotheses, qualification work and evidence-driven simplification before fundraising began.
+Aether has been built independently for nine months. The public Git history already contains more than 1,300 genuine commits; the internal research lineage is much larger.
 
-## 8. See what funding is meant to answer
-
-Read [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
-
-The proposed three-month programme is not “build the first prototype.” Aether already exists.
-
-The programme is designed to answer whether the central relationship can become dependable under matched evaluation:
-
-- same underlying model;
-- same task and environment;
-- comparable budgets;
-- repeated trials;
-- independent grading;
-- selection rules fixed before evaluation;
-- negative results published.
+Commit volume is not treated as proof of quality. The useful part of the history is that it records architecture changes, failed hypotheses, qualification work and evidence-driven simplification before fundraising began.
 
 ## Evidence standard
 
@@ -140,7 +144,7 @@ Aether does not use:
 - selected traces as representative aggregate performance;
 - invalid infrastructure rows as model failures;
 - different model-agent pairs as causal proof of a harness effect;
-- hidden benchmark grader state as agent input;
+- hidden evaluation state as agent input;
 - commit count as a performance metric.
 
 The best place to inspect those rules is [`evidence/README.md`](evidence/README.md).
