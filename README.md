@@ -168,8 +168,15 @@ Historical HarnessEng/Aether-2 research remains in Git history. It is not presen
 ## Quick checks
 
 ```bash
-python -m pytest -q tests
+python tools/check_public_release.py
 python tools/check_production_surface.py
+python -m pytest -q tests
+```
+
+For a tracked-files-only simulation that excludes all untracked workspace state:
+
+```bash
+python tools/cold_verify_public_release.py
 ```
 
 The public package is designed so a reviewer can inspect the runtime without access to private benchmark archives or provider credentials.
