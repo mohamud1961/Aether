@@ -83,4 +83,5 @@ Aether is an attempt to build an agent architecture that compounds with model pr
 
 **Mohamud Mohamud**  
 Independent researcher  
-**mohamud1961@gmail.com**
+**mohamud1961@gmail.com**  
+**Code + evidence:** https://github.com/mohamud1961/HarnessEng
