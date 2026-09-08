@@ -1,15 +1,18 @@
 # Aether
 
+[![Public qualification](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml/badge.svg?branch=master)](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml)
+
 > **Make the model the limit.**
 
-Aether is an open research agent runtime built around one question:
+Aether is a public research agent runtime built around one question:
 
 > **As models get better, can their agents get better too—without adding more hand-built intelligence around the model?**
 
 The model owns the thinking and strategy. Aether gives it dependable access to tools, files, computers, memory, recovery and evidence inside a bounded execution environment.
 
-**Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards  
-**Five-minute diligence path:** [`PUBLIC_REVIEWER_GUIDE.md`](PUBLIC_REVIEWER_GUIDE.md)
+**Five-minute diligence path:** [`PUBLIC_REVIEWER_GUIDE.md`](PUBLIC_REVIEWER_GUIDE.md)  
+**Evidence index:** [`evidence/MANIFEST.json`](evidence/MANIFEST.json)  
+**Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards
 
 ## Why this matters
 
@@ -65,19 +68,22 @@ The latest sealed held-out campaign produced:
 
 That mixed result is intentionally public. The research question is whether the runtime can preserve model capability reliably—not whether one current configuration already dominates a leaderboard.
 
-The curated public production suite currently passes:
+### Live clean-room proof
+
+The repository now verifies itself on every push and pull request using a provider-free GitHub Actions job. The first current-master cold run reproduced the public package from tracked files only and reported:
 
 ```text
+PUBLIC_RELEASE_VALID
+production surface: VALID
+100 production Python modules scanned
+100 benchmark-neutrality task identifiers checked
 701 passed, 1 skipped
+AETHER_IMPORT_OK
 ```
 
-and the fail-closed production-surface guard reports:
+The run used **329 tracked files**, no private workspace state and no model-provider credentials. Inspect the live workflow at [Public qualification](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml).
 
-```text
-VALID
-```
-
-See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md) and [`evidence/qualification/`](evidence/qualification/).
+See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md), [`evidence/qualification/`](evidence/qualification/) and [`evidence/MANIFEST.json`](evidence/MANIFEST.json).
 
 ## More autonomy, more control
 
@@ -93,7 +99,7 @@ The production boundary is designed around:
 - controlled recovery rather than silent retries;
 - independent read-only completion review;
 - no access to hidden evaluation state;
-- complete run traces suitable for post-hoc audit.
+- complete internal run traces suitable for post-hoc audit.
 
 The held-out case in [`evidence/safety/workspace-boundary-rejection/`](evidence/safety/workspace-boundary-rejection/) shows Aether rejecting an out-of-workspace action even though the run ultimately failed. That is evidence of an enforced boundary, **not** a claim of general AI safety.
 
@@ -150,9 +156,10 @@ The current public review surface is deliberately small:
 
 - `aether/` — current production runtime;
 - `tests/` — curated deterministic production qualification suite;
-- `evidence/` — selected public-safe evidence packets, including negative evidence;
+- `evidence/` — selected public-safe evidence packets, sealed aggregate evidence and the machine-readable evidence manifest;
 - `docs/` — architecture, safety boundary, qualification, history and research programme;
-- `tools/` — release/publication checks;
+- `tools/` — fail-closed release/publication checks;
+- `.github/workflows/` — live provider-free qualification on current GitHub source;
 - `website/` — the funding/research site and brief;
 - `research/` — explicitly historical research archive; useful for development context, **not** current production authority;
 - `tracking/` — frozen historical provenance/selection authorities retained because changing those files would invalidate their evidence hashes; **not** a current product surface.
@@ -172,6 +179,21 @@ For a tracked-files-only simulation that excludes untracked workspace state:
 ```bash
 python tools/cold_verify_public_release.py
 ```
+
+Or inspect the same cold verification running publicly on GitHub: [Public qualification](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml).
+
+## Evidence publication boundary
+
+Aether keeps complete internal execution evidence, but **complete internal traces are not automatically safe to publish**. The public evidence layer distinguishes:
+
+- sealed machine-readable campaign/result records;
+- human-readable case explanations;
+- trace summaries;
+- raw model/action trajectories.
+
+Where a raw trajectory is not public, the repository says so explicitly and preserves hashes/run identifiers where available. A reconstructed narrative is never presented as a raw trace.
+
+See [`evidence/MANIFEST.json`](evidence/MANIFEST.json).
 
 ## Researcher
 

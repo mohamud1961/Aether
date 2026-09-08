@@ -1,5 +1,7 @@
 # Aether — five-minute reviewer guide
 
+[![Public qualification](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml/badge.svg?branch=master)](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml)
+
 If you have five minutes, this is the shortest path through the project.
 
 ## 1. Start with the thesis
@@ -20,7 +22,43 @@ The target is:
 
 without growing a second hidden intelligence around the model.
 
-## 2. Look at the strongest selected case
+## 2. Verify that the current repo is real and green
+
+Open the live [Public qualification](https://github.com/mohamud1961/Aether/actions/workflows/public-qualification.yml).
+
+The current workflow takes tracked public files only, installs the package on a clean GitHub runner, checks publication hygiene, scans the production package for historical/benchmark contamination, runs the deterministic suite and imports Aether.
+
+The first current-master cold run reported:
+
+```text
+329 tracked public files
+PUBLIC_RELEASE_VALID
+production surface: VALID
+100 production Python modules scanned
+100 benchmark-neutrality task identifiers checked
+701 passed, 1 skipped
+AETHER_IMPORT_OK
+```
+
+No private development workspace or model-provider credentials are required for this qualification path.
+
+Read [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md) for what that does—and does not—prove.
+
+## 3. Inspect the evidence map before any selected case
+
+Open [`evidence/MANIFEST.json`](evidence/MANIFEST.json), then [`evidence/README.md`](evidence/README.md).
+
+The evidence layer labels whether something is:
+
+- a complete sealed campaign record;
+- a selected case;
+- a machine-readable projection of a sealed row;
+- a narrative trace summary;
+- or a raw trajectory.
+
+The public release does **not** label reconstructed prose as a raw trace. Where a full trajectory is not public, that limitation is explicit and hashes/run identifiers are preserved where available.
+
+## 4. Look at the strongest selected case
 
 Read:
 
@@ -34,9 +72,11 @@ That makes the case useful for the research question:
 
 > the model can produce the right result while the surrounding agent system still mishandles completion.
 
-The case is explicitly labelled selected. It is not presented as representative benchmark performance or as causal proof that Aether is better than another agent.
+The machine-readable result preserves the original run ID and hashes for the trajectory, run record, CTRF and reward. The full raw trajectory is not public yet and the repo says so.
 
-## 3. Read the negative aggregate evidence
+The case is explicitly selected. It is not presented as representative benchmark performance or as causal proof that Aether is better than another agent.
+
+## 5. Read the negative aggregate evidence
 
 Read:
 
@@ -64,11 +104,9 @@ and:
 
 The project publishes both because the research question is not served by hiding failed rows.
 
-## 4. Check the safety boundary
+## 6. Check the execution boundary
 
 Read [`docs/SAFETY_BOUNDARY.md`](docs/SAFETY_BOUNDARY.md).
-
-Aether does not equate model autonomy with unrestricted machine authority. The model gets more freedom over **thinking** while **actions** remain permissioned, isolated and inspectable.
 
 Then inspect:
 
@@ -76,7 +114,30 @@ Then inspect:
 
 During a held-out task, Aether rejected an attempt to read outside the permitted workspace. The task still failed. The case is published because the boundary held even when doing so did not produce a benchmark win.
 
-## 5. See what funding is meant to answer
+The machine-readable JSON beside the case is explicitly a projection of sealed H10 row 5, not a fabricated raw trace.
+
+## 7. Inspect the implementation
+
+Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+The current production package is [`aether/`](aether/). The production-surface guard scans **100 current Python modules** and fail-closes on legacy runtime imports, old Architect/Workbench cognition modules, benchmark task IDs, checkout-specific paths, non-loopback hard-coded IPs, Harbor identity drift and launch-schema drift.
+
+Useful current modules include:
+
+- `aether/launch.py` — strict one-task launch/admission and custody boundary;
+- `aether/harbor_agent.py` — thin Harbor adapter;
+- `aether/harbor_runtime.py` — Harbor-facing runtime wiring;
+- `aether/kernel.py` — model/action/review control loop;
+- `aether/model_interface.py` — exact model-facing interface capture;
+- `aether/execution.py` / `aether/real_executor.py` — external action execution;
+- `aether/ledger.py` / `aether/receipts.py` — durable receipts/evidence state;
+- `aether/context_views.py` / `aether/history_query.py` — context and queryable history;
+- `aether/verifier.py` and verifier modules — independent read-only completion review;
+- `aether/redaction.py` — evidence publication boundary.
+
+The canonical package is `aether-runtime==0.3.0`; Harbor integration is pinned to `0.20.0`; the console entrypoint is `aether = aether.launch:main`.
+
+## 8. See what funding is meant to answer
 
 Read [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
 
@@ -93,51 +154,15 @@ The central experiment uses matched conditions:
 
 The point is to determine whether the architecture itself helps model capability translate into agent performance.
 
-## 6. Inspect the implementation if you want to go deeper
-
-Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-The current production package is [`aether/`](aether/). Historical architectures remain in Git history but are not presented as the current system.
-
-Useful current modules include:
-
-- `aether/kernel.py` — runtime control loop;
-- `aether/model_interface.py` — model boundary;
-- `aether/real_executor.py` — execution;
-- `aether/context_views.py` / `aether/history_query.py` — context and queryable history;
-- `aether/inspection_registry.py` / `aether/verifier.py` — evidence and completion review;
-- `aether/redaction.py` plus workspace/permission surfaces — execution boundary.
-
-## 7. Verify the implementation baseline
-
-The curated public production suite currently reports:
-
-```text
-701 passed, 1 skipped
-```
-
-The fail-closed production-surface guard reports `VALID`.
-
-See [`docs/QUALIFICATION.md`](docs/QUALIFICATION.md).
-
-Re-run locally with:
-
-```bash
-python tools/check_production_surface.py
-pytest -q tests
-```
-
-## 8. Understand the development path
+## 9. Understand the development path
 
 Read [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md).
 
-Aether has been built independently for nine months. The public Git history already contains more than 1,300 genuine commits; the internal research lineage is much larger.
+The public Git history already contains more than 1,300 genuine commits from the earlier research phase; the internal research lineage is much larger.
 
 Commit volume is not treated as proof of quality. The useful part of the history is that it records architecture changes, failed hypotheses, qualification work and evidence-driven simplification before fundraising began.
 
 ## Evidence standard
-
-The public evidence directory is intentionally small.
 
 Aether does not use:
 
@@ -145,9 +170,10 @@ Aether does not use:
 - invalid infrastructure rows as model failures;
 - different model-agent pairs as causal proof of a harness effect;
 - hidden evaluation state as agent input;
-- commit count as a performance metric.
+- commit count as a performance metric;
+- narrative reconstructions as raw traces.
 
-The best place to inspect those rules is [`evidence/README.md`](evidence/README.md).
+The machine-readable index is [`evidence/MANIFEST.json`](evidence/MANIFEST.json).
 
 ## Researcher
 
