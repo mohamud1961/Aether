@@ -32,6 +32,7 @@ def main() -> None:
         run([sys.executable, "tools/check_public_release.py"], cold)
         run([sys.executable, "tools/check_production_surface.py"], cold)
         run([sys.executable, "tools/check_public_evidence.py"], cold)
+        run([sys.executable, "tools/check_funding_site.py"], cold)
         run([sys.executable, "-m", "pytest", "-q", "tests"], cold)
         run([sys.executable, "-c", "import aether; print('AETHER_IMPORT_OK', aether.__file__)"], cold)
         print(f"COLD_PUBLIC_RELEASE_VALID files={len(files)}")
