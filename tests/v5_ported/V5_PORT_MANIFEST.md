@@ -3,10 +3,10 @@
 
 > **Current status (2026-08-21):** this table is the historical import inventory from the original V5 port. The old Python sources are now preserved byte-for-byte under `reference_*.py` names, and current behavioral migration authority lives in `V5_REPLACEMENT_COVERAGE_V1.json`. Do not restore obsolete V5 APIs merely to satisfy these historical imports.
 
-Source archive: `/Users/mohamud/Downloads/AETHER_NEXT_EXECUTED_UPGRADE_V5_20260711.zip`
+Source archive: `<historical-local-archive>/AETHER_NEXT_EXECUTED_UPGRADE_V5_20260711.zip` *(local path redacted for public release)*
 
 Reference test source root:
-`/private/tmp/aether_v5_20260711_read/AETHER_NEXT_EXECUTED_UPGRADE_V5_20260711/tests`
+`<historical-extraction-root>/AETHER_NEXT_EXECUTED_UPGRADE_V5_20260711/tests` *(local path redacted for public release)*
 
 Every Python test below is copied byte-for-byte from that source root.  No
 reference production module was copied into the canonical tree.
