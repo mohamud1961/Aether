@@ -62,14 +62,16 @@ Release methods, costs, successes, failures and public-safe traces so the conclu
 
 ## What funding enables
 
-Funding supports a focused **3-month research programme**:
+The full three-month research programme is budgeted at **£30,000**:
 
-- dedicated researcher runway
-- frontier-model API and compute costs
-- matched Terminal-Bench and agent comparisons
-- evaluation infrastructure
-- trace preparation and public evidence
-- publication and replication work
+- **£12,000** — three months of full-time researcher support
+- **£8,000** — frontier-model API and experimental compute
+- **£3,000** — cloud, VM and evaluation infrastructure
+- **£2,000** — reproduction, audit and evidence preparation
+- **£1,000** — public research infrastructure and publication tooling
+- **£4,000** — additional experimental compute / contingency
+
+The budget is concentrated on researcher time and experiments. No headcount expansion, office costs or marketing are required.
 
 Funding buys the decisive experiments, not the first prototype. Aether already exists.
 
@@ -84,4 +86,4 @@ Aether is an attempt to build an agent architecture that compounds with model pr
 **Mohamud Mohamud**  
 Independent researcher  
 **mohamud1961@gmail.com**  
-**Code + evidence:** https://github.com/mohamud1961/HarnessEng
+**Code + evidence:** https://github.com/mohamud1961/Aether
