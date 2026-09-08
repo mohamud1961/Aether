@@ -19,7 +19,7 @@ SAME MODEL
 SAME CHALLENGE
 SAME COMPUTER / ENVIRONMENT
 SAME TIME LIMIT
-SAME EXTERNAL GRADER
+SAME INDEPENDENT EVALUATION
 ```
 
 and changes the agent/runtime treatment.
@@ -70,14 +70,14 @@ Measure at least:
 - recovery events;
 - parse/protocol failures;
 - permission/boundary rejects;
-- internal completion-review agreement with external grading;
+- agreement between Aether's completion review and independent official evaluation;
 - trace completeness.
 
 ### Attribution rules
 
-A row is not silently converted into a model failure if the environment never started, the provider failed terminally, or official grading could not run.
+A row is not silently converted into a model failure if the environment never started, the provider failed terminally, or independent evaluation could not run.
 
-Likewise, a run is not called a harness success simply because its trace looks coherent. The task-visible external grader remains the performance authority.
+Likewise, a run is not called a harness success simply because its trace looks coherent. The task-visible independent evaluation remains the performance authority.
 
 ### No mid-board rescue
 
@@ -100,7 +100,7 @@ Goal: finish with a smaller, better-understood system rather than a larger pile 
 
 For each major mechanism, ask:
 
-- Does it improve externally graded completion?
+- Does it improve externally evaluated completion?
 - Does it improve reliability/attribution without suppressing valid model work?
 - Does it reduce cost or wasted action?
 - Does it make failures more observable?
@@ -143,15 +143,22 @@ Three months is long enough to harden the current runtime, run a controlled comp
 
 The project does not need a long speculative build phase before producing evidence.
 
-## What funding covers
+## Budget
 
-The exact amount is funder-specific, but the categories are stable:
+The full three-month programme is budgeted at **£30,000**:
 
-- dedicated researcher runway;
-- frontier-model/API and inference costs;
-- benchmark/evaluation compute;
-- reproducible execution infrastructure;
-- evidence packaging and publication;
-- modest contingency for repeated controlled runs or provider failures.
+| Category | Amount | Purpose |
+|---|---:|---|
+| Researcher support | £12,000 | Three months of full-time independent research and engineering |
+| Model/API compute | £8,000 | Repeated controlled experiments across model/agent configurations |
+| Cloud/VM/evaluation infrastructure | £3,000 | Isolated environments, execution, storage and run capture |
+| Reproduction + evidence work | £2,000 | Repeated trials, audit, trace preparation and independent-check tooling |
+| Public research infrastructure | £1,000 | Hosting, artifact storage and publication tooling |
+| Additional experimental compute / contingency | £4,000 | Variance in model costs and decisive follow-up experiments |
+| **Total** | **£30,000** | |
 
-A funder should be able to trace the budget directly to the experimental programme above.
+The budget is concentrated on researcher time and experiments. No headcount expansion, office costs or marketing are required.
+
+Different funders may support smaller, clearly scoped parts of this programme. Any overlapping support should be disclosed and later restricted awards re-scoped so the same expense is not funded twice.
+
+A funder should be able to trace every budget line directly to the experimental programme above.
