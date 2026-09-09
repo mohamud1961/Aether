@@ -7,7 +7,7 @@ Status: preregistered implementation plan; no mechanisms implemented in this pla
 Source diagnosis:
 - `tracking/collab/aether2_fake_progress_analysis_20260614/older_vm_and_trace_rerun_fake_progress_analysis_20260614.md`
 - Older VM pull: `tracking/collab/vm_pulls/tracking/collab/tbench2_invalid64_envfixed_lean_20260614T192349Z`
-- Trace reruns: `/private/tmp/aether2_trace_reruns/`
+- Trace reruns: `<temporary-trace-root>/`
 
 ## Objective
 

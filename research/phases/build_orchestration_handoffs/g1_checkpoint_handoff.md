@@ -4,7 +4,7 @@
 
 - This file is no longer the authoritative G1/G2 closeout for the live tree.
 - Current authority:
-  [pre_g3_readiness_handoff.md](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_build_orchestration/pre_g3_readiness_handoff.md)
+  `tracking/collab/aether2_build_orchestration/pre_g3_readiness_handoff.md` in the internal handoff archive
 
 - Date: 2026-06-11
 - Actor: aether2-g1-completion-agent

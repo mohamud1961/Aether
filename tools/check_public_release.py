@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Fail closed on obvious publication hazards in the tracked public release.
 
-This checker is intentionally conservative about current reviewer-facing surfaces.
-Historical research and exact frozen evidence may contain old local-path references,
-but credentials, sensitive filenames, obsolete current-tree products, and local
-machine paths in the current runtime/docs/site are release blockers.
+This checker is intentionally conservative about the whole tracked public release.
+Historical research and exact frozen evidence may preserve the fact that a run
+used temporary storage, but machine-specific paths are still release blockers.
+The only exemption is this tool's own path-pattern literals.
 """
 from __future__ import annotations
 
@@ -52,9 +52,7 @@ LOCAL_PATH_PATTERNS = (
     re.compile(r"/mnt/data/"),
 )
 LOCAL_PATH_EXEMPT_PREFIXES = (
-    "research/",  # explicitly historical archive
-    "tracking/",  # exact frozen evidence authority; hashes must remain stable
-    "tools/",     # release checkers contain the path-pattern literals they enforce
+    "tools/",  # this checker contains the path-pattern literals it enforces
 )
 
 

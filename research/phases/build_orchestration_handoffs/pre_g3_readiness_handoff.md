@@ -11,8 +11,8 @@
 This is the single current G1/G2 truth for the live tree.
 
 Historical notes remain in:
-- [g1_checkpoint_handoff.md](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_build_orchestration/g1_checkpoint_handoff.md)
-- [pre_g1_completion_handoff.md](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_build_orchestration/pre_g1_completion_handoff.md)
+- `tracking/collab/aether2_build_orchestration/g1_checkpoint_handoff.md` in the internal handoff archive
+- `tracking/collab/aether2_build_orchestration/pre_g1_completion_handoff.md` in the internal handoff archive
 
 Those files are evidence only. This file supersedes their old G2 claims.
 
@@ -47,8 +47,8 @@ Result:
 - `1 passed in 0.51s`
 
 Evidence:
-- [tests/test_aether2_jobs.py](/Users/mohamud/Downloads/harnesseng/tests/test_aether2_jobs.py)
-- [jobs.py](/Users/mohamud/Downloads/harnesseng/runner/aether2/jobs.py)
+- `tests/test_aether2_jobs.py` in the historical source archive
+- `runner/aether2/jobs.py` in the historical source archive
 
 ## 2. Fresh G1 evidence
 
@@ -79,13 +79,13 @@ The G1 count is now 106 because the new work added legitimate coverage.
 ## 3. G2 repair implemented
 
 Files changed for this repair slice:
-- [tools/run_aether2_g2.py](/Users/mohamud/Downloads/harnesseng/tools/run_aether2_g2.py)
-- [bridge_harbor.py](/Users/mohamud/Downloads/harnesseng/runner/aether2/bridge_harbor.py)
-- [verifier.sh](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/g2_03_interactive_session/verifier.sh)
-- [task.toml](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/g2_03_interactive_session/task.toml)
-- [Dockerfile](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/g2_03_interactive_session/Dockerfile)
-- [test_run_aether2_g2.py](/Users/mohamud/Downloads/harnesseng/tests/test_run_aether2_g2.py)
-- [test_aether2_bridge_harbor.py](/Users/mohamud/Downloads/harnesseng/tests/test_aether2_bridge_harbor.py)
+- `tools/run_aether2_g2.py` in the historical source archive
+- `runner/aether2/bridge_harbor.py` in the historical source archive
+- `tracking/collab/aether2_g2_homologs/g2_03_interactive_session/verifier.sh` in the internal handoff archive
+- `tracking/collab/aether2_g2_homologs/g2_03_interactive_session/task.toml` in the internal handoff archive
+- `tracking/collab/aether2_g2_homologs/g2_03_interactive_session/Dockerfile` in the internal handoff archive
+- `tests/test_run_aether2_g2.py` in the historical source archive
+- `tests/test_aether2_bridge_harbor.py` in the historical source archive
 
 Repair details:
 - `g2_03` no longer accepts a plain file-output workaround.
@@ -109,7 +109,7 @@ Repair details:
 ### Superseded false-positive run
 
 The earlier run below is **not** authoritative anymore for G2 readiness:
-- [20260612T172021Z](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260612T172021Z)
+- `tracking/collab/aether2_g2_homologs/runs/20260612T172021Z` in the internal run archive
 
 Why superseded:
 - `g2_03_interactive_session` passed only because its external verifier checked `result.txt` and ignored the missing real interactive session.
@@ -118,10 +118,10 @@ Why superseded:
 ### Current authoritative run
 
 Latest immutable run:
-- [20260612T175936Z](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260612T175936Z)
-- [scoreboard.md](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260612T175936Z/scoreboard.md)
-- [result_rows.jsonl](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260612T175936Z/result_rows.jsonl)
-- [pre_run_cleanup.log](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_g2_homologs/runs/20260612T175936Z/pre_run_cleanup.log)
+- `tracking/collab/aether2_g2_homologs/runs/20260612T175936Z` in the internal run archive
+- `tracking/collab/aether2_g2_homologs/runs/20260612T175936Z/scoreboard.md` in the internal run archive
+- `tracking/collab/aether2_g2_homologs/runs/20260612T175936Z/result_rows.jsonl` in the internal run archive
+- `tracking/collab/aether2_g2_homologs/runs/20260612T175936Z/pre_run_cleanup.log` in the internal run archive
 
 Command:
 
@@ -165,7 +165,7 @@ docker version
 Observed:
 - `uptime` at 18:56 (Europe/London): load averages `25.34 23.11 20.08`
 - `docker version` client is installed, but daemon remains unreachable at:
-  `unix:///Users/mohamud/.docker/run/docker.sock`
+  `<docker-socket-url>`
 - `open -a Docker` succeeded as a launch request, but a later `docker version`
   still reported no daemon socket
 
