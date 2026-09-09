@@ -44,6 +44,9 @@ PCR_COMPLETION_EVIDENCE_KINDS = frozenset({
 # result the model must observe, but it is not proof that the task is complete.
 PCR_PRIMARY_ACTION_RESULT_KINDS = frozenset({
     *PCR_COMPLETION_EVIDENCE_KINDS,
+    # Historical retrieval is a real causal outcome the Solver must observe,
+    # but it is not proof of current external task completion.
+    "query_history",
     "report_blocker",
     "action_validation",
     "safety_block",

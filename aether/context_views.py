@@ -34,6 +34,9 @@ _TOOL_RESULT_KINDS = frozenset({
     "environment_extension",
 })
 
+_QUERY_HISTORY_RESULT_VIEW_LIMIT = 8
+_QUERY_HISTORY_MATCH_VIEW_LIMIT = 4
+
 
 _RECENT_RECIPE_SELECTORS = frozenset({
     "recent_progress",
@@ -391,6 +394,71 @@ def receipt_inline_view(receipt: Receipt) -> dict[str, Any]:
         else:
             row["result_excerpt"] = _compact_text(result_json, 6000)
             row["full_result_available_by_receipt_handle"] = True
+    if receipt.kind == "query_history":
+        # query_history is an explicit model-directed retrieval action. The next
+        # Solver turn must see the bounded matches it just requested; otherwise
+        # the kernel would truthfully find historical content but hide it behind
+        # its own context projection. Keep only source addresses and bounded
+        # excerpts here. Full historical bytes remain behind exact handles.
+        for key in (
+            "offset", "limit", "total_matches", "more_available", "ordering", "match_mode",
+            "historical_results_are_current_state", "complete_spooled_stream_search",
+        ):
+            value = payload.get(key)
+            if value not in (None, "", (), [], {}):
+                row[key] = value
+        raw_results = payload.get("results")
+        if isinstance(raw_results, list):
+            projected_results: list[dict[str, Any]] = []
+            for raw_result in raw_results[:_QUERY_HISTORY_RESULT_VIEW_LIMIT]:
+                if not isinstance(raw_result, dict):
+                    continue
+                result: dict[str, Any] = {}
+                for key in (
+                    "receipt_id", "receipt_handle", "step", "kind", "success",
+                    "summary", "path", "command", "stdout_handle", "stderr_handle",
+                    "file_handle",
+                ):
+                    value = raw_result.get(key)
+                    if value not in (None, "", (), [], {}):
+                        result[key] = value
+                raw_matches = raw_result.get("content_matches")
+                if isinstance(raw_matches, list):
+                    matches: list[dict[str, Any]] = []
+                    for raw_match in raw_matches[:_QUERY_HISTORY_MATCH_VIEW_LIMIT]:
+                        if not isinstance(raw_match, dict):
+                            continue
+                        match: dict[str, Any] = {}
+                        for key in (
+                            "field", "handle", "historical_observation",
+                            "complete_stream_searched", "source",
+                        ):
+                            value = raw_match.get(key)
+                            if value not in (None, "", (), [], {}):
+                                match[key] = value
+                        excerpt = raw_match.get("excerpt")
+                        if excerpt not in (None, ""):
+                            match["excerpt"] = _compact_text(excerpt, 1200)
+                        if match:
+                            matches.append(match)
+                    if matches:
+                        result["content_matches"] = matches
+                    if len(raw_matches) > len(matches):
+                        result.update({
+                            "content_matches_projection_count": len(matches),
+                            "content_matches_projection_limit": _QUERY_HISTORY_MATCH_VIEW_LIMIT,
+                            "content_matches_projection_more_available": True,
+                        })
+                if result:
+                    projected_results.append(result)
+            if projected_results:
+                row["results"] = projected_results
+            if len(raw_results) > len(projected_results):
+                row.update({
+                    "results_projection_count": len(projected_results),
+                    "results_projection_limit": _QUERY_HISTORY_RESULT_VIEW_LIMIT,
+                    "results_projection_more_available": True,
+                })
     if receipt.kind == "terminal_read":
         output = str(payload.get("output", ""))
         if output:

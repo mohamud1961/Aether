@@ -758,6 +758,9 @@ def compile_pcr_context(
             "empty_query_lists_recent_receipts": True,
             "exact_receipts_via": "read_output receipt:<receipt_id>",
             "exact_streams_via": "read_output stdout_handle/stderr_handle",
+            "captured_content_search": True,
+            "complete_spooled_stream_search": True,
+            "historical_results_are_current_state": False,
         },
         "linked_history": _factual_pcr_linked_history(linked_history),
     }
