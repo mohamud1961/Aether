@@ -9,7 +9,7 @@ where called out.
 Audience: implementation subagents with no prior context on this conversation. Read this document
 top to bottom before writing any code.
 
-Repo root: `/Users/mohamud/Downloads/harnesseng`. All paths below are repo-relative unless given as
+Repo root: `<repository-root>`. All paths below are repo-relative unless given as
 absolute.
 
 ---

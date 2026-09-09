@@ -42,14 +42,14 @@ Trace rerun handoff:
 - `<project_dir>/.codex/attachments/b7e56911-a6c8-4adf-8a01-739e3db2607b/pasted-text.txt`
 
 Trace rerun artifacts cited by handoff:
-- `/private/tmp/aether2_trace_reruns/gcode-to-text/.aether2/host_receipts/traces/reasoning_trace.json`
-- `/private/tmp/aether2_trace_reruns/gcode-to-text/.aether2/host_receipts/receipts/model_exchange_3.json`
-- `/private/tmp/aether2_trace_reruns/gcode-to-text/.aether2/host_receipts/receipts/model_exchange_7.json`
-- `/private/tmp/aether2_trace_reruns/db-wal-recovery/.aether2/host_receipts/receipts/model_exchange_4.json`
-- `/private/tmp/aether2_trace_reruns/build-cython-ext/.aether2/host_receipts/receipts/model_exchange_14.json`
-- `/private/tmp/aether2_trace_reruns/kv-store-grpc/.aether2/host_receipts/receipts/model_exchange_6.json`
-- `/private/tmp/aether2_trace_reruns/kv-store-grpc/.aether2/host_receipts/receipts/model_exchange_7.json`
-- `/private/tmp/aether2_trace_reruns/build-pmars/.aether2/host_receipts/receipts/model_exchange_31.json`
+- `<temporary-trace-root>/gcode-to-text/.aether2/host_receipts/traces/reasoning_trace.json`
+- `<temporary-trace-root>/gcode-to-text/.aether2/host_receipts/receipts/model_exchange_3.json`
+- `<temporary-trace-root>/gcode-to-text/.aether2/host_receipts/receipts/model_exchange_7.json`
+- `<temporary-trace-root>/db-wal-recovery/.aether2/host_receipts/receipts/model_exchange_4.json`
+- `<temporary-trace-root>/build-cython-ext/.aether2/host_receipts/receipts/model_exchange_14.json`
+- `<temporary-trace-root>/kv-store-grpc/.aether2/host_receipts/receipts/model_exchange_6.json`
+- `<temporary-trace-root>/kv-store-grpc/.aether2/host_receipts/receipts/model_exchange_7.json`
+- `<temporary-trace-root>/build-pmars/.aether2/host_receipts/receipts/model_exchange_31.json`
 
 Important artifact limitation:
 - The older VM pull is a lean extraction. It did not include raw `.aether2` receipts, raw logs, host receipt bundles, or model exchanges. Exact step-input reconstruction is therefore available only from the newer local trace reruns, not from the older VM pull.

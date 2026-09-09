@@ -54,7 +54,7 @@ The A5 run is therefore terminal, but it is not a passing or promotion result. T
 - `LAUNCH_RESULT.json` SHA: `95cccd01966e4a4814057ad06fae6dbc2a4b7c387c94471446e91fe196b0405a`.
 - `TRIGGER_IDENTITY.json` SHA: `5e65d8c2a609019e8a8da7c8e1425d387be720987569628f05da61f06e3a8561`.
 - `LAUNCH_PLAN.json` SHA: `59c5e6670ef75d24f1e0dc2562bd6e939a6b319417cf754564f6bf1ecae06130`.
-- Original remote roots: `/home/azureuser/a5_b5_parallel_20260831/trigger-evidence`, `/home/azureuser/a5_b5_parallel_20260831/trigger.state.json`, `/home/azureuser/a5_b5_parallel_20260831/jobs`, and `/home/azureuser/a5_b5_parallel_20260831/leases` on `aether-solver-vm` (`20.9.17.92`).
+- Original remote roots: `<remote-run-root>/a5_b5_parallel_20260831/trigger-evidence`, `<remote-run-root>/a5_b5_parallel_20260831/trigger.state.json`, `<remote-run-root>/a5_b5_parallel_20260831/jobs`, and `<remote-run-root>/a5_b5_parallel_20260831/leases` on the remote solver host.
 - Local immutable snapshot: `launch_evidence_20260831/authorized_exception-20260831T124957Z/b5_parallel_requalification/remote_snapshot_20260831/`; key-file hashes were rechecked against the remote host.
 
 ### Terminal state and rows

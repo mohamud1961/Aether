@@ -4,7 +4,7 @@
 
 - This file is historical only and is not the current live-tree truth.
 - Current authority:
-  [pre_g3_readiness_handoff.md](/Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_build_orchestration/pre_g3_readiness_handoff.md)
+  `tracking/collab/aether2_build_orchestration/pre_g3_readiness_handoff.md` in the internal handoff archive
 
 ## 2026-06-12 corrective addendum
 
@@ -154,23 +154,23 @@
 
 ## Codex-review restoration and final result
 
-- Skill read: `/Users/mohamud/.codex/skills/codex-review/SKILL.md`
+- Skill read: `<Codex-installation>/skills/codex-review/SKILL.md`
 - Original blocker: global Codex config used unsupported `service_tier = "default"` and review failed during config parsing.
 - Restoration method:
   - Added repo-local wrapper at `.tmp_codex_home/bin/codex` (`.tmp_codex_home/bin/codex:1-12`) to force:
-    - `CODEX_HOME=/Users/mohamud/Downloads/harnesseng/.tmp_codex_home`
+    - `CODEX_HOME=<temporary-codex-home>`
     - `SSL_CERT_FILE=/opt/homebrew/lib/python3.14/site-packages/certifi/cacert.pem`
     - real codex executable with `--dangerously-bypass-approvals-and-sandbox`
   - Repo-local config at `.tmp_codex_home/config.toml:1-8` omits the unsupported `service_tier`.
   - Repo-local auth copied into `.tmp_codex_home/auth.json` with `auth_mode=chatgpt`.
 - Exact restored dry-run invocation:
-  - `PATH="/Users/mohamud/Downloads/harnesseng/.tmp_codex_home/bin:$PATH" ~/.codex/skills/codex-review/scripts/codex-review --dry-run --output /Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_build_orchestration/codex_review.txt`
+  - `PATH="<temporary-codex-home>/bin:$PATH" <Codex-installation>/skills/codex-review/scripts/codex-review --dry-run --output <repository-root>/tracking/collab/aether2_build_orchestration/codex_review.txt`
 - Dry-run evidence:
   - `tracking/collab/aether2_build_orchestration/codex_review.txt`
   - Shows nested command `codex review --uncommitted`
   - Shows `codex-review clean: no accepted/actionable findings reported`
 - Exact actual review invocation:
-  - `PATH="/Users/mohamud/Downloads/harnesseng/.tmp_codex_home/bin:$PATH" codex review --uncommitted > /Users/mohamud/Downloads/harnesseng/tracking/collab/aether2_build_orchestration/codex_review_actual.txt 2>&1`
+  - `PATH="<temporary-codex-home>/bin:$PATH" codex review --uncommitted > <repository-root>/tracking/collab/aether2_build_orchestration/codex_review_actual.txt 2>&1`
 - Actual review evidence:
   - `tracking/collab/aether2_build_orchestration/codex_review_actual.txt`
   - Review now gets past config/auth parsing and starts, but the nested review cannot inspect the tree because local commands fail with `sandbox-exec: sandbox_apply: Operation not permitted`.
@@ -210,7 +210,7 @@ python3 -m pytest tests/test_aether2_*.py -q
 If the parent reviewer wants the independent rerun to include the restored review gate first, reuse:
 
 ```bash
-PATH="/Users/mohamud/Downloads/harnesseng/.tmp_codex_home/bin:$PATH" codex review --uncommitted
+PATH="<temporary-codex-home>/bin:$PATH" codex review --uncommitted
 ```
 
 ## Explicit non-runs
