@@ -1,0 +1,143 @@
+"""Independent finish review by the reviewer, over task-visible state only.
+
+When the solver calls ``finish``, the reviewer is shown the task, the solver's latest
+actions with their real outputs, and a fresh snapshot of the workspace taken by
+the harness. It is never shown the solver's own summary or claims (in the
+offline bench, the claim-free review caught 15/18 wrong finishes vs 10/18 with
+claims). The question set is the earlier claim ledger's failure-mode question (the variant with the
+measured solve lift) plus one completeness question per task criterion.
+
+A review failure is never silent: it is returned as status "error" with the
+reason, recorded in the trace and the run record, and the finish proceeds.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import json
+import shlex
+from typing import Any, Callable, Mapping, Sequence
+
+from .questionnaire import QUESTIONNAIRE_SCHEMA
+from .questionnaire import BAD_MODES, FAILURE_DETAILS, FAILURE_QUESTION_ID, failure_question
+from .questionnaire import _wire_question
+from .questionnaire import compact, split_criteria
+from .env import Environment, run
+
+REVIEW_MODEL = "reviewer"
+MAX_REQUEST_BYTES = 15_000
+MAX_TASK_CHARS = 3_000
+HOLD_CONFIDENCE = 0.8
+COMPLETENESS_CHOICES = ("direct_and_current", "indirect", "self_written_check_only", "none", "contradicted")
+COMPLETENESS_DETAILS = {
+    "direct_and_current": "The evidence directly shows the requirement holds in the current state.",
+    "indirect": "The evidence only bears on the requirement indirectly.",
+    "self_written_check_only": "Only a check the solver wrote itself supports it; nothing independent does.",
+    "none": "No evidence bears on the requirement.",
+    "contradicted": "The evidence shows the requirement does not hold.",
+}
+Transport = Callable[[dict[str, Any]], Mapping[str, Any]]
+
+
+@dataclass
+class Verdict:
+    status: str  # "pass" | "hold" | "error"
+    mode: str = ""
+    confidence: float = 0.0
+    unmet: list[str] = field(default_factory=list)
+    reason: str = ""
+    request_bytes: int = 0
+    answers: dict[str, Any] = field(default_factory=dict)
+
+    def feedback(self) -> str:
+        lines = [
+            "[independent review] A separate reviewer examined the current workspace and your recent "
+            "command outputs (it did not see your summary).",
+            f"Its judgement: {FAILURE_DETAILS.get(self.mode, self.mode)} (confidence {self.confidence:.2f}).",
+        ]
+        if self.unmet:
+            lines.append("Requirements it could not confirm from the evidence:")
+            lines += [f"- {u}" for u in self.unmet[:6]]
+        lines.append("Check these against the real state. Fix what is missing, or, if you are certain the task "
+                     "is complete, demonstrate it with a command whose output shows it and call finish again.")
+        return "\n".join(lines)
+
+
+async def snapshot(env: Environment, workdir: str, written: Sequence[str]) -> str:
+    """Read-only workspace facts gathered by the harness, not by the solver."""
+    q = shlex.quote
+    files = " ".join(q(p) for p in list(written)[-8:])
+    cmd = (f"cd {q(workdir)} 2>/dev/null; echo \"$ pwd: $(pwd)\"; echo '$ ls -la'; ls -la 2>&1 | head -40; "
+           "if git rev-parse --git-dir >/dev/null 2>&1; then echo '$ git status --short'; "
+           "git status --short 2>&1 | head -30; echo '$ git log --oneline -3'; git log --oneline -3 2>&1; fi")
+    if files:
+        cmd += f"; for f in {files}; do echo \"$ head $f\"; ls -la \"$f\" 2>&1; head -c 600 \"$f\" 2>&1; echo; done"
+    res = await run(env, cmd, timeout_s=30)
+    return (res.stdout + ("\n" + res.stderr if res.stderr else ""))[:6000]
+
+
+def build_request(task: str, actions: Sequence[str], state: str, *, criteria_mode: str = "complete_v1",
+                  budget: int = MAX_REQUEST_BYTES) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    criteria = split_criteria(task, mode=criteria_mode)
+    for n_actions, limit, n_criteria, state_chars in ((8, 900, 12, 5000), (6, 600, 12, 3500), (5, 400, 8, 2500),
+                                                       (4, 300, 6, 1800), (3, 200, 4, 1200), (2, 150, 3, 800)):
+        views = {f"a{i + 1}": compact(a, limit) for i, a in enumerate(actions[-n_actions:])}
+        views["state"] = compact(state, state_chars)
+        refs = list(views)
+        crit = criteria[:n_criteria]
+        texts = {c["criterion_id"]: c["text"] for c in crit}
+        questions = {FAILURE_QUESTION_ID: _wire_question(failure_question(refs), texts)}
+        for c in crit:
+            questions[f"completeness:{c['criterion_id']}"] = _wire_question({
+                "relation": f"Classify whether the evidence directly and currently establishes requirement "
+                            f"{c['criterion_id']}.",
+                "choices": list(COMPLETENESS_CHOICES), "choice_details": COMPLETENESS_DETAILS,
+                "criterion_id": c["criterion_id"], "evidence_refs": refs}, texts)
+        request = {"model": REVIEW_MODEL, "state": {
+            "schema": QUESTIONNAIRE_SCHEMA, "raw_task": task[:MAX_TASK_CHARS], "criteria": crit,
+            "claim_card": None, "visible_evidence": views}, "questions": questions}
+        if _bytes(request) <= budget:
+            return request, crit
+    raise ValueError(f"review request cannot fit {budget} bytes")
+
+
+def _bytes(request: Mapping[str, Any]) -> int:
+    return len(json.dumps(request, allow_nan=False, separators=(",", ":")).encode())
+
+
+def answers_of(response: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(response, Mapping):
+        raise ValueError("the reviewer response is not an object")
+    result = response.get("result")
+    answers = result.get("answers") if isinstance(result, Mapping) else response.get("answers")
+    if not isinstance(answers, Mapping):
+        raise ValueError("the reviewer response has no answers")
+    out = {}
+    for qid, raw in answers.items():
+        if isinstance(raw, Mapping) and isinstance(raw.get("choice"), str):
+            out[str(qid)] = {"choice": raw["choice"], "confidence": float(raw.get("confidence") or 0.0)}
+    if FAILURE_QUESTION_ID not in out:
+        raise ValueError("the reviewer did not answer the failure-mode question")
+    return out
+
+
+def judge(answers: Mapping[str, Mapping[str, Any]], criteria: Sequence[Mapping[str, str]],
+          request_bytes: int) -> Verdict:
+    mode = answers[FAILURE_QUESTION_ID]
+    texts = {c["criterion_id"]: c["text"] for c in criteria}
+    unmet = [f"{cid}: {compact(texts[cid], 240)}" for cid in texts
+             if answers.get(f"completeness:{cid}", {}).get("choice") in ("none", "contradicted")]
+    hold = mode["choice"] in BAD_MODES and mode["confidence"] >= HOLD_CONFIDENCE
+    return Verdict("hold" if hold else "pass", mode["choice"], mode["confidence"], unmet,
+                   request_bytes=request_bytes, answers=dict(answers))
+
+
+async def review(transport: Transport, env: Environment, *, task: str, workdir: str,
+                 actions: Sequence[str], written: Sequence[str], call) -> Verdict:
+    """``call`` runs the blocking transport off the event loop (asyncio.to_thread in production)."""
+    try:
+        state = await snapshot(env, workdir, written)
+        request, criteria = build_request(task, actions, state)
+        response = await call(transport, request)
+        return judge(answers_of(response), criteria, _bytes(request))
+    except Exception as exc:  # surfaced, never silent: see module docstring
+        return Verdict("error", reason=f"{type(exc).__name__}: {str(exc)[:300]}")
