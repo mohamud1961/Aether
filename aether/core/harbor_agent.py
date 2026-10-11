@@ -3,7 +3,8 @@
 Configuration comes from the launcher's environment only:
 - provider: the GLM research profile's endpoint / key / deployment variables;
 - ``AETHER_CORE_REVIEW``: ``off`` or ``reviewer`` (required; no silent default);
-- ``AETHER_CORE_REASONING_EFFORT``: reasoning effort (default ``high``).
+- ``AETHER_CORE_REASONING_EFFORT``: reasoning effort (default ``high``);
+- ``AETHER_AGENT_DEADLINE_SEC``: the task's agent timeout, when Harbor does not pass one.
 A missing or invalid setting stops the run before any model call.
 """
 from __future__ import annotations
@@ -31,6 +32,7 @@ ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
 DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
 EFFORT_ENV = "AETHER_CORE_REASONING_EFFORT"
+DEADLINE_ENV = "AETHER_AGENT_DEADLINE_SEC"
 SAMPLING = {"temperature": 1.0, "top_p": 0.95}  # identical to the previous solver solver for a fair comparison
 
 
@@ -66,6 +68,19 @@ def build_review(logs_dir: Path):
 
 
 
+def agent_timeout(passed: float | None) -> float:
+    if passed and float(passed) > 0:
+        return float(passed)
+    raw = os.environ.get(DEADLINE_ENV, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if value <= 0:
+        raise ConfigError(f"no agent timeout: Harbor passed none and {DEADLINE_ENV}={raw!r}")
+    return value
+
+
 async def discover_workdir(environment: Any) -> str:
     result = await environment.exec(command="pwd; for d in /app /workspace; do test -d $d && echo $d; done",
                                     cwd=None, env=None, timeout_sec=30)
@@ -95,8 +110,7 @@ class AetherCoreAgent(BaseAgent):
         return None
 
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
-        if not self._agent_timeout_sec or self._agent_timeout_sec <= 0:
-            raise ConfigError("Harbor did not provide agent_timeout_sec")
+        timeout_s = agent_timeout(self._agent_timeout_sec)
         logs = Path(self.logs_dir)
         provider = build_provider()
         transport = build_review(logs)
@@ -105,7 +119,7 @@ class AetherCoreAgent(BaseAgent):
         result = None
         try:
             result = await run_agent(env=environment, task=instruction, workdir=workdir, provider=provider,
-                                     timeout_s=float(self._agent_timeout_sec), trace=Trace(logs / "core_trace.jsonl"),
+                                     timeout_s=timeout_s, trace=Trace(logs / "core_trace.jsonl"),
                                      review_transport=transport,
                                      review_call=default_review_call if transport is not None else None)
         finally:
