@@ -228,3 +228,12 @@
   - **Efficiency:** its 4 checkpoints took 284 s (16% of the run).
   - **Change:** checkpoints run at low reasoning effort first, and fall back to the run's own effort only if that returns no text.
   - **Prediction:** median checkpoint time on later rows is under 30 s (it was about 70 s).
+- **r20 binary-extract:** solved in 77 s.
+- **r21 archive-hash-crack:** solved in 331 s. Interrupt worked in a real container for the first time (2 uses).
+- **r22 repair-history:** solved in 20 s.
+
+### Is the malfunction question informative? (all D1 and C2c rows)
+- **Solved rows:** finish-review confidence ranged 0.24–0.85 (median about 0.6).
+- **Failed rows:** progress reviews were usually 0.95–1.0 (compressor-write, extract-moves, gpt2, feal-linear, construct-assembly, interpreter-build).
+- **Exception:** verified-compiler-build, which was solved, scored 0.92–0.97 in its progress reviews on real early apt errors.
+- **Decision:** no further change. Since tonight's fix it no longer holds a finish, and in progress reviews the high-confidence cases are the informative ones.
