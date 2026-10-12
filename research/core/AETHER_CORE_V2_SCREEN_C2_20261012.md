@@ -289,3 +289,7 @@
   - The finish review rated it `wrong_output` at confidence 0.5, below the hold threshold, so the finish went through.
   - **Cause:** domain failure. No change: in the calibration table, confidence this low appears on solved rows too.
   - **Harness:** 1 checkpoint (8 s), 0 lost markers, and two 429s absorbed by retries.
+- **r35 circuit-math (sentinel; code 5768b44e):** grader reward 1 (3/3). The run itself ended in a timeout at 3585 s: the model was still chasing an N=2^32-1 mismatch that the grader does not test, and the final review flagged it correctly at 0.98.
+  - **Held-budget prediction: met.** There were 0 checkpoints, against 4 on r26 (three of them straight after a length cut-off). Max input was 38.7k, which is held context plus the newest reasoning.
+  - **Process report:** first real appearance, e.g. `python3 dbg22.py (pid 13280, running, 75s CPU in 77s); timeout 200 ... (sleeping in sigsuspend)`. The model let the busy job finish.
+  - **Not claimed:** any speed effect. It took 3585 s against 1795 s on r26, along a different trajectory, with n=1 each.
