@@ -298,3 +298,59 @@
   - **Held-budget prediction: met.** Its 1 checkpoint fired from accumulated context at 2978 s, not after a length cut-off.
   - **Open risk:** 98% of the time was model time, but the model kept acting between long thoughts. It did not loop on re-thinking.
   - **Cause:** domain failure.
+- **r37 sampler-fit (run alone, as the gate requires):** solved in 771 s (6/6).
+
+## D1 overnight sweep: final summary (2026-10-12, 01:06–08:58 UTC VM time)
+
+**What this is:** a development sweep, not a fixed-arm benchmark. The code changed between rows: each row merged the newest `an earlier revision-next` before it started, and the commit is recorded per row in `d1/done.log`. The scores describe Aether Core across one night of fixes. They are not one frozen configuration.
+
+### Results (29 unique TB2.1 tasks; GLM-5.3-Flash; arm "core")
+
+| Count | Value |
+|---|---|
+| Solved, best attempt | **18 / 29** |
+| Solved on first valid attempt | **17 / 29** (verified-compiler-build failed r25, then solved r34 after a route change) |
+
+- **Solved:** dual-language-build, legacy-sim-build, vuln-fix, credential-recovery-recovery, db-coverage-build, feal-differential, model-extraction, graph-query-catalog, batch-scheduler, runtime-gc-fix, binary-extract, archive-hash-crack, repair-history, multi-branch-deploy, git-hosting-setup, verified-compiler-build, circuit-math (×2), sampler-fit.
+- **Not solved:** video-move-extract, tiny-model-golf, feal-linear, render-reverse, construct-assembly, regex-game (×2), net-fit, interpreter-build (1/3; first frame rendered), render-scene (×2; best similarity 0.897), compressor-write (×2), seq-assembly (×2).
+- **Excluded:** async-cancel (pool pin conflict). r29 was infra-invalid (launch gate) and was rerun alone as r37.
+- **Killed by a harness defect:** r06, r09 and r11, by the checkpoint-no-text defect. All three were rerun on fixed code and failed again, for domain reasons.
+
+### Harness defects found by auditing every row, all fixed with tests
+
+| # | Defect (row) | Fix |
+|---|---|---|
+| 1 | stdin-reading programs swallowed the completion marker (verified-compiler-build, legacy-sim-build: 903 s and 300 s) | a3e580ff0: run the command from a file, with the marker on the same line |
+| 2 | Ctrl-C ignored in containers (`&` launch inherited SIGINT ignored) | a3e580ff0: `setsid -f` |
+| 3 | malfunction signal held correct finishes (cipher-diff-attack) | 255305640 |
+| 4 | checkpoint returned no text: reasoning ate the 4k cap (3 rows killed) | 0b35be54f, d8f667567: 16k cap; low effort first, then retry |
+| 5 | deadline during a checkpoint mislabelled `context_error` | 16cf1f205 |
+| 6 | a single 902 s blocking wait starved the reviews (extract-moves) | 03c498a59: `wait_s` ≤ 300 s |
+| 7 | replayed reasoning under-counted (38.2k against a 32k budget) | cb25593c: exact provider count |
+| 8 | silent stalled command visible only as "(no new output)" (verified-compiler-build: 1300 s) | 0379d13dc: process report on still-running results |
+| 9 | Ctrl-C typed as keys left the marker pending (31 s) | ff521db20 |
+| 10 | #7 caused a regression: one long thought triggered a checkpoint that discarded it (circuit-math: about 1100 s) | 6bb866f7b: `held()` budget excludes the newest replayed reasoning |
+| 11 | three length cut-offs in a row stopped a working run as `no_tool_loop` (regex-game, 30 min left) | 5768b44e1 |
+
+### Pre-registered predictions
+
+| Prediction | Result |
+|---|---|
+| 0 lost markers after #1 | **met** on every later row. The one audit flag (r25) was #9, now fixed. |
+| 0 checkpoint failures after #4 | **met** |
+| Median checkpoint time under 30 s after the low-effort change | **met** (r31: 27 s mean; r33: 8 s) |
+| No request over budget | **definition amended** at #10 to "held context over budget"; no held overshoot since. Recorded as a definition change, not as met. |
+| Stall surfaced within 2 polls (#8) | **not tested**: no stall occurred on the sentinel rows |
+| Long thoughts no longer trigger checkpoints (#10) | **met** (r35: 0 checkpoints; r36: 1, from accumulated context) |
+| Length cut-offs no longer end runs (#11) | **met** (r36 used its full time) |
+
+### Remaining failure classes (domain or model, no harness change)
+- **Reasoning-bound puzzles:** regex-game, feal-linear, compressor-write.
+- **Near-misses on numeric or visual similarity:** render-scene at 0.897, render-reverse.
+- **Confident wrong finishes the reviewer cannot judge without ground truth:** net-fit, seq-assembly, construct-assembly.
+- **interpreter-build:** the VM is too slow (about 45 s to the first frame) and the frame is wrong.
+
+### Cost
+- **GLM, D1 rows:** $2.34.
+- **VM:** D8ds_v4 for about 7.9 h ≈ $3.6, part of it before the overnight budget started.
+- **Overnight spend:** roughly £4.5 of the £10.
