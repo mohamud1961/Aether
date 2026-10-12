@@ -68,8 +68,15 @@ class CloneError(RuntimeError):
 class Clone:
     """A throwaway container started from a commit of the task container (Harbor-environment interface)."""
 
-    def __init__(self, name: str, image: str, host: HostRun) -> None:
-        self.name, self.image, self._host = name, image, host
+    def __init__(self, name: str, image: str, host: HostRun, owns_image: bool = True) -> None:
+        self.name, self.image, self._host, self._owns_image = name, image, host, owns_image
+
+    @staticmethod
+    def _run_args(name: str, image: str) -> list[str]:
+        # No network: the clone must not escape the task's egress policy (live_probe covers live services).
+        return ["docker", "run", "-d", "--rm", "--name", name, "--network", "none", "--security-opt",
+                "no-new-privileges", "--pids-limit", "4096", "--memory", CLONE_MEMORY, "--cpus", CLONE_CPUS,
+                "--entrypoint", "sh", image, "-c", "while :; do sleep 3600; done"]
 
     @classmethod
     async def create(cls, env: Environment, host: HostRun = host_run) -> "Clone":
@@ -85,11 +92,7 @@ class Clone:
         if code != 0:
             raise CloneError(f"docker commit failed: {err.strip()[:300]}")
         name = tag.replace(":", "-")
-        # No network: the clone must not escape the task's egress policy (live_probe covers live services).
-        code, _, err = await host(["docker", "run", "-d", "--rm", "--name", name, "--network", "none",
-                                   "--security-opt", "no-new-privileges", "--pids-limit", "4096",
-                                   "--memory", CLONE_MEMORY, "--cpus", CLONE_CPUS, "--entrypoint", "sh", tag,
-                                   "-c", "while :; do sleep 3600; done"], 180)
+        code, _, err = await host(cls._run_args(name, tag), 180)
         if code != 0:
             await host(["docker", "rmi", "-f", tag], 120)
             raise CloneError(f"docker run of the clone failed: {err.strip()[:300]}")
@@ -111,9 +114,18 @@ class Clone:
         if code != 0:
             raise OSError(f"docker cp from the clone failed: {err.strip()[:200]}")
 
+    async def sibling(self) -> "Clone":
+        """Another throwaway container from the same commit (the image stays owned by this clone)."""
+        name = f"{self.name}-{uuid.uuid4().hex[:6]}"
+        code, _, err = await self._host(self._run_args(name, self.image), 180)
+        if code != 0:
+            raise CloneError(f"docker run of a sibling clone failed: {err.strip()[:300]}")
+        return Clone(name, self.image, self._host, owns_image=False)
+
     async def close(self) -> None:
         await self._host(["docker", "rm", "-f", self.name], 120)
-        await self._host(["docker", "rmi", "-f", self.image], 300)
+        if self._owns_image:
+            await self._host(["docker", "rmi", "-f", self.image], 300)
 
 
 # ----- read-only probes of the live container --------------------------------------------------------
@@ -226,12 +238,18 @@ you do reaches the original. Processes do not carry over to the copy: anything t
 (servers, daemons) is not running here. Check those with live_probe, which runs read-only commands in the \
 original container.
 
-Method: list the task's requirements. Check each the way the task will be judged: run the real program, look \
-at its real output, decode produced files and measure them against what the task asks. Write your own checks; \
-do not rely on tests, logs or notes the worker left behind. You have about {budget}s; be efficient.
+Method: list the task's requirements in the task's own words, including every stated constraint, rule and \
+convention (lengths, formats, orderings, which column means what, tie-breaking rules). Check each the way the \
+task will be judged: run the real program, look at its real output, decode produced files and measure them \
+against what the task asks. Where the task gives a rule, apply it yourself to every case it covers and compare \
+with the output item by item. Write your own checks; do not rely on tests, logs or notes the worker left behind.
+
+Your job is to judge the state, not to finish the task. Once you have observed a requirement failing, record \
+it; you do not need to find the correct result. You have about {budget}s; be efficient.
 
 Finish with verdict: one entry per requirement with status met, not_met or unchecked, the command you ran and \
-the output you observed. Use not_met only for something you observed failing. If you could not check a \
+the output you observed. met means the result satisfies the requirement as the task states it. A result that \
+violates a stated constraint is not_met, even if you believe no better result exists. If you could not check a \
 requirement (for example it needs a process that is not running in the copy and live_probe cannot reach it), \
 use unchecked."""
 
@@ -318,13 +336,13 @@ async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir
         tools = [TERMINAL, READ_FILE, LIVE_PROBE, VERDICT]
         warned = False
         for turn_no in range(1, MAX_TURNS + 1):
-            if remaining() < 45 and not warned:
+            if remaining() < 60 and not warned:
                 messages.append({"role": "user", "content": "Time is nearly up: call verdict now with what you have."})
                 warned = True
             if remaining() <= 0:
                 break
             # the last turn, or too little time for another check: only the verdict is offered
-            last = turn_no == MAX_TURNS or remaining() < 45
+            last = turn_no == MAX_TURNS or remaining() < 60
             turn = await provider.complete(_request(messages), [VERDICT] if last else tools, max_tokens=16_384,
                                            remaining_s=remaining)
             log({"turn": turn_no, "latency_s": round(turn.latency_s, 2), "usage": turn.usage,
