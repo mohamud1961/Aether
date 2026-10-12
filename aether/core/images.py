@@ -17,9 +17,12 @@ import io
 import json
 from typing import Any
 
-from .env import Environment, get_bytes
+import shlex
+
+from .env import Environment, get_bytes, run
 
 MAX_FILE_BYTES = 30_000_000
+MAX_PIXELS = 40_000_000  # checked from the header before decoding (decompression-bomb guard)
 MAX_SIDE = 1024
 KEEP_IMAGES = 2
 IMAGE_TOKENS = 1_500  # conservative per-image cost used by the context budget
@@ -38,11 +41,22 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
     """Return (description, data URL). Raises with a plain reason the model can act on."""
     from PIL import Image
 
+    # Size is checked inside the sandbox, before anything is copied to the host.
+    res = await run(env, f"stat -c %s {shlex.quote(path)} 2>/dev/null || wc -c < {shlex.quote(path)}")
+    try:
+        nbytes = int(res.stdout.split()[0])
+    except (IndexError, ValueError):
+        raise ValueError(f"{path} does not exist or cannot be read") from None
+    if nbytes > MAX_FILE_BYTES:
+        raise ValueError(f"{path} is {nbytes} bytes; the limit is {MAX_FILE_BYTES}")
     data = await get_bytes(env, path)
-    if len(data) > MAX_FILE_BYTES:
+    if len(data) > MAX_FILE_BYTES:  # the file grew between the check and the copy
         raise ValueError(f"{path} is {len(data)} bytes; the limit is {MAX_FILE_BYTES}")
     try:
-        img = Image.open(io.BytesIO(data))
+        img = Image.open(io.BytesIO(data))  # lazy: reads the header only
+        width, height = img.size
+        if width * height > MAX_PIXELS:
+            raise ValueError(f"{width}x{height} exceeds the {MAX_PIXELS}-pixel limit")
         img.load()
     except Exception as exc:
         raise ValueError(f"{path} is not a readable image ({type(exc).__name__}: {exc})") from exc

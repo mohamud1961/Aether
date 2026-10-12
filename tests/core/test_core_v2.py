@@ -325,3 +325,28 @@ def test_view_image_reports_unreadable_files_plainly(tmp_path):
     _, rows, _ = _run(tmp_path, script, config=CoreConfig(images=True))
     out = [r for r in rows if r["event"] == "tool"][0]["result"]
     assert "not a readable image" in out
+
+
+def test_view_image_refuses_oversized_files_before_copying_and_pixel_bombs_before_decoding(tmp_path, monkeypatch):
+    pytest.importorskip("PIL")
+    from PIL import Image
+    from aether.core import images as core_images
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "big.bin").write_bytes(b"\0" * 2048)
+    Image.new("RGB", (300, 300)).save(work / "wide.png")
+    monkeypatch.setattr(core_images, "MAX_FILE_BYTES", 1024)
+    copied = []
+    real_get = core_images.get_bytes
+
+    async def spy(env, path):
+        copied.append(path)
+        return await real_get(env, path)
+    monkeypatch.setattr(core_images, "get_bytes", spy)
+    with pytest.raises(ValueError, match="limit"):
+        asyncio.run(core_images.load(LocalEnv(work), str(work / "big.bin")))
+    assert copied == []  # refused inside the sandbox; nothing reached the host
+    monkeypatch.setattr(core_images, "MAX_FILE_BYTES", 30_000_000)
+    monkeypatch.setattr(core_images, "MAX_PIXELS", 10_000)
+    with pytest.raises(ValueError, match="pixel limit"):
+        asyncio.run(core_images.load(LocalEnv(work), str(work / "wide.png")))
