@@ -24,3 +24,8 @@ Does a verifier that checks the **real state** in a disposable clone of the cont
 
 ## Failure handling
 Any failed prediction is recorded as failed. A hold counts as "real" only after I have read the verifier's command and output in the trace.
+
+## INVALIDATED for the `state` arm (2026-10-12)
+The state verifier ran in a commit-clone of the task container. That clone kept the Docker Compose labels, so while it existed Harbor's `compose exec main` could run the worker's commands inside it. See the INVALIDATED section of `CORE_V2_CONTRACT_PREREG_20261012.md`.
+
+The verifier is invoked at finish, when the worker is idle, so damage there was less likely than in the contract arm. Still, the arm did not run on a sound substrate, and its result is not evidence about the mechanism. The known-bad verifier bench used plain `docker run` containers, not compose, and is unaffected.
