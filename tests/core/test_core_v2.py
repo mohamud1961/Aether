@@ -435,3 +435,28 @@ def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
     second = client.requests[1]["messages"]
     assert "output limit before any tool call" in json.dumps(second[-1])
     assert result.status == "finished"
+
+
+def test_one_long_thought_does_not_trigger_a_checkpoint_that_discards_it(tmp_path):
+    # D1 circuit-math: each 32k-token reasoning turn pushed the count over budget; the checkpoint (which never
+    # sees reasoning) then summarised everything away, and the model re-derived its plan from a 3k summary, 3 times.
+    thought = "PLAN-STEP " * 3000
+    cut = [chunk(reasoning=thought), chunk(finish="length"),
+           chunk(usage={"prompt_tokens": 2000, "completion_tokens": 32768,
+                        "completion_tokens_details": {"reasoning_tokens": 32768}})]
+    script = [cut, call("finish", {"summary": "x"}, "c1")]
+    result, rows, client = _run(tmp_path, script, config=_clm_config(tmp_path))
+    assert not [r for r in rows if r.get("event") == "context_checkpoint"]
+    replayed = [m for m in client.requests[1]["messages"] if m.get("role") == "assistant"][-1]
+    assert "PLAN-STEP" in replayed.get("reasoning_content", "")  # the thought reaches the next turn intact
+    assert result.status == "finished"
+
+
+def test_held_context_still_triggers_a_checkpoint_when_it_is_over_budget():
+    # known-bad guard: excluding the replayed reasoning must not exempt the rest of the context from the budget
+    ctx = ClmContext(pinned=PINNED, settings=ClmSettings(budget_tokens=32000))
+    ctx.append({"role": "user", "content": "x" * 200_000})
+    msg = {"role": "assistant", "content": None, "reasoning_content": "r" * 1000}
+    ctx.append(msg)
+    ctx.note_reasoning(msg, 30000)
+    assert ctx.over_limit() and ctx.held() == ctx.tokens() - 30000

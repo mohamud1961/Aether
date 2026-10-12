@@ -110,6 +110,13 @@ class ClmContext:
         r_chars, r_tokens = self._replayed_reasoning() if messages is None else (0, 0)
         return int((chars - r_chars) / self.chars_per_token) + r_tokens + TOOLS_OVERHEAD_TOKENS
 
+    def held(self) -> int:
+        """Tokens the budget governs: the request minus the newest turn's replayed reasoning. That reasoning is the
+        model's live working memory, sent once and dropped after its next turn; the model cannot condense it and a
+        checkpoint never sees it. Counting it let a single long thought trigger a checkpoint that discarded it (D1
+        circuit-math: three 32k-token thoughts each summarised away, about 1100 s of reasoning redone)."""
+        return self.tokens() - self._replayed_reasoning()[1]
+
     def note_reasoning(self, message: dict[str, Any], reasoning_tokens: int) -> None:
         """Record the provider's reasoning-token count for an assistant message just appended.
 
@@ -141,9 +148,9 @@ class ClmContext:
     # ----- budget: nudges and rollback -----------------------------------------------------------
     def nudge(self) -> str:
         """Nudge text to show the model now (may be empty). Call once per turn, before the request."""
-        used = self.tokens()
+        used = self.held()
         limit = self.settings.limit
-        self.stats.max_tokens_seen = max(self.stats.max_tokens_seen, used)
+        self.stats.max_tokens_seen = max(self.stats.max_tokens_seen, self.tokens())
         ratio = used / self.settings.budget_tokens
         self._rearm(ratio)
         room = limit - used
@@ -172,7 +179,7 @@ class ClmContext:
 
     def _rearm(self, ratio: float | None = None) -> None:
         """Re-arm the nudge thresholds the context is back under (after an edit, checkpoint or shrink)."""
-        ratio = self.tokens() / self.settings.budget_tokens if ratio is None else ratio
+        ratio = self.held() / self.settings.budget_tokens if ratio is None else ratio
         for r in self.settings.nudge_ratios:
             if ratio < r:
                 self._armed.add(r)
@@ -180,7 +187,7 @@ class ClmContext:
             self._rollbacks_in_episode = 0
 
     def over_limit(self) -> bool:
-        return self.tokens() > self.settings.limit
+        return self.held() > self.settings.limit
 
     def can_roll_back(self) -> bool:
         return self._rollbacks_in_episode < self.settings.max_rollbacks and any(
