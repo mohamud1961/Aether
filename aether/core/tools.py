@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .clm import MIRROR_PATH
+from .terminal import MAX_WAIT_S
 
 BASE_PROMPT = """You are an expert engineer working autonomously in a Linux container to complete the task \
 you are given. No one will answer questions; keep working until the task is done.
@@ -64,7 +65,8 @@ TERMINAL = {"type": "function", "function": {
         "input": {"type": "string", "description": "Command(s) or keystrokes. May be empty."},
         "name": {"type": "string", "description": "Terminal name (default 'main'); a new name opens a new terminal."},
         "mode": {"type": "string", "enum": ["command", "keys"]},
-        "wait_s": {"type": "number", "description": "Max seconds to wait (default 30, max 900)."},
+        "wait_s": {"type": "number", "description": f"Max seconds to wait (default 30, max {MAX_WAIT_S:.0f}); "
+                                                     "call again to keep waiting."},
         "interrupt": {"type": "boolean", "description": "Send Ctrl-C to the running program first."},
     }, "required": ["input"]}}}
 PYTHON = {"type": "function", "function": {
@@ -73,7 +75,8 @@ PYTHON = {"type": "function", "function": {
                    "running cell; interrupt=true stops it.",
     "parameters": {"type": "object", "properties": {
         "code": {"type": "string", "description": "Python source. May be empty."},
-        "wait_s": {"type": "number", "description": "Max seconds to wait (default 60, max 900)."},
+        "wait_s": {"type": "number", "description": f"Max seconds to wait (default 60, max {MAX_WAIT_S:.0f}); "
+                                                     "call again to keep waiting."},
         "interrupt": {"type": "boolean", "description": "Interrupt the running cell first."},
     }, "required": ["code"]}}}
 READ_FILE = {"type": "function", "function": {

@@ -16,6 +16,7 @@ import time
 from typing import Awaitable, Callable
 
 from .env import CONTROL_DIR, INLINE_BYTES, Environment, put_bytes, run
+from .terminal import MAX_WAIT_S
 
 SERVER_SOURCE = (Path(__file__).with_name("repl_server.py")).read_bytes()
 VIEW_HEAD, VIEW_TAIL = 3_000, 8_000
@@ -83,7 +84,7 @@ class Repl:
         if not self.pending:
             return "[python] nothing is running"
         seq = self.pending
-        wait_s = max(0.0, min(float(wait_s), 900.0, self._remaining() - 5))
+        wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, self._remaining() - 5))
         while True:
             left = wait_s - (time.monotonic() - started)
             done, requests, alive, size, text = await self._poll(seq, min(POLL_SLICE_S, max(0.2, left)), submit)

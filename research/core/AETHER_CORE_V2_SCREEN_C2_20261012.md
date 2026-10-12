@@ -211,3 +211,8 @@
 - **r12 graph-query-catalog:** solved in 91 s. Its `apt-get install` returned with a proper exit after 12.8 s, so the terminal fix holds on a real install.
 - **r11 seq-assembly:** ran on `25530564`, before the checkpoint fix, and was killed by the same empty-checkpoint defect at 1096 s. That is the third casualty; requeued.
 - **r14 tiny-model-golf:** not solved; ran to its 900 s limit. The time ran out during a checkpoint, so the row was labelled `context_error`. A deadline hit during a checkpoint is now labelled `timeout`.
+- **r15 batch-scheduler (hard):** solved in 1360 s, with 38 REPL cells.
+- **r13 video-move-extract (hard):** not solved.
+  - GLM did look at frames with `view_image` (5 calls).
+  - It then launched a full OCR pass with `wait_s=900` and blocked for 902 s, from 708 s to 1610 s. Progress@0.7 could not fire, and GLM got control back with 20 s left.
+  - **Change:** one tool call now blocks for at most 300 s (terminal and REPL). The model calls again to keep waiting, so scheduled reviews and the time readout reach it while long jobs run.

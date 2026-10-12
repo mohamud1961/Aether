@@ -19,6 +19,9 @@ from .env import CONTROL_DIR, Environment, put_bytes, run
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000
 MAX_TERMINALS = 8
+# One tool call blocks the loop at most this long, so scheduled reviews and the elapsed-time readout reach the
+# model while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
+MAX_WAIT_S = 300.0
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?")
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
@@ -163,7 +166,7 @@ class Terminals:
             session = await self._start(name)
             note = f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
         started = time.monotonic()
-        wait_s = max(0.0, min(float(wait_s), 900.0, max(0.0, self._clock() - 5)))
+        wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
         if interrupt:
             await self._write(session, "\x03")
             if not session.pty:  # no line discipline: signal the shell's children directly

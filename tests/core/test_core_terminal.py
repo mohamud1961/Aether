@@ -80,3 +80,15 @@ def test_a_command_that_reads_stdin_cannot_swallow_the_completion_marker(tmp_pat
     first, multi = asyncio.run(go())
     assert "[exit" in first and "still running" not in first and "read-rc=" in first
     assert "second-line-ran" in multi and "[exit 0" in multi
+
+
+def test_one_call_blocks_at_most_max_wait(tmp_path, monkeypatch):
+    # D1 extract-moves: a single 900 s wait starved the review schedule; waits are capped.
+    from aether.core import terminal
+    monkeypatch.setattr(terminal, "MAX_WAIT_S", 1.0)
+
+    async def go():
+        t, _ = _terms(tmp_path)
+        return await t.use(input="sleep 5; echo late", wait_s=900)
+    out = asyncio.run(go())
+    assert "still running after 1s" in out or "still running after 2s" in out
