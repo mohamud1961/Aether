@@ -28,6 +28,7 @@ Nudges start at 50%: at 25% the pinned prompt alone nearly triggers them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import re
 from typing import Any
 
@@ -88,6 +89,7 @@ class ClmContext:
     _recent_outputs: list[int] = field(default_factory=list)
     _turn: int = 0
     _last_urgent: int = -URGENT_EVERY_TURNS
+    _reasoning: tuple[int, int] = (0, 0)  # (id of an assistant message, its provider-counted reasoning tokens)
 
     def __post_init__(self) -> None:
         self._armed = set(self.settings.nudge_ratios)
@@ -105,10 +107,28 @@ class ClmContext:
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
         chars = images.size_chars(self.request() if messages is None else images.limit(messages))
-        return int(chars / self.chars_per_token) + TOOLS_OVERHEAD_TOKENS
+        r_chars, r_tokens = self._replayed_reasoning() if messages is None else (0, 0)
+        return int((chars - r_chars) / self.chars_per_token) + r_tokens + TOOLS_OVERHEAD_TOKENS
+
+    def note_reasoning(self, message: dict[str, Any], reasoning_tokens: int) -> None:
+        """Record the provider's reasoning-token count for an assistant message just appended.
+
+        The newest turn's reasoning is replayed in the next request and tokenizes far more densely than tool
+        output: in D1 a 32k-token reasoning turn was estimated at 27.7k and counted at 38.2k (budget 32k)."""
+        self._reasoning = (id(message), int(reasoning_tokens or 0))
+
+    def _replayed_reasoning(self) -> tuple[int, int]:
+        """(JSON chars, provider tokens) of the reasoning the next request replays, when the count is known."""
+        last = next((m for m in reversed(self.editable) if m.get("role") == "assistant"), None)
+        if last is None or id(last) != self._reasoning[0] or not last.get("reasoning_content"):
+            return 0, 0
+        return len(json.dumps(last["reasoning_content"], ensure_ascii=False)), self._reasoning[1]
 
     def calibrate(self, request_chars: int, input_tokens: int) -> None:
-        """Use the provider's real prompt-token count to correct the chars-per-token estimate."""
+        """Use the provider's real prompt-token count to correct the chars-per-token estimate
+        (the replayed reasoning, whose token count is known exactly, is left out of the ratio)."""
+        r_chars, r_tokens = self._replayed_reasoning()
+        request_chars, input_tokens = request_chars - r_chars, input_tokens - r_tokens
         if input_tokens > TOOLS_OVERHEAD_TOKENS * 2 and request_chars > 0:
             self.chars_per_token = max(1.5, min(6.0, request_chars / (input_tokens - TOOLS_OVERHEAD_TOKENS)))
 

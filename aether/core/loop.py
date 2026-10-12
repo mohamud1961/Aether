@@ -194,12 +194,20 @@ async def _loop(s: _Session) -> None:
                 reasoning=turn.reasoning, content=turn.content, tool_calls=turn.tool_calls)
         assistant = turn.assistant_message()
         _append(s, assistant)
+        if s.clm:
+            s.clm.note_reasoning(assistant, turn.usage.get("reasoning", 0))
         if not turn.tool_calls:
             idle_turns += 1
             if idle_turns >= 3:
                 result.status = "no_tool_loop"
                 return
-            _append(s, {"role": "user", "content": "Continue by using a tool, or call finish if done. " + s.clock()})
+            if turn.finish_reason == "length":  # say what happened: the output limit cut the turn off
+                note = (f"Your last turn reached the {MAX_OUTPUT_TOKENS}-token output limit before any tool call; "
+                        "its reasoning is above. Act on it now with a tool call (for example write down or test "
+                        "your partial result) instead of reasoning further in one turn. ")
+            else:
+                note = "Continue by using a tool, or call finish if done. "
+            _append(s, {"role": "user", "content": note + s.clock()})
             continue
         idle_turns = 0
         if await _run_calls(s, turn.tool_calls):

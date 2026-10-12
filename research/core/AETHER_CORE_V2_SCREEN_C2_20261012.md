@@ -216,3 +216,10 @@
   - GLM did look at frames with `view_image` (5 calls).
   - It then launched a full OCR pass with `wait_s=900` and blocked for 902 s, from 708 s to 1610 s. Progress@0.7 could not fire, and GLM got control back with 20 s left.
   - **Change:** one tool call now blocks for at most 300 s (terminal and REPL). The model calls again to keep waiting, so scheduled reviews and the time readout reach it while long jobs run.
+- **r16 cipher-linear-attack (hard):** not solved (timeout); capability-bound, with model time 86% of the run.
+  - **P1 violated:** one request reached 38.2k input tokens against the 32k budget.
+    - A turn hit the 32,768-token output cap with no tool call, and its reasoning was replayed in the next request.
+    - The estimator said 27.7k tokens; the provider counted 38.2k. This reasoning text packs more tokens per character than the calibrated ratio.
+  - **Fix:** the replayed reasoning is counted by the provider's exact reasoning-token figure, and that text is excluded from calibration.
+  - **Runaway turns:** three turns of 30k+ output took about 15 minutes, and two of them hit the cap without acting. Afterwards the model was only told "Continue by using a tool".
+  - **Fix:** it is now told the truth: the output limit cut the turn off, its reasoning is kept, and it should act on it now.

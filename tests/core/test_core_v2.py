@@ -408,3 +408,30 @@ def test_checkpoint_retries_an_empty_summary_at_low_effort():
     provider2 = ChatProvider(client2, model="glm", params={"reasoning_effort": "high"})
     with pytest.raises(ValueError, match="finish_reason=length"):
         asyncio.run(compaction.checkpoint(provider2, "t", "x", repl=False, remaining_s=lambda: 100.0))
+
+
+def test_replayed_reasoning_is_counted_by_its_provider_token_count():
+    # D1 feal-linear: a 32k-token reasoning turn was estimated at 27.7k and counted at 38.2k (budget 32k).
+    ctx = ClmContext(pinned=PINNED, settings=ClmSettings(budget_tokens=32000))
+    dense = "0x9f3a^" * 6000  # 42k chars that tokenize far denser than the chars-per-token estimate
+    msg = {"role": "assistant", "content": None, "reasoning_content": dense}
+    ctx.append(msg)
+    estimated = ctx.tokens()
+    ctx.note_reasoning(msg, 20000)
+    assert ctx.tokens() >= 20000 > estimated  # the exact count replaces the character estimate
+    before = ctx.chars_per_token
+    ctx.calibrate(request_chars=len(json.dumps(ctx.request())), input_tokens=ctx.tokens())
+    assert abs(ctx.chars_per_token - before) < 0.5  # the dense reasoning does not skew calibration
+    ctx.append({"role": "user", "content": "next"}, {"role": "assistant", "content": "x", "reasoning_content": "r"})
+    assert ctx.tokens() < 2000  # only the newest assistant turn's reasoning is replayed and counted
+
+
+def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
+    cut = [chunk(reasoning="thinking " * 20), chunk(finish="length"),
+           chunk(usage={"prompt_tokens": 500, "completion_tokens": 3000,
+                        "completion_tokens_details": {"reasoning_tokens": 3000}})]
+    script = [cut, call("finish", {"summary": "x"}, "c1")]
+    result, rows, client = _run(tmp_path, script, config=_clm_config(tmp_path))
+    second = client.requests[1]["messages"]
+    assert "output limit before any tool call" in json.dumps(second[-1])
+    assert result.status == "finished"
