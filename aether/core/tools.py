@@ -1,0 +1,104 @@
+"""What the model is told and the tools it is offered."""
+from __future__ import annotations
+
+from typing import Any
+
+from .clm import MIRROR_PATH
+
+BASE_PROMPT = """You are an expert engineer working autonomously in a Linux container to complete the task \
+you are given. No one will answer questions; keep working until the task is done.
+
+Your tools:
+- terminal: persistent bash shells. The working directory, environment variables, virtualenvs and running \
+programs persist between calls. Open several named terminals to run things in parallel (for example a long \
+build in one while you explore in another). For long commands use a short wait_s and check back later. Each \
+terminal keeps its full output in a log file; large outputs are shown as head and tail with the log path, so \
+grep or tail the log instead of re-running.
+- read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.
+{python}- finish: end the task.
+{context}
+Working well:
+- Look at what exists before changing it, and keep to what the task asks; do not alter or delete unrelated \
+files, history or system state.
+- Check your work the way the task will be judged: run the real program and confirm the exact output, file \
+location, name and format the task requires. For anything you produce (images, binaries, data files, \
+rendered output), check its content, not only that it exists or has the right header: decode it and \
+measure whether it is what the task describes.
+- Every tool result shows the elapsed time and the time limit. Get a complete working result early, then \
+improve it.
+- Call finish only when every requirement is met and checked, or when no time is left."""
+
+PYTHON_DOC = """- python: a persistent Python {version} REPL inside the container. Variables, imports and functions \
+persist between calls, so you can load data once and work on it, and build your own tools (parsers, \
+checkers, test harnesses, image or binary analysis) as functions you reuse. Built in: sh(cmd) -> result with \
+.code and .output; read(path); read_bytes(path); write(path, text_or_bytes); edit(path, old, new); and \
+llm(prompt) -> str, which asks a sub-model (no tools) so you can have large data held in variables \
+summarised or searched without putting it into your own context. The value of a final expression is \
+printed. Long cells keep running: use wait_s and call again with empty code to keep waiting.
+"""
+
+CLM_DOC = f"""
+Your context: everything after the task statement is your working context. It has a token budget, and it \
+is mirrored at {MIRROR_PATH}, one [[CTX_TURN i role=...]] block per message. You manage it yourself: \
+condense it by editing that file with your normal tools (keep facts, paths, decisions, results and open \
+problems; drop stale output). When you edit it, the edited file replaces your earlier history (the task \
+statement stays). Files and terminal logs on disk are never affected by this.
+"""
+
+TERMINAL = {"type": "function", "function": {
+    "name": "terminal",
+    "description": "Send input to a persistent bash terminal and return its new output. mode=command (default) "
+                   "runs the input as shell command(s) and waits up to wait_s for them to finish; mode=keys "
+                   "sends raw keystrokes to whatever is running (e.g. an interactive program; \\x03 is Ctrl-C) "
+                   "and returns once output settles. Empty input just waits for and shows new output.",
+    "parameters": {"type": "object", "properties": {
+        "input": {"type": "string", "description": "Command(s) or keystrokes. May be empty."},
+        "name": {"type": "string", "description": "Terminal name (default 'main'); a new name opens a new terminal."},
+        "mode": {"type": "string", "enum": ["command", "keys"]},
+        "wait_s": {"type": "number", "description": "Max seconds to wait (default 30, max 900)."},
+        "interrupt": {"type": "boolean", "description": "Send Ctrl-C to the running program first."},
+    }, "required": ["input"]}}}
+PYTHON = {"type": "function", "function": {
+    "name": "python",
+    "description": "Run Python code in the persistent REPL and return its output. Empty code waits for a "
+                   "running cell; interrupt=true stops it.",
+    "parameters": {"type": "object", "properties": {
+        "code": {"type": "string", "description": "Python source. May be empty."},
+        "wait_s": {"type": "number", "description": "Max seconds to wait (default 60, max 900)."},
+        "interrupt": {"type": "boolean", "description": "Interrupt the running cell first."},
+    }, "required": ["code"]}}}
+READ_FILE = {"type": "function", "function": {
+    "name": "read_file",
+    "description": "Read a text file with line numbers (default 400 lines from start_line).",
+    "parameters": {"type": "object", "properties": {
+        "path": {"type": "string"}, "start_line": {"type": "integer"}, "num_lines": {"type": "integer"},
+    }, "required": ["path"]}}}
+WRITE_FILE = {"type": "function", "function": {
+    "name": "write_file",
+    "description": "Create or overwrite a file with the given content (parents are created; permissions kept).",
+    "parameters": {"type": "object", "properties": {
+        "path": {"type": "string"}, "content": {"type": "string"},
+    }, "required": ["path", "content"]}}}
+EDIT_FILE = {"type": "function", "function": {
+    "name": "edit_file",
+    "description": "Replace an exact, unique occurrence of old_str with new_str in a file "
+                   "(or every occurrence with replace_all=true).",
+    "parameters": {"type": "object", "properties": {
+        "path": {"type": "string"}, "old_str": {"type": "string"}, "new_str": {"type": "string"},
+        "replace_all": {"type": "boolean"},
+    }, "required": ["path", "old_str", "new_str"]}}}
+FINISH = {"type": "function", "function": {
+    "name": "finish",
+    "description": "End the task. Use when every requirement is met and checked, or no time is left.",
+    "parameters": {"type": "object", "properties": {
+        "summary": {"type": "string", "description": "One or two sentences on the final state."},
+    }, "required": ["summary"]}}}
+
+
+def system_prompt(*, python_version: str, clm: bool) -> str:
+    return BASE_PROMPT.format(python=PYTHON_DOC.format(version=python_version) if python_version else "",
+                              context=CLM_DOC if clm else "")
+
+
+def tools(*, python: bool) -> list[dict[str, Any]]:
+    return [TERMINAL, *([PYTHON] if python else []), READ_FILE, WRITE_FILE, EDIT_FILE, FINISH]

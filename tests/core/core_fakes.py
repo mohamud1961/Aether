@@ -64,14 +64,15 @@ class _Stream:
 class ScriptedClient:
     """``client.chat.completions.create`` returning scripted streams or raising scripted errors."""
 
-    def __init__(self, script: list) -> None:
+    def __init__(self, script: list, text_script: list | None = None) -> None:
         self.script = list(script)
+        self.text_script = list(text_script or [])  # served to plain-text calls (no tools), when given
         self.requests: list[dict] = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     async def _create(self, **kwargs: Any):
         self.requests.append(kwargs)
-        item = self.script.pop(0)
+        item = self.text_script.pop(0) if self.text_script and "tools" not in kwargs else self.script.pop(0)
         if isinstance(item, Exception):
             raise item
         return _Stream(item)

@@ -20,10 +20,12 @@ MAX_ATTEMPTS = 8
 class ProviderError(RuntimeError):
     """The provider could not produce a response (after retries) or rejected the request."""
 
-    def __init__(self, message: str, *, status: int | None = None, context_overflow: bool = False) -> None:
+    def __init__(self, message: str, *, status: int | None = None, context_overflow: bool = False,
+                 deadline: bool = False) -> None:
         super().__init__(message)
         self.status = status
         self.context_overflow = context_overflow
+        self.deadline = deadline  # the run's time ran out; not a provider fault
 
 
 @dataclass
@@ -35,6 +37,7 @@ class Turn:
     usage: dict[str, int] = field(default_factory=dict)
     latency_s: float = 0.0
     attempts: int = 1
+    failures: list[dict[str, Any]] = field(default_factory=list)  # one row per failed attempt
 
     def assistant_message(self) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": "assistant", "content": self.content or None}
@@ -83,12 +86,19 @@ class ChatProvider:
         self.params = dict(params)
         self._sleep = sleep
         self.failed_attempts = 0
+        self.failure_log: list[dict[str, Any]] = []  # every failed attempt in the run, for the record
 
-    async def _stream_once(self, messages: list[dict], tools: list[dict], max_tokens: int) -> Turn:
+    async def _stream_once(self, messages: list[dict], tools: list[dict] | None, max_tokens: int) -> Turn:
         started = time.monotonic()
+        params = dict(self.params)
+        extra: dict[str, Any] = {"tools": tools}
+        if tools is None:  # plain text call (e.g. a context checkpoint): no tool parameters at all
+            extra = {}
+            params.pop("tool_choice", None)
+            params.pop("parallel_tool_calls", None)
         stream = await self._client.chat.completions.create(
-            model=self.model, messages=messages, tools=tools, max_tokens=max_tokens, stream=True,
-            stream_options={"include_usage": True}, **self.params)
+            model=self.model, messages=messages, max_tokens=max_tokens, stream=True,
+            stream_options={"include_usage": True}, **extra, **params)
         turn = Turn()
         calls: dict[int, dict[str, Any]] = {}
         async for chunk in stream:
@@ -115,32 +125,46 @@ class ChatProvider:
         turn.latency_s = time.monotonic() - started
         return turn
 
-    async def complete(self, messages: list[dict], tools: list[dict], *, max_tokens: int,
+    async def complete(self, messages: list[dict], tools: list[dict] | None, *, max_tokens: int,
                        remaining_s: Callable[[], float]) -> Turn:
+        """One model turn. ``tools=None`` makes a plain text call (tool parameters are dropped)."""
         delay = 2.0
+        failures: list[dict[str, Any]] = []
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            started = time.monotonic()
             try:
                 turn = await asyncio.wait_for(self._stream_once(messages, tools, max_tokens),
                                               timeout=max(5.0, remaining_s()))
-                turn.attempts = attempt
+                turn.attempts, turn.failures = attempt, failures
                 return turn
             except asyncio.TimeoutError as exc:
-                raise ProviderError("provider call outlived the run deadline") from exc
+                raise ProviderError("provider call outlived the run deadline", deadline=True) from exc
             except Exception as exc:  # classify, then retry or raise with the real reason
                 status = getattr(exc, "status_code", None)
                 text = str(exc)
+                row = {"attempt": attempt, "status": status, "error": type(exc).__name__,
+                       "detail": text[:200], "after_s": round(time.monotonic() - started, 2)}
                 if status == 400 and any(k in text.lower() for k in ("context", "too long", "maximum", "tokens")):
                     raise ProviderError(text[:500], status=400, context_overflow=True) from exc
                 transient = status in RETRYABLE_STATUS or status is None and _is_transport(exc)
                 if not transient or attempt == MAX_ATTEMPTS:
+                    self._record(row)
                     raise ProviderError(f"{type(exc).__name__}: {text[:500]}", status=status) from exc
                 self.failed_attempts += 1
-                wait = _retry_after(exc) or delay * (0.75 + 0.5 * random.random())
+                hinted = _retry_after(exc)
+                wait = hinted or delay * (0.75 + 0.5 * random.random())
+                row.update(wait_s=round(wait, 2), retry_after=hinted)
+                failures.append(row)
+                self._record(row)
                 if wait > remaining_s() - 10:
-                    raise ProviderError(f"retry wait {wait:.0f}s exceeds remaining time", status=status) from exc
+                    raise ProviderError(f"retry wait {wait:.0f}s exceeds remaining time", status=status,
+                                        deadline=True) from exc
                 await self._sleep(wait)
                 delay = min(delay * 2, 60.0)
         raise ProviderError("unreachable")
+
+    def _record(self, row: dict[str, Any]) -> None:
+        self.failure_log.append(row)
 
 
 def _is_transport(exc: Exception) -> bool:

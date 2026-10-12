@@ -2,7 +2,11 @@
 
 Configuration comes from the launcher's environment only:
 - provider: the GLM research profile's endpoint / key / deployment variables;
-- ``AETHER_CORE_REVIEW``: ``off`` or ``reviewer`` (required; no silent default);
+- ``AETHER_CORE_REVIEW``: ``off``, ``reviewer`` (finish review) or ``reviewer_progress`` (finish review plus
+  progress reviews at 35% and 70% of the time limit and a final review near the deadline);
+- ``AETHER_CORE_CONTEXT``: ``project`` (C1 view) or ``clm`` (model-managed context, CLM method);
+- ``AETHER_CORE_REPL``: ``on`` or ``off`` (persistent Python REPL tool);
+  all three are required; there is no silent default;
 - ``AETHER_CORE_REASONING_EFFORT``: reasoning effort (default ``high``);
 - ``AETHER_AGENT_DEADLINE_SEC``: the task's agent timeout, when Harbor does not pass one.
 A missing or invalid setting stops the run before any model call.
@@ -15,7 +19,9 @@ from pathlib import Path
 import time
 from typing import Any
 
-from .loop import Trace, default_review_call, run_agent
+from .clm import ClmSettings
+from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
+from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
 
 try:  # Harbor is only present on the qualified runner interpreter.
@@ -28,6 +34,10 @@ except ImportError:  # pragma: no cover - exercised only off the runner
 
 REVIEW_ENV = "AETHER_CORE_REVIEW"
 REVIEW_MODES = ("off")
+CONTEXT_ENV = "AETHER_CORE_CONTEXT"
+REPL_ENV = "AETHER_CORE_REPL"
+REPL_MODES = ("on", "off")
+PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
 DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
@@ -66,6 +76,20 @@ def build_review(logs_dir: Path):
         return None
     from .review import REVIEW_MODEL
 
+
+
+def build_config() -> CoreConfig:
+    review = os.environ.get(REVIEW_ENV, "").strip()
+    context = os.environ.get(CONTEXT_ENV, "").strip()
+    repl = os.environ.get(REPL_ENV, "").strip()
+    if review not in REVIEW_MODES:
+        raise ConfigError(f"{REVIEW_ENV} must be one of {REVIEW_MODES}, got {review!r}")
+    if context not in CONTEXT_MODES:
+        raise ConfigError(f"{CONTEXT_ENV} must be one of {CONTEXT_MODES}, got {context!r}")
+    if repl not in REPL_MODES:
+        raise ConfigError(f"{REPL_ENV} must be one of {REPL_MODES}, got {repl!r}")
+    plan = ReviewPlan(finish=False)
+    return CoreConfig(context=context, repl=repl == "on", reviews=plan, clm=ClmSettings())
 
 
 def agent_timeout(passed: float | None) -> float:
@@ -111,6 +135,7 @@ class AetherCoreAgent(BaseAgent):
 
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
         timeout_s = agent_timeout(self._agent_timeout_sec)
+        config = build_config()
         logs = Path(self.logs_dir)
         provider = build_provider()
         transport = build_review(logs)
@@ -121,9 +146,10 @@ class AetherCoreAgent(BaseAgent):
             result = await run_agent(env=environment, task=instruction, workdir=workdir, provider=provider,
                                      timeout_s=timeout_s, trace=Trace(logs / "core_trace.jsonl"),
                                      review_transport=transport,
-                                     review_call=default_review_call if transport is not None else None)
+                                     review_call=default_review_call if transport is not None else None,
+                                     config=config)
         finally:
-            _write_record(logs, result, started=started, workdir=workdir,
+            _write_record(logs, result, started=started, workdir=workdir, config=config,
                           review=os.environ.get(REVIEW_ENV), provider=provider)
             if result is not None:
                 for attr, key in (("n_input_tokens", "input"), ("n_cache_tokens", "cached"),
@@ -132,7 +158,7 @@ class AetherCoreAgent(BaseAgent):
                         setattr(context, attr, int(result.usage.get(key, 0)))
 
 
-def _write_record(logs: Path, result, *, started: float, workdir: str, review: str | None,
+def _write_record(logs: Path, result, *, started: float, workdir: str, config: CoreConfig, review: str | None,
                   provider: ChatProvider) -> None:
     chars = result.request_chars if result else []
     reviews = result.reviews if result else []
@@ -143,7 +169,9 @@ def _write_record(logs: Path, result, *, started: float, workdir: str, review: s
         "steps": result.steps if result else None,
         "workdir": workdir,
         "elapsed_s": round(time.time() - started, 1),
-        "config": {"review": review, "model": provider.model, "params": provider.params},
+        "config": {"review": review, "context": config.context, "repl": config.repl,
+                   "reviews": config.reviews.__dict__, "clm": config.clm.__dict__,
+                   "model": provider.model, "params": provider.params},
         "reviews": reviews,
         "run_metrics": {
             "provider_usage_row_count": result.calls if result else 0,
@@ -156,8 +184,11 @@ def _write_record(logs: Path, result, *, started: float, workdir: str, review: s
             "mean_request_chars": round(sum(chars) / len(chars)) if chars else None,
             "max_request_chars": max(chars) if chars else None,
             "review_count": len(reviews),
-            "review_holds": sum(r["status"] == "hold" for r in reviews),
+            "review_holds": sum(r["status"] == "hold" and r.get("kind", "finish") == "finish" for r in reviews),
             "review_errors": sum(r["status"] == "error" for r in reviews),
+            "review_kinds": [r.get("at", r.get("kind")) for r in reviews],
+            "sub_model_usage": result.sub_usage if result else None,
+            **(result.extras if result else {}),
         },
     }
     logs.mkdir(parents=True, exist_ok=True)

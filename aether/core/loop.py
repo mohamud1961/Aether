@@ -1,104 +1,61 @@
 """The Aether Core agent loop: model turn -> tools -> results, until finish or time.
 
 Everything the model does is recorded in full (reasoning, calls, results,
-timings, token usage) to ``core_trace.jsonl``; the request the model sees is a
-projection of that history (see ``context``).
+timings, token usage, every failed provider attempt) to ``core_trace.jsonl``.
+What the model sees is either the ``project`` view of that history (C1) or a
+context the model manages itself under a token budget (``clm``; see ``clm``).
 """
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import hashlib
 import json
 from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
+from . import compaction
+from .clm import ClmContext, ClmSettings
 from .context import project, size_chars
-from .env import Environment
+from .env import CONTROL_DIR, Environment, get_bytes, put_bytes
 from .files import Files
+from .oversight import Oversight, ReviewPlan, final_feedback, progress_feedback
 from .provider import ChatProvider, ProviderError, parse_arguments
-from .review import Transport, review
+from .repl import Repl, sub_llm
+from .review import Transport
 from .terminal import Terminals
+from .tools import system_prompt, tools
 
 MAX_OUTPUT_TOKENS = 32_768
-MAX_REVIEW_HOLDS = 2
-REVIEW_MIN_REMAINING_FRACTION = 0.15
-REVIEW_MIN_REMAINING_S = 90.0
 STOP_MARGIN_S = 15.0
+CONTEXT_MODES = ("project", "clm")
 
-SYSTEM_PROMPT = """You are an expert engineer working autonomously in a Linux container to complete the task \
-you are given. No one will answer questions; keep working until the task is done.
 
-Your tools:
-- terminal: persistent bash shells. The working directory, environment variables, virtualenvs and running \
-programs persist between calls. Open several named terminals to run things in parallel (for example a long \
-build in one while you explore in another). For long commands use a short wait_s and check back later. Each \
-terminal keeps its full output in a log file; large outputs are shown as head and tail with the log path, so \
-grep or tail the log instead of re-running.
-- read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.
-- finish: end the task.
+@dataclass(frozen=True)
+class CoreConfig:
+    context: str = "project"
+    repl: bool = False
+    reviews: ReviewPlan = ReviewPlan()
+    clm: ClmSettings = field(default_factory=ClmSettings)
+    control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
 
-Working well:
-- Look at what exists before changing it, and keep to what the task asks; do not alter or delete unrelated \
-files, history or system state.
-- Check your work the way the task will be judged: run the real program and confirm the exact output, file \
-location, name and format the task requires.
-- Every tool result shows the elapsed time and the time limit. Get a complete working result early, then \
-improve it.
-- Call finish only when every requirement is met and checked, or when no time is left."""
-
-TOOLS: list[dict[str, Any]] = [
-    {"type": "function", "function": {
-        "name": "terminal",
-        "description": "Send input to a persistent bash terminal and return its new output. mode=command (default) "
-                       "runs the input as shell command(s) and waits up to wait_s for them to finish; mode=keys "
-                       "sends raw keystrokes to whatever is running (e.g. an interactive program; \\x03 is Ctrl-C) "
-                       "and returns once output settles. Empty input just waits for and shows new output.",
-        "parameters": {"type": "object", "properties": {
-            "input": {"type": "string", "description": "Command(s) or keystrokes. May be empty."},
-            "name": {"type": "string", "description": "Terminal name (default 'main'); a new name opens a new terminal."},
-            "mode": {"type": "string", "enum": ["command", "keys"]},
-            "wait_s": {"type": "number", "description": "Max seconds to wait (default 30, max 900)."},
-            "interrupt": {"type": "boolean", "description": "Send Ctrl-C to the running program first."},
-        }, "required": ["input"]}}},
-    {"type": "function", "function": {
-        "name": "read_file",
-        "description": "Read a text file with line numbers (default 400 lines from start_line).",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"}, "start_line": {"type": "integer"}, "num_lines": {"type": "integer"},
-        }, "required": ["path"]}}},
-    {"type": "function", "function": {
-        "name": "write_file",
-        "description": "Create or overwrite a file with the given content (parents are created; permissions kept).",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"}, "content": {"type": "string"},
-        }, "required": ["path", "content"]}}},
-    {"type": "function", "function": {
-        "name": "edit_file",
-        "description": "Replace an exact, unique occurrence of old_str with new_str in a file "
-                       "(or every occurrence with replace_all=true).",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"}, "old_str": {"type": "string"}, "new_str": {"type": "string"},
-            "replace_all": {"type": "boolean"},
-        }, "required": ["path", "old_str", "new_str"]}}},
-    {"type": "function", "function": {
-        "name": "finish",
-        "description": "End the task. Use when every requirement is met and checked, or no time is left.",
-        "parameters": {"type": "object", "properties": {
-            "summary": {"type": "string", "description": "One or two sentences on the final state."},
-        }, "required": ["summary"]}}},
-]
+    def __post_init__(self) -> None:
+        if self.context not in CONTEXT_MODES:
+            raise ValueError(f"context must be one of {CONTEXT_MODES}")
 
 
 @dataclass
 class RunResult:
-    status: str  # finished | timeout | provider_error | no_tool_loop
+    status: str  # finished | timeout | provider_error | context_error | no_tool_loop
     steps: int = 0
     usage: dict[str, int] = field(default_factory=lambda: {"input": 0, "cached": 0, "output": 0, "reasoning": 0})
+    sub_usage: dict[str, int] = field(default_factory=dict)  # llm() and checkpoint calls
     calls: int = 0
     failed_attempts: int = 0
     request_chars: list[int] = field(default_factory=list)
     reviews: list[dict[str, Any]] = field(default_factory=list)
+    extras: dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
 
@@ -117,6 +74,8 @@ class Trace:
 def _action_view(name: str, args: dict[str, Any], result: str) -> str:
     if name == "terminal":
         head = f"[terminal {args.get('name') or 'main'}] $ {str(args.get('input', ''))[:400]}"
+    elif name == "python":
+        head = f"[python] {str(args.get('code', ''))[:400]}"
     elif name == "write_file":
         head = f"[write_file] {args.get('path')} ({len(str(args.get('content', '')))} chars)"
     elif name == "edit_file":
@@ -126,114 +85,270 @@ def _action_view(name: str, args: dict[str, Any], result: str) -> str:
     return f"{head}\n-> {result}"
 
 
+def _touches_mirror(calls: list[dict[str, Any]]) -> bool:
+    return any("LIVE_CTX" in str((c.get("function") or {}).get("arguments", "")) for c in calls)
+
+
+def _attach(messages: list[dict[str, Any]], note: str) -> None:
+    """Add a harness note to the newest tool result (or as a user message when there is none)."""
+    if messages and messages[-1].get("role") == "tool":
+        messages[-1]["content"] = f"{messages[-1]['content']}\n\n{note}"
+    else:
+        messages.append({"role": "user", "content": note})
+
+
+class _Session:
+    """Per-run state shared by the loop's helpers."""
+
+    def __init__(self, env, task, workdir, provider, timeout_s, trace, config, transport, call):
+        self.env, self.task, self.workdir, self.provider = env, task, workdir, provider
+        self.timeout_s, self.trace, self.config = timeout_s, trace, config
+        self.started = time.monotonic()
+        self.deadline = self.started + timeout_s - STOP_MARGIN_S
+        self.result = RunResult("timeout")
+        self.terminals = Terminals(env, workdir, self.remaining, control_dir=config.control_dir)
+        self.files = Files(env, workdir)
+        self.repl = Repl(env, workdir, self.remaining, sub_llm(provider, self.remaining, self.result.sub_usage),
+                         base=f"{config.control_dir}/repl")
+        self.oversight = Oversight(config.reviews, transport, call, timeout_s)
+        self.actions: list[str] = []
+        self.clm: ClmContext | None = None
+        self.messages: list[dict[str, Any]] = []
+        self.tools: list[dict[str, Any]] = []
+
+    def remaining(self) -> float:
+        return self.deadline - time.monotonic()
+
+    def elapsed(self) -> float:
+        return time.monotonic() - self.started
+
+    def clock(self) -> str:
+        return f"[t={self.elapsed():.0f}s of {self.timeout_s:.0f}s]"
+
+    @property
+    def history(self) -> list[dict[str, Any]]:
+        return self.clm.editable if self.clm else self.messages
+
+
 async def run_agent(*, env: Environment, task: str, workdir: str, provider: ChatProvider, timeout_s: float,
                     trace: Trace, review_transport: Transport | None = None,
-                    review_call: Callable[..., Awaitable[Any]] | None = None) -> RunResult:
-    started = time.monotonic()
-    deadline = started + timeout_s - STOP_MARGIN_S
-    remaining = lambda: deadline - time.monotonic()  # noqa: E731
-    terminals, files = Terminals(env, workdir, remaining), Files(env, workdir)
-    clock = lambda: f"[t={time.monotonic() - started:.0f}s of {timeout_s:.0f}s]"  # noqa: E731
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"},
-    ]
-    result, actions, tight, idle_turns = RunResult("timeout"), [], False, 0
+                    review_call: Callable[..., Awaitable[Any]] | None = None,
+                    config: CoreConfig | None = None) -> RunResult:
+    config = config or CoreConfig(reviews=ReviewPlan(finish=review_transport is not None))
+    s = _Session(env, task, workdir, provider, timeout_s, trace, config, review_transport, review_call)
+    python = await s.repl.start() if config.repl else ""
+    s.tools = tools(python=bool(python))
+    pinned = [{"role": "system", "content": system_prompt(python_version=python, clm=config.context == "clm")},
+              {"role": "user", "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"}]
+    if config.context == "clm":
+        s.clm = ClmContext(pinned=pinned, settings=config.clm)
+    else:
+        s.messages = list(pinned)
     trace("start", workdir=workdir, timeout_s=timeout_s, model=provider.model, params=provider.params,
-          review=bool(review_transport))
-    while remaining() > 0:
-        request = project(messages, tight=tight)
+          review=bool(review_transport), context=config.context, repl=config.repl, python=python,
+          reviews=config.reviews.__dict__, clm=config.clm.__dict__ if s.clm else None)
+    try:
+        await _loop(s)
+    finally:
+        _close(s)
+    return s.result
+
+
+async def _loop(s: _Session) -> None:
+    result, idle_turns, tight = s.result, 0, False
+    while s.remaining() > 0:
+        due = s.oversight.due(s.elapsed(), s.remaining())
+        if due:
+            await _scheduled_review(s, due)
+        if s.clm and not await _fit_context(s):
+            return
+        request = s.clm.request() if s.clm else project(s.messages, tight=tight)
         result.request_chars.append(size_chars(request))
         try:
-            turn = await provider.complete(request, TOOLS, max_tokens=MAX_OUTPUT_TOKENS, remaining_s=remaining)
+            turn = await s.provider.complete(request, s.tools, max_tokens=MAX_OUTPUT_TOKENS,
+                                             remaining_s=s.remaining)
         except ProviderError as exc:
-            if exc.context_overflow and not tight:
+            s.trace("provider_error", status=exc.status, error=str(exc), deadline=exc.deadline,
+                    overflow=exc.context_overflow)
+            if exc.context_overflow and not tight and not s.clm:
                 tight = True
-                trace("context_overflow", chars=result.request_chars[-1])
                 continue
-            result.status, result.error = "provider_error", str(exc)
-            break
+            if exc.deadline:
+                result.status = "timeout"
+            else:
+                result.status, result.error = "provider_error", str(exc)
+            return
         result.calls += 1
         for key, value in turn.usage.items():
             result.usage[key] = result.usage.get(key, 0) + value
-        trace("model", latency_s=round(turn.latency_s, 3), attempts=turn.attempts, usage=turn.usage,
-              request_chars=result.request_chars[-1], finish_reason=turn.finish_reason,
-              reasoning=turn.reasoning, content=turn.content, tool_calls=turn.tool_calls)
-        messages.append(turn.assistant_message())
+        if s.clm:
+            s.clm.calibrate(result.request_chars[-1], turn.usage.get("input", 0))
+        s.trace("model", latency_s=round(turn.latency_s, 3), attempts=turn.attempts, failures=turn.failures,
+                usage=turn.usage, request_chars=result.request_chars[-1], finish_reason=turn.finish_reason,
+                reasoning=turn.reasoning, content=turn.content, tool_calls=turn.tool_calls)
+        assistant = turn.assistant_message()
+        _append(s, assistant)
         if not turn.tool_calls:
             idle_turns += 1
             if idle_turns >= 3:
                 result.status = "no_tool_loop"
-                break
-            messages.append({"role": "user", "content": "Continue by using a tool, or call finish if done. " + clock()})
+                return
+            _append(s, {"role": "user", "content": "Continue by using a tool, or call finish if done. " + s.clock()})
             continue
         idle_turns = 0
-        finished = False
-        for call in turn.tool_calls:
-            name = call["function"]["name"]
-            t0 = time.monotonic()
-            args: dict[str, Any] = {}
-            try:
-                args = parse_arguments(call["function"]["arguments"])
-                if name == "finish":
-                    out, finished = await _finish(args, result, env=env, task=task, workdir=workdir,
-                                                  actions=actions, files=files, remaining=remaining,
-                                                  timeout_s=timeout_s, transport=review_transport,
-                                                  call=review_call, trace=trace)
-                elif name == "terminal":
-                    out = await terminals.use(name=str(args.get("name") or "main"), input=str(args.get("input", "")),
-                                              mode=str(args.get("mode") or "command"),
-                                              wait_s=float(args.get("wait_s") or 30),
-                                              interrupt=bool(args.get("interrupt")))
-                elif name == "read_file":
-                    out = await files.read(args["path"], int(args.get("start_line") or 1),
-                                           int(args.get("num_lines") or 400))
-                elif name == "write_file":
-                    out = await files.write(args["path"], str(args["content"]))
-                elif name == "edit_file":
-                    out = await files.edit(args["path"], str(args["old_str"]), str(args["new_str"]),
-                                           bool(args.get("replace_all")))
-                else:
-                    out = f"error: unknown tool {name!r}"
-            except Exception as exc:  # tool errors are the model's to handle; reported verbatim
-                out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
-            result.steps += 1
-            text = f"{out}\n{clock()}"
-            trace("tool", name=name, args=args, result=out, duration_s=round(time.monotonic() - t0, 3))
-            if name != "finish":
-                actions.append(_action_view(name, args, out))
-            messages.append({"role": "tool", "tool_call_id": call["id"], "content": text})
-            if finished:
-                break
-        if finished:
+        if await _run_calls(s, turn.tool_calls):
             result.status = "finished"
-            break
-    result.failed_attempts = provider.failed_attempts
-    trace("end", status=result.status, error=result.error, steps=result.steps, usage=result.usage,
-          elapsed_s=round(time.monotonic() - started, 1))
-    return result
+            return
 
 
-async def _finish(args, result: RunResult, *, env, task, workdir, actions, files: Files, remaining, timeout_s,
-                  transport, call, trace) -> tuple[str, bool]:
-    holds = sum(1 for r in result.reviews if r["status"] == "hold")
-    enough_time = remaining() > max(REVIEW_MIN_REMAINING_S, REVIEW_MIN_REMAINING_FRACTION * timeout_s)
-    if transport is None or call is None or holds >= MAX_REVIEW_HOLDS or not enough_time:
-        reason = ("review_off" if transport is None else "hold_limit" if holds >= MAX_REVIEW_HOLDS
-                  else "low_time")
-        trace("finish", summary=args.get("summary", ""), review="skipped", reason=reason)
+def _append(s: _Session, *messages: dict[str, Any]) -> None:
+    if s.clm:
+        s.clm.append(*messages)
+    else:
+        s.messages.extend(messages)
+
+
+async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
+    """Execute one turn's tool calls. Returns True when the run finished."""
+    mirror = None
+    if s.clm and _touches_mirror(calls):
+        upto = len(s.clm.editable) - 1  # the mirror holds history before this turn's assistant message
+        text = s.clm.render(upto)
+        await put_bytes(s.env, text.encode(), s.clm.settings.mirror_path)
+        mirror = (upto, hashlib.sha256(text.encode()).hexdigest())
+    finished = False
+    for call in calls:
+        name = call["function"]["name"]
+        t0 = time.monotonic()
+        args: dict[str, Any] = {}
+        try:
+            args = parse_arguments(call["function"]["arguments"])
+            out, finished = await _dispatch(s, name, args)
+        except Exception as exc:  # tool errors are the model's to handle; reported verbatim
+            out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
+        s.result.steps += 1
+        s.trace("tool", name=name, args=args, result=out, duration_s=round(time.monotonic() - t0, 3))
+        if name != "finish":
+            s.actions.append(_action_view(name, args, out))
+        _append(s, {"role": "tool", "tool_call_id": call["id"], "content": f"{out}\n{s.clock()}"})
+        if finished:
+            return True
+    if mirror is not None:
+        await _read_back(s, *mirror)
+    return False
+
+
+async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, bool]:
+    if name == "finish":
+        return await _finish(s, args)
+    if name == "terminal":
+        return await s.terminals.use(name=str(args.get("name") or "main"), input=str(args.get("input", "")),
+                                     mode=str(args.get("mode") or "command"), wait_s=float(args.get("wait_s") or 30),
+                                     interrupt=bool(args.get("interrupt"))), False
+    if name == "python":
+        return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s") or 60),
+                                interrupt=bool(args.get("interrupt"))), False
+    if name == "read_file":
+        return await s.files.read(args["path"], int(args.get("start_line") or 1), int(args.get("num_lines") or 400)), False
+    if name == "write_file":
+        return await s.files.write(args["path"], str(args["content"])), False
+    if name == "edit_file":
+        return await s.files.edit(args["path"], str(args["old_str"]), str(args["new_str"]),
+                                  bool(args.get("replace_all"))), False
+    return f"error: unknown tool {name!r}", False
+
+
+async def _read_back(s: _Session, upto: int, digest: str) -> None:
+    path = s.clm.settings.mirror_path
+    try:
+        text = (await get_bytes(s.env, path)).decode("utf-8", "replace")
+    except Exception as exc:  # the model deleted or broke the file: say so, keep the context as it was
+        _attach(s.clm.editable, f"[context] could not read {path} back ({type(exc).__name__}); "
+                                "your context is unchanged.")
+        s.trace("context_edit", accepted=False, reason=f"read failed: {exc}")
+        return
+    if hashlib.sha256(text.encode()).hexdigest() == digest:
+        return
+    accepted, receipt = s.clm.apply_edit(text, upto)
+    _attach(s.clm.editable, receipt)
+    s.trace("context_edit", accepted=accepted, receipt=receipt, tokens=s.clm.tokens())
+    s.files.written.pop(path, None)
+
+
+async def _fit_context(s: _Session) -> bool:
+    """CLM budget step before a request: roll back, or checkpoint, until it fits; then nudge."""
+    clm = s.clm
+    while clm.over_limit():
+        if clm.can_roll_back():
+            note = clm.roll_back()
+            s.trace("context_rollback", tokens=clm.tokens(), note=note)
+            continue
+        keep = clm.checkpoint_split()
+        try:
+            summary, usage = await compaction.checkpoint(s.provider, s.task, clm.render(keep), repl=bool(s.repl.pid),
+                                                         remaining_s=s.remaining)
+        except Exception as exc:  # surfaced: the run stops with the reason, never silently trimmed
+            s.trace("context_checkpoint", ok=False, error=f"{type(exc).__name__}: {exc}")
+            s.result.status, s.result.error = "context_error", f"checkpoint failed: {exc}"
+            return False
+        for key, value in usage.items():
+            s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
+        before = clm.tokens()
+        clm.replace_with_checkpoint(summary, compaction.CHECKPOINT_NOTE, keep)
+        s.trace("context_checkpoint", ok=True, tokens_before=before, tokens=clm.tokens(), kept_messages=
+                len(clm.editable) - 1, summary=summary)
+        if clm.over_limit():
+            s.result.status, s.result.error = "context_error", "context is over its limit even after a checkpoint"
+            return False
+    note = clm.nudge()
+    if note:
+        _attach(clm.editable, note)
+        s.trace("context_nudge", tokens=clm.tokens(), note=note)
+    return True
+
+
+async def _scheduled_review(s: _Session, kind: str) -> None:
+    verdict, row = await s.oversight.run(kind, s.env, task=s.task, workdir=s.workdir, actions=s.actions,
+                                         written=list(s.files.written))
+    s.result.reviews.append(row)
+    s.trace("review", answers=verdict.answers, **row)
+    if verdict.status == "error":
+        return
+    text = (final_feedback(verdict, s.remaining()) if kind == "final"
+            else progress_feedback(verdict, s.elapsed(), s.timeout_s))
+    _attach(s.history, text)
+
+
+async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    skip = s.oversight.finish_gate(s.remaining())
+    if skip:
+        s.trace("finish", summary=args.get("summary", ""), review="skipped", reason=skip)
         return "finished", True
-    t0 = time.monotonic()
-    verdict = await review(transport, env, task=task, workdir=workdir, actions=actions,
-                           written=list(files.written), call=call)
-    row = {"status": verdict.status, "mode": verdict.mode, "confidence": verdict.confidence,
-           "unmet": verdict.unmet, "reason": verdict.reason, "request_bytes": verdict.request_bytes,
-           "latency_s": round(time.monotonic() - t0, 2)}
-    result.reviews.append(row)
-    trace("review", summary=args.get("summary", ""), answers=verdict.answers, **row)
+    verdict, row = await s.oversight.run("finish", s.env, task=s.task, workdir=s.workdir, actions=s.actions,
+                                         written=list(s.files.written))
+    s.result.reviews.append(row)
+    s.trace("review", summary=args.get("summary", ""), answers=verdict.answers, **row)
     if verdict.status == "hold":
         return verdict.feedback(), False
     return "finished", True
+
+
+def _close(s: _Session) -> None:
+    r = s.result
+    r.failed_attempts = s.provider.failed_attempts
+    statuses: dict[str, int] = {}
+    for row in s.provider.failure_log:
+        key = str(row.get("status") or row.get("error"))
+        statuses[key] = statuses.get(key, 0) + 1
+    r.extras = {
+        "provider_failures_by_status": statuses,
+        "provider_retry_wait_s": round(sum(float(x.get("wait_s") or 0) for x in s.provider.failure_log), 1),
+        "python": s.repl.python, "python_cells": s.repl.seq, "llm_calls": s.repl.llm_calls,
+        "llm_errors": s.repl.llm_errors,
+        "clm": s.clm.stats.__dict__ if s.clm else None,
+    }
+    s.trace("end", status=r.status, error=r.error, steps=r.steps, usage=r.usage, sub_usage=r.sub_usage,
+            elapsed_s=round(s.elapsed(), 1), **r.extras)
 
 
 def default_review_call(transport: Transport, request: dict) -> Awaitable[Any]:

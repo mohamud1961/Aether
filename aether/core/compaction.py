@@ -1,0 +1,81 @@
+"""Structured context checkpoint, written when the model has not condensed its own context.
+
+The prompts are Prime Agent's compaction prompts (MIT licence, Copyright (c) 2025-2026
+Prime Intellect Ltd.), taken verbatim from
+PrimeIntellect-ai/prime-agent@3e0893260eefdab3c8391dab9b7386d6cc864a62,
+``crates/pa-core/src/session_engine/compaction{,_utils}.rs``.
+
+Used only after the CLM rollback-and-retry budget is spent; every use is traced
+and counted in the run record.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from .provider import ChatProvider
+
+SUMMARIZATION_SYSTEM_PROMPT = (
+    "You are a context summarization assistant. Your task is to read a conversation between a user and an AI "
+    "coding assistant, then produce a structured summary following the exact format specified.\n\nDo NOT "
+    "continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured "
+    "summary.")
+
+SUMMARIZATION_PROMPT = """The messages above are a conversation to summarize. Create a structured context \
+checkpoint summary that another LLM will use to continue the work.
+
+Use this EXACT format:
+
+## Goal
+[What is the principal trying to accomplish? Can be multiple items if the session covers different tasks.]
+
+## Constraints & Preferences
+- [Any constraints, preferences, or requirements mentioned by user]
+- [Or "(none)" if none were mentioned]
+
+## Progress
+### Done
+- [x] [Completed tasks/changes]
+
+### In Progress
+- [ ] [Current work]
+
+### Blocked
+- [Issues preventing progress, if any]
+
+## Key Decisions
+- **[Decision]**: [Brief rationale]
+
+## Next Steps
+1. [Ordered list of what should happen next]
+
+## Critical Context
+- [Any data, examples, or references needed to continue]
+- [Or "(none)" if not applicable]
+
+Keep each section concise. Preserve exact file paths, function names, and error messages."""
+
+KERNEL_PERSIST_SUMMARY_NOTE = (
+    "Note: the Python kernel keeps running after this summary — every Python variable, import, and helper you "
+    "defined stays available. The cells that defined them won't appear above, so record in the summary any names "
+    "worth remembering so you reuse them instead of redefining them.")
+
+CHECKPOINT_NOTE = ("[context checkpoint] Your earlier turns were replaced by this summary because the context "
+                   "reached its limit; your most recent turns follow it unchanged. Terminal logs and files on disk "
+                   "are unchanged.")
+MAX_SUMMARY_TOKENS = 4_096
+
+
+async def checkpoint(provider: ChatProvider, task: str, transcript: str, *, repl: bool,
+                     remaining_s: Callable[[], float]) -> tuple[str, dict[str, Any]]:
+    """Return (summary, usage). Raises ProviderError on failure; the caller records it."""
+    prompt = SUMMARIZATION_PROMPT + ("\n\n" + KERNEL_PERSIST_SUMMARY_NOTE if repl else "")
+    messages = [
+        {"role": "system", "content": SUMMARIZATION_SYSTEM_PROMPT},
+        {"role": "user", "content": f"<task>\n{task}\n</task>\n\n<conversation>\n{transcript}\n</conversation>"},
+        {"role": "user", "content": prompt},
+    ]
+    turn = await provider.complete(messages, None, max_tokens=MAX_SUMMARY_TOKENS, remaining_s=remaining_s)
+    summary = turn.content.strip()
+    if not summary:
+        raise ValueError("checkpoint call returned no text")
+    return summary, turn.usage

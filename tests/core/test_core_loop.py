@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from aether.core import loop as core_loop
+from aether.core import oversight as core_oversight
 from aether.core.loop import Trace, run_agent
 from aether.core.provider import ChatProvider
 from aether.core.review import answers_of, build_request, judge
@@ -71,7 +71,7 @@ def test_review_error_is_recorded_not_silent(tmp_path):
 
 
 def test_review_skipped_when_little_time_remains(tmp_path, monkeypatch):
-    monkeypatch.setattr(core_loop, "REVIEW_MIN_REMAINING_S", 10_000)
+    monkeypatch.setattr(core_oversight, "FINISH_MIN_REMAINING_S", 10_000)
     result, rows, requests, _ = _run(tmp_path, [call("finish", {"summary": "x"})], transport=lambda r: {})
     assert result.reviews == [] and not requests
     assert [r for r in rows if r["event"] == "finish"][0]["reason"] == "low_time"
