@@ -293,3 +293,8 @@
   - **Held-budget prediction: met.** There were 0 checkpoints, against 4 on r26 (three of them straight after a length cut-off). Max input was 38.7k, which is held context plus the newest reasoning.
   - **Process report:** first real appearance, e.g. `python3 dbg22.py (pid 13280, running, 75s CPU in 77s); timeout 200 ... (sleeping in sigsuspend)`. The model let the busy job finish.
   - **Not claimed:** any speed effect. It took 3585 s against 1795 s on r26, along a different trajectory, with n=1 each.
+- **r36 regex-game (sentinel; code 5768b44e):** not solved; 1 of 4 checks passed (`test_not_long`).
+  - **Idle-turn prediction: met.** It used the whole run (3477 s, finishing on low time) and was not stopped as `no_tool_loop`, unlike r27 at 1289 s. It made 47 tool calls (r27 made 2) and produced a 3950-rule `re.json` of 535 KB.
+  - **Held-budget prediction: met.** Its 1 checkpoint fired from accumulated context at 2978 s, not after a length cut-off.
+  - **Open risk:** 98% of the time was model time, but the model kept acting between long thoughts. It did not loop on re-thinking.
+  - **Cause:** domain failure.
