@@ -89,3 +89,25 @@
 ### New predictions
 - **P11:** on each v2.2 review, output_logs are present in the reviewer request.
 - **P12:** if the program output is garbled, at least one v2.2 review reports a malfunction.
+
+## Post-run audit protocol (from 12 Oct ~01:55 UTC)
+- **Every row** is audited with `tools/aether_program/core_audit.py` before the next change. It covers outcome, time split, steps, context, caching, tooling, verification, provider and cost.
+- **Findings** are recorded here.
+
+### Audit of C1 core_off vs C2 row 1 (v2), interpreter-build
+| Dimension | C1 core_off | C2 row 1 (v2) |
+|---|---|---|
+| First file written | 525 s | 236 s |
+| Mean / max input tokens | 25.7k / 55.7k | 16.0k / 29.9k |
+| Cache ratio | 85% | 82% |
+| Model / tool time | 832 / 667 s | 763 / 977 s |
+
+- **Garbled output** was first visible at 311 s on v2; unnoticed for 25 min.
+- **Urgent nudges** fired 10 times.
+- **the reviewer verdicts** were all "incomplete" at 0.44–0.69, with only 2 coarse criteria.
+- **C1 verified-compiler-build:** 660 s of `sleep` inside commands; finished with 3 min to spare.
+
+### Added to v2.2 before its rows
+- The urgent nudge fires at most once every 3 turns.
+- The terminal description says to run long commands in the foreground with `wait_s`: the call returns at completion, unlike `sleep N`.
+- The audit reports "not traced" for rows that predate retry tracing.

@@ -37,6 +37,7 @@ MIRROR_PATH = "/tmp/.aether/ctx/LIVE_CTX.txt"
 TURN_RE = re.compile(r"^\[\[CTX_TURN (\d+) role=([a-z_]+)\]\]$", re.M)
 CHARS_PER_TOKEN = 3.0  # initial estimate; recalibrated from the provider's own counts
 TOOLS_OVERHEAD_TOKENS = 1_500
+URGENT_EVERY_TURNS = 3  # C2 row 1: the urgent nudge fired on 10 consecutive turns; the checkpoint backs it up
 
 
 @dataclass
@@ -85,6 +86,8 @@ class ClmContext:
     _armed: set[float] = field(default_factory=set)
     _rollbacks_in_episode: int = 0
     _recent_outputs: list[int] = field(default_factory=list)
+    _turn: int = 0
+    _last_urgent: int = -URGENT_EVERY_TURNS
 
     def __post_init__(self) -> None:
         self._armed = set(self.settings.nudge_ratios)
@@ -125,7 +128,11 @@ class ClmContext:
         self._rearm(ratio)
         room = limit - used
         largest = max(self._recent_outputs or [0]) / self.chars_per_token
+        self._turn += 1
         if used > limit // 2 and room < max(0.10 * limit, 2 * largest):
+            if self._turn - self._last_urgent < URGENT_EVERY_TURNS:
+                return ""
+            self._last_urgent = self._turn
             self.stats.urgent_nudges += 1
             return (f"[context: urgent] {used} of {limit} tokens used; only about {room} left. Condense "
                     f"{self.settings.mirror_path} now (keep facts, paths, decisions and open problems; drop the rest), and "

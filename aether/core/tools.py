@@ -11,7 +11,9 @@ you are given. No one will answer questions; keep working until the task is done
 Your tools:
 - terminal: persistent bash shells. The working directory, environment variables, virtualenvs and running \
 programs persist between calls. Open several named terminals to run things in parallel (for example a long \
-build in one while you explore in another). For long commands use a short wait_s and check back later. Each \
+build in one while you explore in another). For long-running commands (builds, test runs), run them in the \
+foreground with a wait_s: the call returns as soon as the command finishes, and if it is still running you can \
+wait again or interrupt it. That is faster than `cmd & sleep N`, which always waits the full N seconds. Each \
 terminal keeps its full output in a log file; large outputs are shown as head and tail with the log path, so \
 grep or tail the log instead of re-running.
 - read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.

@@ -374,3 +374,16 @@ def test_reviewer_reads_terminal_logs_itself_and_garbled_bytes_are_visible(tmp_p
     assert "signs of malfunction" in held  # a malfunction verdict holds the finish and says why
     assert result.reviews[0]["malfunction"] == "garbled_or_binary_output"
     assert [r["status"] for r in result.reviews] == ["hold", "hold"] and result.status == "finished"
+
+
+def test_urgent_nudge_is_rate_limited():
+    ctx = ClmContext(pinned=PINNED, settings=ClmSettings(budget_tokens=4000, reserve_tokens=200, nudge_ratios=()))
+    i = 0
+    while ctx.settings.limit - ctx.tokens() >= 0.10 * ctx.settings.limit:  # fill to the urgent zone, not past it
+        ctx.append(*_turn(i, 100))
+        i += 1
+    assert not ctx.over_limit()
+    fired = [("urgent" in ctx.nudge()) for _ in range(7)]
+    assert fired == [True, False, False, True, False, False, True]
+
+
