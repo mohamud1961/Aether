@@ -65,6 +65,15 @@ class CloneError(RuntimeError):
     pass
 
 
+# docker commit copies the container's labels into the image, so a clone of a compose service carries the same
+# project and service labels, and `docker compose exec main` (how Harbor runs every command) may pick the clone:
+# in V3 the worker's terminal and file writes went into the contract writer's clone and were lost with it. The
+# commit blanks the labels compose selects by, so the clone is never a candidate.
+_COMPOSE_LABELS = ("com.docker.compose.project", "com.docker.compose.service", "com.docker.compose.container-number",
+                   "com.docker.compose.oneoff", "com.docker.compose.config-hash")
+_UNLABEL = [arg for label in _COMPOSE_LABELS for arg in ("--change", f"LABEL {label}=")]
+
+
 class Clone:
     """A throwaway container started from a commit of the task container (Harbor-environment interface)."""
 
@@ -88,7 +97,7 @@ class Clone:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", cid):
             raise CloneError(f"cannot identify the task container (hostname {cid!r})")
         tag = f"aether-verify:{uuid.uuid4().hex[:12]}"
-        code, _, err = await host(["docker", "commit", cid, tag], 900)
+        code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
         if code != 0:
             raise CloneError(f"docker commit failed: {err.strip()[:300]}")
         name = tag.replace(":", "-")

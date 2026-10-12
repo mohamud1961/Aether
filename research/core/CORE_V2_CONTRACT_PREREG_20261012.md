@@ -42,3 +42,12 @@ Fixes (1519ef98f and the next commit):
 - The worker runs one low-effort turn after a cut-off turn.
 - A `contract_shown` trace event.
 - The contract text forbids editing what a check reads.
+
+## INVALIDATED (2026-10-12, found in the V3 audit)
+Every clone of the task container kept its Docker Compose labels, because `docker commit` copies them into the image. Harbor runs every command through `docker compose exec main`, and compose selected the clone while one existed.
+
+- **Reproduced on the VM:** with an old-style clone alive, 3 of 3 `compose exec` calls ran in the clone. With the fix (labels blanked at commit), 3 of 3 reached the live container.
+- **Consequence:** while the contract writer's clone was alive (its first 1–5 minutes) or a finish-check clone existed, the worker's terminal and file commands went to a throwaway container. That work was lost when the clone was deleted.
+- **Symptoms seen in the audit:** the writer's checks "passed before any work", and repair-history and binary-extract lost work.
+
+**The contract-arm results above, and the V1 `state` arm, measured a broken substrate. They are not evidence about the mechanism.** revp rows use no clones and are unaffected. Fixed in the next commit (`verify._UNLABEL`).

@@ -16,3 +16,13 @@ V2 lost 6/18 rows to writer failures and seq-assembly lost most of each row to r
 5. 0 rows where the worker edits what a check reads to make it pass.
 
 Every row is audited. Any failed prediction is recorded as failed.
+
+## Result: INVALID (substrate bug), audited 2026-10-12
+The result is 7/18, $0.69. Not one row held a finish.
+
+The audit found that the worker's commands were running inside the contract writer's clone; see the INVALIDATED section of the V2 file. A probe row with clone fingerprints and the Docker event stream proved it: the worker's terminal `cmd_N.sh` writes went to `aether-verify-<id>`, and its `write_file` went to a sibling clone.
+
+Predictions are not scored, because the arm did not run as designed. Observations that do not depend on the bug:
+- The writer's time cap worked. seq-assembly and construct-assembly got contracts in 3 of 4 rows, against 0 of 4 in V2.
+- Low effort after a cut is honoured: 3 of 4 such turns acted within 25 s. One still ran to 32k tokens, so the follow-up turn is now also capped at 8k output tokens.
+- The contract passed wrong work in net-fit e2, seq-assembly e1 and credential-recovery e2. In net-fit e2 the checks enforced everything stated, but not the answer the analysis has to find.

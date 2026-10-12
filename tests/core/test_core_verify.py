@@ -85,7 +85,9 @@ def test_the_clone_has_no_network_and_resource_limits():
             return SimpleNamespace(return_code=0, stdout="a" * 64 + "\nhost\n", stderr="")
     clone = asyncio.run(V.Clone.create(Env(), host))
     commit, start = calls[0], calls[1]
-    assert commit[:3] == ["docker", "commit", "a" * 64]
+    assert commit[:2] == ["docker", "commit"] and commit[-2] == "a" * 64
+    # compose selects containers by these labels; a clone that kept them could receive the live run's commands
+    assert "LABEL com.docker.compose.project=" in commit and "LABEL com.docker.compose.service=" in commit
     assert ["--network", "none"] == start[start.index("--network"):start.index("--network") + 2]
     assert "no-new-privileges" in start and "--memory" in start and "--pids-limit" in start
     asyncio.run(clone.close())
