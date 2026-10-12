@@ -285,3 +285,7 @@
 - **r34 verified-compiler-build (sentinel; code 5768b44e):** solved in 1097 s. For comparison, v2.2 solved it in 2385 s and r25 timed out.
   - **Process-report prediction: not tested.** No command stalled, so there were 0 still-running results and the report never appeared. The speed-up came from the model's route (Ubuntu Coq plus a git clone, then background builds with `sleep` polls), not from the fix.
   - **Markers:** 0 lost.
+- **r33 seq-assembly (code 5768b44e):** not solved; `test_primers` failed. The model finished at 1405 s, right after its own `verify.py` passed.
+  - The finish review rated it `wrong_output` at confidence 0.5, below the hold threshold, so the finish went through.
+  - **Cause:** domain failure. No change: in the calibration table, confidence this low appears on solved rows too.
+  - **Harness:** 1 checkpoint (8 s), 0 lost markers, and two 429s absorbed by retries.
