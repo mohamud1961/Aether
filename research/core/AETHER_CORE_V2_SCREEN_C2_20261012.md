@@ -275,3 +275,10 @@
     - The frame's similarity was 0.76 against the required 0.95.
   - **Harness:** no lost markers and no hung runs that went unnoticed. 9 bounded `timeout` runs (382 s) were deliberate, and 2 checkpoints took 36 s in total.
   - **Cause:** domain failure, a slow and partly wrong interpreter. **No harness change.**
+- **r31 render-scene (code 6bb866f7):** not solved; 4 of 5 checks passed, with image similarity 0.897 against the required 0.99. It finished on low time.
+  - **Checkpoints:** 5 checkpoints took 134 s, a mean of 27 s. **Prediction met** (under 30 s; before the change it was about 70 s).
+  - **Held-budget fix:** max input was 38.4k tokens, of which about 9.6k was the replayed newest reasoning. This is within the amended definition.
+  - **Cause:** domain failure.
+- **r32 compressor-write (code 5768b44e):** not solved; timed out at 885 s of 900 s.
+  - Before any command it spent about 6 minutes on a first turn of pure reasoning, and the plan assumed Python, which the image does not have. The last turn was cut by the deadline.
+  - **Cause:** model behaviour; it did not look before planning. No harness change. Capping output by remaining time would only rescue the last turn, which was lost anyway.
