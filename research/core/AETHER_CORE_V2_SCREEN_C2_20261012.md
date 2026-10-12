@@ -237,3 +237,14 @@
 - **Failed rows:** progress reviews were usually 0.95–1.0 (compressor-write, extract-moves, gpt2, feal-linear, construct-assembly, interpreter-build).
 - **Exception:** verified-compiler-build, which was solved, scored 0.92–0.97 in its progress reviews on real early apt errors.
 - **Decision:** no further change. Since tonight's fix it no longer holds a finish, and in progress reviews the high-confidence cases are the informative ones.
+
+### Later rows
+- **r23 multi-branch-deploy:** solved.
+- **r24 git-hosting-setup:** solved in 256 s.
+- **r19 runtime-gc-fix (hard; code cb25593c):** solved in 1549 s.
+  - **Lost markers:** 0.
+  - **Checkpoints:** 2, about 23 s each (this code predates the low-effort checkpoint).
+  - **Wait cap:** worked as designed. A full rebuild returned "still running" at 302 s and again at 241 s, and the model kept waiting.
+  - **Hung runs:** 3 runs were killed by the model's own `timeout` (325 s in total). All were deliberate, bounded gdb loops, not hangs the model missed.
+  - **Reviews:** the 0.35 progress review held the run and named the unconfirmed testsuite criterion. The model then ran the basic testsuite before finishing.
+  - **No harness change.**
