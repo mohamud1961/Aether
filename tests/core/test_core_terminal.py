@@ -67,3 +67,16 @@ def test_named_terminals_run_in_parallel(tmp_path):
         return other, built, t.names
     other, built, names = asyncio.run(go())
     assert "exploring" in other and "built" in built and names == ["build", "explore"]
+
+
+def test_a_command_that_reads_stdin_cannot_swallow_the_completion_marker(tmp_path):
+    # D1 verified-compiler-build: apt-get/dpkg read the terminal's stdin, ate the queued marker line, and every
+    # install was reported "still running" until wait_s ran out (240-600 s each).
+    async def go():
+        t, _ = _terms(tmp_path)
+        first = await t.use(input="read -t 1 x; echo \"read-rc=$?\"", wait_s=8)
+        multi = await t.use(input="read -t 1 y\necho second-line-ran", wait_s=8)
+        return first, multi
+    first, multi = asyncio.run(go())
+    assert "[exit" in first and "still running" not in first and "read-rc=" in first
+    assert "second-line-ran" in multi and "[exit 0" in multi

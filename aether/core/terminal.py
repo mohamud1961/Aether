@@ -73,6 +73,7 @@ class Terminals:
         q = shlex.quote
         wrapper = "\n".join([
             "#!/bin/sh",
+            f"echo $$ > {q(root + '/pid')}",
             f"cd {q(self._workdir)} 2>/dev/null || cd /",
             f"exec 3<> {q(root + '/in')}",
             f"if {_PTY_TEST}; then",
@@ -90,9 +91,16 @@ class Terminals:
         if res.code != 0:
             raise RuntimeError(f"terminal setup failed: {(res.stderr or res.stdout).strip()[:300]}")
         await put_bytes(self._env, wrapper.encode(), f"{root}/run.sh")
+        # `setsid -f` forks without the shell's `&`: a background job of a non-interactive shell starts with
+        # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did
+        # nothing (found on Linux in D1; the macOS tests use the pipe path and never saw it).
+        run_sh, pid_file = q(root + "/run.sh"), q(root + "/pid")
         res = await run(self._env,
-            f"if command -v setsid >/dev/null 2>&1; then nohup setsid sh {q(root + '/run.sh')} >/dev/null 2>&1 </dev/null & "
-            f"else nohup sh {q(root + '/run.sh')} >/dev/null 2>&1 </dev/null & fi; echo $!; "
+            f"if command -v setsid >/dev/null 2>&1 && setsid -f true >/dev/null 2>&1; then "
+            f"nohup setsid -f sh {run_sh} >/dev/null 2>&1 </dev/null; "
+            f"elif command -v setsid >/dev/null 2>&1; then nohup setsid sh {run_sh} >/dev/null 2>&1 </dev/null & "
+            f"else nohup sh {run_sh} >/dev/null 2>&1 </dev/null & fi; "
+            f"i=0; while [ ! -s {pid_file} ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; cat {pid_file}; "
             f"{_PTY_TEST} && echo pty || echo nopty")
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
@@ -167,8 +175,14 @@ class Terminals:
         if input and mode == "command":
             session.seq += 1
             session.pending = session.seq
+            # The command runs from a file and the shell reads one line: `. file; printf marker`. Queuing the
+            # body and the marker as separate stdin lines let any program that reads stdin (apt-get, dpkg,
+            # read) swallow the marker, so the command looked "still running" until wait_s ran out.
             body = input if input.endswith("\n") else input + "\n"
-            await self._write(session, body + f"printf '\\n__AETHER_DONE_%s_%s__ %s\\n' {session.seq} \"$?\" \"$PWD\"\n")
+            cmd_file = f"{session.root}/cmd_{session.seq}.sh"
+            await put_bytes(self._env, body.encode(), cmd_file)
+            await self._write(session, f". {shlex.quote(cmd_file)}; printf '\\n__AETHER_DONE_%s_%s__ %s\\n' "
+                                       f"{session.seq} \"$?\" \"$PWD\"\n")
         elif input:
             await self._write(session, _HEX.sub(lambda m: chr(int(m.group(1), 16)), input))
         seq = session.pending or None

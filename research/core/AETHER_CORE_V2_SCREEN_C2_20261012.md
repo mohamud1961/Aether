@@ -140,3 +140,31 @@
 - The review lists every criterion it cannot directly confirm.
 - One generic solver-prompt sentence: an unexplained duration (a run that is killed by its own timeout) is a hang to diagnose.
 - The audit gains `runs_killed_by_own_timeout`, `seconds_in_those_runs` and `repeats_right_after_context_events`.
+
+## Overnight D1 dev loop (from 12 Oct ~03:20 UTC)
+- **Principal's instruction:** advance Aether as far as possible with £10, auditing after every run. The make-doom frozen run is deferred.
+- **Setup:** a queue driver on the VM runs one row at a time and merges `a working branch` before each row. Every row records its exact commit.
+- **First sweep:** v2.3 across 12 TB2.1 tasks.
+
+### Audit of C2c (v2.2) interpreter-build
+- **Outcome:** 0/3 grader tests, timeout. The interpreter was still debugging WAD lump lookup at the end.
+- **P11 met:** all 3 the reviewer requests contained `output_logs`.
+- **P12 met:** the malfunction question flagged `errors_or_crashes` at 0.97 and 0.91 in the progress reviews.
+- **Context and cost:** mean 16.4k tokens, 85% cached, $0.20.
+- **P7 failed:** 0 of 3 interpreter-build rows solved across v2, v2.1 and v2.2.
+
+### Audit of C2c (v2.2) verified-compiler-build: substrate bugs found
+- **Outcome:** **P8 met.** The grader passed all 3 tests (reward 1), but the agent was still running at the 2385 s limit.
+  - Only 146 s of the run was model time.
+  - First file written at 2036 s.
+- **Bug 1: lost completion marker.**
+  - Each `apt-get install` was reported "still running" for 240–600 s, although the next command in the same terminal ran at once.
+  - Cause: the command and its completion marker were queued as separate stdin lines, and apt/dpkg read stdin and swallowed the marker.
+  - Fix: the command body runs from a file and the shell reads a single line, `. file; printf marker`.
+  - Test: `read -t 1` used to report `read-rc=0`, i.e. it ate the marker. Now it times out and the marker prints.
+- **Bug 2: Ctrl-C never worked in containers.**
+  - Found while verifying bug 1 on Linux. The existing interrupt test fails there on the old code too; the macOS suite only runs the pipe path.
+  - Cause: the terminal was launched with `&` from a non-interactive `sh`, so SIGINT was ignored, and that disposition was inherited by every command.
+  - Fix: launch with `setsid -f`, which leaves only SIGHUP ignored, verified via `/proc/<pid>/status`.
+  - All 6 terminal tests pass on the Linux pty path.
+- **Remaining waste on this row:** 390 s of `sleep N` polling a background `make`, despite the v2.2 guidance to wait in the foreground.
