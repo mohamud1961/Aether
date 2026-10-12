@@ -42,16 +42,41 @@ def _clone_factory(root):
 
 
 @pytest.mark.parametrize("cmd", ["ps aux", "curl -s http://localhost:8080/", "ss -ltnp", "find /app -name '*.py'",
-                                 "cat /app/out.txt", "curl -sI http://127.0.0.1:3000"])
+                                 "cat /app/out.txt", "curl -sI http://127.0.0.1:3000", "curl -sSL http://localhost:80",
+                                 "curl -m 5 -H 'Accept: text/html' http://localhost:8080/x", "tail -n 20 /var/log/x"])
 def test_read_only_probes_are_allowed(cmd):
     assert V.probe_refusal(cmd) is None
 
 
 @pytest.mark.parametrize("cmd", ["rm -rf /app", "ls; rm x", "curl -X POST http://x", "curl -sXPOST http://x",
                                  "curl -o /tmp/x http://x", "curl --data a=1 http://x", "find / -delete",
-                                 "find / -exec rm {} +", "cat $(id)", "echo hi > f", "ls | sh", "touch /app/x"])
+                                 "find / -exec rm {} +", "cat $(id)", "echo hi > f", "ls | sh", "touch /app/x",
+                                 "curl -D /tmp/h http://x", "curl --trace /tmp/t http://x", "curl -c /tmp/jar http://x",
+                                 "curl --libcurl /tmp/c http://x", "curl file:///etc/shadow", "curl -w @/etc/x http://x",
+                                 "curl -sD /tmp/h http://x", "ss -K dst 1.2.3.4", "ss -tK", "file -C -m /tmp/m",
+                                 "tail -f /var/log/x", "sha256sum -c sums"])
 def test_probes_that_could_change_state_are_refused(cmd):
     assert V.probe_refusal(cmd)  # known-bad: each of these could modify the graded container
+
+
+def test_the_clone_has_no_network_and_resource_limits():
+    calls = []
+
+    async def host(argv, timeout):
+        calls.append(argv)
+        return 0, "", ""
+
+    class Env:
+        async def exec(self, command, cwd=None, env=None, timeout_sec=None):
+            from types import SimpleNamespace
+            return SimpleNamespace(return_code=0, stdout="a" * 64 + "\nhost\n", stderr="")
+    clone = asyncio.run(V.Clone.create(Env(), host))
+    commit, start = calls[0], calls[1]
+    assert commit[:3] == ["docker", "commit", "a" * 64]
+    assert ["--network", "none"] == start[start.index("--network"):start.index("--network") + 2]
+    assert "no-new-privileges" in start and "--memory" in start and "--pids-limit" in start
+    asyncio.run(clone.close())
+    assert calls[-2][:3] == ["docker", "rm", "-f"] and calls[-1][:3] == ["docker", "rmi", "-f"]
 
 
 def test_a_requirement_observed_failing_holds_with_its_evidence(tmp_path):

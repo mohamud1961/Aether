@@ -60,6 +60,12 @@ class Repl:
         self.pid, self.python = int(pid[0]), version
         return version
 
+    async def close(self) -> None:
+        """Stop the kernel process (it dies with the container anyway; outside one it would linger)."""
+        if self.pid:
+            await run(self._env, f"kill -TERM {self.pid} 2>/dev/null; true")
+            self.pid = 0
+
     async def run(self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False) -> str:
         if not self.pid:
             raise RuntimeError("the python tool is not available in this environment")

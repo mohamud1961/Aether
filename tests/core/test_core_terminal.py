@@ -10,10 +10,22 @@ from aether.core.terminal import Terminals
 from tests.core.core_fakes import LocalEnv
 
 
+_OPEN: list[Terminals] = []
+
+
+@pytest.fixture(autouse=True)
+def _close_terminals():
+    yield
+    while _OPEN:  # a terminal outlives its test unless closed (no disposable container here)
+        asyncio.run(_OPEN.pop().close())
+
+
 def _terms(tmp_path):
     work = tmp_path / "work"
     work.mkdir()
-    return Terminals(LocalEnv(work), str(work), lambda: 1000.0, control_dir=str(tmp_path / "ctl")), work
+    t = Terminals(LocalEnv(work), str(work), lambda: 1000.0, control_dir=str(tmp_path / "ctl"))
+    _OPEN.append(t)
+    return t, work
 
 
 def test_shell_state_persists_and_exit_code_is_reported(tmp_path):
@@ -129,3 +141,24 @@ def test_ctrl_c_typed_as_keys_does_not_wait_for_the_killed_command(tmp_path):
     stopped, took, after = asyncio.run(go())
     assert took < 6 and "still running" not in stopped
     assert "alive" in after and "[exit 0" in after
+
+
+def test_close_stops_every_terminal_and_what_runs_in_it(tmp_path):
+    # Tests and clones run outside a disposable container: leftover shells exhausted the host's process table.
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="true")
+        await t.use(name="b", input="sleep 300", wait_s=0.5)
+        pids = [s.pid for s in t._sessions.values()]
+        await t.close()
+        await asyncio.sleep(0.5)
+        alive = []
+        for pid in pids:
+            try:
+                os.kill(pid, 0)
+                alive.append(pid)
+            except ProcessLookupError:
+                pass
+        return alive, t.names
+    alive, names = asyncio.run(go())
+    assert alive == [] and names == []

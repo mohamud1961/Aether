@@ -163,6 +163,11 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
         await _loop(s)
     finally:
         _close(s)
+        try:  # terminals die with the container anyway; outside one (tests, clones) they would linger
+            await s.terminals.close()
+            await s.repl.close()
+        except Exception as exc:
+            s.trace("terminals_close_error", error=f"{type(exc).__name__}: {exc}")
     return s.result
 
 

@@ -6,8 +6,9 @@ files changed during the run -- never the worker's reasoning, summary or claims 
 itself. It may build, run, test and modify anything: nothing it does reaches the state that is graded.
 
 A commit copies files, not processes, so servers the worker left running are absent from the clone. The
-verifier can check those with ``live_probe``: read-only commands (ps, ss, curl GET, ls, cat ...) in the
-original container.
+verifier can check those with ``live_probe``: allowlisted read-only commands (ps, ss, curl GET, ls, cat ...)
+in the original container. The clone has no network (it must not escape the task's egress policy), a memory,
+CPU and process limit, and no privilege escalation.
 
 The finish is held only for a requirement the verifier observed failing (``not_met`` with the command and its
 output); the worker gets that evidence verbatim, so it can reproduce it. A clone or verifier failure is recorded
@@ -41,6 +42,8 @@ MAX_RESULT_CHARS = 6_000
 MAX_OBSERVED_CHARS = 1_200
 CHANGED_LIMIT = 80
 VERIFY_CONTROL_DIR = "/tmp/.aether-verify"
+CLONE_MEMORY = "8g"
+CLONE_CPUS = "2"
 
 HostRun = Callable[[list[str], float], Awaitable[tuple[int, str, str]]]
 
@@ -82,7 +85,10 @@ class Clone:
         if code != 0:
             raise CloneError(f"docker commit failed: {err.strip()[:300]}")
         name = tag.replace(":", "-")
-        code, _, err = await host(["docker", "run", "-d", "--rm", "--name", name, "--entrypoint", "sh", tag,
+        # No network: the clone must not escape the task's egress policy (live_probe covers live services).
+        code, _, err = await host(["docker", "run", "-d", "--rm", "--name", name, "--network", "none",
+                                   "--security-opt", "no-new-privileges", "--pids-limit", "4096",
+                                   "--memory", CLONE_MEMORY, "--cpus", CLONE_CPUS, "--entrypoint", "sh", tag,
                                    "-c", "while :; do sleep 3600; done"], 180)
         if code != 0:
             await host(["docker", "rmi", "-f", tag], 120)
@@ -113,9 +119,36 @@ class Clone:
 # ----- read-only probes of the live container --------------------------------------------------------
 _PROBE_COMMANDS = {"ps", "pgrep", "ss", "netstat", "curl", "ls", "cat", "head", "tail", "stat", "wc", "file",
                    "sha256sum", "md5sum", "grep", "find", "du", "df", "id", "uname", "test", "readlink"}
-_CURL_WRITES = ("-X", "--request", "-d", "--data", "--json", "-F", "--form", "-T", "--upload-file", "-o", "--output",
-                "-O", "--remote-name", "-K", "--config")
-_FIND_WRITES = ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls")
+# Options are allowlisted where a command has state-changing or file-writing ones (a denylist leaks: curl alone
+# writes files with -o -O -D -c --trace --libcurl --etag-save --hsts ...). Values follow their option.
+_CURL_FLAGS = {"-s", "--silent", "-S", "--show-error", "-I", "--head", "-i", "--include", "-L", "--location", "-v",
+               "--verbose", "-f", "--fail", "-k", "--insecure", "-G", "--get", "-4", "-6", "--compressed"}
+_CURL_VALUED = {"-m", "--max-time", "--connect-timeout", "-H", "--header", "-A", "--user-agent", "-w",
+                "--write-out", "-r", "--range"}
+_DENY = {"ss": ("-K", "--kill", "-D", "--diag", "-F", "--filter"), "file": ("-C", "--compile", "-m", "--magic-file"),
+         "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"),
+         "tail": ("-f", "-F", "--follow"), "sha256sum": ("-c", "--check"), "md5sum": ("-c", "--check")}
+
+
+def _curl_refusal(args: list[str]) -> str | None:
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _CURL_VALUED:
+            if a in ("-w", "--write-out") and i + 1 < len(args) and args[i + 1].startswith("@"):
+                return "curl -w @file is not allowed"
+            i += 2
+            continue
+        if a.startswith("-") and a not in _CURL_FLAGS:
+            if re.fullmatch(r"-[sSIiLvfkG46]+", a):  # a cluster of allowed short flags, e.g. -sSL
+                i += 1
+                continue
+            return f"curl option {a} is not allowed (GET-only probes: {' '.join(sorted(_CURL_FLAGS))}, " \
+                   f"{' '.join(sorted(_CURL_VALUED))} VALUE)"
+        if not a.startswith("-") and not re.match(r"https?://", a):
+            return "curl takes http(s) URLs only"
+        i += 1
+    return None
 
 
 def probe_refusal(command: str) -> str | None:
@@ -128,13 +161,13 @@ def probe_refusal(command: str) -> str | None:
         return f"cannot parse: {exc}"
     if not argv or argv[0] not in _PROBE_COMMANDS:
         return f"allowed commands: {', '.join(sorted(_PROBE_COMMANDS))}"
-    bad = {"curl": _CURL_WRITES, "find": _FIND_WRITES}.get(argv[0], ())
-    short = {b[1] for b in bad if len(b) == 2}
+    if argv[0] == "curl":
+        return _curl_refusal(argv[1:])
+    deny = _DENY.get(argv[0], ())
     for a in argv[1:]:
-        if any(a == b or a.startswith(b + "=") or (b.startswith("--") and a.startswith(b)) for b in bad):
-            return f"{argv[0]} option {a} can change state"
-        if argv[0] == "curl" and re.fullmatch(r"-[A-Za-z]+.*", a) and not a.startswith("--") and short & set(a[1:]):
-            return f"{argv[0]} option {a} can change state"  # short flags cluster: -sXPOST, -so file
+        if any(a == d or a.startswith(d + "=") or (len(d) == 2 and re.fullmatch(rf"-[A-Za-z]*{d[1]}[A-Za-z]*", a))
+               for d in deny):
+            return f"{argv[0]} option {a} can change state or block"
     return None
 
 
@@ -244,8 +277,8 @@ async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir
     deadline = time.monotonic() + budget_s
     remaining = lambda: deadline - time.monotonic()  # noqa: E731
     usage: dict[str, int] = {}
+    terms = Terminals(clone, workdir, remaining, control_dir=VERIFY_CONTROL_DIR)
     try:
-        terms = Terminals(clone, workdir, remaining, control_dir=VERIFY_CONTROL_DIR)
         files = Files(clone, workdir)
         listing = "\n".join(changed) if changed else "(none found)"
         messages: list[dict[str, Any]] = [
@@ -289,6 +322,10 @@ async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir
     except Exception as exc:
         return Verification("error", error=f"{type(exc).__name__}: {exc}", clone_s=clone_s, usage=usage)
     finally:
+        try:
+            await terms.close()
+        except Exception:
+            pass  # the clone is removed next, with everything running in it
         await clone.close()
 
 

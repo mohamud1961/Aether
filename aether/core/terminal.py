@@ -133,6 +133,13 @@ class Terminals:
         self._sessions[name] = session
         return session
 
+    async def close(self) -> None:
+        """Stop every terminal (its whole process group: shell, pty wrapper and anything still running)."""
+        for session in self._sessions.values():
+            await run(self._env, f"kill -TERM -{session.pid} 2>/dev/null; pkill -TERM -P {session.pid} 2>/dev/null; "
+                                 f"kill -TERM {session.pid} 2>/dev/null; true")
+        self._sessions.clear()
+
     async def _write(self, session: Session, text: str) -> None:
         await put_bytes(self._env, text.encode(), f"{session.root}/pending")
         q = shlex.quote
