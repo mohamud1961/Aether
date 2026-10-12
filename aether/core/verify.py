@@ -294,7 +294,9 @@ def _request(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir: str, budget_s: float,
                  control_dir: str = CONTROL_DIR,
-                 make_clone: Callable[[Environment], Awaitable[Any]] = Clone.create) -> Verification:
+                 make_clone: Callable[[Environment], Awaitable[Any]] = Clone.create,
+                 log: Callable[[dict[str, Any]], None] = lambda row: None) -> Verification:
+    """``log`` receives every verifier turn (reasoning, calls) and tool result, for the run's trace."""
     t0 = time.monotonic()
     try:
         changed = await changed_files(env, workdir, control_dir)
@@ -321,7 +323,12 @@ async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir
                 warned = True
             if remaining() <= 0:
                 break
-            turn = await provider.complete(_request(messages), tools, max_tokens=16_384, remaining_s=remaining)
+            # the last turn, or too little time for another check: only the verdict is offered
+            last = turn_no == MAX_TURNS or remaining() < 45
+            turn = await provider.complete(_request(messages), [VERDICT] if last else tools, max_tokens=16_384,
+                                           remaining_s=remaining)
+            log({"turn": turn_no, "latency_s": round(turn.latency_s, 2), "usage": turn.usage,
+                 "reasoning": turn.reasoning, "content": turn.content, "tool_calls": turn.tool_calls})
             for k, v in turn.usage.items():
                 usage[k] = usage.get(k, 0) + v
             messages.append(turn.assistant_message())
@@ -343,6 +350,7 @@ async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir
                         return Verification(status, reqs, turns=turn_no, clone_s=clone_s, usage=usage)
                 else:
                     out = await _dispatch(fn.get("name"), args, terms, files, env)
+                log({"turn": turn_no, "tool": fn.get("name"), "result": _clip(out)})
                 messages.append({"role": "tool", "tool_call_id": call["id"],
                                  "content": f"{_clip(out)}\n[{max(0, remaining()):.0f}s left]"})
         return Verification("error", error="verifier gave no verdict in time", turns=MAX_TURNS, clone_s=clone_s,

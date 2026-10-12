@@ -367,7 +367,7 @@ async def _verify_finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         return "finished", True
     t0 = time.monotonic()
     v = await state_verify.verify(s.provider, s.env, task=s.task, workdir=s.workdir, budget_s=budget,
-                                  control_dir=s.config.control_dir,
+                                  control_dir=s.config.control_dir, log=lambda row: s.trace("verify_turn", **row),
                                   **({"make_clone": s.config.make_clone} if s.config.make_clone else {}))
     for key, value in v.usage.items():
         s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value

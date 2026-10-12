@@ -117,6 +117,18 @@ def test_all_requirements_met_passes_and_unchecked_does_not_hold(tmp_path):
     assert v.status == "pass"
 
 
+def test_the_last_turn_offers_only_the_verdict_and_every_turn_is_logged(tmp_path, monkeypatch):
+    monkeypatch.setattr(V, "MAX_TURNS", 2)
+    work = tmp_path / "work"; work.mkdir()
+    provider, client = _provider([call("terminal", {"input": "ls"}, "v1"), _verdict(("x", "met", "ls", ""))])
+    rows = []
+    v = asyncio.run(V.verify(provider, LocalEnv(work), task=TASK, workdir=str(work), budget_s=200,
+                             control_dir=str(tmp_path / "ctl"), make_clone=_clone_factory(work), log=rows.append))
+    names = [[t["function"]["name"] for t in r["tools"]] for r in client.requests]
+    assert v.status == "pass" and "terminal" in names[0] and names[1] == ["verdict"]
+    assert [r["turn"] for r in rows] == [1, 1, 2] and rows[1]["tool"] == "terminal"
+
+
 def test_clone_failure_is_reported_not_held(tmp_path):
     work = tmp_path / "work"; work.mkdir()
 
@@ -172,6 +184,8 @@ def test_the_loop_hands_failing_evidence_to_the_worker_and_finishes_once_it_hold
     verifier_view = json.dumps(client.requests[1]["messages"])
     assert "summary" not in verifier_view and "done\\n" not in verifier_view  # never the worker's story
     assert (work / "out.txt").read_text() == "done\n"
+    rows = [json.loads(l) for l in (tmp_path / "t.jsonl").read_text().splitlines()]
+    assert any(r.get("event") == "verify_turn" and r.get("tool") == "terminal" for r in rows)
 
 
 def test_verification_is_skipped_when_too_little_time_remains(tmp_path):
