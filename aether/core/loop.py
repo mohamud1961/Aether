@@ -34,6 +34,9 @@ MAX_OUTPUT_TOKENS = 32_768
 # in the archived rows 30 of 32 such turns produced nothing, and V2 seq-assembly lost 550-900 s of each row to
 # two or three in a row. The next turn runs at low effort, to act on the reasoning it already has.
 AFTER_CUT = {"reasoning_effort": "low"}
+# V3: 3 of 4 low-effort turns acted within 25 s (under 2k output tokens); one still reasoned to 32k (265 s).
+# Its output cap bounds that case to a quarter of the time.
+AFTER_CUT_MAX_TOKENS = 8_192
 MAX_VERIFY_HOLDS = 2
 STOP_MARGIN_S = 15.0
 CONTEXT_MODES = ("project", "clm")
@@ -201,7 +204,8 @@ async def _loop(s: _Session) -> None:
         request = s.clm.request() if s.clm else project(s.messages, tight=tight)
         result.request_chars.append(size_chars(request))
         try:
-            turn = await s.provider.complete(request, s.tools, max_tokens=MAX_OUTPUT_TOKENS,
+            turn = await s.provider.complete(request, s.tools,
+                                             max_tokens=AFTER_CUT_MAX_TOKENS if cut else MAX_OUTPUT_TOKENS,
                                              remaining_s=s.remaining, overrides=AFTER_CUT if cut else None)
         except ProviderError as exc:
             s.trace("provider_error", status=exc.status, error=str(exc), deadline=exc.deadline,
@@ -236,7 +240,7 @@ async def _loop(s: _Session) -> None:
                 result.status = "no_tool_loop"
                 return
             if turn.finish_reason == "length":  # say what happened: the output limit cut the turn off
-                note = (f"Your last turn reached the {MAX_OUTPUT_TOKENS}-token output limit before any tool call; "
+                note = ("Your last turn reached the output limit before any tool call; "
                         "its reasoning is above. Act on it now with a tool call (for example write down or test "
                         "your partial result) instead of reasoning further in one turn; your next turn runs at "
                         "low reasoning effort. ")

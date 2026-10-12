@@ -436,7 +436,8 @@ def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
     assert "output limit before any tool call" in json.dumps(second[-1])
     assert result.status == "finished"
     # the turn after a cut runs at low effort; the run's own effort returns after it (known-bad: a sticky override)
-    assert client.requests[1]["reasoning_effort"] == "low"
+    assert client.requests[1]["reasoning_effort"] == "low" and client.requests[1]["max_tokens"] == 8_192
+    assert client.requests[0]["max_tokens"] == 32_768
     assert "reasoning_effort" not in client.requests[0] or client.requests[0]["reasoning_effort"] != "low"
     assert [r.get("effort") for r in rows if r.get("event") == "model"] == [None, "low"]
 
