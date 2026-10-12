@@ -263,3 +263,8 @@
   - The finish review passed at confidence 0.46. The reviewer cannot know the true structure, so this is a domain failure.
   - **No harness change.** I did not add a rule like "low confidence plus lots of time left means keep working": it would be a crutch, and a stronger model would override it.
 - **r29 sampler-fit:** not run. The launch gate correctly refused it because it is resource-sensitive and another row was active. It has been moved to `solo.txt`, to run alone at the end with no override.
+- **r27 regex-game (code 028d2d2b):** not solved. The run was stopped as `no_tool_loop` at 1289 s, with about 30 minutes left, after only 2 tool calls.
+  - Every turn was a 32k-token thought cut off by the output limit. Two checkpoints discarded those thoughts (the defect fixed in 6bb866f7b). Then three length cut-offs in a row tripped the idle guard.
+  - **Fix 5768b44e1:** only turns that end on their own without a tool call count as idle. A length cut-off is work in progress, and the time limit bounds it.
+  - **Tests:** a known-bad check fails on the old code. A model that only chats is still stopped.
+  - **Open risk:** only the newest turn's reasoning is replayed. A model that never acts could re-think across turns until the time limit, and the existing "act on it now" note is the only counter to that. This is to be watched on the requeued sentinels; no mechanism has been added.
