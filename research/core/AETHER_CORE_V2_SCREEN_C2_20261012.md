@@ -111,3 +111,32 @@
 - The urgent nudge fires at most once every 3 turns.
 - The terminal description says to run long commands in the foreground with `wait_s`: the call returns at completion, unlike `sleep N`.
 - The audit reports "not traced" for rows that predate retry tracing.
+
+### Audit of C2b row 1 (v2.1, `784b7f558`), interpreter-build
+- **Outcome:** 0/3 grader tests, timeout at 1785 s. **P7 not met on this row.**
+  - No frame was produced: the interpreter failed while loading the WAD (`Wad file doom2.wad doesn't have IWAD or PWAD id`) from 810 s until the end.
+  - Rows 1 and 2 (v2 at 2/3, v2.1 at 0/3) differ by more than the arm changed. At n=1 this is run-to-run variance, not a v2.1 effect.
+- **P9 and P10 were not tested:** no frame existed, so `view_image` was never called (0 calls).
+- **Spend and provider:** 0 provider failures, $0.175.
+- **Context:**
+  - mean 16.2k, max 29.6k input tokens;
+  - 83% of input tokens cached;
+  - 2 edits and 3 checkpoints;
+  - 17 urgent nudges (this build predates the throttle).
+- **Tooling:** 52 REPL cells, so GLM adopted the REPL. Many were `subprocess.run("sed ...")`, i.e. the REPL used as a shell. It used only 1 terminal.
+- **New metric: time lost to hung runs.**
+  - This row had 11 commands that ran until their own `timeout N` killed them, totalling **675 s (38% of wall time)**.
+  - The C2 v2 row had 4 such commands, totalling 465 s.
+  - The guest program printed its fatal error and then hung, apparently because its exit was never handled. GLM kept raising the timeout from 20 to 150 s instead of asking why the run never ended.
+- **Verification defect (found and fixed):**
+  - The progress review at 740 s, and again at 1267 s, told the solver *"done with unverified parts (0.84)"* with **nothing listed**. At 740 s the interpreter had never been run.
+  - Cause: the reviewer rated every criterion "indirect", but `judge` only listed criteria rated "none" or "contradicted".
+  - Fix: every criterion not shown directly now goes in the list with its evidence class (indirect / only your own check / none / contradicted). Finish holds are unchanged.
+- **Re-exploration after context edits:**
+  - 2 calls exactly repeated a call made before the edit or checkpoint.
+  - Qualitatively, GLM re-ran `ls /app` and re-read files after its edit at 119 s. That is a modest cost of the context loss.
+
+### Queued for v2.3 (not applied to the running v2.2 rows, so C2c stays one clean config)
+- The review lists every criterion it cannot directly confirm.
+- One generic solver-prompt sentence: an unexplained duration (a run that is killed by its own timeout) is a hang to diagnose.
+- The audit gains `runs_killed_by_own_timeout`, `seconds_in_those_runs` and `repeats_right_after_context_events`.

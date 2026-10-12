@@ -35,6 +35,12 @@ COMPLETENESS_DETAILS = {
     "none": "No evidence bears on the requirement.",
     "contradicted": "The evidence shows the requirement does not hold.",
 }
+# Every criterion the reviewer cannot see holding directly is reported, not only the contradicted ones
+# (C2b row 1: a never-run interpreter was judged "indirect" on every criterion, so the solver was told
+# "done with unverified parts" with nothing listed).
+UNCONFIRMED = {"contradicted": "the evidence shows it does not hold", "none": "no evidence",
+               "self_written_check_only": "only your own check supports it",
+               "indirect": "evidence only indirect"}
 Transport = Callable[[dict[str, Any]], Mapping[str, Any]]
 # The verifier reads program output from the sandbox itself, not only what the solver last looked at
 # (C2 row 1: the solver saw garbled stdout four times; the reviewer saw none of it).
@@ -165,8 +171,11 @@ def judge(answers: Mapping[str, Mapping[str, Any]], criteria: Sequence[Mapping[s
           request_bytes: int) -> Verdict:
     mode = answers[FAILURE_QUESTION_ID]
     texts = {c["criterion_id"]: c["text"] for c in criteria}
-    unmet = [f"{cid}: {compact(texts[cid], 240)}" for cid in texts
-             if answers.get(f"completeness:{cid}", {}).get("choice") in ("none", "contradicted")]
+    unmet = []
+    for cid in texts:
+        choice = answers.get(f"completeness:{cid}", {}).get("choice")
+        if choice in UNCONFIRMED:
+            unmet.append(f"{cid} ({UNCONFIRMED[choice]}): {compact(texts[cid], 240)}")
     broken = answers.get(MALFUNCTION_QUESTION_ID, {})
     malfunction, m_conf = str(broken.get("choice") or ""), float(broken.get("confidence") or 0.0)
     hold = (mode["choice"] in BAD_MODES and mode["confidence"] >= HOLD_CONFIDENCE) or (

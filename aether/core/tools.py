@@ -27,7 +27,8 @@ location, name and format the task requires. For anything you produce (images, b
 rendered output), check its content, not only that it exists or has the right header: decode it and \
 measure whether it is what the task describes.
 - Unexplained output (garbled characters, error messages, warnings, odd values) means something is wrong \
-until you have explained it.
+until you have explained it. So does an unexplained duration: a program that runs until your timeout kills \
+it, when you expected it to finish or exit, is hung or looping; find out why rather than raising the timeout.
 - Every tool result shows the elapsed time and the time limit. Get a complete working result early, then \
 improve it.
 - Call finish only when every requirement is met and checked, or when no time is left."""
