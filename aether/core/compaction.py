@@ -62,20 +62,33 @@ KERNEL_PERSIST_SUMMARY_NOTE = (
 CHECKPOINT_NOTE = ("[context checkpoint] Your earlier turns were replaced by this summary because the context "
                    "reached its limit; your most recent turns follow it unchanged. Terminal logs and files on disk "
                    "are unchanged.")
-MAX_SUMMARY_TOKENS = 4_096
+# The output cap includes reasoning: at 4096 GLM's reasoning used it all and two D1 rows ended with
+# "checkpoint call returned no text" (render-scene at 288 s of 1800 s).
+MAX_SUMMARY_TOKENS = 16_384
+RETRY_OVERRIDES = {"reasoning_effort": "low"}
 
 
 async def checkpoint(provider: ChatProvider, task: str, transcript: str, *, repl: bool,
                      remaining_s: Callable[[], float]) -> tuple[str, dict[str, Any]]:
-    """Return (summary, usage). Raises ProviderError on failure; the caller records it."""
+    """Return (summary, usage). Raises on failure with the reason; the caller records it.
+
+    A call that returns no summary text is retried once at low reasoning effort."""
     prompt = SUMMARIZATION_PROMPT + ("\n\n" + KERNEL_PERSIST_SUMMARY_NOTE if repl else "")
     messages = [
         {"role": "system", "content": SUMMARIZATION_SYSTEM_PROMPT},
         {"role": "user", "content": f"<task>\n{task}\n</task>\n\n<conversation>\n{transcript}\n</conversation>"},
         {"role": "user", "content": prompt},
     ]
-    turn = await provider.complete(messages, None, max_tokens=MAX_SUMMARY_TOKENS, remaining_s=remaining_s)
-    summary = turn.content.strip()
-    if not summary:
-        raise ValueError("checkpoint call returned no text")
-    return summary, turn.usage
+    usage: dict[str, Any] = {}
+    empties = []
+    for overrides in (None, RETRY_OVERRIDES):
+        turn = await provider.complete(messages, None, max_tokens=MAX_SUMMARY_TOKENS, remaining_s=remaining_s,
+                                       overrides=overrides)
+        for key, value in turn.usage.items():
+            usage[key] = usage.get(key, 0) + value
+        summary = turn.content.strip()
+        if summary:
+            return summary, usage
+        empties.append(f"finish_reason={turn.finish_reason} output={turn.usage.get('output')} "
+                       f"reasoning={turn.usage.get('reasoning')}")
+    raise ValueError("checkpoint call returned no text (" + "; ".join(empties) + ")")

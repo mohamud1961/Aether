@@ -195,3 +195,15 @@
 - the reviewer read the state as "fully_done" (0.92 and 0.95), but the malfunction rule held both finishes. The cause was AssertionError tracebacks from GLM's early exploratory REPL cells, which were long resolved.
 - **Tally for the malfunction-hold rule:** 2 false holds and 0 true holds in D1. Its useful signal was in progress reviews (C2c interpreter-build).
 - **Change:** malfunction findings still go into progress, final and finish feedback, but only the failure-mode reading can hold a finish.
+
+### r06 compressor-write and r09 render-scene: killed by a failed checkpoint (defect)
+- **What happened:** both ended `context_error: checkpoint call returned no text`.
+  - compressor-write at 784 s of 900 s, still wrong (decompression mismatch).
+  - render-scene at **288 s of 1800 s**, with nothing written yet.
+- **Most likely cause:** the summary call capped output at 4096 tokens, and that cap includes reasoning. GLM's reasoning share on these rows was 0.82–0.95.
+- **Fix (`compaction.py`):**
+  - output cap raised to 16,384 tokens;
+  - a call that returns no text is retried once at low reasoning effort;
+  - a remaining failure reports its finish reason and token usage.
+- **Behaviour kept:** the run still stops honestly rather than silently trimming context, as before. Test added.
+- **Prediction:** 0 checkpoint failures on rows started after this fix.

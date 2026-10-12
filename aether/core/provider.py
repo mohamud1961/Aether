@@ -88,9 +88,10 @@ class ChatProvider:
         self.failed_attempts = 0
         self.failure_log: list[dict[str, Any]] = []  # every failed attempt in the run, for the record
 
-    async def _stream_once(self, messages: list[dict], tools: list[dict] | None, max_tokens: int) -> Turn:
+    async def _stream_once(self, messages: list[dict], tools: list[dict] | None, max_tokens: int,
+                           overrides: dict[str, Any] | None = None) -> Turn:
         started = time.monotonic()
-        params = dict(self.params)
+        params = {**self.params, **(overrides or {})}
         extra: dict[str, Any] = {"tools": tools}
         if tools is None:  # plain text call (e.g. a context checkpoint): no tool parameters at all
             extra = {}
@@ -126,14 +127,15 @@ class ChatProvider:
         return turn
 
     async def complete(self, messages: list[dict], tools: list[dict] | None, *, max_tokens: int,
-                       remaining_s: Callable[[], float]) -> Turn:
-        """One model turn. ``tools=None`` makes a plain text call (tool parameters are dropped)."""
+                       remaining_s: Callable[[], float], overrides: dict[str, Any] | None = None) -> Turn:
+        """One model turn. ``tools=None`` makes a plain text call (tool parameters are dropped);
+        ``overrides`` replaces sampling parameters for this call only."""
         delay = 2.0
         failures: list[dict[str, Any]] = []
         for attempt in range(1, MAX_ATTEMPTS + 1):
             started = time.monotonic()
             try:
-                turn = await asyncio.wait_for(self._stream_once(messages, tools, max_tokens),
+                turn = await asyncio.wait_for(self._stream_once(messages, tools, max_tokens, overrides),
                                               timeout=max(5.0, remaining_s()))
                 turn.attempts, turn.failures = attempt, failures
                 return turn
