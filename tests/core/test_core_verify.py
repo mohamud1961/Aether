@@ -54,9 +54,22 @@ def test_read_only_probes_are_allowed(cmd):
                                  "curl -D /tmp/h http://x", "curl --trace /tmp/t http://x", "curl -c /tmp/jar http://x",
                                  "curl --libcurl /tmp/c http://x", "curl file:///etc/shadow", "curl -w @/etc/x http://x",
                                  "curl -sD /tmp/h http://x", "ss -K dst 1.2.3.4", "ss -tK", "file -C -m /tmp/m",
-                                 "tail -f /var/log/x", "sha256sum -c sums"])
+                                 "tail -f /var/log/x", "sha256sum -c sums", "tail --fol x", "tail -5f x",
+                                 "tail --follow=name x", "ss --ki", "file --comp", "sha256sum --ch s", "netstat -c",
+                                 "curl -w '%output{/tmp/x}' http://x", "find -- . -delete"])
 def test_probes_that_could_change_state_are_refused(cmd):
     assert V.probe_refusal(cmd)  # known-bad: each of these could modify the graded container
+
+
+def test_the_probe_run_is_requoted_so_the_shell_sees_only_the_checked_tokens(tmp_path):
+    # a file named like an option must not reach find through a glob the check never saw
+    (tmp_path / "-delete").write_text("")
+    (tmp_path / "keep").write_text("")
+    safe, refusal = V.probe_command("find *")
+    assert refusal is None and safe == "find '*'"
+    asyncio.run(LocalEnv(tmp_path).exec(safe))
+    assert (tmp_path / "keep").exists()
+    assert V.probe_command("curl -s http://localhost:1/")[0] == "curl -q -s http://localhost:1/"
 
 
 def test_the_clone_has_no_network_and_resource_limits():

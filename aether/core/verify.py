@@ -125,9 +125,12 @@ _CURL_FLAGS = {"-s", "--silent", "-S", "--show-error", "-I", "--head", "-i", "--
                "--verbose", "-f", "--fail", "-k", "--insecure", "-G", "--get", "-4", "-6", "--compressed"}
 _CURL_VALUED = {"-m", "--max-time", "--connect-timeout", "-H", "--header", "-A", "--user-agent", "-w",
                 "--write-out", "-r", "--range"}
+# Denied options of the other commands. Long options are refused by any prefix (GNU accepts unambiguous
+# abbreviations: --fol is --follow) and short ones anywhere in a cluster (-5f, -tK, -bc).
 _DENY = {"ss": ("-K", "--kill", "-D", "--diag", "-F", "--filter"), "file": ("-C", "--compile", "-m", "--magic-file"),
          "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"),
-         "tail": ("-f", "-F", "--follow"), "sha256sum": ("-c", "--check"), "md5sum": ("-c", "--check")}
+         "tail": ("-f", "-F", "--follow"), "sha256sum": ("-c", "--check"), "md5sum": ("-c", "--check"),
+         "netstat": ("-c", "--continuous")}
 
 
 def _curl_refusal(args: list[str]) -> str | None:
@@ -135,8 +138,10 @@ def _curl_refusal(args: list[str]) -> str | None:
     while i < len(args):
         a = args[i]
         if a in _CURL_VALUED:
-            if a in ("-w", "--write-out") and i + 1 < len(args) and args[i + 1].startswith("@"):
-                return "curl -w @file is not allowed"
+            value = args[i + 1] if i + 1 < len(args) else ""
+            # -w %output{file} (curl >= 8.3) and -w @file write or read files
+            if a in ("-w", "--write-out") and (value.startswith("@") or "output" in value.lower()):
+                return "curl -w may only format to stdout (no @file, no %output{})"
             i += 2
             continue
         if a.startswith("-") and a not in _CURL_FLAGS:
@@ -151,24 +156,47 @@ def _curl_refusal(args: list[str]) -> str | None:
     return None
 
 
-def probe_refusal(command: str) -> str | None:
-    """None if ``command`` is an allowed read-only probe, else why it is refused."""
+def _denied(arg: str, deny: tuple[str, ...]) -> bool:
+    for d in deny:
+        if d.startswith("--"):
+            name = arg.split("=", 1)[0]
+            if len(name) > 2 and d.startswith(name):
+                return True
+        elif len(d) == 2:
+            if arg.startswith("-") and not arg.startswith("--") and d[1] in arg[1:]:
+                return True
+        elif arg == d:  # find's single-dash primaries
+            return True
+    return False
+
+
+def probe_command(command: str) -> tuple[str | None, str | None]:
+    """(shell command to run, None) for an allowed read-only probe, else (None, why it is refused).
+
+    The command run is re-quoted from the checked argv, so the shell sees exactly the tokens that were checked:
+    no globbing, tilde or comment handling can turn into options the check never saw. curl gets -q first so a
+    planted .curlrc cannot add options."""
     if re.search(r"[;&|`$<>\n\\]", command):
-        return "one plain command only: no ; & | ` $ < > or backslashes"
+        return None, "one plain command only: no ; & | ` $ < > or backslashes"
     try:
         argv = shlex.split(command)
     except ValueError as exc:
-        return f"cannot parse: {exc}"
+        return None, f"cannot parse: {exc}"
     if not argv or argv[0] not in _PROBE_COMMANDS:
-        return f"allowed commands: {', '.join(sorted(_PROBE_COMMANDS))}"
+        return None, f"allowed commands: {', '.join(sorted(_PROBE_COMMANDS))}"
     if argv[0] == "curl":
-        return _curl_refusal(argv[1:])
+        refusal = _curl_refusal(argv[1:])
+        return (None, refusal) if refusal else (shlex.join(["curl", "-q", *argv[1:]]), None)
     deny = _DENY.get(argv[0], ())
-    for a in argv[1:]:
-        if any(a == d or a.startswith(d + "=") or (len(d) == 2 and re.fullmatch(rf"-[A-Za-z]*{d[1]}[A-Za-z]*", a))
-               for d in deny):
-            return f"{argv[0]} option {a} can change state or block"
-    return None
+    for a in argv[1:]:  # no stop at "--": find primaries such as -delete still apply after it
+        if _denied(a, deny):
+            return None, f"{argv[0]} option {a} can change state or block"
+    return shlex.join(argv), None
+
+
+def probe_refusal(command: str) -> str | None:
+    """None if ``command`` is an allowed read-only probe, else why it is refused."""
+    return probe_command(command)[1]
 
 
 LIVE_PROBE = {"type": "function", "function": {
@@ -341,10 +369,10 @@ async def _dispatch(name: str | None, args: dict[str, Any], terms: Terminals, fi
                                     int(args.get("num_lines") or 400))
         if name == "live_probe":
             command = str(args.get("command") or "")
-            refusal = probe_refusal(command)
+            safe, refusal = probe_command(command)
             if refusal:
                 return f"[refused: {refusal}]"
-            res = await run(live, command, timeout_s=20)
+            res = await run(live, safe, timeout_s=20)
             return f"{res.stdout}{res.stderr}\n[exit {res.code}]"
         return f"unknown tool {name!r}"
     except Exception as exc:
