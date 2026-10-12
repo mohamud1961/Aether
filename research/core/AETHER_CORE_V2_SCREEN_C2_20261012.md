@@ -259,3 +259,7 @@
   - **Fix 6bb866f7b:** budget decisions (nudges, over-limit, re-arming) use `held()`, which is the request minus the newest turn's replayed reasoning. That reasoning is replayed once, then dropped. A known-bad check fails on the old code.
   - **Amended prediction:** the earlier "no request over budget" prediction now reads "no request's *held* context over budget". A request can exceed 32k by at most one turn's reasoning (bounded by `MAX_OUTPUT_TOKENS` = 32,768). This is recorded as a change of definition, not as the prediction being met.
   - **Prediction:** on rows with long-thinking turns, checkpoints fire only from accumulated context, not straight after a length cut-off.
+- **r28 net-fit:** not solved. It finished at 134 s with a wrong learned DAG; 7 of the grader's checks passed and the DAG-structure check failed.
+  - The finish review passed at confidence 0.46. The reviewer cannot know the true structure, so this is a domain failure.
+  - **No harness change.** I did not add a rule like "low confidence plus lots of time left means keep working": it would be a crutch, and a stronger model would override it.
+- **r29 sampler-fit:** not run. The launch gate correctly refused it because it is resource-sensitive and another row was active. It has been moved to `solo.txt`, to run alone at the end with no override.
