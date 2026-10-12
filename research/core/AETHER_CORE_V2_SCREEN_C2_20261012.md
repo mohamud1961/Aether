@@ -282,3 +282,6 @@
 - **r32 compressor-write (code 5768b44e):** not solved; timed out at 885 s of 900 s.
   - Before any command it spent about 6 minutes on a first turn of pure reasoning, and the plan assumed Python, which the image does not have. The last turn was cut by the deadline.
   - **Cause:** model behaviour; it did not look before planning. No harness change. Capping output by remaining time would only rescue the last turn, which was lost anyway.
+- **r34 verified-compiler-build (sentinel; code 5768b44e):** solved in 1097 s. For comparison, v2.2 solved it in 2385 s and r25 timed out.
+  - **Process-report prediction: not tested.** No command stalled, so there were 0 still-running results and the report never appeared. The speed-up came from the model's route (Ubuntu Coq plus a git clone, then background builds with `sleep` polls), not from the fix.
+  - **Markers:** 0 lost.
