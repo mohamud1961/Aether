@@ -181,3 +181,17 @@
 ### D1 rows on `aeaf884f` (v2.3, before the terminal fix)
 - **r01 dual-language-build:** solved in 138 s, $0.01.
 - **r02 legacy-sim-build:** solved in 358 s, $0.008. 300 s of that was the lost marker.
+- **r03 vuln-fix** (`a3e580ff`): solved in 47 s.
+- **r04 credential-recovery-recovery:** solved in 114 s.
+- **r05 db-coverage-build:** solved in 141 s.
+- **Lost markers since the terminal fix:** 0 across r03–r05.
+
+### Pool expanded for headroom
+- 5 of 5 rows on the original pool were solved, so it can't tell improvements apart.
+- Added 17 TB2.1 tasks marked "hard" (`d1/pool_d1.json`). Skipped: GPU/VM-heavy tasks, the exclusion list, and `async-cancel`, whose built-in pin conflicts with the pool and refuses to launch.
+- Two lanes now run in parallel, sharing a lock-protected queue.
+
+### r07 cipher-diff-attack: solved, with 2 false holds
+- the reviewer read the state as "fully_done" (0.92 and 0.95), but the malfunction rule held both finishes. The cause was AssertionError tracebacks from GLM's early exploratory REPL cells, which were long resolved.
+- **Tally for the malfunction-hold rule:** 2 false holds and 0 true holds in D1. Its useful signal was in progress reviews (C2c interpreter-build).
+- **Change:** malfunction findings still go into progress, final and finish feedback, but only the failure-mode reading can hold a finish.

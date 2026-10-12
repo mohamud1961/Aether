@@ -370,10 +370,9 @@ def test_reviewer_reads_terminal_logs_itself_and_garbled_bytes_are_visible(tmp_p
     logs = seen[0]["state"]["visible_evidence"]["output_logs"]
     assert "DOOM Shareware" in logs and "^@" in logs  # non-printing bytes shown, from the log, not the solver's view
     assert "malfunction" in seen[0]["questions"]
-    held = [r for r in rows if r["event"] == "tool" and r["name"] == "finish"][0]["result"]
-    assert "signs of malfunction" in held  # a malfunction verdict holds the finish and says why
     assert result.reviews[0]["malfunction"] == "garbled_or_binary_output"
-    assert [r["status"] for r in result.reviews] == ["hold", "hold"] and result.status == "finished"
+    # a malfunction finding alone does not hold a finish whose failure-mode reading is done (D1 false holds)
+    assert [r["status"] for r in result.reviews] == ["pass"] and result.status == "finished"
 
 
 def test_urgent_nudge_is_rate_limited():

@@ -178,8 +178,10 @@ def judge(answers: Mapping[str, Mapping[str, Any]], criteria: Sequence[Mapping[s
             unmet.append(f"{cid} ({UNCONFIRMED[choice]}): {compact(texts[cid], 240)}")
     broken = answers.get(MALFUNCTION_QUESTION_ID, {})
     malfunction, m_conf = str(broken.get("choice") or ""), float(broken.get("confidence") or 0.0)
-    hold = (mode["choice"] in BAD_MODES and mode["confidence"] >= HOLD_CONFIDENCE) or (
-        malfunction not in ("", "none_seen", "unknown") and m_conf >= HOLD_CONFIDENCE)
+    # Only the failure-mode reading holds a finish. A malfunction finding informs (progress and final reviews)
+    # but does not hold: the log tails include errors the solver already fixed, and in D1 it held two correct
+    # finishes (feal-differential: AssertionErrors from early exploratory cells) and no wrong one.
+    hold = mode["choice"] in BAD_MODES and mode["confidence"] >= HOLD_CONFIDENCE
     return Verdict("hold" if hold else "pass", mode["choice"], mode["confidence"], unmet,
                    request_bytes=request_bytes, answers=dict(answers), malfunction=malfunction,
                    malfunction_confidence=m_conf)
