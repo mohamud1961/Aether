@@ -86,6 +86,43 @@ def test_a_check_failing_on_the_writers_example_is_reported_but_kept_after_the_l
     assert len(contract.checks) == 2 and contract.unconfirmed[0]["check"] == "5 letters"
 
 
+def test_a_writer_turn_cut_off_or_malformed_is_retried_at_low_effort_with_a_note(tmp_path):
+    # V2 dna/protein: the first writer call reasoned past the whole budget; binary-extract: a malformed submission
+    root = tmp_path / "pristine"; root.mkdir()
+    from tests.core.core_fakes import chunk
+    cut = [chunk(reasoning="working out the answer " * 50), chunk(finish="length")]
+    from types import SimpleNamespace
+    bad = SimpleNamespace(index=0, id="b1", function=SimpleNamespace(name="submit_checks", arguments='{"checks": ['))
+    provider, client = _provider([cut, [chunk(tool_calls=[bad]), chunk(finish="tool_calls")],
+                                  _submit([("5 letters", LEN5, [1]), ("lowercase", LOWER, [2])], call_id="s3")])
+    rows = []
+    contract = asyncio.run(C.write(provider, FakeClone(root), task=TASK, workdir=str(root), log=rows.append))
+    assert [c.command for c in contract.checks] == [LEN5, LOWER] and not contract.error
+    assert client.requests[1]["reasoning_effort"] == "low" and C.CUT_NOTE in json.dumps(client.requests[1]["messages"])
+    assert client.requests[2].get("reasoning_effort") != "low"  # the malformed turn was not cut off
+    third = client.requests[2]["messages"]
+    assert third[-2]["tool_calls"][0]["function"]["arguments"] == "{}" and "not valid JSON" in third[-1]["content"]
+    assert rows[0]["cut"] == "length"
+
+
+def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path, monkeypatch):
+    monkeypatch.setattr(C, "WRITER_CALL_S", 0.0)  # every call is out of time at once: the provider floor is 5 s
+    root = tmp_path / "pristine"; root.mkdir()
+
+    async def slow(**kwargs):
+        client.requests.append(kwargs)
+        if len(client.requests) == 1:
+            await asyncio.sleep(10)
+        from tests.core.core_fakes import _Stream
+        return _Stream(_submit([("5 letters", LEN5, [1]), ("lowercase", LOWER, [2])]))
+    provider, client = _provider([])
+    client.chat.completions.create = slow
+    rows = []
+    contract = asyncio.run(C.write(provider, FakeClone(root), task=TASK, workdir=str(root), log=rows.append))
+    assert rows[0] == {"round": 1, "cut": "time", "seconds": 0.0} and len(contract.checks) == 2
+    assert client.requests[1]["reasoning_effort"] == "low"
+
+
 def _contract():
     return C.Contract(checks=[C.Check(1, "5 letters", LEN5), C.Check(2, "lowercase", LOWER)])
 
@@ -164,6 +201,7 @@ def test_the_loop_pins_the_contract_and_holds_the_finish_until_the_checks_pass(t
     assert (work / "out.txt").read_text() == "hello\n"
     rows = [json.loads(l) for l in (tmp_path / "t.jsonl").read_text().splitlines()]
     assert any(r["event"] == "contract" and r["ok"] for r in rows)
+    assert any(r["event"] == "contract_shown" and r["checks"] == 2 for r in rows)
     finish_tool = next(t for t in worker[0]["tools"] if t["function"]["name"] == "finish")
     assert "disputes" in finish_tool["function"]["parameters"]["properties"]
 

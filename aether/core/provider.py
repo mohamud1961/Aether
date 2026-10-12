@@ -44,8 +44,20 @@ class Turn:
         if self.reasoning:
             msg["reasoning_content"] = self.reasoning
         if self.tool_calls:
-            msg["tool_calls"] = self.tool_calls
+            msg["tool_calls"] = [_replayable(c) for c in self.tool_calls]
         return msg
+
+
+def _replayable(call: dict[str, Any]) -> dict[str, Any]:
+    """The call as it goes back into the history. The API rejects a request whose history holds arguments that
+    are not a JSON object (V2 binary-extract: one malformed submission, then HTTP 400 on every later call), so those
+    are replayed as {}; dispatch still sees the raw text and reports the decode error to the model."""
+    try:
+        if isinstance(json.loads(call["function"]["arguments"] or "{}"), dict):
+            return call
+    except json.JSONDecodeError:
+        pass
+    return {**call, "function": {**call["function"], "arguments": "{}"}}
 
 
 def azure_base_url(endpoint: str) -> str:

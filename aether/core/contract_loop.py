@@ -50,6 +50,7 @@ def show(s: Any, attach: Callable[[list[dict[str, Any]], str], None]) -> None:
     else:
         s.messages.insert(2, message)
     attach(s.history, "[acceptance checks received: they are pinned after the task]")
+    s.trace("contract_shown", checks=len(s.contract.checks), elapsed_s=round(s.elapsed(), 1))
 
 
 async def finish(s: Any, args: dict[str, Any]) -> tuple[str, bool]:

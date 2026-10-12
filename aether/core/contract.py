@@ -24,10 +24,17 @@ import time
 from typing import Any, Callable
 
 from .env import Environment, run
-from .provider import ChatProvider
+from .provider import ChatProvider, ProviderError
 from . import verify as V
 
 WRITER_BUDGET_S = 300.0
+# One writer call may use at most this much of the budget. V2 dna/protein: the first call reasoned past the whole
+# 300 s budget (working out primers and melting temperatures, the answer itself) and no contract was written.
+# A call that is cut off (time or output limit) is retried at low effort with a note.
+WRITER_CALL_S = 150.0
+CUT_OVERRIDES = {"reasoning_effort": "low"}
+CUT_NOTE = ("Your last attempt was cut off while reasoning, before submitting. Do not work out the answer: write "
+            "checks of what the task states about the result, and submit them now with submit_checks.")
 CHECK_TIMEOUT_S = 60
 MAX_OUTPUT_CHARS = 600
 
@@ -217,22 +224,37 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
         {"role": "user", "content": f"TASK:\n{task}\n\nTASK SENTENCES:\n{listing}\n\n"
                                     f"CONTAINER BEFORE THE WORK:\n{summary}"}]
     deadline = time.monotonic() + WRITER_BUDGET_S
+    overrides: dict[str, Any] | None = None
     try:
         for round_no in range(1, MAX_ROUNDS + 1):
-            turn = await provider.complete(V._request(messages), [SUBMIT_CHECKS], max_tokens=16_384,
-                                           remaining_s=lambda: deadline - time.monotonic())
+            call_end = min(deadline, time.monotonic() + WRITER_CALL_S)
             contract.turns = round_no
+            try:
+                turn = await provider.complete(V._request(messages), [SUBMIT_CHECKS], max_tokens=16_384,
+                                               remaining_s=lambda: call_end - time.monotonic(), overrides=overrides)
+            except ProviderError as exc:
+                if not exc.deadline or deadline - time.monotonic() < 30:
+                    raise
+                log({"round": round_no, "cut": "time", "seconds": WRITER_CALL_S})
+                messages.append({"role": "user", "content": CUT_NOTE})
+                overrides = CUT_OVERRIDES
+                continue
             for k, v in turn.usage.items():
                 contract.usage[k] = contract.usage.get(k, 0) + v
             messages.append(turn.assistant_message())
             calls = [c for c in turn.tool_calls if (c.get("function") or {}).get("name") == "submit_checks"]
+            overrides = CUT_OVERRIDES if turn.finish_reason == "length" and not calls else None
             if not calls:
-                messages.append({"role": "user", "content": "Submit the checks with submit_checks."})
+                log({"round": round_no, "cut": "length" if overrides else "", "reasoning": turn.reasoning[-2000:]})
+                messages.append({"role": "user", "content": CUT_NOTE if overrides else
+                                 "Submit the checks with submit_checks."})
                 continue
             try:
                 args = json.loads(calls[0]["function"].get("arguments") or "{}")
-            except json.JSONDecodeError:
-                args = {}
+            except json.JSONDecodeError as exc:
+                messages.append({"role": "tool", "tool_call_id": calls[0]["id"],
+                                 "content": f"Your submission was not valid JSON ({exc}); submit it again."})
+                continue
             raw = [c for c in args.get("checks") or [] if isinstance(c, dict) and c.get("command")]
             checks = [Check(i, str(c.get("requirement", "")), str(c["command"])) for i, c in enumerate(raw, 1)]
             before = {c.id: bool(r.get("holds_before")) for c, r in zip(checks, raw)}

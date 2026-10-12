@@ -30,6 +30,10 @@ from . import contract as acceptance, contract_loop
 from . import verify as state_verify
 
 MAX_OUTPUT_TOKENS = 32_768
+# A turn the output limit cuts off before any tool call is almost never followed by action at the same effort:
+# in the archived rows 30 of 32 such turns produced nothing, and V2 seq-assembly lost 550-900 s of each row to
+# two or three in a row. The next turn runs at low effort, to act on the reasoning it already has.
+AFTER_CUT = {"reasoning_effort": "low"}
 MAX_VERIFY_HOLDS = 2
 STOP_MARGIN_S = 15.0
 CONTEXT_MODES = ("project", "clm")
@@ -186,7 +190,7 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
 
 
 async def _loop(s: _Session) -> None:
-    result, idle_turns, tight = s.result, 0, False
+    result, idle_turns, tight, cut = s.result, 0, False, False
     while s.remaining() > 0:
         contract_loop.show(s, _attach)
         due = s.oversight.due(s.elapsed(), s.remaining())
@@ -198,7 +202,7 @@ async def _loop(s: _Session) -> None:
         result.request_chars.append(size_chars(request))
         try:
             turn = await s.provider.complete(request, s.tools, max_tokens=MAX_OUTPUT_TOKENS,
-                                             remaining_s=s.remaining)
+                                             remaining_s=s.remaining, overrides=AFTER_CUT if cut else None)
         except ProviderError as exc:
             s.trace("provider_error", status=exc.status, error=str(exc), deadline=exc.deadline,
                     overflow=exc.context_overflow)
@@ -217,7 +221,9 @@ async def _loop(s: _Session) -> None:
             s.clm.calibrate(result.request_chars[-1], turn.usage.get("input", 0))
         s.trace("model", latency_s=round(turn.latency_s, 3), attempts=turn.attempts, failures=turn.failures,
                 usage=turn.usage, request_chars=result.request_chars[-1], finish_reason=turn.finish_reason,
-                reasoning=turn.reasoning, content=turn.content, tool_calls=turn.tool_calls)
+                reasoning=turn.reasoning, content=turn.content, tool_calls=turn.tool_calls,
+                effort=AFTER_CUT["reasoning_effort"] if cut else None)
+        cut = turn.finish_reason == "length" and not turn.tool_calls
         assistant = turn.assistant_message()
         _append(s, assistant)
         if s.clm:
@@ -232,7 +238,8 @@ async def _loop(s: _Session) -> None:
             if turn.finish_reason == "length":  # say what happened: the output limit cut the turn off
                 note = (f"Your last turn reached the {MAX_OUTPUT_TOKENS}-token output limit before any tool call; "
                         "its reasoning is above. Act on it now with a tool call (for example write down or test "
-                        "your partial result) instead of reasoning further in one turn. ")
+                        "your partial result) instead of reasoning further in one turn; your next turn runs at "
+                        "low reasoning effort. ")
             else:
                 note = "Continue by using a tool, or call finish if done. "
             _append(s, {"role": "user", "content": note + s.clock()})
@@ -268,6 +275,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             out, finished = await _dispatch(s, name, args)
         except Exception as exc:  # tool errors are the model's to handle; reported verbatim
             out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
+            if isinstance(exc, json.JSONDecodeError):
+                out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
         s.result.steps += 1
         s.trace("tool", name=name, args=args, result=out, duration_s=round(time.monotonic() - t0, 3))
         if name != "finish":

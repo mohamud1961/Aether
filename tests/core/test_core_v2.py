@@ -435,6 +435,23 @@ def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
     second = client.requests[1]["messages"]
     assert "output limit before any tool call" in json.dumps(second[-1])
     assert result.status == "finished"
+    # the turn after a cut runs at low effort; the run's own effort returns after it (known-bad: a sticky override)
+    assert client.requests[1]["reasoning_effort"] == "low"
+    assert "reasoning_effort" not in client.requests[0] or client.requests[0]["reasoning_effort"] != "low"
+    assert [r.get("effort") for r in rows if r.get("event") == "model"] == [None, "low"]
+
+
+def test_malformed_tool_arguments_are_replayed_as_an_empty_object_and_reported(tmp_path):
+    # V2 binary-extract: arguments that were not JSON stayed in the history and every later request got HTTP 400
+    from types import SimpleNamespace
+    bad = SimpleNamespace(index=0, id="b1", function=SimpleNamespace(name="terminal", arguments='{"input": "ls'))
+    script = [[chunk(tool_calls=[bad]), chunk(finish="tool_calls")], call("finish", {"summary": "x"}, "c1")]
+    result, rows, client = _run(tmp_path, script, config=_clm_config(tmp_path))
+    replay = client.requests[1]["messages"]
+    assistant = [m for m in replay if m.get("role") == "assistant"][-1]
+    assert assistant["tool_calls"][0]["function"]["arguments"] == "{}"
+    assert "not valid JSON" in [m for m in replay if m.get("role") == "tool"][-1]["content"]
+    assert result.status == "finished"
 
 
 def test_one_long_thought_does_not_trigger_a_checkpoint_that_discards_it(tmp_path):
