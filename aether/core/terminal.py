@@ -28,6 +28,15 @@ _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)__ ?([^\n]*)\n?")
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
+# One line per process: /proc/<pid>/stat, wait channel, command line. Plain sh + /proc, because many task images
+# have no procps. Used to say what a still-running command is doing (D1 compcert: `opam install ... | tail` sat
+# silent and asleep for 1300 s and the model saw only "(no new output)" five times before it looked).
+_PROCS = ("cut -d' ' -f1 /proc/uptime 2>/dev/null; getconf CLK_TCK 2>/dev/null || echo 100; "
+          "for d in /proc/[0-9]*; do s=$(cat $d/stat 2>/dev/null) || continue; w=$(cat $d/wchan 2>/dev/null); "
+          "c=$(tr '\\0' ' ' < $d/cmdline 2>/dev/null | cut -c1-90); printf '%s\\t%s\\t%s\\n' \"$s\" \"$w\" \"$c\"; done")
+_WRAPPERS = ("run.sh", "script -qfc", "bash --noprofile --norc")
+_STATES = {"R": "running", "S": "sleeping", "D": "in uninterruptible I/O", "T": "stopped", "t": "stopped by a tracer",
+           "Z": "exited (zombie)"}
 _INIT = ("stty -echo 2>/dev/null; export PS1='' PS2='' PROMPT_COMMAND='' TERM=dumb PAGER=cat "
          "GIT_PAGER=cat SYSTEMD_PAGER=cat DEBIAN_FRONTEND=noninteractive; "
          "bind 'set enable-bracketed-paste off' 2>/dev/null; true\n")
@@ -42,6 +51,8 @@ class Session:
     cursor: int = 0
     seq: int = 0
     pending: int = 0  # command whose completion marker has not been seen yet
+    last_size: int = 0
+    grew_at: float = 0.0  # monotonic time the log last grew
 
     @property
     def log(self) -> str:
@@ -108,7 +119,7 @@ class Terminals:
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
             raise RuntimeError(f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}")
-        session = Session(name, root, int(lines[0]), lines[1] == "pty")
+        session = Session(name, root, int(lines[0]), lines[1] == "pty", grew_at=time.monotonic())
         await self._write(session, _INIT + "printf '\\n__AETHER_DONE_%s_%s__ %s\\n' 0 \"$?\" \"$PWD\"\n")
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
@@ -154,6 +165,41 @@ class Terminals:
         return (f"{head}\n…[{n - VIEW_HEAD - VIEW_TAIL} bytes omitted; full output is in {session.log} "
                 f"at byte offsets {start}-{end}; use grep/sed/tail on it]…\n{tail}")
 
+    async def _processes(self, session: Session, limit: int = 4) -> list[str]:
+        """What the terminal's command is doing: its live processes, busiest first (empty without /proc)."""
+        res = await run(self._env, _PROCS)
+        head = res.stdout.split("\n", 2)
+        if res.code != 0 or len(head) < 3:
+            return []
+        try:
+            uptime, hz = float(head[0]), float(head[1]) or 100.0
+        except ValueError:
+            return []
+        procs: dict[int, tuple[int, str, float, float, str, str]] = {}
+        for line in head[2].splitlines():
+            stat, _, rest = line.partition("\t")
+            wchan, _, cmd = rest.partition("\t")
+            pid_s, _, after = stat.partition(" (")
+            comm, _, fields = after.rpartition(") ")
+            f = fields.split()
+            if not pid_s.isdigit() or len(f) < 20:
+                continue
+            cpu = (int(f[11]) + int(f[12])) / hz
+            procs[int(pid_s)] = (int(f[1]), f[0], cpu, uptime - int(f[19]) / hz, wchan.strip(), cmd.strip() or comm)
+        tree, frontier = set(), {session.pid}
+        while frontier:
+            frontier = {p for p, v in procs.items() if v[0] in frontier and p not in tree}
+            tree |= frontier
+        shown = [(p, procs[p]) for p in tree if not any(w in procs[p][5] for w in _WRAPPERS)]
+        shown.sort(key=lambda item: -item[1][2])
+        out = []
+        for pid, (_ppid, state, cpu, age, wchan, cmd) in shown[:limit]:
+            what = _STATES.get(state, state) + (f" in {wchan}" if state in "SD" and wchan not in ("", "0") else "")
+            out.append(f"{cmd} (pid {pid}, {what}, {cpu:.0f}s CPU in {age:.0f}s)")
+        if len(shown) > limit:
+            out.append(f"{len(shown) - limit} more")
+        return out
+
     async def use(self, *, name: str = "main", input: str = "", mode: str = "command",
                   wait_s: float = 30.0, interrupt: bool = False) -> str:
         if not _NAME.match(name):
@@ -193,9 +239,11 @@ class Terminals:
         delay = 0.2
         while True:
             size, mark, alive = await self._poll(session, seq)
+            now = time.monotonic()
+            if size != session.last_size:
+                session.last_size, session.grew_at = size, now
             if mark is not None or not alive:
                 break
-            now = time.monotonic()
             if size != last_size:
                 last_size, stable_since = size, now
             if seq is None and now - started >= 0.5 and now - stable_since >= 1.5:
@@ -216,8 +264,14 @@ class Terminals:
         elif mark is not None:
             status = f"[exit {mark.group(2)} · {elapsed:.1f}s · terminal {name} · cwd {mark.group(3).strip()}]"
         elif seq is not None:
-            status = (f"[still running after {elapsed:.0f}s · terminal {name}; call again with empty input to "
-                      f"keep waiting, use interrupt=true to stop it, or work in another terminal]")
+            quiet = time.monotonic() - session.grew_at
+            status = (f"[still running after {elapsed:.0f}s · "
+                      + (f"no new output for {quiet:.0f}s · " if quiet >= 10 else "")
+                      + f"terminal {name}; call again with empty input to keep waiting, use interrupt=true to "
+                      f"stop it, or work in another terminal]")
+            procs = await self._processes(session)
+            if procs:
+                status += "\n[its processes: " + "; ".join(procs) + "]"
         else:
             status = f"[{elapsed:.1f}s · terminal {name}]"
         return note + (text + "\n" if text else "(no new output)\n") + status

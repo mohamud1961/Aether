@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
+
+import pytest
 
 from aether.core.terminal import Terminals
 from tests.core.core_fakes import LocalEnv
@@ -92,3 +95,19 @@ def test_one_call_blocks_at_most_max_wait(tmp_path, monkeypatch):
         return await t.use(input="sleep 5; echo late", wait_s=900)
     out = asyncio.run(go())
     assert "still running after 1s" in out or "still running after 2s" in out
+
+
+@pytest.mark.skipif(not os.path.exists("/proc/self/stat"), reason="process report reads /proc (Linux)")
+def test_still_running_reports_what_the_command_is_doing(tmp_path):
+    # D1 compcert: a silent `opam install | tail` slept for 1300 s behind five bare "(no new output)" results.
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="true")
+        out = await t.use(input="sleep 40 | cat", wait_s=11)
+        await t.use(interrupt=True)
+        return out
+    out = asyncio.run(go())
+    assert "still running" in out and "no new output for 1" in out
+    line = out.split("[its processes: ", 1)[1]
+    assert "sleep 40 (pid " in line and "sleeping" in line and "s CPU in " in line
+    assert "bash --noprofile" not in line and "run.sh" not in line  # the terminal's own wrappers are not listed
