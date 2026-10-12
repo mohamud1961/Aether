@@ -152,6 +152,10 @@ async def run_checks(env: Environment, checks: list[Check], workdir: str) -> lis
     return results
 
 
+# A fingerprint of the working directory, logged with each round: the trial is only meaningful on the state before
+# the work, so the record shows that the clone still holds it.
+FINGERPRINT = "cd {workdir} 2>/dev/null && find . -maxdepth 2 -newer /proc/1 2>/dev/null | head -20; ls -la | md5sum"
+
 ENV_SUMMARY = r"""cd {workdir} 2>/dev/null || exit 0
 echo "== working directory {workdir}"; ls -la | head -40
 echo "== files (first lines of text files)"
@@ -217,6 +221,8 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
     tools (it cannot explore, solve, or leave helper files); each submission is tried on the clone and any check
     that cannot run, or that cannot tell the unfinished state from a finished one, is sent back."""
     contract = Contract()
+    fingerprint = (await run(env, FINGERPRINT.format(workdir=workdir), timeout_s=30)).stdout.strip()
+    log({"round": 0, "clone_fingerprint": fingerprint})
     summary = (await run(env, ENV_SUMMARY.format(workdir=workdir), timeout_s=60)).stdout[-8_000:]
     numbered = sentences(task)
     listing = "\n".join(f"[{i}] {t}" for i, t in enumerate(numbered, 1))
@@ -270,7 +276,9 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
             covered = {int(n) for r in raw for n in r.get("sentences") or [] if str(n).isdigit()}
             covered |= {int(n) for n in args.get("context_sentences") or [] if str(n).isdigit()}
             missing = [i for i in range(1, len(numbered) + 1) if i not in covered]
+            now = (await run(env, FINGERPRINT.format(workdir=workdir), timeout_s=30)).stdout.strip()
             log({"round": round_no, "reasoning": turn.reasoning, "checks": raw, "missing_sentences": missing,
+                 "clone_unchanged": now == fingerprint, "clone_fingerprint": now,
                  "example": example, "example_error": example_error,
                  "on_example": [{"check": r.check.id, "exit": r.code} for r in on_example],
                  "pristine": [{"check": r.check.id, "exit": r.code, "output": r.output[-200:],

@@ -102,7 +102,7 @@ def test_a_writer_turn_cut_off_or_malformed_is_retried_at_low_effort_with_a_note
     assert client.requests[2].get("reasoning_effort") != "low"  # the malformed turn was not cut off
     third = client.requests[2]["messages"]
     assert third[-2]["tool_calls"][0]["function"]["arguments"] == "{}" and "not valid JSON" in third[-1]["content"]
-    assert rows[0]["cut"] == "length"
+    assert rows[0]["round"] == 0 and rows[1]["cut"] == "length"
 
 
 def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path, monkeypatch):
@@ -119,7 +119,7 @@ def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path
     client.chat.completions.create = slow
     rows = []
     contract = asyncio.run(C.write(provider, FakeClone(root), task=TASK, workdir=str(root), log=rows.append))
-    assert rows[0] == {"round": 1, "cut": "time", "seconds": 0.0} and len(contract.checks) == 2
+    assert rows[1] == {"round": 1, "cut": "time", "seconds": 0.0} and len(contract.checks) == 2
     assert client.requests[1]["reasoning_effort"] == "low"
 
 
