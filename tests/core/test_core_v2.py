@@ -460,3 +460,24 @@ def test_held_context_still_triggers_a_checkpoint_when_it_is_over_budget():
     ctx.append(msg)
     ctx.note_reasoning(msg, 30000)
     assert ctx.over_limit() and ctx.held() == ctx.tokens() - 30000
+
+
+def _ended(finish, **kw):
+    return [chunk(**kw), chunk(finish=finish),
+            chunk(usage={"prompt_tokens": 500, "completion_tokens": 100, "completion_tokens_details": {"reasoning_tokens": 90}})]
+
+
+def test_turns_cut_off_by_the_output_limit_do_not_end_the_run_as_idle(tmp_path):
+    # D1 regex-game: three 32k-token thoughts in a row ended the run as "no_tool_loop" with 30 minutes left.
+    cut = _ended("length", reasoning="deep thought ")
+    script = [cut, cut, cut, cut, call("finish", {"summary": "x"}, "c1")]
+    result, _rows, _client = _run(tmp_path, script, config=_clm_config(tmp_path))
+    assert result.status == "finished"
+
+
+def test_text_replies_without_tools_still_end_the_run(tmp_path):
+    # known-bad guard: a model that only chats is still stopped
+    chat = _ended("stop", content="I will now think about it.")
+    result, _rows, _client = _run(tmp_path, [chat, chat, chat, call("finish", {"summary": "x"}, "c1")],
+                                  config=_clm_config(tmp_path))
+    assert result.status == "no_tool_loop"

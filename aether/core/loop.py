@@ -197,7 +197,9 @@ async def _loop(s: _Session) -> None:
         if s.clm:
             s.clm.note_reasoning(assistant, turn.usage.get("reasoning", 0))
         if not turn.tool_calls:
-            idle_turns += 1
+            # A turn the output limit cut off is work in progress, not idleness; the time limit bounds it (D1
+            # regex-game: three 32k-token thoughts in a row ended the run with 30 minutes left).
+            idle_turns += turn.finish_reason != "length"
             if idle_turns >= 3:
                 result.status = "no_tool_loop"
                 return
