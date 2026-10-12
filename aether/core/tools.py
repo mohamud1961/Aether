@@ -116,6 +116,22 @@ def system_prompt(*, python_version: str, clm: bool, images: bool = False) -> st
                               images=IMAGES_DOC if images else "", context=CLM_DOC if clm else "")
 
 
-def tools(*, python: bool, images: bool = False) -> list[dict[str, Any]]:
+FINISH_WITH_DISPUTES = {"type": "function", "function": {
+    "name": "finish",
+    "description": "End the task. Use when every requirement is met and checked, or no time is left. The "
+                   "acceptance checks are run on a copy of your final state.",
+    "parameters": {"type": "object", "properties": {
+        "summary": {"type": "string", "description": "One or two sentences on the final state."},
+        "disputes": {"type": "array", "description": "Only for an acceptance check that contradicts the task.",
+                     "items": {"type": "object", "properties": {
+                         "check": {"type": "integer"},
+                         "task_sentence": {"type": "string", "description": "The task sentence it contradicts."},
+                         "reason": {"type": "string"},
+                         "evidence_command": {"type": "string", "description": "A command whose output shows it."},
+                     }, "required": ["check", "task_sentence", "reason"]}},
+    }, "required": ["summary"]}}}
+
+
+def tools(*, python: bool, images: bool = False, contract: bool = False) -> list[dict[str, Any]]:
     return [TERMINAL, *([PYTHON] if python else []), READ_FILE, WRITE_FILE, EDIT_FILE,
-            *([VIEW_IMAGE] if images else []), FINISH]
+            *([VIEW_IMAGE] if images else []), FINISH_WITH_DISPUTES if contract else FINISH]

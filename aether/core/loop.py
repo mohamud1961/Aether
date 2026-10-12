@@ -26,6 +26,7 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools
+from . import contract as acceptance, contract_loop
 from . import verify as state_verify
 
 MAX_OUTPUT_TOKENS = 32_768
@@ -44,6 +45,7 @@ class CoreConfig:
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
     verify: bool = False  # finish is checked by a verifier agent in a clone of the container (see verify)
     make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
+    contract: bool = False  # acceptance checks written before the work decide the finish (see contract)
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
@@ -122,6 +124,13 @@ class _Session:
         self.tools: list[dict[str, Any]] = []
         self.pending_images: list[dict[str, Any]] = []  # shown after the current turn's tool results
         self.images_viewed = 0
+        self.contract: acceptance.Contract | None = None
+        self.contract_task: asyncio.Task | None = None
+        self.contract_shown = False
+        self.contract_holds = 0
+
+    def clone(self, env: Environment) -> Awaitable[Any]:
+        return (self.config.make_clone or state_verify.Clone.create)(env)
 
     def remaining(self) -> float:
         return self.deadline - time.monotonic()
@@ -147,7 +156,7 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
                    cwd=None, env=None, timeout_sec=30)
     python = await s.repl.start() if config.repl else ""
     see = config.images and images.available()
-    s.tools = tools(python=bool(python), images=see)
+    s.tools = tools(python=bool(python), images=see, contract=config.contract)
     pinned = [{"role": "system", "content": system_prompt(python_version=python, clm=config.context == "clm",
                                                           images=see)},
               {"role": "user", "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"}]
@@ -159,9 +168,14 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
           review=bool(review_transport), context=config.context, repl=config.repl, python=python,
           images=see,
           reviews=config.reviews.__dict__, clm=config.clm.__dict__ if s.clm else None)
+    if config.contract:
+        await contract_loop.start(s)
     try:
         await _loop(s)
     finally:
+        if s.contract_task and not s.contract_task.done():
+            s.contract_task.cancel()
+            await asyncio.gather(s.contract_task, return_exceptions=True)
         _close(s)
         try:  # terminals die with the container anyway; outside one (tests, clones) they would linger
             await s.terminals.close()
@@ -174,6 +188,7 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
 async def _loop(s: _Session) -> None:
     result, idle_turns, tight = s.result, 0, False
     while s.remaining() > 0:
+        contract_loop.show(s, _attach)
         due = s.oversight.due(s.elapsed(), s.remaining())
         if due:
             await _scheduled_review(s, due)
@@ -382,6 +397,8 @@ async def _verify_finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
 
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    if s.config.contract:
+        return await contract_loop.finish(s, args)
     if s.config.verify:
         return await _verify_finish(s, args)
     skip = s.oversight.finish_gate(s.remaining())
