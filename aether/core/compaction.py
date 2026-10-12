@@ -65,14 +65,16 @@ CHECKPOINT_NOTE = ("[context checkpoint] Your earlier turns were replaced by thi
 # The output cap includes reasoning: at 4096 GLM's reasoning used it all and two D1 rows ended with
 # "checkpoint call returned no text" (render-scene at 288 s of 1800 s).
 MAX_SUMMARY_TOKENS = 16_384
-RETRY_OVERRIDES = {"reasoning_effort": "low"}
+# Summarizing is extraction, not problem solving: at the run's high effort four checkpoints took 284 s of a
+# 1774 s row (D1 render-reverse). Low effort first; the run's own settings if that returns no text.
+FIRST_OVERRIDES = {"reasoning_effort": "low"}
 
 
 async def checkpoint(provider: ChatProvider, task: str, transcript: str, *, repl: bool,
                      remaining_s: Callable[[], float]) -> tuple[str, dict[str, Any]]:
     """Return (summary, usage). Raises on failure with the reason; the caller records it.
 
-    A call that returns no summary text is retried once at low reasoning effort."""
+    Runs at low reasoning effort; a call that returns no summary text is retried once at the run's own."""
     prompt = SUMMARIZATION_PROMPT + ("\n\n" + KERNEL_PERSIST_SUMMARY_NOTE if repl else "")
     messages = [
         {"role": "system", "content": SUMMARIZATION_SYSTEM_PROMPT},
@@ -81,7 +83,7 @@ async def checkpoint(provider: ChatProvider, task: str, transcript: str, *, repl
     ]
     usage: dict[str, Any] = {}
     empties = []
-    for overrides in (None, RETRY_OVERRIDES):
+    for overrides in (FIRST_OVERRIDES, None):
         turn = await provider.complete(messages, None, max_tokens=MAX_SUMMARY_TOKENS, remaining_s=remaining_s,
                                        overrides=overrides)
         for key, value in turn.usage.items():

@@ -223,3 +223,8 @@
   - **Fix:** the replayed reasoning is counted by the provider's exact reasoning-token figure, and that text is excluded from calibration.
   - **Runaway turns:** three turns of 30k+ output took about 15 minutes, and two of them hit the cap without acting. Afterwards the model was only told "Continue by using a tool".
   - **Fix:** it is now told the truth: the output limit cut the turn off, its reasoning is kept, and it should act on it now.
+- **r18 construct-assembly (hard):** not solved. GLM finished confidently with a wrong gBlock (a domain failure). It used 156 REPL cells. The two lanes caused 16 rate-limit retries (429s), all absorbed by retries.
+- **r17 render-reverse (hard):** not solved, but close. It compiled and matched stderr, then failed image similarity.
+  - **Efficiency:** its 4 checkpoints took 284 s (16% of the run).
+  - **Change:** checkpoints run at low reasoning effort first, and fall back to the run's own effort only if that returns no text.
+  - **Prediction:** median checkpoint time on later rows is under 30 s (it was about 70 s).

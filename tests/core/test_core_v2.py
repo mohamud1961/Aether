@@ -388,7 +388,7 @@ def test_urgent_nudge_is_rate_limited():
 
 
 
-def test_checkpoint_retries_an_empty_summary_at_low_effort():
+def test_checkpoint_runs_at_low_effort_and_retries_an_empty_summary():
     # D1: with a 4096-token cap GLM's reasoning used the whole budget and the run ended "no text".
     from aether.core import compaction
     from aether.core.provider import ChatProvider
@@ -403,7 +403,7 @@ def test_checkpoint_retries_an_empty_summary_at_low_effort():
                                                        remaining_s=lambda: 100.0))
     assert summary.startswith("## Summary") and usage["output"] == 4396
     assert client.requests[0]["max_tokens"] == compaction.MAX_SUMMARY_TOKENS >= 16_000
-    assert client.requests[0]["reasoning_effort"] == "high" and client.requests[1]["reasoning_effort"] == "low"
+    assert client.requests[0]["reasoning_effort"] == "low" and client.requests[1]["reasoning_effort"] == "high"
     client2 = ScriptedClient([], [empty, empty])
     provider2 = ChatProvider(client2, model="glm", params={"reasoning_effort": "high"})
     with pytest.raises(ValueError, match="finish_reason=length"):
