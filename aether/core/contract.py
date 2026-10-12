@@ -120,8 +120,9 @@ class Contract:
     def render(self) -> str:
         lines = ["[acceptance checks] Written from the task alone, before your work, by a separate call that saw "
                  "only the task and the starting container. When you call finish, each is run in a copy of your "
-                 "final state and must exit 0. Run them yourself whenever useful. If one contradicts the task, "
-                 "finish with a dispute quoting the task sentence."]
+                 "final state and must exit 0. Run them yourself whenever useful. Change only the work itself: never "
+                 "edit what a check reads just to make it pass (logs, history, timestamps, the check's inputs). If "
+                 "one contradicts the task, finish with a dispute quoting the task sentence."]
         for c in self.checks:
             lines += [f"{c.id}. {c.requirement}", f"   $ {c.command}"]
         return "\n".join(lines)
