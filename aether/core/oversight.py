@@ -17,7 +17,7 @@ import time
 from typing import Any, Awaitable, Callable, Sequence
 
 from .questionnaire import FAILURE_DETAILS
-from .env import Environment
+from .env import CONTROL_DIR, Environment
 from .review import Transport, Verdict, review
 
 MAX_HOLDS = 2
@@ -40,6 +40,8 @@ def _state_lines(v: Verdict) -> list[str]:
     if v.unmet:
         lines.append("Requirements it cannot yet confirm from the real state:")
         lines += [f"- {u}" for u in v.unmet[:6]]
+    if v.malfunction_line():
+        lines.append(v.malfunction_line())
     return lines
 
 
@@ -59,7 +61,8 @@ def final_feedback(v: Verdict, remaining: float) -> str:
 
 class Oversight:
     def __init__(self, plan: ReviewPlan, transport: Transport | None,
-                 call: Callable[..., Awaitable[Any]] | None, timeout_s: float) -> None:
+                 call: Callable[..., Awaitable[Any]] | None, timeout_s: float, control_dir: str = CONTROL_DIR) -> None:
+        self._control_dir = control_dir
         self.plan = plan if transport is not None and call is not None else ReviewPlan(finish=False)
         self._transport, self._call, self._timeout = transport, call, timeout_s
         self._done: set[str] = set()
@@ -90,9 +93,10 @@ class Oversight:
         self._done.add(kind)
         t0 = time.monotonic()
         verdict = await review(self._transport, env, task=task, workdir=workdir, actions=actions,
-                               written=written, call=self._call)
+                               written=written, call=self._call, control_dir=self._control_dir)
         row = {"kind": kind.split("@")[0], "at": kind, "status": verdict.status, "mode": verdict.mode,
                "confidence": verdict.confidence, "unmet": verdict.unmet, "reason": verdict.reason,
+               "malfunction": verdict.malfunction, "malfunction_confidence": verdict.malfunction_confidence,
                "request_bytes": verdict.request_bytes, "latency_s": round(time.monotonic() - t0, 2)}
         self.rows.append(row)
         return verdict, row

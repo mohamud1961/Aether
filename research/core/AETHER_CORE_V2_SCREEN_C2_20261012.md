@@ -58,3 +58,34 @@
 
 ### Mid-run observation (row 1)
 - **P5 is at risk:** GLM ran Python only as one-shot terminal heredocs (2 of 53 terminal calls) and never used the REPL tool.
+
+## Amendment 2, 12 Oct ~02:00 UTC (during C2b row 1, before its result)
+
+### Row 1 (v2) result
+- **Not solved:** 2/3 grader tests, timeout.
+- **Frame similarity now passes** (C1 failed it at 0.81).
+- **Failed check:** the grader wants the line `I_InitGraphics: DOOM screen size: w x h: 320 x 200` in stdout. Doom's startup text was garbled, which points to a printf/varargs bug in the interpreter.
+
+### Predictions
+- **Pass:** P1 (max 29.9k), P2 (mean 16.0k), P3 (0 failures), P4 (3 reviews, 0 errors), P5 (9 REPL cells).
+- **P6 failed in the good direction:** GLM made 3 accepted context edits, plus 2 checkpoints.
+
+### Diagnosis
+- **GLM** saw the garbled bytes in 4 tool results and never reasoned about them.
+- **the reviewer** saw none of them. Its evidence was the solver's last 8 actions, and all 3 review requests lacked the program output.
+
+### v2.2 changes
+- The reviewer reads the tail of every terminal log and the newest REPL output itself, with non-printing bytes made visible.
+- the reviewer gets a new malfunction question:
+  - choices: garbled / errors / suspicious values;
+  - findings are reported in progress and final reviews;
+  - at confidence ≥ 0.8 it also holds a finish (still at most 2 holds).
+- One generic solver-prompt line: unexplained output is a bug until explained.
+
+### Schedule
+- **C2b row 1** stays v2.1 (it measures `view_image`).
+- **The rest runs on v2.2:** interpreter-build ×1, then verified-compiler-build ×1.
+
+### New predictions
+- **P11:** on each v2.2 review, output_logs are present in the reviewer request.
+- **P12:** if the program output is garbled, at least one v2.2 review reports a malfunction.

@@ -24,6 +24,8 @@ files, history or system state.
 location, name and format the task requires. For anything you produce (images, binaries, data files, \
 rendered output), check its content, not only that it exists or has the right header: decode it and \
 measure whether it is what the task describes.
+- Unexplained output (garbled characters, error messages, warnings, odd values) means something is wrong \
+until you have explained it.
 - Every tool result shows the elapsed time and the time limit. Get a complete working result early, then \
 improve it.
 - Call finish only when every requirement is met and checked, or when no time is left."""

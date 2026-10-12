@@ -350,3 +350,27 @@ def test_view_image_refuses_oversized_files_before_copying_and_pixel_bombs_befor
     monkeypatch.setattr(core_images, "MAX_PIXELS", 10_000)
     with pytest.raises(ValueError, match="pixel limit"):
         asyncio.run(core_images.load(LocalEnv(work), str(work / "wide.png")))
+
+
+# ----- verifier sees real program output ----------------------------------------------------------------------
+def test_reviewer_reads_terminal_logs_itself_and_garbled_bytes_are_visible(tmp_path):
+    seen = []
+
+    def reviewer(req):
+        seen.append(req)
+        return {"result": {"answers": {"failure_mode": {"choice": "fully_done", "confidence": 0.9},
+                                       "malfunction": {"choice": "garbled_or_binary_output", "confidence": 0.9}}}}
+    script = [call("terminal", {"input": "printf 'DOOM Shareware\\n\\303\\100\\000\\000K\\n' > run.log; cat run.log"}, "c1"),
+              call("write_file", {"path": "out.txt", "content": "hello\n"}, "c2"),  # the solver's last actions hide it
+              call("terminal", {"input": "ls"}, "c3"),
+              call("finish", {"summary": "x"}, "c4"), call("finish", {"summary": "x"}, "c5"),
+              call("finish", {"summary": "x"}, "c6")]
+    config = CoreConfig(reviews=ReviewPlan(), control_dir=str(tmp_path / "ctl"))
+    result, rows, client = _run(tmp_path, script, config=config, transport=reviewer)
+    logs = seen[0]["state"]["visible_evidence"]["output_logs"]
+    assert "DOOM Shareware" in logs and "^@" in logs  # non-printing bytes shown, from the log, not the solver's view
+    assert "malfunction" in seen[0]["questions"]
+    held = [r for r in rows if r["event"] == "tool" and r["name"] == "finish"][0]["result"]
+    assert "signs of malfunction" in held  # a malfunction verdict holds the finish and says why
+    assert result.reviews[0]["malfunction"] == "garbled_or_binary_output"
+    assert [r["status"] for r in result.reviews] == ["hold", "hold"] and result.status == "finished"

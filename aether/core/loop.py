@@ -111,7 +111,7 @@ class _Session:
         self.files = Files(env, workdir)
         self.repl = Repl(env, workdir, self.remaining, sub_llm(provider, self.remaining, self.result.sub_usage),
                          base=f"{config.control_dir}/repl")
-        self.oversight = Oversight(config.reviews, transport, call, timeout_s)
+        self.oversight = Oversight(config.reviews, transport, call, timeout_s, control_dir=config.control_dir)
         self.actions: list[str] = []
         self.clm: ClmContext | None = None
         self.messages: list[dict[str, Any]] = []
