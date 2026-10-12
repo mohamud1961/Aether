@@ -11,6 +11,8 @@ from copy import deepcopy
 import json
 from typing import Any
 
+from . import images
+
 KEEP_RECENT = 4  # assistant turns always kept verbatim (with reasoning)
 BLOCK = 6  # older turns are trimmed in blocks of this many turns
 OLD_RESULT_HEAD = 600
@@ -69,8 +71,8 @@ def project(messages: list[dict[str, Any]], *, tight: bool = False) -> list[dict
         elif msg.get("role") == "tool" and isinstance(msg.get("content"), str):
             msg["content"] = _shorten(msg["content"], head, tail)
         out.append(msg)
-    return out
+    return images.limit(out)
 
 
 def size_chars(messages: list[dict[str, Any]]) -> int:
-    return len(json.dumps(messages, ensure_ascii=False))
+    return images.size_chars(messages)

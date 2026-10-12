@@ -15,7 +15,7 @@ build in one while you explore in another). For long commands use a short wait_s
 terminal keeps its full output in a log file; large outputs are shown as head and tail with the log path, so \
 grep or tail the log instead of re-running.
 - read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.
-{python}- finish: end the task.
+{python}{images}- finish: end the task.
 {context}
 Working well:
 - Look at what exists before changing it, and keep to what the task asks; do not alter or delete unrelated \
@@ -35,6 +35,10 @@ checkers, test harnesses, image or binary analysis) as functions you reuse. Buil
 llm(prompt) -> str, which asks a sub-model (no tools) so you can have large data held in variables \
 summarised or searched without putting it into your own context. The value of a final expression is \
 printed. Long cells keep running: use wait_s and call again with empty code to keep waiting.
+"""
+
+IMAGES_DOC = """- view_image: look at an image file (PNG, JPEG, BMP, PPM, GIF, ...). Use it to check visual output \
+you produce, such as a rendered frame, plot or screenshot, against what the task describes.
 """
 
 CLM_DOC = f"""
@@ -87,6 +91,10 @@ EDIT_FILE = {"type": "function", "function": {
         "path": {"type": "string"}, "old_str": {"type": "string"}, "new_str": {"type": "string"},
         "replace_all": {"type": "boolean"},
     }, "required": ["path", "old_str", "new_str"]}}}
+VIEW_IMAGE = {"type": "function", "function": {
+    "name": "view_image",
+    "description": "Look at an image file in the environment; the image is shown to you after the tool result.",
+    "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}}
 FINISH = {"type": "function", "function": {
     "name": "finish",
     "description": "End the task. Use when every requirement is met and checked, or no time is left.",
@@ -95,10 +103,11 @@ FINISH = {"type": "function", "function": {
     }, "required": ["summary"]}}}
 
 
-def system_prompt(*, python_version: str, clm: bool) -> str:
+def system_prompt(*, python_version: str, clm: bool, images: bool = False) -> str:
     return BASE_PROMPT.format(python=PYTHON_DOC.format(version=python_version) if python_version else "",
-                              context=CLM_DOC if clm else "")
+                              images=IMAGES_DOC if images else "", context=CLM_DOC if clm else "")
 
 
-def tools(*, python: bool) -> list[dict[str, Any]]:
-    return [TERMINAL, *([PYTHON] if python else []), READ_FILE, WRITE_FILE, EDIT_FILE, FINISH]
+def tools(*, python: bool, images: bool = False) -> list[dict[str, Any]]:
+    return [TERMINAL, *([PYTHON] if python else []), READ_FILE, WRITE_FILE, EDIT_FILE,
+            *([VIEW_IMAGE] if images else []), FINISH]

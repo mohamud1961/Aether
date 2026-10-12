@@ -15,7 +15,7 @@ from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
-from . import compaction
+from . import compaction, images
 from .clm import ClmContext, ClmSettings
 from .context import project, size_chars
 from .env import CONTROL_DIR, Environment, get_bytes, put_bytes
@@ -36,6 +36,7 @@ CONTEXT_MODES = ("project", "clm")
 class CoreConfig:
     context: str = "project"
     repl: bool = False
+    images: bool = False
     reviews: ReviewPlan = ReviewPlan()
     clm: ClmSettings = field(default_factory=ClmSettings)
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
@@ -115,6 +116,8 @@ class _Session:
         self.clm: ClmContext | None = None
         self.messages: list[dict[str, Any]] = []
         self.tools: list[dict[str, Any]] = []
+        self.pending_images: list[dict[str, Any]] = []  # shown after the current turn's tool results
+        self.images_viewed = 0
 
     def remaining(self) -> float:
         return self.deadline - time.monotonic()
@@ -137,8 +140,10 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
     config = config or CoreConfig(reviews=ReviewPlan(finish=review_transport is not None))
     s = _Session(env, task, workdir, provider, timeout_s, trace, config, review_transport, review_call)
     python = await s.repl.start() if config.repl else ""
-    s.tools = tools(python=bool(python))
-    pinned = [{"role": "system", "content": system_prompt(python_version=python, clm=config.context == "clm")},
+    see = config.images and images.available()
+    s.tools = tools(python=bool(python), images=see)
+    pinned = [{"role": "system", "content": system_prompt(python_version=python, clm=config.context == "clm",
+                                                          images=see)},
               {"role": "user", "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"}]
     if config.context == "clm":
         s.clm = ClmContext(pinned=pinned, settings=config.clm)
@@ -146,6 +151,7 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
         s.messages = list(pinned)
     trace("start", workdir=workdir, timeout_s=timeout_s, model=provider.model, params=provider.params,
           review=bool(review_transport), context=config.context, repl=config.repl, python=python,
+          images=see,
           reviews=config.reviews.__dict__, clm=config.clm.__dict__ if s.clm else None)
     try:
         await _loop(s)
@@ -233,6 +239,9 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         _append(s, {"role": "tool", "tool_call_id": call["id"], "content": f"{out}\n{s.clock()}"})
         if finished:
             return True
+    if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
+        _append(s, *s.pending_images)
+        s.pending_images = []
     if mirror is not None:
         await _read_back(s, *mirror)
     return False
@@ -248,6 +257,12 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
     if name == "python":
         return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s") or 60),
                                 interrupt=bool(args.get("interrupt"))), False
+    if name == "view_image":
+        path = s.files.resolve(args["path"])
+        desc, url = await images.load(s.env, path)
+        s.pending_images.append(images.message(desc, url))
+        s.images_viewed += 1
+        return f"[image {desc}; shown below]", False
     if name == "read_file":
         return await s.files.read(args["path"], int(args.get("start_line") or 1), int(args.get("num_lines") or 400)), False
     if name == "write_file":
@@ -343,6 +358,7 @@ def _close(s: _Session) -> None:
     r.extras = {
         "provider_failures_by_status": statuses,
         "provider_retry_wait_s": round(sum(float(x.get("wait_s") or 0) for x in s.provider.failure_log), 1),
+        "images_viewed": s.images_viewed,
         "python": s.repl.python, "python_cells": s.repl.seq, "llm_calls": s.repl.llm_calls,
         "llm_errors": s.repl.llm_errors,
         "clm": s.clm.stats.__dict__ if s.clm else None,

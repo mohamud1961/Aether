@@ -6,7 +6,8 @@ Configuration comes from the launcher's environment only:
   progress reviews at 35% and 70% of the time limit and a final review near the deadline);
 - ``AETHER_CORE_CONTEXT``: ``project`` (C1 view) or ``clm`` (model-managed context, CLM method);
 - ``AETHER_CORE_REPL``: ``on`` or ``off`` (persistent Python REPL tool);
-  all three are required; there is no silent default;
+- ``AETHER_CORE_IMAGES``: ``on`` or ``off`` (view_image tool);
+  all four are required; there is no silent default;
 - ``AETHER_CORE_REASONING_EFFORT``: reasoning effort (default ``high``);
 - ``AETHER_AGENT_DEADLINE_SEC``: the task's agent timeout, when Harbor does not pass one.
 A missing or invalid setting stops the run before any model call.
@@ -37,6 +38,7 @@ REVIEW_MODES = ("off")
 CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
+IMAGES_ENV = "AETHER_CORE_IMAGES"
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
@@ -88,8 +90,11 @@ def build_config() -> CoreConfig:
         raise ConfigError(f"{CONTEXT_ENV} must be one of {CONTEXT_MODES}, got {context!r}")
     if repl not in REPL_MODES:
         raise ConfigError(f"{REPL_ENV} must be one of {REPL_MODES}, got {repl!r}")
+    see = os.environ.get(IMAGES_ENV, "").strip()
+    if see not in REPL_MODES:
+        raise ConfigError(f"{IMAGES_ENV} must be one of {REPL_MODES}, got {see!r}")
     plan = ReviewPlan(finish=False)
-    return CoreConfig(context=context, repl=repl == "on", reviews=plan, clm=ClmSettings())
+    return CoreConfig(context=context, repl=repl == "on", images=see == "on", reviews=plan, clm=ClmSettings())
 
 
 def agent_timeout(passed: float | None) -> float:
@@ -169,7 +174,7 @@ def _write_record(logs: Path, result, *, started: float, workdir: str, config: C
         "steps": result.steps if result else None,
         "workdir": workdir,
         "elapsed_s": round(time.time() - started, 1),
-        "config": {"review": review, "context": config.context, "repl": config.repl,
+        "config": {"review": review, "context": config.context, "repl": config.repl, "images": config.images,
                    "reviews": config.reviews.__dict__, "clm": config.clm.__dict__,
                    "model": provider.model, "params": provider.params},
         "reviews": reviews,

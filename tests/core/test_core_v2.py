@@ -264,3 +264,64 @@ def test_a_retry_past_the_deadline_ends_as_timeout_not_provider_error(tmp_path):
     script = [StatusError(429, headers={"retry-after": "59"})]
     result, rows, _ = _run(tmp_path, script, config=CoreConfig(), timeout_s=60.0)
     assert result.status == "timeout" and [r for r in rows if r["event"] == "provider_error"][0]["deadline"]
+
+
+# ----- view_image -------------------------------------------------------------------------------------------
+def _bmp(path, colour, size=(64, 40)):
+    from PIL import Image
+    Image.new("RGB", size, colour).save(path, format="BMP")
+
+
+def test_view_image_shows_a_real_bmp_as_png_after_the_tool_results(tmp_path):
+    pytest.importorskip("PIL")
+    import base64
+    import io
+    from PIL import Image
+    work = tmp_path / "work"
+    work.mkdir()
+    _bmp(work / "frame.bmp", (0, 128, 128))
+    script = [call("view_image", {"path": "frame.bmp"}, "c1"), call("finish", {"summary": "x"}, "c2")]
+    result, rows, client = _run(tmp_path, script, config=CoreConfig(images=True))
+    msgs = client.requests[1]["messages"]
+    tool_i = next(i for i, m in enumerate(msgs) if m.get("role") == "tool")
+    assert "BMP 64x40" in msgs[tool_i]["content"]
+    img_msg = msgs[tool_i + 1]  # the image follows the tool result, never between call and result
+    url = img_msg["content"][1]["image_url"]["url"]
+    assert url.startswith("data:image/png;base64,")
+    decoded = Image.open(io.BytesIO(base64.b64decode(url.split(",", 1)[1])))
+    assert decoded.getpixel((10, 10))[:3] == (0, 128, 128)  # the real pixels, not a placeholder
+    assert result.extras["images_viewed"] == 1
+    assert any(t["function"]["name"] == "view_image" for t in client.requests[0]["tools"])
+
+
+def test_only_the_newest_images_are_sent_and_base64_never_counts_or_reaches_the_mirror(tmp_path):
+    pytest.importorskip("PIL")
+    work = tmp_path / "work"
+    work.mkdir()
+    for i, c in enumerate([(255, 0, 0), (0, 255, 0), (0, 0, 255)]):
+        _bmp(work / f"f{i}.bmp", c, size=(400, 300))
+    script = [call("view_image", {"path": f"f{i}.bmp"}, f"c{i}") for i in range(3)]
+    script += [call("finish", {"summary": "x"}, "c9")]
+    config = CoreConfig(context="clm", images=True, clm=ClmSettings(mirror_path=str(tmp_path / "ctx/LIVE_CTX.txt")),
+                        control_dir=str(tmp_path / "ctl"))
+    result, rows, client = _run(tmp_path, script, config=config)
+    last = client.requests[-1]["messages"]
+    shown = [m for m in last if isinstance(m.get("content"), list)]
+    assert len(shown) == 2 and "f1.bmp" in shown[0]["content"][0]["text"]
+    assert any("no longer shown" in str(m.get("content")) for m in last)
+    assert max(result.request_chars) < 40_000  # an image is budgeted at its token cost, not its base64 size
+    from aether.core.clm import ClmContext as C
+    ctx = C(pinned=[], settings=ClmSettings())
+    ctx.append(*last[2:])
+    assert "base64" not in ctx.render() and "[image" in ctx.render()
+
+
+def test_view_image_reports_unreadable_files_plainly(tmp_path):
+    pytest.importorskip("PIL")
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "notimg.bmp").write_text("hello")
+    script = [call("view_image", {"path": "notimg.bmp"}, "c1"), call("finish", {"summary": "x"}, "c2")]
+    _, rows, _ = _run(tmp_path, script, config=CoreConfig(images=True))
+    out = [r for r in rows if r["event"] == "tool"][0]["result"]
+    assert "not a readable image" in out

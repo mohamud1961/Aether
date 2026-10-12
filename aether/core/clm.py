@@ -28,9 +28,10 @@ Nudges start at 50%: at 25% the pinned prompt alone nearly triggers them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import json
 import re
 from typing import Any
+
+from . import images
 
 MIRROR_PATH = "/tmp/.aether/ctx/LIVE_CTX.txt"
 TURN_RE = re.compile(r"^\[\[CTX_TURN (\d+) role=([a-z_]+)\]\]$", re.M)
@@ -69,7 +70,7 @@ def _call_text(call: dict[str, Any]) -> str:
 
 
 def render_message(msg: dict[str, Any]) -> str:
-    parts = [str(msg.get("content") or "")]
+    parts = [images.text_of(msg.get("content"))]
     parts += [_call_text(c) for c in msg.get("tool_calls") or ()]
     return "\n".join(p for p in parts if p)
 
@@ -97,10 +98,10 @@ class ClmContext:
             if i != last and "reasoning_content" in msg:
                 msg = {k: v for k, v in msg.items() if k != "reasoning_content"}
             out.append(msg)
-        return out
+        return images.limit(out)
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
-        chars = len(json.dumps(self.request() if messages is None else messages, ensure_ascii=False))
+        chars = images.size_chars(self.request() if messages is None else images.limit(messages))
         return int(chars / self.chars_per_token) + TOOLS_OVERHEAD_TOKENS
 
     def calibrate(self, request_chars: int, input_tokens: int) -> None:
