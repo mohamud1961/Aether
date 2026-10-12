@@ -9,7 +9,7 @@ Of 22 failed rows across D1 and V1, 12 ended with the worker calling finish on w
 - **Code:** `a working branch` at 60105c2bf.
 - **Arms:** `CORE_V2_ARMS_20261012.json`. revp (`--core-review reviewer_progress`, the current default) and contract (`--core-review contract`). Both use clm context, REPL on, images on.
 - **Board:** net-fit, seq-assembly, construct-assembly, repair-history, binary-extract, graph-query-catalog, credential-recovery-recovery, dual-language-build, cipher-diff-attack. Same as V1.
-- **Episodes:** revp ×1, contract ×2. That is 27 rows, `--max-parallel-rows 3`.
+- **Episodes:** ×2 for both arms (the launcher applies `--episodes` to every arm; corrected before any row finished). That is 36 rows, `--max-parallel-rows 3`.
 
 ## Predictions (contract arm)
 1. At least 1 real catch. A real catch is a hold on work the grader would have failed, after which the worker fixes it and the row solves. It counts only after I have read the failing check and the fix in the trace.
