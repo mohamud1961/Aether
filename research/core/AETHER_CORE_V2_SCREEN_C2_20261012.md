@@ -168,3 +168,16 @@
   - Fix: launch with `setsid -f`, which leaves only SIGHUP ignored, verified via `/proc/<pid>/status`.
   - All 6 terminal tests pass on the Linux pty path.
 - **Remaining waste on this row:** 390 s of `sleep N` polling a background `make`, despite the v2.2 guidance to wait in the foreground.
+
+### What the lost marker cost (new audit metric `suspected_lost_markers`)
+| Row | Lost markers | Seconds waiting on a finished command |
+|---|---|---|
+| C2c verified-compiler-build (v2.2) | 5 | **903** (38% of the run) |
+| D1 r02 legacy-sim-build (aeaf884f, before the fix) | 1 | **300** (84% of a 358 s row) |
+| C2c interpreter-build | 1 | 0 |
+
+- **Prediction:** rows on `a3e580ff` or later show 0 suspected lost markers.
+
+### D1 rows on `aeaf884f` (v2.3, before the terminal fix)
+- **r01 dual-language-build:** solved in 138 s, $0.01.
+- **r02 legacy-sim-build:** solved in 358 s, $0.008. 300 s of that was the lost marker.
