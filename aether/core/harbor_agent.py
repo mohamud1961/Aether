@@ -34,7 +34,7 @@ except ImportError:  # pragma: no cover - exercised only off the runner
             self.model_name = model_name
 
 REVIEW_ENV = "AETHER_CORE_REVIEW"
-REVIEW_MODES = ("off")
+REVIEW_MODES = ("off", "state")
 CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
@@ -74,7 +74,7 @@ def build_review(logs_dir: Path):
     mode = os.environ.get(REVIEW_ENV, "").strip()
     if mode not in REVIEW_MODES:
         raise ConfigError(f"{REVIEW_ENV} must be one of {REVIEW_MODES}, got {mode!r}")
-    if mode == "off":
+    if mode in ("off", "state"):  # state verification runs on the solver's own provider (see verify)
         return None
     from .review import REVIEW_MODEL
 
@@ -94,7 +94,8 @@ def build_config() -> CoreConfig:
     if see not in REPL_MODES:
         raise ConfigError(f"{IMAGES_ENV} must be one of {REPL_MODES}, got {see!r}")
     plan = ReviewPlan(finish=False)
-    return CoreConfig(context=context, repl=repl == "on", images=see == "on", reviews=plan, clm=ClmSettings())
+    return CoreConfig(context=context, repl=repl == "on", images=see == "on", reviews=plan, clm=ClmSettings(),
+                      verify=review == "state")
 
 
 def agent_timeout(passed: float | None) -> float:

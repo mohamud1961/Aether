@@ -1,0 +1,314 @@
+"""Finish verification against the real state, in a disposable clone of the task container.
+
+When the worker calls finish, the harness commits the task container to an image and starts a throwaway
+container from it. A verifier agent (the same model, its own context) is given only the task statement and the
+files changed during the run -- never the worker's reasoning, summary or claims -- and checks each requirement
+itself. It may build, run, test and modify anything: nothing it does reaches the state that is graded.
+
+A commit copies files, not processes, so servers the worker left running are absent from the clone. The
+verifier can check those with ``live_probe``: read-only commands (ps, ss, curl GET, ls, cat ...) in the
+original container.
+
+The finish is held only for a requirement the verifier observed failing (``not_met`` with the command and its
+output); the worker gets that evidence verbatim, so it can reproduce it. A clone or verifier failure is recorded
+as status "error" and the finish proceeds: substrate failures are reported, never hidden or turned into holds.
+
+D1 evidence for the change: the transcript-reading finish review caught 0 of 3 confidently wrong finishes and
+held 2 correct ones; 13 of its 17 progress holds only said "incomplete".
+"""
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass, field
+import json
+import re
+import shlex
+import time
+from types import SimpleNamespace
+from typing import Any, Awaitable, Callable
+import uuid
+
+from .env import CONTROL_DIR, Environment, run
+from .files import Files
+from .provider import ChatProvider
+from .terminal import Terminals
+from .tools import READ_FILE, TERMINAL
+
+VERIFY_MAX_S = 420.0
+VERIFY_MIN_S = 120.0
+MAX_TURNS = 40
+MAX_RESULT_CHARS = 6_000
+MAX_OBSERVED_CHARS = 1_200
+CHANGED_LIMIT = 80
+VERIFY_CONTROL_DIR = "/tmp/.aether-verify"
+
+HostRun = Callable[[list[str], float], Awaitable[tuple[int, str, str]]]
+
+
+async def host_run(argv: list[str], timeout_s: float) -> tuple[int, str, str]:
+    """Run a host command (the docker CLI) without a shell."""
+    proc = await asyncio.create_subprocess_exec(*argv, stdin=asyncio.subprocess.DEVNULL,
+                                                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return 124, "", f"timed out after {timeout_s:.0f}s"
+    return proc.returncode or 0, out.decode(errors="replace"), err.decode(errors="replace")
+
+
+class CloneError(RuntimeError):
+    pass
+
+
+class Clone:
+    """A throwaway container started from a commit of the task container (Harbor-environment interface)."""
+
+    def __init__(self, name: str, image: str, host: HostRun) -> None:
+        self.name, self.image, self._host = name, image, host
+
+    @classmethod
+    async def create(cls, env: Environment, host: HostRun = host_run) -> "Clone":
+        # The container's own hostname file is bind-mounted from /var/lib/docker/containers/<id>/, which names it
+        # even when a compose file sets a custom hostname; the hostname itself is the fallback.
+        res = await run(env, "grep -o 'containers/[0-9a-f]\\{64\\}' /proc/self/mountinfo 2>/dev/null | head -n 1 "
+                             "| cut -d/ -f2; cat /etc/hostname 2>/dev/null || hostname")
+        cid = (res.stdout.split() or [""])[0]
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", cid):
+            raise CloneError(f"cannot identify the task container (hostname {cid!r})")
+        tag = f"aether-verify:{uuid.uuid4().hex[:12]}"
+        code, _, err = await host(["docker", "commit", cid, tag], 900)
+        if code != 0:
+            raise CloneError(f"docker commit failed: {err.strip()[:300]}")
+        name = tag.replace(":", "-")
+        code, _, err = await host(["docker", "run", "-d", "--rm", "--name", name, "--entrypoint", "sh", tag,
+                                   "-c", "while :; do sleep 3600; done"], 180)
+        if code != 0:
+            await host(["docker", "rmi", "-f", tag], 120)
+            raise CloneError(f"docker run of the clone failed: {err.strip()[:300]}")
+        return cls(name, tag, host)
+
+    async def exec(self, command: str, cwd: str | None = None, env: dict | None = None,
+                   timeout_sec: int | None = None) -> Any:
+        argv = ["docker", "exec", *(["-w", cwd] if cwd else []), self.name, "sh", "-c", command]
+        code, out, err = await self._host(argv, float(timeout_sec or 60))
+        return SimpleNamespace(return_code=code, stdout=out, stderr=err)
+
+    async def upload_file(self, source_path: Any, target_path: str) -> None:
+        code, _, err = await self._host(["docker", "cp", str(source_path), f"{self.name}:{target_path}"], 120)
+        if code != 0:
+            raise OSError(f"docker cp into the clone failed: {err.strip()[:200]}")
+
+    async def download_file(self, source_path: str, target_path: Any) -> None:
+        code, _, err = await self._host(["docker", "cp", f"{self.name}:{source_path}", str(target_path)], 120)
+        if code != 0:
+            raise OSError(f"docker cp from the clone failed: {err.strip()[:200]}")
+
+    async def close(self) -> None:
+        await self._host(["docker", "rm", "-f", self.name], 120)
+        await self._host(["docker", "rmi", "-f", self.image], 300)
+
+
+# ----- read-only probes of the live container --------------------------------------------------------
+_PROBE_COMMANDS = {"ps", "pgrep", "ss", "netstat", "curl", "ls", "cat", "head", "tail", "stat", "wc", "file",
+                   "sha256sum", "md5sum", "grep", "find", "du", "df", "id", "uname", "test", "readlink"}
+_CURL_WRITES = ("-X", "--request", "-d", "--data", "--json", "-F", "--form", "-T", "--upload-file", "-o", "--output",
+                "-O", "--remote-name", "-K", "--config")
+_FIND_WRITES = ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls")
+
+
+def probe_refusal(command: str) -> str | None:
+    """None if ``command`` is an allowed read-only probe, else why it is refused."""
+    if re.search(r"[;&|`$<>\n\\]", command):
+        return "one plain command only: no ; & | ` $ < > or backslashes"
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        return f"cannot parse: {exc}"
+    if not argv or argv[0] not in _PROBE_COMMANDS:
+        return f"allowed commands: {', '.join(sorted(_PROBE_COMMANDS))}"
+    bad = {"curl": _CURL_WRITES, "find": _FIND_WRITES}.get(argv[0], ())
+    short = {b[1] for b in bad if len(b) == 2}
+    for a in argv[1:]:
+        if any(a == b or a.startswith(b + "=") or (b.startswith("--") and a.startswith(b)) for b in bad):
+            return f"{argv[0]} option {a} can change state"
+        if argv[0] == "curl" and re.fullmatch(r"-[A-Za-z]+.*", a) and not a.startswith("--") and short & set(a[1:]):
+            return f"{argv[0]} option {a} can change state"  # short flags cluster: -sXPOST, -so file
+    return None
+
+
+LIVE_PROBE = {"type": "function", "function": {
+    "name": "live_probe",
+    "description": "Run one read-only command in the ORIGINAL container (where the worker's processes are still "
+                   "running): ps, pgrep, ss, netstat, curl (GET only), ls, cat, head, tail, stat, wc, file, "
+                   "sha256sum, md5sum, grep, find (no -exec/-delete), du, df, id, uname, test, readlink.",
+    "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}}}
+VERDICT = {"type": "function", "function": {
+    "name": "verdict",
+    "description": "Report your verification and stop. One entry per requirement of the task.",
+    "parameters": {"type": "object", "properties": {"requirements": {"type": "array", "items": {
+        "type": "object", "properties": {
+            "requirement": {"type": "string"},
+            "status": {"type": "string", "enum": ["met", "not_met", "unchecked"]},
+            "command": {"type": "string", "description": "The check you ran."},
+            "observed": {"type": "string", "description": "What it showed (the relevant output)."},
+        }, "required": ["requirement", "status", "command", "observed"]}}},
+        "required": ["requirements"]}}}
+
+PROMPT = """You verify whether a task has been completed. Another agent worked on it in a Linux container and \
+says it is done. You are given the task and the files changed during its work, nothing it said or thought. \
+Decide from the real state.
+
+You work in a disposable copy of that container, taken just now. Build, run, test or modify anything; nothing \
+you do reaches the original. Processes do not carry over to the copy: anything the worker left running \
+(servers, daemons) is not running here. Check those with live_probe, which runs read-only commands in the \
+original container.
+
+Method: list the task's requirements. Check each the way the task will be judged: run the real program, look \
+at its real output, decode produced files and measure them against what the task asks. Write your own checks; \
+do not rely on tests, logs or notes the worker left behind. You have about {budget}s; be efficient.
+
+Finish with verdict: one entry per requirement with status met, not_met or unchecked, the command you ran and \
+the output you observed. Use not_met only for something you observed failing. If you could not check a \
+requirement (for example it needs a process that is not running in the copy and live_probe cannot reach it), \
+use unchecked."""
+
+
+@dataclass
+class Verification:
+    status: str  # "pass" | "hold" | "error"
+    requirements: list[dict[str, str]] = field(default_factory=list)
+    error: str = ""
+    turns: int = 0
+    clone_s: float = 0.0
+    usage: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def failed(self) -> list[dict[str, str]]:
+        return [r for r in self.requirements if r.get("status") == "not_met"]
+
+    def feedback(self) -> str:
+        lines = ["[verification] An independent verifier checked the real state in a copy of this machine (it "
+                 "saw the task, not your messages). These requirements failed its checks:"]
+        for r in self.failed:
+            lines += [f"- {r.get('requirement', '')}", f"  ran: {r.get('command', '')}",
+                      f"  observed: {str(r.get('observed', ''))[:MAX_OBSERVED_CHARS]}"]
+        unchecked = [r.get("requirement", "") for r in self.requirements if r.get("status") == "unchecked"]
+        if unchecked:
+            lines.append("It could not check: " + "; ".join(u[:200] for u in unchecked[:5]))
+        lines.append("Reproduce each failing check yourself, fix the cause, then finish again.")
+        return "\n".join(lines)
+
+
+def start_marker(control_dir: str) -> str:
+    return f"{control_dir}/started"
+
+
+async def changed_files(env: Environment, workdir: str, control_dir: str = CONTROL_DIR) -> list[str]:
+    """Files modified since the run started (outside the harness's own control directories)."""
+    roots = " ".join(shlex.quote(r) for r in dict.fromkeys([workdir, "/tmp", "/root"]))
+    marker = shlex.quote(start_marker(control_dir))
+    prune = "\\( -name .git -o -name node_modules -o -name .cache -o -name __pycache__ \\) -prune -o"
+    res = await run(env, f"T=$(command -v timeout >/dev/null && echo 'timeout 30'); "
+                         f"[ -e {marker} ] && $T find {roots} -xdev {prune} -type f -newer {marker} -print "
+                         f"2>/dev/null | grep -v -e '^{control_dir}' -e '^{VERIFY_CONTROL_DIR}' | head -n {CHANGED_LIMIT}",
+                    timeout_s=45)
+    return [ln for ln in res.stdout.splitlines() if ln.strip()]
+
+
+def _clip(text: str) -> str:
+    if len(text) <= MAX_RESULT_CHARS:
+        return text
+    half = MAX_RESULT_CHARS // 2
+    return f"{text[:half]}\n…[{len(text) - MAX_RESULT_CHARS} chars omitted]…\n{text[-half:]}"
+
+
+def _request(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Reasoning is replayed for the newest assistant turn only."""
+    last = max((i for i, m in enumerate(messages) if m.get("role") == "assistant"), default=-1)
+    return [m if i == last else {k: v for k, v in m.items() if k != "reasoning_content"}
+            for i, m in enumerate(messages)]
+
+
+async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir: str, budget_s: float,
+                 control_dir: str = CONTROL_DIR,
+                 make_clone: Callable[[Environment], Awaitable[Any]] = Clone.create) -> Verification:
+    t0 = time.monotonic()
+    try:
+        changed = await changed_files(env, workdir, control_dir)
+        clone = await make_clone(env)
+    except Exception as exc:  # substrate failure: reported, never a hold
+        return Verification("error", error=f"{type(exc).__name__}: {exc}", clone_s=round(time.monotonic() - t0, 1))
+    clone_s = round(time.monotonic() - t0, 1)
+    deadline = time.monotonic() + budget_s
+    remaining = lambda: deadline - time.monotonic()  # noqa: E731
+    usage: dict[str, int] = {}
+    try:
+        terms = Terminals(clone, workdir, remaining, control_dir=VERIFY_CONTROL_DIR)
+        files = Files(clone, workdir)
+        listing = "\n".join(changed) if changed else "(none found)"
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": PROMPT.format(budget=int(budget_s))},
+            {"role": "user", "content": f"TASK:\n{task}\n\nWorking directory: {workdir}\n\nFiles changed during "
+                                        f"the work:\n{listing}"}]
+        tools = [TERMINAL, READ_FILE, LIVE_PROBE, VERDICT]
+        warned = False
+        for turn_no in range(1, MAX_TURNS + 1):
+            if remaining() < 45 and not warned:
+                messages.append({"role": "user", "content": "Time is nearly up: call verdict now with what you have."})
+                warned = True
+            if remaining() <= 0:
+                break
+            turn = await provider.complete(_request(messages), tools, max_tokens=16_384, remaining_s=remaining)
+            for k, v in turn.usage.items():
+                usage[k] = usage.get(k, 0) + v
+            messages.append(turn.assistant_message())
+            if not turn.tool_calls:
+                messages.append({"role": "user", "content": "Use a tool; finish with verdict."})
+                continue
+            for call in turn.tool_calls:
+                fn = call.get("function") or {}
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                if fn.get("name") == "verdict":
+                    reqs = [r for r in args.get("requirements") or [] if isinstance(r, dict)]
+                    if not reqs:
+                        out = "verdict needs at least one requirement entry"
+                    else:
+                        status = "hold" if any(r.get("status") == "not_met" for r in reqs) else "pass"
+                        return Verification(status, reqs, turns=turn_no, clone_s=clone_s, usage=usage)
+                else:
+                    out = await _dispatch(fn.get("name"), args, terms, files, env)
+                messages.append({"role": "tool", "tool_call_id": call["id"],
+                                 "content": f"{_clip(out)}\n[{max(0, remaining()):.0f}s left]"})
+        return Verification("error", error="verifier gave no verdict in time", turns=MAX_TURNS, clone_s=clone_s,
+                            usage=usage)
+    except Exception as exc:
+        return Verification("error", error=f"{type(exc).__name__}: {exc}", clone_s=clone_s, usage=usage)
+    finally:
+        await clone.close()
+
+
+async def _dispatch(name: str | None, args: dict[str, Any], terms: Terminals, files: Files,
+                    live: Environment) -> str:
+    try:
+        if name == "terminal":
+            return await terms.use(name=str(args.get("name") or "main"), input=str(args.get("input") or ""),
+                                   mode=str(args.get("mode") or "command"), wait_s=float(args.get("wait_s") or 30),
+                                   interrupt=bool(args.get("interrupt")))
+        if name == "read_file":
+            return await files.read(args.get("path", ""), int(args.get("start_line") or 1),
+                                    int(args.get("num_lines") or 400))
+        if name == "live_probe":
+            command = str(args.get("command") or "")
+            refusal = probe_refusal(command)
+            if refusal:
+                return f"[refused: {refusal}]"
+            res = await run(live, command, timeout_s=20)
+            return f"{res.stdout}{res.stderr}\n[exit {res.code}]"
+        return f"unknown tool {name!r}"
+    except Exception as exc:
+        return f"[error: {type(exc).__name__}: {exc}]"

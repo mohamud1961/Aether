@@ -26,8 +26,10 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools
+from . import verify as state_verify
 
 MAX_OUTPUT_TOKENS = 32_768
+MAX_VERIFY_HOLDS = 2
 STOP_MARGIN_S = 15.0
 CONTEXT_MODES = ("project", "clm")
 
@@ -40,6 +42,8 @@ class CoreConfig:
     reviews: ReviewPlan = ReviewPlan()
     clm: ClmSettings = field(default_factory=ClmSettings)
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
+    verify: bool = False  # finish is checked by a verifier agent in a clone of the container (see verify)
+    make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
@@ -139,6 +143,8 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
                     config: CoreConfig | None = None) -> RunResult:
     config = config or CoreConfig(reviews=ReviewPlan(finish=review_transport is not None))
     s = _Session(env, task, workdir, provider, timeout_s, trace, config, review_transport, review_call)
+    await env.exec(command=f"mkdir -p {config.control_dir} && touch {state_verify.start_marker(config.control_dir)}",
+                   cwd=None, env=None, timeout_sec=30)
     python = await s.repl.start() if config.repl else ""
     see = config.images and images.available()
     s.tools = tools(python=bool(python), images=see)
@@ -347,7 +353,32 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
     _attach(s.history, text)
 
 
+async def _verify_finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    holds = sum(1 for r in s.result.reviews if r["kind"] == "finish" and r["status"] == "hold")
+    budget = min(state_verify.VERIFY_MAX_S, 0.5 * (s.remaining() - 60))
+    skip = ("hold_limit" if holds >= MAX_VERIFY_HOLDS else "low_time" if budget < state_verify.VERIFY_MIN_S else "")
+    if skip:
+        s.trace("finish", summary=args.get("summary", ""), review="skipped", reason=skip)
+        return "finished", True
+    t0 = time.monotonic()
+    v = await state_verify.verify(s.provider, s.env, task=s.task, workdir=s.workdir, budget_s=budget,
+                                  control_dir=s.config.control_dir,
+                                  **({"make_clone": s.config.make_clone} if s.config.make_clone else {}))
+    for key, value in v.usage.items():
+        s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
+    row = {"kind": "finish", "at": "finish", "status": v.status, "mode": "state", "unmet": [
+        r.get("requirement", "") for r in v.failed], "requirements": v.requirements, "reason": v.error,
+           "turns": v.turns, "clone_s": v.clone_s, "latency_s": round(time.monotonic() - t0, 2)}
+    s.result.reviews.append(row)
+    s.trace("review", summary=args.get("summary", ""), **row)
+    if v.status == "hold":
+        return v.feedback(), False
+    return "finished", True
+
+
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    if s.config.verify:
+        return await _verify_finish(s, args)
     skip = s.oversight.finish_gate(s.remaining())
     if skip:
         s.trace("finish", summary=args.get("summary", ""), review="skipped", reason=skip)
