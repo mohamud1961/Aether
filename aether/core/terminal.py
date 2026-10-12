@@ -233,7 +233,11 @@ class Terminals:
             await self._write(session, f". {shlex.quote(cmd_file)}; printf '\\n__AETHER_DONE_%s_%s__ %s\\n' "
                                        f"{session.seq} \"$?\" \"$PWD\"\n")
         elif input:
-            await self._write(session, _HEX.sub(lambda m: chr(int(m.group(1), 16)), input))
+            keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
+            await self._write(session, keys)
+            if "\x03" in keys:  # Ctrl-C typed as keys discards the pending marker just as interrupt=true does
+                await asyncio.sleep(0.5)
+                session.pending = 0
         seq = session.pending or None
         size, mark, alive, last_size, stable_since = session.cursor, None, True, -1, time.monotonic()
         delay = 0.2

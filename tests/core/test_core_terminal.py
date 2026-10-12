@@ -111,3 +111,21 @@ def test_still_running_reports_what_the_command_is_doing(tmp_path):
     line = out.split("[its processes: ", 1)[1]
     assert "sleep 40 (pid " in line and "sleeping" in line and "s CPU in " in line
     assert "bash --noprofile" not in line and "run.sh" not in line  # the terminal's own wrappers are not listed
+
+
+@pytest.mark.skipif(not os.path.exists("/proc/self/stat"), reason="needs a pty (Linux script)")
+def test_ctrl_c_typed_as_keys_does_not_wait_for_the_killed_command(tmp_path):
+    # D1 compcert: "\x03" sent in keys mode killed opam, then the call waited 31 s for a marker that never came.
+    import time
+
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="sleep 60", wait_s=0.5)
+        start = time.monotonic()
+        stopped = await t.use(input="\\x03", mode="keys", wait_s=20)
+        took = time.monotonic() - start
+        after = await t.use(input="echo alive")
+        return stopped, took, after
+    stopped, took, after = asyncio.run(go())
+    assert took < 6 and "still running" not in stopped
+    assert "alive" in after and "[exit 0" in after
