@@ -207,3 +207,7 @@
   - a remaining failure reports its finish reason and token usage.
 - **Behaviour kept:** the run still stops honestly rather than silently trimming context, as before. Test added.
 - **Prediction:** 0 checkpoint failures on rows started after this fix.
+- **r10 model-extraction (hard):** solved in 285 s.
+- **r12 graph-query-catalog:** solved in 91 s. Its `apt-get install` returned with a proper exit after 12.8 s, so the terminal fix holds on a real install.
+- **r11 seq-assembly:** ran on `25530564`, before the checkpoint fix, and was killed by the same empty-checkpoint defect at 1096 s. That is the third casualty; requeued.
+- **r14 tiny-model-golf:** not solved; ran to its 900 s limit. The time ran out during a checkpoint, so the row was labelled `context_error`. A deadline hit during a checkpoint is now labelled `timeout`.

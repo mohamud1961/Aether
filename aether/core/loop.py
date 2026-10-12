@@ -304,7 +304,10 @@ async def _fit_context(s: _Session) -> bool:
                                                          remaining_s=s.remaining)
         except Exception as exc:  # surfaced: the run stops with the reason, never silently trimmed
             s.trace("context_checkpoint", ok=False, error=f"{type(exc).__name__}: {exc}")
-            s.result.status, s.result.error = "context_error", f"checkpoint failed: {exc}"
+            if isinstance(exc, ProviderError) and exc.deadline:  # the time limit ran out mid-checkpoint
+                s.result.status = "timeout"
+            else:
+                s.result.status, s.result.error = "context_error", f"checkpoint failed: {exc}"
             return False
         for key, value in usage.items():
             s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
