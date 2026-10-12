@@ -268,3 +268,10 @@
   - **Fix 5768b44e1:** only turns that end on their own without a tool call count as idle. A length cut-off is work in progress, and the time limit bounds it.
   - **Tests:** a known-bad check fails on the old code. A model that only chats is still stopped.
   - **Open risk:** only the newest turn's reasoning is replayed. A model that never acts could re-think across turns until the time limit, and the existing "act on it now" note is the only counter to that. This is to be watched on the requeued sentinels; no mechanism has been added.
+- **r30 interpreter-build (code 6bb866f7):** not solved, 1 of 3 checks passed. It is the first Core run to render a Doom frame, and it finished at 1543 s on low time.
+  - **Grader detail:**
+    - `frame_bmp_exists` passed only because the agent's own last run left `/tmp/frame.bmp` behind.
+    - `vm_execution` therefore stopped node after 1 s, before the `I_InitGraphics` line. The VM needs about 45 s to reach its first frame.
+    - The frame's similarity was 0.76 against the required 0.95.
+  - **Harness:** no lost markers and no hung runs that went unnoticed. 9 bounded `timeout` runs (382 s) were deliberate, and 2 checkpoints took 36 s in total.
+  - **Cause:** domain failure, a slow and partly wrong interpreter. **No harness change.**
