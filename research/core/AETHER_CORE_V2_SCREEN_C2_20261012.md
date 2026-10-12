@@ -248,3 +248,9 @@
   - **Hung runs:** 3 runs were killed by the model's own `timeout` (325 s in total). All were deliberate, bounded gdb loops, not hangs the model missed.
   - **Reviews:** the 0.35 progress review held the run and named the unconfirmed testsuite criterion. The model then ran the basic testsuite before finishing.
   - **No harness change.**
+- **r25 verified-compiler-build (code 028d2d2b):** not solved; timed out at 2387 s. v2.2 solved it.
+  - **Prediction met:** no markers were lost to stdin (v2.2 lost 903 s to them).
+  - **Cause:** GLM took a different path. Ubuntu's Coq 8.18 failed the build, so it built an opam switch and ran `opam install coq.8.16.1 ... 2>&1 | tail -4`. That process slept silently, with almost no CPU, for about 1300 s. The model saw five bare "(no new output)" results and only inspected the process state (`/proc/<pid>/wchan`) after about 1100 s. A second attempt hung the same way.
+  - **Fix 0379d13dc:** a still-running result now reports how long the terminal has been silent and the command's live processes: state, wait channel, and CPU time against age, read from `/proc` with plain sh. A process that is blocked or asleep is visible on the first poll.
+  - **Fix ff521db20:** Ctrl-C typed in keys mode now clears the pending marker, as `interrupt=true` does. The audit's one "suspected lost marker" (31 s) was this case. A known-bad check against the old code fails (21.7 s wait).
+  - **Prediction:** verified-compiler-build has been requeued as a sentinel. If a command stalls, the model acts within 2 polls of the process report, not 5 or more.
