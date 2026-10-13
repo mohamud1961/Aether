@@ -149,7 +149,8 @@ class Oversight:
             "mode": verdict.mode,
             "confidence": verdict.confidence,
             "unmet": verdict.unmet,
-            "verified": verdict.status == "pass" and not verdict.unmet,
+            "verified": None,  # only an independent grader can establish actual task correctness
+            "reviewer_reports_complete": verdict.status == "pass" and not verdict.unmet,
             "reason": verdict.reason,
             "malfunction": verdict.malfunction,
             "malfunction_confidence": verdict.malfunction_confidence,

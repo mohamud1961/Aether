@@ -192,3 +192,17 @@ def test_review_request_fits_budget_and_judge_thresholds():
         and weak.unmet
         and "evidence only indirect" in weak.unmet[0]
     )
+
+
+def test_reviewer_opinion_cannot_certify_a_wrong_artifact(tmp_path):
+    script = [
+        call("write_file", {"path": "out.txt", "content": "wrong\n"}, "c1"),
+        call("finish", {"summary": "done"}, "c2"),
+    ]
+    result, rows, requests, provider = _run(
+        tmp_path, script, transport=lambda req: _answers("fully_done", 0.99)
+    )
+    assert (tmp_path / "work/out.txt").read_text() == "wrong\n"
+    assert result.status == "finished"
+    assert result.reviews[0]["verified"] is None
+    assert result.reviews[0]["reviewer_reports_complete"] is True

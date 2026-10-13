@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 
 import pytest
 
@@ -254,3 +255,23 @@ def test_keys_for_a_dead_interactive_program_are_not_replayed_as_shell_commands(
 
     out, work = asyncio.run(go())
     assert "keystrokes were not sent" in out and not (work / "UNINTENDED").exists()
+
+
+def test_restart_preserves_the_full_log_at_its_original_handle(tmp_path):
+    import re
+
+    async def go():
+        t, work = _terms(tmp_path)
+        first = await t.use(input="printf 'ORIGINAL-LOG\\n'; seq 1 20000")
+        path = re.search(r"full output is in ([^\s\]]+)", first).group(1)
+        os.kill(t._sessions["main"].pid, 9)
+        await asyncio.sleep(0.3)
+        again = await t.use(input="echo NEW-LOG")
+        return path, again
+
+    path, again = asyncio.run(go())
+    assert "NEW-LOG" in again
+    assert (
+        "ORIGINAL-LOG" in Path(path).read_text()
+        and len(Path(path).read_bytes()) > 100000
+    )

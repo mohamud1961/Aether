@@ -53,3 +53,37 @@ def test_atomic_write_keeps_a_symlink_and_updates_its_target(tmp_path):
     alias.symlink_to("target")
     asyncio.run(Files(LocalEnv(tmp_path), str(tmp_path)).write("alias", "after"))
     assert alias.is_symlink() and target.read_text() == "after"
+
+
+@pytest.mark.parametrize("via_symlink", [False, True])
+def test_directory_target_is_not_reported_as_a_successful_file_write(
+    tmp_path, via_symlink
+):
+    directory = tmp_path / "out"
+    directory.mkdir()
+    path = directory
+    if via_symlink:
+        path = tmp_path / "alias"
+        path.symlink_to(directory)
+    with pytest.raises(OSError, match="directory"):
+        asyncio.run(
+            Files(LocalEnv(tmp_path), str(tmp_path)).write(str(path), "content")
+        )
+    assert list(directory.iterdir()) == []
+
+
+def test_a_directory_created_during_transfer_is_never_used_as_a_destination(tmp_path):
+    target = tmp_path / "out"
+
+    class DirectoryAppears(LocalEnv):
+        async def exec(self, command, **kwargs):
+            if "uname -s" in command:
+                target.mkdir()
+            return await super().exec(command, **kwargs)
+
+    with pytest.raises(OSError, match="committing write"):
+        asyncio.run(
+            Files(DirectoryAppears(tmp_path), str(tmp_path)).write("out", "content")
+        )
+    assert list(target.iterdir()) == []
+    assert not list(tmp_path.glob("*.aether-*.tmp"))

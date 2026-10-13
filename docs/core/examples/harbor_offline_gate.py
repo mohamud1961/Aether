@@ -9,6 +9,7 @@ import asyncio
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import threading
 import uuid
@@ -120,6 +121,7 @@ fi
             pass
 
         def do_POST(self):
+            assert self.path == "/openai/v1/chat/completions", self.path
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             captured.append(body)
             tool, arguments = script.popleft()
@@ -206,6 +208,15 @@ async def main():
     parser.add_argument("--image", required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
+    for name in (
+        "AETHER_FW_GLM_53_FLASH_ENDPOINT",
+        "AETHER_FW_GLM_53_FLASH_KEY",
+        "AETHER_FW_GLM_53_FLASH_DEPLOYMENT",
+        "AETHER_REVIEWER_CALLS_ALLOWED",
+    ):
+        os.environ.pop(
+            name, None
+        )  # this test child may use only its explicit loopback fixture configuration
     args.out.mkdir(parents=True, exist_ok=False)
     rows = []
     for mode, bad in [("project", False), ("clm", True)]:
