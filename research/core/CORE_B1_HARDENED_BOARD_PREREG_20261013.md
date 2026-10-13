@@ -95,3 +95,75 @@ was made and no row reached a task.
 
 B1 runs as attempt 3 on the commit that carries this fix and amendment. Nothing else changed: board, arm,
 route, prices, predictions and stop line are as sealed above.
+
+## Results (attempt 3, commit `01512422a`, 13 October 2026)
+
+All 18 rows ran. 17 were graded; seq-assembly ep 1 ended with `provider_error` before grading.
+Harbor's grader passed **10 of 17 graded rows** (10/18 counting the lost row). Evidence:
+`audit_output/aether_b1_20261013/` (traces, call logs, grader output, `B1_AUDIT.json`).
+
+| Task | B1 | V4 (different code) | Note |
+|---|---|---|---|
+| repair-history | 2/2 | 4/4 | |
+| binary-extract | 2/2 | 3/4 | |
+| dual-language-build | 2/2 | 4/4 | |
+| graph-query-catalog | 1/2 | 3/4 | ep 1 finished with a wrong answer |
+| credential-recovery-recovery | 1/2 | 2/4 | ep 2 finished with a wrong answer |
+| cipher-diff-attack | 1/2 | 4/4 | ep 2 hit the deadline (111 attempts) |
+| net-fit | 0/2 | 2/4 | both finished early with the wrong edge orientation |
+| seq-assembly | 0/2 | 0/4 | ep 1 lost to a cut stream (harness); ep 2 finished, `test_primers` failed |
+| construct-assembly | 0/2 | 0/4 | ep 1 hit the deadline; ep 2 finished unsolved at 432 s |
+
+**Predictions:**
+
+- **P1 failed.** One row had a harness-caused failure. On seq-assembly ep 1, the provider stream ended
+  without a `finish_reason`, and Core ended the run instead of retrying. Nothing from the cut stream had been
+  dispatched, so a retry was safe. Fixed in `c7679c1cc`: `IncompleteStream` is retryable and the partial
+  response is kept in the call log. The two tests that had encoded "no retry" were updated, and the new tests
+  fail on the old code. No other row had a crash, lost tool result, stuck terminal or REPL, deadline overrun
+  or context error. Every row had 0 tool errors.
+- **P2 held.** Every row had 0 open attempts. Two attempts had unknown usage, and both have end rows:
+  - the cut stream on seq-assembly ep 1;
+  - an attempt cancelled at the deadline on construct-assembly ep 1.
+
+  Those two rows are priced as lower bounds.
+- **P3 held (descriptive).** 10/17 against V4's 26/36. The per-task differences are within 2-episode noise.
+  cipher-diff-attack 1/2 against 4/4 is the largest gap; its failed episode was a deadline, not an error.
+- **P4 held in part.**
+  - Neither task was solved.
+  - construct-assembly ep 1 reached the deadline.
+  - construct-assembly ep 2 (432 s) and seq-assembly ep 2 (746 s of 1,800 s) finished early with wrong answers.
+  - seq-assembly ep 1 was lost.
+
+**Dominant pressure: the run ends early with a wrong answer** (6 rows: net-fit ×2, seq-assembly ep 2, construct-assembly ep 2,
+credential-recovery ep 2, graph-query-catalog ep 1). The model submitted, and no review was enabled in this arm. This is a
+model-policy question (B1 ran without review), not a substrate defect. Under the kill/keep rule it is measured
+separately and not bundled into B2.
+
+**Open observation O1 (seq-assembly ep 2):**
+- Turn 2 spent 32,768 reasoning tokens over 270 s and ended at `length` with no tool call.
+- The next request carried 38,707 input tokens, which is over the 32k CLM budget.
+- It was followed by three low-effort turns, each cut at 8,192 tokens.
+- About 470 s went to reasoning with no action.
+
+It is unconfirmed whether the replayed reasoning is counted before the request is sent. It needs an offline
+reproduction before any fix.
+
+**Cost (real meters, GBP at 0.80):**
+
+| Item | Cost |
+|---|---|
+| Model, 18 rows | $0.634 (£0.51); seq-assembly ep 1 and construct-assembly ep 1 are lower bounds |
+| VM, 11:50:48 to 13:04:54Z (74.1 min) | ≈ $0.56 (£0.45) |
+| Smoke row | ≈ $0.007 |
+| Attempts 1 and 2 (no model calls) | — |
+| **B1 total** | **≈ £0.96** of the £1.5 approved |
+
+The VM was deallocated and the deallocation verified; no clone containers or images remain.
+
+**Fixes from B1 traces, each with a failing-first offline test:**
+- `c7679c1cc`: cut-stream retry.
+- `8c0e8775d`: screen rows priced from all-role call totals.
+- `d6bd7f9ae`: audit spend taken from every call-log attempt.
+
+B2 (same board on the fixed source) needs the principal's approval before any spend.
