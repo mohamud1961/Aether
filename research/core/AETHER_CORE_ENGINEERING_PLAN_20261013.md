@@ -1,0 +1,64 @@
+# Aether Core engineering plan (13 Oct 2026)
+
+Agreed with Mohamud after Codex GPT-6-Astra's audit (`audit_output/aether_worldclass_20261013/AETHER_AUDIT.md`)
+and the Claude review of it. The authoritative copy is this file; the Gateway charter is not used.
+
+## Goal
+
+The code never hinders the model. Engineering quality (system design, code quality, reliability,
+context engineering, tooling) comparable to strong agent runtimes within a declared, narrow scope.
+Nothing the model can use is removed.
+
+Scope (the declared envelope): one-shot runs in a Docker task container through Harbor; one
+OpenAI-compatible provider path; a clean abort is enough on failure (no restart-resume).
+
+## Budget rule
+
+No new GLM solver runs until step 7. A change ships on tests alone only if it cannot make the model
+worse: truthfulness, substrate, retrieval, accounting, new optional capabilities the model may ignore.
+Changes to model behaviour (context policy, output cap, parallel calls on by default) are built and
+tested offline but stay off until step 7 measures them.
+
+## Kept
+
+Model capabilities: named PTY terminals with full logs; the persistent Python REPL (`sh`, `read`,
+`write`, `edit`, `llm()`); file read/write/edit; `view_image`; projected and CLM context with
+checkpoint compaction; deadline visibility; the reviewer progress review (optional, informs the model).
+Lessons: a `docs/LESSONS.md` in the package (clone routing, wrong-check compliance, claim-free
+review, cut-turn recovery, V4 corrections).
+
+## Removed
+
+Harness judgment that lost or was invalidated: the state verifier, the V2/V3 contract variants, and
+the authority of generated checks to block a finish. Checks may still be shown as information.
+
+## Steps
+
+1. **Truthfulness.** Missing exit code is unknown, not 0; reviewer answers validated on receipt
+   (unknown choice, confidence outside [0,1], missing criteria are errors, never pass); missing usage
+   is unknown, not 0; `Retry-After` honoured up to the remaining deadline; every attempt counted
+   (failed, timed out, rejected); every request sent to the model, from every role, logged exactly
+   (sizes and hashes in the trace, full bodies in a sidecar file).
+2. **Verification informs, never blocks.** Delete the losing modes; generated checks lose hold power.
+3. **Real-Linux fault suite on the VM.** Terminal stdin/interrupt/flood/descendants, worker vs clone
+   identity, mounts, deadline propagation, cleanup of abandoned clones and processes.
+4. **Context engineering.** Replay V4 traces through both builders and inspect every request; raw
+   history immutable under CLM edits, recall by turn; prompt-cache prefix stability and cached-input
+   share measured; request size and build time at 10/100/500 turns; flag edits that removed an
+   observation later needed.
+5. **Tooling.** Schema clarity; repairable errors; malformed/fragmented call streams; truncation
+   always with a retrieval handle; binary and huge output; background jobs with handles (optional
+   capability); read-only parallel calls (off by default).
+6. **Standalone package.** One folder: `pyproject.toml`, lockfile, `src/aether`, `tests`, `docs`,
+   `examples`. No imports from the research tree (`review.py`/`oversight.py` currently import
+   the research runtime). Proven by building a wheel, installing it outside the repo in a clean environment
+   and running real tools with scripted provider responses.
+7. **One matched model run** with the remaining budget (about £3.8): hardened Core vs V4 Core. Also
+   settles projected vs CLM context, the output cap, and background-job use.
+
+Later: a video tool.
+
+## Acceptance for every change
+
+What becomes better for the model; which module owns it; what complexity leaves callers; which
+realistic failure the test exercises; a known-bad that fails the test.
