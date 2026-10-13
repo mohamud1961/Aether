@@ -67,3 +67,73 @@ Cumulative program spend would be about £1.6 of £5. The VM is deallocated afte
   - **D3:** writer runs with a contract / 12 scheduled, reported separately.
 - Every row is kept in `results.jsonl`, and `summary.json` holds all four counts per side. Tests:
   `tests/test_core_acceptance_bench.py`.
+
+## Results (run on `c194749a`, 13 October, 14:10–14:17Z)
+
+**Labels:** all 14 case labels were confirmed by the official tests. The net-fit ep 1 replay first failed to plant
+because numpy was missing. The worker had installed it earlier in its run, so the fixture now replays that install
+too (`c194749a`). Evidence is in `audit_output/aether_a1_20261013/`.
+
+**Pairs (12 of 12 writer runs produced a contract; no row was error or unavailable):**
+
+| Task | Bad pairs held | Good pairs held (harm) | Writers that separate bad from good |
+|---|---|---|---|
+| credential-recovery-recovery | 6/6 | 3/9 (all from w1) | 2/3 |
+| net-fit | 4/6 | 4/6 | 0/3 |
+| graph-query-catalog | 0/3 | 0/6 | 0/3 |
+| seq-assembly | 3/3 | 3/3 | 0/3 |
+| **Total** | **13/18 (72%)** | **10/24 (42%)** | **2/12** |
+
+**Predictions:**
+- **D1 held on the number (72% ≥ 60%), but the number is misleading.** seq-assembly's 3/3 and part of net-fit's holds come
+  from contracts that also hold the correct state, so they are not detection. Only 2 of 12 contracts separate
+  bad from good, and both are for credential-recovery.
+- **D2 failed badly.** 42% of correct-state pairs were held, against a ceiling of 10%.
+- **D3 held:** 12 of 12 writer runs produced a contract.
+- **D4 held:** none of the 3 seq-assembly writers separated the B1 primers from the oracle.
+
+**Why correct states were held** (from the check commands and their output):
+1. **Literal reading of the task against what the grader accepts (net-fit, 3 writers).** The reference solution
+   writes `from,to`; the task says `to,from`. The official tests accept the reference, and every writer's
+   header check rejects it. A check that follows the task text exactly can still fail work the grader passes.
+2. **Wrong assumptions about where things are (credential-recovery, w1).** The check required each answer to appear
+   in `*.bin` files, but the evidence is in a `.dat` file.
+3. **Domain re-implementation errors (seq-assembly, all writers).** The task names primer3's `oligotm` as the ground
+   truth. The writers reimplemented melting temperature in perl and got wrong values (one reported "Tm
+   617"), and also wrote their own BsaI rules.
+4. **Writer logic errors (net-fit good, w1):** an edge-count assertion that is wrong for the intervened DAG.
+
+**What it misses:**
+- **graph-query-catalog:** 0/3. A wrong query passes every format or shape check. Catching it would mean re-deriving the
+  answer, which the writer is told not to do.
+- **net-fit:** the flipped-edge case passed 2 of 3 writers.
+
+**Conclusion:**
+- Pre-written checks reliably catch stated, mechanical properties: answer length, alphabet and fixed
+  characters, 6/6. This is the class of the B1 credential-recovery ep 2 failure, and there the worker's own terminal
+  had already shown it `len=14`.
+- They do not catch semantic errors (graph-query-catalog, edge orientation).
+- On correct work they misfire 42% of the time, through literal reading, wrong assumptions and domain
+  errors.
+
+Shown at finish as they are, these checks would push the solver to break correct work, which is the harm V4
+already saw. **The finish-time display proposal is not supported, and nothing is promoted.**
+
+**Accounting defect found:** the bench built the writers' provider without a call log, so writer usage was
+not metered. Fixed after the run: each writer now logs to `<task>__w<n>.calls/` and rows carry
+`contract.usage`. The A1 model cost is an estimate from the logged text: about $0.06, rounds 22, roughly 52k
+output tokens. It is unmetered and may be low.
+
+**Infrastructure:** the VM became unreachable at about 14:20Z, after the run had finished. Azure Resource
+Health recorded "Unavailable, UserInitiated". It was shut down at 14:50Z with no matching activity-log entry,
+and the cause is unknown. It was not Claude, and the principal confirmed it was not them. The VM was restarted
+at 14:53Z to retrieve the evidence and deallocated at 14:55:10Z (verified).
+
+**Cost:**
+
+| Item | Cost |
+|---|---|
+| VM, about 49 min (14:04–14:50 and 14:53–14:55) | ≈ £0.30 |
+| Model (estimate) | ≈ £0.05 |
+| **A1 total** | **≈ £0.35** (stop was £0.60) |
+| **Program cumulative** | **≈ £1.31 of £5** |
