@@ -188,3 +188,27 @@ B2 (same board on the fixed source) needs the principal's approval before any sp
   reasoning rather than compact it. Replay the actual O1 messages through pre-send admission offline before
   choosing any policy change.
 - **Not changed by the review:** no B2 run is authorized.
+
+## Trace and reasoning analysis of the 6 wrong finishes (offline, 13 October)
+
+All six ended with `finish` well inside their time limit. Each one ran checks, but every check tested the
+model's own reading of the task, not the success condition the task states.
+
+| Row | Time used | What went wrong | What the model "verified" |
+|---|---|---|---|
+| net-fit ep 1 | 101 / 3600 s (3%) | broke ties between Markov-equivalent orientations with the wrong rule; the task states the tie-break | BIC score and acyclicity of its own DAG |
+| net-fit ep 2 | 128 / 3600 s (4%) | same, but a different wrong orientation | the BIC score matched its own top score |
+| graph-query-catalog ep 1 | 91 / 900 s (10%) | one professor missing (`Alex Dimakis`, CH/ES/US) | "Manual verification done": it re-read its own query output |
+| credential-recovery ep 2 | 182 / 900 s (20%) | joined two fragments into a guessed answer; the true one has 23 | a format check it wrote itself (starts `8XD`, ends `W54`) |
+| seq-assembly ep 2 | 745 / 1800 s (41%) | reverse primers carry `gagacc`; the grader requires `ggtctc` in every primer | Tm values only; 32k + 3×8k reasoning tokens went on BsaI geometry without settling it |
+| construct-assembly ep 2 | 431 / 1800 s (24%) | a component is missing from the translated order (unresolved chromophore residues were guessed) | its own construct checker and its own reading of the order |
+
+**Reasoning tokens:** the failures are not caused by thinking too little. The net-fit, graph-query-catalog and credential-recovery
+failures used 1.7k–8k reasoning tokens. Passing rows used similar amounts. seq-assembly and cipher-diff-attack ep 2 used the most
+(66k and 122k).
+
+**Pattern:** the model settles an ambiguity by guessing, then confirms the guess against its own construction,
+then finishes with most of its time unused. The real B1 gap is *self-confirming verification*, not substrate,
+context or time. An independent check of the task state against the task's stated criteria is the role the
+verifier is meant to fill (HARNESS_VISION). B1 ran with review off, so this gap is the measured cost of having
+no verifier.
