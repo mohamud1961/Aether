@@ -63,6 +63,7 @@ class CoreConfig:
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
+        self.clm.check_request_limit(MAX_OUTPUT_TOKENS)
 
 
 @dataclass
@@ -296,6 +297,7 @@ async def _loop(s: _Session) -> None:
             return
         request = s.clm.request() if s.clm else project(s.messages, tight=tight)
         result.request_chars.append(size_chars(request))
+        sizes = {"held": s.clm.held(), "request": s.clm.tokens()} if s.clm else None
         try:
             turn = await s.provider.complete(
                 request,
@@ -332,6 +334,7 @@ async def _loop(s: _Session) -> None:
             failures=turn.failures,
             usage=turn.usage,
             request_chars=result.request_chars[-1],
+            context_tokens=sizes,  # held (budgeted) and the whole request, estimated before sending
             finish_reason=turn.finish_reason,
             reasoning=turn.reasoning,
             content=turn.content,

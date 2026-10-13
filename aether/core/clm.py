@@ -54,10 +54,27 @@ class ClmSettings:
     keep_recent_tokens: int = 8_000
     mirror_path: str = MIRROR_PATH
     history_path: str = HISTORY_PATH
+    # Two different numbers (O1, B1 dna ep 2). ``budget_tokens`` governs the editable context the model manages
+    # (``held``); the newest turn's replayed reasoning is outside it by design, so a whole request can exceed it.
+    # ``request_limit_tokens`` is the provider's limit for one request's input plus its reply. None means unknown:
+    # recorded as unknown, never assumed.
+    request_limit_tokens: int | None = None
 
     @property
     def limit(self) -> int:
         return self.budget_tokens - self.reserve_tokens
+
+    def check_request_limit(self, max_output_tokens: int) -> None:
+        """Fail at configuration, not mid-run: the largest request the budget allows (the editable budget, plus
+        one replayed reasoning of at most a full reply, plus the next reply) must fit the provider's limit."""
+        if self.request_limit_tokens is None:
+            return
+        worst = self.budget_tokens + 2 * max_output_tokens
+        if worst > self.request_limit_tokens:
+            raise ValueError(
+                f"CLM budget {self.budget_tokens} + 2 x {max_output_tokens} output tokens = {worst} exceeds the "
+                f"provider request limit {self.request_limit_tokens}"
+            )
 
 
 @dataclass
