@@ -145,6 +145,14 @@ async def put_bytes(
     if resolved.code != 0:
         raise OSError(f"cannot resolve write target {remote}")
     target = resolved.stdout.removesuffix("\n")
+    checked = await run(
+        env,
+        f"if [ -d {q(target)} ]; then echo 'write target is a directory' >&2; exit 2; fi",
+    )
+    if checked.code != 0:
+        raise OSError(
+            f"cannot write {remote}: {(checked.stderr or checked.stdout).strip()[:300]}"
+        )
     parent = q(os.path.dirname(target) or ".")
     temporary = target + ".aether-" + uuid.uuid4().hex + ".tmp"
     committed = False
@@ -168,7 +176,15 @@ async def put_bytes(
             res = await run(env, f"chmod {q(mode)} {q(temporary)}")
             if res.code != 0:
                 raise OSError(f"preserving permissions of {remote} failed")
-        res = await run(env, f"mv -f {q(temporary)} {q(target)}")
+        # Rename the target pathname, never move a payload *inside* a directory.
+        # Linux mv -T also rejects a directory that appeared after the preflight.
+        # The non-Linux path supports local development with the same semantics.
+        rename = q("import os,sys; os.replace(sys.argv[1],sys.argv[2])")
+        res = await run(
+            env,
+            f'if [ "$(uname -s)" = Linux ]; then mv -fT {q(temporary)} {q(target)}; '
+            f"else python3 -c {rename} {q(temporary)} {q(target)}; fi",
+        )
         if res.code != 0:
             raise OSError(
                 f"committing write to {remote} failed: {res.stderr.strip()[:300]}"

@@ -99,6 +99,7 @@ class Terminals:
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
         self._sessions: dict[str, Session] = {}
+        self._generations: dict[str, int] = {}
 
     @property
     def names(self) -> list[str]:
@@ -109,7 +110,10 @@ class Terminals:
             raise ValueError(
                 f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}"
             )
-        root = f"{self._control_dir}/term/{name}"
+        generation = self._generations.get(name, 0)
+        self._generations[name] = generation + 1
+        suffix = name if generation == 0 else f"{name}-{generation}"
+        root = f"{self._control_dir}/term/{suffix}"
         q = shlex.quote
         wrapper = "\n".join(
             [
