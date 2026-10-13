@@ -140,15 +140,50 @@ def test_real_sdk_assembles_fragmented_calls_closes_stream_and_logs_exact_json(
         assert "offline-fixture-key" not in (tmp_path / "calls").read_text()
 
 
-def test_real_sdk_early_eof_is_failed_and_keeps_partial_content(tmp_path):
-    with server([sse([({"content": "partial"}, None)])]) as (url, seen):
+def test_real_sdk_early_eof_is_failed_keeps_partial_content_and_is_retried(tmp_path):
+    # B1 seq-assembly: one cut stream ended the run; nothing from it was dispatched, so it is retried
+    cut = sse([({"content": "partial"}, None)])
+    whole = sse([({"content": "complete"}, "stop")])
+    with server([cut, whole]) as (url, seen):
 
         async def go():
             async with AsyncOpenAI(
                 api_key="fixture", base_url=url + "/openai/v1/", max_retries=0
             ) as client:
                 provider = ChatProvider(
-                    client, model="scripted", params={}, log=CallLog(tmp_path / "calls")
+                    client,
+                    model="scripted",
+                    params={},
+                    log=CallLog(tmp_path / "calls"),
+                    sleep=lambda s: asyncio.sleep(0),
+                )
+                return await provider.complete(
+                    [], None, max_tokens=20, remaining_s=lambda: 10
+                )
+
+        turn = asyncio.run(go())
+        first, second = requests(tmp_path / "calls")
+        assert first["ok"] is False and first["response"]["content"] == "partial"
+        assert second["ok"] is True and turn.content == "complete" and len(seen) == 2
+
+
+def test_a_stream_cut_on_every_attempt_still_ends_honestly(tmp_path, monkeypatch):
+    from aether.core import provider as P
+
+    monkeypatch.setattr(P, "MAX_ATTEMPTS", 2)
+    cut = sse([({"content": "partial"}, None)])
+    with server([cut, cut]) as (url, seen):
+
+        async def go():
+            async with AsyncOpenAI(
+                api_key="fixture", base_url=url + "/openai/v1/", max_retries=0
+            ) as client:
+                provider = ChatProvider(
+                    client,
+                    model="scripted",
+                    params={},
+                    log=CallLog(tmp_path / "calls"),
+                    sleep=lambda s: asyncio.sleep(0),
                 )
                 with pytest.raises(ProviderError, match="finish_reason"):
                     await provider.complete(
@@ -156,8 +191,7 @@ def test_real_sdk_early_eof_is_failed_and_keeps_partial_content(tmp_path):
                     )
 
         asyncio.run(go())
-        (row,) = requests(tmp_path / "calls")
-        assert row["ok"] is False and row["response"]["content"] == "partial"
-        assert len(seen) == 1
+        assert [r["ok"] for r in requests(tmp_path / "calls")] == [False, False]
+        assert len(seen) == 2
 
 

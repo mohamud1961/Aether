@@ -241,7 +241,7 @@ class ChatProvider:
                 except Exception as exc:
                     turn.stream_close_error = f"{type(exc).__name__}: {exc}"
         if turn.finish_reason is None:
-            raise ProviderError(
+            raise IncompleteStream(
                 "provider stream ended without a finish_reason; partial response retained"
             )
         turn.tool_calls = [
@@ -331,7 +331,9 @@ class ChatProvider:
                         text[:500], status=400, context_overflow=True
                     ) from exc
                 transient = (
-                    status in RETRYABLE_STATUS or status is None and _is_transport(exc)
+                    status in RETRYABLE_STATUS
+                    or status is None
+                    and (_is_transport(exc) or isinstance(exc, IncompleteStream))
                 )
                 if not transient or attempt == MAX_ATTEMPTS:
                     raise ProviderError(
@@ -404,6 +406,11 @@ class ChatProvider:
             },
         )
         return row
+
+
+class IncompleteStream(ProviderError):
+    """The stream stopped before a finish_reason. Nothing from it was dispatched, so the call is safe to retry
+    (B1 seq-assembly: one cut stream at 256 s ended the whole run at 636 s of 1800 s)."""
 
 
 def _is_transport(exc: Exception) -> bool:

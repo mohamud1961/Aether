@@ -2,14 +2,13 @@
 
 import asyncio
 
-import pytest
 
 from aether.core import loop
 from aether.core.calls import CallLog
-from aether.core.provider import ChatProvider, ProviderError
+from aether.core.provider import ChatProvider
 from aether.core.repl import Repl
 from aether.core.terminal import Terminals
-from tests.core.core_fakes import LocalEnv, ScriptedClient, call, tool_chunk
+from tests.core.core_fakes import LocalEnv, ScriptedClient, call, chunk, tool_chunk
 
 
 def test_startup_failure_after_repl_launch_still_closes_the_process(
@@ -114,12 +113,22 @@ def test_transfer_cannot_outlive_total_work_deadline(tmp_path, monkeypatch):
 
 
 def test_early_stream_eof_is_not_a_successful_executable_call(tmp_path):
+    cut = [
+        tool_chunk("write_file", {"path": "x", "content": "wrong"})
+    ]  # no finish_reason
+    whole = [
+        tool_chunk("write_file", {"path": "x", "content": "right"}),
+        chunk(finish="tool_calls"),
+    ]
     provider = ChatProvider(
-        ScriptedClient([[tool_chunk("write_file", {"path": "x", "content": "wrong"})]]),
+        ScriptedClient([cut, whole]),
         model="scripted",
         params={},
         log=CallLog(tmp_path / "calls"),
+        sleep=lambda s: asyncio.sleep(0),
     )
-    with pytest.raises(ProviderError, match="finish"):
-        asyncio.run(provider.complete([], [], max_tokens=10, remaining_s=lambda: 10))
+    turn = asyncio.run(provider.complete([], [], max_tokens=10, remaining_s=lambda: 10))
+    assert (
+        '"right"' in turn.tool_calls[0]["function"]["arguments"]
+    )  # the cut call is never returned
     assert provider.log.totals()["all"]["failed"] == 1
