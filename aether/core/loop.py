@@ -17,7 +17,7 @@ from typing import Any, Awaitable, Callable
 
 from . import compaction, images
 from .clm import ClmContext, ClmSettings
-from .context import project, size_chars
+from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
 from .env import CONTROL_DIR, Environment, get_bytes, put_bytes
 from .files import Files
 from .oversight import Oversight, ReviewPlan, final_feedback, progress_feedback
@@ -280,6 +280,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                 out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
         s.result.steps += 1
         s.trace("tool", name=name, args=args, result=out, duration_s=round(time.monotonic() - t0, 3))
+        out = await _save(s, out)
         if name != "finish":
             s.actions.append(_action_view(name, args, out))
         _append(s, {"role": "tool", "tool_call_id": call["id"], "content": f"{out}\n{s.clock()}"})
@@ -291,6 +292,19 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     if mirror is not None:
         await _read_back(s, *mirror)
     return False
+
+
+async def _save(s: _Session, out: str) -> str:
+    """Keep an exact copy of a long result in the sandbox, so trims, edits and checkpoints never lose it."""
+    if len(out) <= SAVE_OVER:
+        return out
+    path = saved_path(s.config.control_dir, s.result.steps)
+    try:
+        await put_bytes(s.env, out.encode(), path)
+    except Exception as exc:  # substrate failure: the result is still shown; the trace says it was not saved
+        s.trace("result_save_error", path=path, error=f"{type(exc).__name__}: {exc}")
+        return out
+    return f"{out}\n{SAVED_NOTE.format(path=path)}"
 
 
 async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, bool]:

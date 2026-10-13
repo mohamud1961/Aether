@@ -3,7 +3,12 @@
 The full history is kept unchanged in the run trace; only the request is
 projected. Older turns are trimmed in blocks so the request prefix stays stable
 between trims (provider prompt caching), and every trimmed item says where the
-full content still lives (the file on disk or the terminal log).
+full content still lives.
+
+Every tool result long enough to be trimmed is also saved, exactly as the model
+first saw it, in the sandbox (``saved_path``): a re-read shows the file as it is
+now and a re-run may differ, but the saved copy is the observation itself, and it
+survives trims, CLM edits and checkpoints alike.
 """
 from __future__ import annotations
 
@@ -18,6 +23,8 @@ BLOCK = 6  # older turns are trimmed in blocks of this many turns
 OLD_RESULT_HEAD = 600
 OLD_RESULT_TAIL = 900
 TIGHT_HEAD, TIGHT_TAIL = 200, 300
+SAVE_OVER = OLD_RESULT_HEAD + OLD_RESULT_TAIL + 80  # results this long can be trimmed later, so they are saved
+SAVED_NOTE = "[this result is saved in full at {path}]"
 BODY_KEYS = {"write_file": ("content",), "edit_file": ("old_str", "new_str")}
 
 
@@ -26,11 +33,17 @@ def _cut(n_assistant: int) -> int:
     return max(0, (n_assistant - KEEP_RECENT) // BLOCK * BLOCK)
 
 
+def saved_path(control_dir: str, step: int) -> str:
+    return f"{control_dir}/results/{step}.txt"
+
+
 def _shorten(text: str, head: int, tail: int) -> str:
     if len(text) <= head + tail + 80:
         return text
+    where = ("its full text is saved at the path below" if SAVED_NOTE.split("{")[0] in text[-tail:]
+             else "re-run, re-read, or grep the terminal log to see them")
     return (f"{text[:head]}\n…[{len(text) - head - tail} chars of this older result omitted; "
-            f"re-run, re-read, or grep the terminal log to see them]…\n{text[-tail:]}")
+            f"{where}]…\n{text[-tail:]}")
 
 
 def _stub_arguments(name: str, raw: str) -> str:

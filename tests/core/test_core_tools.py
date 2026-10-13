@@ -119,3 +119,26 @@ def test_parse_arguments_unwraps_one_level_only():
     assert parse_arguments(json.dumps({"arguments": {"path": "a"}})) == {"path": "a"}
     with pytest.raises(ValueError):
         parse_arguments("[1, 2]")
+
+
+def test_a_long_result_is_saved_exactly_and_its_trimmed_view_points_there(tmp_path):
+    import asyncio
+    import json as _json
+    from aether.core.context import project
+    from aether.core.loop import CoreConfig, Trace, run_agent
+    from aether.core.provider import ChatProvider
+    from tests.core.core_fakes import LocalEnv, ScriptedClient, call
+    work = tmp_path / "work"; work.mkdir()
+    big = "".join(f"line {i}\n" for i in range(800))
+    (work / "big.txt").write_text(big)
+    script = [call("terminal", {"input": "cat big.txt"}, "c1")] + [
+        call("terminal", {"input": f"echo {i}"}, f"c{i + 2}") for i in range(12)] + [call("finish", {"summary": "x"}, "f")]
+    provider = ChatProvider(ScriptedClient(script), model="glm", params={})
+    asyncio.run(run_agent(env=LocalEnv(work), task="t", workdir=str(work), provider=provider, timeout_s=600,
+                          trace=Trace(tmp_path / "t.jsonl"), config=CoreConfig(control_dir=str(tmp_path / "ctl"))))
+    saved = tmp_path / "ctl/results/1.txt"
+    assert "line 0\n" in saved.read_text() and "line 799" in saved.read_text()  # what the model saw, exactly
+    last = provider._client.requests[-1]["messages"]
+    first_result = next(m for m in last if m.get("role") == "tool")
+    assert "omitted; its full text is saved at the path below" in first_result["content"]
+    assert f"saved in full at {saved}" in first_result["content"]
