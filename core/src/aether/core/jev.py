@@ -1,4 +1,5 @@
 """Direct TypeSafe transport. No Gateway dependency or credential persistence."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -26,16 +27,35 @@ BUDGET_ACCOUNTING = (
 
 
 class TypeSafeEvaluator:
-    def __init__(self, *, model: str, journal: Path, max_calls: int,
-                 cap_gbp: str = "0.10", input_gbp_per_million: str = "0.10",
-                 timeout_s: float = 15, opener=None, max_request_bytes: int | None = None):
-        if os.environ.get("AETHER_JEV_CALLS_ALLOWED") != "1":
+    def __init__(
+        self,
+        *,
+        model: str,
+        journal: Path,
+        max_calls: int,
+        cap_gbp: str = "0.10",
+        input_gbp_per_million: str = "0.10",
+        timeout_s: float = 15,
+        opener=None,
+        max_request_bytes: int | None = None,
+        api_key: str | None = None,
+        calls_allowed: bool | None = None,
+    ):
+        if not (
+            os.environ.get("AETHER_JEV_CALLS_ALLOWED") == "1"
+            if calls_allowed is None
+            else calls_allowed
+        ):
             raise RuntimeError("Jev calls not authorized")
-        self._key = os.environ.get("TYPESAFE_API_KEY", "")
+        self._key = (
+            os.environ.get("TYPESAFE_API_KEY", "") if api_key is None else api_key
+        )
         if not self._key:
             raise RuntimeError("existing TypeSafe credential unavailable")
         if max_request_bytes is None:
-            max_request_bytes = MAX_REQUEST_BYTES  # read at call time so a session raise applies
+            max_request_bytes = (
+                MAX_REQUEST_BYTES  # read at call time so a session raise applies
+            )
         if max_request_bytes < BASE_REQUEST_BYTES:
             raise ValueError("request byte bound may only be raised")
         self.max_request_bytes = max_request_bytes
@@ -43,7 +63,12 @@ class TypeSafeEvaluator:
         self.max_calls = max_calls
         self.cap = Decimal(cap_gbp)
         self.price = Decimal(input_gbp_per_million)
-        if not self.cap.is_finite() or not self.price.is_finite() or min(self.cap, self.price) <= 0 or max_calls <= 0:
+        if (
+            not self.cap.is_finite()
+            or not self.price.is_finite()
+            or min(self.cap, self.price) <= 0
+            or max_calls <= 0
+        ):
             raise ValueError("positive finite budget required")
         self.reserved = Decimal(0)
         self.calls = 0
@@ -54,13 +79,23 @@ class TypeSafeEvaluator:
         self.journal.parent.mkdir(parents=True, exist_ok=True)
         # Refuse an old namespace: no process restart can silently reset this cap.
         with self.journal.open("x") as stream:
-            stream.write(json.dumps({"event": "budget", "endpoint": ENDPOINT,
-                "model": model, "max_calls": max_calls, "cap_gbp": str(self.cap),
-                "input_gbp_per_million": str(self.price),
-                "output_price_gbp_per_million": None,
-                "output_pricing_status": OUTPUT_PRICING_STATUS,
-                "max_request_bytes": max_request_bytes,
-                "accounting": BUDGET_ACCOUNTING}) + "\n")
+            stream.write(
+                json.dumps(
+                    {
+                        "event": "budget",
+                        "endpoint": ENDPOINT,
+                        "model": model,
+                        "max_calls": max_calls,
+                        "cap_gbp": str(self.cap),
+                        "input_gbp_per_million": str(self.price),
+                        "output_price_gbp_per_million": None,
+                        "output_pricing_status": OUTPUT_PRICING_STATUS,
+                        "max_request_bytes": max_request_bytes,
+                        "accounting": BUDGET_ACCOUNTING,
+                    }
+                )
+                + "\n"
+            )
 
     def bind_run_cancellation(self, event):
         self._cancellation_event = event
@@ -85,16 +120,33 @@ class TypeSafeEvaluator:
         self.calls += 1
         self.reserved += reserve
         identity = {"call": self.calls, "request_sha256": sha256(body).hexdigest()}
-        self._record({**identity, "event": "reserve", "request": request,
-                      "reserved_gbp": str(reserve), "total_reserved_gbp": str(self.reserved)})
+        self._record(
+            {
+                **identity,
+                "event": "reserve",
+                "request": request,
+                "reserved_gbp": str(reserve),
+                "total_reserved_gbp": str(self.reserved),
+            }
+        )
         started = time.monotonic()
-        wire = urllib.request.Request(ENDPOINT, data=body, method="POST", headers={
-            "Authorization": "Bearer " + self._key, "Content-Type": "application/json"})
+        wire = urllib.request.Request(
+            ENDPOINT,
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": "Bearer " + self._key,
+                "Content-Type": "application/json",
+            },
+        )
         try:
             remaining = remaining_run_s()
-            timeout = self.timeout_s if remaining is None else min(self.timeout_s, remaining)
+            timeout = (
+                self.timeout_s if remaining is None else min(self.timeout_s, remaining)
+            )
             raise_if_run_cancelled(self._cancellation_event)
             raise_if_run_deadline_exceeded()
+            self._record({**identity, "event": "dispatch"})
             with self.opener(wire, timeout=timeout) as response:
                 raw = response.read(1_000_001)
                 if len(raw) > 1_000_000:
@@ -102,11 +154,23 @@ class TypeSafeEvaluator:
                 result = json.loads(raw)
             raise_if_run_cancelled(self._cancellation_event)
             raise_if_run_deadline_exceeded()
-            self._record({**identity, "event": "response", "response": result,
-                          "elapsed_s": time.monotonic() - started})
+            self._record(
+                {
+                    **identity,
+                    "event": "response",
+                    "response": result,
+                    "elapsed_s": time.monotonic() - started,
+                }
+            )
             return result
         except Exception as exc:
             # Never log exception text: HTTP bodies may contain request echoes.
-            self._record({**identity, "event": "error", "error_type": type(exc).__name__,
-                          "elapsed_s": time.monotonic() - started})
+            self._record(
+                {
+                    **identity,
+                    "event": "error",
+                    "error_type": type(exc).__name__,
+                    "elapsed_s": time.monotonic() - started,
+                }
+            )
             raise

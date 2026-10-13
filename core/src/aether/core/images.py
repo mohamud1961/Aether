@@ -9,6 +9,7 @@ TGA etc. work), downscaled to at most MAX_SIDE. Only the newest KEEP_IMAGES imag
 stay in a request; older ones become a one-line placeholder, and the context-file
 mirror never contains image data.
 """
+
 from __future__ import annotations
 
 import base64
@@ -22,7 +23,9 @@ import shlex
 from .env import Environment, get_bytes, run
 
 MAX_FILE_BYTES = 30_000_000
-MAX_PIXELS = 40_000_000  # checked from the header before decoding (decompression-bomb guard)
+MAX_PIXELS = (
+    40_000_000  # checked from the header before decoding (decompression-bomb guard)
+)
 MAX_SIDE = 1024
 KEEP_IMAGES = 2
 IMAGE_TOKENS = 1_500  # conservative per-image cost used by the context budget
@@ -42,7 +45,10 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
     from PIL import Image
 
     # Size is checked inside the sandbox, before anything is copied to the host.
-    res = await run(env, f"stat -c %s {shlex.quote(path)} 2>/dev/null || wc -c < {shlex.quote(path)}")
+    res = await run(
+        env,
+        f"stat -c %s {shlex.quote(path)} 2>/dev/null || wc -c < {shlex.quote(path)}",
+    )
     try:
         nbytes = int(res.stdout.split()[0])
     except (IndexError, ValueError):
@@ -59,7 +65,9 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
             raise ValueError(f"{width}x{height} exceeds the {MAX_PIXELS}-pixel limit")
         img.load()
     except Exception as exc:
-        raise ValueError(f"{path} is not a readable image ({type(exc).__name__}: {exc})") from exc
+        raise ValueError(
+            f"{path} is not a readable image ({type(exc).__name__}: {exc})"
+        ) from exc
     fmt, size, mode = img.format, img.size, img.mode
     if getattr(img, "n_frames", 1) > 1:
         img.seek(0)
@@ -74,8 +82,13 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
 
 
 def message(desc: str, url: str) -> dict[str, Any]:
-    return {"role": "user", "content": [{"type": "text", "text": f"[view_image] {desc}"},
-                                        {"type": "image_url", "image_url": {"url": url}}]}
+    return {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": f"[view_image] {desc}"},
+            {"type": "image_url", "image_url": {"url": url}},
+        ],
+    }
 
 
 def _is_image_part(part: Any) -> bool:
@@ -86,11 +99,19 @@ def text_of(content: Any) -> str:
     """Plain text of a message's content; images become a marker (never base64)."""
     if not isinstance(content, list):
         return str(content or "")
-    return "\n".join("[image]" if _is_image_part(p) else str(p.get("text", "")) if isinstance(p, dict) else str(p)
-                     for p in content)
+    return "\n".join(
+        "[image]"
+        if _is_image_part(p)
+        else str(p.get("text", ""))
+        if isinstance(p, dict)
+        else str(p)
+        for p in content
+    )
 
 
-def limit(messages: list[dict[str, Any]], keep: int = KEEP_IMAGES) -> list[dict[str, Any]]:
+def limit(
+    messages: list[dict[str, Any]], keep: int = KEEP_IMAGES
+) -> list[dict[str, Any]]:
     """Copy of ``messages`` in which only the newest ``keep`` images remain."""
     seen, out = 0, []
     for msg in reversed(messages):
@@ -100,15 +121,26 @@ def limit(messages: list[dict[str, Any]], keep: int = KEEP_IMAGES) -> list[dict[
             if seen > keep:
                 msg = deepcopy(msg)
                 msg["content"] = text_of(content).replace(
-                    "[image]", "[image no longer shown; call view_image again to see it]")
+                    "[image]",
+                    "[image no longer shown; call view_image again to see it]",
+                )
         out.append(msg)
     return list(reversed(out))
 
 
 def size_chars(messages: list[dict[str, Any]]) -> int:
     """JSON size with each image counted at its budget cost instead of its base64 length."""
-    n_images = sum(1 for m in messages if isinstance(m.get("content"), list)
-                   for p in m["content"] if _is_image_part(p))
-    stripped = [{**m, "content": text_of(m["content"])} if isinstance(m.get("content"), list) else m
-                for m in messages]
+    n_images = sum(
+        1
+        for m in messages
+        if isinstance(m.get("content"), list)
+        for p in m["content"]
+        if _is_image_part(p)
+    )
+    stripped = [
+        {**m, "content": text_of(m["content"])}
+        if isinstance(m.get("content"), list)
+        else m
+        for m in messages
+    ]
     return len(json.dumps(stripped, ensure_ascii=False)) + n_images * IMAGE_CHARS

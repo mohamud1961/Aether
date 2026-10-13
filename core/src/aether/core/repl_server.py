@@ -13,6 +13,7 @@ file-based so it needs nothing but a shell on the host side:
 SIGINT interrupts the running cell (KeyboardInterrupt), never the server.
 This file is shipped to the container as data; it is not imported on the host.
 """
+
 import ast
 import json
 import os
@@ -34,8 +35,13 @@ class ShResult(object):
         self.code, self.output = code, output
 
     def __repr__(self):
-        out = self.output if len(self.output) <= 4000 else self.output[:1500] + "\n...[%d chars]...\n" % (
-            len(self.output) - 3500) + self.output[-2000:]
+        out = (
+            self.output
+            if len(self.output) <= 4000
+            else self.output[:1500]
+            + "\n...[%d chars]...\n" % (len(self.output) - 3500)
+            + self.output[-2000:]
+        )
         return "[exit %d]\n%s" % (self.code, out)
 
     def __str__(self):
@@ -46,8 +52,13 @@ def sh(command, timeout=600, cwd=None):
     """Run a shell command; return ShResult(code, output) with stdout+stderr combined."""
     shell = "/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh"
     try:
-        p = subprocess.run([shell, "-c", command], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=timeout, cwd=cwd)
+        p = subprocess.run(
+            [shell, "-c", command],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            cwd=cwd,
+        )
         return ShResult(p.returncode, p.stdout.decode("utf-8", "replace"))
     except subprocess.TimeoutExpired as exc:
         out = (exc.output or b"").decode("utf-8", "replace")
@@ -79,9 +90,16 @@ def edit(path, old, new, replace_all=False):
     if n == 0:
         raise ValueError("old text not found in %s" % path)
     if n > 1 and not replace_all:
-        raise ValueError("old text occurs %d times in %s; make it unique or pass replace_all=True" % (n, path))
+        raise ValueError(
+            "old text occurs %d times in %s; make it unique or pass replace_all=True"
+            % (n, path)
+        )
     write(path, text.replace(old, new) if replace_all else text.replace(old, new, 1))
-    return "edited %s (%d replacement%s)" % (path, n if replace_all else 1, "s" if replace_all and n > 1 else "")
+    return "edited %s (%d replacement%s)" % (
+        path,
+        n if replace_all else 1,
+        "s" if replace_all and n > 1 else "",
+    )
 
 
 _llm_seq = [0]
@@ -92,7 +110,10 @@ def llm(prompt, max_tokens=4096, timeout=600):
     held in variables without putting the data into your own context."""
     _llm_seq[0] += 1
     rid = "%d-%d" % (os.getpid(), _llm_seq[0])
-    req, resp = os.path.join(BASE, "llm", rid + ".req"), os.path.join(BASE, "llm", rid + ".resp")
+    req, resp = (
+        os.path.join(BASE, "llm", rid + ".req"),
+        os.path.join(BASE, "llm", rid + ".resp"),
+    )
     tmp = req + ".tmp"
     with open(tmp, "w") as fh:
         json.dump({"prompt": str(prompt), "max_tokens": int(max_tokens)}, fh)
@@ -110,8 +131,18 @@ def llm(prompt, max_tokens=4096, timeout=600):
     raise TimeoutError("llm() got no answer in %ss" % timeout)
 
 
-NS = {"__name__": "__main__", "sh": sh, "read": read, "read_bytes": read_bytes, "write": write, "edit": edit,
-      "llm": llm, "shlex": shlex, "os": os, "json": json}
+NS = {
+    "__name__": "__main__",
+    "sh": sh,
+    "read": read,
+    "read_bytes": read_bytes,
+    "write": write,
+    "edit": edit,
+    "llm": llm,
+    "shlex": shlex,
+    "os": os,
+    "json": json,
+}
 TOP_AWAIT = getattr(ast, "PyCF_ALLOW_TOP_LEVEL_AWAIT", 0)
 
 
@@ -120,8 +151,15 @@ def run_cell(source):
     last = None
     if tree.body and isinstance(tree.body[-1], ast.Expr):
         last = ast.Expression(tree.body.pop().value)
-    for node, mode in ((ast.Module(tree.body, []) if sys.version_info >= (3, 8) else ast.Module(tree.body),
-                        "exec"), (last, "eval")):
+    for node, mode in (
+        (
+            ast.Module(tree.body, [])
+            if sys.version_info >= (3, 8)
+            else ast.Module(tree.body),
+            "exec",
+        ),
+        (last, "eval"),
+    ):
         if node is None:
             continue
         code = compile(node, "<cell>", mode, flags=TOP_AWAIT)
@@ -129,6 +167,7 @@ def run_cell(source):
         value = eval(code, NS)
         if TOP_AWAIT and hasattr(value, "__await__"):
             import asyncio
+
             value = asyncio.get_event_loop().run_until_complete(value)
         if mode == "eval" and value is not None:
             NS["_"] = value
@@ -154,7 +193,9 @@ def main():
         fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
         os.dup2(fd, 1)
         os.dup2(fd, 2)
-        sys.stdout = os.fdopen(os.dup(1), "w", buffering=1, encoding="utf-8", errors="replace")
+        sys.stdout = os.fdopen(
+            os.dup(1), "w", buffering=1, encoding="utf-8", errors="replace"
+        )
         sys.stderr = sys.stdout
         try:
             run_cell(read(cell))
@@ -177,7 +218,14 @@ def main():
             sys.stderr = sys.stdout
         done = os.path.join(BASE, "out", "%d.done" % seq)
         with open(done + ".tmp", "w") as fh:
-            json.dump({"status": status, "seconds": round(time.time() - started, 2), "cwd": os.getcwd()}, fh)
+            json.dump(
+                {
+                    "status": status,
+                    "seconds": round(time.time() - started, 2),
+                    "cwd": os.getcwd(),
+                },
+                fh,
+            )
         os.rename(done + ".tmp", done)
         seq += 1
 
