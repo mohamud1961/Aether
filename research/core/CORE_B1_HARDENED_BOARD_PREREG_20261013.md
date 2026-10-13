@@ -167,3 +167,24 @@ The VM was deallocated and the deallocation verified; no clone containers or ima
 - `d6bd7f9ae`: audit spend taken from every call-log attempt.
 
 B2 (same board on the fixed source) needs the principal's approval before any spend.
+
+### Review gate (Codex GPT-6-Astra, 13 October, on `fd59b1b11`)
+
+- **Retry (`c7679c1cc`):** no double-dispatch path was found. An unfinished stream is rejected before any
+  executable tool call is produced, and the loop dispatches only the returned successful turn. A retried
+  attempt can still be billed, so budget limits stay conservative for unknown-usage attempts.
+  Follow-up: add a loop-level regression in which a cut partial tool call is followed by a retry, ending with
+  exactly one observable effect.
+- **O1 reclassified:** this is a mismatch in the budget contract, not missing accounting. `clm.tokens()`
+  includes replayed reasoning. `held()` subtracts it on purpose, and `over_limit()` uses `held()`.
+  GPT-6-Astra's offline reproduction gave:
+  - full request estimate 40,299 tokens;
+  - held 7,531 tokens;
+  - `over_limit` False, with the reasoning preserved.
+
+  The 32k budget therefore limits editable context, not the whole request. Nothing shows that the overshoot
+  caused the 470 s of reasoning.
+  Follow-up: separate the editable-state budget from the full wire/provider admission limit. Preserve
+  reasoning rather than compact it. Replay the actual O1 messages through pre-send admission offline before
+  choosing any policy change.
+- **Not changed by the review:** no B2 run is authorized.
