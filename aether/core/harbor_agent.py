@@ -234,9 +234,15 @@ class AetherCoreAgent(BaseAgent):
         return "aether-core"
 
     def version(self) -> str:
-        from importlib.metadata import version
+        """The installed package version. Run from a source checkout (the research launcher puts the tree on
+        sys.path without installing it) there is no package metadata: that is reported, never invented, and the
+        launcher's manifest records the exact source commit. Raising here failed every B1 row at launch."""
+        from importlib.metadata import PackageNotFoundError, version
 
-        return "core-" + version("aether-core")
+        try:
+            return "core-" + version("aether-core")
+        except PackageNotFoundError:
+            return "core-unpackaged"
 
     async def setup(self, environment: Any) -> None:
         return None

@@ -78,3 +78,20 @@ B1 changes nothing by itself. A fix goes into B2 only if a B1 trace shows the fa
 reproduces it (failing before the fix). B2 keeps a fix if P1 holds and no task loses a pass for a reason
 attributable to the fix. Model-policy changes (output cap, effort, idle cutoff, context mode) need a concrete
 pressure case and are measured separately, never bundled with substrate fixes.
+
+## Amendment 1 (13 October, before any model call)
+
+Two launch attempts were infra-invalid; both are kept on the VM (`<run-dir>/b1/`). No model call
+was made and no row reached a task.
+
+1. **Attempt 1 (`screen_attempt1_infra_invalid`):** the source was copied with `git archive`, so the launch gate
+   correctly refused it ("git status failed; custody cannot be established"). Fixed by making
+   `<home>/claude-b1` a real git checkout of the sealed commit (git bundle).
+2. **Attempt 2 (`b1r2`):** Harbor failed to start the agent. `AetherCoreAgent.version()` read the installed
+   package metadata, and the research launcher runs Core from the source tree without installing the wheel
+   (PackageNotFoundError). This is a real Core defect: run from source, the adapter could not start.
+   `version()` now reports `core-unpackaged` in that case; the launcher manifest records the exact commit.
+   There is a new adapter test, and the package suite gives 120 passed, 22 platform skips.
+
+B1 runs as attempt 3 on the commit that carries this fix and amendment. Nothing else changed: board, arm,
+route, prices, predictions and stop line are as sealed above.
