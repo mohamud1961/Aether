@@ -15,6 +15,7 @@ A missing or invalid setting stops the run before any model call.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,7 @@ from typing import Any
 
 from .calls import CallLog
 from .clm import ClmSettings
+from .clone import Clone, compose_container
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
@@ -48,7 +50,7 @@ DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
 EFFORT_ENV = "AETHER_CORE_REASONING_EFFORT"
 DEADLINE_ENV = "AETHER_AGENT_DEADLINE_SEC"
 SAMPLING = {"temperature": 1.0, "top_p": 0.95}  # identical to the previous solver solver for a fair comparison
-CALLS_FILE = "core_calls.jsonl"  # every model request and response (see calls)
+CALLS_FILE = "core_calls.jsonl"  # every provider request and response (see calls)
 
 
 class ConfigError(RuntimeError):
@@ -102,6 +104,17 @@ def build_config() -> CoreConfig:
                       contract=review == "contract")
 
 
+def harbor_clone(environment: Any):
+    """Clone factory for a Harbor docker environment: its ``main`` service, found by compose project on the host."""
+    from harbor.environments.docker.docker import _sanitize_docker_compose_project_name
+
+    project = _sanitize_docker_compose_project_name(environment.session_id)
+
+    async def make(env: Any) -> Clone:
+        return await Clone.create(env, known=await compose_container(project))
+    return make
+
+
 def agent_timeout(passed: float | None) -> float:
     if passed and float(passed) > 0:
         return float(passed)
@@ -151,6 +164,8 @@ class AetherCoreAgent(BaseAgent):
         transport = build_review(logs)
         workdir = await discover_workdir(environment)
         started = time.time()
+        if config.contract:  # clones are taken of the container Harbor runs, found on the host (see clone.identify)
+            config = replace(config, make_clone=harbor_clone(environment))
         result = None
         try:
             result = await run_agent(env=environment, task=instruction, workdir=workdir, provider=provider,
@@ -166,6 +181,8 @@ class AetherCoreAgent(BaseAgent):
                                   ("n_output_tokens", "output")):
                     if hasattr(context, attr):
                         setattr(context, attr, int(result.usage.get(key, 0)))
+
+
 
 
 def _write_record(logs: Path, result, *, started: float, workdir: str, config: CoreConfig, review: str | None,
@@ -184,8 +201,9 @@ def _write_record(logs: Path, result, *, started: float, workdir: str, config: C
                    "model": provider.model, "params": provider.params},
         "reviews": reviews,
         "run_metrics": {
-            # Every model call from every role (worker, llm, checkpoint, contract_writer), from the call
-            # log; token totals are lower bounds when usage_unknown > 0. The reviewer calls are in core_reviewer_journal.
+            # Every provider call from every role (worker, llm, checkpoint, contract_writer), from the call
+            # log; token totals are lower bounds when usage_unknown > 0 or open > 0. The reviewer is not a provider
+            # call: its own journal is counted alongside, so the two can be reconciled with the reviews.
             "model_calls": provider.log.totals(),
             "worker_turns": result.calls if result else 0,
             "provider_attempt_count": provider.log.totals()["all"]["attempts"],

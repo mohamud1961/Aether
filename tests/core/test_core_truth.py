@@ -3,6 +3,7 @@ exact record of every model request."""
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -119,3 +120,79 @@ def test_an_unanswered_criterion_is_unconfirmed_and_a_pass_with_gaps_is_not_veri
     v = judge(answers, CRITERIA, 100)
     assert v.status == "pass"  # only the failure-mode reading holds a finish
     assert len(v.unmet) == 2 and "C2 (the reviewer gave no answer)" in v.unmet[1]
+
+
+class _Hang:
+    """A stream that sends a partial tool call, then never finishes."""
+
+    def __init__(self) -> None:
+        self._sent = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._sent:
+            self._sent = True
+            tc = SimpleNamespace(index=0, id="c9", function=SimpleNamespace(name="write_file", arguments='{"pa'))
+            return chunk(content="part", tool_calls=[tc])
+        await asyncio.sleep(3600)
+
+
+def test_a_cancelled_call_ends_as_cancelled_with_what_had_streamed(tmp_path):
+    client = ScriptedClient([])
+
+    async def create(**kwargs):
+        client.requests.append(kwargs)
+        return _Hang()
+    client.chat.completions.create = create
+    provider = ChatProvider(client, model="glm", params={}, log=call_log.CallLog(tmp_path / "calls.jsonl"))
+
+    async def go():
+        task = asyncio.create_task(provider.complete([{"role": "user", "content": "hi"}], [], max_tokens=10,
+                                                     remaining_s=lambda: 60.0))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(go())
+    (row,) = call_log.requests(tmp_path / "calls.jsonl")
+    assert row["ok"] is False and row["error"] == "cancelled"
+    assert row["response"]["content"] == "part" and row["response"]["tool_calls"][0]["function"]["arguments"] == '{"pa'
+    assert provider.log.totals()["all"]["cancelled"] == 1 and provider.log.totals()["all"]["open"] == 0
+
+
+def test_a_process_that_dies_mid_call_leaves_an_explicit_unknown(tmp_path):
+    import subprocess
+    import sys
+    import textwrap
+    log = tmp_path / "calls.jsonl"
+    script = textwrap.dedent(f"""
+        import asyncio, os, sys
+        from pathlib import Path
+        sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r})
+        from aether.core.calls import CallLog
+        from aether.core.provider import ChatProvider
+        from tests.core.core_fakes import ScriptedClient
+
+        async def create(**kwargs):
+            os._exit(9)  # the process dies while the request is in flight
+        client = ScriptedClient([])
+        client.chat.completions.create = create
+        provider = ChatProvider(client, model="glm", params={{}}, log=CallLog(Path({str(log)!r})))
+        asyncio.run(provider.complete([{{"role": "user", "content": "hi"}}], [], max_tokens=10,
+                                      remaining_s=lambda: 60.0))
+    """)
+    done = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert done.returncode == 9, done.stderr[-800:]
+    (row,) = call_log.requests(log)
+    assert row["ok"] is None and row["error"] == "no outcome recorded"
+    assert row["request"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_a_successful_call_keeps_its_response(tmp_path):
+    provider = ChatProvider(ScriptedClient([call("finish", {"summary": "x"}, "c1", reasoning="why")]), model="glm",
+                            params={}, log=call_log.CallLog(tmp_path / "calls.jsonl"))
+    asyncio.run(provider.complete([{"role": "user", "content": "hi"}], [], max_tokens=10, remaining_s=lambda: 60.0))
+    (row,) = call_log.requests(tmp_path / "calls.jsonl")
+    assert row["ok"] and row["response"]["reasoning"] == "why"
+    assert row["response"]["tool_calls"][0]["function"]["name"] == "finish"

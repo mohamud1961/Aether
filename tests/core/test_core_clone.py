@@ -109,3 +109,19 @@ def test_a_real_clone_is_isolated_from_the_original_container():
     assert seen.strip() == "original" and changed.strip() == "changed-in-clone"
     assert original.strip() == "original"  # the clone's writes never reach the original
     assert gone  # the clone image is removed afterwards
+
+
+def test_a_host_known_id_overrides_what_the_container_claims_and_is_still_proven():
+    host = _Host({})
+    clone = asyncio.run(V.Clone.create(_TaskEnv(host, host.other), host, known=host.real))  # the claim is ignored
+    assert next(c for c in host.calls if c[:2] == ["docker", "commit"])[-2] == host.real
+    asyncio.run(clone.close())
+    with pytest.raises(V.CloneError, match="not the one it runs in"):  # a wrong known id fails the token proof
+        asyncio.run(V.Clone.create(_TaskEnv(host, host.real), host, known=host.other))
+
+
+def test_the_compose_lookup_needs_exactly_one_container():
+    async def host(argv, timeout):
+        return 0, "a" * 64 + "\n" + "b" * 64 + "\n", ""
+    with pytest.raises(V.CloneError, match="expected one container, found 2"):
+        asyncio.run(V.compose_container("proj", host=host))

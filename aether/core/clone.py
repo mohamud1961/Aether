@@ -47,18 +47,34 @@ _COMPOSE_LABELS = ("com.docker.compose.project", "com.docker.compose.service", "
 _UNLABEL = [arg for label in _COMPOSE_LABELS for arg in ("--change", f"LABEL {label}=")]
 
 
-async def identify(env: Environment, host: HostRun = host_run) -> str:
+async def compose_container(project: str, service: str = "main", host: HostRun = host_run) -> str:
+    """The container of a compose service, looked up on the host by its labels (clones have them blanked)."""
+    code, out, err = await host(["docker", "ps", "-q", "--no-trunc", "--filter",
+                                 f"label=com.docker.compose.project={project}", "--filter",
+                                 f"label=com.docker.compose.service={service}"], 60)
+    ids = out.split()
+    if code != 0 or len(ids) != 1:
+        raise CloneError(f"compose project {project!r} service {service!r}: expected one container, found "
+                         f"{len(ids)} {err.strip()[:200]}")
+    return ids[0]
+
+
+async def identify(env: Environment, host: HostRun = host_run, known: str | None = None) -> str:
     """The full id of the container ``env`` runs commands in, proven from the host.
 
-    The container's own report of its id (mountinfo, else its hostname) is only a candidate: the worker controls
-    that container and could make it name another one on the host, whose clone the checks would then read. So a
-    random token is written through ``env`` and the host reads it back from the candidate with ``docker exec``;
-    only the container ``env`` really writes into can hold it. The token is removed before any commit."""
-    # The container's hostname file is bind-mounted from /var/lib/docker/containers/<id>/, which names it even
-    # when a compose file sets a custom hostname; the hostname itself is the fallback.
-    res = await run(env, "grep -o 'containers/[0-9a-f]\\{64\\}' /proc/self/mountinfo 2>/dev/null | head -n 1 "
-                         "| cut -d/ -f2; cat /etc/hostname 2>/dev/null || hostname")
-    candidate = (res.stdout.split() or [""])[0]
+    ``known`` is the id the environment's owner found on the host (Harbor: its compose project's ``main``
+    service); without it, the container's own report (mountinfo, else its hostname) is only a candidate, since
+    the worker controls that container and could make it name another one. Either way a random token is written
+    through ``env`` and must be read back from that id with ``docker exec`` before anything is committed, and the
+    token is removed. Without ``known``, a container that shares the token path with ``env`` (a shared volume)
+    could still pass, so production runs pass ``known``."""
+    candidate = known
+    if candidate is None:
+        # The hostname file is bind-mounted from /var/lib/docker/containers/<id>/, which names the container even
+        # when a compose file sets a custom hostname; the hostname itself is the fallback.
+        res = await run(env, "grep -o 'containers/[0-9a-f]\\{64\\}' /proc/self/mountinfo 2>/dev/null | head -n 1 "
+                             "| cut -d/ -f2; cat /etc/hostname 2>/dev/null || hostname")
+        candidate = (res.stdout.split() or [""])[0]
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", candidate):
         raise CloneError(f"cannot identify the task container (reported {candidate!r})")
     code, out, err = await host(["docker", "inspect", "--format", "{{.Id}}", candidate], 60)
@@ -91,8 +107,8 @@ class Clone:
                 "--entrypoint", "sh", image, "-c", "while :; do sleep 3600; done"]
 
     @classmethod
-    async def create(cls, env: Environment, host: HostRun = host_run) -> "Clone":
-        cid = await identify(env, host)
+    async def create(cls, env: Environment, host: HostRun = host_run, known: str | None = None) -> "Clone":
+        cid = await identify(env, host, known)
         tag = f"aether-clone:{uuid.uuid4().hex[:12]}"
         code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
         if code != 0:

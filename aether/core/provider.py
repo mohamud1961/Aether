@@ -43,6 +43,13 @@ class Turn:
     latency_s: float = 0.0
     attempts: int = 1
     failures: list[dict[str, Any]] = field(default_factory=list)  # one row per failed attempt
+    streamed_calls: dict[int, dict[str, str]] = field(default_factory=dict)  # tool calls as they stream in
+
+    def response(self) -> dict[str, Any]:
+        """What came back, as assembled from the stream (partial if the stream did not finish)."""
+        calls = self.tool_calls or [{"id": c["id"], "function": {"name": c["name"], "arguments": c["arguments"]}}
+                                    for _, c in sorted(self.streamed_calls.items())]
+        return {"content": self.content, "reasoning": self.reasoning, "tool_calls": calls}
 
     def assistant_message(self) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": "assistant", "content": self.content or None}
@@ -126,7 +133,7 @@ class ChatProvider:
         started = time.monotonic()
         args = {k: v for k, v in request.items() if k != "params"}
         stream = await self._client.chat.completions.create(**args, **request["params"])
-        calls: dict[int, dict[str, Any]] = {}
+        calls = turn.streamed_calls
         async for chunk in stream:
             turn.response_id = turn.response_id or str(getattr(chunk, "id", "") or "")
             turn.response_model = turn.response_model or str(getattr(chunk, "model", "") or "")
@@ -166,16 +173,21 @@ class ChatProvider:
             if left <= 0:
                 raise ProviderError("no time left for a provider call", deadline=True)
             turn = Turn()
+            seq = self.log.start(role=role, attempt=attempt, request=request)
             try:
                 await asyncio.wait_for(self._stream_once(request, turn), timeout=left)
+            except asyncio.CancelledError:  # the caller was cancelled: the attempt ends as cancelled, then re-raise
+                self.log.end(seq, {"ok": False, "error": "cancelled", "response": turn.response(),
+                                   "after_s": round(time.monotonic() - started, 2)})
+                raise
             except asyncio.TimeoutError as exc:
-                self._failed(role, attempt, request, turn, started, status=None, error="deadline",
+                self._failed(seq, role, attempt, turn, started, status=None, error="deadline",
                              detail="the call outlived the run deadline")
                 raise ProviderError("provider call outlived the run deadline", deadline=True) from exc
             except Exception as exc:  # classify, then retry or raise with the real reason
                 status = getattr(exc, "status_code", None)
                 text = str(exc)
-                row = self._failed(role, attempt, request, turn, started, status=status,
+                row = self._failed(seq, role, attempt, turn, started, status=status,
                                    error=type(exc).__name__, detail=text[:200])
                 if status == 400 and any(k in text.lower() for k in ("context", "too long", "maximum", "tokens")):
                     raise ProviderError(text[:500], status=400, context_overflow=True) from exc
@@ -193,23 +205,21 @@ class ChatProvider:
                 delay = min(delay * 2, 60.0)
                 continue
             turn.attempts, turn.failures = attempt, failures
-            self.log.record(role=role, attempt=attempt, request=request, outcome={
-                "ok": True, "usage": turn.usage, "response_id": turn.response_id,
-                "response_model": turn.response_model, "finish_reason": turn.finish_reason,
-                "latency_s": round(turn.latency_s, 3)})
+            self.log.end(seq, {"ok": True, "usage": turn.usage, "response": turn.response(),
+                               "response_id": turn.response_id, "response_model": turn.response_model,
+                               "finish_reason": turn.finish_reason, "latency_s": round(turn.latency_s, 3)})
             return turn
         raise ProviderError("unreachable")
 
-    def _failed(self, role: str, attempt: int, request: dict[str, Any], turn: Turn, started: float, *,
+    def _failed(self, seq: int, role: str, attempt: int, turn: Turn, started: float, *,
                 status: int | None, error: str, detail: str) -> dict[str, Any]:
         """Count and log one failed attempt (its usage is unknown); returns the trace row."""
         row = {"attempt": attempt, "role": role, "status": status, "error": error, "detail": detail,
                "after_s": round(time.monotonic() - started, 2)}
         self.failed_attempts += 1
         self.failure_log.append(row)
-        self.log.record(role=role, attempt=attempt, request=request, outcome={
-            "ok": False, "status": status, "error": error, "detail": detail, "response_id": turn.response_id,
-            "partial_output_chars": len(turn.content) + len(turn.reasoning), "after_s": row["after_s"]})
+        self.log.end(seq, {"ok": False, "status": status, "error": error, "detail": detail,
+                           "response_id": turn.response_id, "response": turn.response(), "after_s": row["after_s"]})
         return row
 
 

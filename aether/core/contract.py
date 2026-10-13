@@ -100,8 +100,9 @@ class Contract:
     unconfirmed: list[dict[str, Any]] = field(default_factory=list)  # kept; disagreed with the writer's example
 
     def render(self) -> str:
-        lines = ["[acceptance checks] Written from the task alone, before your work, by a separate call that saw "
-                 "only the task and the starting container. They can be wrong: where a check and the task text "
+        lines = ["[harness note, not part of the task: suggested acceptance checks] Written from the task alone, "
+                 "before your work, by a separate call that saw only the task and the starting container. They are "
+                 "suggestions and can be wrong: where a check and the task text "
                  "disagree, the task text decides and correct work stays as it is. They never block finish. Run "
                  "them on a copy of your current state with run_checks whenever useful; never edit what a check "
                  "reads just to make it pass."]

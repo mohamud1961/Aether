@@ -177,7 +177,7 @@ def test_the_loop_pins_the_checks_offers_run_checks_and_never_holds_the_finish(t
     assert result.status == "finished" and result.reviews == []
     worker = [r for r in client.requests if not _is_writer(r)]
     after_run = json.dumps(worker[2]["messages"])
-    assert "They can be wrong" in after_run and "2. failed (exit 1): lowercase" in after_run
+    assert "not part of the task" in after_run and "can be wrong" in after_run and "2. failed (exit 1): lowercase" in after_run
     rows = [json.loads(l) for l in (tmp_path / "t.jsonl").read_text().splitlines()]
     assert any(r["event"] == "contract_shown" and r["checks"] == 2 for r in rows)
     assert any(r["event"] == "contract_run" and r["ok"] for r in rows)

@@ -67,6 +67,10 @@ class Repl:
             self.pid = 0
 
     async def run(self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False) -> str:
+        if not self.pid and self.python and code:  # it died earlier: a fresh interpreter, and the model is told
+            await self.start()
+            self.pending = 0
+            return "[python REPL restarted; variables from before are gone]\n" + await self.run(code, wait_s=wait_s)
         if not self.pid:
             raise RuntimeError("the python tool is not available in this environment")
         q = shlex.quote
@@ -108,7 +112,7 @@ class Repl:
             status = f"[python cell {seq}: {done.get('status')} · {done.get('seconds')}s]"
         elif not alive:
             self.pending, self.pid = 0, 0
-            status = "[python REPL exited; its state is lost. It is not restarted automatically]"
+            status = "[python REPL exited; its state is lost. The next python call starts a fresh one]"
         else:
             status = (f"[python cell {seq} still running after {elapsed:.0f}s; call python with empty code to keep "
                       "waiting, or interrupt=true to stop it]")

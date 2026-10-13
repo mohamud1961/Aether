@@ -39,9 +39,14 @@ class Files:
         q = shlex.quote(path)
         res = await run(self._env,
             f"if [ ! -f {q} ]; then echo 'not a regular file (or missing)' >&2; exit 2; fi; "
-            f"wc -l < {q}; awk 'NR>={start} && NR<={end} {{printf \"%6d  %s\\n\", NR, $0}}' {q}")
+            f"if [ -s {q} ] && ! head -c 8192 {q} | grep -qI .; then echo BINARY; wc -c < {q}; exit 0; fi; "
+            f"awk 'END {{print NR}}' {q}; awk 'NR>={start} && NR<={end} {{printf \"%6d  %s\\n\", NR, $0}}' {q}")
         if res.code != 0:
             raise FileNotFoundError(f"{path}: {(res.stderr or res.stdout).strip()[:200]}")
+        if res.stdout.startswith("BINARY\n"):
+            size = res.stdout.split()[1] if len(res.stdout.split()) > 1 else "?"
+            return (f"[{path}: binary file, {size} bytes; not shown as text. Inspect it in the terminal "
+                    f"(xxd, od, file, strings) or with the python tool]")
         total_s, _, body = res.stdout.partition("\n")
         total = int(total_s.strip() or 0)
         if len(body) > MAX_READ_CHARS:
