@@ -2,7 +2,8 @@
 
 Used to run acceptance checks on a copy of a state, so nothing a check writes reaches the graded container.
 A commit copies files, not processes: servers running in the task container are absent from a clone, and
-volume-mounted paths are not part of the commit.
+volume-mounted paths are not part of the commit. Which container is committed is proven from the host
+(``identify``), never taken from what the task container says about itself.
 """
 from __future__ import annotations
 
@@ -46,6 +47,36 @@ _COMPOSE_LABELS = ("com.docker.compose.project", "com.docker.compose.service", "
 _UNLABEL = [arg for label in _COMPOSE_LABELS for arg in ("--change", f"LABEL {label}=")]
 
 
+async def identify(env: Environment, host: HostRun = host_run) -> str:
+    """The full id of the container ``env`` runs commands in, proven from the host.
+
+    The container's own report of its id (mountinfo, else its hostname) is only a candidate: the worker controls
+    that container and could make it name another one on the host, whose clone the checks would then read. So a
+    random token is written through ``env`` and the host reads it back from the candidate with ``docker exec``;
+    only the container ``env`` really writes into can hold it. The token is removed before any commit."""
+    # The container's hostname file is bind-mounted from /var/lib/docker/containers/<id>/, which names it even
+    # when a compose file sets a custom hostname; the hostname itself is the fallback.
+    res = await run(env, "grep -o 'containers/[0-9a-f]\\{64\\}' /proc/self/mountinfo 2>/dev/null | head -n 1 "
+                         "| cut -d/ -f2; cat /etc/hostname 2>/dev/null || hostname")
+    candidate = (res.stdout.split() or [""])[0]
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", candidate):
+        raise CloneError(f"cannot identify the task container (reported {candidate!r})")
+    code, out, err = await host(["docker", "inspect", "--format", "{{.Id}}", candidate], 60)
+    cid = out.strip()
+    if code != 0 or not re.fullmatch(r"[0-9a-f]{64}", cid):
+        raise CloneError(f"no container {candidate!r} on this host: {err.strip()[:200]}")
+    token = uuid.uuid4().hex
+    proof = f"/tmp/.aether-identity-{token}"
+    wrote = await run(env, f"printf %s {token} > {proof}")
+    try:
+        code, out, _ = await host(["docker", "exec", cid, "cat", proof], 60)
+    finally:
+        await run(env, f"rm -f {proof}")
+    if wrote.code != 0 or code != 0 or out.strip() != token:
+        raise CloneError(f"container {candidate!r} reported by the environment is not the one it runs in")
+    return cid
+
+
 class Clone:
     """A throwaway container started from a commit of the task container (Harbor-environment interface)."""
 
@@ -61,13 +92,7 @@ class Clone:
 
     @classmethod
     async def create(cls, env: Environment, host: HostRun = host_run) -> "Clone":
-        # The container's own hostname file is bind-mounted from /var/lib/docker/containers/<id>/, which names it
-        # even when a compose file sets a custom hostname; the hostname itself is the fallback.
-        res = await run(env, "grep -o 'containers/[0-9a-f]\\{64\\}' /proc/self/mountinfo 2>/dev/null | head -n 1 "
-                             "| cut -d/ -f2; cat /etc/hostname 2>/dev/null || hostname")
-        cid = (res.stdout.split() or [""])[0]
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", cid):
-            raise CloneError(f"cannot identify the task container (hostname {cid!r})")
+        cid = await identify(env, host)
         tag = f"aether-clone:{uuid.uuid4().hex[:12]}"
         code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
         if code != 0:
