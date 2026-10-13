@@ -86,3 +86,16 @@ def test_invalid_deadline_never_reaches_a_model_call(monkeypatch, value):
     monkeypatch.setenv(adapter.DEADLINE_ENV, value)
     with pytest.raises(adapter.ConfigError):
         adapter.agent_timeout(None)
+
+
+def test_version_from_a_source_checkout_is_reported_not_a_launch_crash(monkeypatch):
+    # B1: run from the research tree without the wheel installed, version() raised and every row failed at launch
+    import importlib.metadata as md
+
+    def missing(name):
+        raise md.PackageNotFoundError(name)
+
+    monkeypatch.setattr(md, "version", missing)
+    assert adapter.AetherCoreAgent.version(None) == "core-unpackaged"
+    monkeypatch.setattr(md, "version", lambda name: "0.2.0")
+    assert adapter.AetherCoreAgent.version(None) == "core-0.2.0"
