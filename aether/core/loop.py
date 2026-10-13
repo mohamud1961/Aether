@@ -50,6 +50,7 @@ class CoreConfig:
     clm: ClmSettings = field(default_factory=ClmSettings)
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
     make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
+    parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
     contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
 
     def __post_init__(self) -> None:
@@ -160,7 +161,7 @@ async def run_agent(*, env: Environment, task: str, workdir: str, provider: Chat
                    cwd=None, env=None, timeout_sec=30)
     python = await s.repl.start() if config.repl else ""
     see = config.images and images.available()
-    s.tools = tools(python=bool(python), images=see, contract=config.contract)
+    s.tools = tools(python=bool(python), images=see, contract=config.contract, history=config.context == "clm")
     pinned = [{"role": "system", "content": system_prompt(python_version=python, clm=config.context == "clm",
                                                           images=see)},
               {"role": "user", "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"}]
@@ -267,20 +268,23 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         await put_bytes(s.env, text.encode(), s.clm.settings.mirror_path)
         mirror = (upto, hashlib.sha256(text.encode()).hexdigest())
     finished = False
-    for call in calls:
+    buffered: dict[int, tuple[dict, str, bool, float]] = {}
+    for index, call in enumerate(calls):
         name = call["function"]["name"]
-        t0 = time.monotonic()
-        args: dict[str, Any] = {}
-        try:
-            args = parse_arguments(call["function"]["arguments"])
-            validate_call(name, args, s.tools)
-            out, finished = await _dispatch(s, name, args)
-        except Exception as exc:  # tool errors are the model's to handle; reported verbatim
-            out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
-            if isinstance(exc, json.JSONDecodeError):
-                out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
+        if s.config.parallel_reads and name == "read_file" and index not in buffered:
+            end = index
+            while end < len(calls) and calls[end]["function"]["name"] == "read_file":
+                end += 1
+            gate = asyncio.Semaphore(4)
+
+            async def read_one(item):
+                async with gate:
+                    return await _invoke(s, item)
+            results = await asyncio.gather(*(read_one(item) for item in calls[index:end]))
+            buffered.update(zip(range(index, end), results))
+        args, out, finished, duration = (buffered.pop(index) if index in buffered else await _invoke(s, call))
         s.result.steps += 1
-        s.trace("tool", name=name, args=args, result=out, duration_s=round(time.monotonic() - t0, 3))
+        s.trace("tool", name=name, args=args, result=out, duration_s=duration)
         out = await _save(s, out)
         if name != "finish":
             s.actions.append(_action_view(name, args, out))
@@ -293,6 +297,23 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     if mirror is not None:
         await _read_back(s, *mirror)
     return False
+
+
+async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
+    """Execute one validated call, preserving errors and result ownership for ordered publication."""
+    started = time.monotonic()
+    name = call["function"]["name"]
+    args: dict[str, Any] = {}
+    finished = False
+    try:
+        args = parse_arguments(call["function"]["arguments"])
+        validate_call(name, args, s.tools)
+        out, finished = await _dispatch(s, name, args)
+    except Exception as exc:
+        out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
+        if isinstance(exc, json.JSONDecodeError):
+            out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
+    return args, out, finished, round(time.monotonic() - started, 3)
 
 
 async def _save(s: _Session, out: str) -> str:
@@ -309,6 +330,8 @@ async def _save(s: _Session, out: str) -> str:
 
 
 async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, bool]:
+    if name == "read_history" and s.clm:
+        return s.clm.read_history(args["message_id"], args.get("offset", 0), args.get("limit", 12000)), False
     if name == "finish":
         return await _finish(s, args)
     if name == "run_checks" and s.config.contract:
@@ -362,7 +385,7 @@ async def _keep_history(s: _Session) -> str:
         await put_bytes(s.env, s.clm.render_history().encode(), path)
     except Exception as exc:
         s.trace("history_save_error", path=path, error=f"{type(exc).__name__}: {exc}")
-        return " [history save failed; a current disk copy is unavailable; retain needed observations in context]"
+        return " [history save failed; a current disk copy is unavailable; use read_history to retrieve original messages]"
     return f" (original appended messages, removed ones included, are kept unchanged in {path})"
 
 

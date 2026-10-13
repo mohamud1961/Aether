@@ -95,3 +95,27 @@ Steps 1–4 are implemented checkpoints, not blanket acceptance: review findings
 Immediate acceptance: actual shell/file effects remain correct under reviewer objection; historical tool
 observations cannot be changed through mutable context aliases; interrupted accounting retains committed
 attempts and marks truncation; malformed complete log records still fail. Local pipe checks do not qualify Linux PTY.
+
+### Deterministic takeover checkpoint
+
+- Step 3 requalified on Linux for the new wheel: 17 real Docker fault tests passed; includes unreaped
+  zombie liveness and between-call restart. Exact image/wheel hashes and logs are preserved.
+- Step 5: native argument types checked before effects; explicit zero wait honored; named terminals
+  prove background command + independent work + handle polling with exactly one command execution.
+  Keys for a lost interactive program are never replayed into a fresh shell. Optional read batches run
+  at most four `read_file` calls concurrently, preserve response IDs/order and do not cross writes.
+  `CoreConfig.parallel_reads` is false by default; broader concurrency is not enabled.
+- Step 6: canonical source is `aether-core/`, with src/aether, pyproject.toml, uv.lock, tests, docs and
+  examples. `aether/core` is only a research compatibility symlink. A wheel was installed outside the
+  repository; real tools, filesystem effects and immutable attempt reconstruction were exercised.
+- No GLM/the reviewer calls were made. Step 7 is deliberately unexecuted: no claim of model-performance gain.
+  A live comparison needs an exact sealed route/case/spend manifest and reconciliation of the principal's
+  no-model restriction; this engineering takeover does not invent additional spend authority.
+
+Residual scope: full Harbor-runner and live the reviewer/provider qualification remain distinct from the direct
+Docker/installed-wheel checks. The context replay is diagnostic, not a solver-score or loss-causality proof.
+
+- Context recall now remains available through read_history even after a failed HISTORY.txt write. Pages
+  preserve exact structured messages; later context annotations cannot mutate the stored observations.
+- VM has been deallocated after clean completion and evidence retrieval. See docs/core/VALIDATION.md
+  for exact wheel versions, platform coverage and remaining boundaries.

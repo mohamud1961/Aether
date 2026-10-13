@@ -199,3 +199,16 @@ def test_a_deleted_control_directory_restarts_the_terminal_without_crashing(tmp_
         return await t.use(input="echo after-delete")
     out = asyncio.run(go())
     assert "after-delete" in out and "[exit 0" in out and "fresh terminal main" in out
+
+
+def test_keys_for_a_dead_interactive_program_are_not_replayed_as_shell_commands(tmp_path):
+    import shutil
+
+    async def go():
+        t, work = _terms(tmp_path)
+        await t.use(input="echo initialized")
+        shutil.rmtree(tmp_path / "ctl")
+        out = await t.use(input="touch UNINTENDED\n", mode="keys")
+        return out, work
+    out, work = asyncio.run(go())
+    assert "keystrokes were not sent" in out and not (work / "UNINTENDED").exists()

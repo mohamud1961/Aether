@@ -23,7 +23,7 @@ BLOCK = 6  # older turns are trimmed in blocks of this many turns
 OLD_RESULT_HEAD = 600
 OLD_RESULT_TAIL = 900
 TIGHT_HEAD, TIGHT_TAIL = 200, 300
-SAVE_OVER = OLD_RESULT_HEAD + OLD_RESULT_TAIL + 80  # results this long can be trimmed later, so they are saved
+SAVE_OVER = min(OLD_RESULT_HEAD + OLD_RESULT_TAIL, TIGHT_HEAD + TIGHT_TAIL) + 80  # results this long can be trimmed later, so they are saved
 SAVED_NOTE = "[this result is saved in full at {path}]"
 BODY_KEYS = {"write_file": ("content",), "edit_file": ("old_str", "new_str")}
 

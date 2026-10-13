@@ -250,6 +250,11 @@ class Terminals:
             # It died between calls (killed, `exit`, its files deleted). The input never reached it, so it goes
             # to a fresh terminal; left as it was, every later call failed the same way (V3: 45 such errors).
             session = await self._restart(session)
+            if mode == "keys":
+                return note + (f"[{gone}; its interactive program and shell state are gone. A fresh terminal "
+                               f"{name} was started. Your keystrokes were not sent to the new shell; "
+                               "start the intended program again before sending keys.]"
+                               )
             note += (f"[{gone}; its shell state (cwd, variables, jobs) is gone. A fresh terminal {name} was "
                      "started and your input sent to it]\n")
             await self._send(session, input, mode, interrupt)

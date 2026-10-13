@@ -229,6 +229,18 @@ class ClmContext:
         return "\n".join(f"[[MSG {i} role={m.get('role')}]]\n{json.dumps(m, ensure_ascii=False)}"
                          for i, m in enumerate(self.raw))
 
+    def read_history(self, message_id: int, offset: int = 0, limit: int = 12000) -> str:
+        """Page one original message without depending on the sandbox history file."""
+        if not 0 <= message_id < len(self.raw):
+            raise ValueError(f"history contains {len(self.raw)} messages; IDs are 0 through {len(self.raw) - 1}")
+        text = json.dumps(self.raw[message_id], ensure_ascii=False)
+        if offset < 0 or offset > len(text) or limit < 1 or limit > 20000:
+            raise ValueError(f"offset must be 0..{len(text)} and limit must be 1..20000 characters")
+        end = min(len(text), offset + limit)
+        next_page = f"; next offset={end}" if end < len(text) else "; complete"
+        return (f"[history MSG {message_id}; {len(self.raw)} messages; chars {offset}:{end} of {len(text)}"
+                f"{next_page}]\n{text[offset:end]}")
+
     @staticmethod
     def parse(text: str) -> list[dict[str, Any]]:
         marks = list(TURN_RE.finditer(text))

@@ -295,3 +295,37 @@ def test_a_clone_cancelled_at_any_point_leaves_no_container_or_image_behind(box)
                             capture_output=True, text=True).stdout.split()
     assert cancelled >= 2  # the cancellations really landed mid-creation
     assert after <= before and not images, (after - before, images)
+
+
+def test_zombie_liveness_is_not_reported_as_alive(box):
+    from aether.core.env import alive_test
+
+    async def go():
+        # The parent deliberately leaves its exited child unreaped, independently of the image's PID 1.
+        await box.exec("python3 -c 'import os,time; child=os.fork(); "
+                       "open(\"/tmp/zombie-child\",\"w\").write(str(child)) if child else os._exit(0); "
+                       "time.sleep(20)' >/tmp/zombie-parent.log 2>&1 &")
+        try:
+            await asyncio.sleep(0.3)
+            pid = int((await box.exec("cat /tmp/zombie-child")).stdout)
+            probe = await box.exec(f"kill -0 {pid}; echo kill_code:$?; "
+                                   f"{alive_test(pid)}; echo alive_code:$?")
+            return probe.stdout
+        finally:
+            await box.exec("pkill -f 'time.sleep\\(20\\)' || true")
+    output = _go(go())
+    assert "kill_code:0" in output and "alive_code:1" in output
+
+
+def test_terminal_restarts_after_its_wrapper_dies_between_calls(box):
+    async def go():
+        t = _terms(box)
+        try:
+            await t.use(input="export OLD_STATE=yes")
+            await box.exec(f"kill -9 {t._sessions['main'].pid}")
+            await asyncio.sleep(0.2)
+            return await t.use(input="echo restarted-${OLD_STATE:-fresh}", wait_s=3)
+        finally:
+            await t.close()
+    out = _go(go())
+    assert "fresh terminal" in out and "restarted-fresh" in out and "exit 0" in out

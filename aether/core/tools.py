@@ -56,7 +56,8 @@ problems; drop stale output). When you edit it, the edited file replaces your ea
 statement stays). Files and terminal logs on disk are never affected by this. Before discarding history, the \
 harness saves original appended messages in {HISTORY_PATH} ([[MSG n role=...]] blocks containing JSON). \
 The edit/checkpoint receipt confirms that path or reports a save failure. Grep the saved file to recover an \
-old observation; do not assume a failed save left a usable copy.
+old observation; do not assume a failed save left a usable copy. read_history retrieves an original \
+message by MSG number even when that file cannot be written; it supports bounded character pages.
 """
 
 TERMINAL = {"type": "function", "function": {
@@ -127,9 +128,20 @@ RUN_CHECKS = {"type": "function", "function": {
     "parameters": {"type": "object", "properties": {}}}}
 
 
-def tools(*, python: bool, images: bool = False, contract: bool = False) -> list[dict[str, Any]]:
+READ_HISTORY = {"type": "function", "function": {
+    "name": "read_history",
+    "description": "Read an original CLM history message by stable MSG number, including removed messages. "
+                   "Works even if HISTORY.txt could not be saved. A page states the next character offset.",
+    "parameters": {"type": "object", "properties": {
+        "message_id": {"type": "integer"}, "offset": {"type": "integer"},
+        "limit": {"type": "integer", "description": "Characters per page, 1..20000; default 12000."}},
+        "required": ["message_id"]}}}
+
+
+def tools(*, python: bool, images: bool = False, contract: bool = False, history: bool = False) -> list[dict[str, Any]]:
     return [TERMINAL, *([PYTHON] if python else []), READ_FILE, WRITE_FILE, EDIT_FILE,
-            *([VIEW_IMAGE] if images else []), *([RUN_CHECKS] if contract else []), FINISH]
+            *([VIEW_IMAGE] if images else []), *([RUN_CHECKS] if contract else []),
+            *([READ_HISTORY] if history else []), FINISH]
 
 
 def validate_call(name: str, arguments: dict[str, Any], definitions: list[dict[str, Any]]) -> None:

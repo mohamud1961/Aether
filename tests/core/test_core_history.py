@@ -47,13 +47,17 @@ def test_a_history_that_cannot_be_written_is_traced_and_never_claimed(tmp_path):
     mirror = tmp_path / "ctx" / "LIVE_CTX.txt"
     script = [call("terminal", {"input": "echo OLD"}, "c1"),
               call("write_file", {"path": str(mirror), "content": "[[CTX_TURN 0 role=user]]\nnote"}, "c2"),
-              call("finish", {"summary": "done"}, "c3")]
+              call("read_history", {"message_id": 1}, "c3"),
+              call("finish", {"summary": "done"}, "c4")]
     result, rows, client = _run(tmp_path, script, config=_config(tmp_path, history=str(blocker / "HISTORY.txt")))
     assert result.status == "finished"
     assert any(r["event"] == "history_save_error" for r in rows)
     assert "kept unchanged" not in json.dumps(client.requests[-1]["messages"])
     assert "history save failed" in json.dumps(client.requests[-1]["messages"])
     assert [r for r in rows if r["event"] == "context_edit"][0]["accepted"] is True  # the edit itself still applies
+    recovered = next(r["result"] for r in rows if r["event"] == "tool" and r["name"] == "read_history")
+    message = json.loads(recovered.split("\n", 1)[1])
+    assert message["tool_call_id"] == "c1" and "OLD" in message["content"]
 
 
 def test_a_rollback_says_where_the_dropped_output_is_kept():
@@ -74,3 +78,13 @@ def test_original_observation_and_reasoning_survive_later_annotations():
     ctx.editable[-1]["content"] += "\nnew annotation"
     assert ctx.render_history() == before
     assert "original derivation" in before and '"tool_call_id": "a"' in before
+
+
+def test_historical_message_pages_reassemble_exactly():
+    ctx = ClmContext(pinned=[])
+    original = {"role": "tool", "tool_call_id": "a", "content": "α" * 25000}
+    ctx.append(original)
+    first = ctx.read_history(0, limit=20000)
+    rest = ctx.read_history(0, offset=20000, limit=20000)
+    assert "next offset=20000" in first and "; complete]" in rest
+    assert json.loads(first.split("\n", 1)[1] + rest.split("\n", 1)[1]) == original
