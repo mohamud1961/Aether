@@ -35,6 +35,7 @@ from typing import Any
 from . import images
 
 MIRROR_PATH = "/tmp/.aether/ctx/LIVE_CTX.txt"
+HISTORY_PATH = "/tmp/.aether/ctx/HISTORY.txt"
 TURN_RE = re.compile(r"^\[\[CTX_TURN (\d+) role=([a-z_]+)\]\]$", re.M)
 CHARS_PER_TOKEN = 3.0  # initial estimate; recalibrated from the provider's own counts
 TOOLS_OVERHEAD_TOKENS = 1_500
@@ -49,6 +50,7 @@ class ClmSettings:
     max_rollbacks: int = 0
     keep_recent_tokens: int = 8_000
     mirror_path: str = MIRROR_PATH
+    history_path: str = HISTORY_PATH
 
     @property
     def limit(self) -> int:
@@ -82,6 +84,7 @@ class ClmContext:
     pinned: list[dict[str, Any]]
     settings: ClmSettings = field(default_factory=ClmSettings)
     editable: list[dict[str, Any]] = field(default_factory=list)
+    raw: list[dict[str, Any]] = field(default_factory=list)  # every appended message as shown; edits never touch it
     stats: ClmStats = field(default_factory=ClmStats)
     chars_per_token: float = CHARS_PER_TOKEN
     _armed: set[float] = field(default_factory=set)
@@ -141,6 +144,7 @@ class ClmContext:
 
     def append(self, *messages: dict[str, Any]) -> None:
         self.editable.extend(messages)
+        self.raw.extend(messages)
         for m in messages:
             if m.get("role") == "tool":
                 self._recent_outputs = (self._recent_outputs + [len(str(m.get("content") or ""))])[-3:]
@@ -193,7 +197,7 @@ class ClmContext:
         return self._rollbacks_in_episode < self.settings.max_rollbacks and any(
             m.get("role") == "assistant" for m in self.editable)
 
-    def roll_back(self) -> str:
+    def roll_back(self, kept: str = "") -> str:
         """Remove the newest assistant turn and its results; return the note to pin for the model."""
         idx = max(i for i, m in enumerate(self.editable) if m.get("role") == "assistant")
         removed = self.editable[idx:]
@@ -204,7 +208,7 @@ class ClmContext:
         sizes = [len(str(m.get("content") or "")) for m in removed if m.get("role") == "tool"]
         note = (f"[context limit] Your newest turn was rolled back: the context would exceed its "
                 f"{self.settings.limit}-token limit. The command(s) did run and their effects remain, but their "
-                f"output ({sum(sizes)} chars) was dropped:\n" + "\n".join(f"- {c}" for c in cmds) +
+                f"output ({sum(sizes)} chars) was dropped from your context{kept}:\n" + "\n".join(f"- {c}" for c in cmds) +
                 f"\nCondense {self.settings.mirror_path} now, then continue; re-run with smaller output or write it to a file.")
         self.editable.append({"role": "user", "content": note})
         return note
@@ -213,6 +217,11 @@ class ClmContext:
     def render(self, upto: int | None = None) -> str:
         msgs = self.editable if upto is None else self.editable[:upto]
         return "\n".join(f"[[CTX_TURN {i} role={m.get('role')}]]\n{render_message(m)}" for i, m in enumerate(msgs))
+
+    def render_history(self) -> str:
+        """Every message of the run as first shown (harness notes added to a result included), numbered once and
+        for good: what an edit, rollback or checkpoint removes from the context stays here unchanged."""
+        return "\n".join(f"[[MSG {i} role={m.get('role')}]]\n{render_message(m)}" for i, m in enumerate(self.raw))
 
     @staticmethod
     def parse(text: str) -> list[dict[str, Any]]:

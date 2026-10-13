@@ -58,6 +58,22 @@ the authority of generated checks to block a finish. Checks may still be shown a
 
 Later: a video tool.
 
+## Progress
+
+- Steps 1-3 done (commits 0b1b5b4ce..26c443b9e).
+- Step 4, context bench (`python -m tools.aether_program.core_context_bench`, report
+  `CONTEXT_BENCH_V4_20261013.json`): 55 V4 runs, 2023 requests, replayed with no model calls. CLM replay matches
+  the recorded request sizes (median drift 0.0%; one run diverges at an edit made through the terminal). Both
+  builders keep about 89-90% of each request identical to the previous one (the recorded provider cache hit was
+  69% median, so the gap is on the provider side). CLM sends 34% fewer characters (82M vs 124M). The task is in
+  every request. Build time is negligible (3.6 ms per request at 500 turns). Losses found: 2 trimmed results
+  (default builder) and 5 results removed by CLM edits or checkpoints that the model later re-fetched; 3 of
+  those 5 were short results with no copy anywhere. Fixed: long results are saved exactly in the sandbox
+  (21fabe85c), and under CLM every message as first shown is written to `HISTORY.txt` before any edit,
+  rollback or checkpoint, and the model is told where it is. All 7 cases now have an exact copy.
+  Not changed: dropping the newest turn's replayed reasoning breaks the cache prefix at that one turn (28% of
+  CLM turns); the cost is that one turn's text, so it stays.
+
 ## Acceptance for every change
 
 What becomes better for the model; which module owns it; what complexity leaves callers; which

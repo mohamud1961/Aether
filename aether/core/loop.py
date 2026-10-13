@@ -346,10 +346,23 @@ async def _read_back(s: _Session, upto: int, digest: str) -> None:
         return
     if hashlib.sha256(text.encode()).hexdigest() == digest:
         return
+    kept = await _keep_history(s)
     accepted, receipt = s.clm.apply_edit(text, upto)
-    _attach(s.clm.editable, receipt)
+    _attach(s.clm.editable, receipt + (kept if accepted else ""))
     s.trace("context_edit", accepted=accepted, receipt=receipt, tokens=s.clm.tokens())
     s.files.written.pop(path, None)
+
+
+async def _keep_history(s: _Session) -> str:
+    """Write the run's full history to the sandbox before an edit, rollback or checkpoint removes part of it.
+    Returns the sentence that tells the model where it is, or "" when it could not be written (traced)."""
+    path = s.clm.settings.history_path
+    try:
+        await put_bytes(s.env, s.clm.render_history().encode(), path)
+    except Exception as exc:
+        s.trace("history_save_error", path=path, error=f"{type(exc).__name__}: {exc}")
+        return ""
+    return f" (every message as first shown, removed ones included, is kept unchanged in {path})"
 
 
 async def _fit_context(s: _Session) -> bool:
@@ -357,7 +370,7 @@ async def _fit_context(s: _Session) -> bool:
     clm = s.clm
     while clm.over_limit():
         if clm.can_roll_back():
-            note = clm.roll_back()
+            note = clm.roll_back(await _keep_history(s))
             s.trace("context_rollback", tokens=clm.tokens(), note=note)
             continue
         keep = clm.checkpoint_split()
@@ -374,7 +387,7 @@ async def _fit_context(s: _Session) -> bool:
         for key, value in usage.items():
             s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
         before = clm.tokens()
-        clm.replace_with_checkpoint(summary, compaction.CHECKPOINT_NOTE, keep)
+        clm.replace_with_checkpoint(summary, compaction.CHECKPOINT_NOTE + await _keep_history(s), keep)
         s.trace("context_checkpoint", ok=True, tokens_before=before, tokens=clm.tokens(), kept_messages=
                 len(clm.editable) - 1, summary=summary)
         if clm.over_limit():

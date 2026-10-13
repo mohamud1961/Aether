@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .clm import MIRROR_PATH
+from .clm import HISTORY_PATH, MIRROR_PATH
 from .terminal import MAX_WAIT_S
 
 BASE_PROMPT = """You are an expert engineer working autonomously in a Linux container to complete the task \
@@ -52,7 +52,9 @@ Your context: everything after the task statement is your working context. It ha
 is mirrored at {MIRROR_PATH}, one [[CTX_TURN i role=...]] block per message. You manage it yourself: \
 condense it by editing that file with your normal tools (keep facts, paths, decisions, results and open \
 problems; drop stale output). When you edit it, the edited file replaces your earlier history (the task \
-statement stays). Files and terminal logs on disk are never affected by this.
+statement stays). Files and terminal logs on disk are never affected by this. Nothing an edit or checkpoint \
+removes is lost: every message as first shown stays in {HISTORY_PATH} ([[MSG n role=...]] blocks, never \
+edited), so condense freely and grep that file when you need an old result back.
 """
 
 TERMINAL = {"type": "function", "function": {
