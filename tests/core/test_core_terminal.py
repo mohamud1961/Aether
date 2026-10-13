@@ -275,3 +275,68 @@ def test_restart_preserves_the_full_log_at_its_original_handle(tmp_path):
         "ORIGINAL-LOG" in Path(path).read_text()
         and len(Path(path).read_bytes()) > 100000
     )
+
+
+def test_restart_cannot_collide_with_another_valid_terminal_name(tmp_path):
+    async def go():
+        terminals, _ = _terms(tmp_path)
+        await terminals.use(
+            name="main-1", input="export KEEP=independent; echo ORIGINAL"
+        )
+        other_log = Path(terminals._sessions["main-1"].log)
+        await terminals.use(name="main", input="echo first")
+        os.kill(terminals._sessions["main"].pid, 9)
+        await asyncio.sleep(0.3)
+        await terminals.use(name="main", input="echo restarted")
+        observed = await terminals.use(name="main-1", input="echo $KEEP")
+        return observed, other_log.read_text()
+
+    observed, log = asyncio.run(go())
+    assert "independent" in observed and "ORIGINAL" in log
+
+
+@pytest.mark.parametrize("lose_launch_reply", [False, True])
+def test_failed_startup_after_launch_still_has_an_owned_process_to_close(
+    tmp_path, lose_launch_reply
+):
+    class StartupFails(LocalEnv):
+        async def exec(self, command, **kwargs):
+            result = await super().exec(command, **kwargs)
+            if lose_launch_reply and "nohup" in command:
+                raise OSError("launch reply lost after actual launch")
+            return result
+
+    async def go():
+        work = tmp_path / "work"
+        work.mkdir()
+        terminals = Terminals(
+            StartupFails(work),
+            str(work),
+            lambda: 1000,
+            control_dir=str(tmp_path / "ctl"),
+        )
+        if not lose_launch_reply:
+
+            async def fail_init(session, text):
+                raise OSError("initial input failed after actual launch")
+
+            terminals._write = fail_init
+        try:
+            with pytest.raises(OSError):
+                await terminals.use(input="echo never")
+            pid = int((tmp_path / "ctl/term/main/pid").read_text())
+            await terminals.close()
+            await asyncio.sleep(0.1)
+            from aether.core.env import alive_test, run
+
+            alive = await run(terminals._env, alive_test(pid))
+            assert alive.code != 0, f"owned startup process {pid} survived close"
+        finally:
+            # The before-fix control must not leak its real process.
+            pid_file = tmp_path / "ctl/term/main/pid"
+            if pid_file.exists():
+                from aether.core.env import stop_process_tree
+
+                await stop_process_tree(terminals._env, [int(pid_file.read_text())])
+
+    asyncio.run(go())

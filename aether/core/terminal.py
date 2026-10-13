@@ -75,6 +75,7 @@ class Session:
     pending: int = 0  # command whose completion marker has not been seen yet
     last_size: int = 0
     grew_at: float = 0.0  # monotonic time the log last grew
+    ready: bool = False
 
     @property
     def log(self) -> str:
@@ -100,19 +101,24 @@ class Terminals:
         self._clock = clock  # callable -> remaining seconds
         self._sessions: dict[str, Session] = {}
         self._generations: dict[str, int] = {}
+        self._launching: set[str] = (
+            set()
+        )  # PID files resolve a lost launch reply during cleanup
 
     @property
     def names(self) -> list[str]:
         return sorted(self._sessions)
 
     async def _start(self, name: str) -> Session:
-        if len(self._sessions) >= MAX_TERMINALS:
+        if len(self._sessions) + len(self._launching) >= MAX_TERMINALS:
             raise ValueError(
                 f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}"
             )
         generation = self._generations.get(name, 0)
         self._generations[name] = generation + 1
-        suffix = name if generation == 0 else f"{name}-{generation}"
+        # A dot is outside the accepted name alphabet, so generations cannot
+        # collide with another model-chosen name (main-1 versus restarted main).
+        suffix = name if generation == 0 else f"{name}.{generation}"
         root = f"{self._control_dir}/term/{suffix}"
         q = shlex.quote
         wrapper = "\n".join(
@@ -146,6 +152,7 @@ class Terminals:
         # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did
         # nothing (found on Linux in D1; the macOS tests use the pipe path and never saw it).
         run_sh, pid_file = q(root + "/run.sh"), q(root + "/pid")
+        self._launching.add(root)
         res = await run(
             self._env,
             f"if command -v setsid >/dev/null 2>&1 && setsid -f true >/dev/null 2>&1; then "
@@ -163,6 +170,8 @@ class Terminals:
         session = Session(
             name, root, int(lines[0]), lines[1] == "pty", grew_at=time.monotonic()
         )
+        self._sessions[name] = session  # ownership precedes fallible initialization
+        self._launching.remove(root)
         await self._write(
             session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n'
         )
@@ -175,16 +184,32 @@ class Terminals:
             await asyncio.sleep(0.2)
         else:
             raise RuntimeError("terminal did not become ready within 15 s")
-        self._sessions[name] = session
+        session.ready = True
         return session
 
     async def close(self) -> None:
         """Stop every terminal and everything started in it. The shell runs under ``script`` in a session of its
         own, so a process-group kill does not reach it or its jobs; the whole process tree is collected from
         /proc first (while parents are alive, so nohup'd jobs are still descendants), then TERM, then KILL."""
-        if self._sessions:
-            await stop_process_tree(self._env, [s.pid for s in self._sessions.values()])
+        pids = [s.pid for s in self._sessions.values()]
+        unresolved = []
+        for root in list(self._launching):
+            try:
+                result = await run(self._env, f"cat {shlex.quote(root + '/pid')}")
+                raw = result.stdout.strip()
+                if result.code != 0 or not raw.isdigit() or int(raw) <= 1:
+                    raise OSError("owned PID unavailable")
+                pids.append(int(raw))
+            except Exception as exc:
+                unresolved.append(f"{root}: {type(exc).__name__}: {exc}")
+        if pids:
+            await stop_process_tree(self._env, list(set(pids)))
         self._sessions.clear()
+        if unresolved:
+            raise OSError(
+                "terminal cleanup could not resolve startup: " + "; ".join(unresolved)
+            )
+        self._launching.clear()
 
     async def _write(self, session: Session, text: str) -> None:
         await put_bytes(self._env, text.encode(), f"{session.root}/pending")
@@ -316,6 +341,14 @@ class Terminals:
             raise ValueError("mode must be 'command' or 'keys'")
         session = self._sessions.get(name)
         note = ""
+        if session is not None and not session.ready:
+            session = await self._restart(session)
+            note = f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
+            if mode == "keys":
+                return (
+                    note
+                    + "[Your keystrokes were not sent; start the intended program again before sending keys.]"
+                )
         if session is None:
             session = await self._start(name)
             note = (
@@ -350,8 +383,8 @@ class Terminals:
             )
 
     async def _restart(self, session: Session, start: bool = True) -> Session:
-        self._sessions.pop(session.name, None)
         await stop_process_tree(self._env, [session.pid])
+        self._sessions.pop(session.name, None)
         return await self._start(session.name) if start else session
 
     async def _send(
