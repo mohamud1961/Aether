@@ -53,6 +53,10 @@ _INIT = ("stty -echo 2>/dev/null; export PS1='' PS2='' PROMPT_COMMAND='' TERM=du
          "bind 'set enable-bracketed-paste off' 2>/dev/null; true\n")
 
 
+class TerminalGone(RuntimeError):
+    """The terminal's shell or its log is gone."""
+
+
 @dataclass
 class Session:
     name: str
@@ -156,10 +160,13 @@ class Terminals:
     async def _write(self, session: Session, text: str) -> None:
         await put_bytes(self._env, text.encode(), f"{session.root}/pending")
         q = shlex.quote
-        res = await run(self._env, f"kill -0 {session.pid} 2>/dev/null || {{ echo dead; exit 3; }}; "
+        res = await run(self._env, f"kill -0 {session.pid} 2>/dev/null && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}; "
                                    f"cat {q(session.root + '/pending')} > {q(session.fifo)}", timeout_s=20)
+        if res.code == 3 and "dead" in res.stdout:
+            raise TerminalGone(f"terminal {session.name} is not running")
         if res.code != 0:
-            raise RuntimeError("terminal is not running")
+            raise RuntimeError(f"could not send input to terminal {session.name}: "
+                               f"{(res.stderr or res.stdout).strip()[:200]}")
 
     async def _poll(self, session: Session, seq: int | None) -> tuple[int, re.Match | None, bool]:
         q = shlex.quote
@@ -168,9 +175,11 @@ class Terminals:
         # The marker is looked for before the size is taken: the other way round, a command that finished in
         # between showed its marker with the output cut at the earlier size (the rest came with the next call).
         res = await run(self._env, f"{probe}; kill -0 {session.pid} 2>/dev/null && echo __ALIVE__ || echo __DEAD__; "
-                                   f"echo __SIZE__; wc -c < {q(session.log)}")
+                                   f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null")
         rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
-        size = int(size_text.strip() or 0)
+        if not size_text.strip().isdigit():  # the log is gone (the control directory was deleted)
+            raise TerminalGone(f"the log of terminal {session.name} ({session.log}) is missing")
+        size = int(size_text.strip())
         mark = None if seq is None else _MARK.search(clean(rest))
         return size, mark, "__ALIVE__" in rest
 
@@ -235,6 +244,27 @@ class Terminals:
             note = f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
+        try:
+            await self._send(session, input, mode, interrupt)
+        except TerminalGone as gone:
+            # It died between calls (killed, `exit`, its files deleted). The input never reached it, so it goes
+            # to a fresh terminal; left as it was, every later call failed the same way (V3: 45 such errors).
+            session = await self._restart(session)
+            note += (f"[{gone}; its shell state (cwd, variables, jobs) is gone. A fresh terminal {name} was "
+                     "started and your input sent to it]\n")
+            await self._send(session, input, mode, interrupt)
+        try:
+            return note + await self._collect(session, started, wait_s)
+        except TerminalGone as gone:
+            await self._restart(session, start=False)
+            return note + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
+
+    async def _restart(self, session: Session, start: bool = True) -> Session:
+        self._sessions.pop(session.name, None)
+        await run(self._env, _KILL_TREE.format(roots=session.pid), timeout_s=30)
+        return await self._start(session.name) if start else session
+
+    async def _send(self, session: Session, input: str, mode: str, interrupt: bool) -> None:
         if interrupt:
             await self._write(session, "\x03")
             if not session.pty:  # no line discipline: signal the shell's children directly
@@ -260,6 +290,9 @@ class Terminals:
             if "\x03" in keys:  # Ctrl-C typed as keys discards the pending marker just as interrupt=true does
                 await asyncio.sleep(0.5)
                 session.pending = 0
+
+    async def _collect(self, session: Session, started: float, wait_s: float) -> str:
+        name = session.name
         seq = session.pending or None
         size, mark, alive, last_size, stable_since = session.cursor, None, True, -1, time.monotonic()
         delay = 0.2
@@ -300,4 +333,4 @@ class Terminals:
                 status += "\n[its processes: " + "; ".join(procs) + "]"
         else:
             status = f"[{elapsed:.1f}s · terminal {name}]"
-        return note + (text + "\n" if text else "(no new output)\n") + status
+        return (text + "\n" if text else "(no new output)\n") + status

@@ -171,3 +171,31 @@ def test_a_fast_command_s_output_is_complete_when_its_exit_is_reported(tmp_path)
         return [await t.use(input=f"seq 1 2000; echo end-{i}") for i in range(15)]
     for i, out in enumerate(asyncio.run(go())):
         assert "[exit 0 " in out and f"end-{i}" in out and "\n2000\n" in out, out[-300:]
+
+
+def test_a_terminal_that_died_between_calls_is_restarted_and_the_input_runs(tmp_path):
+    # V3: once a terminal's shell was gone, every later call to it returned "terminal is not running"
+    async def go():
+        t, work = _terms(tmp_path)
+        await t.use(input="export FOO=old")
+        os.kill(t._sessions["main"].pid, 9)
+        await asyncio.sleep(0.5)
+        out = await t.use(input="echo ran-$FOO-here")
+        again = await t.use(input="echo second")
+        return out, again
+    out, again = asyncio.run(go())
+    assert "not running" in out and "fresh terminal main was started" in out and "state" in out
+    assert "ran--here" in out and "[exit 0" in out  # it ran, in a new shell without the old variable
+    assert "[exit 0" in again and "fresh" not in again
+
+
+def test_a_deleted_control_directory_restarts_the_terminal_without_crashing(tmp_path):
+    import shutil
+
+    async def go():
+        t, work = _terms(tmp_path)
+        await t.use(input="echo first")
+        shutil.rmtree(tmp_path / "ctl")
+        return await t.use(input="echo after-delete")
+    out = asyncio.run(go())
+    assert "after-delete" in out and "[exit 0" in out and "fresh terminal main" in out
