@@ -33,59 +33,82 @@ misleading. It fires because `find()` returned −1 for a component; the order
 itself was correct in both runs. **This corrects my earlier summary, which said
 the runs claimed the wrong order.**
 
-The donor in the reference is the full 5WJ2 PDB FASTA, minus the leading M, with
-the chromophore `X` expanded to Clover's precursor **GYG**.
+The donor in the reference is the full tagged 5WJ2 PDB FASTA, minus the leading
+M, with the chromophore `X` expanded to Clover's precursor **GYG**.
 
-| Run | Result | First divergence | Visible to the model? |
-|---|---|---|---|
-| T1 e2 | fail | Expanded the 5WJ2 `X` to **TYG** (wtGFP's chromophore) from memory: `entity('5WJ2','TYG')`. Clover has T65G, so the right expansion is GYG. FPbase's Clover sequence was in reach, but the run's "independent validation" compared the gBlock against its own expansion. | Retrievable, not consulted |
-| B1 e2 | fail | Turn 29 settled on X→Y (single residue; the donor is 257 aa against 259). The finish claims "X→GYG/MYG resolved". The final reasoning also lists linkers of "38, 16, 10, 14 aa (within 5–20)". | Yes: own code and reasoning contradict the claim |
-| T1 e1, B1 e1 | fail | No `gblock.txt` written (timeout / no file). | n/a |
+| Run | Result | First divergence (corrected after GPT-6-Astra review) |
+|---|---|---|
+| T1 e2 | fail | **Obtained evidence, then ignored it.** The step 13 terminal observation already showed the chromophore as GLY-TYR-GLY. At step 14 the run chose `entity('5WJ2','TYG')` (wtGFP). Its validation compared the gBlock against its own expansion. |
+| B1 e2 | fail | Turn 65 says it will use the full tagged PDB FASTA. In fact it built from the 239-aa FPbase Clover and mCherry strings (`[flag, clover, dhfr, mch, snap]`), so the tagged PDB donor is absent. It also stripped SNAP's first residue unconditionally (`f3[1:]`), even though 3KZY has no leading M. Its final reasoning lists linkers of 38 aa ("GS"×19) as "within 5–20", and the final request contained the actual component positions. **My first version said "X→Y in code"; that was wrong.** The 257-aa string I matched was an intermediate, not the build. |
+| T1 e1, B1 e1 | fail | No `gblock.txt` written (timeout / no file). |
 
 No construct-assembly run passed, so there is no passing contrast here.
 
 ## seq-assembly (the timeout case)
 
-| Run | Result | First divergence |
+| Run | Result | First divergence (corrected after GPT-6-Astra review) |
 |---|---|---|
 | T1 e1 | timeout | Spent 25 turns on validation scripts and timed out before writing `primers.fasta`. |
-| T1 e2 | timeout, file present | Primers in **uppercase**. The grader does a case-sensitive `find("ggtctc")`. The task never states a case; the input FASTA is lowercase. This is an unstated convention (grader brittleness), not a false finish of a stated requirement. Also hit the time limit. |
-| B1 e2 | fail | All four reverse primers carry `gagacc` (the BsaI site in the wrong orientation), so BsaI would cut away from the insert. This is a real design error. A digest-and-assemble simulation from the written primers (which T1 e2 ran) would expose it. |
-| B1 e1 | harness error | RuntimeError; no grade. |
+| T1 e2 | timeout, file present | **My uppercase attribution is disproved.** The grader lowercases primers (the task tests). The real failure: all four reverse primers carry <seq>; the forwards carry <seq>. At step 18 the run switched the reverse template from <seq> to <seq> (the earlier design had also failed assembly). Step 22's "simulation" built the product end as `...+'A'+'<seq>'+rc(rclamp)` instead of deriving it from the actual reverse primer, so it passed its own wrong physical model. NEB's E1601 manual uses <seq> 5′→3′ in both amplification primers. **T1 is not a successful-simulation contrast.** |
+| B1 e2 | fail | Same error: all four reverse primers carry <seq>. |
+| B1 e1 | not graded | Provider/protocol RuntimeError. |
 
-## Pattern across the three tasks (plus GPT-6-Astra's two)
+Both harnesses made the same site-orientation error.
 
-- **Visible but unchecked.** In 6 of the 7 graded wrong outcomes above, the error was visible in the run's own context (reasoning, printed output, or code) or could be detected from data the run already had. The exception is the seq-assembly uppercase case, which turns on an unstated convention.
-- **The same holds for GPT-6-Astra's comparisons.** In credential-recovery, the run saw len=14 and claimed 23. In graph-query, two separate conditions were bound to one variable.
-- **The failed self-checks were circular.** Each checked the artifact against the run's own built expectation (its own chromophore expansion, its own tuple list, its own BIC winner). None checked against the stated requirement or an external source.
-- **The passing contrast differs by method, not length.** T1 e2 on net-fit re-derived the rule explicitly from first principles. The S2 finding (deliberation volume does not separate right from wrong) is consistent with this.
-- **Harness asymmetry is small here.** Both harnesses make the same kinds of slips. Terminus's edge on this board is not explained by these cases. Its passes came from runs that happened to re-derive, plus timeouts that cost both harnesses.
+## net-fit extension (after GPT-6-Astra review)
 
-## Implication for the next mechanism (proposal only, not built)
+- **B1 e1:** the error is not only in the writer. `G.add_edge(p, c)` on `(parent, child)` tuples also reversed the sampling traversal, while the CPDs used the original parents.
+- **T1 e1:** at steps 8–9 it sometimes states "M child of R" correctly, yet equates that with the opposite parents map. The contradiction persists.
+- **T1 e2's pass supports a hypothesis, not a causal proof:** no new commands ran at the confirmation step.
 
-The missing behaviour is a **computed check of the artifact against the stated
-requirement or an external source**. Asserted checks and self-built oracles
-don't count.
+## Denominators (corrected)
 
-Generic candidate:
-- When the solver declares a requirement met, it shows the command whose output proves it on the artifact.
-- The verifier re-runs that command on the task state and compares it against the task text, using read-only tools.
+12 scheduled cells across the three tasks:
 
-Before any board run, test this on public-contract homologs:
-- the net-fit tie rule and CSV semantics;
-- a chromophore or sequence match;
-- a site-orientation case.
+| Outcome | Count |
+|---|---|
+| Graded | 11 |
+| Pass | 1 |
+| Normal finishes, wrong | 6 |
+| Graded timeouts | 4 |
+| Ungraded (provider/protocol failure) | 1 |
 
-Include false-objection controls, where a correct state must not be held.
+My earlier "6 of 7" took the 6 wrong finishes plus the artifact-bearing T1 seq-assembly timeout, and left out the other 3 graded timeouts.
 
-Risks:
-- **A1 showed that prewritten checks harm correct states (42%).** The check has to be the solver's own, run on the artifact, not a harness-authored contract.
-- **"A stronger model would do this itself."** That test applies. The open question is whether this is workbench (a cheap way to show proof) or crutch.
+Corrected statement:
+- In all 6 normal wrong finishes, the critical error was visible in the run's own context, or in evidence it had already obtained.
+- **Not all checks were circular.** The GC-window and oligotm checks were real and useful. What failed was the critical assumption, or the check's coverage of it.
+- **A1 correction:** prewritten checks raised false objections on 10 of 24 correct states. They did not destroy 42% of correct results.
 
-Gate: GPT-6-Astra review before building.
+## Mechanism verdict (GPT-6-Astra: conditional workbench, not ready as written)
+
+- **Same-command replay proves only execution and reproducibility, not semantic correctness.** construct-assembly's GS-repeat checker and seq-assembly's fabricated product both pass reproducibly with bad artifacts.
+- **Revised candidate:**
+  - The solver chooses a check that can falsify its important assumption, using the actual delivered bytes plus task or source evidence.
+  - It resolves contradictions it has already observed.
+  - Existing receipts are reused.
+- **Excluded:** no mandatory proof command for every claim, no universal holds, no prose quotas, and generated checks are not treated as infallible.
+- A source-aware reviewer is a separate, later treatment, and only if the solver-only step earns value.
+
+Minimum design, all free:
+
+1. Finish the S2 protocol strict-validity reclassification and this correction.
+2. Offline real-file controls:
+   - stale or wrong-path receipts;
+   - circular success;
+   - an unavailable or failed checker;
+   - deadlines;
+   - candidate mutation attempts, alongside legitimate scratch writes;
+   - an isolated candidate snapshot, writable scratch space, and bounded execution for any rerun.
+3. 12 discrimination states: 4 public-contract families × (1 bad + 2 allowed-correct alternatives). Fixtures stay in evals, not Core. The families:
+   - representation/units;
+   - reference identity/version;
+   - transform direction with an independent decoder;
+   - independent-vs-same-object existential conditions.
+
+Gate: any paid diagnostic needs explicit user authorization and a cost seal. GPT-6-Astra's suggested maximum is 16 short restored-state episodes (baseline vs one solver-only treatment, 4 bad + 4 good per arm), not 16 full public tasks.
 
 ## Not done / caveats
 
 - These are single traces per cell. The pattern is qualitative, not a rate.
-- seq-assembly B1 e1 is a harness RuntimeError and is excluded from the 7.
 - The json_turn strict-validity reclassification for the S2 bench (GPT-6-Astra item) is still pending.
