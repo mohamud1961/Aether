@@ -34,6 +34,17 @@ _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev
 _PROCS = ("cut -d' ' -f1 /proc/uptime 2>/dev/null; getconf CLK_TCK 2>/dev/null || echo 100; "
           "for d in /proc/[0-9]*; do s=$(cat $d/stat 2>/dev/null) || continue; w=$(cat $d/wchan 2>/dev/null); "
           "c=$(tr '\\0' ' ' < $d/cmdline 2>/dev/null | cut -c1-90); printf '%s\\t%s\\t%s\\n' \"$s\" \"$w\" \"$c\"; done")
+# Every descendant of the given pids (plain sh + /proc: many task images have no procps), then TERM, then KILL.
+# The parent pid is read after the ") " that ends the command name, which may itself contain spaces. Without
+# /proc (macOS tests) it falls back to the process groups and direct children.
+_KILL_TREE = ("if [ ! -d /proc/1 ]; then for r in {roots}; do kill -TERM -$r 2>/dev/null; pkill -TERM -P $r "
+              "2>/dev/null; kill -TERM $r 2>/dev/null; done; exit 0; fi; "
+              "all='{roots}'; frontier='{roots}'; while [ -n \"$frontier\" ]; do next=''; "
+              "for d in /proc/[0-9]*; do p=${{d#/proc/}}; "
+              "pp=$(sed 's/.*) //' $d/stat 2>/dev/null | cut -d' ' -f2) || continue; "
+              "for f in $frontier; do [ \"$pp\" = \"$f\" ] && next=\"$next $p\"; done; done; "
+              "all=\"$all $next\"; frontier=$next; done; kill -TERM $all 2>/dev/null; sleep 0.5; "
+              "kill -KILL $all 2>/dev/null; true")
 _WRAPPERS = ("run.sh", "script -qfc", "bash --noprofile --norc")
 _STATES = {"R": "running", "S": "sleeping", "D": "in uninterruptible I/O", "T": "stopped", "t": "stopped by a tracer",
            "Z": "exited (zombie)"}
@@ -134,10 +145,12 @@ class Terminals:
         return session
 
     async def close(self) -> None:
-        """Stop every terminal (its whole process group: shell, pty wrapper and anything still running)."""
-        for session in self._sessions.values():
-            await run(self._env, f"kill -TERM -{session.pid} 2>/dev/null; pkill -TERM -P {session.pid} 2>/dev/null; "
-                                 f"kill -TERM {session.pid} 2>/dev/null; true")
+        """Stop every terminal and everything started in it. The shell runs under ``script`` in a session of its
+        own, so a process-group kill does not reach it or its jobs; the whole process tree is collected from
+        /proc first (while parents are alive, so nohup'd jobs are still descendants), then TERM, then KILL."""
+        if self._sessions:
+            roots = " ".join(str(s.pid) for s in self._sessions.values())
+            await run(self._env, _KILL_TREE.format(roots=roots), timeout_s=30)
         self._sessions.clear()
 
     async def _write(self, session: Session, text: str) -> None:
@@ -152,10 +165,12 @@ class Terminals:
         q = shlex.quote
         probe = ("true" if seq is None else f"tail -c +{session.cursor + 1} {q(session.log)} "
                  f"| grep -a -o '__AETHER_DONE_{seq}_[0-9]*__ [^[:cntrl:]]*' | tail -n 1")
-        res = await run(self._env, f"wc -c < {q(session.log)}; {probe}; "
-                                   f"kill -0 {session.pid} 2>/dev/null && echo __ALIVE__ || echo __DEAD__")
-        first, _, rest = res.stdout.partition("\n")
-        size = int(first.strip() or 0)
+        # The marker is looked for before the size is taken: the other way round, a command that finished in
+        # between showed its marker with the output cut at the earlier size (the rest came with the next call).
+        res = await run(self._env, f"{probe}; kill -0 {session.pid} 2>/dev/null && echo __ALIVE__ || echo __DEAD__; "
+                                   f"echo __SIZE__; wc -c < {q(session.log)}")
+        rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
+        size = int(size_text.strip() or 0)
         mark = None if seq is None else _MARK.search(clean(rest))
         return size, mark, "__ALIVE__" in rest
 

@@ -162,3 +162,12 @@ def test_close_stops_every_terminal_and_what_runs_in_it(tmp_path):
         return alive, t.names
     alive, names = asyncio.run(go())
     assert alive == [] and names == []
+
+
+def test_a_fast_command_s_output_is_complete_when_its_exit_is_reported(tmp_path):
+    """The marker is found before the size is read; the other way round, output was sometimes cut short."""
+    async def go():
+        t, _ = _terms(tmp_path)
+        return [await t.use(input=f"seq 1 2000; echo end-{i}") for i in range(15)]
+    for i, out in enumerate(asyncio.run(go())):
+        assert "[exit 0 " in out and f"end-{i}" in out and "\n2000\n" in out, out[-300:]

@@ -69,7 +69,7 @@ class Repl:
     async def run(self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False) -> str:
         if not self.pid and self.python and code:  # it died earlier: a fresh interpreter, and the model is told
             await self.start()
-            self.pending = 0
+            self.pending, self.seq, self.cursor = 0, 0, 0  # a fresh server reads cells from 1
             return "[python REPL restarted; variables from before are gone]\n" + await self.run(code, wait_s=wait_s)
         if not self.pid:
             raise RuntimeError("the python tool is not available in this environment")

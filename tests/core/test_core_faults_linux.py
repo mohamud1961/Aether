@@ -276,17 +276,22 @@ def test_compose_never_routes_the_live_container_s_commands_into_a_clone(image, 
         subprocess.run([*base, "down", "-t", "1"], capture_output=True)
 
 
-def test_a_cancelled_clone_leaves_no_container_or_image_behind(box):
+def test_a_clone_cancelled_at_any_point_leaves_no_container_or_image_behind(box):
     before = set(subprocess.run(["docker", "ps", "-aq"], capture_output=True, text=True).stdout.split())
+    cancelled = 0
 
-    async def go():
+    async def go(delay):
         task = asyncio.create_task(C.Clone.create(box))
-        await asyncio.sleep(1.5)  # inside docker commit or docker run
+        await asyncio.sleep(delay)  # identify, docker commit or docker run, depending on the delay
         task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
-    _go(go())
-    time.sleep(3)
+        (out,) = await asyncio.gather(task, return_exceptions=True)
+        if isinstance(out, C.Clone):  # it finished first: the caller owns it
+            await out.close()
+        return isinstance(out, asyncio.CancelledError)
+    for delay in (0.05, 0.2, 0.4, 0.7, 1.0):
+        cancelled += _go(go(delay))
     after = set(subprocess.run(["docker", "ps", "-aq"], capture_output=True, text=True).stdout.split())
     images = subprocess.run(["docker", "image", "ls", "-q", "--filter", "reference=aether-clone"],
                             capture_output=True, text=True).stdout.split()
+    assert cancelled >= 2  # the cancellations really landed mid-creation
     assert after <= before and not images, (after - before, images)

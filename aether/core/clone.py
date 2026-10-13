@@ -108,6 +108,22 @@ class Clone:
 
     @classmethod
     async def create(cls, env: Environment, host: HostRun = host_run, known: str | None = None) -> "Clone":
+        """Commit and start a clone. Cancelled midway, it lets the docker commands it started finish and removes
+        what they made before re-raising: a docker CLI killed mid-commit can still leave the image behind."""
+        making = asyncio.ensure_future(cls._create(env, host, known))
+        try:
+            return await asyncio.shield(making)
+        except asyncio.CancelledError:
+            try:
+                clone = await making
+            except BaseException:  # it failed on its own; _create cleans up what it made
+                clone = None
+            if clone is not None:
+                await clone.close()
+            raise
+
+    @classmethod
+    async def _create(cls, env: Environment, host: HostRun, known: str | None) -> "Clone":
         cid = await identify(env, host, known)
         tag = f"aether-clone:{uuid.uuid4().hex[:12]}"
         code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
