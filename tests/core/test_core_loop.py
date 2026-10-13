@@ -106,6 +106,9 @@ def test_review_request_fits_budget_and_judge_thresholds():
     low = judge(answers_of(_answers("incomplete", 0.5)), criteria, 1)
     high = judge(answers_of(_answers("incomplete", 0.85, "contradicted")), criteria, 1)
     assert low.status == "pass" and high.status == "hold" and high.unmet
-    assert not judge(answers_of(_answers("done", 0.9, "direct_and_current")), criteria, 1).unmet
+    every = {"failure_mode": {"choice": "fully_done", "confidence": 0.9},
+             **{f"completeness:{c['criterion_id']}": {"choice": "direct_and_current", "confidence": 0.9}
+                for c in criteria}}
+    assert not judge(answers_of({"result": {"answers": every}}), criteria, 1).unmet
     weak = judge(answers_of(_answers("done_with_unverified_parts", 0.84, "indirect")), criteria, 1)
     assert weak.status == "pass" and weak.unmet and "evidence only indirect" in weak.unmet[0]
