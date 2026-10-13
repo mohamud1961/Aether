@@ -106,7 +106,7 @@ def test_a_writer_turn_cut_off_or_malformed_is_retried_at_low_effort_with_a_note
 
 
 def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path, monkeypatch):
-    monkeypatch.setattr(C, "WRITER_CALL_S", 0.0)  # every call is out of time at once: the provider floor is 5 s
+    monkeypatch.setattr(C, "WRITER_CALL_S", 0.5)  # the first call (10 s) outlives its 0.5 s share
     root = tmp_path / "pristine"; root.mkdir()
 
     async def slow(**kwargs):
@@ -119,7 +119,7 @@ def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path
     client.chat.completions.create = slow
     rows = []
     contract = asyncio.run(C.write(provider, FakeClone(root), task=TASK, workdir=str(root), log=rows.append))
-    assert rows[1] == {"round": 1, "cut": "time", "seconds": 0.0} and len(contract.checks) == 2
+    assert rows[1] == {"round": 1, "cut": "time", "seconds": 0.5} and len(contract.checks) == 2
     assert client.requests[1]["reasoning_effort"] == "low"
 
 

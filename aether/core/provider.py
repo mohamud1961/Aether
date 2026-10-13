@@ -1,7 +1,8 @@
 """OpenAI-compatible chat client: streaming, honest retries, no local throttling.
 
 The provider is the only rate authority: a 429 or 5xx is retried with backoff
-(honouring Retry-After); nothing is pre-emptively delayed on the client side.
+(honouring Retry-After up to the run's deadline); nothing is pre-emptively delayed on
+the client side. Every attempt, from every role, goes to the call log (see ``calls``).
 """
 from __future__ import annotations
 
@@ -12,6 +13,8 @@ import random
 import time
 from typing import Any, Callable
 from urllib.parse import urlparse
+
+from .calls import CallLog
 
 RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
 MAX_ATTEMPTS = 8
@@ -34,7 +37,9 @@ class Turn:
     reasoning: str = ""
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     finish_reason: str | None = None
-    usage: dict[str, int] = field(default_factory=dict)
+    usage: dict[str, int] = field(default_factory=dict)  # only the fields the provider reported
+    response_id: str = ""
+    response_model: str = ""
     latency_s: float = 0.0
     attempts: int = 1
     failures: list[dict[str, Any]] = field(default_factory=list)  # one row per failed attempt
@@ -69,17 +74,19 @@ def azure_base_url(endpoint: str) -> str:
 
 
 def _usage(raw: Any) -> dict[str, int]:
+    """The usage fields the provider reported; a field it left out is absent, not zero."""
     if raw is None:
         return {}
     data = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
-    details = data.get("completion_tokens_details") or {}
-    prompt_details = data.get("prompt_tokens_details") or {}
-    return {
-        "input": int(data.get("prompt_tokens") or 0),
-        "cached": int(prompt_details.get("cached_tokens") or 0),
-        "output": int(data.get("completion_tokens") or 0),
-        "reasoning": int(details.get("reasoning_tokens") or 0),
-    }
+    sources = {"input": (data, "prompt_tokens"), "output": (data, "completion_tokens"),
+               "cached": (data.get("prompt_tokens_details") or {}, "cached_tokens"),
+               "reasoning": (data.get("completion_tokens_details") or {}, "reasoning_tokens")}
+    out = {}
+    for name, (where, key) in sources.items():
+        value = where.get(key) if isinstance(where, dict) else None
+        if isinstance(value, int) and not isinstance(value, bool):
+            out[name] = value
+    return out
 
 
 def _extra(obj: Any, name: str) -> Any:
@@ -92,29 +99,37 @@ def _extra(obj: Any, name: str) -> Any:
 
 class ChatProvider:
     def __init__(self, client: Any, *, model: str, params: dict[str, Any],
-                 sleep: Callable[[float], Any] = asyncio.sleep) -> None:
+                 sleep: Callable[[float], Any] = asyncio.sleep, log: CallLog | None = None) -> None:
         self._client = client
         self.model = model
         self.params = dict(params)
         self._sleep = sleep
+        self.log = log or CallLog()
         self.failed_attempts = 0
         self.failure_log: list[dict[str, Any]] = []  # every failed attempt in the run, for the record
 
-    async def _stream_once(self, messages: list[dict], tools: list[dict] | None, max_tokens: int,
-                           overrides: dict[str, Any] | None = None) -> Turn:
-        started = time.monotonic()
-        params = {**self.params, **(overrides or {})}
-        extra: dict[str, Any] = {"tools": tools}
+    def _request(self, messages: list[dict], tools: list[dict] | None, max_tokens: int,
+                 overrides: dict[str, Any] | None) -> dict[str, Any]:
+        """The exact client arguments, with sampling and tool parameters grouped under ``params``."""
+        params = {**self.params, **(overrides or {}), "stream": True, "stream_options": {"include_usage": True}}
+        request: dict[str, Any] = {"model": self.model, "messages": messages, "max_tokens": max_tokens}
         if tools is None:  # plain text call (e.g. a context checkpoint): no tool parameters at all
-            extra = {}
             params.pop("tool_choice", None)
             params.pop("parallel_tool_calls", None)
-        stream = await self._client.chat.completions.create(
-            model=self.model, messages=messages, max_tokens=max_tokens, stream=True,
-            stream_options={"include_usage": True}, **extra, **params)
-        turn = Turn()
+        else:
+            request["tools"] = tools
+        request["params"] = params
+        return request
+
+    async def _stream_once(self, request: dict[str, Any], turn: Turn) -> None:
+        """Fill ``turn`` from one streamed attempt (partly filled if the stream fails)."""
+        started = time.monotonic()
+        args = {k: v for k, v in request.items() if k != "params"}
+        stream = await self._client.chat.completions.create(**args, **request["params"])
         calls: dict[int, dict[str, Any]] = {}
         async for chunk in stream:
+            turn.response_id = turn.response_id or str(getattr(chunk, "id", "") or "")
+            turn.response_model = turn.response_model or str(getattr(chunk, "model", "") or "")
             if getattr(chunk, "usage", None):
                 turn.usage = _usage(chunk.usage)
             for choice in chunk.choices or ():
@@ -136,49 +151,66 @@ class ChatProvider:
             for i, c in sorted(calls.items())
         ]
         turn.latency_s = time.monotonic() - started
-        return turn
 
     async def complete(self, messages: list[dict], tools: list[dict] | None, *, max_tokens: int,
-                       remaining_s: Callable[[], float], overrides: dict[str, Any] | None = None) -> Turn:
+                       remaining_s: Callable[[], float], overrides: dict[str, Any] | None = None,
+                       role: str = "worker") -> Turn:
         """One model turn. ``tools=None`` makes a plain text call (tool parameters are dropped);
-        ``overrides`` replaces sampling parameters for this call only."""
+        ``overrides`` replaces sampling parameters for this call only; ``role`` labels it in the call log."""
         delay = 2.0
         failures: list[dict[str, Any]] = []
+        request = self._request(messages, tools, max_tokens, overrides)
         for attempt in range(1, MAX_ATTEMPTS + 1):
             started = time.monotonic()
+            left = remaining_s()
+            if left <= 0:
+                raise ProviderError("no time left for a provider call", deadline=True)
+            turn = Turn()
             try:
-                turn = await asyncio.wait_for(self._stream_once(messages, tools, max_tokens, overrides),
-                                              timeout=max(5.0, remaining_s()))
-                turn.attempts, turn.failures = attempt, failures
-                return turn
+                await asyncio.wait_for(self._stream_once(request, turn), timeout=left)
             except asyncio.TimeoutError as exc:
+                self._failed(role, attempt, request, turn, started, status=None, error="deadline",
+                             detail="the call outlived the run deadline")
                 raise ProviderError("provider call outlived the run deadline", deadline=True) from exc
             except Exception as exc:  # classify, then retry or raise with the real reason
                 status = getattr(exc, "status_code", None)
                 text = str(exc)
-                row = {"attempt": attempt, "status": status, "error": type(exc).__name__,
-                       "detail": text[:200], "after_s": round(time.monotonic() - started, 2)}
+                row = self._failed(role, attempt, request, turn, started, status=status,
+                                   error=type(exc).__name__, detail=text[:200])
                 if status == 400 and any(k in text.lower() for k in ("context", "too long", "maximum", "tokens")):
                     raise ProviderError(text[:500], status=400, context_overflow=True) from exc
                 transient = status in RETRYABLE_STATUS or status is None and _is_transport(exc)
                 if not transient or attempt == MAX_ATTEMPTS:
-                    self._record(row)
                     raise ProviderError(f"{type(exc).__name__}: {text[:500]}", status=status) from exc
-                self.failed_attempts += 1
                 hinted = _retry_after(exc)
                 wait = hinted or delay * (0.75 + 0.5 * random.random())
                 row.update(wait_s=round(wait, 2), retry_after=hinted)
                 failures.append(row)
-                self._record(row)
                 if wait > remaining_s() - 10:
                     raise ProviderError(f"retry wait {wait:.0f}s exceeds remaining time", status=status,
                                         deadline=True) from exc
                 await self._sleep(wait)
                 delay = min(delay * 2, 60.0)
+                continue
+            turn.attempts, turn.failures = attempt, failures
+            self.log.record(role=role, attempt=attempt, request=request, outcome={
+                "ok": True, "usage": turn.usage, "response_id": turn.response_id,
+                "response_model": turn.response_model, "finish_reason": turn.finish_reason,
+                "latency_s": round(turn.latency_s, 3)})
+            return turn
         raise ProviderError("unreachable")
 
-    def _record(self, row: dict[str, Any]) -> None:
+    def _failed(self, role: str, attempt: int, request: dict[str, Any], turn: Turn, started: float, *,
+                status: int | None, error: str, detail: str) -> dict[str, Any]:
+        """Count and log one failed attempt (its usage is unknown); returns the trace row."""
+        row = {"attempt": attempt, "role": role, "status": status, "error": error, "detail": detail,
+               "after_s": round(time.monotonic() - started, 2)}
+        self.failed_attempts += 1
         self.failure_log.append(row)
+        self.log.record(role=role, attempt=attempt, request=request, outcome={
+            "ok": False, "status": status, "error": error, "detail": detail, "response_id": turn.response_id,
+            "partial_output_chars": len(turn.content) + len(turn.reasoning), "after_s": row["after_s"]})
+        return row
 
 
 def _is_transport(exc: Exception) -> bool:
@@ -195,7 +227,7 @@ def _retry_after(exc: Exception) -> float | None:
         if value:
             try:
                 seconds = float(value) / (1000.0 if key.endswith("ms") else 1.0)
-                return min(max(seconds, 0.5), 60.0)
+                return max(seconds, 0.5)  # the caller gives up if it exceeds the remaining time
             except ValueError:
                 return None
     return None

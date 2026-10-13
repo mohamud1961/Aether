@@ -238,7 +238,8 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
             contract.turns = round_no
             try:
                 turn = await provider.complete(V._request(messages), [SUBMIT_CHECKS], max_tokens=16_384,
-                                               remaining_s=lambda: call_end - time.monotonic(), overrides=overrides)
+                                               remaining_s=lambda: call_end - time.monotonic(), overrides=overrides,
+                                               role="contract_writer")
             except ProviderError as exc:
                 if not exc.deadline or deadline - time.monotonic() < 30:
                     raise
@@ -322,7 +323,8 @@ async def arbitrate(provider: ChatProvider, *, task: str, result: CheckResult, d
                 {"role": "user", "content": f"TASK:\n{task}\n\nREQUIREMENT (as the check's author quoted it):\n"
                                             f"{result.check.requirement}\n\nCHECK:\n{result.check.command}\n\n"
                                             f"RESULT: exit {result.code}\n{result.output}\n\nDISPUTE:\n{dispute}"}]
-    turn = await provider.complete(messages, [RULING], max_tokens=8_192, remaining_s=remaining_s)
+    turn = await provider.complete(messages, [RULING], max_tokens=8_192, remaining_s=remaining_s,
+                                   role="contract_arbiter")
     for call in turn.tool_calls:
         if (call.get("function") or {}).get("name") == "ruling":
             ruling = json.loads(call["function"].get("arguments") or "{}")

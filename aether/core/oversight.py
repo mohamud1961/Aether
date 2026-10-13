@@ -95,7 +95,8 @@ class Oversight:
         verdict = await review(self._transport, env, task=task, workdir=workdir, actions=actions,
                                written=written, call=self._call, control_dir=self._control_dir)
         row = {"kind": kind.split("@")[0], "at": kind, "status": verdict.status, "mode": verdict.mode,
-               "confidence": verdict.confidence, "unmet": verdict.unmet, "reason": verdict.reason,
+               "confidence": verdict.confidence, "unmet": verdict.unmet,
+               "verified": verdict.status == "pass" and not verdict.unmet, "reason": verdict.reason,
                "malfunction": verdict.malfunction, "malfunction_confidence": verdict.malfunction_confidence,
                "request_bytes": verdict.request_bytes, "latency_s": round(time.monotonic() - t0, 2)}
         self.rows.append(row)

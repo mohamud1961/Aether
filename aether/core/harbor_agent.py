@@ -20,6 +20,7 @@ from pathlib import Path
 import time
 from typing import Any
 
+from .calls import CallLog
 from .clm import ClmSettings
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
@@ -46,6 +47,7 @@ DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
 EFFORT_ENV = "AETHER_CORE_REASONING_EFFORT"
 DEADLINE_ENV = "AETHER_AGENT_DEADLINE_SEC"
 SAMPLING = {"temperature": 1.0, "top_p": 0.95}  # identical to the previous solver solver for a fair comparison
+CALLS_FILE = "core_calls.jsonl"  # every model request and response (see calls)
 
 
 class ConfigError(RuntimeError):
@@ -59,7 +61,7 @@ def _required(name: str) -> str:
     return value
 
 
-def build_provider() -> ChatProvider:
+def build_provider(logs_dir: Path | None = None) -> ChatProvider:
     from openai import AsyncOpenAI
     import httpx
 
@@ -67,7 +69,8 @@ def build_provider() -> ChatProvider:
     client = AsyncOpenAI(api_key=_required(KEY_ENV), base_url=azure_base_url(_required(ENDPOINT_ENV)),
                          max_retries=0, timeout=httpx.Timeout(connect=30.0, read=240.0, write=60.0, pool=30.0))
     params = {**SAMPLING, "reasoning_effort": effort, "tool_choice": "required", "parallel_tool_calls": False}
-    return ChatProvider(client, model=_required(DEPLOYMENT_ENV), params=params)
+    log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
+    return ChatProvider(client, model=_required(DEPLOYMENT_ENV), params=params, log=log)
 
 
 def build_review(logs_dir: Path):
@@ -143,7 +146,7 @@ class AetherCoreAgent(BaseAgent):
         timeout_s = agent_timeout(self._agent_timeout_sec)
         config = build_config()
         logs = Path(self.logs_dir)
-        provider = build_provider()
+        provider = build_provider(logs)
         transport = build_review(logs)
         workdir = await discover_workdir(environment)
         started = time.time()
@@ -180,9 +183,12 @@ def _write_record(logs: Path, result, *, started: float, workdir: str, config: C
                    "model": provider.model, "params": provider.params},
         "reviews": reviews,
         "run_metrics": {
-            "provider_usage_row_count": result.calls if result else 0,
-            "provider_attempt_count": result.calls if result else 0,
-            "provider_failed_attempt_count": result.failed_attempts if result else None,
+            # Every model call from every role (worker, llm, checkpoint, contract, verifier), from the call
+            # log; token totals are lower bounds when usage_unknown > 0. The reviewer calls are in core_reviewer_journal.
+            "model_calls": provider.log.totals(),
+            "worker_turns": result.calls if result else 0,
+            "provider_attempt_count": provider.log.totals()["all"]["attempts"],
+            "provider_failed_attempt_count": provider.log.totals()["all"]["failed"],
             "provider_input_tokens": result.usage.get("input") if result else None,
             "provider_cached_input_tokens": result.usage.get("cached") if result else None,
             "provider_output_tokens": result.usage.get("output") if result else None,

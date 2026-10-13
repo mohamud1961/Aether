@@ -23,15 +23,24 @@ class Environment(Protocol):
 
 @dataclass(frozen=True)
 class ExecResult:
-    code: int
+    code: int | None  # None: the environment reported no exit status (never read as success)
     stdout: str
     stderr: str
 
 
+def exit_code(result: Any) -> int | None:
+    """The exit status an environment reported, or None when it reported none."""
+    for name in ("return_code", "exit_code"):
+        value = getattr(result, name, None)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    return None
+
+
 async def run(env: Environment, command: str, *, timeout_s: int = 30, cwd: str | None = None) -> ExecResult:
     result = await env.exec(command=command, cwd=cwd, env=None, timeout_sec=max(1, int(timeout_s)))
-    code = getattr(result, "return_code", getattr(result, "exit_code", 0))
-    return ExecResult(int(code or 0), str(getattr(result, "stdout", "") or ""), str(getattr(result, "stderr", "") or ""))
+    return ExecResult(exit_code(result), str(getattr(result, "stdout", "") or ""),
+                      str(getattr(result, "stderr", "") or ""))
 
 
 async def put_bytes(env: Environment, data: bytes, remote: str) -> None:

@@ -85,7 +85,7 @@ async def checkpoint(provider: ChatProvider, task: str, transcript: str, *, repl
     empties = []
     for overrides in (FIRST_OVERRIDES, None):
         turn = await provider.complete(messages, None, max_tokens=MAX_SUMMARY_TOKENS, remaining_s=remaining_s,
-                                       overrides=overrides)
+                                       overrides=overrides, role="checkpoint")
         for key, value in turn.usage.items():
             usage[key] = usage.get(key, 0) + value
         summary = turn.content.strip()

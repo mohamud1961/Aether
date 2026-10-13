@@ -186,7 +186,7 @@ def sub_llm(provider, remaining: Callable[[], float], usage: dict[str, int]) -> 
     """``llm()`` answers: same model, plain text, no tools. Token usage is added to ``usage``."""
     async def answer(prompt: str, max_tokens: int) -> str:
         turn = await provider.complete([{"role": "user", "content": prompt}], None, max_tokens=max_tokens,
-                                       remaining_s=remaining)
+                                       remaining_s=remaining, role="llm")
         for key, value in turn.usage.items():
             usage[key] = usage.get(key, 0) + value
         return turn.content

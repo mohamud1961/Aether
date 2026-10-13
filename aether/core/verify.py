@@ -353,7 +353,7 @@ async def verify(provider: ChatProvider, env: Environment, *, task: str, workdir
             # the last turn, or too little time for another check: only the verdict is offered
             last = turn_no == MAX_TURNS or remaining() < 60
             turn = await provider.complete(_request(messages), [VERDICT] if last else tools, max_tokens=16_384,
-                                           remaining_s=remaining)
+                                           remaining_s=remaining, role="verifier")
             log({"turn": turn_no, "latency_s": round(turn.latency_s, 2), "usage": turn.usage,
                  "reasoning": turn.reasoning, "content": turn.content, "tool_calls": turn.tool_calls})
             for k, v in turn.usage.items():

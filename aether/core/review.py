@@ -8,7 +8,11 @@ claims). The question set is the earlier claim ledger's failure-mode question (t
 measured solve lift) plus one completeness question per task criterion.
 
 A review failure is never silent: it is returned as status "error" with the
-reason, recorded in the trace and the run record, and the finish proceeds.
+reason, recorded in the trace and the run record, and the finish proceeds. An
+answer outside its question's choices, or a confidence outside [0, 1], makes the
+whole response an error; a criterion left unanswered is reported as unconfirmed.
+A "pass" means no failure mode crossed the hold threshold; ``unmet`` lists what the
+reviewer could not confirm, so pass with unmet is not "verified".
 """
 from __future__ import annotations
 
@@ -18,7 +22,8 @@ import shlex
 from typing import Any, Callable, Mapping, Sequence
 
 from .questionnaire import QUESTIONNAIRE_SCHEMA
-from .questionnaire import BAD_MODES, FAILURE_DETAILS, FAILURE_QUESTION_ID, failure_question
+from .questionnaire import (BAD_MODES, FAILURE_DETAILS, FAILURE_MODES, FAILURE_QUESTION_ID,
+                                            failure_question)
 from .questionnaire import _wire_question
 from .questionnaire import compact, split_criteria
 from .env import CONTROL_DIR, Environment, run
@@ -40,7 +45,7 @@ COMPLETENESS_DETAILS = {
 # "done with unverified parts" with nothing listed).
 UNCONFIRMED = {"contradicted": "the evidence shows it does not hold", "none": "no evidence",
                "self_written_check_only": "only your own check supports it",
-               "indirect": "evidence only indirect"}
+               "indirect": "evidence only indirect", "unanswered": "the reviewer gave no answer"}
 Transport = Callable[[dict[str, Any]], Mapping[str, Any]]
 # The verifier reads program output from the sandbox itself, not only what the solver last looked at
 # (C2 row 1: the solver saw garbled stdout four times; the reviewer saw none of it).
@@ -151,7 +156,18 @@ def _bytes(request: Mapping[str, Any]) -> int:
     return len(json.dumps(request, allow_nan=False, separators=(",", ":")).encode())
 
 
+def _choices(qid: str) -> Sequence[str] | None:
+    if qid == FAILURE_QUESTION_ID:
+        return FAILURE_MODES
+    if qid == MALFUNCTION_QUESTION_ID:
+        return MALFUNCTION_CHOICES
+    if qid.startswith("completeness:"):
+        return COMPLETENESS_CHOICES
+    return None
+
+
 def answers_of(response: Any) -> dict[str, dict[str, Any]]:
+    """The validated answers. Raises ValueError on anything malformed (review() turns that into status error)."""
     if not isinstance(response, Mapping):
         raise ValueError("the reviewer response is not an object")
     result = response.get("result")
@@ -160,8 +176,17 @@ def answers_of(response: Any) -> dict[str, dict[str, Any]]:
         raise ValueError("the reviewer response has no answers")
     out = {}
     for qid, raw in answers.items():
-        if isinstance(raw, Mapping) and isinstance(raw.get("choice"), str):
-            out[str(qid)] = {"choice": raw["choice"], "confidence": float(raw.get("confidence") or 0.0)}
+        qid = str(qid)
+        allowed = _choices(qid)
+        if allowed is None:
+            continue  # a question we did not ask
+        if not isinstance(raw, Mapping) or raw.get("choice") not in allowed:
+            raise ValueError(f"answer to {qid} is not one of its choices: {str(raw)[:120]}")
+        confidence = raw.get("confidence")
+        if (isinstance(confidence, bool) or not isinstance(confidence, (int, float))
+                or not 0.0 <= float(confidence) <= 1.0):
+            raise ValueError(f"answer to {qid} has confidence {confidence!r}, not a number in [0, 1]")
+        out[qid] = {"choice": raw["choice"], "confidence": float(confidence)}
     if FAILURE_QUESTION_ID not in out:
         raise ValueError("the reviewer did not answer the failure-mode question")
     return out
@@ -173,7 +198,7 @@ def judge(answers: Mapping[str, Mapping[str, Any]], criteria: Sequence[Mapping[s
     texts = {c["criterion_id"]: c["text"] for c in criteria}
     unmet = []
     for cid in texts:
-        choice = answers.get(f"completeness:{cid}", {}).get("choice")
+        choice = answers.get(f"completeness:{cid}", {}).get("choice", "unanswered")
         if choice in UNCONFIRMED:
             unmet.append(f"{cid} ({UNCONFIRMED[choice]}): {compact(texts[cid], 240)}")
     broken = answers.get(MALFUNCTION_QUESTION_ID, {})
