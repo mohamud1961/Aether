@@ -39,3 +39,34 @@ Measures: reasoning tokens; written analysis characters (content for `analysis*`
 
 One decision per cell, temperature 1.0. A changed decision is not a solved task; any fix must pass a matched
 board. Written analysis is counted, not judged for correctness.
+
+---
+
+## Results (13 Oct 2026, 18:05–18:13Z at `3826b67bd`; 96/96 calls ok, 0 unmatched)
+
+| Variant | Finish-point median deliberation | `finish` at 6 wrong | `finish` at 9 right | Text-only | Mid-point median |
+|---|---|---|---|---|---|
+| control | 0 | 6/6 | 8/9 | 0 | 119 |
+| analysis | 0 | 5/6 | 7/9 | 0 | 385 |
+| analysis_auto | 338 | 4/6 | 7/9 | 3 | 228 |
+| json_turn | 229 | 3/6 | 5/9 | 2 | 432 |
+
+Deliberation = reasoning tokens + written-analysis characters ÷ 4.
+
+- **S2-P1 (≥ 5× finish-point deliberation): HELD, but only from a base of 0.** `analysis_auto` and `json_turn`
+  make the model write before finishing (median 338 and 229). With a forced tool call (`analysis`) it still
+  writes nothing.
+- **S2-P2 (≤ 3/6 wrong and ≥ 7/9 right): FAILED.** `analysis_auto` 4/6 and 7/9; `json_turn` 3/6 but only 5/9.
+  Neither separates right from wrong better than chance on these points.
+- **What the written analyses show:** at wrong points the model's analysis is detailed, confident and internally
+  consistent, and it encodes the same error. net-fit e2: "intervened DAG — same DAG (intervention removes no
+  structural edges)". graph-query-catalog e1: a careful hand cross-check of the wrong query. seq-assembly e2: a full design rationale.
+  **The false finish is a held belief formed earlier, not a skipped thought at the finish.** More deliberation at
+  the finish point does not correct it.
+- **Mid-run deliberation stays far below Terminus** (best median ≈ 430 vs T1's ≈ 2,000 per turn) in every replay.
+  All replayed histories are B1's own terse turns (tool calls with no analysis). A history of terse turns may
+  keep the model terse; a single-decision replay cannot test that. It needs a live run with the turn format from
+  turn 1.
+
+Cost: model $0.165 (≈ £0.13, metered, no unknown usage); VM 18:04:40–18:14:00Z ≈ £0.06. **S2 ≈ £0.19. Program
+≈ £3.25 of £5.** VM deallocated and verified. Evidence: `audit_output/aether_s2_20261013/`.
