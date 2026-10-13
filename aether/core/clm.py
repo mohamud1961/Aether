@@ -25,6 +25,7 @@ Settings and their evidence (C1, 12 Oct): interpreter-build requests averaged
 turns/minute, so a 32k budget (the CLM default) keeps a row under the limit.
 Nudges start at 50%: at 25% the pinned prompt alone nearly triggers them.
 """
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -86,7 +87,9 @@ class ClmContext:
     pinned: list[dict[str, Any]]
     settings: ClmSettings = field(default_factory=ClmSettings)
     editable: list[dict[str, Any]] = field(default_factory=list)
-    raw: list[dict[str, Any]] = field(default_factory=list)  # every appended message as shown; edits never touch it
+    raw: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # every appended message as shown; edits never touch it
     stats: ClmStats = field(default_factory=ClmStats)
     chars_per_token: float = CHARS_PER_TOKEN
     _armed: set[float] = field(default_factory=set)
@@ -94,7 +97,10 @@ class ClmContext:
     _recent_outputs: list[int] = field(default_factory=list)
     _turn: int = 0
     _last_urgent: int = -URGENT_EVERY_TURNS
-    _reasoning: tuple[int, int] = (0, 0)  # (id of an assistant message, its provider-counted reasoning tokens)
+    _reasoning: tuple[int, int | None] = (
+        0,
+        None,
+    )  # None means provider usage was not reported
 
     def __post_init__(self) -> None:
         self._armed = set(self.settings.nudge_ratios)
@@ -102,7 +108,10 @@ class ClmContext:
     # ----- the request ---------------------------------------------------------------------------
     def request(self) -> list[dict[str, Any]]:
         """Pinned + editable; reasoning is replayed for the newest assistant turn only."""
-        last = max((i for i, m in enumerate(self.editable) if m.get("role") == "assistant"), default=-1)
+        last = max(
+            (i for i, m in enumerate(self.editable) if m.get("role") == "assistant"),
+            default=-1,
+        )
         out = list(self.pinned)
         for i, msg in enumerate(self.editable):
             if i != last and "reasoning_content" in msg:
@@ -111,9 +120,15 @@ class ClmContext:
         return images.limit(out)
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
-        chars = images.size_chars(self.request() if messages is None else images.limit(messages))
+        chars = images.size_chars(
+            self.request() if messages is None else images.limit(messages)
+        )
         r_chars, r_tokens = self._replayed_reasoning() if messages is None else (0, 0)
-        return int((chars - r_chars) / self.chars_per_token) + r_tokens + TOOLS_OVERHEAD_TOKENS
+        return (
+            int((chars - r_chars) / self.chars_per_token)
+            + r_tokens
+            + TOOLS_OVERHEAD_TOKENS
+        )
 
     def held(self) -> int:
         """Tokens the budget governs: the request minus the newest turn's replayed reasoning. That reasoning is the
@@ -122,34 +137,56 @@ class ClmContext:
         circuit-math: three 32k-token thoughts each summarised away, about 1100 s of reasoning redone)."""
         return self.tokens() - self._replayed_reasoning()[1]
 
-    def note_reasoning(self, message: dict[str, Any], reasoning_tokens: int) -> None:
+    def note_reasoning(
+        self, message: dict[str, Any], reasoning_tokens: int | None
+    ) -> None:
         """Record the provider's reasoning-token count for an assistant message just appended.
 
         The newest turn's reasoning is replayed in the next request and tokenizes far more densely than tool
         output: in D1 a 32k-token reasoning turn was estimated at 27.7k and counted at 38.2k (budget 32k)."""
-        self._reasoning = (id(message), int(reasoning_tokens or 0))
+        self._reasoning = (
+            id(message),
+            None if reasoning_tokens is None else int(reasoning_tokens),
+        )
 
     def _replayed_reasoning(self) -> tuple[int, int]:
         """(JSON chars, provider tokens) of the reasoning the next request replays, when the count is known."""
-        last = next((m for m in reversed(self.editable) if m.get("role") == "assistant"), None)
-        if last is None or id(last) != self._reasoning[0] or not last.get("reasoning_content"):
+        last = next(
+            (m for m in reversed(self.editable) if m.get("role") == "assistant"), None
+        )
+        if (
+            last is None
+            or id(last) != self._reasoning[0]
+            or not last.get("reasoning_content")
+        ):
             return 0, 0
-        return len(json.dumps(last["reasoning_content"], ensure_ascii=False)), self._reasoning[1]
+        chars = len(json.dumps(last["reasoning_content"], ensure_ascii=False))
+        tokens = self._reasoning[1]
+        return chars, int(chars / self.chars_per_token) if tokens is None else tokens
 
     def calibrate(self, request_chars: int, input_tokens: int) -> None:
         """Use the provider's real prompt-token count to correct the chars-per-token estimate
         (the replayed reasoning, whose token count is known exactly, is left out of the ratio)."""
         r_chars, r_tokens = self._replayed_reasoning()
+        if self._reasoning[1] is None:
+            r_chars, r_tokens = (
+                0,
+                0,
+            )  # an estimate must not masquerade as reported usage in calibration
         request_chars, input_tokens = request_chars - r_chars, input_tokens - r_tokens
         if input_tokens > TOOLS_OVERHEAD_TOKENS * 2 and request_chars > 0:
-            self.chars_per_token = max(1.5, min(6.0, request_chars / (input_tokens - TOOLS_OVERHEAD_TOKENS)))
+            self.chars_per_token = max(
+                1.5, min(6.0, request_chars / (input_tokens - TOOLS_OVERHEAD_TOKENS))
+            )
 
     def append(self, *messages: dict[str, Any]) -> None:
         self.editable.extend(messages)
         self.raw.extend(deepcopy(messages))
         for m in messages:
             if m.get("role") == "tool":
-                self._recent_outputs = (self._recent_outputs + [len(str(m.get("content") or ""))])[-3:]
+                self._recent_outputs = (
+                    self._recent_outputs + [len(str(m.get("content") or ""))]
+                )[-3:]
 
     # ----- budget: nudges and rollback -----------------------------------------------------------
     def nudge(self) -> str:
@@ -167,21 +204,25 @@ class ClmContext:
                 return ""
             self._last_urgent = self._turn
             self.stats.urgent_nudges += 1
-            return (f"[context: urgent] {used} of {limit} tokens used; only about {room} left. Condense "
-                    f"{self.settings.mirror_path} now (keep facts, paths, decisions and open problems; drop the rest), and "
-                    "send large outputs to files instead of the conversation.")
+            return (
+                f"[context: urgent] {used} of {limit} tokens used; only about {room} left. Condense "
+                f"{self.settings.mirror_path} now (keep facts, paths, decisions and open problems; drop the rest), and "
+                "send large outputs to files instead of the conversation."
+            )
         crossed = [r for r in self._armed if ratio >= r]
         if not crossed:
             return ""
         top = max(crossed)
         self._armed -= set(crossed)
         self.stats.nudges += 1
-        return (f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
-                f"It is mirrored at {self.settings.mirror_path}; condense it when convenient by editing that file (keep what "
-                "you still need, drop the rest). A turn that only edits that file and prints nothing is free."
-                if top < 0.75 else
-                f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
-                f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary.")
+        return (
+            f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
+            f"It is mirrored at {self.settings.mirror_path}; condense it when convenient by editing that file (keep what "
+            "you still need, drop the rest). A turn that only edits that file and prints nothing is free."
+            if top < 0.75
+            else f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
+            f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary."
+        )
 
     def _rearm(self, ratio: float | None = None) -> None:
         """Re-arm the nudge thresholds the context is back under (after an edit, checkpoint or shrink)."""
@@ -197,28 +238,39 @@ class ClmContext:
 
     def can_roll_back(self) -> bool:
         return self._rollbacks_in_episode < self.settings.max_rollbacks and any(
-            m.get("role") == "assistant" for m in self.editable)
+            m.get("role") == "assistant" for m in self.editable
+        )
 
     def roll_back(self, kept: str = "") -> str:
         """Remove the newest assistant turn and its results; return the note to pin for the model."""
-        idx = max(i for i, m in enumerate(self.editable) if m.get("role") == "assistant")
+        idx = max(
+            i for i, m in enumerate(self.editable) if m.get("role") == "assistant"
+        )
         removed = self.editable[idx:]
         del self.editable[idx:]
         self._rollbacks_in_episode += 1
         self.stats.rollbacks += 1
         cmds = [_call_text(c)[:200] for c in removed[0].get("tool_calls") or ()]
-        sizes = [len(str(m.get("content") or "")) for m in removed if m.get("role") == "tool"]
-        note = (f"[context limit] Your newest turn was rolled back: the context would exceed its "
-                f"{self.settings.limit}-token limit. The command(s) did run and their effects remain, but their "
-                f"output ({sum(sizes)} chars) was dropped from your context{kept}:\n" + "\n".join(f"- {c}" for c in cmds) +
-                f"\nCondense {self.settings.mirror_path} now, then continue; re-run with smaller output or write it to a file.")
+        sizes = [
+            len(str(m.get("content") or "")) for m in removed if m.get("role") == "tool"
+        ]
+        note = (
+            f"[context limit] Your newest turn was rolled back: the context would exceed its "
+            f"{self.settings.limit}-token limit. The command(s) did run and their effects remain, but their "
+            f"output ({sum(sizes)} chars) was dropped from your context{kept}:\n"
+            + "\n".join(f"- {c}" for c in cmds)
+            + f"\nCondense {self.settings.mirror_path} now, then continue; re-run with smaller output or write it to a file."
+        )
         self.editable.append({"role": "user", "content": note})
         return note
 
     # ----- the mirror file -----------------------------------------------------------------------
     def render(self, upto: int | None = None) -> str:
         msgs = self.editable if upto is None else self.editable[:upto]
-        return "\n".join(f"[[CTX_TURN {i} role={m.get('role')}]]\n{render_message(m)}" for i, m in enumerate(msgs))
+        return "\n".join(
+            f"[[CTX_TURN {i} role={m.get('role')}]]\n{render_message(m)}"
+            for i, m in enumerate(msgs)
+        )
 
     def render_history(self) -> str:
         """Original appended messages, including reasoning and structured content, with stable message IDs.
@@ -226,20 +278,28 @@ class ClmContext:
         Later harness annotations do not overwrite the original observation. JSON preserves the fields that
         the editable text mirror intentionally leaves out, including tool IDs and image data.
         """
-        return "\n".join(f"[[MSG {i} role={m.get('role')}]]\n{json.dumps(m, ensure_ascii=False)}"
-                         for i, m in enumerate(self.raw))
+        return "\n".join(
+            f"[[MSG {i} role={m.get('role')}]]\n{json.dumps(m, ensure_ascii=False)}"
+            for i, m in enumerate(self.raw)
+        )
 
     def read_history(self, message_id: int, offset: int = 0, limit: int = 12000) -> str:
         """Page one original message without depending on the sandbox history file."""
         if not 0 <= message_id < len(self.raw):
-            raise ValueError(f"history contains {len(self.raw)} messages; IDs are 0 through {len(self.raw) - 1}")
+            raise ValueError(
+                f"history contains {len(self.raw)} messages; IDs are 0 through {len(self.raw) - 1}"
+            )
         text = json.dumps(self.raw[message_id], ensure_ascii=False)
         if offset < 0 or offset > len(text) or limit < 1 or limit > 20000:
-            raise ValueError(f"offset must be 0..{len(text)} and limit must be 1..20000 characters")
+            raise ValueError(
+                f"offset must be 0..{len(text)} and limit must be 1..20000 characters"
+            )
         end = min(len(text), offset + limit)
         next_page = f"; next offset={end}" if end < len(text) else "; complete"
-        return (f"[history MSG {message_id}; {len(self.raw)} messages; chars {offset}:{end} of {len(text)}"
-                f"{next_page}]\n{text[offset:end]}")
+        return (
+            f"[history MSG {message_id}; {len(self.raw)} messages; chars {offset}:{end} of {len(text)}"
+            f"{next_page}]\n{text[offset:end]}"
+        )
 
     @staticmethod
     def parse(text: str) -> list[dict[str, Any]]:
@@ -248,15 +308,20 @@ class ClmContext:
             body = text.strip()
             return [{"role": "user", "content": body}] if body else []
         out = []
-        lead = text[:marks[0].start()].strip()
+        lead = text[: marks[0].start()].strip()
         if lead:
             out.append({"role": "user", "content": lead})
         for k, m in enumerate(marks):
             end = marks[k + 1].start() if k + 1 < len(marks) else len(text)
-            body = text[m.end():end].strip("\n")
+            body = text[m.end() : end].strip("\n")
             if not body.strip():
                 continue
-            out.append({"role": "assistant" if m.group(2) == "assistant" else "user", "content": body})
+            out.append(
+                {
+                    "role": "assistant" if m.group(2) == "assistant" else "user",
+                    "content": body,
+                }
+            )
         return out
 
     def apply_edit(self, text: str, upto: int) -> tuple[bool, str]:
@@ -266,22 +331,32 @@ class ClmContext:
         used = self.tokens(list(self.pinned) + candidate)
         if used > self.settings.limit:
             self.stats.edits_rejected += 1
-            return False, (f"[context edit rejected] the edited context would use about {used} tokens, over the "
-                           f"{self.settings.limit}-token limit; condense it further.")
+            return False, (
+                f"[context edit rejected] the edited context would use about {used} tokens, over the "
+                f"{self.settings.limit}-token limit; condense it further."
+            )
         before = self.tokens()
         self.editable = candidate
         self.stats.edits_accepted += 1
         self._rearm()
-        return True, f"[context edit accepted] {before} -> {used} tokens ({len(parsed)} blocks)."
+        return (
+            True,
+            f"[context edit accepted] {before} -> {used} tokens ({len(parsed)} blocks).",
+        )
 
     def checkpoint_split(self) -> int:
         """Index of the first message kept verbatim: the newest turns within ``keep_recent_tokens``,
         starting at an assistant turn (so tool results stay with their calls). At least one turn is
         always summarised; 0 means there is nothing older to summarise."""
-        starts = [i for i, m in enumerate(self.editable) if m.get("role") == "assistant"]
+        starts = [
+            i for i, m in enumerate(self.editable) if m.get("role") == "assistant"
+        ]
         keep = len(self.editable)
         for i in reversed(starts):
-            if self.tokens(self.editable[i:]) - TOOLS_OVERHEAD_TOKENS > self.settings.keep_recent_tokens:
+            if (
+                self.tokens(self.editable[i:]) - TOOLS_OVERHEAD_TOKENS
+                > self.settings.keep_recent_tokens
+            ):
                 break
             keep = i
         if keep <= 0:
@@ -290,7 +365,9 @@ class ClmContext:
         return keep
 
     def replace_with_checkpoint(self, summary: str, note: str, keep_from: int) -> None:
-        self.editable = [{"role": "user", "content": f"{note}\n\n{summary}"}] + self.editable[keep_from:]
+        self.editable = [
+            {"role": "user", "content": f"{note}\n\n{summary}"}
+        ] + self.editable[keep_from:]
         self.stats.checkpoints += 1
         self._rollbacks_in_episode = 0
         self._rearm()

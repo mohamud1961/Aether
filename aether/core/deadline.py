@@ -6,6 +6,7 @@ remote operations that are already in flight retain their existing lifecycle
 and cleanup semantics; this module does not manufacture replay/cancellation
 authority for ambiguous mutations.
 """
+
 from __future__ import annotations
 
 import time
@@ -15,13 +16,16 @@ from typing import Iterator
 
 
 _deadline_monotonic: ContextVar[float | None] = ContextVar(
-    "aether_run_deadline_monotonic", default=None,
+    "aether_run_deadline_monotonic",
+    default=None,
 )
 _cleanup_authority_depth: ContextVar[int] = ContextVar(
-    "aether_run_deadline_cleanup_authority_depth", default=0,
+    "aether_run_deadline_cleanup_authority_depth",
+    default=0,
 )
 _excluded_wait_depth: ContextVar[int] = ContextVar(
-    "aether_run_deadline_excluded_wait_depth", default=0,
+    "aether_run_deadline_excluded_wait_depth",
+    default=0,
 )
 
 
@@ -66,7 +70,9 @@ def run_deadline_excluded_wait() -> Iterator[None]:
         return
     started = time.monotonic()
     if deadline <= started:
-        raise KernelRunTimeout("task run deadline exceeded before excluded infrastructure wait")
+        raise KernelRunTimeout(
+            "task run deadline exceeded before excluded infrastructure wait"
+        )
     depth = int(_excluded_wait_depth.get())
     token = _excluded_wait_depth.set(depth + 1)
     try:
@@ -81,6 +87,7 @@ def run_deadline_excluded_wait() -> Iterator[None]:
                     )
         finally:
             _excluded_wait_depth.reset(token)
+
 
 def remaining_run_s() -> float | None:
     """Return remaining task wall time, or None when no task deadline is bound."""

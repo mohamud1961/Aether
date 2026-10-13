@@ -6,6 +6,7 @@ thread. A thread-safe event lets every boundary stop admitting new work while
 the async Harbor adapter waits for that worker to relinquish the task world
 before returning cancellation to Harbor's grader lifecycle.
 """
+
 from __future__ import annotations
 
 from typing import Any
