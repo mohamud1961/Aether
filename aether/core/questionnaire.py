@@ -1,6 +1,6 @@
-"""Questionnaire vocabulary and criterion extraction used by Core advisory reviews.
+"""Self-contained questionnaire vocabulary and criterion extraction for Core advisory reviews.
 
-The definitions Core used from the research runtime, unchanged.
+Preserves the existing review wire contract without importing the research runtime.
 """
 
 from __future__ import annotations
@@ -9,15 +9,18 @@ import os
 import re
 from typing import Any, Mapping, Sequence
 
-CONTROL = "control"
-COMPLETE_V1 = "complete_v1"
-CRITERIA_MODES = (CONTROL, COMPLETE_V1)
-CRITERIA_MODE_ENV = "AETHER_CRITERIA_MODE"
+QUESTIONNAIRE_SCHEMA = "aether.typed_questionnaire.v1"
 
+CONTROL = "control"
+
+COMPLETE_V1 = "complete_v1"
+
+CRITERIA_MODES = (CONTROL, COMPLETE_V1)
+
+CRITERIA_MODE_ENV = "AETHER_CRITERIA_MODE"
 
 class CriteriaModeError(ValueError):
     """An unsupported task-criteria extraction mode was selected."""
-
 
 def resolve_criteria_mode(value: str | None = None, *, environ: Mapping[str, str] | None = None) -> str:
     env = os.environ if environ is None else environ
@@ -25,16 +28,6 @@ def resolve_criteria_mode(value: str | None = None, *, environ: Mapping[str, str
     if selected not in CRITERIA_MODES:
         raise CriteriaModeError(f"criteria mode must be one of {', '.join(CRITERIA_MODES)}")
     return selected
-
-
-
-QUESTIONNAIRE_SCHEMA = "aether.typed_questionnaire.v1"
-
-
-
-
-
-
 
 FAILURE_QUESTION_ID = "failure_mode"
 

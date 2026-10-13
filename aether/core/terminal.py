@@ -14,7 +14,7 @@ import re
 import shlex
 import time
 
-from .env import CONTROL_DIR, Environment, put_bytes, run
+from .env import CONTROL_DIR, Environment, alive_test, put_bytes, run
 
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000
@@ -160,7 +160,7 @@ class Terminals:
     async def _write(self, session: Session, text: str) -> None:
         await put_bytes(self._env, text.encode(), f"{session.root}/pending")
         q = shlex.quote
-        res = await run(self._env, f"kill -0 {session.pid} 2>/dev/null && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}; "
+        res = await run(self._env, f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}; "
                                    f"cat {q(session.root + '/pending')} > {q(session.fifo)}", timeout_s=20)
         if res.code == 3 and "dead" in res.stdout:
             raise TerminalGone(f"terminal {session.name} is not running")
@@ -174,7 +174,7 @@ class Terminals:
                  f"| grep -a -o '__AETHER_DONE_{seq}_[0-9]*__ [^[:cntrl:]]*' | tail -n 1")
         # The marker is looked for before the size is taken: the other way round, a command that finished in
         # between showed its marker with the output cut at the earlier size (the rest came with the next call).
-        res = await run(self._env, f"{probe}; kill -0 {session.pid} 2>/dev/null && echo __ALIVE__ || echo __DEAD__; "
+        res = await run(self._env, f"{probe}; {alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; "
                                    f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null")
         rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
         if not size_text.strip().isdigit():  # the log is gone (the control directory was deleted)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+import math
 
 from .clm import HISTORY_PATH, MIRROR_PATH
 from .terminal import MAX_WAIT_S
@@ -52,9 +53,10 @@ Your context: everything after the task statement is your working context. It ha
 is mirrored at {MIRROR_PATH}, one [[CTX_TURN i role=...]] block per message. You manage it yourself: \
 condense it by editing that file with your normal tools (keep facts, paths, decisions, results and open \
 problems; drop stale output). When you edit it, the edited file replaces your earlier history (the task \
-statement stays). Files and terminal logs on disk are never affected by this. Nothing an edit or checkpoint \
-removes is lost: every message as first shown stays in {HISTORY_PATH} ([[MSG n role=...]] blocks, never \
-edited), so condense freely and grep that file when you need an old result back.
+statement stays). Files and terminal logs on disk are never affected by this. Before discarding history, the \
+harness saves original appended messages in {HISTORY_PATH} ([[MSG n role=...]] blocks containing JSON). \
+The edit/checkpoint receipt confirms that path or reports a save failure. Grep the saved file to recover an \
+old observation; do not assume a failed save left a usable copy.
 """
 
 TERMINAL = {"type": "function", "function": {
@@ -128,3 +130,27 @@ RUN_CHECKS = {"type": "function", "function": {
 def tools(*, python: bool, images: bool = False, contract: bool = False) -> list[dict[str, Any]]:
     return [TERMINAL, *([PYTHON] if python else []), READ_FILE, WRITE_FILE, EDIT_FILE,
             *([VIEW_IMAGE] if images else []), *([RUN_CHECKS] if contract else []), FINISH]
+
+
+def validate_call(name: str, arguments: dict[str, Any], definitions: list[dict[str, Any]]) -> None:
+    """Validate the advertised flat tool contract before any effect; never coerce an invalid value."""
+    fn = next((d["function"] for d in definitions if d["function"]["name"] == name), None)
+    if fn is None:
+        raise ValueError(f"unknown tool {name!r} (or unavailable in this run); use an advertised tool")
+    schema = fn["parameters"]
+    missing = set(schema.get("required", ())) - arguments.keys()
+    if missing:
+        raise ValueError(f"{name}: missing required arguments: {', '.join(sorted(missing))}")
+    properties = schema.get("properties", {})
+    for key, value in arguments.items():
+        if key not in properties:
+            raise ValueError(f"{name}: unknown argument {key!r}; allowed: {', '.join(properties)}")
+        rule = properties[key]
+        kind = rule["type"]
+        valid = {"string": isinstance(value, str), "boolean": type(value) is bool,
+                 "integer": type(value) is int,
+                 "number": type(value) in (int, float) and math.isfinite(value)}.get(kind, False)
+        if not valid:
+            raise ValueError(f"{name}.{key}: expected {kind}, got {type(value).__name__}")
+        if "enum" in rule and value not in rule["enum"]:
+            raise ValueError(f"{name}.{key}: expected one of {rule['enum']}")

@@ -27,6 +27,8 @@ Nudges start at 50%: at 25% the pinned prompt alone nearly triggers them.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 from dataclasses import dataclass, field
 import json
 import re
@@ -144,7 +146,7 @@ class ClmContext:
 
     def append(self, *messages: dict[str, Any]) -> None:
         self.editable.extend(messages)
-        self.raw.extend(messages)
+        self.raw.extend(deepcopy(messages))
         for m in messages:
             if m.get("role") == "tool":
                 self._recent_outputs = (self._recent_outputs + [len(str(m.get("content") or ""))])[-3:]
@@ -219,9 +221,13 @@ class ClmContext:
         return "\n".join(f"[[CTX_TURN {i} role={m.get('role')}]]\n{render_message(m)}" for i, m in enumerate(msgs))
 
     def render_history(self) -> str:
-        """Every message of the run as first shown (harness notes added to a result included), numbered once and
-        for good: what an edit, rollback or checkpoint removes from the context stays here unchanged."""
-        return "\n".join(f"[[MSG {i} role={m.get('role')}]]\n{render_message(m)}" for i, m in enumerate(self.raw))
+        """Original appended messages, including reasoning and structured content, with stable message IDs.
+
+        Later harness annotations do not overwrite the original observation. JSON preserves the fields that
+        the editable text mirror intentionally leaves out, including tool IDs and image data.
+        """
+        return "\n".join(f"[[MSG {i} role={m.get('role')}]]\n{json.dumps(m, ensure_ascii=False)}"
+                         for i, m in enumerate(self.raw))
 
     @staticmethod
     def parse(text: str) -> list[dict[str, Any]]:

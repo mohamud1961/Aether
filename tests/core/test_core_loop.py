@@ -47,18 +47,18 @@ def test_tools_run_and_finish_without_review(tmp_path):
     assert rows[-1]["event"] == "end" and result.usage["input"] == 3000
 
 
-def test_review_hold_feeds_back_then_pass_finishes(tmp_path):
-    verdicts = iter([_answers("incomplete", 0.9, "none"), _answers("fully_done", 0.95)])
-    script = [call("finish", {"summary": "SOLVER-CLAIM-MARKER"}, "c1"),
-              call("write_file", {"path": "out.txt", "content": "hello\n"}, "c2"),
-              call("finish", {"summary": "SOLVER-CLAIM-MARKER"}, "c3")]
-    result, rows, requests, provider = _run(tmp_path, script, transport=lambda req: next(verdicts))
-    assert result.status == "finished" and [r["status"] for r in result.reviews] == ["hold", "pass"]
-    held = [r for r in rows if r["event"] == "tool" and r["name"] == "finish"][0]["result"]
-    assert "[independent review]" in held and "C1" in held
-    # the reviewer never sees the solver's summary or claims
+def test_review_objection_cannot_block_finish_or_damage_correct_work(tmp_path):
+    script = [call("write_file", {"path": "out.txt", "content": "hello\n"}, "c1"),
+              call("finish", {"summary": "SOLVER-CLAIM-MARKER"}, "c2")]
+    result, rows, requests, provider = _run(tmp_path, script,
+        transport=lambda req: _answers("wrong_output", 0.99, "contradicted"))
+    assert result.status == "finished" and result.calls == 2
+    assert [r["status"] for r in result.reviews] == ["hold"]
+    assert (tmp_path / "work" / "out.txt").read_text() == "hello\n"
+    advice = [r for r in rows if r["event"] == "tool" and r["name"] == "finish"][0]["result"]
+    assert "advisory review" in advice and "C1" in advice
     assert all("SOLVER-CLAIM-MARKER" not in json.dumps(r) for r in requests)
-    assert requests[0]["state"]["claim_card"] is None and "hello" in json.dumps(requests[1])
+    assert requests[0]["state"]["claim_card"] is None
 
 
 def test_review_error_is_recorded_not_silent(tmp_path):
@@ -70,17 +70,24 @@ def test_review_error_is_recorded_not_silent(tmp_path):
     assert [r for r in rows if r["event"] == "review"][0]["status"] == "error"
 
 
+def test_malformed_boolean_cannot_mutate_a_file_and_the_model_can_repair_the_call(tmp_path):
+    script = [call("write_file", {"path": "out.txt", "content": "a a"}, "c1"),
+              call("edit_file", {"path": "out.txt", "old_str": "a", "new_str": "b", "replace_all": "false"}, "c2"),
+              call("read_file", {"path": "out.txt"}, "c3"),
+              call("edit_file", {"path": "out.txt", "old_str": "a", "new_str": "b", "replace_all": True}, "c4"),
+              call("finish", {"summary": "done"}, "c5")]
+    result, rows, _, _ = _run(tmp_path, script)
+    outputs = [r["result"] for r in rows if r["event"] == "tool"]
+    assert "expected boolean" in outputs[1] and "a a" in outputs[2]
+    assert result.status == "finished" and (tmp_path / "work" / "out.txt").read_text() == "b b"
+
+
 def test_review_skipped_when_little_time_remains(tmp_path, monkeypatch):
     monkeypatch.setattr(core_oversight, "FINISH_MIN_REMAINING_S", 10_000)
     result, rows, requests, _ = _run(tmp_path, [call("finish", {"summary": "x"})], transport=lambda r: {})
     assert result.reviews == [] and not requests
     assert [r for r in rows if r["event"] == "finish"][0]["reason"] == "low_time"
 
-
-def test_review_hold_limit_lets_the_solver_finish(tmp_path):
-    script = [call("finish", {"summary": "x"}, f"c{i}") for i in range(3)]
-    result, _, _, _ = _run(tmp_path, script, transport=lambda r: _answers("wrong_output", 0.99))
-    assert result.status == "finished" and [r["status"] for r in result.reviews] == ["hold", "hold"]
 
 
 def test_tool_errors_are_returned_to_the_model(tmp_path):

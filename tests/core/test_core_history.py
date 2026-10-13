@@ -52,6 +52,7 @@ def test_a_history_that_cannot_be_written_is_traced_and_never_claimed(tmp_path):
     assert result.status == "finished"
     assert any(r["event"] == "history_save_error" for r in rows)
     assert "kept unchanged" not in json.dumps(client.requests[-1]["messages"])
+    assert "history save failed" in json.dumps(client.requests[-1]["messages"])
     assert [r for r in rows if r["event"] == "context_edit"][0]["accepted"] is True  # the edit itself still applies
 
 
@@ -63,3 +64,13 @@ def test_a_rollback_says_where_the_dropped_output_is_kept():
     note = ctx.roll_back(" (kept in H)")
     assert "dropped from your context (kept in H)" in note and "BIG-OUTPUT" not in json.dumps(ctx.editable)
     assert "BIG-OUTPUT" in ctx.render_history()
+
+
+def test_original_observation_and_reasoning_survive_later_annotations():
+    ctx = ClmContext(pinned=[])
+    ctx.append({"role": "assistant", "content": None, "reasoning_content": "original derivation"},
+               {"role": "tool", "tool_call_id": "a", "content": "original result"})
+    before = ctx.render_history()
+    ctx.editable[-1]["content"] += "\nnew annotation"
+    assert ctx.render_history() == before
+    assert "original derivation" in before and '"tool_call_id": "a"' in before

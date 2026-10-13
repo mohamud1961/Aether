@@ -15,7 +15,7 @@ import shlex
 import time
 from typing import Awaitable, Callable
 
-from .env import CONTROL_DIR, INLINE_BYTES, Environment, put_bytes, run
+from .env import CONTROL_DIR, INLINE_BYTES, Environment, alive_test, put_bytes, run
 from .terminal import MAX_WAIT_S
 
 SERVER_SOURCE = (Path(__file__).with_name("repl_server.py")).read_bytes()
@@ -127,7 +127,7 @@ class Repl:
         cmd = (f"{submit}i=0; while [ $i -lt {loops} ]; do [ -f {q(done)} ] && break; "
                f"ls {q(llm)}/*.req >/dev/null 2>&1 && break; sleep 0.05; i=$((i+1)); done; "
                f"echo __REQ__; ls {q(llm)} 2>/dev/null | grep '\\.req$'; echo __DONE__; cat {q(done)} 2>/dev/null; "
-               f"echo; echo __ALIVE__; kill -0 {self.pid} 2>/dev/null && echo yes || echo no; echo __SIZE__; "
+               f"echo; echo __ALIVE__; {alive_test(self.pid)} && echo yes || echo no; echo __SIZE__; "
                f"wc -c < {q(log)} 2>/dev/null || echo 0; echo __LOG__; "
                f"tail -c +{self.cursor + 1} {q(log)} 2>/dev/null | head -c {VIEW_HEAD + VIEW_TAIL}")
         res = await run(self._env, cmd, timeout_s=int(slice_s) + 30)

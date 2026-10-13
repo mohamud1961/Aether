@@ -14,8 +14,9 @@ OpenAI-compatible provider path; a clean abort is enough on failure (no restart-
 
 ## Budget rule
 
-No new GLM solver runs until step 7. A change ships on tests alone only if it cannot make the model
-worse: truthfulness, substrate, retrieval, accounting, new optional capabilities the model may ignore.
+No new GLM solver runs until step 7. Deterministic tests can establish engineering contracts for truthfulness, substrate, retrieval and
+accounting. Optional capabilities still carry schema/context/choice costs; ignore-ability does not establish
+no harm to model performance. Task-solving improvements require separate measured evidence.
 Changes to model behaviour (context policy, output cap, parallel calls on by default) are built and
 tested offline but stay off until step 7 measures them.
 
@@ -53,8 +54,9 @@ the authority of generated checks to block a finish. Checks may still be shown a
    `examples`. No imports from the research tree (`review.py`/`oversight.py` currently import
    the research runtime). Proven by building a wheel, installing it outside the repo in a clean environment
    and running real tools with scripted provider responses.
-7. **One matched model run** with the remaining budget (about £3.8): hardened Core vs V4 Core. Also
-   settles projected vs CLM context, the output cap, and background-job use.
+7. **One matched model run** with the remaining budget (about £3.8): hardened Core vs V4 Core. A bundled comparison can measure the package; it cannot separately settle context mode, output cap
+   and background-job effects. No provider calls are launched by the current deterministic takeover; a
+   later run requires its exact source, route, cases, attempts and spend cap sealed first.
 
 Later: a video tool.
 
@@ -65,12 +67,12 @@ Later: a video tool.
   `CONTEXT_BENCH_V4_20261013.json`): 55 V4 runs, 2023 requests, replayed with no model calls. CLM replay matches
   the recorded request sizes (median drift 0.0%; one run diverges at an edit made through the terminal). Both
   builders keep about 89-90% of each request identical to the previous one (the recorded provider cache hit was
-  69% median, so the gap is on the provider side). CLM sends 34% fewer characters (82M vs 124M). The task is in
-  every request. Build time is negligible (3.6 ms per request at 500 turns). Losses found: 2 trimmed results
+  69% median; character-prefix share is not token-cache share and does not attribute the gap). CLM sends 34% fewer characters (82M vs 124M). The task is in
+  every request. Build time is negligible (3.6 ms per request at 500 turns). Repeated-lookup candidates found: 2 trimmed results
   (default builder) and 5 results removed by CLM edits or checkpoints that the model later re-fetched; 3 of
   those 5 were short results with no copy anywhere. Fixed: long results are saved exactly in the sandbox
   (21fabe85c), and under CLM every message as first shown is written to `HISTORY.txt` before any edit,
-  rollback or checkpoint, and the model is told where it is. All 7 cases now have an exact copy.
+  rollback or checkpoint, and the model is told where it is. Replay predicts copies for these 7 candidates; this is not proof that all repetitions were caused by lost context or that the runtime writes succeeded.
   Not changed: dropping the newest turn's replayed reasoning breaks the cache prefix at that one turn (28% of
   CLM turns); the cost is that one turn's text, so it stays.
 
@@ -78,3 +80,18 @@ Later: a video tool.
 
 What becomes better for the model; which module owns it; what complexity leaves callers; which
 realistic failure the test exercises; a known-bad that fails the test.
+
+## Codex takeover — 13 October 2026
+
+User transferred implementation ownership after Claude reached its usage limit. Continue in the existing
+the working branch worktree, on `codex/aether-core-takeover`, from 4d8239285 and the preserved unfinished zombie-liveness
+patch. No agents, browser access or provider runs. The former review heartbeat is absent in the app.
+
+Queue: finish and verify interrupted liveness repair; close reproduced accounting/context/advisory findings;
+complete tooling contracts and optional background/read-only concurrency; build standalone package with
+installed-wheel real-tool proof; reconcile Linux qualification and remaining model-evaluation authority.
+Steps 1–4 are implemented checkpoints, not blanket acceptance: review findings remain until reproduced fixes pass.
+
+Immediate acceptance: actual shell/file effects remain correct under reviewer objection; historical tool
+observations cannot be changed through mutable context aliases; interrupted accounting retains committed
+attempts and marks truncation; malformed complete log records still fail. Local pipe checks do not qualify Linux PTY.

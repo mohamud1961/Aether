@@ -1,13 +1,13 @@
 """When the reviewer reviews the work, and what the model is told.
 
-- finish: the claim-free finish review (may hold the finish, at most MAX_HOLDS times).
+- finish: a claim-free advisory review, recorded without blocking the finish.
 - progress: claim-free state reviews at fixed fractions of the time limit, so a wrong
   direction is visible while there is still time to act (finish-only review never fired
   on the long C1 rows, which ran out of time first).
 - final: one review when the remaining time drops below FINAL_WINDOW, reporting what the
   reviewer cannot yet see in the state, so deliverables are put in final form.
 
-Progress and final reviews never block anything; they only inform. Every review,
+All reviews are advisory; they never block anything. Every review,
 including errors, is recorded.
 """
 from __future__ import annotations
@@ -20,7 +20,6 @@ from .questionnaire import FAILURE_DETAILS
 from .env import CONTROL_DIR, Environment
 from .review import Transport, Verdict, review
 
-MAX_HOLDS = 2
 FINISH_MIN_REMAINING_FRACTION = 0.15
 FINISH_MIN_REMAINING_S = 90.0
 FINAL_WINDOW_FRACTION = 0.10
@@ -82,8 +81,6 @@ class Oversight:
         """None if a finish review should run now; otherwise the reason it is skipped."""
         if not self.plan.finish:
             return "review_off"
-        if sum(1 for r in self.rows if r["kind"] == "finish" and r["status"] == "hold") >= MAX_HOLDS:
-            return "hold_limit"
         if remaining <= max(FINISH_MIN_REMAINING_S, FINISH_MIN_REMAINING_FRACTION * self._timeout):
             return "low_time"
         return None

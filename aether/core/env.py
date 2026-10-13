@@ -37,6 +37,13 @@ def exit_code(result: Any) -> int | None:
     return None
 
 
+def alive_test(pid: int) -> str:
+    """A shell test that a process exists and is not a zombie. ``kill -0`` alone succeeds on a zombie, and in a
+    container whose PID 1 does not reap (``sleep infinity``) a dead terminal or REPL stays one and looked alive."""
+    return (f"{{ kill -0 {int(pid)} 2>/dev/null && ! {{ [ -r /proc/{int(pid)}/stat ] && "
+            f"sed 's/.*) //' /proc/{int(pid)}/stat | grep -q '^Z'; }}; }}")
+
+
 async def run(env: Environment, command: str, *, timeout_s: int = 30, cwd: str | None = None) -> ExecResult:
     result = await env.exec(command=command, cwd=cwd, env=None, timeout_sec=max(1, int(timeout_s)))
     return ExecResult(exit_code(result), str(getattr(result, "stdout", "") or ""),

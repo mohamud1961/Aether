@@ -21,11 +21,8 @@ import json
 import shlex
 from typing import Any, Callable, Mapping, Sequence
 
-from .questionnaire import QUESTIONNAIRE_SCHEMA
-from .questionnaire import (BAD_MODES, FAILURE_DETAILS, FAILURE_MODES, FAILURE_QUESTION_ID,
-                                            failure_question)
-from .questionnaire import _wire_question
-from .questionnaire import compact, split_criteria
+from .questionnaire import (QUESTIONNAIRE_SCHEMA, BAD_MODES, FAILURE_DETAILS, FAILURE_MODES,
+                            FAILURE_QUESTION_ID, failure_question, _wire_question, compact, split_criteria)
 from .env import CONTROL_DIR, Environment, run
 
 REVIEW_MODEL = "reviewer"

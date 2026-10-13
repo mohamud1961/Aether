@@ -178,6 +178,7 @@ class ChatProvider:
                 await asyncio.wait_for(self._stream_once(request, turn), timeout=left)
             except asyncio.CancelledError:  # the caller was cancelled: the attempt ends as cancelled, then re-raise
                 self.log.end(seq, {"ok": False, "error": "cancelled", "response": turn.response(),
+                                   "response_id": turn.response_id, "response_model": turn.response_model,
                                    "after_s": round(time.monotonic() - started, 2)})
                 raise
             except asyncio.TimeoutError as exc:

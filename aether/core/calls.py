@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import warnings
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -112,9 +113,17 @@ def requests(path: Path) -> Iterator[dict[str, Any]]:
     blobs: dict[str, Any] = {}
     starts: dict[int, dict[str, Any]] = {}
     ends: dict[int, dict[str, Any]] = {}
-    with path.open(encoding="utf-8") as fh:
+    truncated = False
+    with path.open("rb") as fh:
         for line in fh:
-            row = json.loads(line)
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                if line.endswith(b"\n"):
+                    raise  # corruption of a committed row must not be hidden
+                truncated = True
+                warnings.warn(f"{path}: incomplete final log record; recovering committed attempts", RuntimeWarning)
+                break
             if row["kind"] == "blob":
                 blobs[row["key"]] = row["value"]
             elif row["kind"] == "start":
@@ -133,4 +142,5 @@ def requests(path: Path) -> Iterator[dict[str, Any]]:
         if "response" in end:
             end["response"] = blobs[end["response"]]
         end.pop("kind", None)
-        yield {"seq": seq, "role": start["role"], "attempt": start["attempt"], "request": {**refs, **params}, **end}
+        yield {"seq": seq, "role": start["role"], "attempt": start["attempt"], "request": {**refs, **params},
+               **end, "log_truncated": truncated}

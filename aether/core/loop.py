@@ -25,7 +25,7 @@ from .provider import ChatProvider, ProviderError, parse_arguments
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from .tools import system_prompt, tools
+from .tools import system_prompt, tools, validate_call
 from . import contract as acceptance, contract_loop
 from .clone import Clone
 
@@ -273,6 +273,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         args: dict[str, Any] = {}
         try:
             args = parse_arguments(call["function"]["arguments"])
+            validate_call(name, args, s.tools)
             out, finished = await _dispatch(s, name, args)
         except Exception as exc:  # tool errors are the model's to handle; reported verbatim
             out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
@@ -314,10 +315,10 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         return await contract_loop.run_checks(s), False
     if name == "terminal":
         return await s.terminals.use(name=str(args.get("name") or "main"), input=str(args.get("input", "")),
-                                     mode=str(args.get("mode") or "command"), wait_s=float(args.get("wait_s") or 30),
+                                     mode=str(args.get("mode") or "command"), wait_s=float(args.get("wait_s", 30)),
                                      interrupt=bool(args.get("interrupt"))), False
     if name == "python":
-        return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s") or 60),
+        return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s", 60)),
                                 interrupt=bool(args.get("interrupt"))), False
     if name == "view_image":
         path = s.files.resolve(args["path"])
@@ -355,14 +356,14 @@ async def _read_back(s: _Session, upto: int, digest: str) -> None:
 
 async def _keep_history(s: _Session) -> str:
     """Write the run's full history to the sandbox before an edit, rollback or checkpoint removes part of it.
-    Returns the sentence that tells the model where it is, or "" when it could not be written (traced)."""
+    Returns the sentence that tells the model where it is, or a visible failure warning when it could not be written (also traced)."""
     path = s.clm.settings.history_path
     try:
         await put_bytes(s.env, s.clm.render_history().encode(), path)
     except Exception as exc:
         s.trace("history_save_error", path=path, error=f"{type(exc).__name__}: {exc}")
-        return ""
-    return f" (every message as first shown, removed ones included, is kept unchanged in {path})"
+        return " [history save failed; a current disk copy is unavailable; retain needed observations in context]"
+    return f" (original appended messages, removed ones included, are kept unchanged in {path})"
 
 
 async def _fit_context(s: _Session) -> bool:
@@ -421,9 +422,7 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
                                          written=list(s.files.written))
     s.result.reviews.append(row)
     s.trace("review", summary=args.get("summary", ""), answers=verdict.answers, **row)
-    if verdict.status == "hold":
-        return verdict.feedback(), False
-    return "finished", True
+    return f"finished\n[advisory review; does not block finish]\n{verdict.feedback()}", True
 
 
 def _close(s: _Session) -> None:

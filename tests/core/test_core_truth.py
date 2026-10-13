@@ -196,3 +196,18 @@ def test_a_successful_call_keeps_its_response(tmp_path):
     (row,) = call_log.requests(tmp_path / "calls.jsonl")
     assert row["ok"] and row["response"]["reasoning"] == "why"
     assert row["response"]["tool_calls"][0]["function"]["name"] == "finish"
+
+
+def test_torn_tail_recovers_prior_attempts_without_hiding_committed_corruption(tmp_path):
+    log = tmp_path / "calls.jsonl"
+    writer = call_log.CallLog(log)
+    writer.start(role="worker", attempt=1, request={"messages": [{"role": "user", "content": "task"}]})
+    committed = log.read_bytes()
+    log.write_bytes(committed + b'{"kind":"end","seq":1,"response":"\xf0\x9f')
+    with pytest.warns(RuntimeWarning, match="incomplete final"):
+        (row,) = call_log.requests(log)
+    assert row["ok"] is None and row["log_truncated"] is True
+    assert row["request"]["messages"][0]["content"] == "task"
+    log.write_bytes(committed + b'{bad json}\n')
+    with pytest.raises(ValueError):
+        list(call_log.requests(log))
