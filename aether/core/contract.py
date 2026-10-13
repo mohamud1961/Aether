@@ -1,19 +1,17 @@
-"""Acceptance contract: executable checks written from the task before the work, run when the worker finishes.
-
-Judging a finished answer anchors the judge on it: on fixed known-bad states the finish verifier (verify.py) let
-an answer "meet" a stated length of 23, having measured it, and reasoned an edge-direction rule
-backwards. Checks written before any answer exists cannot be talked round; their exit code decides.
+"""Acceptance checks: executable checks written from the task before the work, offered to the worker as information.
 
 - At the start, a separate call of the model, with no tools, gets the task and a mechanical description of the
   untouched container (files, first lines, installed tools) and writes one shell check per requirement (exit 0
   = met). Each check is tried on a no-network clone of the untouched state: one that cannot run, or that passes
   before any work was done (so it cannot tell done from not done), is sent back. Those are facts read from exit
   codes, not judgments. With no tools the writer cannot explore, solve the task or leave helper files behind.
-- The worker receives the checks as soon as they exist: its definition of done, runnable at any time.
-- At finish the harness runs every check in a clone of the final state. A failing check holds the finish with
-  its command and output. The worker fixes the work, or disputes the check by quoting the task sentence it
-  contradicts; a fresh call rules on that one question (check vs task), never on the work. A voided check is
-  dropped; everything is recorded.
+- The worker sees the checks as soon as they exist, marked as fallible, and can run them on a disposable copy of
+  its current state at any time (the ``run_checks`` tool). They never hold a finish.
+
+Why they no longer hold (V4, 12 Oct 2026): a check that wrongly required a ``PASSWORD=`` prefix held a correct
+answer and the worker rewrote it to comply, failing the task; a FEAL check that truncated the ciphertext held a
+working attack twice and the worker added a degenerate fallback to satisfy it. A useful hold (credential-recovery e2, an
+11-character fragment against a stated length of 23) is still available to the worker as information.
 """
 from __future__ import annotations
 
@@ -25,7 +23,6 @@ from typing import Any, Callable
 
 from .env import Environment, run
 from .provider import ChatProvider, ProviderError
-from . import verify as V
 
 WRITER_BUDGET_S = 300.0
 # One writer call may use at most this much of the budget. V2 dna/protein: the first call reasoned past the whole
@@ -81,20 +78,6 @@ tool, module or file of its own, no syntax error) and fail, since the work has n
 holds_before only for a requirement that is already met before the work and must stay so. On your example it \
 must pass. A check that fails on the example is wrong, or the example is: fix whichever it is."""
 
-RULING = {"type": "function", "function": {
-    "name": "ruling",
-    "description": "Rule on whether the disputed check is a valid test of the task.",
-    "parameters": {"type": "object", "properties": {
-        "valid": {"type": "boolean"},
-        "task_sentence": {"type": "string", "description": "The sentence of the task your ruling rests on."},
-        "reason": {"type": "string"}}, "required": ["valid", "task_sentence", "reason"]}}}
-
-ARBITER_PROMPT = """An acceptance check for the task below failed and is disputed. Rule only on the check, not \
-on the work: is it a valid test of what the task states? It is invalid if it demands something the task does \
-not state, contradicts the task, or failed for a reason the work cannot change (a missing tool or module, a \
-broken command). It is valid if the task states the requirement it tests and its failure reflects the state. \
-Quote the task sentence your ruling rests on."""
-
 # Interpreter and shell errors meaning a check cannot run at all (exit codes 126/127 are checked separately).
 _CANNOT_RUN = ("ModuleNotFoundError", "ImportError", "SyntaxError", "Syntax error", "can't open file",
                "command not found")
@@ -113,16 +96,15 @@ class Contract:
     turns: int = 0
     error: str = ""
     usage: dict[str, int] = field(default_factory=dict)
-    voided: list[dict[str, Any]] = field(default_factory=list)
     dropped: list[dict[str, Any]] = field(default_factory=list)  # could not run, or passed before any work
     unconfirmed: list[dict[str, Any]] = field(default_factory=list)  # kept; disagreed with the writer's example
 
     def render(self) -> str:
         lines = ["[acceptance checks] Written from the task alone, before your work, by a separate call that saw "
-                 "only the task and the starting container. When you call finish, each is run in a copy of your "
-                 "final state and must exit 0. Run them yourself whenever useful. Change only the work itself: never "
-                 "edit what a check reads just to make it pass (logs, history, timestamps, the check's inputs). If "
-                 "one contradicts the task, finish with a dispute quoting the task sentence."]
+                 "only the task and the starting container. They can be wrong: where a check and the task text "
+                 "disagree, the task text decides and correct work stays as it is. They never block finish. Run "
+                 "them on a copy of your current state with run_checks whenever useful; never edit what a check "
+                 "reads just to make it pass."]
         for c in self.checks:
             lines += [f"{c.id}. {c.requirement}", f"   $ {c.command}"]
         return "\n".join(lines)
@@ -139,7 +121,14 @@ class CheckResult:
         return self.code == 0
 
 
-def _cannot_run(code: int, text: str) -> bool:
+def _request(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Reasoning is replayed for the newest assistant turn only."""
+    last = max((i for i, m in enumerate(messages) if m.get("role") == "assistant"), default=-1)
+    return [m if i == last else {k: v for k, v in m.items() if k != "reasoning_content"}
+            for i, m in enumerate(messages)]
+
+
+def _cannot_run(code: int | None, text: str) -> bool:
     return code in (126, 127) or any(m in text for m in _CANNOT_RUN)
 
 
@@ -151,10 +140,6 @@ async def run_checks(env: Environment, checks: list[Check], workdir: str) -> lis
         results.append(CheckResult(c, res.code, text[-MAX_OUTPUT_CHARS:]))
     return results
 
-
-# A fingerprint of the working directory, logged with each round: the trial is only meaningful on the state before
-# the work, so the record shows that the clone still holds it.
-FINGERPRINT = "cd {workdir} 2>/dev/null && find . -maxdepth 2 -newer /proc/1 2>/dev/null | head -20; ls -la | md5sum"
 
 ENV_SUMMARY = r"""cd {workdir} 2>/dev/null || exit 0
 echo "== working directory {workdir}"; ls -la | head -40
@@ -221,8 +206,6 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
     tools (it cannot explore, solve, or leave helper files); each submission is tried on the clone and any check
     that cannot run, or that cannot tell the unfinished state from a finished one, is sent back."""
     contract = Contract()
-    fingerprint = (await run(env, FINGERPRINT.format(workdir=workdir), timeout_s=30)).stdout.strip()
-    log({"round": 0, "clone_fingerprint": fingerprint})
     summary = (await run(env, ENV_SUMMARY.format(workdir=workdir), timeout_s=60)).stdout[-8_000:]
     numbered = sentences(task)
     listing = "\n".join(f"[{i}] {t}" for i, t in enumerate(numbered, 1))
@@ -237,7 +220,7 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
             call_end = min(deadline, time.monotonic() + WRITER_CALL_S)
             contract.turns = round_no
             try:
-                turn = await provider.complete(V._request(messages), [SUBMIT_CHECKS], max_tokens=16_384,
+                turn = await provider.complete(_request(messages), [SUBMIT_CHECKS], max_tokens=16_384,
                                                remaining_s=lambda: call_end - time.monotonic(), overrides=overrides,
                                                role="contract_writer")
             except ProviderError as exc:
@@ -277,9 +260,7 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
             covered = {int(n) for r in raw for n in r.get("sentences") or [] if str(n).isdigit()}
             covered |= {int(n) for n in args.get("context_sentences") or [] if str(n).isdigit()}
             missing = [i for i in range(1, len(numbered) + 1) if i not in covered]
-            now = (await run(env, FINGERPRINT.format(workdir=workdir), timeout_s=30)).stdout.strip()
             log({"round": round_no, "reasoning": turn.reasoning, "checks": raw, "missing_sentences": missing,
-                 "clone_unchanged": now == fingerprint, "clone_fingerprint": now,
                  "example": example, "example_error": example_error,
                  "on_example": [{"check": r.check.id, "exit": r.code} for r in on_example],
                  "pristine": [{"check": r.check.id, "exit": r.code, "output": r.output[-200:],
@@ -315,78 +296,21 @@ async def write(provider: ChatProvider, env: Environment, *, task: str, workdir:
     return contract
 
 
-async def arbitrate(provider: ChatProvider, *, task: str, result: CheckResult, dispute: str,
-                    remaining_s: Callable[[], float]) -> dict[str, Any]:
-    """One call, no tools: does the disputed check test what the task states? It sees the check, its result and
-    the dispute (with any evidence the harness itself ran), never the worker's account of its work."""
-    messages = [{"role": "system", "content": ARBITER_PROMPT},
-                {"role": "user", "content": f"TASK:\n{task}\n\nREQUIREMENT (as the check's author quoted it):\n"
-                                            f"{result.check.requirement}\n\nCHECK:\n{result.check.command}\n\n"
-                                            f"RESULT: exit {result.code}\n{result.output}\n\nDISPUTE:\n{dispute}"}]
-    turn = await provider.complete(messages, [RULING], max_tokens=8_192, remaining_s=remaining_s,
-                                   role="contract_arbiter")
-    for call in turn.tool_calls:
-        if (call.get("function") or {}).get("name") == "ruling":
-            ruling = json.loads(call["function"].get("arguments") or "{}")
-            return {"valid": bool(ruling.get("valid", True)), "task_sentence": str(ruling.get("task_sentence", "")),
-                    "reason": str(ruling.get("reason", "")), "usage": turn.usage}
-    return {"valid": True, "task_sentence": "", "reason": "the arbiter gave no ruling; the check stands",
-            "usage": turn.usage}
-
-
-def feedback(failed: list[CheckResult], rulings: dict[int, dict[str, Any]]) -> str:
-    lines = ["[acceptance] These checks failed in a copy of your final state:"]
-    for r in failed:
-        lines += [f"{r.check.id}. {r.check.requirement}", f"   $ {r.check.command}",
-                  f"   exit {r.code}: {r.output or '(no output)'}"]
-        ruling = rulings.get(r.check.id)
-        if ruling:
-            lines.append(f"   your dispute was rejected: \"{ruling['task_sentence']}\" -- {ruling['reason']}")
-    lines.append("Reproduce each failure and fix the work, then finish again. If a check itself contradicts the "
-                 "task, do not change correct work to satisfy it: finish with disputes [{check, task_sentence, "
-                 "reason, evidence_command}]; the command is run on a copy of your final state and its output "
-                 "goes to an independent ruling on the check.")
-    return "\n".join(lines)
-
-
-async def finish_checks(provider: ChatProvider, env: Environment, contract: Contract, *, task: str, workdir: str,
-                        disputes: list[dict[str, Any]], make_clone: Callable[[Environment], Any],
-                        remaining_s: Callable[[], float]) -> dict[str, Any]:
-    """Run the contract in a clone of the final state; resolve disputes of failing checks."""
-    t0 = time.monotonic()
+async def check_state(env: Environment, contract: Contract, workdir: str,
+                      make_clone: Callable[[Environment], Any]) -> list[CheckResult]:
+    """Run every check on a disposable copy of ``env`` (nothing a check writes reaches the real state)."""
     clone = await make_clone(env)
     try:
-        results = await run_checks(clone, contract.checks, workdir)
-        by_id = {r.check.id: r for r in results}
-        open_disputes: list[tuple[CheckResult, str]] = []
-        for d in disputes:
-            try:
-                cid = int(d.get("check"))
-            except (TypeError, ValueError):
-                continue
-            r = by_id.get(cid)
-            if r is None or r.passed or any(o[0].check.id == cid for o in open_disputes):
-                continue
-            dispute = f"\"{d.get('task_sentence', '')}\" -- {d.get('reason', '')}"
-            evidence = str(d.get("evidence_command") or "").strip()
-            if evidence:  # run by the harness in the same copy, so the arbiter sees real output, not a claim
-                ev = await run(clone, evidence, timeout_s=CHECK_TIMEOUT_S, cwd=workdir)
-                dispute += (f"\nEVIDENCE (run by the harness in a copy of the final state):\n$ {evidence}\n"
-                            f"exit {ev.code}: {(ev.stdout + ev.stderr).strip()[-MAX_OUTPUT_CHARS:]}")
-            open_disputes.append((r, dispute))
+        return await run_checks(clone, contract.checks, workdir)
     finally:
         await clone.close()
-    rulings: dict[int, dict[str, Any]] = {}
-    for r, dispute in open_disputes:
-        cid = r.check.id
-        rulings[cid] = await arbitrate(provider, task=task, result=r, dispute=dispute, remaining_s=remaining_s)
-        if not rulings[cid]["valid"]:
-            contract.voided.append({"check": cid, "requirement": r.check.requirement, "command": r.check.command,
-                                    "dispute": dispute, "ruling": rulings[cid]})
-    voided = {v["check"] for v in contract.voided}
-    contract.checks = [c for c in contract.checks if c.id not in voided]
-    failed = [r for r in results if not r.passed and r.check.id not in voided]
-    return {"status": "hold" if failed else "pass", "failed": failed, "rulings": rulings,
-            "results": [{"check": r.check.id, "exit": r.code, "output": r.output[-200:]} for r in results],
-            "seconds": round(time.monotonic() - t0, 1)}
 
+
+def report(results: list[CheckResult]) -> str:
+    lines = ["[acceptance checks, run on a copy of your current state]"]
+    for r in results:
+        verdict = "passed" if r.passed else "exit unknown" if r.code is None else f"failed (exit {r.code})"
+        lines += [f"{r.check.id}. {verdict}: {r.check.requirement[:200]}", f"   {r.output or '(no output)'}"]
+    lines.append("A failing check is evidence to weigh against the task text, not a verdict: if the check "
+                 "demands something the task does not state, the task decides and correct work stays as it is.")
+    return "\n".join(lines)

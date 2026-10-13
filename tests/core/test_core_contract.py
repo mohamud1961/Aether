@@ -1,10 +1,9 @@
-"""Acceptance contract: the writer's trial (unfinished state + its own example), sentence coverage, finish holds,
-disputes with harness-run evidence, and the loop integration."""
+"""Acceptance checks: the writer's trial (unfinished state + its own example), sentence coverage, the run_checks
+tool on a disposable copy, and the loop integration (pinned as information, never holding a finish)."""
 from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 import shutil
 import uuid
 
@@ -102,7 +101,7 @@ def test_a_writer_turn_cut_off_or_malformed_is_retried_at_low_effort_with_a_note
     assert client.requests[2].get("reasoning_effort") != "low"  # the malformed turn was not cut off
     third = client.requests[2]["messages"]
     assert third[-2]["tool_calls"][0]["function"]["arguments"] == "{}" and "not valid JSON" in third[-1]["content"]
-    assert rows[0]["round"] == 0 and rows[1]["cut"] == "length"
+    assert rows[0]["round"] == 1 and rows[0]["cut"] == "length"
 
 
 def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path, monkeypatch):
@@ -119,7 +118,7 @@ def test_a_writer_call_that_outlives_its_share_of_the_budget_is_retried(tmp_path
     client.chat.completions.create = slow
     rows = []
     contract = asyncio.run(C.write(provider, FakeClone(root), task=TASK, workdir=str(root), log=rows.append))
-    assert rows[1] == {"round": 1, "cut": "time", "seconds": 0.5} and len(contract.checks) == 2
+    assert rows[0] == {"round": 1, "cut": "time", "seconds": 0.5} and len(contract.checks) == 2
     assert client.requests[1]["reasoning_effort"] == "low"
 
 
@@ -127,37 +126,19 @@ def _contract():
     return C.Contract(checks=[C.Check(1, "5 letters", LEN5), C.Check(2, "lowercase", LOWER)])
 
 
-def test_finish_holds_on_a_failing_check_and_a_valid_dispute_with_evidence_voids_it(tmp_path):
+def test_checks_run_on_a_copy_and_a_failure_is_reported_as_evidence_not_a_verdict(tmp_path):
     work = tmp_path / "work"; work.mkdir(); (work / "out.txt").write_text("Hello\n")
+    copy = tmp_path / "copy"
+    writes = C.Contract(checks=[*_contract().checks, C.Check(3, "scratch", "echo x > scratch.txt")])
 
     async def clone(_env):
-        return FakeClone(work)
-    held = asyncio.run(C.finish_checks(_provider([])[0], LocalEnv(work), _contract(), task=TASK, workdir=str(work),
-                                       disputes=[], make_clone=clone, remaining_s=lambda: 300))
-    assert held["status"] == "hold" and [r.check.id for r in held["failed"]] == [2]
-    assert "lowercase" in C.feedback(held["failed"], {}) and "do not change correct work" in C.feedback([], {})
-    ruling = call("ruling", {"valid": False, "task_sentence": "Use lowercase letters only.", "reason": "x"}, "r1")
-    provider, client = _provider([ruling])
-    out = asyncio.run(C.finish_checks(provider, LocalEnv(work), c := _contract(), task=TASK, workdir=str(work),
-                                      disputes=[{"check": 2, "task_sentence": "s", "reason": "r",
-                                                 "evidence_command": "cat out.txt"}],
-                                      make_clone=clone, remaining_s=lambda: 300))
-    seen = client.requests[0]["messages"][-1]["content"]
-    assert "EVIDENCE (run by the harness" in seen and "Hello" in seen  # real output, not the worker's claim
-    assert out["status"] == "pass" and [x.id for x in c.checks] == [1] and c.voided[0]["check"] == 2
-
-
-def test_a_rejected_dispute_keeps_the_hold_and_says_why(tmp_path):
-    work = tmp_path / "work"; work.mkdir(); (work / "out.txt").write_text("Hello\n")
-
-    async def clone(_env):
-        return FakeClone(work)
-    provider, _ = _provider([call("ruling", {"valid": True, "task_sentence": "Use lowercase letters only.",
-                                             "reason": "stated"}, "r1")])
-    out = asyncio.run(C.finish_checks(provider, LocalEnv(work), _contract(), task=TASK, workdir=str(work),
-                                      disputes=[{"check": 2, "task_sentence": "none", "reason": "r"}],
-                                      make_clone=clone, remaining_s=lambda: 300))
-    assert out["status"] == "hold" and "your dispute was rejected" in C.feedback(out["failed"], out["rulings"])
+        shutil.copytree(work, copy)
+        return FakeClone(copy)
+    results = asyncio.run(C.check_state(LocalEnv(work), writes, str(work), clone))
+    assert [r.passed for r in results] == [True, False, True]
+    assert not (work / "scratch.txt").exists() and (copy / "scratch.txt").exists()  # nothing reaches the state
+    text = C.report(results)
+    assert "2. failed (exit 1): lowercase" in text and "the task decides" in text
 
 
 def _is_writer(request):
@@ -177,45 +158,44 @@ def _routed(writer_script, worker_script):
     return ChatProvider(client, model="glm", params={"tool_choice": "required", "parallel_tool_calls": False}), client
 
 
-def test_the_loop_pins_the_contract_and_holds_the_finish_until_the_checks_pass(tmp_path):
+def test_the_loop_pins_the_checks_offers_run_checks_and_never_holds_the_finish(tmp_path):
     work = tmp_path / "work"; work.mkdir()
     pristine = tmp_path / "pristine"; pristine.mkdir()
-    clones = iter([FakeClone(pristine), FakeClone(work), FakeClone(work)])
+    clones = iter([FakeClone(pristine), FakeClone(work)])
 
     async def make_clone(_env):
         return next(clones)
     script = [
         _submit([("5 letters", LEN5, [1]), ("lowercase", LOWER, [2])]),          # contract writer (background)
         call("write_file", {"path": "out.txt", "content": "Hello\n"}, "w1"),     # worker
-        call("finish", {"summary": "done"}, "w2"),                                # held: not lowercase
-        call("write_file", {"path": "out.txt", "content": "hello\n"}, "w3"),
-        call("finish", {"summary": "done"}, "w4")]
+        call("run_checks", {}, "w2"),                                             # check 2 fails: not lowercase
+        call("finish", {"summary": "done"}, "w3")]                                # the worker decides; no hold
     provider, client = _routed(script[:1], script[1:])
     config = CoreConfig(contract=True, make_clone=make_clone, control_dir=str(tmp_path / "ctl"))
     result = asyncio.run(run_agent(env=LocalEnv(work), task=TASK, workdir=str(work), provider=provider, timeout_s=900,
                                    trace=Trace(tmp_path / "t.jsonl"), config=config))
-    assert result.status == "finished" and [r["status"] for r in result.reviews] == ["hold", "pass"]
+    assert result.status == "finished" and result.reviews == []
     worker = [r for r in client.requests if not _is_writer(r)]
-    after_hold = json.dumps(worker[2]["messages"])
-    assert "[acceptance checks]" in after_hold and "failed in a copy of your final state" in after_hold
-    assert (work / "out.txt").read_text() == "hello\n"
+    after_run = json.dumps(worker[2]["messages"])
+    assert "They can be wrong" in after_run and "2. failed (exit 1): lowercase" in after_run
     rows = [json.loads(l) for l in (tmp_path / "t.jsonl").read_text().splitlines()]
-    assert any(r["event"] == "contract" and r["ok"] for r in rows)
     assert any(r["event"] == "contract_shown" and r["checks"] == 2 for r in rows)
+    assert any(r["event"] == "contract_run" and r["ok"] for r in rows)
+    names = [t["function"]["name"] for t in worker[0]["tools"]]
     finish_tool = next(t for t in worker[0]["tools"] if t["function"]["name"] == "finish")
-    assert "disputes" in finish_tool["function"]["parameters"]["properties"]
+    assert "run_checks" in names and "disputes" not in finish_tool["function"]["parameters"]["properties"]
 
 
-def test_without_a_contract_the_finish_proceeds_and_says_so(tmp_path):
+def test_without_a_contract_run_checks_says_so_and_the_finish_proceeds(tmp_path):
     work = tmp_path / "work"; work.mkdir()
 
     async def broken(_env):
         raise RuntimeError("docker commit failed")
-    provider, _ = _provider([call("finish", {"summary": "x"}, "w1")])
+    provider, client = _provider([call("run_checks", {}, "w1"), call("finish", {"summary": "x"}, "w2")])
     config = CoreConfig(contract=True, make_clone=broken, control_dir=str(tmp_path / "ctl"))
     result = asyncio.run(run_agent(env=LocalEnv(work), task=TASK, workdir=str(work), provider=provider, timeout_s=900,
                                    trace=Trace(tmp_path / "t.jsonl"), config=config))
     rows = [json.loads(l) for l in (tmp_path / "t.jsonl").read_text().splitlines()]
     assert result.status == "finished"
     assert any(r["event"] == "contract" and not r["ok"] and "docker commit failed" in r["error"] for r in rows)
-    assert any(r["event"] == "finish" and r.get("reason") == "no_contract" for r in rows)
+    assert "not available (clone failed" in json.dumps(client.requests[1]["messages"])

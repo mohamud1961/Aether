@@ -1,8 +1,8 @@
-"""The acceptance contract inside the agent loop (``loop._Session`` is passed in as ``s``).
+"""The acceptance checks inside the agent loop (``loop._Session`` is passed in as ``s``).
 
-start: clone the untouched container before any work and write the contract there in the background.
+start: clone the untouched container before any work and write the checks there in the background.
 show: pin the checks after the task as soon as they exist.
-finish: run the checks on a clone of the final state; hold with the failing checks, resolve disputes.
+run_checks: the worker's tool to run them on a copy of its current state. Nothing here holds a finish.
 """
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from typing import Any, Callable
 
 from . import contract as acceptance
 
-MAX_CONTRACT_HOLDS = 3
-
+MAX_WAIT_S = 180.0  # longest run_checks waits for the writer
+WAIT_RESERVE_S = 150.0  # time kept for the work itself
 
 async def start(s: Any) -> None:
     """Clone the untouched container now (before any work); the contract is written there in the background."""
@@ -53,34 +53,22 @@ def show(s: Any, attach: Callable[[list[dict[str, Any]], str], None]) -> None:
     s.trace("contract_shown", checks=len(s.contract.checks), elapsed_s=round(s.elapsed(), 1))
 
 
-async def finish(s: Any, args: dict[str, Any]) -> tuple[str, bool]:
-    if s.contract_task and not s.contract_task.done() and s.remaining() > 150:
-        await asyncio.wait({s.contract_task}, timeout=min(180.0, s.remaining() - 150))
+async def run_checks(s: Any) -> str:
+    """The run_checks tool: the checks on a disposable copy of the current state, reported, never enforced.
+    Checks still being written are waited for, as long as time allows."""
+    if s.contract_task and not s.contract_task.done() and s.remaining() > WAIT_RESERVE_S:
+        await asyncio.wait({s.contract_task}, timeout=min(MAX_WAIT_S, s.remaining() - WAIT_RESERVE_S))
     c = s.contract
-    skip = ("no_contract" if not c or not c.checks else "hold_limit" if s.contract_holds >= MAX_CONTRACT_HOLDS
-            else "low_time" if s.remaining() < 90 else "")
-    if skip:
-        s.trace("finish", summary=args.get("summary", ""), review="skipped", reason=skip)
-        return "finished", True
-    disputes = [d for d in args.get("disputes") or [] if isinstance(d, dict)]
+    if not c or not c.checks:
+        state = "still being written" if s.contract_task and not s.contract_task.done() else (
+            f"not available ({c.error})" if c and c.error else "not available")
+        return f"[acceptance checks] {state}."
+    t0 = time.monotonic()
     try:
-        out = await acceptance.finish_checks(s.provider, s.env, c, task=s.task, workdir=s.workdir,
-                                             disputes=disputes, make_clone=s.clone, remaining_s=s.remaining)
-    except Exception as exc:  # substrate failure: reported, the finish proceeds
-        row = {"kind": "finish", "at": "finish", "mode": "contract", "status": "error", "unmet": [],
-               "reason": f"{type(exc).__name__}: {exc}"}
-        s.result.reviews.append(row)
-        s.trace("review", summary=args.get("summary", ""), **row)
-        return "finished", True
-    for ruling in out["rulings"].values():
-        for key, value in ruling.pop("usage", {}).items():
-            s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
-    row = {"kind": "finish", "at": "finish", "mode": "contract", "status": out["status"],
-           "unmet": [r.check.requirement for r in out["failed"]], "results": out["results"],
-           "disputes": disputes, "rulings": out["rulings"], "latency_s": out["seconds"]}
-    s.result.reviews.append(row)
-    s.trace("review", summary=args.get("summary", ""), **row)
-    if out["status"] == "hold":
-        s.contract_holds += 1
-        return acceptance.feedback(out["failed"], out["rulings"]), False
-    return "finished", True
+        results = await acceptance.check_state(s.env, c, s.workdir, s.clone)
+    except Exception as exc:  # substrate failure: reported to the model and the trace, nothing assumed
+        s.trace("contract_run", ok=False, error=f"{type(exc).__name__}: {exc}")
+        return f"[acceptance checks] could not make a copy of the state to run them on: {type(exc).__name__}: {exc}"
+    s.trace("contract_run", ok=True, seconds=round(time.monotonic() - t0, 1),
+            results=[{"check": r.check.id, "exit": r.code, "output": r.output[-200:]} for r in results])
+    return acceptance.report(results)

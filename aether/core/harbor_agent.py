@@ -2,8 +2,9 @@
 
 Configuration comes from the launcher's environment only:
 - provider: the GLM research profile's endpoint / key / deployment variables;
-- ``AETHER_CORE_REVIEW``: ``off``, ``reviewer`` (finish review) or ``reviewer_progress`` (finish review plus
-  progress reviews at 35% and 70% of the time limit and a final review near the deadline);
+- ``AETHER_CORE_REVIEW``: ``off``, ``reviewer`` (finish review), ``reviewer_progress`` (finish review plus
+  progress reviews at 35% and 70% of the time limit and a final review near the deadline) or ``contract``
+  (acceptance checks written before the work, offered as information; see ``contract``);
 - ``AETHER_CORE_CONTEXT``: ``project`` (C1 view) or ``clm`` (model-managed context, CLM method);
 - ``AETHER_CORE_REPL``: ``on`` or ``off`` (persistent Python REPL tool);
 - ``AETHER_CORE_IMAGES``: ``on`` or ``off`` (view_image tool);
@@ -35,7 +36,7 @@ except ImportError:  # pragma: no cover - exercised only off the runner
             self.model_name = model_name
 
 REVIEW_ENV = "AETHER_CORE_REVIEW"
-REVIEW_MODES = ("off", "state", "contract")
+REVIEW_MODES = ("off", "contract")
 CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
@@ -77,7 +78,7 @@ def build_review(logs_dir: Path):
     mode = os.environ.get(REVIEW_ENV, "").strip()
     if mode not in REVIEW_MODES:
         raise ConfigError(f"{REVIEW_ENV} must be one of {REVIEW_MODES}, got {mode!r}")
-    if mode in ("off", "state", "contract"):  # these run on the solver's own provider (see verify, contract)
+    if mode in ("off", "contract"):  # contract runs on the solver's own provider (see contract)
         return None
     from .review import REVIEW_MODEL
 
@@ -98,7 +99,7 @@ def build_config() -> CoreConfig:
         raise ConfigError(f"{IMAGES_ENV} must be one of {REPL_MODES}, got {see!r}")
     plan = ReviewPlan(finish=False)
     return CoreConfig(context=context, repl=repl == "on", images=see == "on", reviews=plan, clm=ClmSettings(),
-                      verify=review == "state", contract=review == "contract")
+                      contract=review == "contract")
 
 
 def agent_timeout(passed: float | None) -> float:
@@ -183,7 +184,7 @@ def _write_record(logs: Path, result, *, started: float, workdir: str, config: C
                    "model": provider.model, "params": provider.params},
         "reviews": reviews,
         "run_metrics": {
-            # Every model call from every role (worker, llm, checkpoint, contract, verifier), from the call
+            # Every model call from every role (worker, llm, checkpoint, contract_writer), from the call
             # log; token totals are lower bounds when usage_unknown > 0. The reviewer calls are in core_reviewer_journal.
             "model_calls": provider.log.totals(),
             "worker_turns": result.calls if result else 0,
