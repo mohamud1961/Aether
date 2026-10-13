@@ -24,7 +24,7 @@ Cases whose labels disagree are excluded and reported.
 
 - **Not reconstructable:** construct-assembly ep 2. Its 2,700-nt gBlock was never printed in full and came from randomised
   code. This is recorded as a gap, not substituted.
-- **Totals:** 6 bad and 9 good. Each task gets 3 independent writers, and every writer's checks run on every
+- **Totals:** 14 cases: 6 bad and 8 good (first written as 9 good; GPT-6-Astra corrected it before any run). Each task gets 3 independent writers, and every writer's checks run on every
   case of that task. The good-two-candidates case is included because a whole-file rule would wrongly fail it.
 
 ## Predictions
@@ -49,3 +49,21 @@ else.
 | **Hard stop for A1** | **£0.60** |
 
 Cumulative program spend would be about £1.6 of £5. The VM is deallocated after retrieval.
+
+## Amendment 1 (before any run): scoring semantics (GPT-6-Astra's review of `0fdf001e3`)
+
+- Each (case, writer) pair now gets one of four statuses (`core_acceptance_bench.classify`):
+  - **hold:** at least one executable check ran and failed;
+  - **pass:** every check ran and passed;
+  - **error:** a check could not run (exit 126/127, an interpreter error or a timeout) and no other check failed;
+  - **unavailable:** no contract (writer error, empty contract or failed writer run).
+
+  Before this fix, a missing contract counted as a hold, so it was credited as detecting every bad state.
+- **Denominators are fixed at the scheduled pairs that survive the label step:** 6 bad × 3 writers = 18 bad
+  pairs, and 8 good × 3 writers = 24 good pairs.
+  - **D1:** holds / all bad pairs. Unavailable and error count as not detected.
+  - **D2:** holds / all good pairs (harm). Unavailable and error are reported beside it, and never shrink the
+    denominator.
+  - **D3:** writer runs with a contract / 12 scheduled, reported separately.
+- Every row is kept in `results.jsonl`, and `summary.json` holds all four counts per side. Tests:
+  `tests/test_core_acceptance_bench.py`.
