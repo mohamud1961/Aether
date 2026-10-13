@@ -14,7 +14,6 @@ The model owns the thinking and strategy. Aether gives it dependable access to t
 **Evidence index:** [`evidence/MANIFEST.json`](evidence/MANIFEST.json)  
 **Runtime surface:** [`docs/RUNTIME_SURFACE.md`](docs/RUNTIME_SURFACE.md)  
 **License:** [`LICENSE`](LICENSE) · [`Third-party notices`](docs/provenance/third_party_notices.md)
-**Research & funding site:** https://aether-worldclass-preview.vercel.app/funding-cards
 
 ## Why this matters
 
@@ -134,7 +133,7 @@ Funding buys the decisive experiment, not the first prototype.
 
 **Month 3 — Simplify + publish.** Remove mechanisms that do not create repeatable value; publish methods, traces, costs, successes, failures and limitations.
 
-See [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md) and the [funding/research site](https://aether-worldclass-preview.vercel.app/funding-cards).
+See [`docs/RESEARCH_PROGRAMME.md`](docs/RESEARCH_PROGRAMME.md).
 
 ## Production architecture
 
