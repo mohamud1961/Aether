@@ -15,3 +15,14 @@
    do not localize a cache defect. Offline replay cannot establish task-solving improvement.
 8. Imports and test counts are not capability proof. Test real shell/file effects, known-bad cases, unknown
    accounting, cleanup, and a wheel installed outside the source tree.
+9. Atomic staging is not enough: a plain mv into a directory can report success at the wrong path.
+   Commit the pathname with rename semantics; test a directory appearing after preflight.
+10. A terminal name identifies a live session; an output path identifies a particular generation.
+   Preserve old logs when the session restarts, rather than reusing and truncating their path.
+11. A high-confidence reviewer completion opinion is still not verification. The native wrong-artifact
+   control must fail even when the runtime successfully submits it.
+12. Generation suffixes must not collide with valid user names. Separate the namespace with a
+   character the public name grammar excludes, and test live state in both names across restart.
+13. Resource ownership begins before readiness. Register the launch and known PID before fallible
+   initialization; retain ownership through failed stop, and resolve lost launch replies from the
+   owned PID file during cleanup. Missing ownership evidence is an error, not successful cleanup.

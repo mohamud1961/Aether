@@ -1,0 +1,160 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_failed_startup_after_launch_still_has_an_owned_process_to_close[False] __
+
+tmp_path = PosixPath('<tmp>')
+lose_launch_reply = False
+
+    @pytest.mark.parametrize("lose_launch_reply", [False, True])
+    def test_failed_startup_after_launch_still_has_an_owned_process_to_close(tmp_path, lose_launch_reply):
+        class StartupFails(LocalEnv):
+            async def exec(self, command, **kwargs):
+                result = await super().exec(command, **kwargs)
+                if lose_launch_reply and "nohup" in command:
+                    raise OSError("launch reply lost after actual launch")
+                return result
+    
+        async def go():
+            work = tmp_path / "work"
+            work.mkdir()
+            terminals = Terminals(StartupFails(work), str(work), lambda: 1000, control_dir=str(tmp_path / "ctl"))
+            if not lose_launch_reply:
+                async def fail_init(session, text):
+                    raise OSError("initial input failed after actual launch")
+                terminals._write = fail_init
+            try:
+                with pytest.raises(OSError):
+                    await terminals.use(input="echo never")
+                pid = int((tmp_path / "ctl/term/main/pid").read_text())
+                await terminals.close()
+                await asyncio.sleep(0.1)
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    return
+                pytest.fail(f"owned startup process {pid} survived close")
+            finally:
+                # The before-fix control must not leak its real process.
+                pid_file = tmp_path / "ctl/term/main/pid"
+                if pid_file.exists():
+                    from aether.core.env import stop_process_tree
+                    await stop_process_tree(terminals._env, [int(pid_file.read_text())])
+    
+>       asyncio.run(go())
+
+tests/test_core_terminal.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+<home>/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/runners.py:194: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+<home>/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<home>/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:686: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def go():
+        work = tmp_path / "work"
+        work.mkdir()
+        terminals = Terminals(StartupFails(work), str(work), lambda: 1000, control_dir=str(tmp_path / "ctl"))
+        if not lose_launch_reply:
+            async def fail_init(session, text):
+                raise OSError("initial input failed after actual launch")
+            terminals._write = fail_init
+        try:
+            with pytest.raises(OSError):
+                await terminals.use(input="echo never")
+            pid = int((tmp_path / "ctl/term/main/pid").read_text())
+            await terminals.close()
+            await asyncio.sleep(0.1)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return
+>           pytest.fail(f"owned startup process {pid} survived close")
+E           Failed: owned startup process 73620 survived close
+
+tests/test_core_terminal.py:323: Failed
+__ test_failed_startup_after_launch_still_has_an_owned_process_to_close[True] __
+
+tmp_path = PosixPath('<tmp>')
+lose_launch_reply = True
+
+    @pytest.mark.parametrize("lose_launch_reply", [False, True])
+    def test_failed_startup_after_launch_still_has_an_owned_process_to_close(tmp_path, lose_launch_reply):
+        class StartupFails(LocalEnv):
+            async def exec(self, command, **kwargs):
+                result = await super().exec(command, **kwargs)
+                if lose_launch_reply and "nohup" in command:
+                    raise OSError("launch reply lost after actual launch")
+                return result
+    
+        async def go():
+            work = tmp_path / "work"
+            work.mkdir()
+            terminals = Terminals(StartupFails(work), str(work), lambda: 1000, control_dir=str(tmp_path / "ctl"))
+            if not lose_launch_reply:
+                async def fail_init(session, text):
+                    raise OSError("initial input failed after actual launch")
+                terminals._write = fail_init
+            try:
+                with pytest.raises(OSError):
+                    await terminals.use(input="echo never")
+                pid = int((tmp_path / "ctl/term/main/pid").read_text())
+                await terminals.close()
+                await asyncio.sleep(0.1)
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    return
+                pytest.fail(f"owned startup process {pid} survived close")
+            finally:
+                # The before-fix control must not leak its real process.
+                pid_file = tmp_path / "ctl/term/main/pid"
+                if pid_file.exists():
+                    from aether.core.env import stop_process_tree
+                    await stop_process_tree(terminals._env, [int(pid_file.read_text())])
+    
+>       asyncio.run(go())
+
+tests/test_core_terminal.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+<home>/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/runners.py:194: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+<home>/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<home>/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:686: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def go():
+        work = tmp_path / "work"
+        work.mkdir()
+        terminals = Terminals(StartupFails(work), str(work), lambda: 1000, control_dir=str(tmp_path / "ctl"))
+        if not lose_launch_reply:
+            async def fail_init(session, text):
+                raise OSError("initial input failed after actual launch")
+            terminals._write = fail_init
+        try:
+            with pytest.raises(OSError):
+                await terminals.use(input="echo never")
+            pid = int((tmp_path / "ctl/term/main/pid").read_text())
+            await terminals.close()
+            await asyncio.sleep(0.1)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return
+>           pytest.fail(f"owned startup process {pid} survived close")
+E           Failed: owned startup process 73644 survived close
+
+tests/test_core_terminal.py:323: Failed
+=========================== short test summary info ============================
+FAILED tests/test_core_terminal.py::test_failed_startup_after_launch_still_has_an_owned_process_to_close[False]
+FAILED tests/test_core_terminal.py::test_failed_startup_after_launch_still_has_an_owned_process_to_close[True]
+2 failed in 0.94s

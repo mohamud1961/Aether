@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_reviewer_opinion_cannot_certify_a_wrong_artifact _____________
+
+tmp_path = PosixPath('<tmp>')
+
+    def test_reviewer_opinion_cannot_certify_a_wrong_artifact(tmp_path):
+        script = [call('write_file', {'path':'out.txt','content':'wrong\n'}, 'c1'),
+                  call('finish', {'summary':'done'}, 'c2')]
+        result,rows,requests,provider = _run(tmp_path, script,
+            transport=lambda req: _answers('fully_done',0.99))
+        assert (tmp_path/'work/out.txt').read_text()=='wrong\n'
+        assert result.status=='finished'
+>       assert result.reviews[0]['verified'] is None
+E       assert True is None
+
+tests/test_core_loop.py:204: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_core_loop.py::test_reviewer_opinion_cannot_certify_a_wrong_artifact
+1 failed in 0.28s

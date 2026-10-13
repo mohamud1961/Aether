@@ -1,0 +1,26 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_restart_cannot_collide_with_another_valid_terminal_name _________
+
+tmp_path = PosixPath('<tmp>')
+
+    def test_restart_cannot_collide_with_another_valid_terminal_name(tmp_path):
+        async def go():
+            terminals, _ = _terms(tmp_path)
+            await terminals.use(name="main-1", input="export KEEP=independent; echo ORIGINAL")
+            other_log = Path(terminals._sessions["main-1"].log)
+            await terminals.use(name="main", input="echo first")
+            os.kill(terminals._sessions["main"].pid, 9)
+            await asyncio.sleep(0.3)
+            await terminals.use(name="main", input="echo restarted")
+            observed = await terminals.use(name="main-1", input="echo $KEEP")
+            return observed, other_log.read_text()
+    
+        observed, log = asyncio.run(go())
+>       assert "independent" in observed and "ORIGINAL" in log
+E       AssertionError: assert ('independent' in '(no new output)\n[exit 0 · 0.2s · terminal main-1 · cwd <tmp>')
+
+tests/test_core_terminal.py:293: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_core_terminal.py::test_restart_cannot_collide_with_another_valid_terminal_name
+1 failed in 2.23s
