@@ -99,7 +99,7 @@ route, prices, predictions and stop line are as sealed above.
 ## Results (attempt 3, commit `01512422a`, 13 October 2026)
 
 All 18 rows ran. 17 were graded; seq-assembly ep 1 ended with `provider_error` before grading.
-Harbor's grader passed **10 of 17 graded rows** (10/18 counting the lost row). Evidence:
+Harbor's grader passed **9 of 17 graded rows** (9/18 counting the lost row; first recorded as 10, a summing error corrected after GPT-6-Astra's review). Evidence:
 `audit_output/aether_b1_20261013/` (traces, call logs, grader output, `B1_AUDIT.json`).
 
 | Task | B1 | V4 (different code) | Note |
@@ -127,7 +127,7 @@ Harbor's grader passed **10 of 17 graded rows** (10/18 counting the lost row). E
   - an attempt cancelled at the deadline on construct-assembly ep 1.
 
   Those two rows are priced as lower bounds.
-- **P3 held (descriptive).** 10/17 against V4's 26/36. The per-task differences are within 2-episode noise.
+- **P3 held (descriptive).** 9/17 against V4's 26/36. The per-task differences are within 2-episode noise.
   cipher-diff-attack 1/2 against 4/4 is the largest gap; its failed episode was a deadline, not an error.
 - **P4 held in part.**
   - Neither task was solved.
@@ -200,7 +200,7 @@ model's own reading of the task, not the success condition the task states.
 | net-fit ep 2 | 128 / 3600 s (4%) | same, but a different wrong orientation | the BIC score matched its own top score |
 | graph-query-catalog ep 1 | 91 / 900 s (10%) | one professor missing (`Alex Dimakis`, CH/ES/US) | "Manual verification done": it re-read its own query output |
 | credential-recovery ep 2 | 182 / 900 s (20%) | joined two fragments into a guessed answer; the true one has 23 | a format check it wrote itself (starts `8XD`, ends `W54`) |
-| seq-assembly ep 2 | 745 / 1800 s (41%) | reverse primers carry `gagacc`; the grader requires `ggtctc` in every primer | Tm values only; 32k + 3×8k reasoning tokens went on BsaI geometry without settling it |
+| seq-assembly ep 2 | 745 / 1800 s (41%) | reverse primers carry `gagacc`; the grader requires `ggtctc` in every primer | its own script: circular assembly simulation, one BsaI site per primer, format and Tm, all passing. Whether `gagacc` is wrong biologically or only fails the grader's string expectation is not established here |
 | construct-assembly ep 2 | 431 / 1800 s (24%) | a component is missing from the translated order (unresolved chromophore residues were guessed) | its own construct checker and its own reading of the order |
 
 **Reasoning tokens:** the failures are not caused by thinking too little. The net-fit, graph-query-catalog and credential-recovery
@@ -212,3 +212,27 @@ then finishes with most of its time unused. The real B1 gap is *self-confirming 
 context or time. An independent check of the task state against the task's stated criteria is the role the
 verifier is meant to fill (HARNESS_VISION). B1 ran with review off, so this gap is the measured cost of having
 no verifier.
+
+### Corrections after GPT-6-Astra's independent review (13 October)
+
+1. **Counts.** The B1 rows break down as: 9 passes, 6 wrong finishes, 2 timeouts, 1 ungraded error. That is
+   9/17 graded and 9 of the 15 rows that finished normally. The earlier "10" was a summing error; the per-task
+   table was correct.
+2. **credential-recovery ep 2 was not a missing check.** It ignored a contradiction it could see. The model's own
+   terminal printed `len=14` against the stated 23, and its finish summary still claimed 23.
+   - A whole-file `wc -c` rule would also be wrong: the task allows more than one candidate, one per line.
+   - Checks must parse each candidate according to the task, not impose whole-file length rules.
+3. **seq-assembly ep 2 checked a great deal.** It ran its own assembly simulation, site count, format and Tm checks. Its
+   failure is not proof of "no verification". Public requirement grounding must separate domain correctness
+   from a grader's string expectations, and no rule may be derived from the grader.
+4. **The acceptance contract does not require the example to pass.** On the last round, `contract.py` keeps a
+   check that passed the pristine trial even if it disagrees with the example, and records the disagreement as
+   `unconfirmed`. Checks and examples come from the same writer, so they are correlated, not independent.
+5. **Causal claims are hypotheses.** "No review cost us these rows" and "the root fix" need a matched reviewed
+   control. Similar token counts say nothing about reasoning quality. B2 would also differ from B1 in the
+   stream retry and auxiliary calls.
+
+**Revised diagnostic scope:** qualify checks against independently grounded good and bad states, including
+held-out homologues and valid alternative formats. The task text and the solver keep authority. A replay
+measures detection only; it shows neither that the solver repairs its work nor that no harm is done. Early
+interpretation and coverage errors need attention, not only the finish.
