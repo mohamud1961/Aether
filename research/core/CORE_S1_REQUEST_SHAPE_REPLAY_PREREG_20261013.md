@@ -38,3 +38,28 @@ No tool is executed; only the model's next decision is recorded.
 
 A single-decision replay does not show the run would then succeed. Any fix must still pass a matched board.
 Temperature is 1.0, so one call per cell is noisy; the claim is about medians across points.
+
+---
+
+## Results (13 Oct 2026, 17:45–17:52Z at `e01f6c370`; 96/96 calls ok, 0 unmatched)
+
+| Variant | Median reasoning | Zero-reasoning points | `finish` at 6 wrong points | `finish` at 9 right points | Text-only |
+|---|---|---|---|---|---|
+| control | 0 | 15/24 | 5/6 | 8/9 | 0 |
+| auto | 0 | 18/24 | 3/6 | 5/9 | 4 |
+| replay | 6.5 | 11/24 | 4/6 | 8/9 | 0 |
+| parallel | 0 | 15/24 | 6/6 | 7/9 | 0 |
+
+At the 15 finish points, reasoning stays near zero under every variant (most 0; max 239 control, 1626 for one
+replay call). Mid-run points reason in all variants (up to 2,529) with no consistent variant effect.
+
+- **S1-P1 (`auto` ≥ 5× median reasoning): FAILED.** Median 0 → 0.
+- **S1-P2 (`replay`, `parallel` < 2× change): HELD** (medians 6.5 and 0 from a base of 0; no material effect).
+- **S1-P3 (`auto` finishes less at wrong points): HELD numerically, not usefully.** 3/6 vs 5/6, but it also drops
+  right finishes 8/9 → 5/9 and produces 4 text-only turns: less finishing overall, not better discrimination.
+- **Falsifier triggered:** no variant raises median reasoning ≥ 2×. `tool_choice`, reasoning replay and
+  parallel calls are **not** the cause. Next suspects, as preregistered: the system prompt and the turn format
+  (Terminus requires written Analysis and Plan every turn and sends no tools parameter).
+
+Cost: model $0.148 (≈ £0.12, metered, no unknown usage); VM 17:44:43–17:52:31Z ≈ £0.05. **S1 ≈ £0.17.
+Program ≈ £3.06 of £5.** VM deallocated and verified. Evidence: `audit_output/aether_s1_20261013/`.
