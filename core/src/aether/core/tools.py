@@ -206,6 +206,16 @@ FINISH = {
 }
 
 
+# Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
+# (with tool_choice "auto"; a forced tool call suppressed the writing in the S2 replay).
+TURN_MODES = ("tool", "analysis")
+ANALYSIS_DOC = """
+Every reply: before your tool call, write in the reply text (1) what the latest results show, including anything \
+in them that contradicts what you expected or what the task requires; (2) where the task stands against each of \
+its requirements, and what has been verified and how; (3) what you will do next and the result you expect. \
+Then make the call."""
+
+
 def system_prompt(
     *,
     python_version: str,
@@ -213,15 +223,18 @@ def system_prompt(
     images: bool = False,
     mirror_path: str = MIRROR_PATH,
     history_path: str = HISTORY_PATH,
+    turn: str = "tool",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
     )
+    if turn not in TURN_MODES:
+        raise ValueError(f"turn must be one of {TURN_MODES}")
     return BASE_PROMPT.format(
         python=PYTHON_DOC.format(version=python_version) if python_version else "",
         images=IMAGES_DOC if images else "",
         context=context if clm else "",
-    )
+    ) + (ANALYSIS_DOC if turn == "analysis" else "")
 
 
 RUN_CHECKS = {

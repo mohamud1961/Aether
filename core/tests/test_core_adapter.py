@@ -99,3 +99,80 @@ def test_version_from_a_source_checkout_is_reported_not_a_launch_crash(monkeypat
     assert adapter.AetherCoreAgent.version(None) == "core-unpackaged"
     monkeypatch.setattr(md, "version", lambda name: "0.2.0")
     assert adapter.AetherCoreAgent.version(None) == "core-0.2.0"
+
+
+def _base_env(monkeypatch):
+    for name, value in (
+        (adapter.REVIEW_ENV, "off"),
+        (adapter.CONTEXT_ENV, "project"),
+        (adapter.REPL_ENV, "off"),
+        (adapter.IMAGES_ENV, "off"),
+    ):
+        monkeypatch.setenv(name, value)
+
+
+def test_turn_mode_defaults_to_the_baseline_and_rejects_unknown_values(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.delenv(adapter.TURN_ENV, raising=False)
+    assert adapter.build_config().turn == "tool"
+    monkeypatch.setenv(adapter.TURN_ENV, "analysis")
+    assert adapter.build_config().turn == "analysis"
+    monkeypatch.setenv(adapter.TURN_ENV, "chatty")
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_config()
+    with pytest.raises(ValueError):
+        CoreConfig(turn="chatty")
+
+
+def test_analysis_turns_use_auto_tool_choice_and_the_baseline_stays_required(
+    monkeypatch,
+):
+    for name in (adapter.ENDPOINT_ENV, adapter.KEY_ENV, adapter.DEPLOYMENT_ENV):
+        monkeypatch.setenv(
+            name, "https://example.invalid" if name == adapter.ENDPOINT_ENV else "x"
+        )
+    monkeypatch.delenv(adapter.TURN_ENV, raising=False)
+    assert adapter.build_provider().params["tool_choice"] == "required"
+    monkeypatch.setenv(adapter.TURN_ENV, "analysis")
+    assert adapter.build_provider().params["tool_choice"] == "auto"
+
+
+@pytest.mark.parametrize("turn", ["tool", "analysis"])
+def test_analysis_turn_prompt_is_added_only_in_analysis_mode_and_written_text_is_kept(
+    tmp_path, turn
+):
+    from aether.core.tools import ANALYSIS_DOC
+
+    work = tmp_path / "work"
+    work.mkdir()
+    script = [
+        [
+            chunk(content="Results show nothing yet; next: finish, expecting done."),
+            tool_chunk("finish", {"summary": "done"}),
+            chunk(finish="tool_calls"),
+            chunk(usage={"prompt_tokens": 12, "completion_tokens": 3}),
+        ]
+    ]
+    client = ScriptedClient(script)
+    provider = ChatProvider(
+        client, model="scripted", params={}, log=CallLog(tmp_path / "calls")
+    )
+    result = asyncio.run(
+        run_agent(
+            env=LocalEnv(work),
+            task="task",
+            workdir=str(work),
+            provider=provider,
+            timeout_s=60,
+            trace=Trace(tmp_path / "trace.jsonl"),
+            config=CoreConfig(control_dir=str(tmp_path / "ctl"), turn=turn),
+        )
+    )
+    assert result.status == "finished"
+    system = client.requests[0]["messages"][0]["content"]
+    assert (ANALYSIS_DOC in system) == (turn == "analysis")
+    rows = [json.loads(x) for x in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    assert [r for r in rows if r["event"] == "model"][0]["content"].startswith(
+        "Results show"
+    )
+    assert [r for r in rows if r["event"] == "start"][0]["turn"] == turn
