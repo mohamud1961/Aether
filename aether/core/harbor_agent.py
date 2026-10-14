@@ -25,7 +25,7 @@ import time
 from typing import Any, Mapping
 
 from .calls import CallLog
-from .clm import ClmSettings
+from .clm import REPLAY_MODES, ClmSettings
 from .clone import Clone, compose_container
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
@@ -65,6 +65,9 @@ PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # one turn; they still run in order, as a JSON turn's actions do. GPT-6-Luna on the Responses API made 61% more calls than
 # on JSON turns (L2 vs L1) only because the API forbade batching, and each call resends the whole context.
 CALLS_ENV = "AETHER_CORE_CALLS"
+# optional; unset means "newest" (only the latest turn's reasoning is sent back). "all" sends every turn's back, so the
+# history only grows at its end and the provider's prompt cache keeps extending (Responses API with CLM only).
+REASONING_ENV = "AETHER_CORE_REASONING"
 CALLS_MODES = ("one", "many")
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
@@ -173,7 +176,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         repl=repl == "on",
         images=see == "on",
         reviews=plan,
-        clm=ClmSettings(),
+        clm=ClmSettings(replay_reasoning=_replay(environ, context)),
         contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
         turn=_turn(environ),
@@ -202,6 +205,17 @@ def _turn(environ: Mapping[str, str] | None = None) -> str:
     value = environ.get(TURN_ENV, "tool").strip() or "tool"
     if value not in TURN_MODES:
         raise ConfigError(f"{TURN_ENV} must be one of {TURN_MODES}, got {value!r}")
+    return value
+
+
+def _replay(environ: Mapping[str, str], context: str) -> str:
+    value = environ.get(REASONING_ENV, "newest").strip() or "newest"
+    if value not in REPLAY_MODES:
+        raise ConfigError(f"{REASONING_ENV} must be one of {', '.join(REPLAY_MODES)}")
+    if value == "all" and (context != "clm" or _request_shape(environ) != "responses"):
+        raise ConfigError(
+            f"{REASONING_ENV}=all needs the Responses API and model-managed context (clm)"
+        )
     return value
 
 

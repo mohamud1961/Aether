@@ -309,3 +309,54 @@ def test_the_loop_replays_the_previous_turns_encrypted_reasoning(tmp_path):
         ("function_call_output", "c1"),
     ]
     assert client.requests[1]["store"] is False and "tools" in client.requests[1]
+
+
+def _three_turn_inputs(tmp_path, replay):
+    from aether.core.clm import ClmSettings
+
+    work = tmp_path / f"w-{replay}"
+    work.mkdir()
+    client = ResponsesClient(
+        [
+            turn_events(1, call=("terminal", {"input": "echo a > a.txt"}, "c1")),
+            turn_events(2, call=("terminal", {"input": "echo b > b.txt"}, "c2")),
+            turn_events(3, call=("finish", {"summary": "wrote a and b"}, "c3")),
+        ]
+    )
+    result = asyncio.run(
+        run_agent(
+            env=LocalEnv(work),
+            task="write a.txt and b.txt",
+            workdir=str(work),
+            provider=provider(client, tmp_path / f"p-{replay}"),
+            timeout_s=60,
+            trace=Trace(tmp_path / f"trace-{replay}.jsonl"),
+            config=CoreConfig(
+                context="clm",
+                clm=ClmSettings(replay_reasoning=replay),
+                control_dir=str(tmp_path / f"ctl-{replay}"),
+            ),
+        )
+    )
+    assert result.status == "finished"
+    return [r["input"] for r in client.requests]
+
+
+def _strip_volatile(items):
+    """Drop the per-turn clock and context notes the loop appends to tool output, so only history order is compared."""
+    return [
+        (i.get("type") or i.get("role"), i.get("id") or i.get("call_id")) for i in items
+    ]
+
+
+def test_replaying_every_turns_reasoning_makes_each_request_extend_the_last(tmp_path):
+    for replay, extends in (("all", True), ("newest", False)):
+        inputs = [_strip_volatile(x) for x in _three_turn_inputs(tmp_path, replay)]
+        second, third = inputs[1], inputs[2]
+        assert (third[: len(second)] == second) is extends, replay
+        reasoning = [k for k in third if k[0] == "reasoning"]
+        assert reasoning == (
+            [("reasoning", "rs1"), ("reasoning", "rs2")]
+            if replay == "all"
+            else [("reasoning", "rs2")]
+        )

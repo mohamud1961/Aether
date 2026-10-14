@@ -59,6 +59,12 @@ class ClmSettings:
     # ``request_limit_tokens`` is the provider's limit for one request's input plus its reply. None means unknown:
     # recorded as unknown, never assumed.
     request_limit_tokens: int | None = None
+    # Which assistant turns' reasoning goes back to the provider. "newest": only the latest turn's (it is the model's
+    # live working memory; older turns' is dropped). "all": every turn's, so the request only ever grows at its end.
+    # L2 audit: dropping the previous turn's reasoning edits the middle of the history every turn, and the provider's
+    # prompt cache never extended past such an edit (0 of 270 requests) but did on 31 of 32 pure extensions.
+    # Replayed reasoning is outside ``budget_tokens`` in both modes: the model cannot condense it.
+    replay_reasoning: str = "newest"
 
     @property
     def limit(self) -> int:
@@ -69,12 +75,20 @@ class ClmSettings:
         one replayed reasoning of at most a full reply, plus the next reply) must fit the provider's limit."""
         if self.request_limit_tokens is None:
             return
+        if self.replay_reasoning == "all":
+            raise ValueError(
+                "replay_reasoning 'all' has no bounded worst-case request; it cannot be checked against a known "
+                "provider request limit"
+            )
         worst = self.budget_tokens + 2 * max_output_tokens
         if worst > self.request_limit_tokens:
             raise ValueError(
                 f"CLM budget {self.budget_tokens} + 2 x {max_output_tokens} output tokens = {worst} exceeds the "
                 f"provider request limit {self.request_limit_tokens}"
             )
+
+
+REPLAY_MODES = ("newest", "all")
 
 
 @dataclass
@@ -114,27 +128,40 @@ class ClmContext:
     _recent_outputs: list[int] = field(default_factory=list)
     _turn: int = 0
     _last_urgent: int = -URGENT_EVERY_TURNS
-    _reasoning: tuple[int, int | None] = (
-        0,
-        None,
-    )  # None means provider usage was not reported
+    # id(message) -> (message, provider reasoning tokens); None means provider usage was not reported
+    _reasoning: dict[int, tuple[dict[str, Any], int | None]] = field(
+        default_factory=dict
+    )
 
     def __post_init__(self) -> None:
+        if self.settings.replay_reasoning not in REPLAY_MODES:
+            raise ValueError(f"replay_reasoning must be one of {REPLAY_MODES}")
         self._armed = set(self.settings.nudge_ratios)
 
     # ----- the request ---------------------------------------------------------------------------
     def request(self) -> list[dict[str, Any]]:
-        """Pinned + editable; reasoning is replayed for the newest assistant turn only."""
-        last = max(
-            (i for i, m in enumerate(self.editable) if m.get("role") == "assistant"),
-            default=-1,
-        )
+        """Pinned + editable; reasoning is replayed per ``settings.replay_reasoning``."""
+        keep = {id(m) for m in self._replayed()}
         out = list(self.pinned)
-        for i, msg in enumerate(self.editable):
-            if i != last and "reasoning_content" in msg:
+        for msg in self.editable:
+            if id(msg) not in keep and "reasoning_content" in msg:
                 msg = {k: v for k, v in msg.items() if k != "reasoning_content"}
             out.append(msg)
         return images.limit(out)
+
+    def _replayed(self) -> list[dict[str, Any]]:
+        """The assistant messages whose reasoning the next request sends back."""
+        turns = [
+            m
+            for m in self.editable
+            if m.get("role") == "assistant" and m.get("reasoning_content")
+        ]
+        if self.settings.replay_reasoning == "all":
+            return turns
+        last = next(
+            (m for m in reversed(self.editable) if m.get("role") == "assistant"), None
+        )
+        return [last] if last is not None and last.get("reasoning_content") else []
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
         chars = images.size_chars(
@@ -161,35 +188,33 @@ class ClmContext:
 
         The newest turn's reasoning is replayed in the next request and tokenizes far more densely than tool
         output: in D1 a 32k-token reasoning turn was estimated at 27.7k and counted at 38.2k (budget 32k)."""
-        self._reasoning = (
-            id(message),
+        self._reasoning[id(message)] = (
+            message,
             None if reasoning_tokens is None else int(reasoning_tokens),
         )
 
-    def _replayed_reasoning(self) -> tuple[int, int]:
-        """(JSON chars, provider tokens) of the reasoning the next request replays, when the count is known."""
-        last = next(
-            (m for m in reversed(self.editable) if m.get("role") == "assistant"), None
-        )
-        if (
-            last is None
-            or id(last) != self._reasoning[0]
-            or not last.get("reasoning_content")
-        ):
-            return 0, 0
-        chars = len(json.dumps(last["reasoning_content"], ensure_ascii=False))
-        tokens = self._reasoning[1]
-        return chars, int(chars / self.chars_per_token) if tokens is None else tokens
+    def _counted(self, msg: dict[str, Any]) -> int | None:
+        entry = self._reasoning.get(id(msg))
+        return entry[1] if entry is not None and entry[0] is msg else None
+
+    def _replayed_reasoning(self, known_only: bool = False) -> tuple[int, int]:
+        """(JSON chars, tokens) of the reasoning the next request replays: the provider's count where it reported one,
+        else an estimate from the characters. ``known_only``: only the turns whose count the provider reported."""
+        chars = tokens = 0
+        for msg in self._replayed():
+            c = len(json.dumps(msg["reasoning_content"], ensure_ascii=False))
+            t = self._counted(msg)
+            if t is None and known_only:
+                continue
+            chars += c
+            tokens += int(c / self.chars_per_token) if t is None else t
+        return chars, tokens
 
     def calibrate(self, request_chars: int, input_tokens: int) -> None:
         """Use the provider's real prompt-token count to correct the chars-per-token estimate
-        (the replayed reasoning, whose token count is known exactly, is left out of the ratio)."""
-        r_chars, r_tokens = self._replayed_reasoning()
-        if self._reasoning[1] is None:
-            r_chars, r_tokens = (
-                0,
-                0,
-            )  # an estimate must not masquerade as reported usage in calibration
+        (replayed reasoning whose token count is known exactly is left out of the ratio; an estimate must not
+        masquerade as reported usage)."""
+        r_chars, r_tokens = self._replayed_reasoning(known_only=True)
         request_chars, input_tokens = request_chars - r_chars, input_tokens - r_tokens
         if input_tokens > TOOLS_OVERHEAD_TOKENS * 2 and request_chars > 0:
             self.chars_per_token = max(
