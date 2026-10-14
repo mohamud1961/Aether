@@ -1,6 +1,6 @@
 PY ?= python3.11
 
-.PHONY: test deps check
+.PHONY: test deps gates check
 
 test:
 	$(PY) -m pytest -q
@@ -8,4 +8,8 @@ test:
 deps:
 	$(PY) tools/check_imports.py
 
-check: deps test
+gates:
+	$(PY) -m harness_evals validate-graders evals
+	$(PY) tools/check_tasks.py evals
+
+check: deps test gates
