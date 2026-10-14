@@ -229,3 +229,27 @@ def test_responses_request_shape_builds_the_responses_provider(monkeypatch):
         "temperature" not in provider.params
         and provider.params["reasoning_effort"] == "high"
     )
+
+
+def test_several_calls_per_turn_are_an_explicit_opt_in(monkeypatch):
+    """The API flag that lets the model batch calls is its own switch, not a side effect of concurrent reads."""
+    seen = {}
+
+    class Client:
+        def __init__(self, **kw):
+            pass
+
+    monkeypatch.setattr("openai.AsyncOpenAI", Client)
+    env = {
+        adapter.ENDPOINT_ENV: "https://x.openai.azure.com/",
+        adapter.KEY_ENV: "k",
+        adapter.DEPLOYMENT_ENV: "GPT-6-Luna",
+        adapter.REQUEST_ENV: "responses",
+    }
+    seen["one"] = adapter.build_provider(environ=env).params["parallel_tool_calls"]
+    seen["many"] = adapter.build_provider(
+        environ={**env, adapter.CALLS_ENV: "many"}
+    ).params["parallel_tool_calls"]
+    assert seen == {"one": False, "many": True}
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_provider(environ={**env, adapter.CALLS_ENV: "all"})
