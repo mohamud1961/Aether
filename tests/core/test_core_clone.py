@@ -106,8 +106,20 @@ def test_a_real_clone_is_isolated_from_the_original_container():
         capture_output=True,
         text=True,
     ).stdout.split()
+
+    def runs_a_shell(image: str) -> bool:
+        # Images with their own entrypoint (a proxy sidecar, say) never start "sh -c".
+        probe = ["docker", "run", "--rm", "--entrypoint", "sh", image, "-c", "true"]
+        return subprocess.run(probe, capture_output=True, timeout=120).returncode == 0
+
     image = next(
-        (i for i in local if "<none>" not in i and not i.startswith("aether-clone")),
+        (
+            i
+            for i in local
+            if "<none>" not in i
+            and not i.startswith("aether-clone")
+            and runs_a_shell(i)
+        ),
         None,
     )
     if image is None:
@@ -121,8 +133,9 @@ def test_a_real_clone_is_isolated_from_the_original_container():
             "--rm",
             "--name",
             name,
-            image,
+            "--entrypoint",
             "sh",
+            image,
             "-c",
             "mkdir -p /data && echo original > /data/a && sleep 600",
         ],
