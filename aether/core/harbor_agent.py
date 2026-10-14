@@ -64,7 +64,11 @@ PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
-REQUEST_SHAPES = ("chat", "reasoning")
+REQUEST_SHAPES = (
+    "chat",
+    "reasoning",
+    "responses",
+)  # responses: /v1/responses, native tools + reasoning replay
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
@@ -115,6 +119,10 @@ def build_provider(
         max_retries=0,
         timeout=httpx.Timeout(connect=30.0, read=240.0, write=60.0, pool=30.0),
     )
+    if shape == "responses":
+        from .responses import ResponsesProvider
+
+        return ResponsesProvider(client, model=model, params=params, log=log)
     return ChatProvider(
         client,
         model=model,
