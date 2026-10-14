@@ -78,7 +78,7 @@ No claim against Terminus follows from this board. It is a different model, and 
   - The rate (69%) equals b1's (67%).
 - **L-P2: HELD.** 3 of 6 contested rows solved (net-fit 2/2, seq-assembly 1/2), against GLM's 0–1 of 6.
   - This includes the program's **first seq-assembly pass** with any harness or model.
-  - Directional at n = 6 (Fisher exact, 3/6 vs 1/18 pooled over GLM's b1, x2r and T1: p ≈ 0.03).
+  - Directional at n = 6 (one-sided Fisher exact, 3/6 vs 2/18 pooled over GLM's b1, x2r and T1: p ≈ 0.08; not significant at 0.05).
 - **L-P3: FAILED** (31% wrong).
 - **L-P4: HELD.** 0 protocol stops, 0 unreadable replies (184 strict, 36 embedded, 0 repaired), and 0 harness-caused invalid rows.
 - **L-P5: FAILED.** 8 of 10 valid saturated rows passed; binary-extract went 0/2.
