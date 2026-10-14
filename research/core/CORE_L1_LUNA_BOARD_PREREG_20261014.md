@@ -52,3 +52,44 @@ No claim against Terminus follows from this board. It is a different model, and 
 
 - **Hard stop:** £6.9 cumulative on the fresh £7. About £5.5 had been spent at sealing, counting the VM since its 13:19Z restart.
 - **Kill rule:** the board is killed if model spend passes $1.5.
+
+## Results (14 Oct 2026, 13:45–14:26Z at `9dd673d6e`; 16 valid rows, 2 provider-blocked)
+
+| Task | l1 e1 / e2 | (GLM x2r) | (GLM b1) |
+|---|---|---|---|
+| net-fit | **✓ / ✓** | ✗ / ✗ | ✗ / ✗ |
+| seq-assembly | ✗ wrong / **✓** | ✗ / ✗ timeout | ✗ timeout / ✗ timeout |
+| construct-assembly | ✗ wrong / ✗ wrong | ✗ / ✓ | ✗ / ✗ |
+| repair-history | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ |
+| binary-extract | ✗ wrong / ✗ wrong | ✗ / ✓ | ✓ / ✓ |
+| graph-query-catalog | ✓ / ✓ | ✗ / ✓ | ✓ / ✓ |
+| credential-recovery-recovery | **invalid / invalid** | ✓ / ✓ | ✓ / ✓ |
+| dual-language-build | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ |
+| cipher-diff-attack | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ |
+
+**Solves:** 11 of 16 valid rows (69%). **Wrong voluntary finishes:** 5 of 16 (31%). **Timeouts:** 0.
+
+**Model verification.** Every one of the 18 rows' responses came from `gpt-6-luna-2026-09-22` (from `core_calls.jsonl`). The manifests record `core_provider: gpt-6-luna`.
+
+**The 2 invalid rows.** Azure returned HTTP 400 `content_filter` (`ResponsibleAIPolicyViolation`) on the credential-recovery-recovery prompt after 4–5 turns. This is a provider policy block, not the harness or the model. It stays visible and uncounted. The filter settings were not changed (a security-policy change, out of scope).
+
+- **L-P1: FAILED as written.** 11 solves, at the ≤ 11 falsifier.
+  - Both invalid rows are on a task every arm passes; had they run, the count would have been 13 at most.
+  - The rate (69%) equals b1's (67%).
+- **L-P2: HELD.** 3 of 6 contested rows solved (net-fit 2/2, seq-assembly 1/2), against GLM's 0–1 of 6.
+  - This includes the program's **first seq-assembly pass** with any harness or model.
+  - Directional at n = 6 (Fisher exact, 3/6 vs 1/18 pooled over GLM's b1, x2r and T1: p ≈ 0.03).
+- **L-P3: FAILED** (31% wrong).
+- **L-P4: HELD.** 0 protocol stops, 0 unreadable replies (184 strict, 36 embedded, 0 repaired), and 0 harness-caused invalid rows.
+- **L-P5: FAILED.** 8 of 10 valid saturated rows passed; binary-extract went 0/2.
+  - **The failure mechanism:** in both episodes GPT-6-Luna assumed a `0x400000` load base for the PIE binary. It then "independently verified" its output with a parser built on the same assumption, and the grader found inconsistent values.
+  - This is the same self-confirming check seen in GLM's seq-assembly and net-fit failures.
+
+**Reading**
+
+- **The domain wall on net-fit and seq-assembly was largely GLM's.** GPT-6-Luna crossed it at once.
+- **The wrong-finish rate did not move** (31%). The model swap changed *which* tasks fail, not *how* they fail.
+- **False completion through a self-designed, self-confirming check appears in both models.** It is a process problem that a stronger model does not remove.
+- **Caveat:** L1 ran without reasoning continuity. On Chat Completions, GPT-6-Luna's reasoning is dropped every turn, while GLM's newest turn is replayed. L2 corrects that.
+
+Cost: model $0.288 (≈ £0.23, metered token prices) plus smoke and probes ≈ $0.05. Evidence: `audit_output/aether_l1_20261014/` (main checkout).
