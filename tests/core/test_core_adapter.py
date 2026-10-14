@@ -176,3 +176,42 @@ def test_analysis_turn_prompt_is_added_only_in_analysis_mode_and_written_text_is
         "Results show"
     )
     assert [r for r in rows if r["event"] == "start"][0]["turn"] == turn
+
+
+def _provider_env(monkeypatch):
+    for name in (adapter.ENDPOINT_ENV, adapter.KEY_ENV, adapter.DEPLOYMENT_ENV):
+        monkeypatch.setenv(
+            name, "https://example.invalid" if name == adapter.ENDPOINT_ENV else "x"
+        )
+
+
+def test_request_shape_defaults_to_the_unchanged_glm_request(monkeypatch):
+    _provider_env(monkeypatch)
+    monkeypatch.delenv(adapter.REQUEST_ENV, raising=False)
+    provider = adapter.build_provider()
+    request = provider._request([{"role": "user", "content": "hi"}], None, 123, None)
+    assert request["max_tokens"] == 123 and "max_completion_tokens" not in request
+    assert (
+        request["params"]["temperature"] == 1.0 and request["params"]["top_p"] == 0.95
+    )
+
+
+def test_reasoning_request_shape_sends_what_an_openai_reasoning_model_accepts(
+    monkeypatch,
+):
+    _provider_env(monkeypatch)
+    monkeypatch.setenv(adapter.REQUEST_ENV, "reasoning")
+    provider = adapter.build_provider()
+    request = provider._request([{"role": "user", "content": "hi"}], None, 123, None)
+    assert request["max_completion_tokens"] == 123 and "max_tokens" not in request
+    assert "temperature" not in request["params"] and "top_p" not in request["params"]
+    assert request["params"]["reasoning_effort"] == "high"
+
+
+def test_unknown_request_shape_or_limit_field_is_refused(monkeypatch):
+    _provider_env(monkeypatch)
+    monkeypatch.setenv(adapter.REQUEST_ENV, "fast")
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_provider()
+    with pytest.raises(ValueError):
+        ChatProvider(object(), model="m", params={}, limit_field="max_output")

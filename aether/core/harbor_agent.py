@@ -61,6 +61,10 @@ FINISH_ENV = (
 )
 FINISH_MODES = ("direct", "receipt")
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
+# optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
+# accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
+REQUEST_ENV = "AETHER_CORE_REQUEST"
+REQUEST_SHAPES = ("chat", "reasoning")
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
@@ -96,8 +100,9 @@ def build_provider(
         _required(name, environ) for name in (ENDPOINT_ENV, KEY_ENV, DEPLOYMENT_ENV)
     )
     effort = environ.get(EFFORT_ENV, "high").strip() or "high"
+    shape = _request_shape(environ)
     params = {
-        **SAMPLING,
+        **(SAMPLING if shape == "chat" else {}),
         "reasoning_effort": effort,
         # analysis turns need "auto": with a forced tool call the model wrote nothing (S2 replay)
         "tool_choice": "auto" if _turn(environ) == "analysis" else "required",
@@ -110,7 +115,13 @@ def build_provider(
         max_retries=0,
         timeout=httpx.Timeout(connect=30.0, read=240.0, write=60.0, pool=30.0),
     )
-    return ChatProvider(client, model=model, params=params, log=log)
+    return ChatProvider(
+        client,
+        model=model,
+        params=params,
+        log=log,
+        limit_field="max_tokens" if shape == "chat" else "max_completion_tokens",
+    )
 
 
 def build_review(logs_dir: Path, *, environ: Mapping[str, str] | None = None):
@@ -155,6 +166,15 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         turn=_turn(environ),
         receipt=_finish_mode(environ) == "receipt",
     )
+
+
+def _request_shape(environ: Mapping[str, str]) -> str:
+    value = environ.get(REQUEST_ENV, "chat").strip() or "chat"
+    if value not in REQUEST_SHAPES:
+        raise ConfigError(
+            f"{REQUEST_ENV} must be one of {REQUEST_SHAPES}, got {value!r}"
+        )
+    return value
 
 
 def _finish_mode(environ: Mapping[str, str]) -> str:
@@ -381,6 +401,7 @@ def _write_record(
             "receipt": config.receipt,
             "model": provider.model,
             "params": provider.params,
+            "limit_field": provider.limit_field,
         },
         "reviews": reviews,
         "run_metrics": {

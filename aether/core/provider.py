@@ -140,6 +140,9 @@ def _extra(obj: Any, name: str) -> Any:
     return value
 
 
+LIMIT_FIELDS = ("max_tokens", "max_completion_tokens")
+
+
 class ChatProvider:
     def __init__(
         self,
@@ -149,9 +152,16 @@ class ChatProvider:
         params: dict[str, Any],
         sleep: Callable[[float], Any] = asyncio.sleep,
         log: CallLog | None = None,
+        limit_field: str = "max_tokens",
     ) -> None:
+        if limit_field not in LIMIT_FIELDS:
+            raise ValueError(
+                f"limit_field must be one of {LIMIT_FIELDS}, got {limit_field!r}"
+            )
         self._client = client
         self.model = model
+        # OpenAI reasoning models reject max_tokens and take max_completion_tokens (the same per-call ceiling)
+        self.limit_field = limit_field
         self.params = dict(params)
         self._sleep = sleep
         self.log = log or CallLog()
@@ -187,7 +197,7 @@ class ChatProvider:
         request: dict[str, Any] = {
             "model": self.model,
             "messages": deepcopy(messages),
-            "max_tokens": max_tokens,
+            self.limit_field: max_tokens,
         }
         if (
             tools is None
