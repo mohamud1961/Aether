@@ -20,7 +20,7 @@ A harness that reports success from a wrapper or a summary line, or counts a lau
 1. **Launch integrity comes before any score.** On a 241-task board, 216 first attempts never launched. The valid rate was 5/19; the naive 5/241 meant nothing.
 2. **A green run once is not a gate.** Five local homolog tasks passed 5/5 once, then regressed with the verifier unclean on every scoreable row. Gates now need repeated runs.
 3. **Substrate failures masquerade as capability failures.** A grader timeout, a rate-limit storm (456 of 482 verifier rounds errored) and a crashed launcher all produced rows that looked like agent failures.
-4. **Auditing every row finds the harness.** A 29-task development sweep scored 18/29 at best attempt; auditing all 29 rows found 11 harness defects, each fixed with a test. See run-loop engineering.
+4. **Auditing every row finds the harness.** A 29-task development sweep scored 18/29 at best attempt; auditing all 29 rows found 11 harness defects, each fixed with a test. See [run-loop engineering](../../research/run-loop-engineering.md).
 
 Every evaluation behind these lessons is listed in the catalogue.
 
