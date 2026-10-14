@@ -141,16 +141,85 @@ def test_json_turns_run_real_tools_and_return_results_as_one_user_message(tmp_pa
     ]
 
 
-def test_an_unreadable_reply_is_shown_its_problem_and_three_in_a_row_stop_the_run(
-    tmp_path,
-):
-    result, client, rows, _ = _run(tmp_path, ["not json", "still not", "nope"])
-    assert result.status == "no_tool_loop"
+def test_unreadable_replies_are_shown_their_problem_and_do_not_stop_the_run(tmp_path):
+    done = {"analysis": "a", "plan": "", "actions": [], "task_complete": True}
+    result, client, rows, _ = _run(
+        tmp_path, ["not json", "still not", "nope", json.dumps(done)]
+    )
     assert (
-        "could not be run: not valid JSON"
+        result.status == "finished"
+    )  # S5: three escaping errors must not end a run with time left
+    assert (
+        "could not be run: the reply has no JSON object"
         in client.requests[1]["messages"][-1]["content"]
     )
-    assert [r["protocol"] for r in rows if r["event"] == "text_turn"] == ["invalid"] * 3
+    assert [r["protocol"] for r in rows if r["event"] == "text_turn"] == [
+        "invalid"
+    ] * 3 + ["strict"]
+
+
+def test_three_readable_replies_without_actions_stop_the_run_like_idle_turns(tmp_path):
+    idle = json.dumps(
+        {"analysis": "thinking", "plan": "", "actions": [], "task_complete": False}
+    )
+    result, _, _, _ = _run(tmp_path, [idle, idle, idle])
+    assert result.status == "no_tool_loop"
+
+
+@pytest.mark.parametrize(
+    "content, tools, note",
+    [
+        # S5 feal/elf: the action object left unclosed before the next action
+        (
+            '{"analysis": "a", "plan": "p", "actions": [{"tool": "write_file", "args": {"path": "x.py", "content": "pass\\n"}, '
+            '{"tool": "terminal", "args": {"input": "python x.py"}}], "task_complete": false}',
+            ["write_file", "terminal"],
+            "added '}'",
+        ),
+        # unclosed at the end of the list: the brace goes before "]", keeping wait_s inside args
+        (
+            '{"analysis": "a", "plan": "p", "actions": [{"tool": "terminal", "args": {"input": "ls", "wait_s": 120}], '
+            '"task_complete": false}',
+            ["terminal"],
+            "added '}'",
+        ),
+        # S5 protein/sparql: a double quote left unescaped inside a string
+        (
+            '{"analysis": "the page says ("Just a moment") so retry", "plan": "p", "actions": [{"tool": "terminal", '
+            '"args": {"input": "ls"}}], "task_complete": false}',
+            ["terminal"],
+            "escaped the quote",
+        ),
+    ],
+)
+def test_repair_mends_s5_slips_and_says_what_it_changed(content, tools, note):
+    obj, protocol, message = textturn.read_reply(content)
+    assert (
+        protocol == "repaired"
+        and [a["tool"] for a in obj["actions"]] == tools
+        and note in message
+    )
+    if tools == ["terminal"] and "wait_s" in content:
+        assert obj["actions"][0]["args"] == {"input": "ls", "wait_s": 120}
+    if "Just a moment" in content:
+        assert obj["analysis"] == 'the page says ("Just a moment") so retry'
+
+
+def test_a_repaired_reply_runs_and_its_note_precedes_the_results(tmp_path):
+    broken = (
+        '{"analysis": "a", "plan": "p", "actions": [{"tool": "write_file", "args": {"path": "o.txt", '
+        '"content": "hi"}, {"tool": "read_file", "args": {"path": "o.txt"}}], "task_complete": false}'
+    )
+    done = json.dumps(
+        {"analysis": "a", "plan": "", "actions": [], "task_complete": True}
+    )
+    result, client, rows, work = _run(tmp_path, [broken, done])
+    assert result.status == "finished" and (work / "o.txt").read_text() == "hi"
+    shown = client.requests[1]["messages"][-1]["content"]
+    assert (
+        shown.startswith("[your reply was not valid JSON and was mended")
+        and "Result of action 2 (read_file)" in shown
+    )
 
 
 def test_an_invalid_tool_is_reported_in_the_results_not_dropped(tmp_path):

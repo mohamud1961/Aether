@@ -43,29 +43,107 @@ def reply_doc(tools: list[dict[str, Any]]) -> str:
     return REPLY_DOC + "\n".join(lines)
 
 
+REPAIR_STEPS = 12
+
+
+def _repair(text: str) -> tuple[dict[str, Any] | None, list[str]]:
+    """Mend the two slips S5's unreadable replies showed (10 of 12 with content): an action object left unclosed,
+    and a double quote left unescaped inside a string. Each step must parse or move the error later; the edits
+    are reported to the model. Returns (object, edits) or (None, [])."""
+    decoder = json.JSONDecoder(strict=False)
+    edits: list[str] = []
+    for _ in range(REPAIR_STEPS):
+        try:
+            obj = decoder.decode(text)
+            return (obj, edits) if isinstance(obj, dict) else (None, [])
+        except json.JSONDecodeError as exc:
+            pos = exc.pos
+        options = []
+        comma = text.rfind(",", 0, pos)
+        close_here = (f"added '}}' at character {pos}", text[:pos] + "}" + text[pos:])
+        close_before = (
+            f"added '}}' at character {comma}",
+            text[:comma] + "}" + text[comma:],
+        )
+        if pos < len(text) and text[pos] in "]}":
+            options.append(close_here)
+        if comma > 0:
+            options.append(close_before)
+        if close_here not in options:
+            options.append(close_here)
+        quote = text.rfind('"', 0, pos)
+        while quote > 0 and text[quote - 1] == "\\":
+            quote = text.rfind('"', 0, quote - 1)
+        if quote > 0:
+            options.append(
+                (
+                    f"escaped the quote at character {quote}",
+                    text[:quote] + "\\" + text[quote:],
+                )
+            )
+        chosen = None
+        for note, candidate in options:
+            try:
+                decoder.decode(candidate)
+                chosen = (note, candidate)
+                break
+            except json.JSONDecodeError as later:
+                if later.pos > pos + 1:
+                    chosen = (note, candidate)
+                    break
+        if chosen is None:
+            return None, []
+        edits.append(chosen[0])
+        text = chosen[1]
+    return None, []
+
+
 def read_reply(content: str) -> tuple[dict[str, Any] | None, str, str]:
-    """(object, protocol class, problem). Classes: strict (the reply is one object, code fences allowed),
-    embedded (an object found inside other text; accepted), invalid (no usable object)."""
+    """(object, protocol class, problem or repair note). Classes: strict (the reply is one object, code fences
+    allowed; literal newlines inside strings are accepted), repaired (see ``_repair``; the note lists the edits),
+    embedded (an object found inside other text; accepted), invalid (no usable object; the problem says where it
+    broke so the model can fix it)."""
     text = (content or "").strip()
     if text.startswith("```"):
         text = text.strip("`")
         text = text[text.find("\n") + 1 :] if "\n" in text else ""
+    decoder = json.JSONDecoder(strict=False)
     try:
-        obj = json.loads(text)
+        obj = decoder.decode(text)
         if isinstance(obj, dict):
             return obj, "strict", ""
         problem = "the reply is JSON but not an object"
     except json.JSONDecodeError as exc:
-        problem = f"not valid JSON ({exc.msg} at line {exc.lineno} column {exc.colno})"
+        if "{" not in text:
+            problem = "the reply has no JSON object (it must be only the JSON object, with your text in analysis)"
+        else:
+            near = text[max(0, exc.pos - 80) : exc.pos + 20].replace("\n", "\\n")
+            problem = (
+                f"not valid JSON ({exc.msg} at character {exc.pos}, here: ...{near}...). Inside a JSON string "
+                'every double quote must be written \\" and every backslash \\\\. For long file contents, '
+                "use a reply whose only action writes that file"
+            )
     start = text.find("{")
     while start != -1:
         try:
-            obj, _ = json.JSONDecoder().raw_decode(text[start:])
+            obj, _ = decoder.raw_decode(text[start:])
             if isinstance(obj, dict) and ("actions" in obj or "task_complete" in obj):
                 return obj, "embedded", ""
         except json.JSONDecodeError:
             pass
         start = text.find("{", start + 1)
+    if text.startswith("{"):
+        obj, edits = _repair(text)
+        if obj is not None and ("actions" in obj or "task_complete" in obj):
+            return (
+                obj,
+                "repaired",
+                (
+                    "your reply was not valid JSON and was mended before running ("
+                    + "; ".join(edits)
+                    + "); check below that each action ran as you intended"
+                ),
+            )
     return None, "invalid", problem
 
 
@@ -105,13 +183,16 @@ def _call(turn_no: int, i: int, name: str, args: dict[str, Any]) -> dict[str, An
     }
 
 
-def results_message(rows: list[tuple[str, str]], clock: str) -> dict[str, Any]:
-    """All of one reply's results, in order, as the next user message."""
+def results_message(
+    rows: list[tuple[str, str]], clock: str, note: str = ""
+) -> dict[str, Any]:
+    """All of one reply's results, in order, as the next user message (after a repair note, when there is one)."""
     parts = [
         f"Result of action {i + 1} ({name}):\n{out}"
         for i, (name, out) in enumerate(rows)
     ]
-    return {"role": "user", "content": "\n\n".join(parts) + f"\n{clock}"}
+    head = f"[{note}]\n\n" if note else ""
+    return {"role": "user", "content": head + "\n\n".join(parts) + f"\n{clock}"}
 
 
 def problem_message(problem: str, clock: str) -> dict[str, Any]:
