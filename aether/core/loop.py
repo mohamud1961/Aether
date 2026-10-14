@@ -160,6 +160,7 @@ class _Session:
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
         self.receipt_shown = False
+        self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
 
     def clone(self, env: Environment) -> Awaitable[Any]:
         return (self.config.make_clone or Clone.create)(env)
@@ -360,9 +361,11 @@ async def _loop(s: _Session) -> None:
         if s.clm:
             s.clm.note_reasoning(assistant, turn.usage.get("reasoning"))
         if s.config.turn == "json":
-            calls = _text_calls(s, turn)
+            calls, readable = _text_calls(s, turn)
             if not calls:
-                idle_turns += turn.finish_reason != "length"
+                # an unreadable reply is an interface failure, not idleness: only the time limit bounds it
+                # (S5: two feal rows were stopped by three escaping errors with most of their time left)
+                idle_turns += readable and turn.finish_reason != "length"
                 if idle_turns >= 3:
                     result.status = "no_tool_loop"
                     return
@@ -405,10 +408,12 @@ def _append(s: _Session, *messages: dict[str, Any]) -> None:
         s.messages.extend(messages)
 
 
-def _text_calls(s: _Session, turn: Any) -> list[dict[str, Any]]:
-    """The calls in a JSON-turn reply; when there are none, the problem is shown to the model and traced."""
+def _text_calls(s: _Session, turn: Any) -> tuple[list[dict[str, Any]], bool]:
+    """(calls in a JSON-turn reply, whether the reply was readable); with no calls the problem is shown to the
+    model and traced."""
     obj, protocol, problem = textturn.read_reply(turn.content)
     calls: list[dict[str, Any]] = []
+    s.text_note = problem if protocol == "repaired" else ""
     if obj is not None:
         calls, problem = textturn.calls_from(obj, s.result.calls)
     if not calls and turn.finish_reason == "length":
@@ -424,7 +429,7 @@ def _text_calls(s: _Session, turn: Any) -> list[dict[str, Any]]:
     )
     if not calls:
         _append(s, textturn.problem_message(problem, s.clock()))
-    return calls
+    return calls, obj is not None
 
 
 async def _run_calls(
@@ -489,7 +494,7 @@ async def _run_calls(
         if finished:
             return True
     if as_text:
-        _append(s, textturn.results_message(rows, s.clock()))
+        _append(s, textturn.results_message(rows, s.clock(), s.text_note))
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []
