@@ -1,7 +1,8 @@
 # N1: an efficient solver that checks itself, and one independent check (preregistration)
 
-Status: **draft for review (GPT-6-Astra, then the principal). No model call has been made for N1.** Claude wrote this on
-14 October. Code: `79e7817c5` (verifier, self-check), `e82a6c858` (row labels), on top of `491a1216c` (key file),
+Status: **sealed before any N1 model call.** Claude wrote this on 14 October. The GPT-6-Astra review gate was skipped at
+the principal's instruction ("skip gpt-6-astra, go"; the bridge refused this project); the principal approved running it. Claude
+wrote this on 14 October. Code: `79e7817c5` (verifier, self-check), `e82a6c858` (row labels), on top of `491a1216c` (key file),
 `59252a02e` (`--core-reasoning all`) and `9d7655797` (`--core-calls many`).
 
 ## Goal (the principal's, 14 October)
