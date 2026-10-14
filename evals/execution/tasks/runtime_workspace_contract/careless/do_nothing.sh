@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# expect: missing_final_submission
+# Exits 0 without touching anything.
+exit 0
