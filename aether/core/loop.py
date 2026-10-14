@@ -44,6 +44,9 @@ AFTER_CUT_MAX_TOKENS = 8_192
 STOP_MARGIN_S = 15.0
 RECEIPT_MIN_S = 60.0  # with less time left a finish takes effect at once
 CONTEXT_MODES = ("project", "clm")
+VERIFIER_ROLE = (
+    "verifier"  # the call-log role of the one independent finish check (see verify)
+)
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,11 @@ class CoreConfig:
     contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
     turn: str = "tool"  # "analysis": written analysis before every action (see tools.ANALYSIS_DOC)
     receipt: bool = False  # show the delivered files' bytes before the first finish takes effect (see receipt)
+    verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
+    self_check: bool = (
+        False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
+    )
+    role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
@@ -90,7 +98,7 @@ class RunResult:
 
 class Trace:
     def __init__(self, path: Path) -> None:
-        self._path = path
+        self._path = self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         self._t0 = time.monotonic()
 
@@ -228,6 +236,7 @@ async def run_agent(
                 images=see,
                 contract=config.contract,
                 history=config.context == "clm",
+                verdict=config.role == VERIFIER_ROLE,
             )
             pinned = [
                 {
@@ -239,6 +248,7 @@ async def run_agent(
                         mirror_path=config.clm.mirror_path,
                         history_path=config.clm.history_path,
                         turn="tool" if config.turn == "json" else config.turn,
+                        self_check=config.self_check,
                     )
                     + (textturn.reply_doc(s.tools) if config.turn == "json" else ""),
                 },
@@ -319,6 +329,7 @@ async def _loop(s: _Session) -> None:
                 max_tokens=AFTER_CUT_MAX_TOKENS if cut else MAX_OUTPUT_TOKENS,
                 remaining_s=s.remaining,
                 overrides=AFTER_CUT if cut else None,
+                role=s.config.role,
             )
         except ProviderError as exc:
             s.trace(
@@ -704,6 +715,11 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
 
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    s.result.extras["finish_args"] = args
+    if s.config.verify and "verification" not in s.result.extras:
+        from . import verify
+
+        return await verify.at_finish(s)
     if s.config.receipt and not s.receipt_shown and s.remaining() > RECEIPT_MIN_S:
         s.receipt_shown = True
         text = await finish_receipt.receipt(s.env, s.workdir, s.config.control_dir)
@@ -734,9 +750,12 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
 def _close(s: _Session) -> None:
     r = s.result
     r.failed_attempts = s.provider.log.totals()["all"]["failed"]
-    r.usage = s.provider.log.usage(["worker"])
-    r.sub_usage = s.provider.log.usage(
-        [role for role in s.provider.log.by_role if role != "worker"]
+    own, roles = s.config.role, list(s.provider.log.by_role)
+    r.usage = s.provider.log.usage([own])
+    r.sub_usage = s.provider.log.usage(  # this run's helper calls; the verifier's are reported by verify
+        [x for x in roles if x.startswith(own + ".")]
+        if own != "worker"
+        else [x for x in roles if x != own and not x.startswith(VERIFIER_ROLE)]
     )
     statuses: dict[str, int] = {}
     for row in s.provider.failure_log:

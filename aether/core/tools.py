@@ -204,6 +204,35 @@ FINISH = {
         },
     },
 }
+# The verifier's finish (see verify): a verdict on the state it checked, with the evidence.
+VERDICT_FINISH = {
+    "type": "function",
+    "function": {
+        "name": "finish",
+        "description": "End the check with your verdict on the current state.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "verdict": {"type": "string", "enum": ["confirmed", "refuted"]},
+                "evidence": {
+                    "type": "string",
+                    "description": "What you checked and what you found. For refuted: what is wrong, how you "
+                    "established it, and the correct result if you know it.",
+                },
+            },
+            "required": ["verdict", "evidence"],
+        },
+    },
+}
+# Self-check before finishing (arm B). The L1/L2 wrong finishes rested on checks that reused the solver's own
+# assumption (an example address, its own Tm definition, a substituted sequence), so they could not fail.
+SELF_CHECK_DOC = """
+Before you finish: name the facts your result rests on that you did not observe directly (values taken from an \
+example in the task, definitions or conventions you chose where the task leaves them open, data from a source \
+you picked, anything only a check you wrote supports). Check the riskiest of them against something you did not \
+write: the task's own files and data, the real program's behaviour, an authoritative source. For each check ask \
+whether it could have failed if you were wrong; one that reuses your own assumption cannot. Do not repeat checks \
+that already passed; then finish."""
 
 
 # Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
@@ -225,17 +254,22 @@ def system_prompt(
     mirror_path: str = MIRROR_PATH,
     history_path: str = HISTORY_PATH,
     turn: str = "tool",
+    self_check: bool = False,
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
     )
     if turn not in TURN_MODES:
         raise ValueError(f"turn must be one of {TURN_MODES}")
-    return BASE_PROMPT.format(
-        python=PYTHON_DOC.format(version=python_version) if python_version else "",
-        images=IMAGES_DOC if images else "",
-        context=context if clm else "",
-    ) + (ANALYSIS_DOC if turn == "analysis" else "")
+    return (
+        BASE_PROMPT.format(
+            python=PYTHON_DOC.format(version=python_version) if python_version else "",
+            images=IMAGES_DOC if images else "",
+            context=context if clm else "",
+        )
+        + (SELF_CHECK_DOC if self_check else "")
+        + (ANALYSIS_DOC if turn == "analysis" else "")
+    )
 
 
 RUN_CHECKS = {
@@ -272,7 +306,12 @@ READ_HISTORY = {
 
 
 def tools(
-    *, python: bool, images: bool = False, contract: bool = False, history: bool = False
+    *,
+    python: bool,
+    images: bool = False,
+    contract: bool = False,
+    history: bool = False,
+    verdict: bool = False,
 ) -> list[dict[str, Any]]:
     return [
         TERMINAL,
@@ -283,7 +322,7 @@ def tools(
         *([VIEW_IMAGE] if images else []),
         *([RUN_CHECKS] if contract else []),
         *([READ_HISTORY] if history else []),
-        FINISH,
+        VERDICT_FINISH if verdict else FINISH,
     ]
 
 

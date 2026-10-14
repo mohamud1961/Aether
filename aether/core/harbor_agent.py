@@ -56,9 +56,7 @@ REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
 TURN_ENV = "AETHER_CORE_TURN"  # optional; unset means "tool", the unchanged baseline
-FINISH_ENV = (
-    "AETHER_CORE_FINISH"  # optional; unset means "direct", the unchanged baseline
-)
+FINISH_ENV = "AETHER_CORE_FINISH"  # optional; unset means "direct", the baseline
 FINISH_MODES = ("direct", "receipt")
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "one" (one tool call per model turn, the baseline). "many" lets the model send several calls in
@@ -69,6 +67,10 @@ CALLS_ENV = "AETHER_CORE_CALLS"
 # history only grows at its end and the provider's prompt cache keeps extending (Responses API with CLM only).
 REASONING_ENV = "AETHER_CORE_REASONING"
 CALLS_MODES = ("one", "many")
+# optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
+# context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
+VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
+SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -181,31 +183,31 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         parallel_reads=_parallel_reads(environ),
         turn=_turn(environ),
         receipt=_finish_mode(environ) == "receipt",
+        verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
+        self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
     )
 
 
-def _request_shape(environ: Mapping[str, str]) -> str:
-    value = environ.get(REQUEST_ENV, "chat").strip() or "chat"
-    if value not in REQUEST_SHAPES:
-        raise ConfigError(
-            f"{REQUEST_ENV} must be one of {REQUEST_SHAPES}, got {value!r}"
-        )
+def _choice(
+    environ: Mapping[str, str], name: str, modes: tuple[str, ...], unset: str
+) -> str:
+    """An optional setting: unset means ``unset`` (the baseline); anything outside ``modes`` stops the run."""
+    value = environ.get(name, unset).strip() or unset
+    if value not in modes:
+        raise ConfigError(f"{name} must be one of {', '.join(modes)}, got {value!r}")
     return value
+
+
+def _request_shape(environ: Mapping[str, str]) -> str:
+    return _choice(environ, REQUEST_ENV, REQUEST_SHAPES, "chat")
 
 
 def _finish_mode(environ: Mapping[str, str]) -> str:
-    value = environ.get(FINISH_ENV, "direct").strip() or "direct"
-    if value not in FINISH_MODES:
-        raise ConfigError(f"{FINISH_ENV} must be one of {FINISH_MODES}, got {value!r}")
-    return value
+    return _choice(environ, FINISH_ENV, FINISH_MODES, "direct")
 
 
-def _turn(environ: Mapping[str, str] | None = None) -> str:
-    environ = os.environ if environ is None else environ
-    value = environ.get(TURN_ENV, "tool").strip() or "tool"
-    if value not in TURN_MODES:
-        raise ConfigError(f"{TURN_ENV} must be one of {TURN_MODES}, got {value!r}")
-    return value
+def _turn(environ: Mapping[str, str]) -> str:
+    return _choice(environ, TURN_ENV, TURN_MODES, "tool")
 
 
 def _replay(environ: Mapping[str, str], context: str) -> str:
@@ -220,18 +222,11 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
 
 
 def _calls(environ: Mapping[str, str]) -> str:
-    value = environ.get(CALLS_ENV, "one").strip() or "one"
-    if value not in CALLS_MODES:
-        raise ConfigError(f"{CALLS_ENV} must be one of {', '.join(CALLS_MODES)}")
-    return value
+    return _choice(environ, CALLS_ENV, CALLS_MODES, "one")
 
 
-def _parallel_reads(environ: Mapping[str, str] | None = None) -> bool:
-    environ = os.environ if environ is None else environ
-    value = environ.get(PARALLEL_ENV, "off").strip()
-    if value not in REPL_MODES:
-        raise ConfigError(f"{PARALLEL_ENV} must be on or off")
-    return value == "on"
+def _parallel_reads(environ: Mapping[str, str]) -> bool:
+    return _choice(environ, PARALLEL_ENV, REPL_MODES, "off") == "on"
 
 
 def harbor_clone(environment: Any):
@@ -244,6 +239,12 @@ def harbor_clone(environment: Any):
         return await Clone.create(env, known=await compose_container(project))
 
     return make
+
+
+def with_clones(config: CoreConfig, environment: Any) -> CoreConfig:
+    """Contract checks and the finish check work on clones of the task container: give them Harbor's."""
+    needed = config.contract or config.verify
+    return replace(config, make_clone=harbor_clone(environment)) if needed else config
 
 
 def agent_timeout(
@@ -335,8 +336,7 @@ class AetherCoreAgent(BaseAgent):
             provider = build_provider(logs, environ=environ)
             transport = build_review(logs, environ=environ)
             workdir = await discover_workdir(environment)
-            if config.contract:
-                config = replace(config, make_clone=harbor_clone(environment))
+            config = with_clones(config, environment)
             result = await run_agent(
                 env=environment,
                 task=instruction,
