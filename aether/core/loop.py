@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
-from . import compaction, images
+from . import compaction, images, textturn
 from .clm import ClmContext, ClmSettings
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
 from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes
@@ -231,8 +231,9 @@ async def run_agent(
                         images=see,
                         mirror_path=config.clm.mirror_path,
                         history_path=config.clm.history_path,
-                        turn=config.turn,
-                    ),
+                        turn="tool" if config.turn == "json" else config.turn,
+                    )
+                    + (textturn.reply_doc(s.tools) if config.turn == "json" else ""),
                 },
                 {
                     "role": "user",
@@ -306,7 +307,7 @@ async def _loop(s: _Session) -> None:
         try:
             turn = await s.provider.complete(
                 request,
-                s.tools,
+                None if s.config.turn == "json" else s.tools,  # json: a plain text call
                 max_tokens=AFTER_CUT_MAX_TOKENS if cut else MAX_OUTPUT_TOKENS,
                 remaining_s=s.remaining,
                 overrides=AFTER_CUT if cut else None,
@@ -351,6 +352,19 @@ async def _loop(s: _Session) -> None:
         _append(s, assistant)
         if s.clm:
             s.clm.note_reasoning(assistant, turn.usage.get("reasoning"))
+        if s.config.turn == "json":
+            calls = _text_calls(s, turn)
+            if not calls:
+                idle_turns += turn.finish_reason != "length"
+                if idle_turns >= 3:
+                    result.status = "no_tool_loop"
+                    return
+                continue
+            idle_turns = 0
+            if await _run_calls(s, calls, as_text=True):
+                result.status = "finished"
+                return
+            continue
         if not turn.tool_calls:
             # A turn the output limit cut off is work in progress, not idleness; the time limit bounds it (D1
             # regex-game: three 32k-token thoughts in a row ended the run with 30 minutes left).
@@ -384,8 +398,33 @@ def _append(s: _Session, *messages: dict[str, Any]) -> None:
         s.messages.extend(messages)
 
 
-async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
-    """Execute one turn's tool calls. Returns True when the run finished."""
+def _text_calls(s: _Session, turn: Any) -> list[dict[str, Any]]:
+    """The calls in a JSON-turn reply; when there are none, the problem is shown to the model and traced."""
+    obj, protocol, problem = textturn.read_reply(turn.content)
+    calls: list[dict[str, Any]] = []
+    if obj is not None:
+        calls, problem = textturn.calls_from(obj, s.result.calls)
+    if not calls and turn.finish_reason == "length":
+        problem = (
+            "it reached the output limit before the JSON object was complete; your next reply runs at low "
+            "reasoning effort, so act on what you have (write down or test a partial result)"
+        )
+    s.trace(
+        "text_turn",
+        protocol=protocol,
+        problem=problem,
+        actions=[c["function"]["name"] for c in calls],
+    )
+    if not calls:
+        _append(s, textturn.problem_message(problem, s.clock()))
+    return calls
+
+
+async def _run_calls(
+    s: _Session, calls: list[dict[str, Any]], as_text: bool = False
+) -> bool:
+    """Execute one turn's tool calls. Returns True when the run finished. ``as_text``: the results go back as one
+    user message (JSON turns) instead of one tool message per call."""
     mirror = None
     mirror_error = ""
     if s.clm:
@@ -400,6 +439,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             mirror_error = f"[context mirror unavailable: {type(exc).__name__}: {exc}; context unchanged]"
             s.trace("context_mirror_error", error=mirror_error)
     finished = False
+    rows: list[tuple[str, str]] = []
     buffered: dict[int, tuple[dict, str, bool, float]] = {}
     for index, call in enumerate(calls):
         name = call["function"]["name"]
@@ -428,16 +468,21 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         out = await _save(s, out)
         if name != "finish":
             s.actions.append(_action_view(name, args, out))
-        _append(
-            s,
-            {
-                "role": "tool",
-                "tool_call_id": call["id"],
-                "content": f"{out}\n{s.clock()}",
-            },
-        )
+        if as_text:
+            rows.append((name, out))
+        else:
+            _append(
+                s,
+                {
+                    "role": "tool",
+                    "tool_call_id": call["id"],
+                    "content": f"{out}\n{s.clock()}",
+                },
+            )
         if finished:
             return True
+    if as_text:
+        _append(s, textturn.results_message(rows, s.clock()))
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []

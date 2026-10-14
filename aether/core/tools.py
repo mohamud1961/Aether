@@ -207,8 +207,9 @@ FINISH = {
 
 
 # Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
-# (with tool_choice "auto"; a forced tool call suppressed the writing in the S2 replay).
-TURN_MODES = ("tool", "analysis")
+# (with tool_choice "auto"; a forced tool call suppressed the writing in the S2 replay); "json" replaces native
+# tool calls with one written JSON object per reply (see textturn).
+TURN_MODES = ("tool", "analysis", "json")
 ANALYSIS_DOC = """
 Every reply: before your tool call, write in the reply text (1) what the latest results show, including anything \
 in them that contradicts what you expected or what the task requires; (2) where the task stands against each of \
