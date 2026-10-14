@@ -63,6 +63,9 @@ class Turn:
     streamed_calls: dict[int, dict[str, str]] = field(
         default_factory=dict
     )  # tool calls as they stream in
+    reasoning_items: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # Responses API: the encrypted reasoning that can be replayed (see responses)
 
     def response(self) -> dict[str, Any]:
         """What came back, as assembled from the stream (partial if the stream did not finish)."""
@@ -86,7 +89,9 @@ class Turn:
 
     def assistant_message(self) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": "assistant", "content": self.content or None}
-        if self.reasoning:
+        if self.reasoning_items:  # the replayable form, when the provider gives one
+            msg["reasoning_content"] = self.reasoning_items
+        elif self.reasoning:
             msg["reasoning_content"] = self.reasoning
         if self.tool_calls:
             msg["tool_calls"] = [_replayable(c) for c in self.tool_calls]

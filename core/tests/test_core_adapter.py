@@ -215,3 +215,17 @@ def test_unknown_request_shape_or_limit_field_is_refused(monkeypatch):
         adapter.build_provider()
     with pytest.raises(ValueError):
         ChatProvider(object(), model="m", params={}, limit_field="max_output")
+
+
+def test_responses_request_shape_builds_the_responses_provider(monkeypatch):
+    from aether.core.responses import ResponsesProvider
+
+    _provider_env(monkeypatch)
+    monkeypatch.setenv(adapter.REQUEST_ENV, "responses")
+    provider = adapter.build_provider()
+    assert isinstance(provider, ResponsesProvider)
+    assert provider.limit_field == "max_output_tokens"
+    assert (
+        "temperature" not in provider.params
+        and provider.params["reasoning_effort"] == "high"
+    )
