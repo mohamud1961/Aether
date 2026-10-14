@@ -400,8 +400,6 @@ class AetherCoreAgent(BaseAgent):
                     await provider.aclose()
 
 
-
-
 def _write_record(
     logs: Path,
     result,
@@ -433,6 +431,8 @@ def _write_record(
             "parallel_reads": config.parallel_reads,
             "turn": config.turn,
             "receipt": config.receipt,
+            "verify": config.verify,
+            "self_check": config.self_check,
             "model": provider.model,
             "params": provider.params,
             "limit_field": provider.limit_field,
