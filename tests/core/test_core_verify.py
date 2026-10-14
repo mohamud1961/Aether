@@ -14,7 +14,15 @@ from aether.core.calls import CallLog
 from aether.core.clm import ClmSettings
 from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.provider import ChatProvider
-from aether.core.tools import FINISH, VERDICT_FINISH, system_prompt
+from aether.core import receipt
+from aether.core.tools import (
+    BASE_PROMPT,
+    CONTRADICTION_RULE,
+    FINISH,
+    VERDICT_FINISH,
+    VERIFIER_INTRO,
+    system_prompt,
+)
 from tests.core.core_fakes import LocalEnv, ScriptedClient, chunk, tool_chunk
 
 TASK = "Write the word blue into colour.txt in the working directory."
@@ -125,8 +133,18 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
     # the verifier's first request: the brief with the task, and nothing of the solver's turns or summary
     first = client.requests[2]["messages"]
     seen = json.dumps(first)
-    assert "Check that claim independently" in seen and TASK in seen
-    assert "wrote the colour" not in seen and "s1" not in seen and len(first) == 2
+    assert (
+        TASK in seen
+        and "wrote the colour" not in seen
+        and "s1" not in seen
+        and len(first) == 2
+    )
+    # an assessor's prompt, not the solver's; a neutral brief that lists what the work produced
+    system, brief = first[0]["content"], first[1]["content"]
+    assert system.startswith(VERIFIER_INTRO) and "complete the task" not in system
+    assert CONTRADICTION_RULE in system
+    assert "colour.txt" in brief and "Do not open them until" in brief
+    assert "complete" not in brief.replace(TASK, "") and "claim" not in brief
     assert [t["function"]["name"] for t in client.requests[2]["tools"]][-1] == "finish"
     assert client.requests[2]["tools"][-1] == VERDICT_FINISH
 
@@ -227,3 +245,23 @@ def test_self_check_adds_one_paragraph_and_the_solver_keeps_its_own_finish():
         and "could have failed if you were wrong" in checked[len(base) :]
     )
     assert FINISH["function"]["parameters"]["required"] == ["summary"]
+
+
+def test_the_baseline_solver_prompt_is_unchanged_by_the_verifier_and_self_check():
+    """Byte-identical to the prompt every earlier board ran (L1, L2, N1 arms a and e); change only with a new board."""
+    import hashlib
+
+    assert hashlib.sha256(BASE_PROMPT.encode()).hexdigest()[:16] == "e5fc67589187ff27"
+    checked = system_prompt(python_version="", clm=False, self_check=True)
+    assert CONTRADICTION_RULE in checked and "independent assessor" not in checked
+
+
+def test_produced_files_cannot_be_listed_without_the_start_marker(tmp_path):
+    import pytest
+
+    work = tmp_path / "w"
+    work.mkdir()
+    with pytest.raises(OSError):
+        asyncio.run(
+            receipt.changed(LocalEnv(work), str(work), str(tmp_path / "no-ctl"))
+        )

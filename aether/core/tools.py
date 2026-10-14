@@ -8,9 +8,17 @@ import math
 from .clm import HISTORY_PATH, MIRROR_PATH
 from .terminal import MAX_WAIT_S
 
-BASE_PROMPT = """You are an expert engineer working autonomously in a Linux container to complete the task \
+SOLVER_INTRO = """You are an expert engineer working autonomously in a Linux container to complete the task \
 you are given. No one will answer questions; keep working until the task is done.
-
+"""
+# The verifier (see verify) has the same tools and a different job: an assessor, not a builder. The N1 smoke verifiers
+# ran under the solver's prompt, read the produced code first, and confirmed its invented convention.
+VERIFIER_INTRO = """You are an independent assessor working in a Linux container. Your job is not to do the task \
+you are given but to find out, from evidence you produce yourself, whether the current state of this container \
+meets it. No one will answer questions. This container is a disposable copy without network access: nothing you \
+do here reaches the real one, and programs that were running in the original are not running here.
+"""
+TOOLS_DOC = """
 Your tools:
 - terminal: persistent bash shells. The working directory, environment variables, virtualenvs and running \
 programs persist between calls. Open several named terminals to run things in parallel (for example a long \
@@ -22,7 +30,8 @@ grep or tail the log instead of re-running.
 - read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.
 {python}{images}- finish: end the task.
 {context}
-Working well:
+"""
+SOLVER_WORKING = """Working well:
 - Look at what exists before changing it, and keep to what the task asks; do not alter or delete unrelated \
 files, history or system state.
 - Check your work the way the task will be judged: run the real program and confirm the exact output, file \
@@ -35,6 +44,30 @@ it, when you expected it to finish or exit, is hung or looping; find out why rat
 - Every tool result shows the elapsed time and the time limit. Get a complete working result early, then \
 improve it.
 - Call finish only when every requirement is met and checked, or when no time is left."""
+BASE_PROMPT = SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING
+# Shared by the self-check paragraph and the verifier: the L1/L2 and N1-smoke wrong finishes all noticed a mismatch
+# between the task's example and the input, and explained it away.
+CONTRADICTION_RULE = """A contradiction is never explained away. If something you observe disagrees with the task \
+or its examples, run a check whose outcome would differ between the possible explanations, or treat it as \
+unresolved. An example that cannot be reproduced from the actual input shows the format only; none of its specific \
+values is evidence about this input."""
+VERIFIER_WORKING = (
+    """How to assess:
+- Work out what a correct result must be before you look at what was produced. From the task text and the inputs \
+it names, write down the concrete properties and values a correct result must have, and settle every open question \
+yourself: conventions, definitions, units, and what any example in the task actually shows. Only then open, run \
+and compare the produced files.
+- Files produced during the work are one interpretation of the task, not evidence: their code, comments and notes \
+can carry the very mistake you are looking for. Do not adopt a convention, constant or assumption from them; check \
+it against the task and the inputs.
+- """
+    + CONTRADICTION_RULE
+    + """
+- Check the way the task will be judged: run the real program, read the real output, recompute values yourself.
+- Verdict: confirmed only if you have shown that every requirement holds. Anything unresolved or contradicted is \
+refuted, with the evidence and the correct result if you know it. Check what matters most, then finish."""
+)
+VERIFIER_PROMPT = VERIFIER_INTRO + TOOLS_DOC + VERIFIER_WORKING
 
 PYTHON_DOC = """- python: a persistent Python {version} REPL inside the container. Variables, imports and functions \
 persist between calls, so you can load data once and work on it, and build your own tools (parsers, \
@@ -226,13 +259,17 @@ VERDICT_FINISH = {
 }
 # Self-check before finishing (arm B). The L1/L2 wrong finishes rested on checks that reused the solver's own
 # assumption (an example address, its own Tm definition, a substituted sequence), so they could not fail.
-SELF_CHECK_DOC = """
+SELF_CHECK_DOC = (
+    """
 Before you finish: name the facts your result rests on that you did not observe directly (values taken from an \
 example in the task, definitions or conventions you chose where the task leaves them open, data from a source \
 you picked, anything only a check you wrote supports). Check the riskiest of them against something you did not \
 write: the task's own files and data, the real program's behaviour, an authoritative source. For each check ask \
-whether it could have failed if you were wrong; one that reuses your own assumption cannot. Do not repeat checks \
-that already passed; then finish."""
+whether it could have failed if you were wrong; one that reuses your own assumption cannot. """
+    + CONTRADICTION_RULE
+    + """ \
+Do not repeat checks that already passed; then finish."""
+)
 
 
 # Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
@@ -255,6 +292,7 @@ def system_prompt(
     history_path: str = HISTORY_PATH,
     turn: str = "tool",
     self_check: bool = False,
+    verifier: bool = False,
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
@@ -262,7 +300,7 @@ def system_prompt(
     if turn not in TURN_MODES:
         raise ValueError(f"turn must be one of {TURN_MODES}")
     return (
-        BASE_PROMPT.format(
+        (VERIFIER_PROMPT if verifier else BASE_PROMPT).format(
             python=PYTHON_DOC.format(version=python_version) if python_version else "",
             images=IMAGES_DOC if images else "",
             context=context if clm else "",

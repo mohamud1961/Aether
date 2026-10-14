@@ -227,7 +227,9 @@ async def run_agent(
 
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
-            if config.receipt:
+            if (
+                config.receipt or config.verify
+            ):  # the verifier is told which files the work changed
                 await finish_receipt.mark(s.env, config.control_dir)
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
@@ -249,6 +251,7 @@ async def run_agent(
                         history_path=config.clm.history_path,
                         turn="tool" if config.turn == "json" else config.turn,
                         self_check=config.self_check,
+                        verifier=config.role == VERIFIER_ROLE,
                     )
                     + (textturn.reply_doc(s.tools) if config.turn == "json" else ""),
                 },

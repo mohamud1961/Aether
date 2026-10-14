@@ -2,10 +2,13 @@
 
 At the first ``finish`` a no-network clone of the task container is taken, the solver's control directory (context
 mirror, terminal logs, REPL state) is removed from it, and a second run of the Core loop works there as the
-verifier: the task in a brief that asks for an independent check, the same tools, its own message history and its
-own call-log role. None of the solver's reasoning, transcript, summary or claims reaches it; files the solver left
-in the workspace are part of the state, and the brief says to treat them as claims. Everything it runs happens in
-the clone, never in the graded container. It ends with a verdict: confirmed, or refuted with evidence.
+verifier: an assessor's system prompt (tools.VERIFIER_PROMPT), the same tools, its own message history and its own
+call-log role. Its brief is neutral: no claim that the work is done (the N1 smoke brief said "says it is complete",
+and both verifiers confirmed a wrong state). It lists the files the work changed and asks for the correct result to
+be written down before they are opened; the prompt treats produced code and comments as an interpretation, not
+evidence, and forbids explaining a contradiction away. None of the solver's reasoning, transcript, summary or claims
+reaches it. Everything it runs happens in the clone, never in the graded container. It ends with a verdict:
+confirmed, or refuted with evidence.
 
 - confirmed: the finish takes effect.
 - refuted: the evidence goes back to the solver as the result of its finish and the work continues. The solver
@@ -25,6 +28,7 @@ import shlex
 import time
 from typing import Any
 
+from . import receipt
 from .env import exit_code
 from .loop import VERIFIER_ROLE, CoreConfig, Trace, run_agent
 from .oversight import ReviewPlan
@@ -35,24 +39,15 @@ VERIFY_MIN_REMAINING_S = 180.0
 MAX_EVIDENCE_CHARS = 8_000
 TRACE_FILE = "verifier_trace.jsonl"
 
-BRIEF = """Another engineer was given the task below in this container and says it is complete. Check that \
-claim independently. You have not seen their work or reasoning and should not rely on it: files they left \
-(scripts, notes, test output) are claims, not evidence.
+BRIEF = """Assess whether the current state of this container meets the task below.
 
-Decide whether the current state meets every requirement of the task, the way the task will be judged. Work out \
-what the correct result must be from the task itself and from sources they did not produce, then compare it with \
-what is actually there: run the real program, read the real output files, recompute values yourself. Spend your \
-effort on what is most likely to be wrong: values taken from an example in the task, definitions or conventions \
-the task leaves open, data from a source someone picked, and anything only their own check supports.
-
-This container is a disposable copy without network access; nothing you do changes the real one. Programs that \
-were running in the original are not running here.
-
-Finish with verdict "confirmed" only if you checked every requirement and each one holds. Otherwise finish with \
-"refuted" and the evidence: what is wrong, how you established it, and the correct result if you know it.
+Files created or changed while the task was being worked on (under {workdir}):
+{files}
+Do not open them until you have written down what a correct result must contain.
 
 The task:
 {task}"""
+MAX_LISTED = 60
 
 REFUTED = """[independent check: refuted; the finish did not take effect]
 A separate check, made from the task alone in a copy of your current state, found:
@@ -111,6 +106,14 @@ async def _forget_the_solver(clone: Any, config: CoreConfig) -> None:
         raise OSError(f"could not remove the solver's files from the clone: {command}")
 
 
+def _listing(paths: list[str]) -> str:
+    if not paths:
+        return "(none)"
+    shown = "\n".join(paths[:MAX_LISTED])
+    more = len(paths) - MAX_LISTED
+    return shown + (f"\n(and {more} more)" if more > 0 else "")
+
+
 def _usage(provider: Any) -> dict[str, int | None]:
     roles = [
         r
@@ -139,11 +142,13 @@ async def at_finish(s: Any) -> tuple[str, bool]:
     row: dict[str, Any] = {"budget_s": round(budget, 1)}
     clone, result = None, None
     try:
+        produced = await receipt.changed(s.env, s.workdir, s.config.control_dir)
+        row["produced_files"] = len(produced)
         clone = await s.clone(s.env)
         await _forget_the_solver(clone, s.config)
         result = await run_agent(
             env=clone,
-            task=BRIEF.format(task=s.task),
+            task=BRIEF.format(task=s.task, workdir=s.workdir, files=_listing(produced)),
             workdir=s.workdir,
             provider=_Labelled(s.provider, VERIFIER_ROLE),
             timeout_s=budget,
