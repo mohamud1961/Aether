@@ -132,3 +132,33 @@ estimate; N1 stops at £9 cumulative. The VM runs on the student credit and is d
 - 16–24 rows per arm cannot prove pass-rate differences; pass rate is reported, not claimed. Finish precision,
   refutation outcomes and efficiency ratios are the sealed measures.
 - Failed predictions are recorded as failed. Invalid rows stay in the table with their reason.
+
+## Amendment 1 (15 October, ~00:00Z, during P1, before any P2 row)
+
+**Smoke result (N1-P1e, sealed mechanism): mechanism held, detection failed.** Both `ev` binary-extract rows reached a
+verdict (88 s and 79 s; 6 and 11 verifier steps; cost line present, clone cleanup ran) and both were **confirmed**.
+Both rows were graded 0 (reward 0.0). So the verifier as sealed confirmed 2 of 2 wrong states.
+
+Why (from the verifier traces and the call log):
+1. It ran under the **solver's system prompt** ("complete the task… call finish when every requirement is met").
+2. Its brief said another engineer "**says it is complete**", which is a completion claim (the reviewer bench measured
+   claim-free review at 15/18 vs 10/18 with claims).
+3. In both runs its first real action was reading the produced `extract.js`, whose comments state the invented
+   "conventional 0x400000 image base"; it then rebuilt the image with that same base and called it independent.
+4. It noticed that the task's example value could not be reproduced from the binary and explained it away
+   ("illustrative"), exactly as the solver had. The grader uses the binary's own section addresses; the example comes
+   from another binary, so neither its address nor its value is evidence about this input.
+
+**Change (commit `33c846a31`, generic, nothing task-specific):** the verifier gets its own assessor prompt, a
+neutral brief with no completion claim that lists the files changed during the work, and instructions to write down
+what a correct result must contain before opening them, to treat produced code and comments as an interpretation,
+and never to explain a contradiction away (run a distinguishing check or refute). The same contradiction rule joins
+the solver's self-check paragraph (arm `b`). The baseline solver prompt is byte-identical.
+
+**Consequences for the plan:**
+- P2 arms `b`, `c`, `d` use the amended mechanisms (the flags are unchanged).
+- **Smoke v2 before P2:** arm `ev` with the amended verifier on binary-extract × 2. Prediction **N1-A1:** at least 1
+  of the 2 verifications is refuted, with evidence that names the address convention. Failure is recorded and P2
+  still runs (the dev board is the real test), unless the verifier fails mechanically.
+- N1-P2b's binary-extract clause and every other P2 prediction stand unchanged.
+- The original smoke rows stay in the record as a failed detection of the sealed mechanism.
