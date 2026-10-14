@@ -57,3 +57,49 @@ Every row is audited, right finishes included.
 | VM | ≈ £0.6 |
 
 Hard stop: £5.5 cumulative from the fresh £7.
+
+## Results (14 Oct 2026, 05:33–06:09Z at `b6fd54930`; 18 valid rows)
+
+| Task | x2 e1 / e2 | (S4 b1 e1 / e2) |
+|---|---|---|
+| net-fit | **✓** / ✗ wrong | ✗ / ✗ |
+| seq-assembly | ✗ timeout / ✗ wrong | ✗ timeout / ✗ timeout |
+| construct-assembly | **✓** / ✗ wrong | ✗ / ✗ |
+| repair-history | ✓ / ✓ | ✓ / ✓ |
+| binary-extract | ✓ / ✓ | ✓ / ✓ |
+| graph-query-catalog | ✗ wrong / ✓ | ✓ / ✓ |
+| credential-recovery-recovery | ✓ / ✗ wrong | ✓ / ✓ |
+| dual-language-build | ✓ / ✓ | ✓ / ✓ |
+| cipher-diff-attack | ✗ **protocol stop** / ✗ **protocol stop** | ✓ / ✓ |
+
+- **Solves:** 10 of 18. This includes Aether's first construct-assembly pass on this program's boards (B1, S4, S5) and a net-fit pass.
+- **Wrong finishes:** 5 of 15 voluntary (33%). Timeouts: 1. Protocol stops (`no_tool_loop`): 2.
+
+Predictions:
+
+- **P1: FAILED.** The wrong share was 33%.
+- **P2: FAILED.** x2 had 10 solves.
+- **P3: PARTLY HELD.**
+  - Every readable reply carried an analysis.
+  - Median output per turn was roughly 2–4× b1's (e.g. net-fit 423 vs 186).
+  - Readable replies were 207 of 230 (90%), exactly at the bar.
+- **P4: FAILED.** There were 2 `no_tool_loop` stops, both on cipher-diff-attack, and both caused by the harness.
+
+**Diagnosis of the protocol stops (interface, not model judgment).** All 23 unreadable replies were audited:
+
+| Kind | Count | Where |
+|---|---|---|
+| Action object left unclosed before the next action | 8 | cipher-diff-attack, binary-extract |
+| Double quote left unescaped inside a string | 4 | construct-assembly, graph-query-catalog, seq-assembly |
+| Prose with no JSON | 4 | dual-language-build e2, which recovered and passed |
+| Empty, cut at the output limit | 7 | — |
+
+My rule of three unreadable replies → stop ended both cipher-diff-attack rows, with about 25 minutes left. **That is the harness hindering the model.**
+
+**Fix:** commit `95a5664a0`.
+- A bounded, reported repair mends all 12 content-bearing slips offline. Each repair was inspected against the evident intent.
+- Unreadable replies no longer count toward the idle stop.
+
+**Decision:** x2 as run is not kept. The repaired interface (`x2r`) goes to S6.
+
+Cost: model $0.668 (≈ £0.53, metered).
