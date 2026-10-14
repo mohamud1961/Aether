@@ -44,7 +44,7 @@ Replay results never count as solve evidence.
 
 Model ≤ $0.25 (bench stop). VM ≈ 15 minutes. Total ≈ £0.3. Program budget: £7 fresh.
 
-## Results (14 Oct 2026, 03:45–04:07Z at `f683e2da4`; 96/96 calls ok, 0 unmatched)
+## Results (14 Oct 2026, 03:42–03:48Z at `f683e2da4`; 96/96 calls ok, 0 unmatched)
 
 | Variant | Mid-point median reasoning | Zero-reasoning replies (of 24) | `finish` at 6 wrong | `finish` at 9 right | Finish-point median deliberation |
 |---|---|---|---|---|---|
