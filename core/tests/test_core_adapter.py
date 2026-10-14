@@ -302,3 +302,23 @@ def test_a_verifying_run_gets_the_harbor_clone_of_the_task_container(monkeypatch
         (CoreConfig(), None),
     ):
         assert adapter.with_clones(config, "env").make_clone == expected
+
+
+def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
+    from aether.core.calls import CallLog
+
+    provider = ChatProvider(
+        ScriptedClient([]), model="m", params={}, log=CallLog(tmp_path / "c")
+    )
+    config = CoreConfig(verify=True, self_check=True)
+    adapter._write_record(
+        tmp_path,
+        None,
+        started=0,
+        workdir="/w",
+        config=config,
+        review="off",
+        provider=provider,
+    )
+    record = json.loads((tmp_path / "aether_run_record.json").read_text())
+    assert record["config"]["verify"] is True and record["config"]["self_check"] is True

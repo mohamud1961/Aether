@@ -27,6 +27,7 @@ from typing import Any, Mapping
 from .calls import CallLog
 from .clm import REPLAY_MODES, ClmSettings
 from .clone import Clone, compose_container
+from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
@@ -422,18 +423,6 @@ class AetherCoreAgent(BaseAgent):
                     await provider.aclose()
 
 
-def jev_calls(journal: Path) -> dict[str, int] | None:
-    """JEV calls from its journal: reserved (sent) and answered; a reserved call with no answer failed or was cut."""
-    if not journal.exists():
-        return None
-    events = [
-        json.loads(line).get("event")
-        for line in journal.read_text(encoding="utf-8").splitlines()
-        if line
-    ]
-    return {"reserved": events.count("reserve"), "answered": events.count("response")}
-
-
 def _write_record(
     logs: Path,
     result,
@@ -465,6 +454,8 @@ def _write_record(
             "parallel_reads": config.parallel_reads,
             "turn": config.turn,
             "receipt": config.receipt,
+            "verify": config.verify,
+            "self_check": config.self_check,
             "model": provider.model,
             "params": provider.params,
             "limit_field": provider.limit_field,

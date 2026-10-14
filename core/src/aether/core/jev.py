@@ -174,3 +174,15 @@ class TypeSafeEvaluator:
                 }
             )
             raise
+
+
+def jev_calls(journal: Path) -> dict[str, int] | None:
+    """JEV calls from its journal: reserved (sent) and answered; a reserved call with no answer failed or was cut."""
+    if not journal.exists():
+        return None
+    events = [
+        json.loads(line).get("event")
+        for line in journal.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    return {"reserved": events.count("reserve"), "answered": events.count("response")}
