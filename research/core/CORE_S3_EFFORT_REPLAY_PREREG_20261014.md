@@ -43,3 +43,20 @@ Replay results never count as solve evidence.
 ## Budget
 
 Model ≤ $0.25 (bench stop). VM ≈ 15 minutes. Total ≈ £0.3. Program budget: £7 fresh.
+
+## Results (14 Oct 2026, 03:45–04:07Z at `f683e2da4`; 96/96 calls ok, 0 unmatched)
+
+| Variant | Mid-point median reasoning | Zero-reasoning replies (of 24) | `finish` at 6 wrong | `finish` at 9 right | Finish-point median deliberation |
+|---|---|---|---|---|---|
+| control (high) | 219 | 12 | 6/6 | 9/9 | 0 |
+| effort_none | 131 | 8 | 4/6 | 7/9 | 66 |
+| effort_medium | 135 | 15 | 5/6 | 7/9 | 0 |
+| effort_low | 77 | 18 | 6/6 | 8/9 | 0 |
+
+- **S3-P1: FAILED.** `effort_none` mid-point median is 131 against control's 219, which is inside the ±50% falsifier. Its zero-reasoning replies went from 12 to 8, not to ≤ 6. Omitting `reasoning_effort`, as Terminus does, does not restore reasoning. Effort is not the switch.
+- **S3-P2: HELD.** Low and medium reason no more than control; low reasons less.
+- **S3-P3: FAILED, but not in the direction that matters.** `effort_none` finished at 4/6 wrong points (a change of 2). It also dropped right points 9→7, so it doesn't discriminate.
+
+Decision: effort stays `high`. The live board S4 tests the analysis turn mode alone.
+
+Cost: model $0.156 (≈ £0.125, metered, no unknown usage); VM time is counted with S4. Evidence: `audit_output/aether_s3_20261014/`.
