@@ -56,6 +56,10 @@ REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
 TURN_ENV = "AETHER_CORE_TURN"  # optional; unset means "tool", the unchanged baseline
+FINISH_ENV = (
+    "AETHER_CORE_FINISH"  # optional; unset means "direct", the unchanged baseline
+)
+FINISH_MODES = ("direct", "receipt")
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
@@ -149,7 +153,15 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
         turn=_turn(environ),
+        receipt=_finish_mode(environ) == "receipt",
     )
+
+
+def _finish_mode(environ: Mapping[str, str]) -> str:
+    value = environ.get(FINISH_ENV, "direct").strip() or "direct"
+    if value not in FINISH_MODES:
+        raise ConfigError(f"{FINISH_ENV} must be one of {FINISH_MODES}, got {value!r}")
+    return value
 
 
 def _turn(environ: Mapping[str, str] | None = None) -> str:
@@ -366,6 +378,7 @@ def _write_record(
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
             "turn": config.turn,
+            "receipt": config.receipt,
             "model": provider.model,
             "params": provider.params,
         },

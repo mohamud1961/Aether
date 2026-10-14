@@ -19,6 +19,7 @@ import time
 from typing import Any, Awaitable, Callable
 
 from . import compaction, images, textturn
+from . import receipt as finish_receipt
 from .clm import ClmContext, ClmSettings
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
 from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes
@@ -41,6 +42,7 @@ AFTER_CUT = {"reasoning_effort": "low"}
 # Its output cap bounds that case to a quarter of the time.
 AFTER_CUT_MAX_TOKENS = 8_192
 STOP_MARGIN_S = 15.0
+RECEIPT_MIN_S = 60.0  # with less time left a finish takes effect at once
 CONTEXT_MODES = ("project", "clm")
 
 
@@ -60,6 +62,7 @@ class CoreConfig:
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
     contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
     turn: str = "tool"  # "analysis": written analysis before every action (see tools.ANALYSIS_DOC)
+    receipt: bool = False  # show the delivered files' bytes before the first finish takes effect (see receipt)
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
@@ -156,6 +159,7 @@ class _Session:
         self.contract: acceptance.Contract | None = None
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
+        self.receipt_shown = False
 
     def clone(self, env: Environment) -> Awaitable[Any]:
         return (self.config.make_clone or Clone.create)(env)
@@ -214,6 +218,8 @@ async def run_agent(
 
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
+            if config.receipt:
+                await finish_receipt.mark(s.env, config.control_dir)
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
             s.tools = tools(
@@ -253,6 +259,7 @@ async def run_agent(
                 review=bool(review_transport),
                 context=config.context,
                 turn=config.turn,
+                receipt=config.receipt,
                 repl=config.repl,
                 python=python,
                 images=see,
@@ -692,6 +699,11 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
 
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    if s.config.receipt and not s.receipt_shown and s.remaining() > RECEIPT_MIN_S:
+        s.receipt_shown = True
+        text = await finish_receipt.receipt(s.env, s.workdir, s.config.control_dir)
+        s.trace("finish_receipt", summary=args.get("summary", ""), receipt=text)
+        return text, False
     skip = s.oversight.finish_gate(s.remaining())
     if skip:
         s.trace(
