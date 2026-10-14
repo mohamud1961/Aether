@@ -253,3 +253,22 @@ def test_several_calls_per_turn_are_an_explicit_opt_in(monkeypatch):
     assert seen == {"one": False, "many": True}
     with pytest.raises(adapter.ConfigError):
         adapter.build_provider(environ={**env, adapter.CALLS_ENV: "all"})
+
+
+def test_replaying_all_reasoning_needs_responses_and_clm(monkeypatch):
+    base = {
+        adapter.REVIEW_ENV: "off",
+        adapter.CONTEXT_ENV: "clm",
+        adapter.REPL_ENV: "off",
+        adapter.IMAGES_ENV: "off",
+    }
+    assert adapter.build_config(environ=base).clm.replay_reasoning == "newest"
+    full = {**base, adapter.REQUEST_ENV: "responses", adapter.REASONING_ENV: "all"}
+    assert adapter.build_config(environ=full).clm.replay_reasoning == "all"
+    for bad in (
+        {**full, adapter.REQUEST_ENV: "chat"},
+        {**full, adapter.CONTEXT_ENV: "project"},
+        {**full, adapter.REASONING_ENV: "some"},
+    ):
+        with pytest.raises(adapter.ConfigError):
+            adapter.build_config(environ=bad)
