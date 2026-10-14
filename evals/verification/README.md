@@ -34,4 +34,4 @@ Validation key: known-bad files, each rejected with its expected reason; careles
 
 ## Limits
 
-The two tasks test exactness against a spec: bytes for the serializer, behaviour on 150 generated expressions for the evaluator. They do not grade a verifier's judgment on a live agent finish; that is what the verifier bench in the measurement validity method is for. The evaluator task runs candidate code and is admitted as debug until it is graded inside a sandbox.
+The two tasks test exactness against a spec: bytes for the serializer, behaviour on 150 generated expressions for the evaluator. They do not grade a verifier's judgment on a live agent finish; that is what the verifier bench in the [measurement validity method](../methods/measurement-validity.md) is for. The evaluator task runs candidate code and is admitted as debug until it is graded inside a sandbox.
