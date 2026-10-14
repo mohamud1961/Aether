@@ -272,3 +272,33 @@ def test_replaying_all_reasoning_needs_responses_and_clm(monkeypatch):
     ):
         with pytest.raises(adapter.ConfigError):
             adapter.build_config(environ=bad)
+
+
+def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
+    _base_env(monkeypatch)
+    for name in (adapter.VERIFY_ENV, adapter.SELF_CHECK_ENV):
+        monkeypatch.delenv(name, raising=False)
+    config = adapter.build_config()
+    assert (config.verify, config.self_check) == (False, False)
+    monkeypatch.setenv(adapter.VERIFY_ENV, "once")
+    monkeypatch.setenv(adapter.SELF_CHECK_ENV, "on")
+    config = adapter.build_config()
+    assert (config.verify, config.self_check) == (True, True)
+    for name, bad in ((adapter.VERIFY_ENV, "twice"), (adapter.SELF_CHECK_ENV, "yes")):
+        monkeypatch.setenv(name, bad)
+        with pytest.raises(adapter.ConfigError):
+            adapter.build_config()
+        monkeypatch.delenv(name)
+
+
+def test_a_verifying_run_gets_the_harbor_clone_of_the_task_container(monkeypatch):
+    """A verifier on a default clone could commit the wrong container (the compose-routing bug, e4c334830)."""
+    monkeypatch.setattr(
+        adapter, "harbor_clone", lambda environment: ("harbor", environment)
+    )
+    for config, expected in (
+        (CoreConfig(verify=True), ("harbor", "env")),
+        (CoreConfig(contract=True), ("harbor", "env")),
+        (CoreConfig(), None),
+    ):
+        assert adapter.with_clones(config, "env").make_clone == expected
