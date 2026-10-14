@@ -28,7 +28,7 @@ from .provider import ChatProvider, ProviderError, parse_arguments
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from .tools import system_prompt, tools, validate_call
+from .tools import TURN_MODES, system_prompt, tools, validate_call
 from . import contract as acceptance, contract_loop
 from .clone import Clone
 
@@ -59,10 +59,13 @@ class CoreConfig:
     )
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
     contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
+    turn: str = "tool"  # "analysis": written analysis before every action (see tools.ANALYSIS_DOC)
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
+        if self.turn not in TURN_MODES:
+            raise ValueError(f"turn must be one of {TURN_MODES}")
         self.clm.check_request_limit(MAX_OUTPUT_TOKENS)
 
 
@@ -228,6 +231,7 @@ async def run_agent(
                         images=see,
                         mirror_path=config.clm.mirror_path,
                         history_path=config.clm.history_path,
+                        turn=config.turn,
                     ),
                 },
                 {
@@ -247,6 +251,7 @@ async def run_agent(
                 params=provider.params,
                 review=bool(review_transport),
                 context=config.context,
+                turn=config.turn,
                 repl=config.repl,
                 python=python,
                 images=see,

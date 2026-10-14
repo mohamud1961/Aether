@@ -30,6 +30,7 @@ from .clone import Clone, compose_container
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
+from .tools import TURN_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
@@ -54,6 +55,7 @@ CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
+TURN_ENV = "AETHER_CORE_TURN"  # optional; unset means "tool", the unchanged baseline
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
@@ -93,7 +95,8 @@ def build_provider(
     params = {
         **SAMPLING,
         "reasoning_effort": effort,
-        "tool_choice": "required",
+        # analysis turns need "auto": with a forced tool call the model wrote nothing (S2 replay)
+        "tool_choice": "auto" if _turn(environ) == "analysis" else "required",
         "parallel_tool_calls": _parallel_reads(environ),
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
@@ -145,7 +148,16 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         clm=ClmSettings(),
         contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
+        turn=_turn(environ),
     )
+
+
+def _turn(environ: Mapping[str, str] | None = None) -> str:
+    environ = os.environ if environ is None else environ
+    value = environ.get(TURN_ENV, "tool").strip() or "tool"
+    if value not in TURN_MODES:
+        raise ConfigError(f"{TURN_ENV} must be one of {TURN_MODES}, got {value!r}")
+    return value
 
 
 def _parallel_reads(environ: Mapping[str, str] | None = None) -> bool:
@@ -353,6 +365,7 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
+            "turn": config.turn,
             "model": provider.model,
             "params": provider.params,
         },
