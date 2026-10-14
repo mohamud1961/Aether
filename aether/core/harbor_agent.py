@@ -61,6 +61,11 @@ FINISH_ENV = (
 )
 FINISH_MODES = ("direct", "receipt")
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
+# optional; unset means "one" (one tool call per model turn, the baseline). "many" lets the model send several calls in
+# one turn; they still run in order, as a JSON turn's actions do. GPT-6-Luna on the Responses API made 61% more calls than
+# on JSON turns (L2 vs L1) only because the API forbade batching, and each call resends the whole context.
+CALLS_ENV = "AETHER_CORE_CALLS"
+CALLS_MODES = ("one", "many")
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -110,7 +115,7 @@ def build_provider(
         "reasoning_effort": effort,
         # analysis turns need "auto": with a forced tool call the model wrote nothing (S2 replay)
         "tool_choice": "auto" if _turn(environ) == "analysis" else "required",
-        "parallel_tool_calls": _parallel_reads(environ),
+        "parallel_tool_calls": _parallel_reads(environ) or _calls(environ) == "many",
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
     client = AsyncOpenAI(
@@ -197,6 +202,13 @@ def _turn(environ: Mapping[str, str] | None = None) -> str:
     value = environ.get(TURN_ENV, "tool").strip() or "tool"
     if value not in TURN_MODES:
         raise ConfigError(f"{TURN_ENV} must be one of {TURN_MODES}, got {value!r}")
+    return value
+
+
+def _calls(environ: Mapping[str, str]) -> str:
+    value = environ.get(CALLS_ENV, "one").strip() or "one"
+    if value not in CALLS_MODES:
+        raise ConfigError(f"{CALLS_ENV} must be one of {', '.join(CALLS_MODES)}")
     return value
 
 
