@@ -62,6 +62,26 @@ source at write time** (single model, no second model), not a reading principle.
 helps the resolution share (GPT-6-Luna construct-assembly, GLM construct-assembly ×2). If neither, the losses are not recoverable by asking
 the same model at the decision point, and the remaining levers are tools that make the check mechanical.
 
+## Amendment (before any run): context test and GPT-6-Luna
+
+**Context finding (offline).** Aether Core keeps the model's context with CLM: pinned prompt and task, a 32k-token
+editable window (nudges at 50/75%, structured checkpoint of older turns past the limit, newest 8k kept verbatim),
+tool output capped near 11 KB, and **reasoning replayed for the newest turn only** (`clm.py`,
+`replay_reasoning="newest"`). The Python REPL and files persist for the whole run. In all 4 GLM construct-assembly runs that
+decided to include the tag, the decision existed only in reasoning and **was absent from the context at the call
+that built the gBlock** (8, 9, 15 and 108 turns later); the stale `clover` variable was still in the REPL. In net-fit the
+picture is mixed: s6-x2r-e1 decided and wrote in the same turn (context not the cause); s4-b1-e1 two turns later.
+
+- **M cases (GLM, construct-assembly, 3)** at the build call: **A_build** replays it unchanged; **M** adds one user line
+  carrying the run's own earlier words. Responses are hand-labelled: does the built donor keep the tag.
+  Prediction 7: M keeps the tag in ≥ 2/3 of samples, A_build in ≤ 1/3. If so, losing decisions from context is a
+  cause, and "keep the model's own decisions in context" is a candidate lever.
+- **GPT-6-Luna (Responses replay of the saved input, encrypted reasoning included)**: 3 tag-drop failures + 1 passing
+  control, as R (C, D) and E (A, B, C at the last logged call). Prediction 8: R-C gives INCLUDE ≤ 1/3 (the drops
+  were argued); D raises it by ≥ 30 points; E-C detects ≤ 1/3. GPT-6-Luna cap $1 (expected ~$0.4). If the saved
+  encrypted reasoning is rejected on replay, the GPT-6-Luna cells are reported as not run, not retried without it.
+- Totals: GLM 213 calls (cap $3), GPT-6-Luna 60 calls (cap $1).
+
 ## Step 3 (after step 2; needs results): fresh variants
 
 Only for the lever(s) step 2 supports. Fresh small tasks written by us, each first run at baseline to confirm it
