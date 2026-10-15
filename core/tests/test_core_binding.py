@@ -86,7 +86,30 @@ def test_names_that_could_forge_manifest_lines_make_the_binding_unavailable(tmp_
     # Separators Python treats as line ends but the shell does not stay inside the name: no forged entry.
     for sep in ("\r", "\x1c", "\x85", "\u2028"):
         name = f"./a{sep}M|regular file|644|./ghost"
-        assert set(B.parse(f"M|regular file|644|{name}\nEND\n").entries) == {name}
+        digest = "0" * 64 + "  " + name
+        text = f"M|directory|755|.\nM|regular file|644|{name}\n{digest}\nEND\n"
+        assert set(B.parse(text).entries) == {".", name}
+
+
+def test_a_record_missing_its_digest_or_link_target_makes_the_binding_unavailable():
+    root = "M|directory|755|.\n"
+    file, digest = "M|regular file|644|./colour.txt\n", "0" * 64 + "  ./colour.txt\n"
+    link, target = "M|symbolic link|777|./l\n", "L|colour.txt|./l\n"
+    assert set(B.parse(root + file + digest + link + target + "END\n").entries) == {
+        ".",
+        "./colour.txt",
+        "./l",
+    }
+    for text, match in (
+        (root + file + "END\n", "incomplete"),  # digest line removed: contents unbound
+        (root + link + "END\n", "incomplete"),  # link target removed
+        (root + "M|directory|755|./d\n" + "0" * 64 + "  ./d\nEND\n", "incomplete"),
+        (root + "M|door|644|./x\nEND\n", "unrecognised"),
+        (file + digest + "END\n", "working directory itself"),
+        (root + target + "END\n", "without metadata"),
+    ):
+        with pytest.raises(B.BindingUnavailable, match=match):
+            B.parse(text)
 
 
 def _repair_script(path, content):
