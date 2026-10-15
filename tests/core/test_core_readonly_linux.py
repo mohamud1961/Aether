@@ -69,6 +69,8 @@ def test_a_read_only_clone_refuses_every_write_to_the_delivered_files(box):
             except Exception:  # noqa: BLE001 - any refusal
                 files_refused = True
             after = await B.manifest(clone, "/app")
+            # the check starts: scratch files from here on are the check's (the cut-off of scratch_copies)
+            since = await BD.clock(clone)
             # scratch: what the work left is there, writable, and a build from a copy runs
             note = (await clone.exec("cat /tmp/work_note.txt")).stdout.strip()
             build = await clone.exec(
@@ -76,7 +78,6 @@ def test_a_read_only_clone_refuses_every_write_to_the_delivered_files(box):
                 "&& echo x > /var/tmp/x"
             )
             # the attribution control: a repaired copy in scratch, after the marker
-            since = await BD.clock(clone)
             await clone.exec(
                 "mkdir -p /tmp/w && cp -p /app/colour.txt /tmp/w/ && cp /app/run.sh /tmp/w/run.sh "
                 "&& echo 'echo fixed' >> /tmp/w/run.sh"
@@ -133,7 +134,9 @@ def test_a_read_only_clone_refuses_every_write_to_the_delivered_files(box):
     assert after.entries == before.entries == original.entries
     assert note == "left"
     assert build.return_code == 0 and build.stdout.strip() == "ok", build
-    assert copies["same"] == 1 and copies["diverging"] == ["/tmp/w/run.sh"], copies
+    # exact copies: the build's run.sh and the cp -p'd colour.txt; the repaired run.sh diverges; the work's own
+    # /tmp/work_note.txt predates the check and is not counted
+    assert copies["same"] == 2 and copies["diverging"] == ["/tmp/w/run.sh"], copies
     assert len(volumes) == 2
     for volume in volumes:  # removed with the clone
         assert (
