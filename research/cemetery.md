@@ -33,6 +33,8 @@
 | 25 | Semantic completion review (Gen 4) | A semantic review of completion against a mechanical one | 0 semantic wins; 1 mechanical-only win; 4 ties; 76 calls against 34 | A richer review did not pay for its calls in this pilot.|
 | 26 | Remaining-time visibility for deadline tasks (Gen 4) | Show the model its remaining run time | Visibility alone did not rescue the deadline task | Visibility is needed for timing and is not sufficient.|
 | 27 | Boundary verification step (Gen 4) | A targeted verification step on one failure target | The control solved the target without the step (ceiling) | Check that the control fails the target before testing the treatment.|
+| 29 | Greedy default sampling in open-model runs (Gen 4 candidate) | Temperature 0.0 by default | Identical malformed call repeated 18 times; a 32,000-token runaway in two losses | Set sampling explicitly and audit each row.|
+| 30 | Full-history memory control (Gen 4 programme, early October) | A full-history control compared against a memory variant | Silently wiped memory on long runs; both comparisons invalid | A control that changes the variable silently is not a control.|
 | 31 | Inert claim-free review arm (Gen 4) | A review component on long runs | Zero provider requests on one run (82 calls, 11.9 million tokens) | A component that never fires is not a control.|
 
 ## Notes
