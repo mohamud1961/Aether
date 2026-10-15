@@ -54,3 +54,33 @@ This matters because the same pattern (a claim tested and narrowed) is the reaso
 - **What changed:** A single-shot verifier-triggered reconfiguration was treated as a defect.
 - **Numbers:** 2,305 files in one commit.
 
+### 2026-07-09 · A rate-limit storm leaves most verifier verdicts unreturned
+- **What happened:** Parallel verifier runs hit the rate limit on a single deployment. Most verdicts were blocked by tooling, and two false clean completions passed the gate.
+- **What changed:** Backoff with jitter, a request-rate limiter, and an independence-kind gate were added. Parallel runs on one deployment were stopped.
+- **Numbers:** 13 of 20 parsed verdicts blocked by tooling; 82 rate-limit strings; 3 of 4 reward-1.0 passes were verifier misses; false cleans scored 0.98 and 0.93.
+
+### 2026-07-14 · The batch scorer passes no-op commands
+- **What happened:** Batch behavioural scoring counted `chmod`, `pytest --co`, and `grep` as passing routes.
+- **What changed:** Scorers were put through adversarial review before their results counted.
+- **Numbers:** Not recorded.
+
+### 2026-07 (approx.) · The Gen 3 verifier runs no real checks
+- **What happened:** A phase-2 audit found that verifier checks written in free text were never compiled into runnable checks.
+- **What changed:** An executable check path was added, with a sandboxed overlay.
+- **Numbers:** 0 real checks in 20 runs; every verdict was ready=True by evidence fallback.
+
+### 2026-08-04 · The fixed official architect board is grader-invalid
+- **What happened:** The fixed official board was audited and every trial was found grader-invalid.
+- **What changed:** No promotion; the failure pattern was logged as layered (weak proof contracts, provider instability, proxy reasoning).
+- **Numbers:** 15 of 15 trials grader-invalid.
+
+### 2026-08-10 · Stable-context dedup cuts prompts and raises total cost
+- **What happened:** A per-call prompt reduction increased the number of calls needed to finish.
+- **What changed:** Dedup stopped for promotion and was kept as a diagnostic; a decision-contract A/B was opened.
+- **Numbers:** Prompt -29% per call; solver calls 16 to 25 (+56%) in a 3-task live A/B.
+
+### 2026-08-19 · Architect removed from production; persistent line merged
+- **What happened:** Architect model calls were set to zero, and the persistent-worker line was merged with the independent verifier.
+- **What changed:** Authority moved to a primary solver plus an independent verifier. The architect was removed from production.
+- **Numbers:** architect_model_calls = 0; qualification 301/301 local, 301/301 shared Linux, 16/16 real Docker.
+
