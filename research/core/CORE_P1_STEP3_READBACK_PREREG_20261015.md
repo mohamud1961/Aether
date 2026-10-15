@@ -67,3 +67,35 @@ Needs the run VM, which only the principal can start. Otherwise not run.
 ## Budget
 
 GLM ≈ $0.05/row (S3–S6 actuals) → ≈ $1.8 for ≤ 36 rows; VM ≈ $0.6. **Hard stop: $4 token-priced model spend.**
+
+## Results (2026-10-16, the run VM, commit `06efdf9dd`)
+
+**Phase 0 (oracle):** 6/6 pass. A first attempt gave 4 infra-invalid rows ("Docker daemon is not running": the VM
+had just booted); rerun after Docker was up, 4/4 pass. Substrate, not task, failure.
+
+**Phase A (baseline `coreb1`, 18 rows, 0 infra-invalid): 17/18 pass.**
+
+| Task | Kind | e1 / e2 / e3 | Trap-caused failures |
+|---|---|---|---|
+| arborescence-dst-first | trap | ✓ ✓ ✓ | 0 |
+| parcel-centroids | trap | ✓ ✓ ✓ | 0 |
+| account-balances | trap | ✓ ✓ ✓ | 0 |
+| release-manifest-exact | trap | ✓ ✗ ✓ | 0 (e2 wrote no header row; the tags were exact) |
+| arborescence-src-first | control | ✓ ✓ ✓ | — |
+| release-manifest-normalized | control | ✓ ✓ ✓ | — |
+
+**Audit of how the passes were earned** (file-writing code from each row's call log): every dst-first row writes
+`dst,src` and the rows as `f'{v},{u}'`; every centroid row unpacks `lon, lat = centroid(...)` and writes lat first;
+every balance row reads ids with `csv.DictReader` (strings, no numeric parse); the manifest rows copy `tag` as is.
+The model handled each convention deliberately, not by luck.
+
+**No trap qualified (≥ 2/3 trap-caused failures needed), so Phase B (the read-back arm) was not run**, as
+pre-registered. S3-P1…P4 are untested, not failed. Spend: **≈ $0.05** model (18 rows, $0.001–0.009 each), about
+1.5 h VM.
+
+**What this means.** On short, single-concern tasks GLM does not fall into these conventions: it reads the format
+and applies it. The failures the probes studied happened in long tasks (dozens of steps, several requirements,
+the format far from the step that builds the file). So the failure is not "GLM prefers the convention"; it is
+**losing a known requirement over a long task**, which fits the P1 context finding (decisions absent from the
+context at the build step). A fresh task that reproduces it has to reproduce that length and distance, not just
+the convention. The read-back lever stays built (`--core-readback`, off by default) and untested.
