@@ -311,7 +311,7 @@ source, tasks, retries and a sealed total.
 The principal cancelled A3 because it ran the pre-fix code (`52283b6cc`). At the kill every A3 cell had already ended: 5
 graded 0 of 5 (binary-extract `f`, `fv`; seq-assembly `f`, `fv`; construct-assembly `fv`) and construct-assembly `f` was
 infra-invalid (no reward file) with its retry queued; the kill cancelled that retry before it started (no attempt-2
-directory; no calls). A3 token-priced spend: $0.227. Work
+directory; no calls). A3 token-priced spend: $0.227 (USD 0.22690525) is a **lower bound**: the construct-assembly `f` call log holds 8 `IncompleteStream` failed attempts with no recorded usage, in addition to P2's two cancelled calls of unknown usage. All N1 spend and remaining-budget figures are lower bounds until portal billing is reconciled; conservative headroom is kept. Work
 waits for the Codex review of `e23ae2ca3`.
 
 **A3 disposition (corrected 15 October after Codex's D5 reconciliation).** An earlier version of this section said no
