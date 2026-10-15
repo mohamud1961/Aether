@@ -64,6 +64,10 @@ it against the task and the inputs.
     + CONTRADICTION_RULE
     + """
 - Check the way the task will be judged: run the real program, read the real output, recompute values yourself.
+- A check is evidence only if its outcome would differ were the result wrong. Agreement between the produced \
+result and your own reconstruction shows nothing about a choice both share (a convention, base, method or source); \
+for such a choice, find what in the task or its inputs decides it. Where the task does not ask for a transformation, \
+the reading that applies none is the default.
 - Verdict: confirmed only if you have shown that every requirement holds. Anything unresolved or contradicted is \
 refuted, with the evidence and the correct result if you know it. Check what matters most, then finish."""
 )

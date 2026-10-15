@@ -28,7 +28,7 @@ import shlex
 import time
 from typing import Any
 
-from . import receipt
+from . import evidence, receipt
 from .env import exit_code
 from .loop import VERIFIER_ROLE, CoreConfig, Trace, run_agent
 from .oversight import ReviewPlan
@@ -48,6 +48,13 @@ Do not open them until you have written down what a correct result must contain.
 The task:
 {task}"""
 MAX_LISTED = 60
+# With evidence on (see evidence): the choices the work made, without its reasons. N1 smoke v2: a verifier left to
+# find the open choices itself settled the address base the same way the solver had and confirmed.
+QUESTIONS = """
+
+Choices the work made where the task does not dictate one (its reasons are not given). Settle each yourself from the \
+task and its inputs, with a check whose outcome would differ between the alternatives:
+{questions}"""
 
 REFUTED = """[independent check: refuted; the finish did not take effect]
 A separate check, made from the task alone in a copy of your current state, found:
@@ -84,6 +91,7 @@ def verifier_config(config: CoreConfig) -> CoreConfig:
         reviews=ReviewPlan(finish=False),
         contract=False,
         receipt=False,
+        evidence=False,
         control_dir=root,
         clm=dataclasses.replace(
             config.clm,
@@ -112,6 +120,11 @@ def _listing(paths: list[str]) -> str:
     shown = "\n".join(paths[:MAX_LISTED])
     more = len(paths) - MAX_LISTED
     return shown + (f"\n(and {more} more)" if more > 0 else "")
+
+
+def _questions(s: Any) -> str:
+    rows = s.result.extras.get("evidence")
+    return QUESTIONS.format(questions=evidence.open_questions(rows[-1])) if rows else ""
 
 
 def _usage(provider: Any) -> dict[str, int | None]:
@@ -148,7 +161,8 @@ async def at_finish(s: Any) -> tuple[str, bool]:
         await _forget_the_solver(clone, s.config)
         result = await run_agent(
             env=clone,
-            task=BRIEF.format(task=s.task, workdir=s.workdir, files=_listing(produced)),
+            task=BRIEF.format(task=s.task, workdir=s.workdir, files=_listing(produced))
+            + _questions(s),
             workdir=s.workdir,
             provider=_Labelled(s.provider, VERIFIER_ROLE),
             timeout_s=budget,
