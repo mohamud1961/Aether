@@ -52,3 +52,35 @@ only "find them and merge them into master"; the solver resolved the `about.md` 
 states no conflict rule, so the ledger had no sentence to bind; whether its prompt text nudged the choice cannot be
 told from one row (an arm-`e` smoke on repair-history passed earlier). Recorded as a possible harm signal to watch, not a
 blocker; repair-history is outside N2's tasks. Launched 04:14:50 UTC at ef69daf9e.
+
+## Results (run 04:14:50–06:05:40 UTC, ef69daf9e; all 30 rows valid, graded by the official tests after each run)
+
+| Arm | Passed | Finished | Wrong finishes | Finish precision | Model cost | Steps |
+|---|---|---|---|---|---|---|
+| e (no ledger) | 8/15 | 15 | 7 | 53% | $0.282 | 359 |
+| g (ledger) | 6/15 | 14 (+1 timeout) | 8 | 43% | $0.430 | 559 |
+
+Per task (P pass, W wrong finish): net-fit e PPP g PPP; seq-assembly e WPW g PWW; binary-extract e WWW g WWW; construct-assembly e WWP g
+WW+timeout; graph-query-catalog e PPP g WPP. Cost is recorded token spend at GPT-6-Luna prices (a lower bound).
+
+**Predictions:**
+- **N2-a (mechanism): held.** Every `g` row called `requirements` before its first finish (2–10 calls); 15/15
+  quoted every requirement sentence by their last call (0 uncovered). The hold fired twice (construct-assembly e2, 5 items
+  unsure; binary-extract e3, 1 unsure); both rows finished again and failed.
+- **N2-b (reading, primary): failed.** Wrong finishes 8 vs 7 (needed ≤ 5). Every wrong `g` finish had all its
+  items marked met with cited steps, e.g. graph-query-catalog e1 read "full professors" as role literals beginning with
+  "Professor" and marked it met; seq-assembly e2/e3 marked the Tm requirement met from their own check.
+- **N2-c (outcome): failed**, in the wrong direction: 6 vs 8 passes (needed ≥ 10).
+- **N2-d (cost): failed narrowly.** 1.52× cost (limit 1.5×), 1.56× steps; construct-assembly rows ran 66–150 steps.
+- **N2-e (harm): held** by its letter (no task `e` passed 3/3 failed by `g` in 2+), but graph-query-catalog lost one pass.
+
+**Reading.** The ledger is adopted fully and changes nothing that matters: it records the solver's beliefs, and
+the solver believes its wrong readings. This is the "no commitment" condition of SpecHarness (arXiv 2609.29921),
+whose ablation found letting the agent's claim count to be the largest single loss; see
+`CORE_FALSE_COMPLETION_PRIOR_ART_20261015.md`. n = 15 per arm is a pilot; the difference in passes (−2) is within
+noise, the absence of a gain is not. **Not promoted; `--core-ledger` stays off.** Held-out tasks untouched.
+
+**Evidence:** `audit_output/aether_n2_20261015/n2_evidence.tgz` (sha256
+48e17334b6db08c9aa058e769a9008a1a8fc83b10487b0f50e51bcf94fbe2326, equal on the VM and locally): run dir, scorer
+outputs (`n2/mech.txt`), per-row archives, smoke. VM the run VM left running: the portal session had expired and
+no other credential reaches the subscription; deallocation needs the principal.
