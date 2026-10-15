@@ -17,13 +17,15 @@ It ends with one of three findings (tools.VERDICT_FINISH):
 Binding (Codex reviews of 15 Oct: a verifier that repaired its clone, including a 21 MiB file outside a size
 filter, was accepted while the graded file stayed wrong; a failing fingerprint read as "unchanged"): the working
 directory's manifest (binding.Manifest: every entry's type, permission bits, link target and content hash) is taken
-from the original before cloning, from the clone after the review, and from the original again. A bound entry
-modified or deleted in the clone voids the finding: the solver is shown what the check changed and what it reported,
-as a proposed repair, and the work continues. New entries (build and scratch output) are recorded, not voiding. A
-bound entry that changed in the original during the check makes the finding stale (the finish takes effect). If any
-manifest cannot be taken, the finding is recorded as ``<finding>_unbound``: it is about a copy that may not match the
-delivered state (a defect it found still goes back to the solver, marked so). Pruned directories and mount points
-are listed as unbound on the row; nothing outside the working directory is bound.
+from the original before cloning, from the clone after the review, and from the original again. Any entry
+modified, deleted **or created** in the clone's working directory voids the finding: a created file can be the
+missing deliverable itself, so the verifier keeps build and scratch output under /tmp. The solver is shown what the
+check changed and what it reported, as a proposed repair, and the work continues. A bound entry that changed in the
+original during the check makes the finding stale (the finish takes effect). If any manifest cannot be taken, the
+finding is recorded as ``<finding>_unbound``; if the tree has unbound parts (pruned directories such as .git, mount
+points), as ``<finding>_partial``. A defect it found still goes back to the solver in both cases. Nothing outside
+the working directory is bound, and a change made and reverted before the closing manifest is not seen: the
+binding compares states, it does not watch the review.
 
 Time (same reviews: clone set-up could take the solver's remainder, and a cancelled clone creation is shielded and
 waited for): one absolute end, VERIFY_SHARE of what is left and at most VERIFY_MAX_S, holds listing, manifests,
@@ -79,8 +81,8 @@ A separate check, made from the task alone in a copy of your current state, foun
 It can be wrong. Decide for yourself: fix what it found, or, if you are sure it is mistaken, call finish again. \
 There is no second check; your next finish ends the work."""
 MODIFIED = """[independent check: void; the finish did not take effect]
-A separate check, made from the task alone in a copy of your current state, changed these delivered files in its \
-copy before concluding, so its conclusion is about its changed copy, not your state:
+A separate check, made from the task alone in a copy of your current state, made these changes in its copy \
+of the working directory before concluding, so its conclusion is about its changed copy, not your state:
 {files}
 What it reported:
 {evidence}
@@ -259,11 +261,11 @@ def _status(row: dict[str, Any], finding: str | None) -> str:
     if row.get("binding_unavailable") or "clone_changes" not in row:
         return f"{finding}_unbound"
     changes = row["clone_changes"]
-    if changes["modified"] or changes["deleted"]:
+    if changes["modified"] or changes["deleted"] or changes["created"]:
         return "void_candidate_modified"
     if row.get("original_changed"):
         return "stale_original_changed"
-    return finding
+    return f"{finding}_partial" if row.get("unbound") else finding
 
 
 async def at_finish(s: Any) -> tuple[str, bool]:
@@ -326,11 +328,16 @@ async def at_finish(s: Any) -> tuple[str, bool]:
         usage=_usage(s.provider),
     )
     _record(s, row)
-    if finding == "defect_found" and status in ("defect_found", "defect_found_unbound"):
+    if finding == "defect_found" and status.startswith("defect_found"):
         note = UNBOUND_NOTE if status.endswith("_unbound") else ""
         return DEFECT.format(evidence=evidence_text) + note, False
     if status == "void_candidate_modified":
-        files = row["clone_changes"]["modified"] + row["clone_changes"]["deleted"]
+        changed = row["clone_changes"]
+        files = [
+            f"{kind}: {path}"
+            for kind in ("modified", "deleted", "created")
+            for path in changed[kind]
+        ]
         return MODIFIED.format(
             files="\n".join(files[:MAX_LISTED]), evidence=evidence_text
         ), False
