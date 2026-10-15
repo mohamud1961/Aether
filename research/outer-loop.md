@@ -52,4 +52,4 @@ real turns of that loop. The pattern matters more than any single result.
 - **Invalid is not a failure, and not a pass.** Separating substrate failures from capability failures
   was what made turns 2 and 4 readable.
 - **The loop ends in a decision.** Every turn ended in keep, kill or rerun, recorded in the
-  notebook.
+  [notebook](../notebook/).
