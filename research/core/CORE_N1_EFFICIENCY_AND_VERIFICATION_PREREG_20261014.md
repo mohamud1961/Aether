@@ -220,3 +220,14 @@ file) with `--episodes 3` into `<run-dir>/n1/p2`, whose `results.jsonl` is first
 `e` rows. The runner skips measured cells, so it runs `e` episode 3 and the 72 `b`/`c`/`d` rows (80 rows),
 interleaved under the same host conditions. Spend guard: P2 rows stop at $5.0 token-priced (≈ £3.8, under the
 1.5× line of £4.05). Held-out list committed in `6a6519f7a`.
+
+## P2 paused (15 October, ~01:00Z)
+
+Paused by Claude after 13 new rows (P2 spend $0.21 token-priced) to redesign the finish and the verifier around
+evidence rather than verdicts (the principal's direction: false work is systemic, not a model limit). Two rows in flight
+(seq-assembly `b` e2, `c` e2) were killed and are not in the file. Completed rows stay in
+`<run-dir>/n1/p2/results.jsonl` as a record of the paused design: net-fit 12/12 pass (all six
+verifications confirmed, correctly); seq-assembly `b` e1 fail, `c` e1 fail **confirmed by the verifier** (grader:
+"reverse primer must match an annealing site downstream of the forward primer"; the verifier checked the assembly
+against its own circular reconstruction), `d` e1 **pass** (first seq-assembly pass in N1). No P2 prediction is
+scored on 13 rows. Resumption, if any, is a new amendment.
