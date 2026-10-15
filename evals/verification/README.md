@@ -21,7 +21,7 @@ A verifier that clears a wrong finish turns a failure into a pass, and the score
 3. **The bench itself needs auditing.** A parsing bug meant every earlier verifier bench read the wrong tool-result field; all were rerun.
 4. **Claims bias the judge.** Review without the agent's claims caught 15/18 wrong finishes, against 10/18 with them. The verifier is an LLM-as-judge and needs the same calibration.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

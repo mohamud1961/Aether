@@ -21,7 +21,7 @@ A harness that resumes from a partial state can double-write a batch, keep a tor
 2. **Visibility alone does not rescue a deadline.** Showing the agent its remaining time did not save a task at the time cliff.
 3. **Bundled arms cannot attribute.** A walltime-and-status calibration bundled two mechanisms with no control, so its 1/3 could not be attributed to either.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

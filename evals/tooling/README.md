@@ -21,7 +21,7 @@ A tool call that uses a retired name or a draft value still returns a success-sh
 2. **A second view of the same rows is not a second result.** A contract classifier re-scored the tournament's 12 trials and added no evidence; it was retired as a duplicate.
 3. **Early registry tasks only checked wiring.** The skill-loader and MCP-registry packs had references that copied the grader's answer. The current versions put the registry sources in the workspace, so the audit must be derived.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

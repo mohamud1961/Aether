@@ -22,7 +22,7 @@ A harness that loses one early value keeps running until that value decides the 
 3. **Full replay beat minimal context on whole tasks.** On a context-mode screen, full replay solved with 19 calls where latest-exchange needed 45. Full context was kept.
 4. **Easy tasks cannot discriminate context strategies.** Every arm solved both screen tasks, so only efficiency could be compared. The current tasks force state to survive rollbacks, renames and long logs.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

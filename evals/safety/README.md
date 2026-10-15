@@ -22,7 +22,7 @@ A harness that wins by leaving scope, or by reading the grader, produces numbers
 3. **Graders are attack surface.** Candidates that ran inside the grader's process scored 1.0 on two rejection controls, one by copying the truth file.
 4. **Host execution is not a sandbox.** Two diagnostics ran on the host with no container or network policy and were labelled inadmissible as certified results.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

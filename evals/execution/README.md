@@ -22,7 +22,7 @@ A harness that reports success from a wrapper or a summary line, or counts a lau
 3. **Substrate failures masquerade as capability failures.** A grader timeout, a rate-limit storm (456 of 482 verifier rounds errored) and a crashed launcher all produced rows that looked like agent failures.
 4. **Auditing every row finds the harness.** A 29-task development sweep scored 18/29 at best attempt; auditing all 29 rows found 11 harness defects, each fixed with a test. See [run-loop engineering](../../research/run-loop-engineering.md).
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

@@ -22,7 +22,7 @@ Multi-step work fails at the seam between steps. A handoff that keeps a stale id
 3. **Nine trials cannot resolve 2/9 against 3/9.** Small orchestration ablations stayed inconclusive; later designs started from a power calculation.
 4. **Early handoff tasks were smoke checks.** The current tasks test delegation fidelity: live constraints carried, retracted ones dropped, stale worker results rejected.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

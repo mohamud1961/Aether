@@ -21,7 +21,7 @@ Filesystem failures are silent. A patch to the nearest copy or the newest backup
 2. **A path-base change can look like a capability gain.** In a later screen the first file read failed in every control and succeeded in every treatment. The difference was the default path, not the model.
 3. **Decoys need scope checks.** Early decoy tasks checked only the target edit. The current tasks hash every other file, so an agent that also touches the decoy fails.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 

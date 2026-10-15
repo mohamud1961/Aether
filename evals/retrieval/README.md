@@ -20,7 +20,7 @@ Retrieval mistakes look like answers. A value from a lagging mirror is a plausib
 1. **The hard part is rejecting stale evidence, not finding evidence.** The sentinel built for this target required exact evidence IDs and explicit rejection of superseded values.
 2. **Lineage matters as much as design.** One retrieval task was built from a Terminal-Bench failure family and its grader read benchmark test files. It was retired and replaced by an original task.
 
-Every evaluation behind these lessons is listed in the catalogue.
+Every evaluation behind these lessons is listed in the [catalogue](../catalogue.md).
 
 ## Current tasks
 
