@@ -99,3 +99,18 @@ This matters because the same pattern (a claim tested and narrowed) is the reaso
 - **What changed:** The semantic review was not adopted; the diagnosis is the working explanation.
 - **Numbers:** 590 scoreable outcomes in 59 families; 14 of 59 families 0/5 for both models; pilot: 0 semantic wins, 1 loss, 4 ties over 5 valid pairs; 76 vs 34 provider calls.
 
+### 2026-10-01 · Token growth traced to non-observed content
+- **What happened:** A pre-held-out audit found the per-turn token growth was deterministic and mostly non-observed content.
+- **What changed:** Context growth was recorded as a blocker for the held-out evaluation.
+- **Numbers:** By turn 16, 98.8% of a 266 KB request was non-observed (3.2 KB observed); input to output ratio 42:1.
+
+### 2026-10-05 · Known-bad controls score 1.0 in the grader-validity audit
+- **What happened:** An independent audit found two known-bad controls scored 1.0, so the grader was leaking.
+- **What changed:** The wave board was stopped; the grader path was reviewed before further use.
+- **Numbers:** Two known-bad controls scored 1.0; Wave 2 board stopped at 55 of 60 cells.
+
+### 2026-10-11 · The held-out evaluation falsifies the lift claim
+- **What happened:** The pre-registered held-out comparison ran. The stock reference agent with the same model did as well or better, and the falsifier fired.
+- **What changed:** The lift claim was withdrawn; no "passed" claim was made; a rerun needs a new pre-registered campaign.
+- **Numbers:** Aether 5/9 (56%) vs stock reference agent 4/6 (67%); held-out task C 0/3 vs 0/2 at a 900 s limit; 0 invalid trials.
+
