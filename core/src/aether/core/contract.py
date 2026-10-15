@@ -140,6 +140,7 @@ _CANNOT_RUN = (
     "Syntax error",
     "can't open file",
     "command not found",
+    "aborted due to compilation errors",  # perl (Q1: a perl check's own syntax error was counted as a hold)
 )
 
 
