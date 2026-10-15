@@ -71,7 +71,11 @@ echo END"""
 
 
 def parse(text: str) -> Manifest:
-    lines = text.splitlines()
+    # Lines are split exactly where the shell ends them, on "\n" only: str.splitlines also breaks on "\r", "\x1c"-"\x1e",
+    # "\x85", "\u2028" and more, which a file name may hold, so a name could otherwise split into forged lines.
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
     if not lines or lines[-1] != "END":
         raise BindingUnavailable("the manifest listing was cut short")
     meta: dict[str, str] = {}

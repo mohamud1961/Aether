@@ -83,6 +83,10 @@ def test_names_that_could_forge_manifest_lines_make_the_binding_unavailable(tmp_
     line = "0" * 64 + "  ./colour.txt"
     with pytest.raises(B.BindingUnavailable, match="twice"):
         B.parse(f"M|regular file|644|./colour.txt\n{line}\n{line}\nEND\n")
+    # Separators Python treats as line ends but the shell does not stay inside the name: no forged entry.
+    for sep in ("\r", "\x1c", "\x85", "\u2028"):
+        name = f"./a{sep}M|regular file|644|./ghost"
+        assert set(B.parse(f"M|regular file|644|{name}\nEND\n").entries) == {name}
 
 
 def _repair_script(path, content):
