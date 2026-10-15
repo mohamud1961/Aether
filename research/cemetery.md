@@ -21,9 +21,19 @@
 | 13 | Full-board Gen 2 run | 241 tasks, two attempts each | 216 of 241 first attempts never launched; 5 of 19 valid rows passed | Check launch integrity before comparing rates.|
 | 14 | Adaptive Harness Profile as a promotion explanation (Gen 2) | A task profile generated before the solve loop | Replication 1 of 4 against 3 of 4; then no difference on the larger set | A probabilistic advantage, kept as a flagged variant only.|
 | 15 | Finish review that saw the solver's claims (Gen 3 to 4) | A reviewer shown the solver's own summary | Caught 10 of 18 wrong finishes, against 15 of 18 claim-free | The reviewer must not see the claims.|
+| 16 | Artifact verifier at threshold 0.6 (Gen 4) | Verifier reads artifacts with a lower hold threshold | Caught 25 of 28, with 68 of 208 false holds (33 percent); reverted | Catching more wrong finishes does not help if a third of correct work is held.|
 | 17 | Model-authored proof contract (Gen 3) | The architect's proof clauses certified by the compiler | The architect could omit requirements; forensic verdict NOT READY, 20 findings | Authority cannot sit with the model that wrote the plan.|
 | 18 | Architect in the production path (Gen 3) | The architect's output decided the harness configuration | Removed 19 August 2026; rubric scores of 9 to 10 out of 10 while outcomes did not improve | Separate authority, not separate personas.|
 | 19 | Architect contract variants on mixed-proof families (Gen 3) | Contract variants compared on two families | No variant qualified both families; best single variant 3 of 6 | A freeze rule that fails at screen stops the variant.|
+| 20 | Stable context deduplication (Gen 4 candidate line) | Replace repeated prompt blocks with stable references | Prompt -29 percent per call, but steps +50 percent, output tokens +172 percent | Lower input tokens can raise total cost; measure end to end.|
+| 21 | Lean solver decision contract (Gen 4 candidate line) | A smaller output schema for the solver | Schema -18.5 percent; output -42.7 percent; calls -12.5 percent; protocol incident | Keep the mandatory contract; the saving came with a protocol failure.|
+| 22 | Early native compaction at 8k tokens (Gen 4 candidate line) | Compact context at a low threshold | Total tokens +58.8 percent (profile); +105.1 percent (interactive) | Test compaction thresholds on full runs.|
+| 23 | Mandatory completion record (Gen 4 candidate line) | A model-visible completion record required at finish | Killed as a mandatory scaffold | A mandatory scaffold can become the failure.|
+| 24 | Solver commitment treatment (Gen 4) | An instruction to commit to a decision | 3 of 9 against 2 of 9 for control; input tokens 46,050 against 22,551 | Nine trials cannot separate those rates; set power first.|
+| 25 | Semantic completion review (Gen 4) | A semantic review of completion against a mechanical one | 0 semantic wins; 1 mechanical-only win; 4 ties; 76 calls against 34 | A richer review did not pay for its calls in this pilot.|
+| 26 | Remaining-time visibility for deadline tasks (Gen 4) | Show the model its remaining run time | Visibility alone did not rescue the deadline task | Visibility is needed for timing and is not sufficient.|
+| 27 | Boundary verification step (Gen 4) | A targeted verification step on one failure target | The control solved the target without the step (ceiling) | Check that the control fails the target before testing the treatment.|
+| 31 | Inert claim-free review arm (Gen 4) | A review component on long runs | Zero provider requests on one run (82 calls, 11.9 million tokens) | A component that never fires is not a control.|
 
 ## Notes
 
