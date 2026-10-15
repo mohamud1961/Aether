@@ -33,8 +33,19 @@ CHECK_TIMEOUT_S = 60
 _MISSING = re.compile(r"(?:^|[\s:])([\w.+-]+): (?:command )?not found")
 
 
+_QUOTES = str.maketrans({"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'"})
+_WRAP = "\"'` "
+
+
 def _norm(text: Any) -> str:
-    return re.sub(r"\s+", " ", str(text or "")).strip().lower()
+    """Whitespace, case and quote style aside; quote marks wrapped around an anchor are not part of it (Q1: GPT-6-Luna
+    wrote every anchor as \u201c...\u201d, and the literal match marked the task's own words ungrounded)."""
+    text = re.sub(r"\s+", " ", str(text or "").translate(_QUOTES)).strip().lower()
+    while (
+        len(text) > 1 and text[0] in _WRAP and text[-1] in _WRAP and text[0] == text[-1]
+    ):
+        text = text[1:-1].strip()
+    return text
 
 
 def pending_tool(code: int | None, output: str, task: str) -> str:

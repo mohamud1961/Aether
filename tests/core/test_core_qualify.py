@@ -107,7 +107,18 @@ def test_a_missing_tool_the_task_does_not_name_is_still_sent_back(tmp_path):
 def test_anchors_must_be_the_tasks_words_and_at_least_one_is_needed():
     assert Q.grounded(["EXACTLY  5\nletters"], TASK) == (True, [])
     assert Q.grounded([], TASK) == (False, [])
+    # quote style and wrapping quotes aside (Q1: GPT-6-Luna wrapped every anchor in curly quotes)
+    assert Q.grounded(
+        ["\u201cUse lowercase letters only.\u201d", "'out.txt'"], TASK
+    ) == (True, [])
+    assert Q.grounded(["\u201cUse UPPERCASE letters only.\u201d"], TASK)[0] is False
     assert Q.grounded(["exactly 5 letters", "23 characters"], TASK) == (
         False,
         ["23 characters"],
     )
+
+
+def test_a_check_with_its_own_perl_syntax_error_cannot_run_and_is_not_a_failure():
+    out = "syntax error at -e line 1, at EOF\nExecution of -e aborted due to compilation errors."
+    assert C._cannot_run(255, out) and not Q._failed(255, out)
+    assert Q._failed(1, "length 14 != 23")
