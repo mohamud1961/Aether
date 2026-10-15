@@ -33,6 +33,31 @@ DIGEST = re.compile(
 )  # sha256sum's line for a plain name (an escaped name starts with "\\")
 
 
+# stat's type names (GNU/busybox %F, BSD %HT) -> what a complete record holds besides type and mode.
+KINDS = {
+    "regular file": "file",
+    "regular empty file": "file",
+    "Regular File": "file",
+    "symbolic link": "link",
+    "Symbolic Link": "link",
+    **dict.fromkeys(
+        (
+            "directory",
+            "Directory",
+            "fifo",
+            "FIFO",
+            "socket",
+            "Socket",
+            "character special file",
+            "Character Device",
+            "block special file",
+            "Block Device",
+        ),
+        "other",
+    ),
+}
+
+
 class BindingUnavailable(OSError):
     """The delivered tree could not be fingerprinted; nothing about it can be bound."""
 
@@ -107,9 +132,25 @@ def parse(text: str) -> Manifest:
             put(sums, line[66:], line[:64])
         else:
             raise BindingUnavailable(f"unexpected manifest line: {line[:200]}")
-    missing = [p for p in sums if p not in meta]
-    if missing:
-        raise BindingUnavailable(f"hashed paths without metadata: {missing[:5]}")
+    # Every record must be complete for its type: a regular file without its digest (or a link without its
+    # target) would compare equal whatever its contents, so a missing line makes the binding unavailable.
+    if "." not in meta:
+        raise BindingUnavailable(
+            "the working directory itself is missing from the manifest"
+        )
+    orphans = [p for p in [*sums, *links] if p not in meta]
+    if orphans:
+        raise BindingUnavailable(f"records without metadata: {orphans[:5]}")
+    for path, kind in meta.items():
+        family = KINDS.get(kind.split("|", 1)[0])
+        if family is None:
+            raise BindingUnavailable(
+                f"unrecognised file type: {kind[:100]} {path[:200]}"
+            )
+        if (family == "file") != (path in sums) or (family == "link") != (
+            path in links
+        ):
+            raise BindingUnavailable(f"incomplete record for {family} {path[:200]}")
     entries = {}
     for path, kind in meta.items():
         parts = [kind]
