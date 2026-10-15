@@ -98,7 +98,7 @@ def _run(tmp_path, script, *, verify=False, evidence=True, timeout_s=900):
         client, model="scripted", params={}, log=CallLog(tmp_path / "calls.jsonl")
     )
 
-    async def clone(env, timeout_s=None):
+    async def clone(env, timeout_s=None, read_only=False):
         return PathClone(box)
 
     config = CoreConfig(
@@ -243,7 +243,7 @@ def test_the_verifier_is_handed_the_named_choices_and_runs_without_evidence_mode
         "evidence",
     ]
     assert "[step" not in json.dumps(client.requests[3]["messages"])
-    assert result.extras["verification"]["status"] == "no_defect_found"
+    assert result.extras["verification"]["status"] == "no_defect_found_writable"
 
 
 def test_off_by_default_the_finish_and_results_are_unchanged(tmp_path):

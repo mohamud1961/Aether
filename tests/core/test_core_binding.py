@@ -141,7 +141,7 @@ def test_a_permission_change_in_the_copy_voids_the_finding(tmp_path):
     work.mkdir(parents=True)
     (work / "run.sh").write_text("echo blue\n")
 
-    async def chmodded(env, timeout_s=None):
+    async def chmodded(env, timeout_s=None, read_only=False):
         made = PathClone(tmp_path / "box")
         os.chmod(made.root / "work" / "run.sh", 0o755)
         return made
@@ -164,7 +164,7 @@ def test_a_permission_change_in_the_copy_voids_the_finding(tmp_path):
 def test_a_finding_the_check_cannot_bind_is_marked_unbound_and_holds_nothing(
     tmp_path,
 ):
-    async def no_sha_clone(env, timeout_s=None):
+    async def no_sha_clone(env, timeout_s=None, read_only=False):
         made = PathClone(tmp_path / "box")
         inner = made.exec
 
@@ -183,7 +183,10 @@ def test_a_finding_the_check_cannot_bind_is_marked_unbound_and_holds_nothing(
     ]
     result, client, _, _ = _run(tmp_path, script, make_clone=no_sha_clone)
     row = result.extras["verification"]
-    assert row["status"] == "no_defect_found_unbound" and row["binding_unavailable"]
+    assert (
+        row["status"] == "no_defect_found_unbound_writable"
+        and row["binding_unavailable"]
+    )
     assert result.status == "finished" and not client.script
 
 
@@ -213,7 +216,7 @@ def _host(delay_s, *, honour_timeout=True, slow=("commit",)):
 
 
 def _clone_factory(host, root):
-    async def make(env, timeout_s=None):
+    async def make(env, timeout_s=None, read_only=False):
         made = await Clone.create(env, host=host, known="cid", timeout_s=timeout_s)
         return PathCloneNamed(root, made)
 

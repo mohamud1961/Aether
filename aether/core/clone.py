@@ -48,11 +48,17 @@ async def host_run(argv: list[str], timeout_s: float) -> tuple[int, str, str]:
 
 
 async def compose_clone(
-    env: Environment, project: str, *, timeout_s: float | None = None
+    env: Environment,
+    project: str,
+    *,
+    timeout_s: float | None = None,
+    read_only: bool = False,
 ) -> "Clone":
     """Clone a compose service's main container. With ``timeout_s`` the lookup and the clone share that time."""
     if timeout_s is None:
-        return await Clone.create(env, known=await compose_container(project))
+        return await Clone.create(
+            env, known=await compose_container(project), read_only=read_only
+        )
     end = time.monotonic() + timeout_s
 
     async def bounded(argv: list[str], seconds: float) -> tuple[int, str, str]:
@@ -60,7 +66,10 @@ async def compose_clone(
 
     known = await compose_container(project, host=bounded)
     return await Clone.create(
-        env, known=known, timeout_s=max(0.1, end - time.monotonic())
+        env,
+        known=known,
+        timeout_s=max(0.1, end - time.monotonic()),
+        read_only=read_only,
     )
 
 
@@ -80,6 +89,13 @@ _COMPOSE_LABELS = (
     "com.docker.compose.config-hash",
 )
 _UNLABEL = [arg for label in _COMPOSE_LABELS for arg in ("--change", f"LABEL {label}=")]
+
+# A read-only clone (verify): the committed filesystem is mounted read-only by the kernel, so nothing run in the
+# clone, as root or not, can change the delivered files (remounting needs CAP_SYS_ADMIN, which docker does not
+# grant). The scratch directories are anonymous volumes, which docker fills with the committed contents, so what
+# the work left there stays visible and writable. The volumes go with the container (``docker rm -v``).
+SCRATCH = ("/tmp", "/var/tmp")
+_READ_ONLY = ["--read-only", *(arg for path in SCRATCH for arg in ("-v", path))]
 
 
 async def compose_container(
@@ -157,7 +173,12 @@ class Clone:
     """A throwaway container started from a commit of the task container (Harbor-environment interface)."""
 
     def __init__(
-        self, name: str, image: str, host: HostRun, owns_image: bool = True
+        self,
+        name: str,
+        image: str,
+        host: HostRun,
+        owns_image: bool = True,
+        read_only: bool = False,
     ) -> None:
         self.name, self.image, self._host, self._owns_image = (
             name,
@@ -165,9 +186,10 @@ class Clone:
             host,
             owns_image,
         )
+        self.read_only = read_only
 
     @staticmethod
-    def _run_args(name: str, image: str) -> list[str]:
+    def _run_args(name: str, image: str, read_only: bool = False) -> list[str]:
         # No network: the clone must not escape the task's egress policy.
         return [
             "docker",
@@ -176,6 +198,7 @@ class Clone:
             "--rm",
             "--name",
             name,
+            *(_READ_ONLY if read_only else []),
             "--network",
             "none",
             "--security-opt",
@@ -201,8 +224,9 @@ class Clone:
         known: str | None = None,
         *,
         timeout_s: float | None = None,
+        read_only: bool = False,
     ) -> "Clone":
-        """Commit and start a clone. Cancelled midway, it lets the docker commands it started finish and removes
+        """Commit and start a clone (``read_only``: see SCRATCH). Cancelled midway, it lets the docker commands it started finish and removes
         what they made before re-raising: a docker CLI killed mid-commit can still leave the image behind."""
         clock = getattr(env, "remaining_s", None)
         budget = (
@@ -221,7 +245,7 @@ class Clone:
             return await host(argv, min(seconds, left))
 
         making = asyncio.ensure_future(
-            cls._create(env, bounded, known, cleanup_host=host)
+            cls._create(env, bounded, known, cleanup_host=host, read_only=read_only)
         )
         try:
             return await asyncio.shield(making)
@@ -244,6 +268,7 @@ class Clone:
         known: str | None,
         *,
         cleanup_host: HostRun,
+        read_only: bool = False,
     ) -> "Clone":
         cid = await identify(env, host, known)
         tag = f"aether-clone:{uuid.uuid4().hex[:12]}"
@@ -252,12 +277,15 @@ class Clone:
             code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
             if code != 0:
                 raise CloneError(f"docker commit failed: {err.strip()[:300]}")
-            code, _, err = await host(cls._run_args(name, tag), 180)
+            code, _, err = await host(cls._run_args(name, tag, read_only), 180)
             if code != 0:
                 raise CloneError(f"docker run of the clone failed: {err.strip()[:300]}")
-            return cls(name, tag, cleanup_host)
+            return cls(name, tag, cleanup_host, read_only=read_only)
         except BaseException as exc:
-            for argv in (["docker", "rm", "-f", name], ["docker", "rmi", "-f", tag]):
+            for argv in (
+                ["docker", "rm", "-f", "-v", name],
+                ["docker", "rmi", "-f", tag],
+            ):
                 try:
                     code, _, err = await cleanup_host(argv, 10)
                     if code and "no such" not in err.lower():
@@ -304,16 +332,20 @@ class Clone:
     async def sibling(self) -> "Clone":
         """Another throwaway container from the same commit (the image stays owned by this clone)."""
         name = f"{self.name}-{uuid.uuid4().hex[:6]}"
-        code, _, err = await self._host(self._run_args(name, self.image), 180)
+        code, _, err = await self._host(
+            self._run_args(name, self.image, self.read_only), 180
+        )
         if code != 0:
             raise CloneError(
                 f"docker run of a sibling clone failed: {err.strip()[:300]}"
             )
-        return Clone(name, self.image, self._host, owns_image=False)
+        return Clone(
+            name, self.image, self._host, owns_image=False, read_only=self.read_only
+        )
 
     async def close(self) -> None:
         failures = []
-        commands = [["docker", "rm", "-f", self.name]]
+        commands = [["docker", "rm", "-f", "-v", self.name]]
         if self._owns_image:
             commands.append(["docker", "rmi", "-f", self.image])
         for command in commands:

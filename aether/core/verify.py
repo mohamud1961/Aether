@@ -27,6 +27,16 @@ points), as ``<finding>_partial``. A defect it found still goes back to the solv
 the working directory is bound, and a change made and reverted before the closing manifest is not seen: the
 binding compares states, it does not watch the review.
 
+Boundary (Codex D5 reconciliation: a verifier wrote a repair, checked it, restored the original and confirmed,
+and equal manifests at both ends hid it): the clone is requested read-only (clone.SCRATCH: the kernel holds the
+committed filesystem read-only; /tmp and /var/tmp are writable volumes holding what the work left there), and
+boundary.probe observes in the clone whether the working directory is actually held. Only then does the brief say
+so; a clone where it is not held (a factory without the option, a working directory under scratch) gives a finding
+labelled ``_writable``, an advisory review. The read-only boundary stops changes to the delivered files; it does
+not make the review truthful: a check can still copy a file to scratch, repair the copy and report on the original.
+boundary.scratch_copies records scratch files that share a delivered file's name (``same`` or ``diverging``), by
+name only, as evidence for audit; it decides nothing.
+
 Time (same reviews: clone set-up could take the solver's remainder, and a cancelled clone creation is shielded and
 waited for): one absolute end, VERIFY_SHARE of what is left and at most VERIFY_MAX_S, holds listing, manifests,
 clone, review and clean-up; the rest stays the solver's. The clone factory receives the work time that is left
@@ -46,7 +56,8 @@ import shlex
 import time
 from typing import Any
 
-from . import binding, evidence, receipt
+from . import binding, boundary, evidence, receipt
+from .clone import SCRATCH
 from .env import exit_code
 from .loop import VERIFIER_ROLE, CoreConfig, Trace, run_agent
 from .oversight import ReviewPlan
@@ -65,6 +76,12 @@ Do not open them until you have written down what a correct result must contain.
 
 The task:
 {task}"""
+# Shown only when the probe found the boundary held (boundary.probe), so the brief never claims one that is not.
+READ_ONLY_NOTE = """
+
+In this copy everything outside {scratch} is read-only: the files above cannot be changed. Build and run anything \
+that writes under /tmp."""
+STARTED = ".check-started"  # in the verifier's own control directory: scratch files newer than it are the check's
 MAX_LISTED = 60
 # With evidence on (see evidence): the choices the work made, without its reasons. N1 smoke v2: a verifier left to
 # find the open choices itself settled the address base the same way the solver had and confirmed.
@@ -198,13 +215,29 @@ async def _review(
     if before is not None:
         row.update(bound_entries=len(before.entries), unbound=before.unbound)
     held["clone"] = clone = await s.clone(
-        s.env, timeout_s=max(1.0, work_end - time.monotonic())
+        s.env, timeout_s=max(1.0, work_end - time.monotonic()), read_only=True
     )
     row["clone_ready_s"] = round(time.monotonic() - held["started"], 1)
     await _forget_the_solver(clone, s.config)
+    probed = await boundary.probe(clone, s.workdir, timeout_s=min(60.0, manifest_s))
+    row["boundary"] = probed.pop("boundary")
+    row["boundary_detail"] = probed
+    marker = f"{verifier_config(s.config).control_dir}/{STARTED}"
+    marked = await clone.exec(
+        command=f"mkdir -p {shlex.quote(posixpath.dirname(marker))} && : > {shlex.quote(marker)}",
+        cwd=None,
+        env=None,
+        timeout_sec=60,
+    )
+    note = (
+        READ_ONLY_NOTE.format(scratch=" and ".join(SCRATCH))
+        if row["boundary"] == "read_only"
+        else ""
+    )
     held["result"] = await run_agent(
         env=clone,
         task=BRIEF.format(task=s.task, workdir=s.workdir, files=_listing(produced))
+        + note
         + _questions(s),
         workdir=s.workdir,
         provider=_Labelled(s.provider, VERIFIER_ROLE),
@@ -214,6 +247,10 @@ async def _review(
     )
     if before is None:
         return
+    if exit_code(marked) == 0:
+        row["scratch_copies"] = await boundary.scratch_copies(
+            clone, before, SCRATCH, marker, timeout_s=min(60.0, manifest_s)
+        )
     after = await _manifest(clone, s, row, work_end)
     now = await _manifest(s.env, s, row, work_end)
     if after is not None and now is not None:
@@ -258,14 +295,15 @@ def _status(row: dict[str, Any], finding: str | None) -> str:
         "reason" in row or not finding
     ):  # a finding cut short by the deadline or a failure has no standing
         return "error" if "reason" in row else "no_finding"
+    writable = "_writable" if row.get("boundary") != "read_only" else ""
     if row.get("binding_unavailable") or "clone_changes" not in row:
-        return f"{finding}_unbound"
+        return f"{finding}_unbound{writable}"
     changes = row["clone_changes"]
     if changes["modified"] or changes["deleted"] or changes["created"]:
         return "void_candidate_modified"
     if row.get("original_changed"):
         return "stale_original_changed"
-    return f"{finding}_partial" if row.get("unbound") else finding
+    return finding + ("_partial" if row.get("unbound") else "") + writable
 
 
 async def at_finish(s: Any) -> tuple[str, bool]:

@@ -80,7 +80,7 @@ def _run(tmp_path, script, *, timeout_s=900, make_clone=None):
         client, model="scripted", params={}, log=CallLog(tmp_path / "calls.jsonl")
     )
 
-    async def clone(env, timeout_s=None):
+    async def clone(env, timeout_s=None, read_only=False):
         return PathClone(box)
 
     config = CoreConfig(
@@ -167,7 +167,7 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
 
     row = result.extras["verification"]
     assert (
-        row["status"] == "defect_found"
+        row["status"] == "defect_found_writable"
         and row["steps"] == 2
         and row["usage"]["input"] == 20
     )
@@ -194,7 +194,7 @@ def test_a_confirmation_ends_the_work_at_the_first_finish(tmp_path):
     ]
     result, client, _, _ = _run(tmp_path, script)
     assert result.status == "finished" and not client.script
-    assert result.extras["verification"]["status"] == "no_defect_found"
+    assert result.extras["verification"]["status"] == "no_defect_found_writable"
     assert result.extras["finish_args"] == {"summary": "done"}
 
 
@@ -206,7 +206,7 @@ def test_a_verdict_outside_its_choices_is_refused_like_any_invalid_call(tmp_path
     ]
     result, client, _, _ = _run(tmp_path, script)
     assert "expected one of" in json.dumps(client.requests[2]["messages"][-1])
-    assert result.extras["verification"]["status"] == "no_defect_found"
+    assert result.extras["verification"]["status"] == "no_defect_found_writable"
 
 
 def test_no_check_when_too_little_time_is_left_to_act_on_one(tmp_path):
@@ -217,7 +217,7 @@ def test_no_check_when_too_little_time_is_left_to_act_on_one(tmp_path):
 
 
 def test_a_failed_clone_never_holds_the_finish(tmp_path):
-    async def broken(env, timeout_s=None):
+    async def broken(env, timeout_s=None, read_only=False):
         raise OSError("docker commit failed")
 
     script = [_turn("finish", {"summary": "done"}, "s1")]
@@ -331,7 +331,7 @@ def test_scratch_output_outside_the_working_directory_does_not_void(tmp_path):
         result, client, _, _ = _run(tmp_path, script)
     finally:
         Path(scratch).unlink(missing_ok=True)
-    assert result.extras["verification"]["status"] == "no_defect_found"
+    assert result.extras["verification"]["status"] == "no_defect_found_writable"
     assert result.status == "finished" and not client.script
 
 
@@ -344,11 +344,13 @@ def test_a_tree_with_unbound_parts_gives_a_partial_finding(tmp_path):
     ]
     result, _, _, _ = _run(tmp_path, script)
     row = result.extras["verification"]
-    assert row["status"] == "no_defect_found_partial" and row["unbound"] == ["./.git"]
+    assert row["status"] == "no_defect_found_partial_writable" and row["unbound"] == [
+        "./.git"
+    ]
 
 
 def test_a_finding_is_stale_when_the_original_changed_during_the_check(tmp_path):
-    async def clone_then_background_write(env, timeout_s=None):
+    async def clone_then_background_write(env, timeout_s=None, read_only=False):
         made = PathClone(tmp_path / "box")
         (tmp_path / "box" / "work" / "colour.txt").write_text("green\n")
         return made
@@ -371,7 +373,7 @@ def test_undetermined_holds_nothing(tmp_path):
         _turn("finish", {"verdict": "undetermined", "evidence": "no network"}, "v1"),
     ]
     result, client, _, _ = _run(tmp_path, script)
-    assert result.extras["verification"]["status"] == "undetermined"
+    assert result.extras["verification"]["status"] == "undetermined_writable"
     assert result.status == "finished" and len(client.requests) == 3
 
 
@@ -379,7 +381,7 @@ def test_a_slow_clone_cannot_take_the_solvers_time(tmp_path, monkeypatch):
     """52283b6cc: clone set-up ran outside the check's budget and the run timed out with the finish lost."""
     monkeypatch.setattr(V, "VERIFY_MAX_S", 0.5)
 
-    async def slow(env, timeout_s=None):
+    async def slow(env, timeout_s=None, read_only=False):
         await asyncio.sleep(3)
         return PathClone(tmp_path / "box")
 
@@ -397,7 +399,7 @@ def test_a_slow_clone_cannot_take_the_solvers_time(tmp_path, monkeypatch):
 def test_a_cancelled_check_is_recorded(tmp_path):
     import pytest
 
-    async def cancelled(env, timeout_s=None):
+    async def cancelled(env, timeout_s=None, read_only=False):
         raise asyncio.CancelledError()
 
     script = [_turn("finish", {"summary": "done"}, "s1")]

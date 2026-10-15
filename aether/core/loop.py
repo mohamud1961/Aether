@@ -175,9 +175,14 @@ class _Session:
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
 
-    def clone(self, env: Environment, timeout_s: float | None = None) -> Awaitable[Any]:
-        """A clone factory takes the time it may use (None: the run's remaining time)."""
-        return (self.config.make_clone or Clone.create)(env, timeout_s=timeout_s)
+    def clone(
+        self, env: Environment, timeout_s: float | None = None, read_only: bool = False
+    ) -> Awaitable[Any]:
+        """A clone factory takes the time it may use (None: the run's remaining time) and whether the clone's
+        filesystem must be read-only outside its scratch directories (clone.SCRATCH)."""
+        return (self.config.make_clone or Clone.create)(
+            env, timeout_s=timeout_s, read_only=read_only
+        )
 
     def remaining(self) -> float:
         return self.deadline - time.monotonic()

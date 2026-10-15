@@ -239,8 +239,10 @@ def harbor_clone(environment: Any):
 
     project = _sanitize_docker_compose_project_name(environment.session_id)
 
-    async def make(env: Any, timeout_s: float | None = None) -> Clone:
-        return await compose_clone(env, project, timeout_s=timeout_s)
+    async def make(env: Any, timeout_s: float | None = None, read_only=False) -> Clone:
+        return await compose_clone(
+            env, project, timeout_s=timeout_s, read_only=read_only
+        )
 
     return make
 
