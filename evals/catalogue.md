@@ -1,7 +1,7 @@
 # Eval catalogue
 
 Every evaluation built in the programme, November 2025 to October 2026, one line each. Detail lives on the
-target pages and [method pages](methods/). Grades: **A** kept as a validated instrument; **B** design kept and
+[target pages](README.md) and [method pages](methods/). Grades: **A** kept as a validated instrument; **B** design kept and
 improved into the current tasks; **C** historical record (its lesson is on a target or method page); **D** retired
 (duplicate, broken or lineage hold). Terminal-Bench runs are summarised without task names; held-out evaluations appear
 as aggregates only.
