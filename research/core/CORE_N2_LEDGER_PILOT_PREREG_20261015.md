@@ -41,3 +41,14 @@ A null or negative result is recorded as such; n = 15 per arm supports a pilot r
 GPT-6-Luna token prices ($0.10 in / $0.01 cached / $0.50 out per 1M). N1 rows on these tasks cost $0.006–0.09; estimate
 ≈ $1–2 for 30 rows. **Kill rule:** stop if recorded model spend passes $3.0 (recorded spend is a lower bound;
 the remaining £10 budget, ≈ £8.9 at most, is an upper bound). VM: ≈ 2–3 h on the run VM (VM time authorized without limit tonight), deallocated after.
+
+## Smoke (before launch; not part of the pilot)
+
+One arm-`g` row on repair-history (not an N2 task; wiring check only), 15 Oct 04:0x UTC: finished in 16 steps, reward
+0.0 (`test_about_file`: `_includes/about.md` hash mismatch), $0.0051. The ledger worked as built: 2 items, both
+quoting the task exactly and marked met, nothing uncovered, no hold. The miss is a merge judgement: the task says
+only "find them and merge them into master"; the solver resolved the `about.md` conflict by writing new text
+(and changed a link) instead of keeping the recovered commit's version, which the grader's hash expects. The task
+states no conflict rule, so the ledger had no sentence to bind; whether its prompt text nudged the choice cannot be
+told from one row (an arm-`e` smoke on repair-history passed earlier). Recorded as a possible harm signal to watch, not a
+blocker; repair-history is outside N2's tasks. Launched 04:14:50 UTC at ef69daf9e.
