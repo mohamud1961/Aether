@@ -67,7 +67,8 @@ it against the task and the inputs.
 - A check is evidence only if its outcome would differ were the result wrong. Agreement between the produced \
 result and your own reconstruction shows nothing about a choice both share (a convention, base, method or source); \
 for such a choice, find what in the task or its inputs decides it.
-- Leave the delivered files and the task's inputs as they are: build and keep scratch output under /tmp. A check made \
+- Leave the working directory as it is (do not change, delete or add files there): build and keep scratch output \
+under /tmp. A check made \
 on a changed copy says nothing about the delivered state; if you believe a change would fix it, describe the change.
 - Finding: defect_found only for a defect you have shown, with the observation that shows it and the correct result \
 if you know it. no_defect_found when you checked the requirements and found none, saying what you covered. \

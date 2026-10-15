@@ -300,17 +300,51 @@ def test_a_verifier_that_repairs_its_copy_cannot_certify_the_original(tmp_path):
     )
 
 
-def test_new_scratch_files_in_the_copy_do_not_void_the_finding(tmp_path):
+def test_a_file_created_in_the_copys_working_directory_voids_the_finding(tmp_path):
+    """A created file can be the missing deliverable itself (Codex's omitted-requirement case)."""
     script = [
         _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
         _turn("finish", {"summary": "done"}, "s2"),
-        _turn("write_file", {"path": "check.log", "content": "ok\n"}, "v1"),
+        _turn("write_file", {"path": "second.txt", "content": "green\n"}, "v1"),
+        _turn(
+            "finish", {"verdict": "no_defect_found", "evidence": "both present"}, "v2"
+        ),
+        _turn("finish", {"summary": "kept"}, "s3"),
+    ]
+    result, client, _, box = _run(tmp_path, script)
+    row = result.extras["verification"]
+    assert row["status"] == "void_candidate_modified"
+    assert row["clone_changes"]["created"] == ["./second.txt"]
+    assert "created: ./second.txt" in json.dumps(client.requests[4]["messages"][-1])
+    assert not (box / "work" / "second.txt").exists()
+
+
+def test_scratch_output_outside_the_working_directory_does_not_void(tmp_path):
+    scratch = f"/tmp/aether-scratch-{uuid.uuid4().hex[:8]}.log"
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn("write_file", {"path": scratch, "content": "ok\n"}, "v1"),
         _turn("finish", {"verdict": "no_defect_found", "evidence": "blue"}, "v2"),
     ]
-    result, client, _, _ = _run(tmp_path, script)
-    row = result.extras["verification"]
-    assert row["status"] == "no_defect_found" and row["clone_changes"]["created"]
+    try:
+        result, client, _, _ = _run(tmp_path, script)
+    finally:
+        Path(scratch).unlink(missing_ok=True)
+    assert result.extras["verification"]["status"] == "no_defect_found"
     assert result.status == "finished" and not client.script
+
+
+def test_a_tree_with_unbound_parts_gives_a_partial_finding(tmp_path):
+    (tmp_path / "box" / "work" / ".git").mkdir(parents=True)
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn("finish", {"verdict": "no_defect_found", "evidence": "blue"}, "v1"),
+    ]
+    result, _, _, _ = _run(tmp_path, script)
+    row = result.extras["verification"]
+    assert row["status"] == "no_defect_found_partial" and row["unbound"] == ["./.git"]
 
 
 def test_a_finding_is_stale_when_the_original_changed_during_the_check(tmp_path):

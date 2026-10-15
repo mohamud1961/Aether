@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import time
 
 import pytest
@@ -63,6 +64,25 @@ def test_the_manifest_binds_large_files_modes_and_links_and_names_what_it_leaves
         "deleted": [],
         "created": ["./scratch.log"],
     }
+
+
+def test_names_that_could_forge_manifest_lines_make_the_binding_unavailable(tmp_path):
+    w = tmp_path / "w"
+    w.mkdir()
+    (w / "colour.txt").write_text("red\n")
+    # a directory named "x<newline><digest>  ." holding colour.txt prints a second line "<digest>  ./colour.txt"
+    forged = w / ("x\n" + "0" * 64 + "  .")
+    forged.mkdir()
+    (forged / "colour.txt").write_text("")
+    with pytest.raises(B.BindingUnavailable, match="newline"):
+        asyncio.run(B.manifest(LocalEnv(w), str(w)))
+    shutil.rmtree(forged)
+    os.symlink("a|b", w / "piped")
+    with pytest.raises(B.BindingUnavailable, match="link"):
+        asyncio.run(B.manifest(LocalEnv(w), str(w)))
+    line = "0" * 64 + "  ./colour.txt"
+    with pytest.raises(B.BindingUnavailable, match="twice"):
+        B.parse(f"M|regular file|644|./colour.txt\n{line}\n{line}\nEND\n")
 
 
 def _repair_script(path, content):

@@ -11,12 +11,16 @@ presented as a fingerprint of the delivered tree (Codex re-review of e23ae2ca3: 
 turned a missing sha256sum or working directory into an empty, "unchanged" fingerprint, and a 21 MiB deliverable
 outside the size filter was repaired in the clone and certified).
 
+A name or link target containing a newline (or a link target containing "|") would let a line be forged, so the
+script refuses it and the parser refuses any path listed twice: nothing is bound then.
+
 Uses POSIX sh, find, sha256sum, readlink and GNU/busybox ``stat -c`` (BSD ``stat -f`` where ``-c`` is missing).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 import shlex
 from typing import Any
 
@@ -24,6 +28,9 @@ from . import receipt
 from .env import exit_code
 
 TIMEOUT_S = 300
+DIGEST = re.compile(
+    r"[0-9a-f]{64}  \./"
+)  # sha256sum's line for a plain name (an escaped name starts with "\\")
 
 
 class BindingUnavailable(OSError):
@@ -46,11 +53,15 @@ def _script(workdir: str) -> str:
     walk = f"find . -xdev \\( {prune} \\) -prune"
     return f"""cd -- {w} || {{ echo "working directory unavailable: {workdir}" >&2; exit 3; }}
 command -v sha256sum >/dev/null 2>&1 || {{ echo "sha256sum unavailable" >&2; exit 4; }}
+nl=$(printf '\\nx'); nl=${{nl%x}}
+if [ -n "$({walk} -o -name "*$nl*" -print 2>/dev/null | head -n 1)" ]; then
+  echo "a path contains a newline; the manifest cannot be read unambiguously" >&2; exit 9
+fi
 if stat -c %a . >/dev/null 2>&1; then S='-c'; F='M|%F|%a|%n'; else S='-f'; F='M|%HT|%Lp|%N'; fi
 {walk} -exec printf 'U|%s\\n' {{}} + || exit 5
 {walk} -o -exec stat "$S" "$F" {{}} + || exit 6
-{walk} -o -type l -exec sh -c 'for p; do t=$(readlink "$p") || exit 1; printf "L|%s|%s\\n" "$t" "$p"; done' sh {{}} + \
-  || exit 7
+{walk} -o -type l -exec sh -c 'for p; do t=$(readlink "$p") || exit 1; case "$t" in *"|"*|*"$0"*) exit 1;; esac
+  printf "L|%s|%s\\n" "$t" "$p"; done' "$nl" {{}} + || {{ echo "a link could not be read, or its target has | or a newline" >&2; exit 7; }}
 {walk} -o -type f -exec sha256sum {{}} + || exit 8
 if [ -r /proc/mounts ]; then
   here=$(pwd -P)
@@ -67,19 +78,30 @@ def parse(text: str) -> Manifest:
     links: dict[str, str] = {}
     sums: dict[str, str] = {}
     unbound: list[str] = []
+
+    def put(table: dict[str, str], path: str, value: str) -> None:
+        # Paths cannot repeat in a real listing; a repeat means injected lines (a name holding a newline that got
+        # past the script's guard), so nothing is bound.
+        if path in table:
+            raise BindingUnavailable(
+                f"a path appears twice in the manifest: {path[:200]}"
+            )
+        table[path] = value
+
     for line in lines[:-1]:
         if line.startswith("U|"):
             unbound.append(line[2:])
         elif line.startswith("M|"):
             kind, mode, path = line[2:].split("|", 2)
-            meta[path] = f"{kind}|{mode}"
+            put(meta, path, f"{kind}|{mode}")
         elif line.startswith("L|"):
-            target, path = line[2:].rsplit("|", 1)
-            links[path] = target
-        elif "  " in line:
-            digest, path = line.split("  ", 1)
-            sums[path] = digest
-        elif line:
+            target, path = line[2:].split(
+                "|", 1
+            )  # the script refuses a target containing "|"
+            put(links, path, target)
+        elif DIGEST.match(line):
+            put(sums, line[66:], line[:64])
+        else:
             raise BindingUnavailable(f"unexpected manifest line: {line[:200]}")
     missing = [p for p in sums if p not in meta]
     if missing:
