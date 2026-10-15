@@ -20,6 +20,10 @@
 | 12 | Five-homolog gate (Gen 2) | Five local tasks as a gate for the runtime | 5 of 5 on one run; verifier not clean on any scoreable row on the next | One green run is not a gate.|
 | 13 | Full-board Gen 2 run | 241 tasks, two attempts each | 216 of 241 first attempts never launched; 5 of 19 valid rows passed | Check launch integrity before comparing rates.|
 | 14 | Adaptive Harness Profile as a promotion explanation (Gen 2) | A task profile generated before the solve loop | Replication 1 of 4 against 3 of 4; then no difference on the larger set | A probabilistic advantage, kept as a flagged variant only.|
+| 15 | Finish review that saw the solver's claims (Gen 3 to 4) | A reviewer shown the solver's own summary | Caught 10 of 18 wrong finishes, against 15 of 18 claim-free | The reviewer must not see the claims.|
+| 17 | Model-authored proof contract (Gen 3) | The architect's proof clauses certified by the compiler | The architect could omit requirements; forensic verdict NOT READY, 20 findings | Authority cannot sit with the model that wrote the plan.|
+| 18 | Architect in the production path (Gen 3) | The architect's output decided the harness configuration | Removed 19 August 2026; rubric scores of 9 to 10 out of 10 while outcomes did not improve | Separate authority, not separate personas.|
+| 19 | Architect contract variants on mixed-proof families (Gen 3) | Contract variants compared on two families | No variant qualified both families; best single variant 3 of 6 | A freeze rule that fails at screen stops the variant.|
 
 ## Notes
 
