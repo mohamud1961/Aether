@@ -74,6 +74,7 @@ class CoreConfig:
     ledger: bool = (
         False  # a requirement ledger quoting the task, kept while working (see ledger)
     )
+    readback: bool = False  # read delivered files back by the task's own definitions (tools.READBACK_DOC)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -278,6 +279,7 @@ async def run_agent(
                         turn="tool" if config.turn == "json" else config.turn,
                         self_check=config.self_check,
                         verifier=config.role == VERIFIER_ROLE,
+                        readback=config.readback,
                     )
                     + (evidence.EVIDENCE_DOC if config.evidence else "")
                     + (ledger.LEDGER_DOC if config.ledger else "")
