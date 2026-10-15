@@ -141,6 +141,7 @@ def verifier_config(config: CoreConfig) -> CoreConfig:
         contract=False,
         receipt=False,
         evidence=False,
+        ledger=False,
         control_dir=root,
         clm=dataclasses.replace(
             config.clm,

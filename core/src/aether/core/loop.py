@@ -30,7 +30,7 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import TURN_MODES, system_prompt, tools, validate_call
-from . import contract as acceptance, contract_loop, evidence
+from . import contract as acceptance, contract_loop, evidence, ledger
 from .clone import Clone
 
 MAX_OUTPUT_TOKENS = 32_768
@@ -71,6 +71,9 @@ class CoreConfig:
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
     evidence: bool = False  # claims cite steps, open choices are named; the first finish is audited (see evidence)
+    ledger: bool = (
+        False  # a requirement ledger quoting the task, kept while working (see ledger)
+    )
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -171,6 +174,9 @@ class _Session:
         self.receipt_shown = False
         # what the runtime knows of each step (see evidence)
         self.step_tools: dict[int, evidence.Step] = {}
+        self.ledger: list[
+            dict[str, Any]
+        ] = []  # the requirements tool's items (see ledger)
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
@@ -191,7 +197,11 @@ class _Session:
         return time.monotonic() - self.started
 
     def clock(self) -> str:
-        step = f"step {self.result.steps}; " if self.config.evidence else ""
+        step = (
+            f"step {self.result.steps}; "
+            if self.config.evidence or self.config.ledger
+            else ""
+        )
         return f"[{step}t={self.elapsed():.0f}s of {self.timeout_s:.0f}s]"
 
     @property
@@ -254,6 +264,8 @@ async def run_agent(
             )
             if config.evidence:
                 s.tools[-1] = evidence.EVIDENCE_FINISH
+            if config.ledger:
+                s.tools.insert(len(s.tools) - 1, ledger.LEDGER_TOOL)
             pinned = [
                 {
                     "role": "system",
@@ -268,6 +280,7 @@ async def run_agent(
                         verifier=config.role == VERIFIER_ROLE,
                     )
                     + (evidence.EVIDENCE_DOC if config.evidence else "")
+                    + (ledger.LEDGER_DOC if config.ledger else "")
                     + (textturn.reply_doc(s.tools) if config.turn == "json" else ""),
                 },
                 {
@@ -580,6 +593,8 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         ), False
     if name == "finish":
         return await _finish(s, args)
+    if name == "requirements" and s.config.ledger:
+        return ledger.use(s, args), False
     if name == "run_checks" and s.config.contract:
         return await contract_loop.run_checks(s), False
     if name == "terminal":
@@ -747,6 +762,10 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
     if s.config.evidence:
         held = evidence.at_finish(s, args)
+        if held:
+            return held
+    if s.config.ledger:
+        held = ledger.at_finish(s)
         if held:
             return held
     if s.config.verify and "verification" not in s.result.extras:
