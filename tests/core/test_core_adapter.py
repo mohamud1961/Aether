@@ -281,25 +281,28 @@ def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
         adapter.SELF_CHECK_ENV,
         adapter.EVIDENCE_ENV,
         adapter.LEDGER_ENV,
+        adapter.READBACK_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence, config.ledger) == (
+    assert (config.verify, config.self_check, config.evidence, config.ledger, config.readback) == (
         False,
-    ) * 4
+    ) * 5
     monkeypatch.setenv(adapter.VERIFY_ENV, "once")
     monkeypatch.setenv(adapter.SELF_CHECK_ENV, "on")
     monkeypatch.setenv(adapter.EVIDENCE_ENV, "on")
     monkeypatch.setenv(adapter.LEDGER_ENV, "on")
+    monkeypatch.setenv(adapter.READBACK_ENV, "on")
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence, config.ledger) == (
+    assert (config.verify, config.self_check, config.evidence, config.ledger, config.readback) == (
         True,
-    ) * 4
+    ) * 5
     for name, bad in (
         (adapter.VERIFY_ENV, "twice"),
         (adapter.SELF_CHECK_ENV, "yes"),
         (adapter.EVIDENCE_ENV, "yes"),
         (adapter.LEDGER_ENV, "yes"),
+        (adapter.READBACK_ENV, "yes"),
     ):
         monkeypatch.setenv(name, bad)
         with pytest.raises(adapter.ConfigError):
@@ -326,7 +329,7 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     provider = ChatProvider(
         ScriptedClient([]), model="m", params={}, log=CallLog(tmp_path / "c")
     )
-    config = CoreConfig(verify=True, self_check=True, evidence=True)
+    config = CoreConfig(verify=True, self_check=True, evidence=True, readback=True)
     adapter._write_record(
         tmp_path,
         None,
@@ -338,4 +341,13 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     )
     record = json.loads((tmp_path / "aether_run_record.json").read_text())
     assert record["config"]["verify"] is True and record["config"]["self_check"] is True
-    assert record["config"]["evidence"] is True
+    assert record["config"]["evidence"] is True and record["config"]["readback"] is True
+
+
+def test_the_read_back_paragraph_is_in_the_solver_prompt_only_when_on():
+    from aether.core.tools import READBACK_DOC, system_prompt
+
+    off = system_prompt(python_version="3.12", clm=True)
+    on = system_prompt(python_version="3.12", clm=True, readback=True)
+    assert READBACK_DOC not in off and READBACK_DOC in on
+    assert on.replace(READBACK_DOC, "") == off  # the baseline prompt is otherwise unchanged

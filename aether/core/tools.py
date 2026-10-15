@@ -283,6 +283,19 @@ Do not repeat checks that already passed; then finish."""
 )
 
 
+# Read-back of delivered files (P1 step 3). In the P1 probes GLM found its reversed CSV rows when asked to read the
+# file by the task's own definition (18/21) but not when asked to check generically (4/21); its self-checks had
+# compared the file with the variable that wrote it, which cannot fail.
+READBACK_DOC = """
+Each file the task asks you to deliver: after writing it, read it back from disk and interpret it exactly as the \
+task defines it, not as the code that wrote it intended. For each column, field, unit, ordering or segment, quote \
+the task's words that define it and say what the file actually holds under that definition; compare that with your \
+result and with any source the task names. A comparison of the file with the variable or code that produced it \
+cannot fail, so it does not count. Where the task's own words specify a format, a source or a procedure exactly, \
+follow them over library, domain or example conventions; depart only if following them is impossible, and say so. \
+Fix any mismatch before you finish."""
+
+
 # Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
 # (with tool_choice "auto"; a forced tool call suppressed the writing in the S2 replay); "json" replaces native
 # tool calls with one written JSON object per reply (see textturn).
@@ -304,6 +317,7 @@ def system_prompt(
     turn: str = "tool",
     self_check: bool = False,
     verifier: bool = False,
+    readback: bool = False,
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
@@ -317,6 +331,7 @@ def system_prompt(
             context=context if clm else "",
         )
         + (SELF_CHECK_DOC if self_check else "")
+        + (READBACK_DOC if readback else "")
         + (ANALYSIS_DOC if turn == "analysis" else "")
     )
 

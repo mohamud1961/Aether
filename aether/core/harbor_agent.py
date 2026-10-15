@@ -68,13 +68,11 @@ CALLS_ENV = "AETHER_CORE_CALLS"
 REASONING_ENV = "AETHER_CORE_REASONING"
 CALLS_MODES = ("one", "many")
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
-# context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
+# context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC);
+# AETHER_CORE_READBACK=on the read-back paragraph (tools.READBACK_DOC). All on/off; see evidence and ledger.
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
-SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = (
-    "AETHER_CORE_SELF_CHECK",
-    "AETHER_CORE_EVIDENCE",
-    "AETHER_CORE_LEDGER",
-)  # on/off; see evidence and ledger
+SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE", "AETHER_CORE_LEDGER"
+READBACK_ENV = "AETHER_CORE_READBACK"
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -191,6 +189,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
         ledger=_choice(environ, LEDGER_ENV, REPL_MODES, "off") == "on",
+        readback=_choice(environ, READBACK_ENV, REPL_MODES, "off") == "on",
     )
 
 
@@ -441,6 +440,7 @@ def _write_record(
             "receipt": config.receipt,
             "verify": config.verify,
             "self_check": config.self_check,
+            "readback": config.readback,
             "evidence": config.evidence,
             "model": provider.model,
             "params": provider.params,
