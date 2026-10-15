@@ -311,9 +311,25 @@ source, tasks, retries and a sealed total.
 The principal cancelled A3 because it ran the pre-fix code (`52283b6cc`). At the kill every A3 cell had already ended: 5
 graded 0 of 5 (binary-extract `f`, `fv`; seq-assembly `f`, `fv`; construct-assembly `fv`) and construct-assembly `f` was
 infra-invalid (no reward file) with its retry queued; the kill cancelled that retry before it started (no attempt-2
-directory; no calls). A3 token-priced spend: $0.227. No A3 prediction is scored: the mechanism it measured has been
-replaced, and the rows stay in `<run-dir>/n1/a3/results.jsonl` as a record of the old design. Work
+directory; no calls). A3 token-priced spend: $0.227. Work
 waits for the Codex review of `e23ae2ca3`.
+
+**A3 disposition (corrected 15 October after Codex's D5 reconciliation).** An earlier version of this section said no
+A3 prediction is scored because the mechanism was replaced; replacement does not void evidence. Scored against the
+original predictions, on `52283b6cc`, from the raw rows:
+- **N1-A3a: met.** All 5 finished rows record at least one evidence audit; 3 of 6 had the audit shown (both
+  binary-extract rows, construct-assembly `fv`).
+- **N1-A3b: met.** Both binary-extract rows name the 0x400000 load bias in `decisions`; both seq-assembly rows name `oligotm` in
+  `claims`.
+- **N1-A3c: failed.** 0 passes among the 5 graded rows; 1 row (construct-assembly `f`, provider error, no reward
+  file) is infra-invalid and its retry was cancelled, so the 6-row prediction is incomplete as well as unmet on what
+  was observed.
+Observed alongside (not predicted): the verifier confirmed binary-extract `fv`, which the grader failed (0% of
+expected values: a false confirmation); seq-assembly `f` claimed every primer pair within the Tm limit, and the
+grader measured a 5.87 °C pair difference (a false claim). Every attempt is kept. Local custody (copied from
+the run VM, sha256 in `SHA256SUMS`): `audit_output/aether_worldclass_20261015/vm_custody_n1/n1_a3_p2_linuxqual.tgz`,
+holding A3 and P2 `results.jsonl` / `cancelled.jsonl`, run logs and scripts, spend files, trial archives, and the
+Linux gate log for `03b25070b` (234 + 143 passed, no skips, no leftover clone containers or images).
 
 ## Amendment 5 (15 October): Codex re-review of e23ae2ca3: binding and deadline repaired again
 
