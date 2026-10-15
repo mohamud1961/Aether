@@ -44,7 +44,10 @@ def test_read_only_needs_both_a_read_only_mount_and_a_refused_write():
     # "rw" inside another option is not read-write, and "ro" must be a whole option
     assert _probe("MOUNT|errors=remount-ro,rw|/\nREFUSED\n")["boundary"] == "writable"
     sub = _probe("SUB|rw,relatime|/app/data\nMOUNT|ro|/\nREFUSED\n")
-    assert sub["boundary"] == "read_only" and sub["writable_submounts"] == ["/app/data"]
+    # a read-write mount below the working directory is a writable part of it
+    assert sub["boundary"] == "writable" and sub["writable_submounts"] == ["/app/data"]
+    ro_sub = _probe("SUB|ro,relatime|/app/data\nMOUNT|ro|/\nREFUSED\n")
+    assert ro_sub["boundary"] == "read_only"
 
 
 def test_a_chmodded_working_directory_is_never_reported_read_only(tmp_path):
@@ -59,11 +62,11 @@ def test_a_chmodded_working_directory_is_never_reported_read_only(tmp_path):
     assert row["write"] == "refused" and row["boundary"] == "writable"
 
 
-def test_a_repaired_scratch_copy_is_recorded_as_diverging_and_an_exact_copy_as_same(
+def test_a_repaired_scratch_copy_is_recorded_even_when_backdated_and_an_exact_copy_as_same(
     tmp_path,
 ):
-    work, scratch, ctl = tmp_path / "work", tmp_path / "scratch", tmp_path / "ctl"
-    for d in (work, scratch, ctl):
+    work, scratch = tmp_path / "work", tmp_path / "scratch"
+    for d in (work, scratch):
         d.mkdir()
     (work / "colour.txt").write_text("red\n")
     (work / "main.py").write_text("print('red')\n")
@@ -72,16 +75,17 @@ def test_a_repaired_scratch_copy_is_recorded_as_diverging_and_an_exact_copy_as_s
     env = LocalEnv(work)
     delivered = asyncio.run(B.manifest(env, str(work)))
     time.sleep(1.1)  # ctime resolution
-    marker = ctl / ".check-started"
-    marker.write_text("")
-    time.sleep(1.1)
+    since = asyncio.run(BD.clock(env))
+    assert since is not None
     asyncio.run(
         env.exec(
             f"mkdir -p {scratch}/w && cp -p {work}/colour.txt {scratch}/w/colour.txt "
-            f"&& cp -p {work}/main.py {scratch}/w/main.py && echo blue > {scratch}/w/main.py"
+            f"&& cp -p {work}/main.py {scratch}/w/main.py && echo blue > {scratch}/w/main.py "
+            # the check backdates its copy: mtime moves, ctime cannot
+            f"&& touch -t 200001010000 {scratch}/w/main.py"
         )
     )
-    row = asyncio.run(BD.scratch_copies(env, delivered, (str(scratch),), str(marker)))
+    row = asyncio.run(BD.scratch_copies(env, delivered, (str(scratch),), since))
     assert row["same"] == 1 and row["diverging"] == [f"{scratch}/w/main.py"], row
     assert row["new_files"] == 2 and "error" not in row
 

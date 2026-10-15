@@ -76,16 +76,12 @@ def test_a_read_only_clone_refuses_every_write_to_the_delivered_files(box):
                 "&& echo x > /var/tmp/x"
             )
             # the attribution control: a repaired copy in scratch, after the marker
-            await clone.exec(
-                "mkdir -p /tmp/.aether-verifier && : > /tmp/.aether-verifier/.check-started; sleep 1.1"
-            )
+            since = await BD.clock(clone)
             await clone.exec(
                 "mkdir -p /tmp/w && cp -p /app/colour.txt /tmp/w/ && cp /app/run.sh /tmp/w/run.sh "
                 "&& echo 'echo fixed' >> /tmp/w/run.sh"
             )
-            copies = await BD.scratch_copies(
-                clone, before, C.SCRATCH, "/tmp/.aether-verifier/.check-started"
-            )
+            copies = await BD.scratch_copies(clone, before, C.SCRATCH, since)
             volumes = subprocess.run(
                 [
                     "docker",
