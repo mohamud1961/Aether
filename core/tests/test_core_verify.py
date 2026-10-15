@@ -72,7 +72,7 @@ class PathClone(LocalEnv):
 def _run(tmp_path, script, *, timeout_s=900, make_clone=None):
     box = tmp_path / "box"
     work, ctl = box / "work", box / "ctl"
-    work.mkdir(parents=True)
+    work.mkdir(parents=True, exist_ok=True)
     ctl.mkdir()
     (ctl / "solver_notes.txt").write_text("the solver's private context\n")
     client = ScriptedClient(script)
@@ -80,7 +80,7 @@ def _run(tmp_path, script, *, timeout_s=900, make_clone=None):
         client, model="scripted", params={}, log=CallLog(tmp_path / "calls.jsonl")
     )
 
-    async def clone(env):
+    async def clone(env, timeout_s=None):
         return PathClone(box)
 
     config = CoreConfig(
@@ -217,7 +217,7 @@ def test_no_check_when_too_little_time_is_left_to_act_on_one(tmp_path):
 
 
 def test_a_failed_clone_never_holds_the_finish(tmp_path):
-    async def broken(env):
+    async def broken(env, timeout_s=None):
         raise OSError("docker commit failed")
 
     script = [_turn("finish", {"summary": "done"}, "s1")]
@@ -314,7 +314,7 @@ def test_new_scratch_files_in_the_copy_do_not_void_the_finding(tmp_path):
 
 
 def test_a_finding_is_stale_when_the_original_changed_during_the_check(tmp_path):
-    async def clone_then_background_write(env):
+    async def clone_then_background_write(env, timeout_s=None):
         made = PathClone(tmp_path / "box")
         (tmp_path / "box" / "work" / "colour.txt").write_text("green\n")
         return made
@@ -345,7 +345,7 @@ def test_a_slow_clone_cannot_take_the_solvers_time(tmp_path, monkeypatch):
     """52283b6cc: clone set-up ran outside the check's budget and the run timed out with the finish lost."""
     monkeypatch.setattr(V, "VERIFY_MAX_S", 0.5)
 
-    async def slow(env):
+    async def slow(env, timeout_s=None):
         await asyncio.sleep(3)
         return PathClone(tmp_path / "box")
 
@@ -363,7 +363,7 @@ def test_a_slow_clone_cannot_take_the_solvers_time(tmp_path, monkeypatch):
 def test_a_cancelled_check_is_recorded(tmp_path):
     import pytest
 
-    async def cancelled(env):
+    async def cancelled(env, timeout_s=None):
         raise asyncio.CancelledError()
 
     script = [_turn("finish", {"summary": "done"}, "s1")]

@@ -287,7 +287,7 @@ def test_the_loop_pins_the_checks_offers_run_checks_and_never_holds_the_finish(
     pristine.mkdir()
     clones = iter([FakeClone(pristine), FakeClone(work)])
 
-    async def make_clone(_env):
+    async def make_clone(_env, timeout_s=None):
         return next(clones)
 
     script = [
@@ -338,7 +338,7 @@ def test_without_a_contract_run_checks_says_so_and_the_finish_proceeds(tmp_path)
     work = tmp_path / "work"
     work.mkdir()
 
-    async def broken(_env):
+    async def broken(_env, timeout_s=None):
         raise RuntimeError("docker commit failed")
 
     provider, client = _provider(

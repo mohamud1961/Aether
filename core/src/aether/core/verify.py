@@ -14,16 +14,25 @@ It ends with one of three findings (tools.VERDICT_FINISH):
 - undetermined: the finish takes effect; missing evidence (no network, no running services in the clone) is not a
   defect (A1: checks that held correct states).
 
-Binding (Codex review 15 Oct: a verifier that repaired its clone and then confirmed was accepted while the graded
-file stayed wrong): a delivered file modified or deleted in the clone voids the finding; the solver is shown what
-the check changed and what it reported, as a proposed repair, and the work continues. New files (build and scratch
-output) are recorded, not voiding. A delivered file that changed in the original during the check (a background
-job) makes the finding stale; the finish takes effect and that is recorded.
+Binding (Codex reviews of 15 Oct: a verifier that repaired its clone, including a 21 MiB file outside a size
+filter, was accepted while the graded file stayed wrong; a failing fingerprint read as "unchanged"): the working
+directory's manifest (binding.Manifest: every entry's type, permission bits, link target and content hash) is taken
+from the original before cloning, from the clone after the review, and from the original again. A bound entry
+modified or deleted in the clone voids the finding: the solver is shown what the check changed and what it reported,
+as a proposed repair, and the work continues. New entries (build and scratch output) are recorded, not voiding. A
+bound entry that changed in the original during the check makes the finding stale (the finish takes effect). If any
+manifest cannot be taken, the finding is recorded as ``<finding>_unbound``: it is about a copy that may not match the
+delivered state (a defect it found still goes back to the solver, marked so). Pruned directories and mount points
+are listed as unbound on the row; nothing outside the working directory is bound.
 
-Time (same review: clone set-up could consume the solver's whole remainder): one absolute deadline spans listing,
-fingerprints, clone, review and cleanup, VERIFY_SHARE of what is left and at most VERIFY_MAX_S, so the rest stays
-the solver's. A check that cannot finish in time, fails, or is cancelled never holds the finish; every outcome,
-including cancellation, is recorded. Skipped when less than VERIFY_MIN_REMAINING_S is left.
+Time (same reviews: clone set-up could take the solver's remainder, and a cancelled clone creation is shielded and
+waited for): one absolute end, VERIFY_SHARE of what is left and at most VERIFY_MAX_S, holds listing, manifests,
+clone, review and clean-up; the rest stays the solver's. The clone factory receives the work time that is left
+(Clone.create bounds every host command by it). The review runs as a task: when its time is up it is cancelled and
+given the clean-up reserve to unwind; whatever outlives the end (a shielded docker operation, a slow removal) is
+handed to the run's end-of-run clean-up, which records its outcome, and the solver gets its time back. A check that
+fails, runs out of time or is cancelled never holds the finish; every outcome is recorded. Skipped when less than
+VERIFY_MIN_REMAINING_S is left.
 """
 
 from __future__ import annotations
@@ -35,7 +44,7 @@ import shlex
 import time
 from typing import Any
 
-from . import evidence, receipt
+from . import binding, evidence, receipt
 from .env import exit_code
 from .loop import VERIFIER_ROLE, CoreConfig, Trace, run_agent
 from .oversight import ReviewPlan
@@ -78,11 +87,12 @@ What it reported:
 
 Treat this as a proposed repair, which can be wrong. Decide for yourself; your state is as you left it. There is no \
 second check; your next finish ends the work."""
+UNBOUND_NOTE = """
+(This check's copy could not be fingerprinted, so it is not known whether its copy still matched your state.)"""
 FINDINGS = ("defect_found", "no_defect_found", "undetermined")
-CLOSE_RESERVE_S = 30.0  # of the check's own time, kept for removing the clone
-FINGERPRINT_MAX_BYTES = (
-    "20M"  # larger files are not fingerprinted (recorded as a count)
-)
+# The check's own time is split: work (clone and review), then the closing manifests, then removing the clone.
+CLEANUP_SHARE, CLEANUP_MAX_S = 0.25, 30.0
+MANIFEST_SHARE, MANIFEST_MAX_S = 0.15, 60.0
 
 
 class _Labelled:
@@ -148,33 +158,6 @@ def _questions(s: Any) -> str:
     return QUESTIONS.format(questions=evidence.open_questions(rows[-1])) if rows else ""
 
 
-async def fingerprint(env: Any, workdir: str) -> dict[str, str]:
-    """sha256 of every file under ``workdir`` (the receipt's skipped directories aside, files under
-    FINGERPRINT_MAX_BYTES). Raises when the listing fails."""
-    prune = " -o ".join(f"-name {shlex.quote(n)}" for n in receipt.SKIP)
-    command = (
-        f"cd {shlex.quote(workdir)} && find . -xdev \\( {prune} \\) -prune -o -type f "
-        f"-size -{FINGERPRINT_MAX_BYTES} -exec sha256sum {{}} + 2>/dev/null; true"
-    )
-    result = await env.exec(command=command, cwd=None, env=None, timeout_sec=120)
-    if exit_code(result) != 0:
-        raise OSError("the delivered tree could not be fingerprinted")
-    out = {}
-    for line in str(getattr(result, "stdout", "") or "").splitlines():
-        digest, _, path = line.partition("  ")
-        if path:
-            out[path] = digest
-    return out
-
-
-def changes(before: dict[str, str], after: dict[str, str]) -> dict[str, list[str]]:
-    return {
-        "modified": sorted(p for p in before if p in after and after[p] != before[p]),
-        "deleted": sorted(p for p in before if p not in after),
-        "created": sorted(p for p in after if p not in before),
-    }
-
-
 def _usage(provider: Any) -> dict[str, int | None]:
     roles = [
         r
@@ -189,14 +172,32 @@ def _record(s: Any, row: dict[str, Any]) -> None:
     s.trace("verification", **row)
 
 
+async def _manifest(env: Any, s: Any, row: dict[str, Any], until: float) -> Any:
+    """The delivered tree's manifest, or None (recorded) when it cannot be taken."""
+    try:
+        return await binding.manifest(
+            env, s.workdir, timeout_s=max(1.0, until - time.monotonic())
+        )
+    except binding.BindingUnavailable as exc:
+        row.setdefault("binding_unavailable", []).append(str(exc)[:300])
+        return None
+
+
 async def _review(
-    s: Any, row: dict[str, Any], held: dict[str, Any], end: float
+    s: Any,
+    row: dict[str, Any],
+    held: dict[str, Any],
+    work_end: float,
+    manifest_s: float,
 ) -> None:
     produced = await receipt.changed(s.env, s.workdir, s.config.control_dir)
     row["produced_files"] = len(produced)
-    held["before"] = await fingerprint(s.env, s.workdir)
-    row["fingerprinted_files"] = len(held["before"])
-    held["clone"] = clone = await s.clone(s.env)
+    before = await _manifest(s.env, s, row, work_end)
+    if before is not None:
+        row.update(bound_entries=len(before.entries), unbound=before.unbound)
+    held["clone"] = clone = await s.clone(
+        s.env, timeout_s=max(1.0, work_end - time.monotonic())
+    )
     row["clone_ready_s"] = round(time.monotonic() - held["started"], 1)
     await _forget_the_solver(clone, s.config)
     held["result"] = await run_agent(
@@ -205,14 +206,18 @@ async def _review(
         + _questions(s),
         workdir=s.workdir,
         provider=_Labelled(s.provider, VERIFIER_ROLE),
-        timeout_s=max(1.0, end - time.monotonic() - CLOSE_RESERVE_S),
+        timeout_s=max(1.0, work_end - time.monotonic() - manifest_s),
         trace=Trace(s.trace.path.with_name(TRACE_FILE)),
         config=verifier_config(s.config),
     )
-    clone_changes = changes(held["before"], await fingerprint(clone, s.workdir))
-    original_changes = changes(held["before"], await fingerprint(s.env, s.workdir))
-    row["clone_changes"] = clone_changes
-    row["original_changed"] = original_changes["modified"] + original_changes["deleted"]
+    if before is None:
+        return
+    after = await _manifest(clone, s, row, work_end)
+    now = await _manifest(s.env, s, row, work_end)
+    if after is not None and now is not None:
+        row["clone_changes"] = binding.changes(before, after)
+        changed = binding.changes(before, now)
+        row["original_changed"] = changed["modified"] + changed["deleted"]
 
 
 def _finding(row: dict[str, Any], result: Any) -> tuple[str | None, str]:
@@ -222,6 +227,43 @@ def _finding(row: dict[str, Any], result: Any) -> tuple[str | None, str]:
     if len(evidence_text) > MAX_EVIDENCE_CHARS:
         evidence_text = evidence_text[:MAX_EVIDENCE_CHARS] + "\n[evidence truncated]"
     return finding, evidence_text
+
+
+def _hand_off(s: Any, label: str, task: asyncio.Future) -> None:
+    """A clone operation that outlived the check's time: run-end cleanup owns it and records its outcome."""
+    s.pending_cleanup.append((label, task))
+
+
+async def _close(s: Any, held: dict[str, Any], row: dict[str, Any], end: float) -> None:
+    clone, held["clone"] = held.get("clone"), None
+    if clone is None:
+        return
+    closing = asyncio.ensure_future(clone.close())
+    done, _ = await asyncio.wait({closing}, timeout=max(0.0, end - time.monotonic()))
+    if not done:
+        _hand_off(s, "verifier clone close", closing)
+        row["close_error"] = (
+            "clone removal outlived the check's time; handed to run-end cleanup"
+        )
+    elif closing.exception() is not None:
+        row["close_error"] = (
+            f"{type(closing.exception()).__name__}: {closing.exception()}"
+        )
+
+
+def _status(row: dict[str, Any], finding: str | None) -> str:
+    if (
+        "reason" in row or not finding
+    ):  # a finding cut short by the deadline or a failure has no standing
+        return "error" if "reason" in row else "no_finding"
+    if row.get("binding_unavailable") or "clone_changes" not in row:
+        return f"{finding}_unbound"
+    changes = row["clone_changes"]
+    if changes["modified"] or changes["deleted"]:
+        return "void_candidate_modified"
+    if row.get("original_changed"):
+        return "stale_original_changed"
+    return finding
 
 
 async def at_finish(s: Any) -> tuple[str, bool]:
@@ -235,34 +277,44 @@ async def at_finish(s: Any) -> tuple[str, bool]:
         return "finished", True
     budget = min(VERIFY_MAX_S, VERIFY_SHARE * left)
     started = time.monotonic()
+    end = started + budget
+    work_end = end - min(CLEANUP_MAX_S, CLEANUP_SHARE * budget)
+    manifest_s = min(MANIFEST_MAX_S, MANIFEST_SHARE * budget)
     row: dict[str, Any] = {"budget_s": round(budget, 1)}
     held: dict[str, Any] = {"started": started, "clone": None, "result": None}
+    review = asyncio.ensure_future(_review(s, row, held, work_end, manifest_s))
     try:
-        await asyncio.wait_for(_review(s, row, held, started + budget), timeout=budget)
-    except TimeoutError:
-        row["reason"] = f"the check did not end within its {budget:.0f}s"
+        done, _ = await asyncio.wait({review}, timeout=max(0.0, work_end - started))
+        if not done:
+            review.cancel()
+            row["reason"] = (
+                f"the check did not end within its {work_end - started:.0f}s"
+            )
+            done, _ = await asyncio.wait(
+                {review}, timeout=max(0.0, end - time.monotonic())
+            )
+            if not done:
+                _hand_off(s, "verifier review", review)
+                row["cleanup"] = (
+                    "the cancelled review outlived the check's time; handed to run-end cleanup"
+                )
+        elif review.exception() is not None:
+            exc = review.exception()
+            row["reason"] = f"{type(exc).__name__}: {exc}"
     except asyncio.CancelledError:
+        review.cancel()
+        _hand_off(s, "verifier review", review)
+        if held.get("clone") is not None:
+            _hand_off(
+                s, "verifier clone close", asyncio.ensure_future(held["clone"].close())
+            )
         row.update(status="cancelled", elapsed_s=round(time.monotonic() - started, 1))
-        await _close(held, row)
         _record(s, row)
         raise
-    except Exception as exc:
-        row["reason"] = f"{type(exc).__name__}: {exc}"
-    await _close(held, row)
+    await _close(s, held, row, end)
     result = held["result"]
     finding, evidence_text = _finding(row, result)
-    if (
-        "reason" in row
-    ):  # a finding cut short by the deadline or a failure has no standing
-        finding = None
-    clone_changes = row.get("clone_changes", {})
-    voided = bool(clone_changes.get("modified") or clone_changes.get("deleted"))
-    if finding and voided:
-        status = "void_candidate_modified"
-    elif finding and row.get("original_changed"):
-        status = "stale_original_changed"
-    else:
-        status = finding or ("error" if "reason" in row else "no_finding")
+    status = _status(row, finding)
     row.update(
         status=status,
         finding=finding,
@@ -274,21 +326,12 @@ async def at_finish(s: Any) -> tuple[str, bool]:
         usage=_usage(s.provider),
     )
     _record(s, row)
-    if status == "defect_found":
-        return DEFECT.format(evidence=evidence_text), False
+    if finding == "defect_found" and status in ("defect_found", "defect_found_unbound"):
+        note = UNBOUND_NOTE if status.endswith("_unbound") else ""
+        return DEFECT.format(evidence=evidence_text) + note, False
     if status == "void_candidate_modified":
-        files = clone_changes["modified"] + clone_changes["deleted"]
+        files = row["clone_changes"]["modified"] + row["clone_changes"]["deleted"]
         return MODIFIED.format(
             files="\n".join(files[:MAX_LISTED]), evidence=evidence_text
         ), False
     return f"finished\n[independent check: {status}]", True
-
-
-async def _close(held: dict[str, Any], row: dict[str, Any]) -> None:
-    clone, held["clone"] = held.get("clone"), None
-    if clone is None:
-        return
-    try:
-        await asyncio.wait_for(clone.close(), timeout=CLOSE_RESERVE_S * 4)
-    except Exception as exc:
-        row["close_error"] = f"{type(exc).__name__}: {exc}"
