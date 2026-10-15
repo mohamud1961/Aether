@@ -231,3 +231,34 @@ verifications confirmed, correctly); seq-assembly `b` e1 fail, `c` e1 fail **con
 "reverse primer must match an annealing site downstream of the forward primer"; the verifier checked the assembly
 against its own circular reconstruction), `d` e1 **pass** (first seq-assembly pass in N1). No P2 prediction is
 scored on 13 rows. Resumption, if any, is a new amendment.
+
+## Amendment 3 (15 October, before any model call on this code): evidence-linked finishing
+
+**Diagnosis (the principal's framing, adopted: false work is systemic, not a model limit).** We let fake progress through
+in five ways: (1) `finish(summary)` accepted free prose: all 12 P1 wrong finishes say "verified/validated", none tied
+to an observation, and one that said its design "remains unverified" ended the run; (2) checks that could not fail
+(output compared with the solver's own reconstruction: "700/700 match") counted the same as real ones; (3) the
+choices that decided each outcome (address base from the example, Tm method, sequence source) were never named, so
+nothing pointed at them; (4) the verifier was asked "does it meet the task", re-solved it under the same reading and
+confirmed; (5) we measured pass, cost and steps, never claims-without-evidence.
+
+**Mechanism (`--core-evidence on`; off is byte-identical):** tool results carry step numbers; the finish takes
+`claims` (each citing steps), `decisions` (choice | alternatives | what in the task or input selects it, citing steps)
+and `unverified`; the first finish is audited mechanically (uncited, nonexistent or write-only citations, admitted
+gaps) and the problems are shown once; the solver decides. The prompt adds one paragraph: a step is evidence only if
+its output would differ were the claim false; agreement with one's own reconstruction or an example's values shows
+nothing about a shared choice; no transformation unless the task or input supports one. With `--core-verify once`
+the verifier's brief adds the named choices **without the solver's reasons**, to settle with a check that
+discriminates; its prompt gains the same evidence rule. Every audit is recorded on the row (`extras.evidence`): the
+fake-progress metric.
+
+**Smoke A3 (6 rows, ≈ $0.25):** arms `f` (= `e` + evidence) and `fv` (= `f` + verify once) on binary-extract,
+seq-assembly, construct-assembly × 1 episode (`CORE_N1_A3_SMOKE_ARMS_20261015.json`). Predictions:
+- **N1-A3a (mechanism):** every row that finishes records at least one evidence audit; at least 2 of 6 have the
+  audit shown (P1 finishes would all have failed it: no citations).
+- **N1-A3b (choices surface):** in at least 1 of the 2 binary-extract rows the `decisions` field names the address
+  base/convention; in at least 1 of the 2 seq-assembly rows `decisions` or `claims` names how Tm was computed.
+- **N1-A3c (outcome, honest prior: uncertain):** at least 1 of the 6 rows passes (P1: 0 of 12 on these tasks;
+  P2 paused design: 1 of 3 seq-assembly).
+If A3a fails mechanically, the defect is fixed before any board. A3b/A3c failures are recorded; the next board is
+decided from the traces.

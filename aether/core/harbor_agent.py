@@ -70,7 +70,10 @@ CALLS_MODES = ("one", "many")
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
 # context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
-SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
+SELF_CHECK_ENV, EVIDENCE_ENV = (
+    "AETHER_CORE_SELF_CHECK",
+    "AETHER_CORE_EVIDENCE",
+)  # on/off; see evidence
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -185,6 +188,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         receipt=_finish_mode(environ) == "receipt",
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
+        evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
     )
 
 
@@ -433,6 +437,7 @@ def _write_record(
             "receipt": config.receipt,
             "verify": config.verify,
             "self_check": config.self_check,
+            "evidence": config.evidence,
             "model": provider.model,
             "params": provider.params,
             "limit_field": provider.limit_field,

@@ -30,7 +30,7 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import TURN_MODES, system_prompt, tools, validate_call
-from . import contract as acceptance, contract_loop
+from . import contract as acceptance, contract_loop, evidence
 from .clone import Clone
 
 MAX_OUTPUT_TOKENS = 32_768
@@ -70,6 +70,7 @@ class CoreConfig:
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
+    evidence: bool = False  # claims cite steps, open choices are named; the first finish is audited (see evidence)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -168,6 +169,9 @@ class _Session:
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
         self.receipt_shown = False
+        self.step_tools: dict[
+            int, str
+        ] = {}  # step number -> the tool it ran (see evidence)
         self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
 
     def clone(self, env: Environment) -> Awaitable[Any]:
@@ -180,7 +184,8 @@ class _Session:
         return time.monotonic() - self.started
 
     def clock(self) -> str:
-        return f"[t={self.elapsed():.0f}s of {self.timeout_s:.0f}s]"
+        step = f"step {self.result.steps}; " if self.config.evidence else ""
+        return f"[{step}t={self.elapsed():.0f}s of {self.timeout_s:.0f}s]"
 
     @property
     def history(self) -> list[dict[str, Any]]:
@@ -240,6 +245,8 @@ async def run_agent(
                 history=config.context == "clm",
                 verdict=config.role == VERIFIER_ROLE,
             )
+            if config.evidence:
+                s.tools[-1] = evidence.EVIDENCE_FINISH
             pinned = [
                 {
                     "role": "system",
@@ -253,6 +260,7 @@ async def run_agent(
                         self_check=config.self_check,
                         verifier=config.role == VERIFIER_ROLE,
                     )
+                    + (evidence.EVIDENCE_DOC if config.evidence else "")
                     + (textturn.reply_doc(s.tools) if config.turn == "json" else ""),
                 },
                 {
@@ -490,6 +498,7 @@ async def _run_calls(
             out += "\n" + mirror_error
             mirror_error = ""
         s.result.steps += 1
+        s.step_tools[s.result.steps] = name
         s.trace("tool", name=name, args=args, result=out, duration_s=duration)
         out = await _save(s, out)
         if name != "finish":
@@ -719,6 +728,10 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
+    if s.config.evidence:
+        held = evidence.at_finish(s, args)
+        if held:
+            return held
     if s.config.verify and "verification" not in s.result.extras:
         from . import verify
 
