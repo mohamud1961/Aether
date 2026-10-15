@@ -170,8 +170,8 @@ class _Session:
         self.contract_shown = False
         self.receipt_shown = False
         self.step_tools: dict[
-            int, str
-        ] = {}  # step number -> the tool it ran (see evidence)
+            int, evidence.Step
+        ] = {}  # what the runtime knows of each step
         self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
 
     def clone(self, env: Environment) -> Awaitable[Any]:
@@ -498,7 +498,7 @@ async def _run_calls(
             out += "\n" + mirror_error
             mirror_error = ""
         s.result.steps += 1
-        s.step_tools[s.result.steps] = name
+        s.step_tools[s.result.steps] = evidence.step_fact(name, args, out, s.workdir)
         s.trace("tool", name=name, args=args, result=out, duration_s=duration)
         out = await _save(s, out)
         if name != "finish":
