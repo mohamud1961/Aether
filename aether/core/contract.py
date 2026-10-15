@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 from .env import Environment, run
 from .provider import ChatProvider, ProviderError
+from .qualify import pending_tool, qualify
 
 WRITER_BUDGET_S = 300.0
 # One writer call may use at most this much of the budget. V2 dna/protein: the first call reasoned past the whole
@@ -70,6 +71,17 @@ SUBMIT_CHECKS = {
                                 "items": {"type": "integer"},
                                 "description": "Numbers of the task sentences this check enforces.",
                             },
+                            "anchors": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "The task's exact words for every value, name, path, tool "
+                                "and rule the check relies on.",
+                            },
+                            "violation": {
+                                "type": "string",
+                                "description": "Shell commands that, run after your example, break exactly "
+                                "this requirement and nothing else; the check must then fail.",
+                            },
                         },
                         "required": ["requirement", "command", "sentences"],
                     },
@@ -112,7 +124,13 @@ example a string of the stated length). It shows your checks accept a correct re
 Every check is tried at once in two copies of the container. On the unfinished state it must run (no missing \
 tool, module or file of its own, no syntax error) and fail, since the work has not been done; mark \
 holds_before only for a requirement that is already met before the work and must stay so. On your example it \
-must pass. A check that fails on the example is wrong, or the example is: fix whichever it is."""
+must pass. A check that fails on the example is wrong, or the example is: fix whichever it is.
+
+For each check also give anchors, the task's exact words for every value, name, path, tool and rule it relies \
+on (a check that relies on something the task does not say is only a suggestion), and a violation: commands \
+that, run after your example, break exactly this requirement; the check must then fail. Where the task names a \
+tool as the authority (for a value, a format, a measurement), call that tool in the check even if it is not \
+installed yet: such a check is kept and run once the work has installed it."""
 
 # Interpreter and shell errors meaning a check cannot run at all (exit codes 126/127 are checked separately).
 _CANNOT_RUN = (
@@ -130,6 +148,10 @@ class Check:
     id: int
     requirement: str
     command: str
+    hard: bool = False  # qualified to hold a finish (``qualify``); otherwise advisory
+    pending: str = (
+        ""  # the task-named tool it needs that is not installed before the work
+    )
 
 
 @dataclass
@@ -144,6 +166,7 @@ class Contract:
     unconfirmed: list[dict[str, Any]] = field(
         default_factory=list
     )  # kept; disagreed with the writer's example
+    dispositions: list[dict[str, Any]] = field(default_factory=list)  # ``qualify``
 
     def render(self) -> str:
         lines = [
@@ -358,6 +381,14 @@ async def write(
             before = {c.id: bool(r.get("holds_before")) for c, r in zip(checks, raw)}
             results = await run_checks(env, checks, workdir)
             problems = {r.check.id: _problem(r, before[r.check.id]) for r in results}
+            pending = {
+                r.check.id: tool
+                for r in results
+                if problems[r.check.id] == "cannot run"
+                and (tool := pending_tool(r.code, r.output, task))
+            }
+            for cid in pending:
+                problems[cid] = ""
             example = str(args.get("example") or "")
             example_error, on_example = (
                 await _on_example(env, example, checks, workdir)
@@ -368,7 +399,9 @@ async def write(
                 r.check.id: f"fails on your example of a finished state (exit {r.code}: "
                 f"{r.output[-200:] or 'no output'})"
                 for r in on_example
-                if not r.passed and not problems[r.check.id]
+                if not r.passed
+                and not problems[r.check.id]
+                and r.check.id not in pending
             }
             covered = {
                 int(n)
@@ -421,8 +454,36 @@ async def write(
                     for c in good
                     if c.id in disputed or example_error
                 ]
+                by_id = {c.id: r for c, r in zip(checks, raw)}
+                found = await qualify(
+                    env,
+                    [
+                        (c.id, c.command, by_id[c.id])
+                        for c in good
+                        if c.id not in pending
+                    ],
+                    example=example,
+                    task=task,
+                    workdir=workdir,
+                )
+                hard = {d.check for d in found if d.hard}
+                new_id = {c.id: i for i, c in enumerate(good, 1)}
+                contract.dispositions = [
+                    {**d.as_row(), "check": new_id[d.check]} for d in found
+                ] + [
+                    {
+                        "check": new_id[cid],
+                        "hard": False,
+                        "reason": f"pending: needs {tool}",
+                    }
+                    for cid, tool in pending.items()
+                    if cid in new_id
+                ]
                 contract.checks = [
-                    Check(i, c.requirement, c.command) for i, c in enumerate(good, 1)
+                    Check(
+                        i, c.requirement, c.command, c.id in hard, pending.get(c.id, "")
+                    )
+                    for i, c in enumerate(good, 1)
                 ]
                 contract.dropped = [
                     {
