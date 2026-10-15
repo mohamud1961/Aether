@@ -169,13 +169,15 @@ class _Session:
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
         self.receipt_shown = False
-        self.step_tools: dict[
-            int, evidence.Step
-        ] = {}  # what the runtime knows of each step
+        # what the runtime knows of each step (see evidence)
+        self.step_tools: dict[int, evidence.Step] = {}
+        # clone operations that outlived their check, owned by run-end cleanup (see verify)
+        self.pending_cleanup: list[tuple[str, Any]] = []
         self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
 
-    def clone(self, env: Environment) -> Awaitable[Any]:
-        return (self.config.make_clone or Clone.create)(env)
+    def clone(self, env: Environment, timeout_s: float | None = None) -> Awaitable[Any]:
+        """A clone factory takes the time it may use (None: the run's remaining time)."""
+        return (self.config.make_clone or Clone.create)(env, timeout_s=timeout_s)
 
     def remaining(self) -> float:
         return self.deadline - time.monotonic()
@@ -311,6 +313,16 @@ async def run_agent(
                     await asyncio.gather(s.contract_task, return_exceptions=True)
             except Exception as exc:
                 cleanup_errors.append(f"contract cleanup: {type(exc).__name__}: {exc}")
+        for name, task in s.pending_cleanup:
+            try:
+                async with asyncio.timeout(max(1.0, s.env.remaining_s())):
+                    outcome = (await asyncio.gather(task, return_exceptions=True))[0]
+                if isinstance(outcome, Exception):
+                    cleanup_errors.append(
+                        f"{name}: {type(outcome).__name__}: {outcome}"
+                    )
+            except TimeoutError:
+                cleanup_errors.append(f"{name}: still running when the run ended")
         for name, closer in (("terminals", s.terminals.close), ("repl", s.repl.close)):
             try:
                 await closer()

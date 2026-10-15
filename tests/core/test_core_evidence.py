@@ -98,7 +98,7 @@ def _run(tmp_path, script, *, verify=False, evidence=True, timeout_s=900):
         client, model="scripted", params={}, log=CallLog(tmp_path / "calls.jsonl")
     )
 
-    async def clone(env):
+    async def clone(env, timeout_s=None):
         return PathClone(box)
 
     config = CoreConfig(

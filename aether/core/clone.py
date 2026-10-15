@@ -47,6 +47,23 @@ async def host_run(argv: list[str], timeout_s: float) -> tuple[int, str, str]:
     )
 
 
+async def compose_clone(
+    env: Environment, project: str, *, timeout_s: float | None = None
+) -> "Clone":
+    """Clone a compose service's main container. With ``timeout_s`` the lookup and the clone share that time."""
+    if timeout_s is None:
+        return await Clone.create(env, known=await compose_container(project))
+    end = time.monotonic() + timeout_s
+
+    async def bounded(argv: list[str], seconds: float) -> tuple[int, str, str]:
+        return await host_run(argv, max(0.1, min(seconds, end - time.monotonic())))
+
+    known = await compose_container(project, host=bounded)
+    return await Clone.create(
+        env, known=known, timeout_s=max(0.1, end - time.monotonic())
+    )
+
+
 class CloneError(RuntimeError):
     pass
 

@@ -26,7 +26,7 @@ from typing import Any, Mapping
 
 from .calls import CallLog
 from .clm import REPLAY_MODES, ClmSettings
-from .clone import Clone, compose_container
+from .clone import Clone, compose_clone
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
@@ -239,8 +239,8 @@ def harbor_clone(environment: Any):
 
     project = _sanitize_docker_compose_project_name(environment.session_id)
 
-    async def make(env: Any) -> Clone:
-        return await Clone.create(env, known=await compose_container(project))
+    async def make(env: Any, timeout_s: float | None = None) -> Clone:
+        return await compose_clone(env, project, timeout_s=timeout_s)
 
     return make
 
