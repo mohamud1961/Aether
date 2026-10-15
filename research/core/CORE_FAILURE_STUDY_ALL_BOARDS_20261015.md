@@ -112,3 +112,12 @@ own words or the input's own data: net-fit (parent-first under a `to,from` heade
 (drop the tag the named FASTA contains), binary-extract (a load base that is not in the file; the task is silent),
 seq-assembly (designed binding region rather than every primer base that anneals). This is a post-hoc pattern from four
 tasks whose graders we have now read; any lever built on it must be tested on tasks not used to find it.
+
+## Correction (same day, P1 step 1)
+
+The GLM construct-assembly and "all four dominant failures" paragraphs above are partly wrong. Reading the decisions and
+artifacts run by run (`CORE_P1_DECISION_PROBE_PREREG_20261015.md`): 6/8 GLM construct-assembly failures dropped the tag, but
+4 of those had **decided to include it** and lost it in construction; 2 kept the tag and failed elsewhere. In GLM
+net-fit, at least 5 of 11 runs stated the `to,from` meaning correctly and then wrote pgmpy `(parent, child)` tuples
+under it. For GLM these are execution losses, not convention beating the task's words. The convention pattern
+holds for GPT-6-Luna construct-assembly and GPT-6-Luna binary-extract.
