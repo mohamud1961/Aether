@@ -314,3 +314,19 @@ infra-invalid (no reward file) with its retry queued; the kill cancelled that re
 directory; no calls). A3 token-priced spend: $0.227. No A3 prediction is scored: the mechanism it measured has been
 replaced, and the rows stay in `<run-dir>/n1/a3/results.jsonl` as a record of the old design. Work
 waits for the Codex review of `e23ae2ca3`.
+
+## Amendment 5 (15 October): Codex re-review of e23ae2ca3: binding and deadline repaired again
+
+Codex's narrow re-review (`opus_review/E23_FINDING_FOCUSED_REVIEW_20261015.md`) reopened two P1 obligations, both
+accepted: the fingerprint swallowed errors and skipped files over 20 MiB (a 21 MiB deliverable repaired in the clone
+was certified; modes invisible), and `wait_for` waited for `Clone.create`'s shielded cancellation while the close ran
+outside the budget. A background security review of the first repair (`d75dcf174`) then flagged a parser
+differential (names that forge manifest lines) and an integrity bypass (a created file, possibly the missing
+deliverable, did not void). Repairs: `d75dcf174`, `d5b63456b` (new `binding.py`; clone factories take the work time;
+review as a task; overruns handed to run-end cleanup; created entries void; `_unbound` / `_partial` findings).
+Codex's controls re-run on `d5b63456b`: all reverse (`opus_fix_controls/focused_after_fix_d5b63456b/`). Linux
+qualification on the run VM (Docker, GNU tools): gate 233 + 143, no skips, including a real commit-clone binding test;
+no leftover containers or images. Stated limits: a change made and reverted inside the clone before the closing
+manifest is not seen; nothing outside the working directory is bound; `.git` and mounts are unbound (`_partial`).
+I also withdraw my earlier summary wording "the verifier can no longer…", "a slow clone can't…" and "efficiency is
+solved": the first two were narrow happy-path results at the time; the third rests on one 32-row board.
