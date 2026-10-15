@@ -69,12 +69,13 @@ system-level structure, every change must get the **program design** right:
 The dependency graph is acyclic and flows in one direction:
 
 ```
-evals (tasks and graders)  ──▶  aether (the harness)
+evals (tasks and graders)    harness_evals (eval tooling)    aether (the harness)
+        imports nothing   ──▶   imports nothing of aether      imports nothing above it
 ```
 
 - `aether/` is self-contained and depends on no sibling package.
-- Task graders import nothing from the harness.
-- No import cycles.
+- `harness_evals/` drives any agent over tasks; it never imports the harness.
+- No import cycles. Verified mechanically by `tools/check_imports.py` in CI.
 
 ## 6. Native and self-contained
 

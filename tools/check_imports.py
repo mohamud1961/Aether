@@ -1,4 +1,8 @@
-"""Fail if a package imports upward: task graders under `evals/` never import the harness."""
+"""Fail if a package imports upward: eval tooling and the harness must stay independent.
+
+The harness (`aether`) never imports the eval tooling (`harness_evals`), and the eval tooling
+never imports the harness. Task graders under `evals/` import neither.
+"""
 from __future__ import annotations
 
 import ast
@@ -7,7 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FORBIDDEN = {
-    "evals": {"aether"},
+    "aether": {"harness_evals"},
+    "harness_evals": {"aether"},
+    "evals": {"aether", "harness_evals"},
 }
 
 
