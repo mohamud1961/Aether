@@ -76,3 +76,36 @@ Only levers supported here: (a) a write-time re-read of an artifact against the 
 which the agent must locate without hindsight; (b) a source-over-convention rule, tested on controls where the
 conventional reading is the right one. ChatGPT's condition stands: carried decisions must remain revisable when
 they are wrong. Fresh tasks must reproduce the failure at baseline (≥ 2/3) before any lever is scored.
+
+## Amendment 1 (2026-10-15, after the ChatGPT and Codex reviews)
+
+**Persisted labels.** One row per probe reply in `p1_hand_labels/glm.jsonl` (213) and `p1_hand_labels/gpt-6-luna.jsonl`
+(61), with the scripts that write them. GLM labels were first made from keyword excerpts; a full-text re-check on
+the run VM (regex over reasoning, text and tool calls of every A/B/C E-case reply) changed two:
+- **#4 (E-bn-coreb1-e1, B) → detect** ("my written file currently is wrong under the natural reading … Confident:
+  reverse"). E-bn B is **4/21**, not 3/21.
+- **#88 (E-prot-r1-e1, C) → detect** (rebuilds the donor at 259 aa, tag included). E-prot C is **5/21**, not 4/21.
+- The five "empty" replies (#7, #15, #44, #87, #107) are a single tool call that reads the artifact. The probe
+  executes no tools, so they give no answer: labelled `reads_file`, not counted either way.
+
+GPT-6-Luna labels are keyed by the start of each reply (the printout kept no repetition index). E-bn C − B is 67 points.
+
+**Corrections accepted from the reviews.**
+1. "GLM can do this; it just doesn't check" → **GLM recognises the reversal when the exact comparison is named.**
+   Choosing that comparison unaided, and repairing the file, are untested.
+2. The probe executes no tools: replies show **recognition or a proposed repair**, never a repaired artifact.
+3. The M condition changes availability, recency, salience and authority together; **context loss is not isolated**
+   and stays a secondary hypothesis.
+4. "0 unmatched" did not prove correct assignment: the old mapper keyed on the context without the appended
+   prompt and overwrote ids. **Fixed:** the audit now keys every case × condition on its exact replayed context
+   (`replay_items`) and reports any clash. Known-bad check: the old keying collides once (L-tag-e-e2 /
+   L-prot-e-e2); the new one gives 91 distinct keys for the 35 cases.
+5. "No hidden reasoning" is withdrawn: reported reasoning tokens match the visible reasoning text; that is all.
+6. **GPT-6-Luna spend was priced at GLM-Flash rates** (`totals_spend` default). Fixed: `core_spend.GPT6_LUNA` ($0.10 / $0.01 /
+   $0.50 per 1M) is used for GPT-6-Luna probes. The GPT-6-Luna probe cost is therefore below the $0.385 reported; its token
+   counts are on the run VM and are re-priced the next time that VM is on.
+7. 18/21 is **7 failures × 3 samples**: repeatability within one task family, not 21 recoveries.
+8. Condition A keeps the tool definitions, B/C do not: **B vs C is the clean comparison**; A vs C mixes wording with
+   the interface.
+9. INCLUDE is a decision, not a construct; e-e2 shows inclusion can break the 3,000-nt limit.
+10. The reasoning-token comparison is observational, not causal.
