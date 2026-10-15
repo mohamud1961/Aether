@@ -305,3 +305,12 @@ would differ between them, runs it on the real delivered state, and resolves or 
 as a small matched recovery diagnostic with equal resources, independent grading before and after, and correct-state
 controls; reviewer effects measured separately. A paid run needs the principal's explicit authorization with exact
 source, tasks, retries and a sealed total.
+
+## A3 cancelled (15 October, ~02:00Z, user's instruction)
+
+The principal cancelled A3 because it ran the pre-fix code (`52283b6cc`). At the kill every A3 cell had already ended: 5
+graded 0 of 5 (binary-extract `f`, `fv`; seq-assembly `f`, `fv`; construct-assembly `fv`) and construct-assembly `f` was
+infra-invalid (no reward file) with its retry queued; the kill cancelled that retry before it started (no attempt-2
+directory; no calls). A3 token-priced spend: $0.227. No A3 prediction is scored: the mechanism it measured has been
+replaced, and the rows stay in `<run-dir>/n1/a3/results.jsonl` as a record of the old design. Work
+waits for the Codex review of `e23ae2ca3`.
