@@ -52,3 +52,34 @@ classify the miss as *unsupported claim* or *reading* from the judge's quoted ev
 One binary-extract row, arm `e`, GPT-6-Luna: request accepted with `prompt_cache_key` (0 failed attempts), 8 calls, cache
 77.9% of 64.8k input (N1 `e` on the same task: 76.8–78.2% at 9–10 calls), $0.005, reward 0. The key is accepted
 and harmless; no change in cache hit is measurable on a run this short (the prefix was already cached).
+
+## Results (15:19:56–15:34:35 UTC, `f0c4382d3`, 110/110 judged, 0 errors, $0.72 metered)
+
+| Source | Base precision | AUROC p_pass | Gate "no not_met": admitted, precision, passes kept | Gate "all met" |
+|---|---|---|---|---|
+| G4 Codex + GPT-6-Astra (different model) | 43/80 = 54% | **0.475** | 69, 55%, 38/43 | 20, 50%, 10/43 |
+| N2 Aether + GPT-6-Luna (same model) | 14/30 = 47% | **0.692** | 23, 52%, 12/14 | 11, 55%, 6/14 |
+
+- **J1-a failed** (0.475 against ≥ 0.70: chance). Mean p_pass 75 on passes, 76 on failures. 650 of 760 verdicts
+  were met, 19 not_met.
+- **J1-b failed** (precision 55% against ≥ 70%; the gate removes 11 runs, 5 of them passes).
+- **J1-c held on the number** (0.692 ≥ 0.65), but n = 30 (14 vs 16) and the gate adds nothing (52% vs 47% base).
+  Not evidence of a usable gate.
+
+**Exploratory (not pre-registered): what the 31 admitted G4 failures failed on** (grader test names and first
+assertion; the judge never saw them). Hidden generalisation, i.e. cases the agent never saw: 11 (batched-eval
+hidden oracle 4, biped hidden configs 4, math-eval hidden suite 2, mvcc hidden tests 1). Quality or performance
+thresholds: 7 (ctr 2, jax rerun 2, telecom recall, vf2 speed, retro pixels). Readings: 4 (layout image src form 2,
+html-js-filter iframe kept 2). Unclassified (no assertion line parsed): 8 (freecad 3, intrastat 3, ks-solver,
+session-window 1). Of the 11 hidden-generalisation failures, 3 biped runs also fail the *visible* feasibility
+test: evidence a run of the visible check would have shown, which a read-only judge cannot run.
+Unsupported claims: none identified; the frontier agent's failing runs show as much real evidence as its passes.
+
+**Conclusion.** A judge that reads the record, even evidence-first and with the delivered files, cannot tell
+GPT-6-Astra's right finishes from its wrong ones: the failures are mostly about behaviour nobody in the record tested
+(hidden cases, thresholds measured differently), not about claims the record fails to support. Reading cannot
+find what was never run. The weak N2 signal (same model, TB2.1) is not a gate. **Not promoted.** The next
+verification lever has to *execute* something new (cases beyond the examples, the stated thresholds measured as
+stated), not read better.
+
+Evidence: `audit_output/aether_j1_20261015/j1_evidence.tgz` (sha256 3dd5b4208deff8c44fe3e0779428d192ad95043386301095a7842e7dcd1b492c).
