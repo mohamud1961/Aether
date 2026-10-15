@@ -84,3 +84,31 @@ summary. A run is **flagged** when its answer differs from the other model's maj
   is withdrawn for GLM.
 - Live use would need the second model's answer on the decisive decision. A full second solve doubles cost; a
   cheaper form (ask the other model only for its reading of the contested choice) is untested.
+
+## GLM construct-assembly failures classified (same day)
+
+All 8 GLM wrong finishes fail the same assertion with `flag_idx = 0, donor_idx = -1`: FLAG is found first, **the
+donor sequence is not found**. Every GLM finish summary names the right components (FLAG antigen of the anti-FLAG
+M2 antibody, Clover 5WJ2, DHFR from plasmid.gb, mCherry 2H5Q, SNAP-tag 3KZY). The grader's donor is the **PDB FASTA
+as returned, including its N-terminal His6/TEV expression tag** (`GSSHHHHHHSSGENLYFQGHM…`), minus the first Met.
+The runs encode the native/"canonical" Clover without the tag. The task says the sequences "should match the fasta
+file returned by the pdb API". GPT-6-Luna's construct-assembly failures include the same choice, stated outright in one run:
+"Strict literal reading would include expression tags … that conflicts with encoding only [the subproteins]". The
+constructs are 2,511–2,700 nt; adding the 21-aa tag (63 nt) fits under 3,000.
+**So construct-assembly's dominant failure, both models, is an explicit instruction overridden by a domain convention
+("tags are not part of the construct-assembly").** GLM is not missing the domain fact; GPT-6-Luna additionally misses the antigen
+in some runs.
+
+## Single-model view: is the alternative reading in the model's own record?
+
+A crude marker scan (ambiguity / literal reading / convention / a non-empty ledger `other_readings`) over the
+model text and tool arguments of every finished Aether run: **wrong finishes 52/64 (81%), right finishes 53/112
+(47%)**. Per failing class: binary-extract (GPT-6-Luna) 12/12, net-fit (GLM) 9/11, construct-assembly 15/16, seq-assembly 13/16. The regex is crude
+and fires on benign text; it is not a detector. What it shows: in most wrong finishes the model *names* the
+competing reading and then chooses the other one.
+
+**In all four dominant failures the losing choice is the same kind:** a convention or prior chosen over the task's
+own words or the input's own data: net-fit (parent-first under a `to,from` header; tie-break rule stated), construct-assembly
+(drop the tag the named FASTA contains), binary-extract (a load base that is not in the file; the task is silent),
+seq-assembly (designed binding region rather than every primer base that anneals). This is a post-hoc pattern from four
+tasks whose graders we have now read; any lever built on it must be tested on tasks not used to find it.
