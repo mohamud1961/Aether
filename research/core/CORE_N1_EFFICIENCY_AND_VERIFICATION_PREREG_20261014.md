@@ -162,3 +162,61 @@ the solver's self-check paragraph (arm `b`). The baseline solver prompt is byte-
   still runs (the dev board is the real test), unless the verifier fails mechanically.
 - N1-P2b's binary-extract clause and every other P2 prediction stand unchanged.
 - The original smoke rows stay in the record as a failed detection of the sealed mechanism.
+
+## P1 results (15 October, 00:13Z)
+
+Board: 32 rows (`a`, `e` × 8 dev tasks × 2 episodes), 0 invalid, 0 timeouts; every row ended in a finish.
+Rows: `<run-dir>/n1/p1/results.jsonl` on the run VM. Token-priced spend for P1 plus the first smoke:
+$0.747 (≈ £0.56; estimate £0.95).
+
+| Arm | Pass | Finish precision | Cache hit | Mean calls | Mean cost | Mean wall | Mean output tokens |
+|---|---|---|---|---|---|---|---|
+| `a` | 10/16 | 10/16 = 62% | 49.1% | 23.1 | $0.0312 | 392 s | 29,543 |
+| `e` | 10/16 | 10/16 = 62% | 86.6% | 19.4 | $0.0143 | 296 s | 16,465 |
+
+Predictions:
+- **N1-P1a (cache): held.** `e` 86.6% (≥ 75%), `a` 49.1% (≤ 55%).
+- **N1-P1b (steps): failed.** `e` 19.4 calls vs the bar of 17.3 (0.75 × 23.1); ratio 0.84. One row carries it
+  (construct-assembly `e` e1: 111 calls); recorded as failed, not re-cut.
+- **N1-P1c (cost): held.** $0.0143 vs the bar of $0.0234; ratio 0.46.
+- **N1-P1d (no harm): held.** 10 vs 10 passes; the same tasks pass and fail in both arms.
+- **N1-P1e (verifier works): held as a mechanism** (Amendment 1): both smoke rows reached a verdict, clone cleanup
+  ran, cost line present. Detection failed (both confirmed wrong states); that is what Amendment 1 changed.
+
+**Gate:** N1-P1d holds, so `e` is the P2 base.
+
+**Wrong finishes (12, all with the verifier off), by the L1/L2 taxonomy.** The same three tasks fail in both arms;
+the failures are the task's, not the efficiency flags':
+- binary-extract × 4: **example value / open definition**: the address convention (one summary cites the example's
+  start address 4194304 as "expected"); grader found 0% of its values.
+- construct-assembly × 4: **picked source**: the fusion does not contain the sequence the grader expects at its
+  start (order test). One `a` row finished while its own summary said the design "remains unverified".
+- seq-assembly × 4: **open definition checked by self-written checks**: Tm 72.53 > 72, pair difference
+  5.87 > 5, and twice "BsaI site ggtctc not found" (site orientation). Each summary claims these were verified.
+
+Finish precision 62% on this host (L1/L2: about 73% on the 8-vCPU host; not compared, per the host rule).
+
+## Amendment 2 (15 October, 00:25Z, before any P2 row)
+
+**Smoke v2 (N1-A1): failed.** Both `ev` binary-extract rows (code `275cc74fd`) were confirmed by the amended verifier
+and graded 0. The mechanism held again (verdicts in 77 s and 71 s, 9 and 8 steps, 1 produced file listed, cost
+line present). This time neither verifier took the convention from the solver's code: both wrote their criteria
+first and parsed the binary themselves, then **chose the same 0x400000 rebase on their own**, one citing the
+task's example ("the sample's 0x400000 address supports normalizing"), which the contradiction rule forbids. Their
+own maps matched the solver's output 700 of 700.
+
+What this shows: on this task the wrong answer is **the model's own prior**, not something the verifier inherited.
+A same-model verifier with no solver context reproduces it. Independence of context does not give independence of
+error. This is the limit R1 measured ("weak where checking means solving again") seen from the other side. Not
+changed again before P2: a third prompt edit tuned to one task would be fitting the smoke, and the sealed P2 board
+is the test of whether the verifier catches the other failure classes (seq-assembly's checked limits, construct-assembly's source).
+
+Verifier cost in the smoke: about $0.005 of a $0.009–0.011 row (≈ 45–50%). N1-P2e (≤ 25%) stands as sealed and
+is expected to be at risk on short rows.
+
+**P2 mechanics (no change to arms or predictions):** P2 runs arms `e`, `b`, `c`, `d` from
+`CORE_N1_P2_RUN_ARMS_20261015.json` (`e` copied unchanged from the P1 arms file; `b`/`c`/`d` from the P2 arms
+file) with `--episodes 3` into `<run-dir>/n1/p2`, whose `results.jsonl` is first seeded with the 16 P1
+`e` rows. The runner skips measured cells, so it runs `e` episode 3 and the 72 `b`/`c`/`d` rows (80 rows),
+interleaved under the same host conditions. Spend guard: P2 rows stop at $5.0 token-priced (≈ £3.8, under the
+1.5× line of £4.05). Held-out list committed in `6a6519f7a`.
