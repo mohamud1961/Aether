@@ -276,19 +276,30 @@ def test_replaying_all_reasoning_needs_responses_and_clm(monkeypatch):
 
 def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
     _base_env(monkeypatch)
-    for name in (adapter.VERIFY_ENV, adapter.SELF_CHECK_ENV, adapter.EVIDENCE_ENV):
+    for name in (
+        adapter.VERIFY_ENV,
+        adapter.SELF_CHECK_ENV,
+        adapter.EVIDENCE_ENV,
+        adapter.LEDGER_ENV,
+    ):
         monkeypatch.delenv(name, raising=False)
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence) == (False,) * 3
+    assert (config.verify, config.self_check, config.evidence, config.ledger) == (
+        False,
+    ) * 4
     monkeypatch.setenv(adapter.VERIFY_ENV, "once")
     monkeypatch.setenv(adapter.SELF_CHECK_ENV, "on")
     monkeypatch.setenv(adapter.EVIDENCE_ENV, "on")
+    monkeypatch.setenv(adapter.LEDGER_ENV, "on")
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence) == (True,) * 3
+    assert (config.verify, config.self_check, config.evidence, config.ledger) == (
+        True,
+    ) * 4
     for name, bad in (
         (adapter.VERIFY_ENV, "twice"),
         (adapter.SELF_CHECK_ENV, "yes"),
         (adapter.EVIDENCE_ENV, "yes"),
+        (adapter.LEDGER_ENV, "yes"),
     ):
         monkeypatch.setenv(name, bad)
         with pytest.raises(adapter.ConfigError):
