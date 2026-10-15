@@ -13,6 +13,7 @@ summary goes to ``Turn.reasoning`` for the trace only.
 from __future__ import annotations
 
 import time
+import uuid
 from typing import Any
 
 from .provider import ChatProvider, IncompleteStream, Turn
@@ -116,9 +117,17 @@ def _dump(obj: Any) -> dict[str, Any]:
 class ResponsesProvider(ChatProvider):
     """``ChatProvider`` (retries, deadlines, call log) with the Responses request and stream."""
 
-    def __init__(self, client: Any, **kwargs: Any) -> None:
+    def __init__(
+        self, client: Any, *, cache_key: str | None = None, **kwargs: Any
+    ) -> None:
         super().__init__(client, **kwargs)
         self.limit_field = "max_output_tokens"
+        # One key per provider (one response chain): the API routes calls with the same key and prefix to the same
+        # cache, as Codex does per session. Without it, parallel runs sharing the system prompt are routed by the
+        # prefix alone and can overflow one another's cache.
+        self.cache_key = (
+            f"aether-{uuid.uuid4().hex}" if cache_key is None else cache_key
+        )
 
     def _request(
         self,
@@ -130,6 +139,8 @@ class ResponsesProvider(ChatProvider):
         params = {**self.params, **(overrides or {})}
         effort = params.pop("reasoning_effort", None)
         params.update(stream=True, store=False, include=list(INCLUDE))
+        if self.cache_key:
+            params["prompt_cache_key"] = self.cache_key
         if effort:
             params["reasoning"] = {"effort": effort, "summary": "auto"}
         request: dict[str, Any] = {

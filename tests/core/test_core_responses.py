@@ -360,3 +360,29 @@ def test_replaying_every_turns_reasoning_makes_each_request_extend_the_last(tmp_
             if replay == "all"
             else [("reasoning", "rs2")]
         )
+
+
+def test_each_provider_sends_its_own_stable_prompt_cache_key(tmp_path):
+    from aether.core.responses import ResponsesProvider as RP
+
+    a, b = (
+        RP(ResponsesClient([]), model="m", params={}),
+        RP(ResponsesClient([]), model="m", params={}),
+    )
+    key = a._request([{"role": "user", "content": "x"}], None, 10, None)["params"][
+        "prompt_cache_key"
+    ]
+    assert key.startswith("aether-") and key != b.cache_key
+    assert (
+        a._request([{"role": "user", "content": "y"}], None, 10, None)["params"][
+            "prompt_cache_key"
+        ]
+        == key
+    )
+    off = RP(ResponsesClient([]), model="m", params={}, cache_key="")
+    assert (
+        "prompt_cache_key"
+        not in off._request([{"role": "user", "content": "x"}], None, 10, None)[
+            "params"
+        ]
+    )
