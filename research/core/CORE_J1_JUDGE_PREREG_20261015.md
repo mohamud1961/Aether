@@ -31,3 +31,24 @@ Honest prior: uncertain; the R1 reviewer (GLM, state access) caught 3/12. A null
 
 ≈ 1.0M input tokens; estimate ≈ $0.15–0.40 at GPT-6-Luna prices. Kill at $1.00 recorded. Authorized by the principal ("go",
 15 Oct, on the judge test).
+
+## Amendment before any judge call (15 Oct, 15:2x UTC): judge context and evidence-first prompt
+
+The principal asked that the judge get the context it needs to judge correctly. Changed before any judge call:
+- **Delivered files (G4 only):** each trial's collected artifacts (the task's artifact manifest) as a tree with sizes
+  plus the text of small text files (≤ 4,000 chars each, ≤ 20,000 in all). `logs/` and `shared/` are never shown
+  (harness logs; possibly grader-side). Grader output is not under artifacts. Leak scan of all 110 records: the only
+  hits for test/grader words are the agents' own workspace files and math-eval-grader's own task. N2 rows have no
+  saved artifacts (recorded limit).
+- **Fuller recent outputs:** the last 12 outputs kept to 4,000 chars (others 1,200); record cap 80k chars (was 40k).
+- **Evidence-first judge (Sauron, arXiv 2610.17724):** each verdict must quote the output or file that settles it;
+  the agent's statements are claims, not evidence; met only on shown evidence.
+- Inputs file sha256 `396f6bc1db0433e5a566e703d2a5ad21681643756bb2e14c6ee82c65b855e93b` (110 rows, same trials, ≈ 6.6M chars). Budget estimate ≈ $0.3–0.5; kill $1 unchanged.
+Predictions J1-a/b/c unchanged. **Exploratory (not a prediction):** for each wrong finish the judge admits, I will
+classify the miss as *unsupported claim* or *reading* from the judge's quoted evidence and the grader's failing test.
+
+## Cache-key smoke (15 Oct, 14:55 UTC, `48f5abaaf`, not part of J1)
+
+One binary-extract row, arm `e`, GPT-6-Luna: request accepted with `prompt_cache_key` (0 failed attempts), 8 calls, cache
+77.9% of 64.8k input (N1 `e` on the same task: 76.8–78.2% at 9–10 calls), $0.005, reward 0. The key is accepted
+and harmless; no change in cache hit is measurable on a run this short (the prefix was already cached).
