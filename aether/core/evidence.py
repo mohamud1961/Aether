@@ -1,31 +1,65 @@
-"""Evidence-linked finishing: claims cite the steps that show them, choices the task left open are named.
+"""Step-cited finishing: claims cite the steps they rest on, open choices are named, completion is asserted.
 
-Every N1 P1 wrong finish (12 of 12) claimed "verified" or "validated" in free prose; one said its design "remains
-unverified" and still ended the run. Nothing tied a claim to an observation, and the choices that decided the
-outcome (an address base taken from an example, a melting-temperature method, a sequence source) were never named,
-so neither the solver nor the verifier was pointed at them.
+Every N1 P1 wrong finish (12 of 12) claimed "verified" or "validated" in free prose; nothing tied a claim to an
+observation, and the choices that decided the outcome were never named.
 
 With ``CoreConfig.evidence`` on:
-- every tool result carries its step number, so a claim can cite it;
-- the finish takes ``claims`` (one per line, each ending with the steps that show it, e.g. ``[steps 12, 15]``),
-  ``decisions`` (one per line: ``choice | alternatives | what in the task or input selects it [steps N]``) and
-  ``unverified`` (anything not shown, or empty);
-- the first finish is audited mechanically, never judged: a claim or decision with no cited step, a cited step that
-  does not exist, a citation of only file writes (a write shows what was made, not that it works), and anything
-  stated as unverified are shown back once. The solver decides; its next finish ends the work (or goes to the
-  verifier when that is on). The audit is recorded on the row either way.
+- every tool result carries its step number;
+- the finish takes ``assertion`` (complete | incomplete | uncertain: a report of the delivered state, separate from
+  the run's status and from the grade), ``claims`` (one per line, each ending with the steps it rests on, e.g.
+  ``[steps 12, 15]``), ``decisions`` (``choice | alternatives | what in the task or input selects it [steps N]``)
+  and ``unverified``;
+- the first finish is checked for **citation shape only**: a claim or decision citing no step, a step that does not
+  exist, a step whose tool failed, only file writes, or a read of a file that a later write_file/edit_file changed.
+  It cannot tell whether a cited output says what the claim says, whether every requirement is covered, or whether
+  a shell or Python step wrote rather than observed (Codex review, 15 Oct: a red file cited as blue, an omitted
+  second deliverable and a shell writer all pass it). A clean result means the citations are well formed, nothing
+  more. With problems and an assertion of complete, they are shown once;
+- an honest incomplete or uncertain assertion is never treated as a citation problem. When it comes with a real
+  share of the time limit left, the finish is held once with the time left, because the objective is the delivered
+  task: the assertion reports the state, it is not a way out. The next finish ends the work either way.
+Every check is recorded on the row (``extras.evidence``).
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+import posixpath
 from typing import Any
 
 CITE = re.compile(r"\[\s*steps?\s+([0-9][0-9,\s\-–and]*)\]", re.IGNORECASE)
 WRITES = frozenset({"write_file", "edit_file"})
 NOT_EVIDENCE = WRITES | {"finish"}
-AUDIT_MIN_S = 60.0  # with less time left the audit is recorded but not shown
+AUDIT_MIN_S = 60.0  # with less time left the check is recorded but not shown
+ASSERTIONS = ("complete", "incomplete", "uncertain")
+PERSIST_MIN_S, PERSIST_SHARE = (
+    120.0,
+    0.25,
+)  # an incomplete finish is held once only with this much time left
+
+
+@dataclass(frozen=True)
+class Step:
+    """What the runtime knows about a step without judging it: the tool, whether the tool reported an error, and
+    the file a read_file read or a write_file/edit_file wrote (absolute). Shell and Python effects are unknown."""
+
+    tool: str
+    failed: bool = False
+    read: str = ""
+    wrote: str = ""
+
+
+def step_fact(name: str, args: dict[str, Any], out: str, workdir: str) -> Step:
+    path = str(args.get("path") or "")
+    path = posixpath.normpath(posixpath.join(workdir, path)) if path else ""
+    return Step(
+        name,
+        failed=out.startswith("error:"),
+        read=path if name == "read_file" else "",
+        wrote=path if name in WRITES else "",
+    )
+
 
 EVIDENCE_FINISH = {
     "type": "function",
@@ -35,6 +69,13 @@ EVIDENCE_FINISH = {
         "parameters": {
             "type": "object",
             "properties": {
+                "assertion": {
+                    "type": "string",
+                    "enum": list(ASSERTIONS),
+                    "description": "Your report of the delivered state: complete only if every requirement is met "
+                    "and you have shown it. A report, not a way out: while time and useful next steps remain, keep "
+                    "working.",
+                },
                 "summary": {
                     "type": "string",
                     "description": "One or two sentences on the final state.",
@@ -55,7 +96,7 @@ EVIDENCE_FINISH = {
                     "description": "Anything your result rests on that you have not shown. Empty if nothing.",
                 },
             },
-            "required": ["summary", "claims", "decisions", "unverified"],
+            "required": ["assertion", "summary", "claims", "decisions", "unverified"],
         },
     },
 }
@@ -63,16 +104,18 @@ EVIDENCE_FINISH = {
 EVIDENCE_DOC = """
 Evidence: every tool result shows its step number. When you finish, each claim cites the steps whose output shows \
 it, and you name every choice the task did not dictate, with its alternatives and what in the task or its inputs \
-selects it. A step is evidence for a claim only if its output would have been different were the claim false: \
-agreement between your result and your own reconstruction of it, or with an example's values, shows nothing about \
-a choice both share. Where the task does not ask for a transformation (a rebase, a rescaling, a reordering), the \
-reading that applies none is the default; adopting one needs support from the task or its inputs."""
+selects it. A step supports a claim only if its output would have been different were the claim false: agreement \
+between your result and your own reconstruction of it, or with an example's values, shows nothing about a choice \
+both share. Say whether the work is complete, incomplete or uncertain as it truly is."""
 
-AUDIT = """[evidence audit: the finish did not take effect]
+AUDIT = """[citation check: the finish did not take effect]
 {problems}
 
 Fix what is missing, or show it, or, if the finish is right as it stands, call finish again; the next finish \
 ends the work."""
+PERSIST = """[the finish did not take effect: you report the work as {assertion}, with {left:.0f}s of {limit:.0f}s left]
+The task is to deliver it. Keep working on what is missing; if you are sure nothing more can be done, call finish \
+again; the next finish ends the work."""
 
 
 @dataclass
@@ -108,27 +151,43 @@ def parse(text: str) -> list[Line]:
     return lines
 
 
-def _check(kind: str, lines: list[Line], steps: dict[int, str]) -> list[str]:
+def _check(kind: str, lines: list[Line], steps: dict[int, Step]) -> list[str]:
     problems = []
     for line in lines:
+        cited = [steps.get(n) for n in line.steps]
+        missing = [n for n in line.steps if n not in steps]
         if not line.steps:
             problems.append(f"- {kind} cites no step: {line.text}")
-            continue
-        missing = [n for n in line.steps if n not in steps]
-        if missing:
+        elif missing:
             problems.append(
                 f"- {kind} cites steps that do not exist ({', '.join(map(str, missing))}): {line.text}"
             )
-        elif all(steps[n] in NOT_EVIDENCE for n in line.steps):
+        elif all(c.tool in NOT_EVIDENCE for c in cited):
             problems.append(
-                f"- {kind} cites only file writes, which show what was made, not that it holds: "
-                f"{line.text}"
+                f"- {kind} cites only file writes, which show what was made, not that it holds: {line.text}"
             )
+        else:
+            failed = [n for n in line.steps if steps[n].failed]
+            stale = [
+                n
+                for n in line.steps
+                if steps[n].read
+                and any(m > n and steps[m].wrote == steps[n].read for m in steps)
+            ]
+            if failed:
+                problems.append(
+                    f"- {kind} cites steps whose tool failed ({', '.join(map(str, failed))}): {line.text}"
+                )
+            if stale:
+                problems.append(
+                    f"- {kind} cites reads of files changed by a later step ({', '.join(map(str, stale))}): "
+                    f"{line.text}"
+                )
     return problems
 
 
 def audit(args: dict[str, Any], steps: dict[int, str]) -> dict[str, Any]:
-    """The mechanical audit of a finish. ``steps`` maps each step number to the tool it ran."""
+    """The citation-shape check of a finish. ``steps`` maps each step number to what the runtime knows of it."""
     claims, decisions = parse(args.get("claims", "")), parse(args.get("decisions", ""))
     decisions = [
         d for d in decisions if d.text.lower().rstrip(".") not in {"none", "n/a", "no"}
@@ -141,14 +200,14 @@ def audit(args: dict[str, Any], steps: dict[int, str]) -> dict[str, Any]:
         problems.append(
             "- no claims: list what holds for each requirement, with the steps that show it"
         )
-    if unverified:
-        problems.append(f"- you state this is not shown: {unverified}")
+    assertion = str(args.get("assertion", ""))
     return {
+        "assertion": assertion,
         "claims": len(claims),
         "decisions": len(decisions),
         "decision_lines": [d.text for d in decisions],
         "unverified": unverified,
-        "problems": problems,
+        "citation_problems": problems,
     }
 
 
@@ -164,13 +223,29 @@ def open_questions(row: dict[str, Any]) -> str:
 
 
 def at_finish(s: Any, args: dict[str, Any]) -> tuple[str, bool] | None:
-    """Audit this finish. Returns the audit to show (finish held) the first time it finds a problem with time to
-    act on it; otherwise None and the finish proceeds. Every audit is recorded."""
+    """Check this finish. The first finish is held once: with citation problems under an assertion of complete,
+    or with an incomplete/uncertain assertion and a real share of the time left. Otherwise None and the finish
+    proceeds. Every check is recorded."""
     row = audit(args, s.step_tools)
     rows = s.result.extras.setdefault("evidence", [])
-    shown = bool(row["problems"]) and not rows and s.remaining() > AUDIT_MIN_S
-    rows.append({**row, "shown": shown, "step": s.result.steps})
-    s.trace("evidence_audit", shown=shown, **row)
-    if shown:
-        return AUDIT.format(problems="\n".join(row["problems"])), False
-    return None
+    left, first = s.remaining(), not rows
+    note = ""
+    if (
+        first
+        and row["assertion"] == "complete"
+        and row["citation_problems"]
+        and left > AUDIT_MIN_S
+    ):
+        note = AUDIT.format(problems="\n".join(row["citation_problems"]))
+    elif (
+        first
+        and row["assertion"] != "complete"
+        and left > max(PERSIST_MIN_S, PERSIST_SHARE * s.timeout_s)
+    ):
+        note = PERSIST.format(assertion=row["assertion"], left=left, limit=s.timeout_s)
+    shown = "citation" if note.startswith("[citation") else "persist" if note else ""
+    rows.append(
+        {**row, "shown": shown, "step": s.result.steps, "remaining_s": round(left, 1)}
+    )
+    s.trace("evidence_check", shown=shown, **row)
+    return (note, False) if note else None

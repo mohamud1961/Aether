@@ -1,27 +1,34 @@
 """One independent check of the solver's first finish: the same model, a fresh context, a disposable copy of the state.
 
-At the first ``finish`` a no-network clone of the task container is taken, the solver's control directory (context
-mirror, terminal logs, REPL state) is removed from it, and a second run of the Core loop works there as the
-verifier: an assessor's system prompt (tools.VERIFIER_PROMPT), the same tools, its own message history and its own
-call-log role. Its brief is neutral: no claim that the work is done (the N1 smoke brief said "says it is complete",
-and both verifiers confirmed a wrong state). It lists the files the work changed and asks for the correct result to
-be written down before they are opened; the prompt treats produced code and comments as an interpretation, not
-evidence, and forbids explaining a contradiction away. None of the solver's reasoning, transcript, summary or claims
-reaches it. Everything it runs happens in the clone, never in the graded container. It ends with a verdict:
-confirmed, or refuted with evidence.
+At the first ``finish`` the delivered tree under the working directory is fingerprinted, a no-network clone of the
+task container is taken, the solver's control directory is removed from it, and a second run of the Core loop works
+there as the verifier: an assessor's system prompt (tools.VERIFIER_PROMPT), the same tools, its own message history
+and call-log role. Its brief is neutral (no completion claim) and lists the files the work changed. None of the
+solver's reasoning, transcript, summary or claims reaches it. Everything it runs happens in the clone.
 
-- confirmed: the finish takes effect.
-- refuted: the evidence goes back to the solver as the result of its finish and the work continues. The solver
-  decides what to do with it; its next finish ends the work. There is never a second check.
-- no verdict (the clone or the verifier failed, or the verifier ran out of time): the finish takes effect and the
-  reason is recorded. A failure of the check never holds the work.
-- skipped when less than VERIFY_MIN_REMAINING_S is left, so a refutation could not be acted on (recorded).
+It ends with one of three findings (tools.VERDICT_FINISH):
+- defect_found: the evidence goes back to the solver as the result of its finish and the work continues; the
+  solver decides what to do with it, and its next finish ends the work. There is never a second check.
+- no_defect_found: the finish takes effect. It certifies nothing unless it is bound: every file of the delivered
+  tree was unchanged in the clone when the verifier concluded, and unchanged in the original when the check ended.
+- undetermined: the finish takes effect; missing evidence (no network, no running services in the clone) is not a
+  defect (A1: checks that held correct states).
 
-The check's time comes out of the solver's limit: VERIFY_SHARE of what is left, at most VERIFY_MAX_S.
+Binding (Codex review 15 Oct: a verifier that repaired its clone and then confirmed was accepted while the graded
+file stayed wrong): a delivered file modified or deleted in the clone voids the finding; the solver is shown what
+the check changed and what it reported, as a proposed repair, and the work continues. New files (build and scratch
+output) are recorded, not voiding. A delivered file that changed in the original during the check (a background
+job) makes the finding stale; the finish takes effect and that is recorded.
+
+Time (same review: clone set-up could consume the solver's whole remainder): one absolute deadline spans listing,
+fingerprints, clone, review and cleanup, VERIFY_SHARE of what is left and at most VERIFY_MAX_S, so the rest stays
+the solver's. A check that cannot finish in time, fails, or is cancelled never holds the finish; every outcome,
+including cancellation, is recorded. Skipped when less than VERIFY_MIN_REMAINING_S is left.
 """
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import posixpath
 import shlex
@@ -56,12 +63,26 @@ Choices the work made where the task does not dictate one (its reasons are not g
 task and its inputs, with a check whose outcome would differ between the alternatives:
 {questions}"""
 
-REFUTED = """[independent check: refuted; the finish did not take effect]
+DEFECT = """[independent check: defect found; the finish did not take effect]
 A separate check, made from the task alone in a copy of your current state, found:
 {evidence}
 
 It can be wrong. Decide for yourself: fix what it found, or, if you are sure it is mistaken, call finish again. \
 There is no second check; your next finish ends the work."""
+MODIFIED = """[independent check: void; the finish did not take effect]
+A separate check, made from the task alone in a copy of your current state, changed these delivered files in its \
+copy before concluding, so its conclusion is about its changed copy, not your state:
+{files}
+What it reported:
+{evidence}
+
+Treat this as a proposed repair, which can be wrong. Decide for yourself; your state is as you left it. There is no \
+second check; your next finish ends the work."""
+FINDINGS = ("defect_found", "no_defect_found", "undetermined")
+CLOSE_RESERVE_S = 30.0  # of the check's own time, kept for removing the clone
+FINGERPRINT_MAX_BYTES = (
+    "20M"  # larger files are not fingerprinted (recorded as a count)
+)
 
 
 class _Labelled:
@@ -127,6 +148,33 @@ def _questions(s: Any) -> str:
     return QUESTIONS.format(questions=evidence.open_questions(rows[-1])) if rows else ""
 
 
+async def fingerprint(env: Any, workdir: str) -> dict[str, str]:
+    """sha256 of every file under ``workdir`` (the receipt's skipped directories aside, files under
+    FINGERPRINT_MAX_BYTES). Raises when the listing fails."""
+    prune = " -o ".join(f"-name {shlex.quote(n)}" for n in receipt.SKIP)
+    command = (
+        f"cd {shlex.quote(workdir)} && find . -xdev \\( {prune} \\) -prune -o -type f "
+        f"-size -{FINGERPRINT_MAX_BYTES} -exec sha256sum {{}} + 2>/dev/null; true"
+    )
+    result = await env.exec(command=command, cwd=None, env=None, timeout_sec=120)
+    if exit_code(result) != 0:
+        raise OSError("the delivered tree could not be fingerprinted")
+    out = {}
+    for line in str(getattr(result, "stdout", "") or "").splitlines():
+        digest, _, path = line.partition("  ")
+        if path:
+            out[path] = digest
+    return out
+
+
+def changes(before: dict[str, str], after: dict[str, str]) -> dict[str, list[str]]:
+    return {
+        "modified": sorted(p for p in before if p in after and after[p] != before[p]),
+        "deleted": sorted(p for p in before if p not in after),
+        "created": sorted(p for p in after if p not in before),
+    }
+
+
 def _usage(provider: Any) -> dict[str, int | None]:
     roles = [
         r
@@ -141,6 +189,41 @@ def _record(s: Any, row: dict[str, Any]) -> None:
     s.trace("verification", **row)
 
 
+async def _review(
+    s: Any, row: dict[str, Any], held: dict[str, Any], end: float
+) -> None:
+    produced = await receipt.changed(s.env, s.workdir, s.config.control_dir)
+    row["produced_files"] = len(produced)
+    held["before"] = await fingerprint(s.env, s.workdir)
+    row["fingerprinted_files"] = len(held["before"])
+    held["clone"] = clone = await s.clone(s.env)
+    row["clone_ready_s"] = round(time.monotonic() - held["started"], 1)
+    await _forget_the_solver(clone, s.config)
+    held["result"] = await run_agent(
+        env=clone,
+        task=BRIEF.format(task=s.task, workdir=s.workdir, files=_listing(produced))
+        + _questions(s),
+        workdir=s.workdir,
+        provider=_Labelled(s.provider, VERIFIER_ROLE),
+        timeout_s=max(1.0, end - time.monotonic() - CLOSE_RESERVE_S),
+        trace=Trace(s.trace.path.with_name(TRACE_FILE)),
+        config=verifier_config(s.config),
+    )
+    clone_changes = changes(held["before"], await fingerprint(clone, s.workdir))
+    original_changes = changes(held["before"], await fingerprint(s.env, s.workdir))
+    row["clone_changes"] = clone_changes
+    row["original_changed"] = original_changes["modified"] + original_changes["deleted"]
+
+
+def _finding(row: dict[str, Any], result: Any) -> tuple[str | None, str]:
+    args = result.extras.get("finish_args", {}) if result else {}
+    finding = args.get("verdict") if result and result.status == "finished" else None
+    evidence_text = str(args.get("evidence", ""))
+    if len(evidence_text) > MAX_EVIDENCE_CHARS:
+        evidence_text = evidence_text[:MAX_EVIDENCE_CHARS] + "\n[evidence truncated]"
+    return finding, evidence_text
+
+
 async def at_finish(s: Any) -> tuple[str, bool]:
     """Run the one check for the solver's finish. Returns (finish result shown to the solver, finished)."""
     left = s.remaining()
@@ -153,38 +236,37 @@ async def at_finish(s: Any) -> tuple[str, bool]:
     budget = min(VERIFY_MAX_S, VERIFY_SHARE * left)
     started = time.monotonic()
     row: dict[str, Any] = {"budget_s": round(budget, 1)}
-    clone, result = None, None
+    held: dict[str, Any] = {"started": started, "clone": None, "result": None}
     try:
-        produced = await receipt.changed(s.env, s.workdir, s.config.control_dir)
-        row["produced_files"] = len(produced)
-        clone = await s.clone(s.env)
-        await _forget_the_solver(clone, s.config)
-        result = await run_agent(
-            env=clone,
-            task=BRIEF.format(task=s.task, workdir=s.workdir, files=_listing(produced))
-            + _questions(s),
-            workdir=s.workdir,
-            provider=_Labelled(s.provider, VERIFIER_ROLE),
-            timeout_s=budget,
-            trace=Trace(s.trace.path.with_name(TRACE_FILE)),
-            config=verifier_config(s.config),
-        )
+        await asyncio.wait_for(_review(s, row, held, started + budget), timeout=budget)
+    except TimeoutError:
+        row["reason"] = f"the check did not end within its {budget:.0f}s"
+    except asyncio.CancelledError:
+        row.update(status="cancelled", elapsed_s=round(time.monotonic() - started, 1))
+        await _close(held, row)
+        _record(s, row)
+        raise
     except Exception as exc:
         row["reason"] = f"{type(exc).__name__}: {exc}"
-    finally:
-        if clone is not None:
-            try:
-                await clone.close()
-            except Exception as exc:
-                row["close_error"] = f"{type(exc).__name__}: {exc}"
-    args = result.extras.get("finish_args", {}) if result else {}
-    verdict = args.get("verdict") if result and result.status == "finished" else None
-    evidence = str(args.get("evidence", ""))
-    if len(evidence) > MAX_EVIDENCE_CHARS:
-        evidence = evidence[:MAX_EVIDENCE_CHARS] + "\n[evidence truncated]"
+    await _close(held, row)
+    result = held["result"]
+    finding, evidence_text = _finding(row, result)
+    if (
+        "reason" in row
+    ):  # a finding cut short by the deadline or a failure has no standing
+        finding = None
+    clone_changes = row.get("clone_changes", {})
+    voided = bool(clone_changes.get("modified") or clone_changes.get("deleted"))
+    if finding and voided:
+        status = "void_candidate_modified"
+    elif finding and row.get("original_changed"):
+        status = "stale_original_changed"
+    else:
+        status = finding or ("error" if "reason" in row else "no_finding")
     row.update(
-        status=verdict or ("error" if "reason" in row else "no_verdict"),
-        evidence=evidence,
+        status=status,
+        finding=finding,
+        evidence=evidence_text,
         verifier_status=result.status if result else None,
         verifier_error=result.error if result else None,
         steps=result.steps if result else 0,
@@ -192,6 +274,21 @@ async def at_finish(s: Any) -> tuple[str, bool]:
         usage=_usage(s.provider),
     )
     _record(s, row)
-    if verdict == "refuted":
-        return REFUTED.format(evidence=evidence), False
-    return f"finished\n[independent check: {row['status']}]", True
+    if status == "defect_found":
+        return DEFECT.format(evidence=evidence_text), False
+    if status == "void_candidate_modified":
+        files = clone_changes["modified"] + clone_changes["deleted"]
+        return MODIFIED.format(
+            files="\n".join(files[:MAX_LISTED]), evidence=evidence_text
+        ), False
+    return f"finished\n[independent check: {status}]", True
+
+
+async def _close(held: dict[str, Any], row: dict[str, Any]) -> None:
+    clone, held["clone"] = held.get("clone"), None
+    if clone is None:
+        return
+    try:
+        await asyncio.wait_for(clone.close(), timeout=CLOSE_RESERVE_S * 4)
+    except Exception as exc:
+        row["close_error"] = f"{type(exc).__name__}: {exc}"

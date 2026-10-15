@@ -262,3 +262,46 @@ seq-assembly, construct-assembly × 1 episode (`CORE_N1_A3_SMOKE_ARMS_20261015.j
   P2 paused design: 1 of 3 seq-assembly).
 If A3a fails mechanically, the defect is fixed before any board. A3b/A3c failures are recorded; the next board is
 decided from the traces.
+
+## Amendment 4 (15 October): Codex review dispositions, engineering fixes, corrected claims
+
+Review: `audit_output/aether_worldclass_20261015/opus_review/N1_A3_VERIFICATION_AUDIT_20261015.md` (Codex GPT-6-Astra,
+on `52283b6cc`). Its offline controls were re-run on the fixed source, unchanged except field names
+(`opus_review/opus_fix_controls/`). **A3 is still running on `52283b6cc`** (the unfixed mechanism; 5 of 6 cells
+done at writing, `f` construct-assembly on attempt 2 after an infra-invalid attempt 1). It is not changed; its rows
+describe the old mechanism and are scored as such.
+
+**Corrections to my own earlier text.** Amendment 3 called the audit "the fake-progress metric" and said it catches
+claims backed only by the solver's writes. Wrong: it checks citation shape. A red file cited as blue, an omitted
+deliverable and a shell writer all passed it. I also wrote that the single finish "forces" the lie; overstated:
+the finish already allowed ending when time is gone, and L2 construct-assembly e2 openly submitted a provisional draft. The
+interface made completion status ambiguous; it is not shown to cause the false claims.
+
+| Finding | Disposition | Change | Offline evidence |
+|---|---|---|---|
+| Citation bookkeeping is not fake-work detection | Accept | Renamed to citation-shape check (`citation_problems`); steps now carry tool failure and read/write targets: failed and stale citations are named; documented and pinned what it cannot see | failed read, stale read: caught; contradictory and omitted: still pass (pinned by `test_what_the_citation_check_cannot_see`) |
+| Verifier can repair its clone and confirm | Accept | Delivered tree fingerprinted before cloning; a file modified/deleted in the clone voids the finding and the solver sees it as a proposed repair; new files (scratch) recorded only; original re-fingerprinted: changed during the check = stale; prompt: leave delivered files and inputs as they are | `verifier_changes_clone`: void, original untouched; stale-original and scratch tests |
+| Clone set-up can take the solver's time | Accept | One absolute deadline wraps listing, fingerprints, clone, review; clone close outside it with its own bound; cancellation recorded then re-raised | `clone_delay_deadline`: run finishes, correct state submitted, `error` recorded; `test_a_slow_clone…`, `test_a_cancelled_check_is_recorded` |
+| Unknown forced into refuted | Accept | Findings `defect_found` / `no_defect_found` / `undetermined`; only a shown defect returns to the solver | `test_undetermined_holds_nothing` |
+| Honesty costlier than a clean false citation | Accept | Explicit `assertion` (complete/incomplete/uncertain), separate from run status and grade; `unverified` is never a problem; citation faults are held only under `complete` | `honest_gap`: zero citation problems |
+| (same, the principal's direction) statuses must not become a way out | Adopted | An incomplete/uncertain finish with more than max(120 s, 25% of the limit) left is held once with the time left ("the task is to deliver it"); near the limit it takes effect. Deliberate, measured below as avoidable abandonment; it is not presented as making the model truthful | `honest_gap` shown `persist`; near-limit test |
+| Finish precision alone rewards abstention | Accept | Metrics below | n/a |
+| Blanket "no transformation is the default" | Accept | Removed from the solver and verifier prompts | prompt tests |
+| Decisions at finish may be retrospective | Accept | Next mechanism moves it before construction (below) | n/a |
+| Cancelled rows must stay in the denominator | Accept | `<run-dir>/n1/p2/cancelled.jsonl` (the run VM): both rows `cancelled`, ungraded; b-e2 15 calls started, 14 with usage, $0.0148 known; c-e2 12 started, 11 with usage, $0.0087 known; one in-flight call each with **unknown** usage (lower bounds, not zero) | call logs |
+
+**Metrics from here (every board).** All-scheduled graded success (successes / all scheduled eligible episodes,
+cancelled and invalid included in the denominator); asserted-complete precision; completion coverage (share
+asserting complete); honest incomplete/uncertain share and how many of those were in fact incomplete; avoidable
+abandonment (incomplete asserted with time left that a later attempt solved); timeouts, invalid, cancelled; harm
+(correct state turned wrong); cost and time over all roles and attempts, unknown usage counted separately. The
+sealed "≥95% finish precision on two held-out boards" is an exploratory target, not a reliability proof (36/36 gives
+a one-sided 95% lower bound of 92%; repeated episodes correlate), and "the verifier found nothing" does not by itself
+license removing it: it may share the blind spot.
+
+**Next mechanism (proposed, not built, no spend):** one solver-only treatment: when the solver meets a consequential
+ambiguity, it names the plausible alternative before building, derives an observation from task-allowed inputs that
+would differ between them, runs it on the real delivered state, and resolves or reports a contradiction. Evaluated
+as a small matched recovery diagnostic with equal resources, independent grading before and after, and correct-state
+controls; reviewer effects measured separately. A paid run needs the principal's explicit authorization with exact
+source, tasks, retries and a sealed total.

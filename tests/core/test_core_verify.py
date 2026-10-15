@@ -1,5 +1,5 @@
 """The one independent finish check: a fresh-context run of the same model on a clone, its verdict, and what the
-solver sees (refuted: the evidence, work continues; confirmed, no verdict or low time: the finish takes effect)."""
+solver sees (defect_found: the evidence, work continues; otherwise the finish takes effect), bound to the delivered state."""
 
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
         _turn(
             "finish",
             {
-                "verdict": "refuted",
+                "verdict": "defect_found",
                 "evidence": "colour.txt says red; the task asks for blue",
             },
             "v2",
@@ -160,14 +160,16 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
     # the solver saw the evidence as the result of its finish
     shown = json.dumps(client.requests[4]["messages"][-1])
     assert (
-        "refuted" in shown
+        "defect found" in shown
         and "the task asks for blue" in shown
         and "no second check" in shown
     )
 
     row = result.extras["verification"]
     assert (
-        row["status"] == "refuted" and row["steps"] == 2 and row["usage"]["input"] == 20
+        row["status"] == "defect_found"
+        and row["steps"] == 2
+        and row["usage"]["input"] == 20
     )
     # each run reports its own calls; the row's totals include both
     assert result.usage["input"] == 40 and provider.log.usage()["input"] == 60
@@ -185,12 +187,14 @@ def test_a_confirmation_ends_the_work_at_the_first_finish(tmp_path):
         _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
         _turn("finish", {"summary": "done"}, "s2"),
         _turn(
-            "finish", {"verdict": "confirmed", "evidence": "colour.txt is blue"}, "v1"
+            "finish",
+            {"verdict": "no_defect_found", "evidence": "colour.txt is blue"},
+            "v1",
         ),
     ]
     result, client, _, _ = _run(tmp_path, script)
     assert result.status == "finished" and not client.script
-    assert result.extras["verification"]["status"] == "confirmed"
+    assert result.extras["verification"]["status"] == "no_defect_found"
     assert result.extras["finish_args"] == {"summary": "done"}
 
 
@@ -198,11 +202,11 @@ def test_a_verdict_outside_its_choices_is_refused_like_any_invalid_call(tmp_path
     script = [
         _turn("finish", {"summary": "done"}, "s1"),
         _turn("finish", {"verdict": "probably", "evidence": "unsure"}, "v1"),
-        _turn("finish", {"verdict": "confirmed", "evidence": "checked"}, "v2"),
+        _turn("finish", {"verdict": "no_defect_found", "evidence": "checked"}, "v2"),
     ]
     result, client, _, _ = _run(tmp_path, script)
     assert "expected one of" in json.dumps(client.requests[2]["messages"][-1])
-    assert result.extras["verification"]["status"] == "confirmed"
+    assert result.extras["verification"]["status"] == "no_defect_found"
 
 
 def test_no_check_when_too_little_time_is_left_to_act_on_one(tmp_path):
@@ -265,3 +269,109 @@ def test_produced_files_cannot_be_listed_without_the_start_marker(tmp_path):
         asyncio.run(
             receipt.changed(LocalEnv(work), str(work), str(tmp_path / "no-ctl"))
         )
+
+
+# Codex review controls (15 Oct), reversed: each reproduced a defect on 52283b6cc.
+
+
+def test_a_verifier_that_repairs_its_copy_cannot_certify_the_original(tmp_path):
+    PathClone.made.clear()
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "red\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "v1"),
+        _turn("finish", {"verdict": "no_defect_found", "evidence": "it is blue"}, "v2"),
+        _turn("finish", {"summary": "kept as is"}, "s3"),
+    ]
+    result, client, _, box = _run(tmp_path, script)
+    row = result.extras["verification"]
+    assert (
+        row["status"] == "void_candidate_modified"
+        and row["finding"] == "no_defect_found"
+    )
+    assert row["clone_changes"]["modified"] == ["./colour.txt"]
+    shown = json.dumps(client.requests[4]["messages"][-1])
+    assert "void" in shown and "colour.txt" in shown and "it is blue" in shown
+    assert (
+        box / "work" / "colour.txt"
+    ).read_text() == "red\n"  # the graded state is untouched
+    assert (
+        result.status == "finished" and not client.script and PathClone.made[0].closed
+    )
+
+
+def test_new_scratch_files_in_the_copy_do_not_void_the_finding(tmp_path):
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn("write_file", {"path": "check.log", "content": "ok\n"}, "v1"),
+        _turn("finish", {"verdict": "no_defect_found", "evidence": "blue"}, "v2"),
+    ]
+    result, client, _, _ = _run(tmp_path, script)
+    row = result.extras["verification"]
+    assert row["status"] == "no_defect_found" and row["clone_changes"]["created"]
+    assert result.status == "finished" and not client.script
+
+
+def test_a_finding_is_stale_when_the_original_changed_during_the_check(tmp_path):
+    async def clone_then_background_write(env):
+        made = PathClone(tmp_path / "box")
+        (tmp_path / "box" / "work" / "colour.txt").write_text("green\n")
+        return made
+
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn("finish", {"verdict": "no_defect_found", "evidence": "blue"}, "v1"),
+    ]
+    result, _, _, _ = _run(tmp_path, script, make_clone=clone_then_background_write)
+    row = result.extras["verification"]
+    assert row["status"] == "stale_original_changed" and row["original_changed"]
+    assert result.status == "finished"
+
+
+def test_undetermined_holds_nothing(tmp_path):
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn("finish", {"verdict": "undetermined", "evidence": "no network"}, "v1"),
+    ]
+    result, client, _, _ = _run(tmp_path, script)
+    assert result.extras["verification"]["status"] == "undetermined"
+    assert result.status == "finished" and len(client.requests) == 3
+
+
+def test_a_slow_clone_cannot_take_the_solvers_time(tmp_path, monkeypatch):
+    """52283b6cc: clone set-up ran outside the check's budget and the run timed out with the finish lost."""
+    monkeypatch.setattr(V, "VERIFY_MAX_S", 0.5)
+
+    async def slow(env):
+        await asyncio.sleep(3)
+        return PathClone(tmp_path / "box")
+
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+    ]
+    result, client, _, _ = _run(tmp_path, script, make_clone=slow)
+    row = result.extras["verification"]
+    assert result.status == "finished" and len(client.requests) == 2
+    assert row["status"] == "error" and "did not end within" in row["reason"]
+    assert row["elapsed_s"] < 2
+
+
+def test_a_cancelled_check_is_recorded(tmp_path):
+    import pytest
+
+    async def cancelled(env):
+        raise asyncio.CancelledError()
+
+    script = [_turn("finish", {"summary": "done"}, "s1")]
+    with pytest.raises(asyncio.CancelledError):
+        _run(tmp_path, script, make_clone=cancelled)
+    events = [
+        json.loads(x)
+        for x in (tmp_path / "logs" / "core_trace.jsonl").read_text().splitlines()
+    ]
+    (row,) = [e for e in events if e["event"] == "verification"]
+    assert row["status"] == "cancelled"

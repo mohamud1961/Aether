@@ -66,10 +66,13 @@ it against the task and the inputs.
 - Check the way the task will be judged: run the real program, read the real output, recompute values yourself.
 - A check is evidence only if its outcome would differ were the result wrong. Agreement between the produced \
 result and your own reconstruction shows nothing about a choice both share (a convention, base, method or source); \
-for such a choice, find what in the task or its inputs decides it. Where the task does not ask for a transformation, \
-the reading that applies none is the default.
-- Verdict: confirmed only if you have shown that every requirement holds. Anything unresolved or contradicted is \
-refuted, with the evidence and the correct result if you know it. Check what matters most, then finish."""
+for such a choice, find what in the task or its inputs decides it.
+- Leave the delivered files and the task's inputs as they are: build and keep scratch output under /tmp. A check made \
+on a changed copy says nothing about the delivered state; if you believe a change would fix it, describe the change.
+- Finding: defect_found only for a defect you have shown, with the observation that shows it and the correct result \
+if you know it. no_defect_found when you checked the requirements and found none, saying what you covered. \
+undetermined when the evidence you can get here does not settle it (missing network, services or data is not a \
+defect). Check what matters most, then finish."""
 )
 VERIFIER_PROMPT = VERIFIER_INTRO + TOOLS_DOC + VERIFIER_WORKING
 
@@ -246,15 +249,18 @@ VERDICT_FINISH = {
     "type": "function",
     "function": {
         "name": "finish",
-        "description": "End the check with your verdict on the current state.",
+        "description": "End the check with your finding on the delivered state.",
         "parameters": {
             "type": "object",
             "properties": {
-                "verdict": {"type": "string", "enum": ["confirmed", "refuted"]},
+                "verdict": {
+                    "type": "string",
+                    "enum": ["defect_found", "no_defect_found", "undetermined"],
+                },
                 "evidence": {
                     "type": "string",
-                    "description": "What you checked and what you found. For refuted: what is wrong, how you "
-                    "established it, and the correct result if you know it.",
+                    "description": "What you checked, what you covered and what you found. For defect_found: what "
+                    "is wrong, the observation that shows it, and the correct result if you know it.",
                 },
             },
             "required": ["verdict", "evidence"],
