@@ -31,3 +31,10 @@ caught neither); a failed prediction is recorded as failed.
 
 GLM writer calls only; A1 cost ≈ $0.06. Kill at $0.50 recorded spend (a lower bound). VM time on the already
 running the run VM (authorised for tonight).
+
+## Amendment before the run (06:5x UTC): writer model
+
+the run VM holds only the GPT-6-Luna key, so the writer is **GPT-6-Luna on the Responses API** (bench `--provider gpt-6-luna`,
+`f3181d41a`), not GLM. A1's numbers (GLM) are therefore context, not the baseline: **the primary comparison is
+within Q1**, all checks vs hard only, on the same contracts. Predictions unchanged. Smoke (1 writer, credential-recovery, not
+part of Q1): 5/5 states right under both scores, its one check qualified hard, $0.0026.
