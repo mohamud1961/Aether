@@ -73,3 +73,26 @@ Evidence: `audit_output/aether_q1_20261015/q1_evidence.tgz` (sha256
 Fresh writers (3 per task), GPT-6-Luna, the commit that carries both fixes. Predictions, same bars as Q1:
 **Q1R-a** hard-only harm ≤ 3/24 (expected to fail on the exploratory evidence: net-fit's to/from alone gives 2);
 **Q1R-b** hard-only bad ≥ 6/18 with credential-recovery ≥ 4/6; **Q1R-d** ≥ 11/12 writer runs with a hard check. Kill $0.50.
+
+### Q1-R results (06:31:48 UTC start, 0cd92a4c1; 12/12 contracts; $0.145 recorded, a lower bound)
+
+| Score | Bad states held | Correct states held (harm) |
+|---|---|---|
+| All checks | 16/18 | 10/24 (42%) |
+| Hard only | 10/18 (credential-recovery 2/6, net-fit 4/6, seq-assembly 2/3, graph-query-catalog 2/3) | **8/24 (33%)** (net-fit 3/6, graph-query-catalog 3/6, seq-assembly 2/3) |
+
+- **Q1R-a failed** (8/24 against ≤ 3). **Q1R-b failed** (10/18 overall, but credential-recovery only 2/6). **Q1R-d failed**
+  (9/12 writer runs with a hard check). Pending checks: 0 again; no writer called `oligotm`.
+- With grounding working, **117 of 147 checks qualified as hard**, and qualification removed only 2 of the 10
+  harmful holds. Every remaining harmful hold is a grounded check whose example and violation encode the writer's
+  own reading: net-fit's `to,from` (the grader's reference writes `from,to`), graph-query-catalog checks of the query's text, and a
+  seq-assembly check demanding BsaI sites in a form the correct primers do not use.
+
+**Conclusion.** Self-qualification cannot separate a right reading from a wrong one: the writer's satisfying
+example and its violation are made from the same reading as its check, so a misread requirement qualifies as
+easily as a correct one. SpecHarness's gains come on mechanical, observable obligations (paths, formats, stated
+values), which on our tasks are the credential-recovery class; our dominant failures are readings. **Not promoted; the
+disposition is recorded (`Contract.dispositions`) and holds nothing.**
+
+Evidence: `audit_output/aether_q1r_20261015/q1r_evidence.tgz` (sha256
+62d4dbf1884b20a510cbb561b43f1c3534998bcbac4e8481bbf7ab0a5c1a4d9e).
