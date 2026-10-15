@@ -1,7 +1,10 @@
-# N2: requirement ledger pilot — PRE-REGISTRATION (DRAFT, NOT AUTHORIZED)
+# N2: requirement ledger pilot — PRE-REGISTRATION (SEALED 15 Oct ~04:25Z)
 
-Status: **draft awaiting the principal's explicit authorization**. No row may run before it, and the source below must be
-re-sealed (exact commit, Linux qualification of `f85acbd83`/`d8de4e805` and the ledger on the run VM) first.
+Status: **authorized** by the principal (15 Oct, before going to bed: "you are now in autonomous mode … vm usage is unlimited
+for tonight … you have £10 to spend on models"). Sealed before any row. Source: `720a57d44` (runtime code; this
+sealing commit changes documents only), Linux-qualified on the run VM: gate 246 + 143 passed, no skips, no leftover
+clone containers, images or volumes (`<run-dir>/n1/linux_qual_720a57d44.log`), including the real
+read-only clone test. No Codex review (Codex is out of usage); the principal's go stands in for it.
 
 ## Why
 
@@ -15,7 +18,7 @@ that type: the requirement ledger (`--core-ledger on`, `916cef586`). Nothing els
   `e` + `--core-ledger on`. Verifier off in both (one intervention at a time).
 - Tasks (development board, recurring wrong finishes): construct-assembly, seq-assembly, net-fit, binary-extract,
   graph-query-catalog. Held-out tasks untouched.
-- 2 episodes per task per arm = 20 rows; arm order interleaved per task; same model (GPT-6-Luna), host, limits,
+- 3 episodes per task per arm = 30 rows (raised from the draft's 2 before sealing, for power); arm order interleaved; same model (GPT-6-Luna), host, limits,
   `--host-cpus 4 --max-parallel-rows 2`. One retry for infra-invalid rows only; cancelled and invalid rows stay in
   the denominator.
 - Grading: the official grader, after the agent terminates. Model identity, deployment and response IDs are
@@ -26,15 +29,15 @@ that type: the requirement ledger (`--core-ledger on`, `916cef586`). Nothing els
 - **N2-a (mechanism):** every `g` row that finishes calls `requirements` at least once before its first finish;
   ≥ 80% of `g` rows quote every requirement sentence by their last ledger call.
 - **N2-b (reading, primary):** wrong voluntary finishes on stated requirements (grader assertion on a requirement
-  quoted in the task) are fewer in `g` than in `e`: `g` ≤ `e` − 2 of 10. Honest prior: uncertain; prompt-level
+  stated in the task) are fewer in `g` than in `e`: `g` ≤ `e` − 2 of 15. Honest prior: uncertain; prompt-level
   levers failed six times (S1–S6, L1/L2).
-- **N2-c (outcome):** `g` passes ≥ `e` + 1 of 10.
+- **N2-c (outcome):** `g` passes ≥ `e` + 2 of 15.
 - **N2-d (cost):** `g`'s all-role token cost ≤ 1.5 × `e`'s.
-- **N2-e (harm):** no task passed by `e` in both episodes is failed by `g` in both.
-A null or negative result is recorded as such; n = 10 per arm supports a pilot reading, not a claim.
+- **N2-e (harm):** no task passed by `e` in all 3 episodes is failed by `g` in 2 or more.
+A null or negative result is recorded as such; n = 15 per arm supports a pilot reading, not a claim.
 
 ## Budget (sealed at authorization)
 
 GPT-6-Luna token prices ($0.10 in / $0.01 cached / $0.50 out per 1M). N1 rows on these tasks cost $0.006–0.09; estimate
-≈ $0.6–1.2 for 20 rows. **Kill rule:** stop if recorded model spend passes $2.0 (recorded spend is a lower bound;
-the remaining £10 budget, ≈ £8.9 at most, is an upper bound). VM: ≈ 1.5 h on the run VM, deallocated after.
+≈ $1–2 for 30 rows. **Kill rule:** stop if recorded model spend passes $3.0 (recorded spend is a lower bound;
+the remaining £10 budget, ≈ £8.9 at most, is an upper bound). VM: ≈ 2–3 h on the run VM (VM time authorized without limit tonight), deallocated after.
