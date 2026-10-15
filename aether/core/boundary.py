@@ -4,14 +4,18 @@
 required: the mount that holds the working directory is listed read-only in /proc/mounts, and creating a file
 there is refused. A permission bit is not a boundary (root, or the owner, can change it back) and a refused write
 alone could be a permission bit, so a clone without /proc/mounts, or on a read-write mount, is ``writable`` whatever
-a write attempt shows. Mounts below the working directory are reported with their options: they are outside the
-commit and unbound anyway (binding), and a read-write one is a writable part.
+a write attempt shows. Mounts below the working directory are reported with their options; a read-write one makes the
+whole boundary ``writable`` (same review: listing it while claiming read-only misclassified a writable part).
 
 ``scratch_copies``: a read-only delivered tree does not stop a check from copying a delivered file to scratch,
 changing the copy, testing that and reporting on the original. Files created or changed in the scratch directories
-during the check (by ctime, which ``cp -p`` cannot preserve) are hashed and compared by name with the delivered
-files: ``same`` copies are exact, ``diverging`` ones share a delivered file's name but not its contents. This is a
-record of what was there, by name only; it does not show what was tested or decide anything.
+since the check started are hashed and compared by name with the delivered files: ``same`` copies are exact,
+``diverging`` ones share a delivered file's name but not its contents. "Since" is the kernel's ctime against the
+clone's clock read by the harness before the check: ``cp -p`` and ``touch`` cannot set a ctime and changing the clock
+needs CAP_SYS_TIME, so nothing the check can write moves the cut-off (a marker file in its own writable directory
+could be touched or removed: background security review of f85acbd83). It is a record of what was left, by name: a
+copy renamed or deleted before the check ends is not in it, and it shows neither what was tested nor decides
+anything.
 """
 
 from __future__ import annotations
@@ -74,32 +78,45 @@ async def probe(env: Any, workdir: str, timeout_s: float = 60) -> dict[str, Any]
         read_only = "ro" in opts.split(",")
     if writable_subs:
         row["writable_submounts"] = writable_subs[:MAX_LISTED]
-    held = read_only and row["write"] == "refused"
+    held = read_only and row["write"] == "refused" and not writable_subs
     row["boundary"] = "read_only" if held else "writable"
     return row
 
 
-def _scratch_script(roots: tuple[str, ...], marker: str) -> str:
+def _scratch_script(roots: tuple[str, ...], since: int) -> str:
     paths = " ".join(shlex.quote(r) for r in roots)
-    m = shlex.quote(marker)
-    return (
-        f'for r in {paths}; do [ -d "$r" ] && find "$r" -xdev -type f -cnewer {m} '
-        f"-size -{MAX_SCRATCH_BYTES}c ! -path {m} -exec sha256sum {{}} +; done "
-        f"| head -n {MAX_SCRATCH_FILES}"
-    )
+    return f"""if stat -c %Z / >/dev/null 2>&1; then Z='-c %Z'; else Z='-f %c'; fi
+n=0; m=$(( ($(date +%s) - {int(since)}) / 60 + 2 ))  # -cmin narrows cheaply; the exact cut-off is below
+for r in {paths}; do [ -d "$r" ] && find "$r" -xdev -type f -cmin -"$m" -size -{MAX_SCRATCH_BYTES}c; done |
+while IFS= read -r f; do
+  c=$(stat $Z "$f" 2>/dev/null) || continue
+  [ "$c" -ge {int(since)} ] || continue
+  n=$((n + 1)); [ "$n" -le {MAX_SCRATCH_FILES} ] || break
+  sha256sum "$f"
+done"""
+
+
+async def clock(env: Any) -> int | None:
+    """The clone's clock (epoch seconds), read by the harness: the cut-off for ``scratch_copies``."""
+    try:
+        result = await env.exec(command="date +%s", cwd=None, env=None, timeout_sec=30)
+    except Exception:  # noqa: BLE001 - no cut-off, so no record
+        return None
+    out = str(getattr(result, "stdout", "") or "").strip()
+    return int(out) if exit_code(result) == 0 and out.isdigit() else None
 
 
 async def scratch_copies(
     env: Any,
     delivered: Manifest,
     roots: tuple[str, ...],
-    marker: str,
+    since: int,
     timeout_s: float = 60,
 ) -> dict[str, Any]:
-    """Scratch files created or changed after ``marker`` that share a name with a delivered file."""
+    """Scratch files created or changed at or after ``since`` that share a name with a delivered file."""
     try:
         result = await env.exec(
-            command=_scratch_script(roots, marker),
+            command=_scratch_script(roots, since),
             cwd=None,
             env=None,
             timeout_sec=max(1, int(timeout_s)),

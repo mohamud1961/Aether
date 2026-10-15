@@ -81,7 +81,6 @@ READ_ONLY_NOTE = """
 
 In this copy everything outside {scratch} is read-only: the files above cannot be changed. Build and run anything \
 that writes under /tmp."""
-STARTED = ".check-started"  # in the verifier's own control directory: scratch files newer than it are the check's
 MAX_LISTED = 60
 # With evidence on (see evidence): the choices the work made, without its reasons. N1 smoke v2: a verifier left to
 # find the open choices itself settled the address base the same way the solver had and confirmed.
@@ -222,13 +221,7 @@ async def _review(
     probed = await boundary.probe(clone, s.workdir, timeout_s=min(60.0, manifest_s))
     row["boundary"] = probed.pop("boundary")
     row["boundary_detail"] = probed
-    marker = f"{verifier_config(s.config).control_dir}/{STARTED}"
-    marked = await clone.exec(
-        command=f"mkdir -p {shlex.quote(posixpath.dirname(marker))} && : > {shlex.quote(marker)}",
-        cwd=None,
-        env=None,
-        timeout_sec=60,
-    )
+    since = await boundary.clock(clone)
     note = (
         READ_ONLY_NOTE.format(scratch=" and ".join(SCRATCH))
         if row["boundary"] == "read_only"
@@ -247,9 +240,11 @@ async def _review(
     )
     if before is None:
         return
-    if exit_code(marked) == 0:
+    if since is None:
+        row["scratch_copies"] = {"error": "the clone's clock could not be read"}
+    else:
         row["scratch_copies"] = await boundary.scratch_copies(
-            clone, before, SCRATCH, marker, timeout_s=min(60.0, manifest_s)
+            clone, before, SCRATCH, since, timeout_s=min(60.0, manifest_s)
         )
     after = await _manifest(clone, s, row, work_end)
     now = await _manifest(s.env, s, row, work_end)
