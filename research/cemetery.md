@@ -11,6 +11,15 @@
 | 3 | Nine-role pre-phase (Gen 1) | A role pipeline designed the harness before any code | A phase check passed with its signals missing | Fail closed on missing signals.|
 | 4 | Verifier with the answers mounted (Gen 1) | A verifier container that could read the answers | The oracle mount leaked the answers | Verifier isolation is a fixed rule.|
 | 5 | Composable blocks over one shell tool (Gen 1 to 2) | Swappable blocks and many narrow runners | Historical; no winning configuration recorded | Fewer variants, each gated by an eval.|
+| 6 | Ignored-ID attribution guard (Gen 2) | A post-hoc guard that ignores some IDs | 0 of 2 on target rows | A guard tuned to one tool is not a mechanism.|
+| 7 | Combined attribution guard (Gen 2) | Hard-coded argument handling for one tool plus two other guards | 2 of 2 target, but 0 of 1 sentinel; total 6 of 12 across arms | A target win that regresses a sentinel is not a win.|
+| 8 | Seven-family winner search (Gen 2) | Find the one family that wins on target rows without sentinel regression | Winner count 0 across seven families | A small set rarely yields a single winner; stop searching for one.|
+| 9 | Single-file lean kernel (Gen 2) | Persistent-shell kernel with brittle anchors | Improved one row by hiding evidence; rejected | A pass that hides evidence is not a pass.|
+| 10 | Eleven-step synthesised harness (Gen 2) | A whole-harness configuration against baseline on the full suite | Every scored run was invalid (container runtime down); held, not rescored | An invalid run is not a score.|
+| 11 | Receipt cockpit with background tools (Gen 2) | A continuous session with background and service tools | The model ignored the background tools; both hard rows 0.0; paused | A tool the model does not use does not help.|
+| 12 | Five-homolog gate (Gen 2) | Five local tasks as a gate for the runtime | 5 of 5 on one run; verifier not clean on any scoreable row on the next | One green run is not a gate.|
+| 13 | Full-board Gen 2 run | 241 tasks, two attempts each | 216 of 241 first attempts never launched; 5 of 19 valid rows passed | Check launch integrity before comparing rates.|
+| 14 | Adaptive Harness Profile as a promotion explanation (Gen 2) | A task profile generated before the solve loop | Replication 1 of 4 against 3 of 4; then no difference on the larger set | A probabilistic advantage, kept as a flagged variant only.|
 
 ## Notes
 
