@@ -84,3 +84,18 @@ This matters because the same pattern (a claim tested and narrowed) is the reaso
 - **What changed:** Authority moved to a primary solver plus an independent verifier. The architect was removed from production.
 - **Numbers:** architect_model_calls = 0; qualification 301/301 local, 301/301 shared Linux, 16/16 real Docker.
 
+### 2026-08-22 · The "destabilization" story is retracted
+- **What happened:** A claim that one arm had destabilised on a task was found unsupported.
+- **What changed:** The task was reclassified as a tie, and corrections are now recorded before a task is locked.
+- **Numbers:** Both arms 1.0 on the reclassified task.
+
+### 2026-08-30 · An invalid official trial is kept on the record
+- **What happened:** An official trial scored 0.0 but its paid attempt lacked usage telemetry, so it could not be scored as valid.
+- **What changed:** The trial was logged as a consumed invalid measurement and was not replaced by a retry.
+- **Numbers:** Official score 0.0 kept; 62 provider attempts reconstructed.
+
+### 2026-09-12 · The solver root-cause census finds substitution
+- **What happened:** The solver often replaced the requirement with an easier observable condition, then used weak tests to declare done. A semantic completion review pilot was run.
+- **What changed:** The semantic review was not adopted; the diagnosis is the working explanation.
+- **Numbers:** 590 scoreable outcomes in 59 families; 14 of 59 families 0/5 for both models; pilot: 0 semantic wins, 1 loss, 4 ties over 5 valid pairs; 76 vs 34 provider calls.
+
