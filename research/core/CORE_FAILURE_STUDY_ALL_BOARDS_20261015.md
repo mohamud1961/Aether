@@ -59,3 +59,28 @@ Non-finishes (timeouts, no output) are separate: about 13 rows, mostly GLM on se
 
 Limits: 221 rows are not independent (same 9 tasks, repeated). graph-query-catalog and the "no E line" rows are not classified
 further. N1 p1 rows are not in the local archives.
+
+## Offline cross-model disagreement test (same day; user: "test cross-model disagreement offline on saved data")
+
+No model calls. Final artifacts are not archived, so each run's decisive answer is reconstructed from its own tool
+outputs (never the grader): net-fit = the six-edge set as last printed under its `to,from`/`from,to` header; binary-extract
+= whether the printed output keys start at ≥ 0x400000; construct-assembly = antigen and molecule-binder names in the finish
+summary. A run is **flagged** when its answer differs from the other model's majority answer. Script:
+`tools/aether_program/core_cross_model_offline.py`. Not pre-registered (exploratory, free).
+
+| Task | Wrong finishes flagged | Right finishes flagged | Unscored |
+|---|---|---|---|
+| net-fit | **9/11** (2 unflagged GLM runs have the correct DAG and fail another test) | 1/17 | 4 |
+| binary-extract | **13/13** (all GPT-6-Luna) | **6/6** (every scored GLM pass) | 5 |
+| construct-assembly | 15 flagged, but inconclusive (below) | — | 3 |
+
+- **Disagreement finds the disputed readings almost perfectly** (net-fit 9 of the 9 reading failures; binary-extract 13/13).
+- **It cannot say which side is right.** On binary-extract every correct GLM run is flagged too: the dispute is
+  symmetric. As a gate it would hold correct work of whichever model is right; as a trigger it says only "this
+  decision is contested, settle it".
+- **construct-assembly: the feature is too crude**, and it overturns a claim: GLM names FLAG and SNAP in 9 of 10 finish
+  summaries yet fails 8, so GLM's construct-assembly failures are *not* antigen identification (sequence or component choice,
+  not yet classified). GPT-6-Luna's summaries mostly do not name them. The earlier "domain inference for both models"
+  is withdrawn for GLM.
+- Live use would need the second model's answer on the decisive decision. A full second solve doubles cost; a
+  cheaper form (ask the other model only for its reading of the contested choice) is untested.
