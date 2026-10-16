@@ -75,7 +75,7 @@ class CoreConfig:
     ledger: bool = (
         False  # a requirement ledger quoting the task, kept while working (see ledger)
     )
-    readback: bool = False  # read delivered files back by the task's own definitions (tools.READBACK_DOC)
+    readback: str = "off"  # tools.READBACK_MODES: on = READBACK_DOC, independent = INDEPENDENT_CHECK_DOC
     finish_nudge: bool = False  # hold the first finish once for one more look (see finish_check)
     think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     finish_check: str = ""  # experiment instrument: a check command run at the first held finish

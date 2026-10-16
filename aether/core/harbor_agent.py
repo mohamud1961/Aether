@@ -29,7 +29,7 @@ from .clone import Clone, compose_clone
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
-from .tools import TURN_MODES
+from .tools import READBACK_MODES, TURN_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
@@ -68,7 +68,7 @@ CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
 REASONING_ENV = "AETHER_CORE_REASONING"
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
 # context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC);
-# AETHER_CORE_READBACK=on the read-back paragraph (tools.READBACK_DOC). All on/off; see evidence and ledger.
+# AETHER_CORE_READBACK=on|independent a read-back paragraph (tools.READBACK_MODES). Others on/off.
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE", "AETHER_CORE_LEDGER"
 READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
@@ -180,7 +180,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
         ledger=_choice(environ, LEDGER_ENV, REPL_MODES, "off") == "on",
-        readback=_choice(environ, READBACK_ENV, REPL_MODES, "off") == "on",
+        readback=_choice(environ, READBACK_ENV, READBACK_MODES, "off"),
         think_reminder=_choice(environ, THINK_ENV, REPL_MODES, "off") == "on",
         finish_nudge=_finish_mode(environ) in ("nudge", "check"),
         finish_check=_finish_check(environ),

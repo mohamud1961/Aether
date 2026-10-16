@@ -298,6 +298,19 @@ result and with any source the task names. A comparison of the file with the var
 cannot fail, so it does not count. Where the task's own words specify a format, a source or a procedure exactly, \
 follow them over library, domain or example conventions; depart only if following them is impossible, and say so. \
 Fix any mismatch before you finish."""
+# Independent check (P1 check-independence study, 2026-10-16): in 122 archived GLM rows, checks that re-used the
+# writer's reading (views, tuple compares, positional loads) passed every reversed file they met; the few that read the
+# file by its declared fields and tested a fact obtained elsewhere caught 3/3. READBACK_DOC asked for the reading but
+# not for the independent fact, and failed (step 4). Opt-in, as a read-back mode.
+INDEPENDENT_CHECK_DOC = """
+Each file the task asks you to deliver: before you finish, test it the way its consumer will read it, against facts \
+you did not get from the code that wrote it. First write down one or more checkable facts the correct result must \
+satisfy, taken from the task's words, the source data, or the documented behaviour of the library or tool you used, \
+not from your own output. Then load the delivered file from disk exactly as its declared format defines it (by its \
+field names, units and order) and test those facts against it in code. A comparison of the file with the variable or \
+code that produced it, or a check that reads the file the same way your writer does, cannot fail, so it does not \
+count. If a test fails, find the cause, fix the file and test again."""
+READBACK_MODES = ("off", "on", "independent")  # on: READBACK_DOC; independent: INDEPENDENT_CHECK_DOC
 
 
 # Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
@@ -321,13 +334,15 @@ def system_prompt(
     turn: str = "tool",
     self_check: bool = False,
     verifier: bool = False,
-    readback: bool = False,
+    readback: str = "off",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
     )
     if turn not in TURN_MODES:
         raise ValueError(f"turn must be one of {TURN_MODES}")
+    if readback not in READBACK_MODES:
+        raise ValueError(f"readback must be one of {READBACK_MODES}")
     return (
         (VERIFIER_PROMPT if verifier else BASE_PROMPT).format(
             python=PYTHON_DOC.format(version=python_version) if python_version else "",
@@ -335,7 +350,7 @@ def system_prompt(
             context=context if clm else "",
         )
         + (SELF_CHECK_DOC if self_check else "")
-        + (READBACK_DOC if readback else "")
+        + {"on": READBACK_DOC, "independent": INDEPENDENT_CHECK_DOC}.get(readback, "")
         + (ANALYSIS_DOC if turn == "analysis" else "")
     )
 
