@@ -57,3 +57,48 @@ Phase 0: one oracle row per task must score 1.
 
 ≈ 20 text calls (< $0.05) + 12 rows (≈ $0.02–0.05 each) ≈ $0.4; VM ≈ $0.5. **Hard stop $1 token-priced.** No
 expansion without asking. Archive to blob + `audit_output/aether_p1_serialization_20261016/`; deallocate the run VM.
+
+## Results (2026-10-16, the run VM, VM HEAD `e62af8cf4`, all calls/rows valid)
+
+**Custody.** Grader sha `364069f893e336a0` (= the matched test's). Phase 0 oracle 2/2. Archive
+`run-evidence/p1-serialization-20261016/p1_serialization_20261016.tgz` (sha256 `8275b7047d8bc3f6…`), extracted to
+`audit_output/aether_p1_serialization_20261016/`; audit `sp1audit.py` (scratchpad). 0 infra-invalid, 0 timeouts.
+Spend **$0.056** agent rows + < $0.01 text probe. the run VM deallocated.
+
+| Condition | Both graphs correct (grader on final files) | Notes |
+|---|---|---|
+| text `arrow` | **10/10** | identical file every time |
+| text `tuple` (pgmpy `(parent, child)` list) | **10/10** | |
+| agent `ser-files` | **5/5** | typed the rows by hand (`write_file`), then `cat` |
+| agent `ser-full` | learned **5/5**, both **4/5**; full reward 4/5 | wrote from a Python edge list |
+
+- **ser-full write code:** all 5 rows named the loop variables by role, `for p, c in edges: f.write(f"{c},{p}")`,
+  under an edge list commented "(parent -> child)". Compare the matched test's reversed rows:
+  `for to, frm in sorted(edges)`, `for a, b in …`, `columns=["to","from"]` over `model.edges()`: the same tuple
+  labelled by the file's column names instead of by its role.
+- **The one ser-full miss is not serialization:** e4 applied do(Y) by replacing Y's CPD and wrote the intervened
+  file from the model's edges, so it kept U→Y; its summary claims "severing U→Y". Claim and file disagree; the
+  graded file is what counts.
+- No row re-estimated the structure (0 structure-search calls), unlike 36/36 in the matched test.
+
+### Predictions
+
+- **SZ-P1 HELD** (arrow 10/10).
+- **SZ-P2 HELD** (ser-files 5/5).
+- **SZ-P3 FAILED.** ser-full 4/5 (> 3), and the one failure is the intervention, not a reversal: once the graph is
+  supplied with its edge direction named, the code path serializes it correctly too.
+- **SZ-P4:** tuple vs arrow reversal 0/10 vs 0/10.
+
+### Conclusion (by the pre-registered rule)
+
+**Serialization is not the bottleneck.** GLM writes a correct, supplied graph in the `to,from` format every time
+(25/25 learned files across text and agent conditions), including from code. The reversals occur only when GLM
+produces the graph itself: its own edges come out of its inference as unlabelled pairs (`model.edges()`, `(a, b)`),
+and at write time it binds them to the file's column names rather than to parent/child. So the failure is in
+connecting graph reasoning to file construction, not in knowing the format. A second, smaller loss is the same kind:
+the intervention is done on the model while the delivered intervened file is written from different state (here and
+in 3 matched rows).
+
+Caveat: n is small (5 per agent arm), and the supplied prompt itself names the direction ("parent → child"), which may
+be exactly what prevents the binding error; the next test should check that by supplying the graph *unlabelled*
+(e.g. only as a fitted pgmpy model) before proposing any lever. Not run (beyond this sealed scope).
