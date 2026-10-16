@@ -88,3 +88,16 @@ meaning are rare (7%) but were decisive every time they met a reversed file (3/3
 passes), and most repairs (7/9) follow some independent contradiction. This is observational: rows that wrote IH
 checks may differ in other ways, n is small (3 decisive IH events), and it is one task family. No mechanism is
 proposed here; a causal test would have to vary whether such a check is made, not observe it.
+
+## Amendment 1 — provenance correction (self-found, 2026-10-16, before any further run)
+
+1. **Mislabel.** Rows `screen-net-fit-contract3/4-*` and `reviewerp4-*` are from the **V4 contract screen**
+   (`aether_worldclass_20261013`, `CORE_V4_CONTRACT_PREREG_20261012.md`), not step 4. "step-4 contract4 e1" and
+   "step-4 reviewerp4 e2" above should read "V4 contract4 e1" and "V4 reviewerp4 e2".
+2. **Confound.** 4 of the 9 IH rows (contract3 e1/e2, contract4 e1/e2) ran under the V4 acceptance-contract
+   mechanism, which induced explicit checks. Without them: IH in **5/116** GLM rows outside V4 contract arms; of the 3
+   decisive IH catches, 2 were outside contract arms (role g1-tofrom-named e3, matched k1-check e1).
+3. **Related prior levers, for the next design.** Step 4's read-back paragraph (`tools.READBACK_DOC`) asked for a
+   header-faithful reading and failed (S4-P1/P2): one `rb1` row read "U,D means D→U ✓" while its own reasoning had
+   fixed U as parentless, i.e. a correct reading with **no comparison against an independent fact**. V4's contract
+   arm and A1's prewritten checks produced catches but also harm (credential-recovery e1; 42% in A1).
