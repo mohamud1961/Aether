@@ -90,3 +90,17 @@ reading of every D row's response to the nudge or check: acknowledged? changed t
 Expected ≈ $1 model (22 rows at $0.02–0.08) plus ≈ $0.7 VM. **Hard stop: $3 token-priced for both tests
 together.** After the runs: archive to blob and `audit_output/`, deallocate the run VM, audit, commit, stop for
 reviews.
+
+## Amendment 1 (2026-10-16, before any extra row; user-approved "yes run extra check-arm episodes")
+
+Interim state when written: the two valid net-fit `check` rows both **passed** the check at the held finish (one with a
+correct graph that failed only the sampled-data test; one with a wrong graph that satisfies every stated
+constraint, the check's known blind spot), so the `check` arm had **0 defective (D) rows**: S2-P1 was untestable.
+The three valid `nudge` rows were all D, and none repaired the graph.
+
+Change: the net-fit `check` arm gets **8 extra episodes (e5–e12)**, same flags, run after the queued infra-invalid
+reruns, ≤ 3 parallel. No other arm is extended. Because arm sizes now differ, S2-P1/P2 are scored as **repair
+rates on D rows** (check repairs / check D rows vs nudge repairs / nudge D rows), with counts reported; "≥ nudge +
+2" is restated as "check repair rate exceeds nudge's by ≥ 2 rows' worth on the nudge arm's D count". If the
+`check` arm still has fewer than 3 D rows after e12, S2-P1 is reported **untested**, not failed. Extra cost ≈
+$0.15; the $3 cap is unchanged.
