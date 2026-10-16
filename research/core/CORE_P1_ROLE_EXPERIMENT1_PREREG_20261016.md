@@ -108,3 +108,21 @@ reduction (3→1 of 9) is below the pre-registered bar and costs ~1.5×. The rem
 wrong **source** binding (what does position 0 of `model.edges()` mean?), which naming alone does not check. That
 points the next question at grounding the source convention (e.g. the model verifying the source's meaning against
 something observable) rather than at more naming; no new mechanism is proposed here.
+
+## Amendment 1 — review corrections (Codex `OPUS_ROLE_EXPERIMENT_AUDIT_20261016.md`, ChatGPT), accepted after re-check
+
+1. **Spend is a lower bound.** `rp2m-role-g2-fromto-named-coreb1-e3-a1` has one failed provider attempt
+   (`RemoteProtocolError`, no usage) before the row finished. Known spend $0.1483; "0 broken rows" stands, "0 failed
+   attempts" does not.
+2. **Adherence is a final-code label, not prevention.** `g1-tofrom-named e3` first wrote both files positionally and
+   reversed, then repaired after its own check (reading the CSVs by header) found an incoming edge into the
+   intervened node T. It is counted adherent in R-P3 from its final writer. A base row (`g2-tofrom-base e1`) also
+   repaired an initially wrong writer. Prevention and recovery are not separated by this board.
+3. **The failed named row had directional source evidence before writing.** `g2-tofrom-named e1` read the constructor
+   in `bn_model.py` and printed `J`'s CPD with `evidence: ['H', 'L']` (J's parents) before writing a helper that
+   declared position 0 the child. Its write-step reasoning does not mention tuple order. Its final check tested the
+   in-memory model, not the CSV against the source. So the residual error is not "evidence unavailable" but evidence
+   not connected to the binding, and a check that shared the wrong binding.
+4. **Checker reward ignores header order** (recorded separately). All rows used the requested order; counts unchanged.
+5. Delivered CSV bytes were not archived separately (decoded edges in `check.json`, some readbacks in traces).
+6. VM power state re-queried 2026-10-16: `VM deallocated`.
