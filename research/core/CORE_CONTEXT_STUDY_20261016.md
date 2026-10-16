@@ -92,3 +92,36 @@ reference for "a model that holds its own context".
 GPT-6-Luna n = 4 on net-fit. The labelled/unlabelled split is a regex heuristic over code near the write. "Reversed" is read from
 the grader's extra edges (edges into U). Correlations here are observational; F5's supplied-graph result is the only
 controlled comparison.
+
+## Amendment 1 — review corrections (Codex audit `OPUS_CONTEXT_STUDY_AUDIT_20261016.md`, ChatGPT), accepted
+
+Each factual point below was re-checked against the archive before acceptance.
+
+1. **Denominator.** The full GLM inferred/repair population is **68 rows, 24 learned-graph correct**. My 64/23 silently
+   excluded 4 rows where the extractor found no write: `s5-…-x2-e1` (correct), `s5-…-x2-e2` (other), `s6-…-x2r-e1`
+   and `-e2` (reversed). Percentages in F2/F3/F5 refer to the 64-row write-extracted subset.
+2. **"0 context edits in any net-fit row" is false.** 3 accepted model edits: `p2a-net-fit-coreb1-e2` (2) and
+   `rp1m-repair-bn-k1-check-coreb1-e3` (1). Automatic checkpoints: 0 (stands). **"Compaction only on the two long
+   tasks" is false**: accepted context events also occur on cipher-diff-attack (4 rows) and credential-recovery (1 row, a checkpoint). My
+   all-task census omitted the step-2/matched archives and counted only checkpoints.
+3. **GPT-6-Luna is not an isolated test.** L1 used Chat Completions with JSON turns, whose written `analysis`/`plan` fields
+   stay in history as ordinary content; L2 used Responses with replayed rationale items. "Same context mechanics" was
+   wrong; F2 is an observation (4/4 learned graphs, n = 4, mixed interfaces), not evidence of internal retention.
+4. **"Every lever acted at the finish" is false.** The read-back instruction (`tools.py:294`) tells the solver to
+   read each delivered file back *after writing it*; the think reminder acts after every turn.
+5. **"Bindings are never written down" is false.** `p2a coreb1-e2`'s accepted notes kept explicit tuple conventions
+   alongside a wrong graph. Persisted notes can preserve mistakes (a direct risk for proposal 2).
+6. **F5's heading overstates.** 6/19 labelled writes still reversed; labels are model-chosen, not assigned. The
+   supplied-graph result changes role annotation, authority, search burden and workload together.
+7. **Replay-all is not a launchable GLM arm** (`core_arm.py` allows `--core-reasoning all` only with Responses + GPT-6-Luna).
+8. **Memory-loss framing withdrawn.** The supported claim (ChatGPT's wording, accepted): GLM can have the relevant
+   instructions and data available and still fail to preserve the **semantic roles** of an intermediate
+   representation when transferring it into an artifact, sometimes within one code block. This does not explain
+   initial misinterpretation, wrong graph selection, intervention errors or every wrong finish.
+
+**Proposals in section 4 are withdrawn as a set.** Next step, if authorised: one single-model diagnostic at the
+graph-to-file boundary that holds graph values, authority, workload and resources fixed and varies only positional vs
+explicitly named directional roles; fresh graphs, both valid column orders (so "always swap" cannot pass), correct
+controls; output checker validated on known-good and reversed fixtures before any call; score serialization, harm,
+treatment adherence (from the actual code) and cost separately. Prompt-only guidance and a required named-field
+interface are different treatments. Only after that, an end-to-end test under the original task.
