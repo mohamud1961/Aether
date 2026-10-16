@@ -104,3 +104,77 @@ rates on D rows** (check repairs / check D rows vs nudge repairs / nudge D rows)
 2" is restated as "check repair rate exceeds nudge's by ≥ 2 rows' worth on the nudge arm's D count". If the
 `check` arm still has fewer than 3 D rows after e12, S2-P1 is reported **untested**, not failed. Extra cost ≈
 $0.15; the $3 cap is unchanged.
+
+## Amendment 1 not executed
+
+The 8 extra `check` episodes (e5–e12) were **cancelled before any of them started** (the principal's later instruction,
+in favour of the matched repair test `CORE_P1_MATCHED_REPAIR_PREREG_20261016.md`). The launcher process was killed
+before its first row; no extra row exists. Scoring below uses the original board.
+
+## Results (2026-10-16, the run VM, commit `e62af8cf4` lineage, 22 valid rows)
+
+**Custody.** Archive `run-evidence/p1-step2-20261016/p1_step2_20261016.tgz` (sha256 `a9d6baf0f619f41f…`), extracted
+to `audit_output/aether_p1_step2_20261016/`; audit script `p2audit.py` (scratchpad). 26 attempts: 4 first-wave net-fit rows
+infra-invalid (Harbor's 10 s `docker info` preflight on a cold concurrent start, not a Docker restart; the same cause
+probably explains step 4's 3 invalid rows), rerun as `a2` by relaunching the screen. 0 HTTP 429s. Token-priced spend
+**$0.545** (plus ≈ $0.15 probes).
+
+**Manipulation checks (verified in the files, not the flags).** `check` rows' held-finish text carries the check
+output; `nudge` rows carry the nudge only, with the check recorded in `finish_second_look`. The think reminder is in
+12/13 requests of a sampled `think` row (the first request has no prior result) and in 0 `coreb1` requests;
+`think_reminder: True` in its run record.
+
+| Task | Arm | Solves | D rows (held check FAILED) | Repairs on D | Cost |
+|---|---|---|---|---|---|
+| net-fit | `nudge` | 0/4 | 4 | 0/4 | $0.067 |
+| net-fit | `check` | 0/4 | 2 | 0/2 | $0.060 |
+| credential-recovery | `nudge` | 3/3 | 0 | – | $0.101 |
+| credential-recovery | `check` | 3/3 | 1 | **1/1** | $0.103 |
+| net-fit | `coreb1` | 0/4 | – | – | $0.147 |
+| net-fit | `think` | 0/4 | – | – | $0.066 |
+
+### Hand reading of every D row
+
+- **credential-recovery `check` e3 — real repair.** First finish wrote `PASSWORD=<answer>`; the check named the prefix; GLM
+  rewrote the bare answer, re-measured it, finished; reward 1. The grader matches whole lines exactly, so the
+  original file would have scored 0: the shown check turned a fail into a pass.
+- **net-fit `check` e1-a2 — acted on the check, the defect was deeper.** The check said the rows put parents on U; GLM
+  reasoned it had the column reading backwards, swapped the write, re-printed, ticked "U has no parents ✓" and
+  finished. The file now satisfies the check, but its graph (U→R, M→R, M→Y, R→Y, Y→D, R→D) is wrong in structure,
+  so both graph tests still fail: the check's known blind spot (a consistent wrong graph passes).
+- **net-fit `check` e4-a2 — fixed what was named, broke something else.** It swapped the orientation, but overwrote
+  *both* files with all six edges, so the intervened file no longer removes the edges into Y. It did not re-run the
+  check and finished. Its graph also has D→Y instead of Y→D.
+- **net-fit `nudge` (4 D rows) — no repair.** Each re-printed its files and ticked them. `nudge` e2 had the learned
+  graph **correct** and removed the wrong edge in the intervention (Y→D instead of U→Y); on re-reading it wrote
+  "5 edges (Y→U removed) ✓" about a file that still contains U→Y. Generic re-inspection misread its own file.
+
+### The principal's question: did GLM fix the net-fit graph but fail another grader part, or fail the graph itself?
+
+**It fails the graph itself.** Across the 16 valid net-fit rows (step 2 + think), only **1** ends with both graph tests
+passing (`check` e2, which failed only `test_sampled_data`); learned graph correct in 3/16 (`check` e2, `nudge` e2,
+`think` e4), and 15/16 rows fail at least one graph test. In step 4, learned passed 1/2 per arm, both graphs 0/4.
+Sampling is a secondary loss; the graph files are the main one.
+
+### Predictions
+
+- **S2-P1 FAILED.** D-row repair rate `check` 1/3 vs `nudge` 0/4: 1.33 rows' worth on the nudge D count, below +2.
+  (The `check` arm reached 3 D rows across both tasks, so it is scored, not "untested".) On net-fit alone: 0/2 vs 0/4.
+- **S2-P2 FAILED.** `check` repaired 1/3 D rows (< ½).
+- **S2-P3 HELD.** 0 damaged `check` rows (no `check` row that passed at the hold wrote a delivered file afterwards);
+  timeouts 0 vs 0.
+- **S2-P4 HELD** (equal): solves 3 vs 3.
+- **T-P1 FAILED (manipulation).** Share of calls with > 20 reasoning tokens: `think` 27/90 (0.30) vs `coreb1` 64/155
+  (0.41). In the replayed probes the reminder raised reasoning (7/12); inside live runs it did not.
+- **T-P2 FAILED** (0/4 vs 0/4), uninformative given T-P1.
+- **T-P3 (descriptive):** `think` $0.066 vs `coreb1` $0.147 (one `coreb1` row of 85 calls costs $0.096); mean
+  reasoning tokens per call 134 vs 259.
+
+### What this means
+
+Shown, concrete evidence was **acted on every time** (3/3 D rows changed the file in the named way), but the
+action was literal: it fixed the named symptom and stopped. When the named symptom was the whole defect (credential-recovery),
+that solved the task; when it sat on top of a wrong structure (net-fit), it did not, and in one row the edit created a new
+violation that went unchecked. Generic re-inspection (nudge) acted 0/4 and in one row misread the file. So "acting on
+evidence" is not the bottleneck by itself; the evidence has to cover the defect. The matched repair test (from known
+broken files) measures this without depending on live defects.
