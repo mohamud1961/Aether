@@ -112,3 +112,14 @@ def test_env_modes_nudge_and_check(monkeypatch, tmp_path):
     monkeypatch.setenv(adapter.FINISH_ENV, "nudge")  # with a script: recorded, never shown
     config = adapter.build_config()
     assert config.finish_check == CHECK and config.finish_show_check is False
+
+
+def test_think_reminder_follows_every_turn_only_when_on(tmp_path):
+    from aether.core.tools import THINK_REMINDER
+
+    script = [_turn("write_file", {"path": "out.txt", "content": "ok\n"}, "c1"), _turn("finish", {"summary": "d"}, "c2")]
+    _, client, _ = _run(tmp_path / "on", script, think_reminder=True)
+    msgs = client.requests[1]["messages"]
+    assert msgs[-1] == {"role": "user", "content": THINK_REMINDER} and msgs[-2]["role"] == "tool"
+    _, client, _ = _run(tmp_path / "off", script)
+    assert all(m.get("content") != THINK_REMINDER for m in client.requests[1]["messages"])

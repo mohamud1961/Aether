@@ -286,6 +286,10 @@ Do not repeat checks that already passed; then finish."""
 # Read-back of delivered files (P1 step 3). In the P1 probes GLM found its reversed CSV rows when asked to read the
 # file by the task's own definition (18/21) but not when asked to check generically (4/21); its self-checks had
 # compared the file with the variable that wrote it, which cannot fail.
+# P1 reasoning probe (2026-10-16): on replayed zero-reasoning requests, GLM-5.3-Flash ignored the provider's
+# thinking switches (thinking.type=enabled, chat_template_kwargs.enable_thinking); this message after the turn's
+# results raised the calls that reasoned from 0/12 to 7/12. Opt-in (CoreConfig.think_reminder).
+THINK_REMINDER = "[reminder] Think through the last result and your next step before acting."
 READBACK_DOC = """
 Each file the task asks you to deliver: after writing it, read it back from disk and interpret it exactly as the \
 task defines it, not as the code that wrote it intended. For each column, field, unit, ordering or segment, quote \
