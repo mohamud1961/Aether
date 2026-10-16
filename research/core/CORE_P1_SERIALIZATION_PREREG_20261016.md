@@ -8,10 +8,11 @@ separately from graph inference … run this experiment, then audit the final fi
 ## Why
 
 In the matched repair test 15/24 wrong final graphs had every edge reversed against the `to,from` header. Free
-pre-look at those rows' write code (archived evidence, before sealing): 13/13 rows with a recoverable write wrote
-pgmpy's `(parent, child)` edge tuples straight under the `to,from` header, e.g.
+pre-look at those rows' write code (archived evidence, before sealing): of the 13 fully reversed rows, 11 have a
+recoverable write; 10 write `(a, b)` edge tuples (pgmpy order: parent, child) straight under the `to,from` header, e.g.
 `pd.DataFrame(sorted(model.edges()), columns=["to","from"])`, `for to, frm in sorted(edges): f.write(f"{to},{frm}")`.
-The tuple's first element (the parent) is labelled `to`. So the question is whether GLM can serialize a correct graph
+The tuple's first element (the parent) is labelled `to`. The 11th (e check e2) writes `{child},{par}`, so its
+reversal arose upstream (tuple unpacked in the wrong order); not yet read in full. So the question is whether GLM can serialize a correct graph
 at all, and whether it fails only when the graph comes through code objects.
 
 The task's format block is `to,from` / `A,B`; the grader reads by header (`from` = parent, `to` = child), so a
