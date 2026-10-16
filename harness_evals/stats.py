@@ -66,7 +66,10 @@ def wilson_interval(
     half_width = (
         z * math.sqrt(p * (1 - p) / trials + z2 / (4 * trials * trials)) / denominator
     )
-    return (max(0.0, centre - half_width), min(1.0, centre + half_width))
+    # at the edges the bound is exactly 0 or 1; rounding can leave a residue of about 1e-17
+    low = 0.0 if successes == 0 else max(0.0, centre - half_width)
+    high = 1.0 if successes == trials else min(1.0, centre + half_width)
+    return (low, high)
 
 
 def summarize_rate(
