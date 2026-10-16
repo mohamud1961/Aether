@@ -124,3 +124,30 @@ make GLM *perform* checks, not *discriminate* with them. The lever stays built, 
 (S4-P1 and S4-P3 failed). The open question for review is whether any prompt-level lever can supply the independent
 expectation, or whether that needs an executed oracle (e.g. a test the model writes *before* building, from the
 task text only).
+
+## Amendment 1 — review corrections (Codex + ChatGPT, 2026-10-16), accepted
+
+1. **Cost per solve worsened:** $0.105 (`coreb1`) → $0.123 (`rb1`), +17%. One extra solve for ≈ 30% more spend.
+2. **Context loss is a hypothesis, not a finding.** Step 3's short tasks also differ from the board in domain
+   difficulty, interacting constraints and tools; "losing a requirement over a long task" is not established
+   (applies to the step-3 doc's "What this means" too).
+3. **net-fit: decoding was correct.** "U,D means D→U" is the right reading of `to,from`. The failure was accepting a
+   decoded edge that contradicts the stated constraint (U has no parents). Three checks are distinct: decode the
+   file; compare with the intended graph; compare with the task's constraints. Matching the intended graph would
+   not suffice if the graph were wrong. Full-task net-fit failure (0/2 each arm) is kept separate from the
+   learned-graph subtest (1/2 each arm).
+4. **Conclusion narrowed.** This paragraph failed to give a reliable gain; that does not show prompt-level levers
+   cannot work (the graph-query-catalog repair is a counterexample). The two `rb1` timeouts trip the harm gate but are not shown
+   to be caused by read-back, and "wrong finishes became timeouts" is not established; withdrawn.
+5. **graph-query-catalog attribution open.** `coreb1` e1 could not run a query engine in the container and checked by hand;
+   whether `rb1` e1 had execution feedback the baseline lacked must be checked before crediting the paragraph.
+6. **Telemetry wording.** Figures are *provider-reported* reasoning tokens. `s4audit.py` skips calls whose usage
+   has no reasoning field (unlike `core_audit.py`, which maps null to 0); the "693 calls, 359/371" row means 693
+   worker-call records, 371 with a reported reasoning field. Why 322 lack it (failed/retried attempts or
+   unreported usage) is unverified. "Loop" for that row is withdrawn: many low-token calls are not a loop unless
+   actions repeat without new evidence. On the archived 2026-10-14 GLM board, no call reported ≤ 20 reasoning
+   tokens carried > 200 characters of streamed reasoning text, so reported zeros there match absent text.
+7. **Custody.** 35 attempted rows (32 scored + 3 infra-invalid net-fit attempts, `a1`, "Docker daemon is not running",
+   rerun as `a2` by the launcher's default infra-invalid-only rerun path). The rows, rerun script, graders, usage and
+   any delivered files still live only on the run VM; a sealed export (study ID, run-ID/attempt manifest, both launch
+   scripts, raw results, all-attempt usage, grader output) is owed before any further paid board.
