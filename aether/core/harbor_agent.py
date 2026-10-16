@@ -62,17 +62,16 @@ PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "one" (one tool call per model turn, the baseline). "many" lets the model send several calls in
 # one turn; they still run in order, as a JSON turn's actions do. GPT-6-Luna on the Responses API made 61% more calls than
 # on JSON turns (L2 vs L1) only because the API forbade batching, and each call resends the whole context.
-CALLS_ENV = "AETHER_CORE_CALLS"
+CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
 # optional; unset means "newest" (only the latest turn's reasoning is sent back). "all" sends every turn's back, so the
 # history only grows at its end and the provider's prompt cache keeps extending (Responses API with CLM only).
 REASONING_ENV = "AETHER_CORE_REASONING"
-CALLS_MODES = ("one", "many")
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
 # context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC);
 # AETHER_CORE_READBACK=on the read-back paragraph (tools.READBACK_DOC). All on/off; see evidence and ledger.
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE", "AETHER_CORE_LEDGER"
-READBACK_ENV = "AETHER_CORE_READBACK"
+READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -182,6 +181,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
         ledger=_choice(environ, LEDGER_ENV, REPL_MODES, "off") == "on",
         readback=_choice(environ, READBACK_ENV, REPL_MODES, "off") == "on",
+        think_reminder=_choice(environ, THINK_ENV, REPL_MODES, "off") == "on",
         finish_nudge=_finish_mode(environ) in ("nudge", "check"),
         finish_check=_finish_check(environ),
         finish_show_check=_finish_mode(environ) == "check",
@@ -441,7 +441,7 @@ def _write_record(
             "receipt": config.receipt,
             "verify": config.verify,
             "self_check": config.self_check,
-            "readback": config.readback,
+            "readback": config.readback, "think_reminder": config.think_reminder,
             "finish_second_look": [config.finish_nudge, bool(config.finish_check), config.finish_show_check],
             "evidence": config.evidence,
             "model": provider.model,

@@ -30,7 +30,7 @@ from .provider import ChatProvider, ProviderError, parse_arguments
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from .tools import TURN_MODES, system_prompt, tools, validate_call
+from .tools import THINK_REMINDER, TURN_MODES, system_prompt, tools, validate_call
 from . import contract as acceptance, contract_loop, evidence, ledger
 from .clone import Clone
 
@@ -77,6 +77,7 @@ class CoreConfig:
     )
     readback: bool = False  # read delivered files back by the task's own definitions (tools.READBACK_DOC)
     finish_nudge: bool = False  # hold the first finish once for one more look (see finish_check)
+    think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     finish_check: str = ""  # experiment instrument: a check command run at the first held finish
     finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
@@ -558,6 +559,8 @@ async def _run_calls(
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []
+    if s.config.think_reminder:  # after every result and image, so tool messages stay contiguous
+        _append(s, {"role": "user", "content": THINK_REMINDER})
     if mirror is not None:
         await _read_back(s, *mirror)
     return False
