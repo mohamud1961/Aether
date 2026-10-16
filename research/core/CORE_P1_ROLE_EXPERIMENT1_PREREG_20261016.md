@@ -58,3 +58,53 @@ on unfamiliar tasks.
 
 ≈ 60 rows × $0.005–0.02 ≈ $0.6; VM ≈ $0.5. **Hard stop $1.5 token-priced.** No expansion without asking. Archive to
 blob + `audit_output/aether_p1_role_20261016/`; deallocate the run VM.
+
+## Results (2026-10-16, appended after the run; predictions above unchanged)
+
+**Custody.** Archive `p1-role-20261016/p1_role_20261016.tgz` (sha256 prefix `7bad4ec1f46ab364`), local copy
+`audit_output/aether_p1_role_20261016/`. Checker validated on fixtures before any call (72/72); oracle 12/12;
+image import check 12/12. All verdicts below are the stdlib checker's reading of the **final files**
+(`check.json`); adherence is read by hand from the code that last wrote `learned_dag.csv` (audit script
+`rp2audit.py` locates it; its regex style labels were corrected by hand, see below). 0 timeouts, 0 infra-invalid.
+VM the run VM deallocated (verified).
+
+**Pilot gate.** base × tofrom, 3 graphs × 4 episodes: **6/12 reversed** (≥ 3 needed) → passed.
+
+**Phase 2 (36 rows), learned-file verdicts; intervened verdict equalled learned in every row:**
+
+| | g1 | g2 | g3 | total |
+|---|---|---|---|---|
+| base tofrom reversed | 1/3 | 0/3 | 2/3 | **3/9** |
+| named tofrom reversed | 0/3 | 1/3 | 0/3 | **1/9** |
+| base fromto correct | 3/3 | 3/3 | 3/3 | 9/9 |
+| named fromto correct | 3/3 | 3/3 | 3/3 | 9/9 |
+
+**Adherence (hand-read).** Named rows whose write code binds role-named positions (parent/child, src/dst,
+from_node/to_node, frm/to, edge_to/edge_from) to the target fields: **tofrom 8/9, fromto 5/9 → 13/18**. Non-adherent:
+`pd.DataFrame(model.edges(), columns=…)` (3), `{'to': v, 'from': u} for u, v` (1), hand-typed rows (1). Base: **0/18**
+(the regex's one base "role-named" hit, g2-tofrom e2, is `for u,v` → false positive).
+
+**Adherent but wrong (1/13): g2-tofrom-named e1.** The model named the roles and wrote a docstring, but bound them
+wrongly: "position 0: `to` (the child…)", `for edge_to, edge_from in edges` over `model.edges()`, which is
+(parent, child). Naming faithfully transmitted a wrong reading of the **source** convention.
+
+**Base reversals have the same shape.** 2/3 are `[(t,f) for t,f in edges]` over `sorted(model.edges())` (positions
+named after the target columns, i.e. the wrong roles), 1/3 is `pd.DataFrame(sorted(model.edges()), columns=['to','from'])`.
+Correct base tofrom rows all swap positionally (`for u,v …: (v,u)`).
+
+**Predictions.**
+- **R-P1 FAILED.** named 1/9 vs base 3/9 = −2; needed −3. Direction favours named; n too small to separate.
+- **R-P2 HELD.** fromto not-correct 0 vs 0.
+- **R-P3 HELD.** 13/18 adherent (≥ 7). 12/13 adherent rows correct; 4/5 non-adherent rows correct.
+- **R-P4 (descriptive).** Intervened files track learned files exactly in both arms.
+- **R-P5 FAILED.** named $0.00364/row vs base $0.00249/row = **1.47×** (limit 1.3×). Cost rise is mostly tofrom
+  (named $0.038 vs base $0.019 for 9 rows: longer code, docstrings, self-check asserts).
+
+**Spend.** Token-priced $0.110 (Phase 2) + $0.038 (pilot) ≈ **$0.15**, under the $1.5 hard stop. Pilot + Phase 2 base
+tofrom combined (descriptive, not pooled for any prediction): 9/21 reversed.
+
+**Reading.** The guidance is followed (13/18) and does not harm the format GLM already gets right, but the reversal
+reduction (3→1 of 9) is below the pre-registered bar and costs ~1.5×. The remaining error is not a missing name but a
+wrong **source** binding (what does position 0 of `model.edges()` mean?), which naming alone does not check. That
+points the next question at grounding the source convention (e.g. the model verifying the source's meaning against
+something observable) rather than at more naming; no new mechanism is proposed here.
