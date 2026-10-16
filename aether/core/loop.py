@@ -20,6 +20,7 @@ from typing import Any, Awaitable, Callable
 
 from . import compaction, images, textturn
 from . import receipt as finish_receipt
+from . import finish_check
 from .clm import ClmContext, ClmSettings
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
 from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes
@@ -75,6 +76,9 @@ class CoreConfig:
         False  # a requirement ledger quoting the task, kept while working (see ledger)
     )
     readback: bool = False  # read delivered files back by the task's own definitions (tools.READBACK_DOC)
+    finish_nudge: bool = False  # hold the first finish once for one more look (see finish_check)
+    finish_check: str = ""  # experiment instrument: a check command run at the first held finish
+    finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -173,6 +177,7 @@ class _Session:
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
         self.receipt_shown = False
+        self.second_look_shown = False
         # what the runtime knows of each step (see evidence)
         self.step_tools: dict[int, evidence.Step] = {}
         self.ledger: list[
@@ -774,6 +779,20 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         from . import verify
 
         return await verify.at_finish(s)
+    if (
+        (s.config.finish_nudge or s.config.finish_check)
+        and not s.second_look_shown
+        and s.remaining() > RECEIPT_MIN_S
+    ):
+        s.second_look_shown = True
+        text, record = await finish_check.second_look(
+            s.env, s.config.finish_check, s.config.finish_show_check
+        )
+        s.result.extras["finish_check"] = record
+        s.trace(
+            "finish_second_look", summary=args.get("summary", ""), text=text, **record
+        )
+        return text, False
     if s.config.receipt and not s.receipt_shown and s.remaining() > RECEIPT_MIN_S:
         s.receipt_shown = True
         text = await finish_receipt.receipt(s.env, s.workdir, s.config.control_dir)

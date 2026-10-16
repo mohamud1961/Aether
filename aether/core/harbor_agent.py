@@ -6,8 +6,7 @@ Configuration comes from the launcher's environment only:
   progress reviews at 35% and 70% of the time limit and a final review near the deadline) or ``contract``
   (acceptance checks written before the work, offered as information; see ``contract``);
 - ``AETHER_CORE_CONTEXT``: ``project`` (C1 view) or ``clm`` (model-managed context, CLM method);
-- ``AETHER_CORE_REPL``: ``on`` or ``off`` (persistent Python REPL tool);
-- ``AETHER_CORE_IMAGES``: ``on`` or ``off`` (view_image tool);
+- ``AETHER_CORE_REPL`` / ``AETHER_CORE_IMAGES``: ``on`` or ``off`` (Python REPL / view_image tool);
   all four are required; there is no silent default;
 - ``AETHER_CORE_REASONING_EFFORT``: reasoning effort (default ``high``);
 - ``AETHER_AGENT_DEADLINE_SEC``: the task's agent timeout, when Harbor does not pass one.
@@ -57,7 +56,8 @@ REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
 TURN_ENV = "AETHER_CORE_TURN"  # optional; unset means "tool", the unchanged baseline
 FINISH_ENV = "AETHER_CORE_FINISH"  # optional; unset means "direct", the baseline
-FINISH_MODES = ("direct", "receipt")
+FINISH_MODES = ("direct", "receipt", "nudge", "check")  # nudge/check: see finish_check
+FINISH_CHECK_ENV = "AETHER_CORE_FINISH_CHECK"  # host path of the experiment's check script (see _finish_check)
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "one" (one tool call per model turn, the baseline). "many" lets the model send several calls in
 # one turn; they still run in order, as a JSON turn's actions do. GPT-6-Luna on the Responses API made 61% more calls than
@@ -76,21 +76,13 @@ READBACK_ENV = "AETHER_CORE_READBACK"
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
-REQUEST_SHAPES = (
-    "chat",
-    "reasoning",
-    "responses",
-)  # responses: /v1/responses, native tools + reasoning replay
+REQUEST_SHAPES = ("chat", "reasoning", "responses")  # responses: /v1/responses, native tools + reasoning replay
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
 DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
-EFFORT_ENV = "AETHER_CORE_REASONING_EFFORT"
-DEADLINE_ENV = "AETHER_AGENT_DEADLINE_SEC"
-SAMPLING = {
-    "temperature": 1.0,
-    "top_p": 0.95,
-}  # identical to the previous solver solver for a fair comparison
+EFFORT_ENV, DEADLINE_ENV = "AETHER_CORE_REASONING_EFFORT", "AETHER_AGENT_DEADLINE_SEC"
+SAMPLING = {"temperature": 1.0, "top_p": 0.95}  # identical to the previous solver solver for a fair comparison
 CALLS_FILE = "core_calls.jsonl"  # every provider request and response (see calls)
 
 
@@ -190,6 +182,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
         ledger=_choice(environ, LEDGER_ENV, REPL_MODES, "off") == "on",
         readback=_choice(environ, READBACK_ENV, REPL_MODES, "off") == "on",
+        finish_nudge=_finish_mode(environ) in ("nudge", "check"),
+        finish_check=_finish_check(environ),
+        finish_show_check=_finish_mode(environ) == "check",
     )
 
 
@@ -209,6 +204,12 @@ def _request_shape(environ: Mapping[str, str]) -> str:
 
 def _finish_mode(environ: Mapping[str, str]) -> str:
     return _choice(environ, FINISH_ENV, FINISH_MODES, "direct")
+
+
+def _finish_check(environ: Mapping[str, str]) -> str:  # required with "check"; with "nudge" recorded, never shown
+    if _finish_mode(environ) == "check" or (_finish_mode(environ) == "nudge" and environ.get(FINISH_CHECK_ENV)):
+        return Path(_required(FINISH_CHECK_ENV, environ)).read_text()
+    return ""
 
 
 def _turn(environ: Mapping[str, str]) -> str:
@@ -441,6 +442,7 @@ def _write_record(
             "verify": config.verify,
             "self_check": config.self_check,
             "readback": config.readback,
+            "finish_second_look": [config.finish_nudge, bool(config.finish_check), config.finish_show_check],
             "evidence": config.evidence,
             "model": provider.model,
             "params": provider.params,
