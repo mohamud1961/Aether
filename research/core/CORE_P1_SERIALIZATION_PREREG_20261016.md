@@ -102,3 +102,6 @@ in 3 matched rows).
 Caveat: n is small (5 per agent arm), and the supplied prompt itself names the direction ("parent → child"), which may
 be exactly what prevents the binding error; the next test should check that by supplying the graph *unlabelled*
 (e.g. only as a fitted pgmpy model) before proposing any lever. Not run (beyond this sealed scope).
+
+**Erratum (2026-10-18):** "25/25 learned files" omits five outputs: **30/30** learned-graph outputs (20 text + 10 agent);
+9/10 agent rows had both files correct; 4/5 full-task rows passed (see `OPUS_MATCHED_SERIALIZATION_AUDIT_20261016.md`).

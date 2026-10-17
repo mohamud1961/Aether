@@ -121,3 +121,5 @@ artifacts run by run (`CORE_P1_DECISION_PROBE_PREREG_20261015.md`): 6/8 GLM cons
 net-fit, at least 5 of 11 runs stated the `to,from` meaning correctly and then wrote pgmpy `(parent, child)` tuples
 under it. For GLM these are execution losses, not convention beating the task's words. The convention pattern
 holds for GPT-6-Luna construct-assembly and GPT-6-Luna binary-extract.
+
+**Erratum (2026-10-18):** the four listed tasks sum to **62 of 70 (88.6%)**, not 61 (87%); 62 + graph-query-catalog 6 + credential-recovery 2 = 70.

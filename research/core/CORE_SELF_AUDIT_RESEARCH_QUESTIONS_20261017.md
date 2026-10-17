@@ -122,3 +122,15 @@ model calls, no spend. Sources: every Core prereg/result in this folder (≈40 s
 
 Recommendation: stop the P1/bn line. Do steps 1–2 next (offline), then review them with you and GPT-6-Astra before any paid
 run.
+
+## Erratum and amendments after review (2026-10-18)
+
+- Numbers: 4 tasks hold **62/70 (88.6%)**; serialization **30/30** outputs (9/10 agent rows both files, 4/5 full task).
+- The "81% vs 47%" alternative-reading marker is a crude regex; as a trigger it is ≈ 49.5% precise (52 of 105 flags).
+  It is a research lead, not a trigger.
+- Retracted as too categorical: "the failure belongs to the model, not the harness", and "only the
+  harness-attributable share is ours to win". A model-originated error can still be a harness opportunity (enable a
+  latent capability). The line is generic affordance vs task-specific compensation.
+- Oracle studies estimate **conditional recoverability under a defined intervention**, not universal ceilings.
+- Retracted (chat, 10-17): "truthfulness covers the others". Fewer false "done" claims can come from abstaining;
+  successful delivery, unsupported claims and unnecessary abandonment are measured separately.

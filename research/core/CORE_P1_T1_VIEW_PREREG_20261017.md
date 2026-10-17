@@ -193,3 +193,12 @@ in-run, a passive appended view is not attended to. `--core-view` stays in Core,
 
 Limits: n = 12 per arm per format; one task family; the first-write imbalance makes the outcome comparison
 uninformative about harm at this n; the view only fires on change, so a file written once is shown once.
+
+## Erratum (2026-10-18, after external review; results above unchanged in direction)
+
+1. "4 rows first viewed C" is wrong: **3** vb1 `to,from` rows were C at their first view (g7 e1, g7 e4, g9 e3); g7 e3 was
+   first R, then repaired. First states are 9 R / 3 C, as the table in "Reading the arm gap" says.
+2. "chance, not harm" is too strong. vb1's first state is its first **view** (= first write); coreb1's is its first
+   **printed readback**, which may come after an unobserved repair. The comparison shows the gap is not attributable
+   to post-write view exposure, assuming the implementation is as recorded; it does not identify the gap's source.
+(Codex GPT-6-Astra recount, `tracking/collab/aether_research_plan_review_20261018/T1_RECOUNT.json`, d3499aca8.)
