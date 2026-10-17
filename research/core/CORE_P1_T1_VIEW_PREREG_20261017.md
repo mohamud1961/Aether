@@ -150,3 +150,46 @@ edge dropped → other; missing file → 0 — 30/30 as expected.
 (1 episode); then `to,from` 4 episodes × {coreb1, vb1}; then `from,to` 2 episodes × {coreb1, vb1}; then B only if V-S1
 holds and spend + 1.5 × the archived coreb1 B cost ($0.56) stays under the cap. Spend so far $0.018; A′ projected
 ≈ $0.2 (archived check-board rows).
+
+## Stage 2 Results (2026-10-17, appended after scoring; predictions above unchanged)
+
+**Custody.** `audit_output/aether_p1_t1view_20261017/`: `t1_s2.tgz` (sha256 a3eab569…0364; screens pvo/pva/pvb, all
+row archives, the two failed launch attempts), `score_s2.py`, `s2_rows.json`. Code 64fbaa050 (`--integrated-ref t1`).
+Oracle 6/6. A′: 24 + 12 rows, **0 infra-invalid**, **$0.152**. Total T1 spend **$0.170** of the $2.00 cap. the run VM
+deallocated after A′ (verified).
+
+**Launch incidents (no model calls, $0).** Attempt 0 ran the chain as root: custody refused every row (git "dubious
+ownership"). Attempt 1, as azureuser, failed in harbor with "Docker daemon is not running" although dockerd had not
+restarted (cause not established). Both kept under `attempt0_*` / `attempt1_*`. Attempt 2 used the earlier runs' launch
+form and an oracle gate (paid rows only if 6/6) and ran clean.
+
+| board | arm | correct | reversed | mean cost |
+|---|---|---|---|---|
+| `to,from` | coreb1 | 8/12 | 4 | $0.0052 |
+| `to,from` | vb1 | 4/12 | **8** | $0.0044 |
+| `from,to` | coreb1 | 6/6 | 0 | $0.0031 |
+| `from,to` | vb1 | 6/6 | 0 | $0.0030 |
+
+Per graph (`to,from` reversed): coreb1 g7 0/4, g8 2/4, g9 2/4; vb1 g7 1/4, g8 4/4, g9 3/4.
+
+- **V-S1 FAILED** (vb1 8 reversed vs coreb1 4; needed ≤ 1). Per the prereg, **B was not run**.
+- **V-S2 FAILED.** The view showed a reversed learned file in **9/12** vb1 rows; **1/9 repaired** (g7 e3: next
+  reasoning reads `row 1: to=G, from=D`, applies the task's header meaning, rewrites). In the other 8 the next turn went
+  to the intervention / CPD details (7) or declared the files "written correctly" and finished (g9 e2); **no later turn
+  in those 8 rows mentions the view**. False repairs: 0 (4 rows first viewed C, all ended correct).
+- **V-S3 held** (`from,to` 6/6 both). **V-S4 held** (vb1 cost 0.85× on `to,from`, 0.97× on `from,to`).
+
+**Reading the arm gap.** The view is shown only after a file changes, and vb1's system prompt is byte-identical to
+coreb1's, so each row's first `learned_dag.csv` is written before any view exists. First states: vb1 **9/12 R**,
+coreb1 **≈4/12 R** (3 R + 1 other, from the first printed readback — coreb1 has no views, so this is the first time the
+file is visible, not necessarily the first write). The arm difference in outcomes is therefore almost entirely a
+**pre-treatment first-write difference** (9/12 vs 4/12, Fisher two-sided p ≈ 0.1) — chance, not harm by the view. The
+treatment's own effect is 1 conversion in 9 exposures.
+
+**Decision (per the reviewer's rule):** the view helps Stage 1 (GLM asked to judge a shown file: 1/18 → 18/18) but
+**not Stage 2** (shown the same rendering mid-run, unasked: 1/9 acted). **Do not promote; stop improving the display.**
+The bottleneck is not the reading of the file once attention is on it, but **whether the comparison is made at all**:
+in-run, a passive appended view is not attended to. `--core-view` stays in Core, default off.
+
+Limits: n = 12 per arm per format; one task family; the first-write imbalance makes the outcome comparison
+uninformative about harm at this n; the view only fires on change, so a file written once is shown once.
