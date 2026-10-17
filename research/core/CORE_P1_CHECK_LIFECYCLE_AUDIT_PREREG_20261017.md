@@ -78,3 +78,60 @@ changed or it was ignored; `S4` the right side was chosen but the repair failed.
 
 Failed predictions are recorded as failed. Scripts, candidate lists, hand labels and replay outputs go to
 `audit_output/aether_p1_lifecycle_20261017/`.
+
+## Results (2026-10-17, appended after labelling; predictions above unchanged)
+
+**Custody.** `audit_output/aether_p1_lifecycle_20261017/`: `lc_extract.py` (+ `lc_patterns.py`), `lc_triage.py`,
+`lc_view2.py`, `lc_deep.py`, `lc_replay.py`, `candidates.jsonl`, `lifecycle_labels.json`, `replay.json`. 158 P-G rows
+(grader verdicts identical row-for-row to the check-independence study for its 122), 18 P-V rows. No model calls, no
+spend.
+
+**Method deviations (disclosed).**
+1. **Extractor gap fixed before counting:** v1 skipped `finish` results, where step-2 harness check messages arrive;
+   v2 includes them (+5 candidates, 1 new event: p2a check-e4).
+2. **Mechanical drops:** of 268 candidates, 67 tool results that were pgmpy source/doc listings with no
+   assertion/mismatch text were dropped (rule D1, in `lc_triage.py`); the other 201 were hand-read.
+3. **Scope:** events are edge-file contradictions (the property with known truth at every step); CPD, sample,
+   covariance-ordering and library contradictions were read and recorded as non-events. Two model-input binding catches
+   (CPD view) are reported separately.
+4. **Counting unit:** both episodes (first failure of a piece of evidence → its resolution) and individual events are
+   reported; repeated failures of one check inflate events.
+5. **Replay:** 28 target checks; 13 were self-contained and replayed (all 13 agree with the hand labels: 10 correct
+   checks pass truth and fail reversal, 3 wrong checks reject truth or are inverted); 15 need solver state (model
+   objects, pgmpy, scripts) and are hand-judged. Printed-only checks were compared by output with the sandbox path
+   normalised. Replay used a scratch venv (pandas 3.0.6, networkx 3.6.1), not the run images.
+
+**L-P1 HELD (stage 3 is a minority).** True contradictions in P-G: **15 episodes / 27 events**. Wrong-side: **2 events
+(7%)**, **2/15 episodes on first reaction (13%)**, **1/15 at resolution** (pia g4 ib1-e3, ended reversed). The other
+wrong first reaction (role g1-tofrom-named e3) blamed the check, but its rewrite kept the same test, the evidence
+failed again, and the model then went back to the task text and repaired the file. Three right-side episodes still
+ended wrong for other reasons (faulty or collateral repair, s4 b1-e2; separate structure decisions, two step-2 rows).
+
+**L-P2 HELD.** Reversed-final P-G rows: **51**. S1 (no sensitive check ever ran) **50**, S2 0, S3 **1**
+(pia g4 ib1-e3), S4 0. 98% of wrong final files never met correct contradicting evidence.
+
+**L-P3 (descriptive).**
+- P-G false contradictions (own wrong checks on correct files): **7, all resolved on the right side** (check fixed or
+  dismissed with a concrete diagnosis); none bent a correct file.
+- P-V (V4 frozen external checks with arbiter): 5 hold episodes. False holds **3: 2 wrong-side** (credential-recovery e1
+  complied and failed; cipher-diff-attack e1 bent the attack to pass a broken wrapper, hidden by the grader), 1 right (credential-recovery e2
+  check 3 disputed and voided). True holds **2**: repair-history e1 repaired (unproven); credential-recovery e2 check 2 was first
+  **disputed** (wrong side), the arbiter upheld it, and the worker then repaired.
+
+**L-P4 (descriptive).** Check revisions in P-G: 9 (7 right, 2 wrong). Every one cited a concrete reason; the 2 wrong
+ones cited the model's binding belief (one misapplied `get_parents` output, one misdiagnosed a namedtuple field).
+Right revisions also often changed the check's binding (e.g. role g1-named e2). V4 disputes: 2, both cited task text;
+one wrong. **No visible marker separates a right revision from a wrong one**: both sides appeal to the same belief.
+
+**Decision (per mapping): L-P1 and L-P2 held → contradiction handling is a minor stage on this board; prioritise
+observation / check creation before any revision mechanism.**
+
+**Reading.** On the graph family, GLM almost always takes the right side when contradicting evidence reaches it
+(13–14 of 15 episodes), whether the evidence is its own check, a task fact, a printed fact or a harness message. Wrong
+files survive because sensitive evidence **never appears** (50/51), and the independent-check experiment suggests why:
+sensitive checks were written mostly in rows whose binding was already right (4 of 5), i.e. check creation runs
+through the same belief that produced the error. Frozen external checks fail the other way: 2 of 3 wrong holds bent
+correct work, and 1 correct hold was disputed (the arbiter caught it). The one n=1 hint for the revision hypothesis —
+evidence that survived an attempted rewrite led to repair — is too thin to act on. Limits: one task family dominates
+P-G; small n (2 wrong-side events); contract3 rows ran on the later-invalidated compose substrate; invisible
+contradictions (no matching text) are not counted.
