@@ -83,3 +83,33 @@ improving the display; study why the comparison is not made. View does not help 
 reported **incomplete**; no cases are dropped to fit. Evidence: blob `p1-t1view-20261017/` and
 `audit_output/aether_p1_t1view_20261017/`. the run VM is deallocated after the last run. Failed predictions are recorded
 as failed.
+
+## Stage 1 Results (2026-10-17, appended after scoring; predictions above unchanged)
+
+**Custody.** `audit_output/aether_p1_t1view_20261017/`: `t1_s1.tgz` (results.jsonl, core_calls.jsonl, the 48 prompts),
+`score_s1.py`, `grounding_labels.json`. Run from VM commit 26cee5dce (the sealing commit). **144/144 calls ok, 0
+unparsed, 0 errors; $0.0179** (mean output 109 tokens, of which 41 reasoning).
+
+| format | display | accept correct | detect reversed | balanced |
+|---|---|---|---|---|
+| `to,from` | raw | 18/18 | **1/18** | 52.8% |
+| `to,from` | field | 18/18 | **18/18** | 100% |
+| `from,to` | raw | 18/18 | 18/18 | 100% |
+| `from,to` | field | 18/18 | 18/18 | 100% |
+
+Per graph (`to,from` reversed detection): raw g1 0/3, g2 0/3, g3 1/3, g4–g6 0/3; field 3/3 on every graph.
+
+- **V-P1 HELD** (raw `to,from` 52.8% < 90%): with the file shown raw, GLM accepts a reversed `to,from` file 17/18 times
+  even when asked directly — a reading problem, not only a missing comparison.
+- **V-P2 HELD** (+47.2 points; false alarms 0/36 field vs 0/36 raw).
+- **V-P3 HELD** (`from,to` 100% both).
+
+**Grounding (hand, `grounding_labels.json`).** Field: 18/18 reasons cite the model's edge direction with the right
+meaning and apply the header to the file (one, g5 s1, also wrongly says row 1 is correct). Raw: 1/18 grounded; the 17
+acceptances match the file's literal pairs to the `model.edges()` tuples ("exactly as returned by model.edges()")
+without applying the header meaning — the same binding error as in the runs.
+
+**Gate: V-P1 and V-P2 held → Stage 2 runs**, under the remaining cap ($1.98).
+
+Limits: one fixed prompt shape; the file is shown in the same message as the source facts (in a run they are steps
+apart); a reversed file is the only defect tested.
