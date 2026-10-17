@@ -72,6 +72,7 @@ REASONING_ENV = "AETHER_CORE_REASONING"
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE", "AETHER_CORE_LEDGER"
 READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
+VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6-Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -185,6 +186,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         finish_nudge=_finish_mode(environ) in ("nudge", "check"),
         finish_check=_finish_check(environ),
         finish_show_check=_finish_mode(environ) == "check",
+        view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
     )
 
 
@@ -437,10 +439,8 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
-            "turn": config.turn,
-            "receipt": config.receipt,
-            "verify": config.verify,
-            "self_check": config.self_check,
+            "turn": config.turn, "receipt": config.receipt,
+            "verify": config.verify, "self_check": config.self_check, "view": config.view,
             "readback": config.readback, "think_reminder": config.think_reminder,
             "finish_second_look": [config.finish_nudge, bool(config.finish_check), config.finish_show_check],
             "evidence": config.evidence,

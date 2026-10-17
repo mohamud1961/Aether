@@ -31,6 +31,7 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import THINK_REMINDER, TURN_MODES, system_prompt, tools, validate_call
+from .view import VIEW_TOOLS, View
 from . import contract as acceptance, contract_loop, evidence, ledger
 from .clone import Clone
 
@@ -80,6 +81,7 @@ class CoreConfig:
     think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     finish_check: str = ""  # experiment instrument: a check command run at the first held finish
     finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
+    view: bool = False  # field-aware view of delimited files each call changed (see view)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -187,6 +189,7 @@ class _Session:
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
+        self.view = View(self.env, workdir, trace) if config.view else None
 
     def clone(
         self, env: Environment, timeout_s: float | None = None, read_only: bool = False
@@ -575,7 +578,12 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
     try:
         args = parse_arguments(call["function"]["arguments"])
         validate_call(name, args, s.tools)
+        viewed = s.view is not None and name in VIEW_TOOLS
+        if viewed:
+            await s.view.before()
         out, finished = await _dispatch(s, name, args)
+        if viewed:
+            out += await s.view.after()
     except Exception as exc:
         out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
         if isinstance(exc, json.JSONDecodeError):
@@ -844,6 +852,7 @@ def _close(s: _Session) -> None:
             sum(float(x.get("wait_s") or 0) for x in s.provider.failure_log), 1
         ),
         "images_viewed": s.images_viewed,
+        **({"view_files_shown": s.view.shown} if s.view else {}),
         "python": s.repl.python,
         "python_cells": s.repl.seq,
         "llm_calls": s.repl.llm_calls,
