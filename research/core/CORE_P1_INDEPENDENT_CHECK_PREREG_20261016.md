@@ -100,3 +100,26 @@ split traces to the check paragraph; read it as model×episode variance at n=2.
 default-off. This closes prompt-level levers for the binding failure: read-back, naming, and now independent checks
 all fail to cut reversals. A further lever has to change what the model sees, or how a failing check is resolved, not
 what it is told.
+
+## Amendment 1 — post-review corrections (2026-10-17)
+
+ChatGPT audit accepted the negative result and the no-promote decision, and asked for these corrections. Adopted:
+
+- **Allocation verified as preregistered.** The sealed Boards section (commit `aa3b8d750`, 22:31 UTC) specifies tofrom
+  3×4×2 = 24 and fromto 3×2×2 = 12; the executed manifest matches. The 3×3 design in the earlier chat proposal was
+  superseded before sealing. First model-row file: 22:37 UTC (oracle rows make no model call).
+- **Harm screen, corrected reading** (replaces "B is not evidence for the treatment"): no `ib1` regressions and four
+  additional solved episodes were observed; the sample is too small and the mechanism too uncertain to attribute the
+  difference either to the prompt or to variance. The hand-read shows the check paragraph's *requested checking* did
+  not produce the net-fit/feal passes; it does not exclude the prompt influencing earlier planning or choices.
+- **"Did not hurt" → "no regressions observed in a small screen."**
+- **Tail cost retained:** `ib1` credential-recovery-recovery e2 took 91 steps, $0.100 (2.5–3.6× the other three rows of that
+  task); largest single-row cost on B was cipher-diff-attack (`coreb1` e2 timeout $0.235, `ib1` e2 $0.194).
+- **Scope of the conclusion narrowed** (replaces "closes prompt-level levers"): three tested prompt paragraphs
+  (read-back, role naming, independent checks) have each failed to establish a reliable reduction in reversals. That
+  changing observations or contradiction handling is required is a hypothesis, not a demonstrated necessity.
+- **Failure taxonomy for g4 e3.** Verification splits into: (1) constructing a valid check, (2) detecting the
+  contradiction, (3) deciding which side is wrong, (4) repairing the deliverable. g4 e3 succeeded at 1–2 and failed
+  at 3. Opposite counterpart: V4 credential-recovery e1, where a wrong frozen check forced a wrong change. Next step agreed with
+  review: a no-model-call **check-lifecycle audit** of archived traces (creation → detection → contradiction handling
+  → justification → outcome), preregistered before it runs.
