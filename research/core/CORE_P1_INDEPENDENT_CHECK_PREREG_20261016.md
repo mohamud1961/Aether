@@ -67,3 +67,36 @@ final files (grader `check.json` / test output), IH classification by hand from 
 contradiction→repair traced, every B regression read. Failed predictions are recorded as failed.
 
 **Code:** treatment and board at `0e98428ee` (branch `codex/aether-core-takeover`). Tests: aether-core 231 passed; `tests/test_core_launch.py` 27/27 on a clean checkout with only these commits (the shared worktree has another session's uncommitted launcher edits that fail 13 of them; the VM receives commits only).
+
+## Results (2026-10-17)
+
+Complete: every planned row ran and is valid (oracle 6/6; A tofrom 24, A fromto 12, B 24; 0 infra-invalid). Spend
+**$1.23** token-priced of the $3 cap (A $0.21, B $1.01). Evidence: blob `p1-indep-20261016/` (A1, B1, B2 tarballs,
+sha256 verified locally), `audit_output/aether_p1_indep_20261016/` (results rows, `piaudit.py`, `tl.py`,
+`hand_labels.json`). the run VM deallocated 2026-10-17.
+
+| Prediction | Result | Verdict |
+|---|---|---|
+| I-P1 reversals (A tofrom) | `coreb1` 5/12, `ib1` **7/12** (g4 1→2, g5 2→3, g6 2→2) | **FAILED**: treatment worse; `ib1` ≤ base on 1/3 graphs |
+| I-P2 IH checks | `ib1` **5/12**, `coreb1` 1/12 (+4) | **FAILED** (threshold ≥6); the +4 part met |
+| I-P3 IH on reversed → repair | `ib1` **0/1** (g4 e3); `coreb1` 1/1 (g5 e1) | **FAILED** |
+| I-P4 fromto harm | 6/6 vs 6/6 | holds |
+| I-P5 task harm (B) | `ib1` **12/12**, `coreb1` 8/12; no `ib1` regression | holds |
+| I-P6 cost | tofrom 1.24×, fromto 1.03×, B 0.81×; timeouts `coreb1` 1, `ib1` 0 | holds |
+
+**Mechanism.** The paragraph raised header-read independent checks fivefold, but four of the five ran on files that
+were already correct. The one that met a reversed file (g4 e3) **failed correctly** and the model then rewrote the
+check to match the file ("my error in the check… edges are (parent, child)") and finished reversed. g5 e4 wrote a
+tuple-order check it described as independent. Five `ib1` rows made no candidate check. The archive pattern
+(independent check on a reversed file → repair, 3/3) did not reproduce: when the check contradicted the model's
+binding belief, the belief won.
+
+**B is not evidence for the treatment.** The 12 vs 8 gap is two tasks at 2 vs 0. Hand-read: on net-fit all four
+rows chose the R–M orientation during structure learning, before any check (`ib1` checks touched sample moments only);
+on cipher-diff-attack both arms executed real attack tests and `coreb1` e1 passed its own 10/10 test then failed the grader. Neither
+split traces to the check paragraph; read it as model×episode variance at n=2.
+
+**Decision (per table):** checks up, errors not down → **do not promote**. `--core-readback independent` stays
+default-off. This closes prompt-level levers for the binding failure: read-back, naming, and now independent checks
+all fail to cut reversals. A further lever has to change what the model sees, or how a failing check is resolved, not
+what it is told.
