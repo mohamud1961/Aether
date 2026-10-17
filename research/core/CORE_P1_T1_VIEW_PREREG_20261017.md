@@ -113,3 +113,40 @@ without applying the header meaning — the same binding error as in the runs.
 
 Limits: one fixed prompt shape; the file is shown in the same message as the source facts (in a run they are steps
 apart); a reversed file is the only defect tested.
+
+## Amendment 1 — Stage 2 implementation, recorded before any Stage-2 call (2026-10-17)
+
+Predictions, arms, boards, cap and decision rules above are **unchanged**. This records how the treatment was built.
+
+**Code: commit b5ccd0861** (on top of e323bef7d; deployed to the VM as branch `t1`, which is also the run's
+`--integrated-ref`).
+- `aether/core/view.py` (new, 101 lines); `loop.py` (+9: config field, session object, hook in
+  `_invoke` around `_dispatch` for `terminal`/`python`/`write_file`/`edit_file`, a `view_files_shown` run metric);
+  `harbor_agent.py` (`AETHER_CORE_VIEW` on|off, unset = off; recorded in the run record's config; still 500 lines);
+  `tools/aether_program/core_arm.py` + `run_screen.py` (`--core-view`, core-only).
+- **"Changed by that call"** is implemented as: content (`cksum`) differs from the previous listing. The first listing is
+  taken just before the first viewed call, so files present before the run are shown only if they change. A file
+  rewritten with identical bytes is not shown again. A change made between viewed calls (e.g. a background process) is
+  shown after the next viewed call. Listing/read failures are traced (`view_error`) and show nothing.
+- Rendering is byte-identical to Stage 1's `field` display for every Stage-1 file (24/24 checked, `view_probe.render`
+  vs `view.render`; Stage 1 had one trailing newline more, which the tool result's own separator replaces).
+- Known limit: `loop.py` was already over the 500-line cap (867 → 876); not decomposed in this slice.
+
+**Tests.** `tests/core/test_core_view.py` (6): Stage-1 parity, row/value/file caps, only changed files shown
+(depth, type, pre-existing and same-bytes cases), the model sees exactly the traced result, off runs no listing and
+shows no view, env parsing. Core suite 237 passed / 29 skipped. Launch + screen arm tests 66 passed on a clean checkout
+of the commit (in the shared worktree 13 launch tests fail only because of another session's uncommitted edit to
+`run_tb21_glm_diagnostic.py`, which is not part of this commit or the VM tree). **Off = baseline:** a scripted
+write/terminal/python/edit/finish run produces byte-identical model requests with this commit (view off) and with
+e323bef7d (timings normalised).
+
+**Board A′.** `eval_suite/role_p1/generate.py --board view`: `vw-g7..g9-{tofrom,fromto}`, seeds 3016–3018, graphs not used
+in any earlier row (6, 6 and 7 edges); same task text, module, checker and grader shape as the check board. The `role`
+and `check` boards regenerate identically (144 files, set contents compared). Checker validated on fixtures before any
+call (`validate_view_board.py`): oracle → correct, reward 1; column-reversed and header-swapped → reversed, reward 0;
+edge dropped → other; missing file → 0 — 30/30 as expected.
+
+**Run order (VM the run VM, `run.sh`-style screen, two passes for infra-invalid cells):** oracle on all six `vw` tasks
+(1 episode); then `to,from` 4 episodes × {coreb1, vb1}; then `from,to` 2 episodes × {coreb1, vb1}; then B only if V-S1
+holds and spend + 1.5 × the archived coreb1 B cost ($0.56) stays under the cap. Spend so far $0.018; A′ projected
+≈ $0.2 (archived check-board rows).
