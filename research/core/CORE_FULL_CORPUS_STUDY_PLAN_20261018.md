@@ -119,3 +119,53 @@ Coverage is reported at each stage. If usage stops, work resumes from `audit_out
 - **One discriminating experiment**, designed and drafted as a pre-registration with predictions and stopping rules.
   **Not run**; it awaits the principal's OK.
 - Opus medium-effort review of the Phase 4 output; then stop and report.
+
+## Amendment 1 (2026-10-18, after the principal's staffing change and the ChatGPT review of 65459814c)
+
+**Staffing.** Context gathering (greps, evidence extraction, per-run evidence packets) is done by **Haiku** subagents,
+not Opus (user). Analysis that Haiku cannot do is done by me, or by an Opus writer working **only from the Haiku
+packet**, with narrow look-ups. Reviews go to the **Codex thread** `codex://threads/01a14c16-bf09-7550-8361-12757d6e2838`,
+replacing the Opus medium-effort reviewer. Max 3 concurrent subagents.
+
+**Corrections accepted.**
+1. **Grader classification.** Each grader file gets an effect table using these classes: false rejection
+   demonstrated / false acceptance demonstrated / incomplete coverage / ambiguous specification / version mismatch /
+   unverified. Each class lists the **historical outcomes it affects**. "6 of 9 flawed" is withdrawn as a headline;
+   what counts is how many recorded outcomes each defect changes.
+2. **Input reconstruction.** A character-count match within 5% is supporting evidence, not byte-identity. The 450 GLM
+   turns, the 55 runs without call logs and all ATIF/G4 runs (input = trajectory prefix) stay labelled
+   *unverified / inferred*.
+3. **Reasoning telemetry.** "59% of Core+GLM turns logged no reasoning text, vs 1/246 under Terminus" is a
+   logging/format observation. It is not evidence of no reasoning, and not a behavioural conclusion. Comparing it with
+   outcomes needs provider format, requested effort and turn format held equal.
+4. **Calibration quality gate (before scaling).** A calibration dossier counts only if:
+   - its first error is supported by an observation or an artifact version;
+   - what the model saw matches the recorded request (or is marked inferred);
+   - each check is judged for both false acceptance and false rejection;
+   - demonstrated and plausible links are kept separate;
+   - a matched success is studied, or the missing control is named;
+   - an adversarial challenge cannot overturn its core claim.
+
+   The gate has three parts:
+   - (a) **adversarial challenge**: a reviewer gets the conclusion and hunts for the strongest contradicting trace
+     evidence;
+   - (b) **blind re-derivation** of at least 5 dossiers by a writer who has not seen the original;
+   - (c) the share of causal conclusions that survive is reported.
+
+   Two same-model agents agreeing is not called independent validation.
+5. **Harness integrity triaged separately.** The *fabricated-observation* finding (several JSON objects in one reply
+   accepted, so invented tool results entered history) gets a bounded deterministic reproducer and a source-level
+   audit before it is used as a mechanism.
+6. **Contamination.** Runs with a benchmark leak stay in the process corpus, labelled, and out of clean score
+   comparisons. The leak scan reports which access routes it inspected and which it could not ("no further leak found
+   by the scan", not "no leak occurred").
+7. **No single-story conclusions.** "Every failure had a self-confirming check" describes the inspected subset only.
+   Allowed failure types include valid checks ignored or rewritten, harmful checks, and no verification. The research
+   question stays: *under what conditions does verification independently establish that the deliverable meets the
+   requirements, and when does that improve final work rather than harm it?*
+8. **Cost attribution.** Steps after an error are not automatically "wasted". Attributing cost needs a justified
+   counterfactual.
+9. **Dossiers may say "cannot establish a mechanism from this trace".** The output is a set of reproducible mechanism
+   findings: observed failure, trace evidence, alternatives, discriminating evidence, applicability, counterexamples,
+   intervention opportunity, uncertainty. It is not page count. The research's own effort (subagent tokens, time) is
+   recorded.
