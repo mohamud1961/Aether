@@ -554,7 +554,11 @@ async def check_state(
 
 
 def report(results: list[CheckResult]) -> str:
-    lines = ["[acceptance checks, run on a copy of your current state]"]
+    lines = [
+        "[acceptance checks, run on a copy of your current state: the copy has your files but none of your "
+        "running processes, so a check that needs a running server or service cannot pass on it; test those "
+        "against the live service yourself]"
+    ]
     for r in results:
         verdict = (
             "passed"
