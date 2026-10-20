@@ -221,3 +221,21 @@ def test_hygiene_off_is_the_unchanged_prompt_and_on_or_placebo_add_one_line_befo
 
     with pytest.raises(ValueError):
         system_prompt(python_version="3.12", clm=True, hygiene="bogus")
+
+
+def test_probe_off_is_the_unchanged_prompt_and_on_or_placebo_add_one_line_before_any_building():
+    from aether.core.tools import PROBE_DOC, system_prompt
+
+    base = system_prompt(python_version="3.12", clm=True)
+    assert base == system_prompt(python_version="3.12", clm=True, probe="off")
+    for mode in ("on", "placebo"):
+        text = system_prompt(python_version="3.12", clm=True, probe=mode)
+        assert text.replace(PROBE_DOC[mode], "") == base
+        assert text.index("history or system state.") < text.index(PROBE_DOC[mode]) < text.index("- Check your work")
+    assert PROBE_DOC["on"] not in system_prompt(python_version="3.12", clm=True, verifier=True, probe="on")
+    both = system_prompt(python_version="3.12", clm=True, probe="on", hygiene="on")
+    assert PROBE_DOC["on"] in both and "The delivered state is everything" in both
+    import pytest
+
+    with pytest.raises(ValueError):
+        system_prompt(python_version="3.12", clm=True, probe="bogus")
