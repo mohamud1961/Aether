@@ -143,6 +143,23 @@ def test_provider_retries_429_with_retry_after_then_succeeds():
     assert turn.attempts == 3 and waits[0] == 3.0 and p.failed_attempts == 2
 
 
+def test_provider_waits_out_a_long_rate_limit_but_caps_other_faults():
+    from aether.core import provider as P
+
+    async def sleep(s):
+        pass
+
+    storm = [StatusError(429) for _ in range(P.MAX_ATTEMPTS + 4)]
+    p = ChatProvider(ScriptedClient(storm + [call("finish", {"summary": "x"})]), model="m", params={}, sleep=sleep)
+    turn = asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+    assert turn.attempts == P.MAX_ATTEMPTS + 5
+    faults = [StatusError(503) for _ in range(P.MAX_ATTEMPTS + 1)]
+    p = ChatProvider(ScriptedClient(faults), model="m", params={}, sleep=sleep)
+    with pytest.raises(ProviderError) as info:
+        asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+    assert info.value.status == 503 and p.failed_attempts == P.MAX_ATTEMPTS
+
+
 def test_provider_does_not_retry_bad_request_and_flags_context_overflow():
     p = ChatProvider(
         ScriptedClient([StatusError(400, "maximum context length exceeded")]),
