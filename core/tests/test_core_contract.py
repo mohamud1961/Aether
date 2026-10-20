@@ -367,3 +367,18 @@ def test_without_a_contract_run_checks_says_so_and_the_finish_proceeds(tmp_path)
         for r in rows
     )
     assert "not available (clone failed" in json.dumps(client.requests[1]["messages"])
+
+
+def test_a_failure_that_does_not_repeat_on_the_same_state_is_reported_unstable_not_failed(tmp_path):
+    env = FakeClone(tmp_path)
+    flip = "if [ -f seen ]; then exit 0; else touch seen; exit 1; fi"  # fails once, then passes
+    checks = [
+        C.Check(1, "flips", flip),
+        C.Check(2, "always fails", "exit 3"),
+        C.Check(3, "passes", "true"),
+    ]
+    results = asyncio.run(C.run_checks(env, checks, str(tmp_path)))
+    assert [(r.code, r.unstable) for r in results] == [(1, True), (3, False), (0, False)]
+    text = C.report(results)
+    assert "1. unstable (failed, then passed on an immediate rerun" in text
+    assert "2. failed (exit 3)" in text and "3. passed" in text
