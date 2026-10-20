@@ -21,6 +21,7 @@ from typing import Any, Awaitable, Callable
 from . import compaction, images, textturn
 from . import receipt as finish_receipt
 from . import finish_check
+from . import finish_report
 from .clm import ClmContext, ClmSettings
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
 from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes
@@ -190,6 +191,7 @@ class _Session:
         self.second_look_shown = False
         # what the runtime knows of each step (see evidence)
         self.step_tools: dict[int, evidence.Step] = {}
+        self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         self.ledger: list[
             dict[str, Any]
         ] = []  # the requirements tool's items (see ledger)
@@ -266,10 +268,14 @@ async def run_agent(
 
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
-            if (
-                config.receipt or config.verify
-            ):  # the verifier is told which files the work changed
+            # the start marker: files newer than it are what the run changed (the receipt, the verifier and the
+            # finish report use it). Only the receipt and the verifier need it to work; for the report a missing
+            # marker is a reported fact, not a run failure.
+            try:
                 await finish_receipt.mark(s.env, config.control_dir)
+            except OSError:
+                if config.receipt or config.verify:
+                    raise
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
             s.tools = tools(
@@ -370,6 +376,19 @@ async def run_agent(
         s.result.extras["cleanup_errors"] = cleanup_errors
         s.result.extras["end_processes"] = s.config.end_processes
         s.result.extras["left_running"] = s.terminals.left_running
+        try:
+            async with asyncio.timeout(60):
+                s.result.extras["finish_report"] = await finish_report.build(
+                    s.env,
+                    s.workdir,
+                    s.config.control_dir,
+                    s.report_steps,
+                    status=s.result.status,
+                    finish_summary=(s.result.extras.get("finish_args") or {}).get("summary"),
+                    left_running=s.terminals.left_running,
+                )
+        except Exception as exc:
+            cleanup_errors.append(f"finish report: {type(exc).__name__}: {exc}")
         _close(s)
     return s.result
 
@@ -552,6 +571,9 @@ async def _run_calls(
             mirror_error = ""
         s.result.steps += 1
         s.step_tools[s.result.steps] = evidence.step_fact(name, args, out, s.workdir)
+        s.report_steps.append(
+            finish_report.record(s.result.steps, name, args, out, s.workdir)
+        )
         s.trace("tool", name=name, args=args, result=out, duration_s=duration)
         out = await _save(s, out)
         if name != "finish":
