@@ -382,3 +382,5 @@ def test_a_failure_that_does_not_repeat_on_the_same_state_is_reported_unstable_n
     text = C.report(results)
     assert "1. unstable (failed, then passed on an immediate rerun" in text
     assert "2. failed (exit 3)" in text and "3. passed" in text
+    # E15 nginx: service checks ran on a process-less copy and failed by construction; the report says so
+    assert "none of your running processes" in text.splitlines()[0]
