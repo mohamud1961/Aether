@@ -12,7 +12,7 @@
 | 2. Receipt kernel | A "done" claim needs a receipt, and a task-local profile (Adaptive Harness Profiles) is generated before the solve loop. | 2026-05 to 2026-07-08 | Fake progress (candidate lock-in, circular self-checks, shape-only success). Profiles gave a probabilistic advantage, not a promotable win. Demoted to a reference line on 2026-07-03. |
 | 3. Architect, solver, verifier | An architect model writes the harness config and the solver and verifier prompts; a trusted compiler realises them. | 2026-07-01 to 2026-08-19 | The architect's proof authority was unsound (forensic verdict NOT READY, 2026-07-19). The verifier ran no real checks in an early audit. Architect calls were removed from production on 2026-08-19. |
 | 4. Persistent worker, independent verifier | One persistent model owns the task; the kernel executes one action per turn; an independent verifier and a deterministic gate check completion. | 2026-08-05 to 2026-10 (production line to 2026-09-08) | The October held-out campaign did not support the lift claim (candidate 5/9, stock reference agent 4/6). Work moved to Gen 5 for October. |
-| 5. Aether (in development) | The model pilots: a lean loop of model turn, tools and results until finish or time, with a claim-free review at finish. | 2026-10-12 onward | Current. Development sweep only; there is no frozen comparison. |
+| 5. Aether Core | The model pilots: a lean loop of model turn, tools and results until finish or time, with a claim-free review at finish. | 2026-10-12 onward | Current. The matched 18-row development board tied the stock reference agent, 12/18 each; there is no frozen benchmark win. |
 
 ## Reading the table
 
