@@ -194,6 +194,48 @@ def test_close_stops_every_terminal_and_what_runs_in_it(tmp_path):
     assert alive == [] and names == []
 
 
+def test_close_keep_leaves_a_started_service_running_and_records_it(tmp_path):
+    # E0 package-server: a server the task needs at grading was started with nohup ... & and killed at run end.
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="nohup python3 -c 'import time; time.sleep(300)' > /dev/null 2>&1 & echo started")
+        await asyncio.sleep(0.5)
+        await t.close(keep=True)
+        return t.left_running
+
+    left = asyncio.run(go())
+    services = [line for line in left if "time.sleep(300)" in line]
+    try:
+        assert len(services) == 1
+        pid = int(services[0].split()[0])
+        os.kill(pid, 0)  # still alive: keep killed nothing
+        assert not any("script -qfc" in line or "--noprofile" in line for line in left)
+    finally:
+        for line in left:  # this test runs on the host, not in a disposable container
+            try:
+                os.kill(int(line.split()[0]), 9)
+            except (ProcessLookupError, ValueError):
+                pass
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc/1"), reason="the /proc tree walk (task containers) is what reaches nohup'd jobs")
+def test_close_stop_kills_a_nohup_service(tmp_path):
+    # The baseline: the same service does not survive close() (known-bad for keep).
+    async def go():
+        t, _ = _terms(tmp_path)
+        out = await t.use(input="nohup python3 -c 'import time; time.sleep(301)' > /dev/null 2>&1 & echo $!")
+        pid = int([w for w in out.split() if w.isdigit()][0])
+        await t.close()
+        await asyncio.sleep(0.5)
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+
+    assert asyncio.run(go()) is False
+
+
 def test_a_fast_command_s_output_is_complete_when_its_exit_is_reported(tmp_path):
     """The marker is found before the size is read; the other way round, output was sometimes cut short."""
 

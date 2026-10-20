@@ -82,6 +82,10 @@ class CoreConfig:
     finish_check: str = ""  # experiment instrument: a check command run at the first held finish
     finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
+    # Run end: "stop" kills every process started in a terminal (the baseline); "keep" leaves the container as the
+    # agent left it (a service the task needs running is part of the delivered state, E0 package-server) and records
+    # what was still running instead of killing it.
+    end_processes: str = "stop"
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -352,12 +356,15 @@ async def run_agent(
                     )
             except TimeoutError:
                 cleanup_errors.append(f"{name}: still running when the run ended")
-        for name, closer in (("terminals", s.terminals.close), ("repl", s.repl.close)):
+        keep = s.config.end_processes == "keep"
+        for name, closer in (("terminals", lambda: s.terminals.close(keep=keep)), ("repl", s.repl.close)):
             try:
                 await closer()
             except Exception as exc:
                 cleanup_errors.append(f"{name}: {type(exc).__name__}: {exc}")
         s.result.extras["cleanup_errors"] = cleanup_errors
+        s.result.extras["end_processes"] = s.config.end_processes
+        s.result.extras["left_running"] = s.terminals.left_running
         _close(s)
     return s.result
 

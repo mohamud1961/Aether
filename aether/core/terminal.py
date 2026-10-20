@@ -15,7 +15,7 @@ import re
 import shlex
 import time
 
-from .env import CONTROL_DIR, Environment, alive_test, put_bytes, run, stop_process_tree
+from .env import list_process_tree, CONTROL_DIR, Environment, alive_test, put_bytes, run, stop_process_tree
 
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000
@@ -104,6 +104,7 @@ class Terminals:
         self._launching: set[str] = (
             set()
         )  # PID files resolve a lost launch reply during cleanup
+        self.left_running: list[str] = []  # close(keep=True): processes left alive at run end
 
     @property
     def names(self) -> list[str]:
@@ -187,10 +188,13 @@ class Terminals:
         session.ready = True
         return session
 
-    async def close(self) -> None:
+    async def close(self, keep: bool = False) -> None:
         """Stop every terminal and everything started in it. The shell runs under ``script`` in a session of its
         own, so a process-group kill does not reach it or its jobs; the whole process tree is collected from
-        /proc first (while parents are alive, so nohup'd jobs are still descendants), then TERM, then KILL."""
+        /proc first (while parents are alive, so nohup'd jobs are still descendants), then TERM, then KILL.
+
+        ``keep``: kill nothing. The processes still running under the terminals are recorded in ``left_running``
+        (pid and command line, wrapper shells excluded) and the container is left as the agent left it."""
         pids = [s.pid for s in self._sessions.values()]
         unresolved = []
         for root in list(self._launching):
@@ -202,7 +206,9 @@ class Terminals:
                 pids.append(int(raw))
             except Exception as exc:
                 unresolved.append(f"{root}: {type(exc).__name__}: {exc}")
-        if pids:
+        if pids and keep:
+            self.left_running = await list_process_tree(self._env, list(set(pids)))
+        elif pids:
             await stop_process_tree(self._env, list(set(pids)))
         self._sessions.clear()
         if unresolved:
