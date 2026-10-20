@@ -82,10 +82,11 @@ class CoreConfig:
     finish_check: str = ""  # experiment instrument: a check command run at the first held finish
     finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
-    # Run end: "stop" kills every process started in a terminal (the baseline); "keep" leaves the container as the
-    # agent left it (a service the task needs running is part of the delivered state, E0 package-server) and records
-    # what was still running instead of killing it.
-    end_processes: str = "stop"
+    # Run end: "keep" (the default) leaves the container as the agent left it, because a service the task needs
+    # running is part of the delivered state (E0/E3: package-server and rpc-key-value 0/2 under stop, 2/2 under keep),
+    # and records what was still running in ``left_running``. The container is owned by the trial and removed after
+    # grading, which is the cleanup. "stop" kills every process started in a terminal (the pre-E3 behaviour).
+    end_processes: str = "keep"
     probe: str = "off"  # tools.PROBE_MODES: one separating-probe line (on) or its placebo, at the start of the work
     hygiene: str = "off"  # tools.HYGIENE_MODES: one delivery-hygiene line (on) or its placebo in the solver prompt
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run

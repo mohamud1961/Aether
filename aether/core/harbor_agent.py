@@ -72,7 +72,7 @@ REASONING_ENV = "AETHER_CORE_REASONING"
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE", "AETHER_CORE_LEDGER"
 READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
-END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "stop" (the baseline); see loop.CoreConfig
+END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
 PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
@@ -200,7 +200,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         finish_check=_finish_check(environ),
         finish_show_check=_finish_mode(environ) == "check",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
-        end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "stop"),
+        end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"),
         probe=_choice(environ, PROBE_ENV, PROBE_MODES, "off"),
     )
