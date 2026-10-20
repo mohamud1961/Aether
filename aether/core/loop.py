@@ -86,6 +86,7 @@ class CoreConfig:
     # agent left it (a service the task needs running is part of the delivered state, E0 package-server) and records
     # what was still running instead of killing it.
     end_processes: str = "stop"
+    probe: str = "off"  # tools.PROBE_MODES: one separating-probe line (on) or its placebo, at the start of the work
     hygiene: str = "off"  # tools.HYGIENE_MODES: one delivery-hygiene line (on) or its placebo in the solver prompt
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
@@ -295,6 +296,7 @@ async def run_agent(
                         verifier=config.role == VERIFIER_ROLE,
                         readback=config.readback,
                         hygiene=config.hygiene,
+                        probe=config.probe,
                     )
                     + (evidence.EVIDENCE_DOC if config.evidence else "")
                     + (ledger.LEDGER_DOC if config.ledger else "")

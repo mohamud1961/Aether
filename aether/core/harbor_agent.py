@@ -29,7 +29,7 @@ from .clone import Clone, compose_clone
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
-from .tools import HYGIENE_MODES, READBACK_MODES, TURN_MODES
+from .tools import HYGIENE_MODES, PROBE_MODES, READBACK_MODES, TURN_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
@@ -74,6 +74,7 @@ SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_COR
 READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "stop" (the baseline); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
+PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
@@ -201,6 +202,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "stop"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"),
+        probe=_choice(environ, PROBE_ENV, PROBE_MODES, "off"),
     )
 
 
