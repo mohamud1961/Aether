@@ -25,6 +25,7 @@ from typing import Any, Mapping
 
 from .calls import CallLog
 from .clm import REPLAY_MODES, ClmSettings
+from . import finish_report
 from .clone import Clone, compose_clone
 from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
@@ -514,3 +515,6 @@ def _write_record(
     (logs / "aether_run_record.json").write_text(
         json.dumps(record, indent=2, default=str), encoding="utf-8"
     )
+    report = (result.extras if result else {}).get("finish_report")
+    if report:
+        (logs / "finish_report.md").write_text(finish_report.render(report), encoding="utf-8")
