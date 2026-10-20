@@ -386,6 +386,7 @@ async def run_agent(
                     status=s.result.status,
                     finish_summary=(s.result.extras.get("finish_args") or {}).get("summary"),
                     left_running=s.terminals.left_running,
+                    task=s.task,
                 )
         except Exception as exc:
             cleanup_errors.append(f"finish report: {type(exc).__name__}: {exc}")

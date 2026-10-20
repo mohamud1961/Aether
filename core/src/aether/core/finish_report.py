@@ -9,7 +9,8 @@ what the harness observed:
 - for each delivered file, the step that last wrote it when a file tool did (shell and Python writes are not
   attributable), and the later steps whose command names the file. Naming a file is not checking it; the report
   says which steps named it, nothing more;
-- the processes still running at the end, and the run's status.
+- the processes still running at the end, and the run's status;
+- claims in the model's summary with nothing recorded behind them (see ``claims``): one-directional flags.
 The model's finish summary is reproduced verbatim under its own heading, as its account, not as a finding.
 
 The report is written to the run record. The model never sees it, so it cannot change the work.
@@ -23,10 +24,11 @@ import shlex
 from dataclasses import dataclass
 from typing import Any
 
-from . import receipt
+from . import claims, receipt
 from .env import Environment, exit_code
 
 EXIT = re.compile(r"\[exit (-?\d+) ·")
+STAGES = re.compile(r"\[exit -?\d+ · last pipeline's stage exits ")
 TEXT_CHARS = 300
 MAX_FILES = 200
 
@@ -42,6 +44,8 @@ class StepRecord:
     exit: int | None
     failed: bool
     wrote: str = ""
+    numbers: frozenset[str] = frozenset()  # numbers in the step's output, for grounding the summary's numbers
+    stage_failed: bool = False  # the terminal reported a failed stage in the command's last pipeline
 
 
 def record(step: int, name: str, args: dict[str, Any], out: str, workdir: str) -> StepRecord:
@@ -65,6 +69,8 @@ def record(step: int, name: str, args: dict[str, Any], out: str, workdir: str) -
         int(found[-1]) if found else None,
         out.startswith("error:"),
         wrote,
+        claims.numbers(out),
+        bool(STAGES.search(out)) if name == "terminal" else False,
     )
 
 
@@ -124,6 +130,7 @@ async def build(
     status: str,
     finish_summary: str | None,
     left_running: list[Any],
+    task: str = "",
 ) -> dict[str, Any]:
     """The report as data. Never raises for a listing failure: the failure is the reported fact."""
     files = await _files(env, workdir, control_dir)
@@ -138,8 +145,10 @@ async def build(
         "commands_nonzero_exit": [s.step for s in commands if s.exit not in (None, 0)],
         "commands_tool_error": [s.step for s in commands if s.failed],
         "commands_without_exit": [s.step for s in commands if s.tool == "terminal" and s.exit is None],
+        "commands_failed_pipeline_stage": [s.step for s in commands if s.stage_failed],
         "left_running": left_running,
         "model_account": finish_summary,
+        "unbacked_claims": await claims.check(env, finish_summary, files, steps, workdir, task),
         "command_log": [
             {"step": s.step, "tool": s.tool, "exit": s.exit, "text": s.text[:TEXT_CHARS]}
             for s in commands
@@ -172,11 +181,13 @@ def render(report: dict[str, Any]) -> str:
             out.append(f"  - {f['path']} · {f['bytes']} bytes · sha256 {str(f['sha256'])[:16]} · {wrote} · {seen}")
     out.append(
         f"- commands: {report['commands']} (non-zero exit at steps {report['commands_nonzero_exit'] or 'none'}; "
-        f"no exit reported at steps {report['commands_without_exit'] or 'none'})"
+        f"no exit reported at steps {report['commands_without_exit'] or 'none'}; a failed pipeline stage hidden "
+        f"by exit 0 at steps {report.get('commands_failed_pipeline_stage') or 'none'})"
     )
     running = report["left_running"] or []
     out.append(f"- processes still running at the end: {len(running)}")
     out += [f"  - {p}" for p in running[:20]]
+    out += _render_claims(report.get("unbacked_claims"))
     out += [
         "",
         "## The model's account (its own description; not checked by the harness)",
@@ -185,3 +196,24 @@ def render(report: dict[str, Any]) -> str:
         "A step naming a file is not a check of it. Nothing here says whether the delivered files are correct.",
     ]
     return "\n".join(out) + "\n"
+
+
+def _render_claims(found: dict[str, Any] | None) -> list[str]:
+    if not found:
+        return []
+    out = ["", "## Claims in the model's account with nothing recorded behind them",
+           "A flag is not a finding that the claim is false; no flag is not a finding that it is true."]
+    for c in found["verification_without_recorded_step"]:
+        out.append(f"- verification claim, no recorded step on {', '.join(c['no_recorded_step_on'])}: {c['claim']}")
+    for c in found["verification_unscoped"]:
+        out.append(f"- verification claim naming no file (nothing to look up): {c}")
+    if found["numbers_in_no_output_or_task"]:
+        out.append(f"- numbers in no tool output and not in the task: {', '.join(found['numbers_in_no_output_or_task'])}")
+    missing = found["named_files_missing"]
+    if isinstance(missing, str):
+        out.append(f"- named files: unknown ({missing})")
+    elif missing:
+        out.append(f"- named files that do not exist at the end: {', '.join(missing)}")
+    if len(out) == 2:
+        out.append("- none flagged")
+    return out
