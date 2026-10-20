@@ -6,12 +6,20 @@ files the summary named that were not there. Each flag here is one-directional: 
 nothing behind the claim. It never says the claim is false, and the absence of a flag never says it is true
 (a number can appear in some output and still be stale; a check can run and test the wrong thing).
 
-Three flags, all mechanical, no model call:
-- verification claims ("verified", "checked", "tested", ...) naming a file no recorded step touched after its
-  last recorded write (or at all, for a file the run did not deliver); claims naming no file are listed as
-  unscoped, not flagged;
-- numbers in the summary that appear in no tool output and not in the task text;
-- files the summary names that do not exist at the end of the run.
+Every flag means "no supporting observation identified in the captured record", never "it did not happen". The
+record has known blind spots, so a flag can be wrong:
+- a test runner or script can read a file without its command naming it; when a test-runner command ran after the
+  file's last recorded write, the claim is listed as possibly covered by that run instead of flagged;
+- a number can be a legitimate calculation from recorded inputs without appearing verbatim in any output;
+- shell and Python writes are not attributed to a step, so "after the last write" is only known for file tools;
+- a file can have moved or be reached by another path.
+
+Three checks, all mechanical, no model call:
+- verification claims ("verified", "checked", "tested", ...) naming a file for which no captured step names it
+  after its last recorded write (or at all, for a file the run did not deliver). Evidence from before the last
+  write is stale and does not count. Claims naming no file are listed as unscoped, not flagged;
+- numbers in the summary found verbatim in no tool output and not in the task text;
+- files the summary names that are not found at the end of the run.
 """
 
 from __future__ import annotations
@@ -34,6 +42,10 @@ PATH = re.compile(
 NUMBER = re.compile(r"(?<![\w.,])\d[\d,]*(?:\.\d+)?(?![\w]|\.\d)")  # 0.1.0 is not a number
 VERIFY = re.compile(
     r"\b(verif\w*|check(?:ed|s)?|confirm\w*|validat\w*|tested|tests? pass\w*|double-check\w*)\b", re.I
+)
+TEST_RUN = re.compile(
+    r"\b(pytest|unittest|nosetests|tox|make\s+(?:test|check)|npm\s+(?:test|run\s+test)|cargo\s+test|go\s+test|"
+    r"ctest|bats|run_tests?\S*|test\S*\.(?:sh|py))\b"
 )
 SENTENCE_BREAK = re.compile(r"(?<=[.!?;])\s+|\n+")  # a dot inside out.txt is not a break
 MAX_NUMBERS = 5000  # per step: the set a summary's numbers are looked up in
@@ -74,10 +86,11 @@ def _resolve(path: str, workdir: str) -> str:
 def verification_claims(
     summary: str, files: list[dict[str, Any]] | str, steps: list[Any], workdir: str
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """(unsupported, unscoped): verification sentences whose named files have no recorded step behind them, and
-    verification sentences that name no file at all."""
+    """(unsupported, unscoped, test_run_only): verification sentences naming a file no captured step names after
+    its last recorded write; verification sentences naming no file; and sentences whose files were not named but a
+    test-runner command ran after their last recorded write (possibly covered, not flagged)."""
     delivered = {f["path"]: f for f in files} if isinstance(files, list) else {}
-    unsupported, unscoped = [], []
+    unsupported, unscoped, test_run_only = [], [], []
     for sentence in (x.strip() for x in SENTENCE_BREAK.split(summary)):
         if not sentence or not VERIFY.search(sentence):
             continue
@@ -85,7 +98,7 @@ def verification_claims(
         if not named:
             unscoped.append(sentence)
             continue
-        bare = []
+        bare, via_tests = [], []
         for p in named:
             full, base = _resolve(p, workdir), posixpath.basename(p)
             f = delivered.get(full) or next(
@@ -104,11 +117,20 @@ def verification_claims(
                 touched = [
                     s.step for s in steps if s.tool in ("terminal", "python", "read_file") and base in s.text
                 ]
-            if not touched:
-                bare.append(p)
+            if touched:
+                continue
+            last = f.get("last_file_tool_write") if f is not None else None
+            runs = [
+                s.step
+                for s in steps
+                if s.tool in ("terminal", "python") and (last is None or s.step > last) and TEST_RUN.search(s.text)
+            ]
+            (via_tests if runs else bare).append({"file": p, "test_run_steps": runs} if runs else p)
         if bare:
-            unsupported.append({"claim": sentence, "no_recorded_step_on": bare})
-    return unsupported, unscoped
+            unsupported.append({"claim": sentence, "no_step_identified_on": bare})
+        elif via_tests:
+            test_run_only.append({"claim": sentence, "possibly_covered_by": via_tests})
+    return unsupported, unscoped, test_run_only
 
 
 def ungrounded_numbers(summary: str, steps: list[Any], task: str) -> list[str]:
@@ -145,10 +167,12 @@ async def check(
 ) -> dict[str, Any] | None:
     if not summary:
         return None
-    unsupported, unscoped = verification_claims(summary, files, steps, workdir)
+    unsupported, unscoped, test_run_only = verification_claims(summary, files, steps, workdir)
     return {
-        "verification_without_recorded_step": unsupported,
+        "meaning": "no supporting observation identified in the captured record (not: did not happen)",
+        "verification_no_step_identified": unsupported,
+        "verification_possibly_covered_by_test_run": test_run_only,
         "verification_unscoped": unscoped,
-        "numbers_in_no_output_or_task": ungrounded_numbers(summary, steps, task),
-        "named_files_missing": await missing_files(env, summary, workdir),
+        "numbers_not_found_verbatim": ungrounded_numbers(summary, steps, task),
+        "named_files_not_found": await missing_files(env, summary, workdir),
     }

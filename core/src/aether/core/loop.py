@@ -114,6 +114,9 @@ class RunResult:
     reviews: list[dict[str, Any]] = field(default_factory=list)
     extras: dict[str, Any] = field(default_factory=dict)
     error: str = ""
+    # What the run delivers as its account: the finish report (harness facts, unbacked-claim flags, then the model's
+    # summary under its own heading). The model's summary is never delivered on its own. Never shown to the model.
+    final_account: str = ""
 
 
 class Trace:
@@ -388,6 +391,7 @@ async def run_agent(
                     left_running=s.terminals.left_running,
                     task=s.task,
                 )
+                s.result.final_account = finish_report.render(s.result.extras["finish_report"])
         except Exception as exc:
             cleanup_errors.append(f"finish report: {type(exc).__name__}: {exc}")
         _close(s)

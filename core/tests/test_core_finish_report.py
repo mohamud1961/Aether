@@ -59,10 +59,16 @@ def test_report_lists_delivered_files_and_which_later_steps_named_them(tmp_path)
     assert "not named by any later step" in text and "named by later steps 3" in text
     # end to end through the loop: the total 17 is in no output; the verification claim names no file
     claimed = report["unbacked_claims"]
-    assert "17" in claimed["numbers_in_no_output_or_task"]
+    assert "17" in claimed["numbers_not_found_verbatim"]
     assert claimed["verification_unscoped"] == ["All 17 documents verified: 10 invoices, 10 other."]
-    assert "## Claims in the model's account with nothing recorded behind them" in text
+    assert "## Claims in the model's account with no supporting observation identified" in text
     assert text.index("## Claims in the model's account") < text.index("## The model's account")
+    assert "does not mean the claim is false" in text
+    # the delivered account is the report: the model's summary appears only inside it, under its own heading
+    assert result.final_account == text
+    assert result.final_account.index("## Observed by the harness") < result.final_account.index(
+        "All 17 documents verified"
+    )
 
 
 def test_the_model_never_sees_the_report(tmp_path):

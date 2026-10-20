@@ -201,19 +201,35 @@ def render(report: dict[str, Any]) -> str:
 def _render_claims(found: dict[str, Any] | None) -> list[str]:
     if not found:
         return []
-    out = ["", "## Claims in the model's account with nothing recorded behind them",
-           "A flag is not a finding that the claim is false; no flag is not a finding that it is true."]
-    for c in found["verification_without_recorded_step"]:
-        out.append(f"- verification claim, no recorded step on {', '.join(c['no_recorded_step_on'])}: {c['claim']}")
+    out = [
+        "",
+        "## Claims in the model's account with no supporting observation identified",
+        "Identified in the captured record only. A flag does not mean the claim is false or the action did not "
+        "happen (test runners read files without naming them; numbers can be calculated; shell writes are not "
+        "attributed to steps). No flag does not mean the claim is true.",
+    ]
+    for c in found["verification_no_step_identified"]:
+        out.append(
+            f"- verification claim; no captured step names {', '.join(c['no_step_identified_on'])} after its last "
+            f"recorded write: {c['claim']}"
+        )
+    for c in found["verification_possibly_covered_by_test_run"]:
+        runs = "; ".join(
+            f"{x['file']} (test run at steps {', '.join(map(str, x['test_run_steps']))})" for x in c["possibly_covered_by"]
+        )
+        out.append(f"- verification claim; file not named, possibly covered by a test run: {runs}: {c['claim']}")
     for c in found["verification_unscoped"]:
-        out.append(f"- verification claim naming no file (nothing to look up): {c}")
-    if found["numbers_in_no_output_or_task"]:
-        out.append(f"- numbers in no tool output and not in the task: {', '.join(found['numbers_in_no_output_or_task'])}")
-    missing = found["named_files_missing"]
+        out.append(f"- verification claim naming no file (nothing specific to look up): {c}")
+    if found["numbers_not_found_verbatim"]:
+        out.append(
+            "- numbers not found verbatim in any captured output or the task (may be calculated): "
+            + ", ".join(found["numbers_not_found_verbatim"])
+        )
+    missing = found["named_files_not_found"]
     if isinstance(missing, str):
         out.append(f"- named files: unknown ({missing})")
     elif missing:
-        out.append(f"- named files that do not exist at the end: {', '.join(missing)}")
-    if len(out) == 2:
-        out.append("- none flagged")
+        out.append(f"- named files not found at the end of the run: {', '.join(missing)}")
+    if len(out) == 3:
+        out.append("- none identified")
     return out
