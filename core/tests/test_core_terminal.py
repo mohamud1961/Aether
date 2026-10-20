@@ -382,3 +382,48 @@ def test_failed_startup_after_launch_still_has_an_owned_process_to_close(
                 await stop_process_tree(terminals._env, [int(pid_file.read_text())])
 
     asyncio.run(go())
+
+
+def test_a_failing_pipeline_stage_is_reported_not_hidden(tmp_path):
+    # `cmd | tee log` exits 0 when cmd fails; the shell's exit stays as it is, the failed stage is shown
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="true")
+        masked = await t.use(input="echo a; false | cat")
+        clean = await t.use(input="true | cat")
+        failed_last = await t.use(input="echo x | false")
+        returned = await t.use(input="f() { return 4; }; f")
+        continued = await t.use(input="echo one \\\n two")
+        return masked, clean, failed_last, returned, continued
+
+    masked, clean, failed_last, returned, continued = asyncio.run(go())
+    assert "[exit 0 · last pipeline's stage exits 1 | 0 ·" in masked
+    assert "[exit 0 ·" in clean and "stage exits" not in clean
+    assert "[exit 1 · last pipeline's stage exits 0 | 1 ·" in failed_last
+    assert "[exit 4 ·" in returned
+    assert "one two" in continued and "[exit 0 ·" in continued
+    for out in (masked, clean, failed_last, returned, continued):
+        assert "__AETHER_DONE" not in out and "__aether" not in out
+
+
+def test_return_from_a_command_file_keeps_its_own_exit(tmp_path):
+    # `return` leaves the sourced file before the capture line: the exit must be the return's, not a stale one
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="false | true")
+        return await t.use(input="return 3")
+
+    out = asyncio.run(go())
+    assert "[exit 3 ·" in out and "stage exits" not in out
+
+
+def test_an_unterminated_heredoc_body_is_run_unchanged(tmp_path):
+    # the pipe-stage capture must not add text to the command: a heredoc missing its end marker writes only its own
+    async def go():
+        t, work = _terms(tmp_path)
+        out = await t.use(input="cat > hd.txt <<EOF\nonly line")
+        return out, (work / "hd.txt").read_text()
+
+    out, written = asyncio.run(go())
+    assert written == "only line\n"
+    assert "__AETHER_DONE" not in out

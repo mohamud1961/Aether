@@ -28,7 +28,12 @@ _ANSI = re.compile(
     r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?"
 )
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
-_MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)__ ?([^\n]*)\n?")
+# seq, exit, optional per-stage exits of the command's last pipeline (bash only, joined by "."), cwd
+_MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
+# bash: a RETURN trap fires as the sourced command file finishes, while PIPESTATUS still holds the stage exits of
+# its last pipeline. The body is run unchanged (an appended capture line would land inside an unterminated
+# heredoc) and the exit is the file's own. The trap is removed again, so a RETURN trap of the model's is lost.
+_PIPE_TRAP = "trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
 # One line per process: /proc/<pid>/stat, wait channel, command line. Plain sh + /proc, because many task images
@@ -70,6 +75,7 @@ class Session:
     root: str
     pid: int
     pty: bool
+    bash: bool = False  # the shell is bash (PIPESTATUS is available)
     cursor: int = 0
     seq: int = 0
     pending: int = 0  # command whose completion marker has not been seen yet
@@ -161,7 +167,7 @@ class Terminals:
             f"elif command -v setsid >/dev/null 2>&1; then nohup setsid sh {run_sh} >/dev/null 2>&1 </dev/null & "
             f"else nohup sh {run_sh} >/dev/null 2>&1 </dev/null & fi; "
             f"i=0; while [ ! -s {pid_file} ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; cat {pid_file}; "
-            f"{_PTY_TEST} && echo pty || echo nopty",
+            f"{_PTY_TEST} && echo pty || echo nopty; command -v bash >/dev/null 2>&1 && echo bash || echo sh",
         )
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
@@ -169,7 +175,8 @@ class Terminals:
                 f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}"
             )
         session = Session(
-            name, root, int(lines[0]), lines[1] == "pty", grew_at=time.monotonic()
+            name, root, int(lines[0]), lines[1] == "pty", bash=lines[2:3] == ["bash"],
+            grew_at=time.monotonic(),
         )
         self._sessions[name] = session  # ownership precedes fallible initialization
         self._launching.remove(root)
@@ -242,7 +249,7 @@ class Terminals:
             "true"
             if seq is None
             else f"tail -c +{session.cursor + 1} {q(session.log)} "
-            f"| grep -a -o '__AETHER_DONE_{seq}_[0-9]*__ [^[:cntrl:]]*' | tail -n 1"
+            f"| grep -a -o '__AETHER_DONE_{seq}_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
         )
         # The marker is looked for before the size is taken: the other way round, a command that finished in
         # between showed its marker with the output cut at the earlier size (the rest came with the next call).
@@ -420,10 +427,14 @@ class Terminals:
             body = input if input.endswith("\n") else input + "\n"
             cmd_file = f"{session.root}/cmd_{session.seq}.sh"
             await put_bytes(self._env, body.encode(), cmd_file)
+            src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
+            if session.bash:
+                src = f"__aether_ps=; {_PIPE_TRAP}; {src}; trap - RETURN"
+                stages = '"${__aether_ps:+_$(echo $__aether_ps | tr \' \' .)}"'
             await self._write(
                 session,
-                f". {shlex.quote(cmd_file)}; printf '\\n__AETHER_DONE_%s_%s__ %s\\n' "
-                f'{session.seq} "$?" "$PWD"\n',
+                f"{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
+                f'{session.seq} "$__aether_s" {stages} "$PWD"\n',
             )
         elif input:
             keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
@@ -470,7 +481,9 @@ class Terminals:
             self._sessions.pop(name, None)
             status = f"[terminal {name} exited; it restarts on next use]"
         elif mark is not None:
-            status = f"[exit {mark.group(2)} · {elapsed:.1f}s · terminal {name} · cwd {mark.group(3).strip()}]"
+            stages = (mark.group(3) or "").split(".")
+            piped = f" · last pipeline's stage exits {' | '.join(stages)}" if set(stages) - {"0"} and len(stages) > 1 else ""
+            status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {mark.group(4).strip()}]"
         elif seq is not None:
             quiet = time.monotonic() - session.grew_at
             status = (

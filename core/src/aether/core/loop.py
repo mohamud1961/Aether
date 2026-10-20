@@ -425,8 +425,8 @@ async def _loop(s: _Session) -> None:
             if exc.context_overflow and not tight and not s.clm:
                 tight = True
                 continue
-            if exc.deadline:
-                result.status = "timeout"
+            if exc.deadline:  # the reason is kept: a retry wait that outran the deadline is not the model's timeout
+                result.status, result.error = "timeout", str(exc)
             else:
                 result.status, result.error = "provider_error", str(exc)
             return

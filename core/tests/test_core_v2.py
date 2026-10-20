@@ -411,6 +411,8 @@ def test_a_retry_past_the_deadline_ends_as_timeout_not_provider_error(tmp_path):
         result.status == "timeout"
         and [r for r in rows if r["event"] == "provider_error"][0]["deadline"]
     )
+    # the row says why: a provider wait outran the deadline, not the model's own work
+    assert "retry wait" in result.error and "exceeds remaining time" in result.error
 
 
 # ----- view_image -------------------------------------------------------------------------------------------
