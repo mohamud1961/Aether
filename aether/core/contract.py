@@ -188,6 +188,7 @@ class CheckResult:
     check: Check
     code: int
     output: str
+    unstable: bool = False  # failed, then passed on an immediate rerun of the same state
 
     @property
     def passed(self) -> bool:
@@ -216,7 +217,11 @@ async def run_checks(
     for c in checks:
         res = await run(env, c.command, timeout_s=CHECK_TIMEOUT_S, cwd=workdir)
         text = (res.stdout + res.stderr).strip()
-        results.append(CheckResult(c, res.code, text[-MAX_OUTPUT_CHARS:]))
+        unstable = False
+        if res.code not in (0, None):  # a failure that does not repeat on the same state is noise, not evidence
+            again = await run(env, c.command, timeout_s=CHECK_TIMEOUT_S, cwd=workdir)
+            unstable = again.code == 0
+        results.append(CheckResult(c, res.code, text[-MAX_OUTPUT_CHARS:], unstable))
     return results
 
 
@@ -554,6 +559,8 @@ def report(results: list[CheckResult]) -> str:
         verdict = (
             "passed"
             if r.passed
+            else "unstable (failed, then passed on an immediate rerun of the same state)"
+            if r.unstable
             else "exit unknown"
             if r.code is None
             else f"failed (exit {r.code})"
