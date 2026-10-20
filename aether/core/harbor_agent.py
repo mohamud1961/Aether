@@ -86,6 +86,7 @@ KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
 DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
 EFFORT_ENV, DEADLINE_ENV = "AETHER_CORE_REASONING_EFFORT", "AETHER_AGENT_DEADLINE_SEC"
 SAMPLING = {"temperature": 1.0, "top_p": 0.95}  # identical to the previous solver solver for a fair comparison
+TEMPERATURE_ENV = "AETHER_CORE_TEMPERATURE"  # optional chat-shape override of SAMPLING["temperature"] (overnight E6)
 CALLS_FILE = "core_calls.jsonl"  # every provider request and response (see calls)
 
 
@@ -112,8 +113,16 @@ def build_provider(
     )
     effort = environ.get(EFFORT_ENV, "high").strip() or "high"
     shape = _request_shape(environ)
+    sampling = dict(SAMPLING)
+    if environ.get(TEMPERATURE_ENV, "").strip():
+        try:
+            sampling["temperature"] = float(environ[TEMPERATURE_ENV])
+        except ValueError:
+            raise ConfigError(f"{TEMPERATURE_ENV} must be a number, got {environ[TEMPERATURE_ENV]!r}") from None
+        if not 0.0 <= sampling["temperature"] <= 2.0:
+            raise ConfigError(f"{TEMPERATURE_ENV} must be within [0, 2]")
     params = {
-        **(SAMPLING if shape == "chat" else {}),
+        **(sampling if shape == "chat" else {}),
         "reasoning_effort": effort,
         # analysis turns need "auto": with a forced tool call the model wrote nothing (S2 replay)
         "tool_choice": "auto" if _turn(environ) == "analysis" else "required",

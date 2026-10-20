@@ -362,3 +362,20 @@ def test_the_independent_check_paragraph_replaces_read_back_only_in_its_mode():
     assert ind.replace(INDEPENDENT_CHECK_DOC, "") == off
     with pytest.raises(ValueError):
         system_prompt(python_version="3.12", clm=True, readback=True)
+
+
+def test_temperature_override_replaces_only_the_temperature_and_rejects_bad_values(monkeypatch):
+    for name in (adapter.ENDPOINT_ENV, adapter.KEY_ENV, adapter.DEPLOYMENT_ENV):
+        monkeypatch.setenv(name, "https://example.invalid" if name == adapter.ENDPOINT_ENV else "x")
+    monkeypatch.delenv(adapter.REQUEST_ENV, raising=False)
+    monkeypatch.delenv(adapter.TEMPERATURE_ENV, raising=False)
+    base = adapter.build_provider().params
+    assert base["temperature"] == adapter.SAMPLING["temperature"] and base["top_p"] == adapter.SAMPLING["top_p"]
+    monkeypatch.setenv(adapter.TEMPERATURE_ENV, "0.6")
+    params = adapter.build_provider().params
+    assert params["temperature"] == 0.6 and params["top_p"] == adapter.SAMPLING["top_p"]
+    assert adapter.SAMPLING["temperature"] == 1.0  # the module default is never mutated
+    for bad in ("warm", "3"):
+        monkeypatch.setenv(adapter.TEMPERATURE_ENV, bad)
+        with pytest.raises(adapter.ConfigError):
+            adapter.build_provider()
