@@ -111,6 +111,18 @@ def _base_env(monkeypatch):
         monkeypatch.setenv(name, value)
 
 
+def test_run_end_keeps_processes_by_default_and_stop_stays_selectable(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.delenv(adapter.END_PROCESSES_ENV, raising=False)
+    assert adapter.build_config().end_processes == "keep"
+    assert CoreConfig().end_processes == "keep"
+    monkeypatch.setenv(adapter.END_PROCESSES_ENV, "stop")
+    assert adapter.build_config().end_processes == "stop"
+    monkeypatch.setenv(adapter.END_PROCESSES_ENV, "kill")
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_config()
+
+
 def test_turn_mode_defaults_to_the_baseline_and_rejects_unknown_values(monkeypatch):
     _base_env(monkeypatch)
     monkeypatch.delenv(adapter.TURN_ENV, raising=False)
