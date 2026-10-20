@@ -104,6 +104,40 @@ _KILL_TREE = (
 )
 
 
+# The same /proc walk as _KILL_TREE, printing "pid<TAB>cmdline" per descendant instead of signalling it.
+_LIST_TREE = (
+    "if [ ! -d /proc/1 ]; then ps -A -o pid= -o ppid= -o command= 2>/dev/null | awk -v roots='{roots}' "
+    "'BEGIN{{n=split(roots,r,\" \"); for(i=1;i<=n;i++) keep[r[i]]=1}} {{pid[NR]=$1; pp[NR]=$2; "
+    "c=$0; sub(/^ *[0-9]+ +[0-9]+ +/,\"\",c); cmd[NR]=c}} END{{do {{ch=0; for(i=1;i<=NR;i++) "
+    "if(!(pid[i] in keep) && (pp[i] in keep)) {{keep[pid[i]]=1; out[pid[i]]=cmd[i]; ch=1}}}} while(ch); "
+    "for(p in out) printf \"%s\\t%s\\n\", p, substr(out[p],1,160)}}'; exit 0; fi; frontier='{roots}'; all=''; while [ -n \"$frontier\" ]; do next=''; "
+    "for d in /proc/[0-9]*; do p=${{d#/proc/}}; "
+    "pp=$(sed 's/.*) //' $d/stat 2>/dev/null | cut -d' ' -f2) || continue; "
+    'for f in $frontier; do [ "$pp" = "$f" ] && next="$next $p"; done; done; '
+    'all="$all $next"; frontier=$next; done; '
+    "for p in $all; do c=$(tr '\\0' ' ' < /proc/$p/cmdline 2>/dev/null | cut -c1-160); "
+    '[ -n "$c" ] && printf "%s\\t%s\\n" "$p" "$c"; done; true'
+)
+_WRAPPER_CMDS = ("script -qfc", "bash --noprofile --norc", "/run.sh")
+
+
+async def list_process_tree(env: Environment, pids: list[int]) -> list[str]:
+    """The live descendants of the owned roots ("pid cmdline"), terminal wrapper shells excluded. Kills nothing."""
+    if any(type(pid) is not int or pid <= 1 for pid in pids):
+        raise ValueError("process roots must be owned process IDs above 1")
+    if not pids:
+        return []
+    result = await run(env, _LIST_TREE.format(roots=" ".join(map(str, pids))), timeout_s=30)
+    if result.code != 0:
+        raise OSError(f"process listing did not report success: {result.stderr[:300]}")
+    out = []
+    for line in result.stdout.splitlines():
+        pid, _, cmd = line.partition("\t")
+        if pid.isdigit() and cmd and not any(w in cmd for w in _WRAPPER_CMDS):
+            out.append(f"{pid} {cmd.strip()}")
+    return out
+
+
 async def stop_process_tree(env: Environment, pids: list[int]) -> None:
     """Stop only the owned roots and their descendants; never allow PID 0 or PID 1."""
     if any(type(pid) is not int or pid <= 1 for pid in pids):
