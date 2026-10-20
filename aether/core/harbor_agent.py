@@ -236,10 +236,10 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
     value = environ.get(REASONING_ENV, "newest").strip() or "newest"
     if value not in REPLAY_MODES:
         raise ConfigError(f"{REASONING_ENV} must be one of {', '.join(REPLAY_MODES)}")
-    if value == "all" and (context != "clm" or _request_shape(environ) != "responses"):
-        raise ConfigError(
-            f"{REASONING_ENV}=all needs the Responses API and model-managed context (clm)"
-        )
+    # "all" on chat (overnight E7): chat assistant messages carry reasoning_content like the newest turn already
+    # does; CLM's held() counts every older replayed reasoning against the budget, so checkpoints still bound it.
+    if value == "all" and context != "clm":
+        raise ConfigError(f"{REASONING_ENV}=all needs model-managed context (clm)")
     return value
 
 
