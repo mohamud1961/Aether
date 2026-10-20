@@ -56,3 +56,6 @@ The verifier bench is the strongest verifier measurement in this line. A packet-
 
 The October held-out campaign did not support the lift claim. From October, new work went to Gen 5 (a lean loop), keeping only parts of this line that held up, such as file tools and deadline visibility.
 
+## Known debt
+
+The engineering standard sets a 500-line file limit, but this snapshot includes files above that limit. Splitting them remains work to do. The `_v1` and `_v2` names also remain in experimental modules and interfaces; they record iterations rather than a finished naming scheme. These are known maintenance debts, not completed cleanup.
