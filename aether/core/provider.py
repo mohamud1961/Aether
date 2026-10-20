@@ -1,7 +1,8 @@
 """OpenAI-compatible chat client: streaming, honest retries, no local throttling.
 
 The provider is the only rate authority: a 429 or 5xx is retried with backoff
-(honouring Retry-After up to the run's deadline); nothing is pre-emptively delayed on
+(honouring Retry-After up to the run's deadline; rate limits until the deadline, other faults up to
+MAX_ATTEMPTS); nothing is pre-emptively delayed on
 the client side. Every attempt, from every role, goes to the call log (see ``calls``).
 """
 
@@ -24,6 +25,11 @@ from .calls import CallLog
 
 RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
 MAX_ATTEMPTS = 8
+# A rate limit is the provider asking for time, not a fault: it is retried until the run's deadline (the wait
+# guard below), not cut off after MAX_ATTEMPTS. The cap only bounds a run with no effective deadline. 8 failed
+# attempts are ~3 min of backoff; the 2026-10-20 storm lasted ~20 min and ended 9 valid runs as provider_error.
+RATE_LIMIT_STATUS = frozenset({429, 529})
+MAX_RATE_LIMIT_ATTEMPTS = 120
 
 
 class ProviderError(RuntimeError):
@@ -284,7 +290,9 @@ class ChatProvider:
         delay = 2.0
         failures: list[dict[str, Any]] = []
         request = self._request(messages, tools, max_tokens, overrides)
-        for attempt in range(1, MAX_ATTEMPTS + 1):
+        attempt = other_failures = 0
+        while True:
+            attempt += 1
             started = time.monotonic()
             left = remaining_s()
             if left <= 0:
@@ -350,7 +358,13 @@ class ChatProvider:
                     or status is None
                     and (_is_transport(exc) or isinstance(exc, IncompleteStream))
                 )
-                if not transient or attempt == MAX_ATTEMPTS:
+                rate_limited = status in RATE_LIMIT_STATUS
+                other_failures += not rate_limited
+                if (
+                    not transient
+                    or other_failures >= MAX_ATTEMPTS
+                    or attempt >= MAX_RATE_LIMIT_ATTEMPTS
+                ):
                     raise ProviderError(
                         f"{type(exc).__name__}: {text[:500]}", status=status
                     ) from exc
