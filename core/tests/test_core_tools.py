@@ -205,3 +205,19 @@ def test_a_long_result_is_saved_exactly_and_its_trimmed_view_points_there(tmp_pa
         "omitted; its full text is saved at the path below" in first_result["content"]
     )
     assert f"saved in full at {saved}" in first_result["content"]
+
+
+def test_hygiene_off_is_the_unchanged_prompt_and_on_or_placebo_add_one_line_before_finish():
+    from aether.core.tools import HYGIENE_DOC, system_prompt
+
+    base = system_prompt(python_version="3.12", clm=True)
+    assert base == system_prompt(python_version="3.12", clm=True, hygiene="off")
+    for mode in ("on", "placebo"):
+        text = system_prompt(python_version="3.12", clm=True, hygiene=mode)
+        assert text.replace(HYGIENE_DOC[mode], "") == base
+        assert text.index(HYGIENE_DOC[mode]) < text.index("- Call finish only when")
+    assert HYGIENE_DOC["on"] not in system_prompt(python_version="3.12", clm=True, verifier=True, hygiene="on")
+    import pytest
+
+    with pytest.raises(ValueError):
+        system_prompt(python_version="3.12", clm=True, hygiene="bogus")

@@ -312,6 +312,18 @@ code that produced it, or a check that reads the file the same way your writer d
 count. If a test fails, find the cause, fix the file and test again."""
 READBACK_MODES = ("off", "on", "independent")  # on: READBACK_DOC; independent: INDEPENDENT_CHECK_DOC
 
+# Delivery hygiene (overnight E5): E0/E2/E4 polyglot runs left the compiled binary beside the "single file" they
+# were asked for, and finished after the receipt listed it. "placebo" is a neutral line of similar length, the control.
+HYGIENE_MODES = ("off", "on", "placebo")
+HYGIENE_DOC = {
+    "on": """
+- The delivered state is everything you leave behind. Before finishing, remove any file you created in the task's \
+locations that the task did not ask for (build outputs, test copies, scratch scripts); keep scratch work under /tmp.""",
+    "placebo": """
+- Commands can take a while to produce output. When a command is slow, wait for it with a longer time limit \
+before deciding it has failed, and read the whole of its output once it finishes.""",
+}
+
 
 # Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
 # (with tool_choice "auto"; a forced tool call suppressed the writing in the S2 replay); "json" replaces native
@@ -335,6 +347,7 @@ def system_prompt(
     self_check: bool = False,
     verifier: bool = False,
     readback: str = "off",
+    hygiene: str = "off",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
@@ -343,8 +356,14 @@ def system_prompt(
         raise ValueError(f"turn must be one of {TURN_MODES}")
     if readback not in READBACK_MODES:
         raise ValueError(f"readback must be one of {READBACK_MODES}")
+    if hygiene not in HYGIENE_MODES:
+        raise ValueError(f"hygiene must be one of {HYGIENE_MODES}")
+    base = BASE_PROMPT
+    if hygiene != "off" and not verifier:  # inserted before the closing "Call finish only when..." line
+        head, sep, tail = base.rpartition("\n- Call finish only when")
+        base = head + HYGIENE_DOC[hygiene] + sep + tail
     return (
-        (VERIFIER_PROMPT if verifier else BASE_PROMPT).format(
+        (VERIFIER_PROMPT if verifier else base).format(
             python=PYTHON_DOC.format(version=python_version) if python_version else "",
             images=IMAGES_DOC if images else "",
             context=context if clm else "",
