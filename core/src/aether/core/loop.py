@@ -31,7 +31,6 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools, validate_call
-from . import contract as acceptance, contract_loop
 from .clone import Clone
 
 MAX_OUTPUT_TOKENS = 32_768
@@ -63,7 +62,6 @@ class CoreConfig:
         None  # tests inject a clone; default docker
     )
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
-    contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
@@ -171,9 +169,6 @@ class _Session:
             dict[str, Any]
         ] = []  # shown after the current turn's tool results
         self.images_viewed = 0
-        self.contract: acceptance.Contract | None = None
-        self.contract_task: asyncio.Task | None = None
-        self.contract_shown = False
         self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
@@ -260,7 +255,6 @@ async def run_agent(
             s.tools = tools(
                 python=bool(python),
                 images=see,
-                contract=config.contract,
                 history=config.context == "clm",
                 verdict=config.role == VERIFIER_ROLE,
             )
@@ -305,8 +299,6 @@ async def run_agent(
                 reviews=config.reviews.__dict__,
                 clm=config.clm.__dict__ if s.clm else None,
             )
-            if config.contract:
-                await contract_loop.start(s)
             await _loop(s)
     except TimeoutError:
         s.result.status, s.result.error = "timeout", "run work deadline exceeded"
@@ -321,13 +313,6 @@ async def run_agent(
     finally:
         cleanup_errors = []
         s.env.cleanup_until(time.monotonic() + max(1.0, STOP_MARGIN_S))
-        if s.contract_task and not s.contract_task.done():
-            s.contract_task.cancel()
-            try:
-                async with asyncio.timeout(max(0, s.env.remaining_s())):
-                    await asyncio.gather(s.contract_task, return_exceptions=True)
-            except Exception as exc:
-                cleanup_errors.append(f"contract cleanup: {type(exc).__name__}: {exc}")
         for name, task in s.pending_cleanup:
             try:
                 async with asyncio.timeout(max(1.0, s.env.remaining_s())):
@@ -369,7 +354,6 @@ async def run_agent(
 async def _loop(s: _Session) -> None:
     result, idle_turns, tight, cut = s.result, 0, False, False
     while s.remaining() > 0:
-        contract_loop.show(s, _attach)
         due = s.oversight.due(s.elapsed(), s.remaining())
         if due:
             await _scheduled_review(s, due)
@@ -563,8 +547,6 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         ), False
     if name == "finish":
         return await _finish(s, args)
-    if name == "run_checks" and s.config.contract:
-        return await contract_loop.run_checks(s), False
     if name == "terminal":
         return await s.terminals.use(
             name=str(args.get("name") or "main"),

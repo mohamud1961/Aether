@@ -47,7 +47,7 @@ RECORD_HEAD = (
 def arm_config(config: CoreConfig, arm: str) -> CoreConfig:
     """The solver's configuration for an arm: no fork, check, reviews or clones of its own."""
     return dataclasses.replace(
-        config, fork=False, verify=False, reviews=ReviewPlan(finish=False), make_clone=None, contract=False
+        config, fork=False, verify=False, reviews=ReviewPlan(finish=False), make_clone=None
     )
 
 

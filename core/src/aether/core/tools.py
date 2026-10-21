@@ -335,17 +335,6 @@ def system_prompt(
     )
 
 
-RUN_CHECKS = {
-    "type": "function",
-    "function": {
-        "name": "run_checks",
-        "description": "Run the acceptance checks on a disposable copy of the current state and report each result. "
-        "Nothing they do reaches the real state. They are fallible; the task text decides.",
-        "parameters": {"type": "object", "properties": {}},
-    },
-}
-
-
 READ_HISTORY = {
     "type": "function",
     "function": {
@@ -372,7 +361,6 @@ def tools(
     *,
     python: bool,
     images: bool = False,
-    contract: bool = False,
     history: bool = False,
     verdict: bool = False,
 ) -> list[dict[str, Any]]:
@@ -383,7 +371,6 @@ def tools(
         WRITE_FILE,
         EDIT_FILE,
         *([VIEW_IMAGE] if images else []),
-        *([RUN_CHECKS] if contract else []),
         *([READ_HISTORY] if history else []),
         VERDICT_FINISH if verdict else FINISH,
     ]

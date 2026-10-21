@@ -3,8 +3,7 @@
 Configuration comes from the launcher's environment only:
 - provider: the GLM research profile's endpoint / key / deployment variables;
 - ``AETHER_CORE_REVIEW``: ``off``, ``jev`` (finish review), ``jev_progress`` (finish review plus
-  progress reviews at 35% and 70% of the time limit and a final review near the deadline) or ``contract``
-  (acceptance checks written before the work, offered as information; see ``contract``);
+  progress reviews at 35% and 70% of the time limit and a final review near the deadline);
 - ``AETHER_CORE_CONTEXT``: ``project`` (C1 view) or ``clm`` (model-managed context, CLM method);
 - ``AETHER_CORE_REPL`` / ``AETHER_CORE_IMAGES``: ``on`` or ``off`` (Python REPL / view_image tool);
   all four are required; there is no silent default;
@@ -50,7 +49,7 @@ except (
 
 
 REVIEW_ENV = "AETHER_CORE_REVIEW"
-REVIEW_MODES = ("off", "jev", "jev_progress", "contract")
+REVIEW_MODES = ("off", "jev", "jev_progress")
 CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
@@ -143,10 +142,7 @@ def build_review(logs_dir: Path, *, environ: Mapping[str, str] | None = None):
     mode = environ.get(REVIEW_ENV, "").strip()
     if mode not in REVIEW_MODES:
         raise ConfigError(f"{REVIEW_ENV} must be one of {REVIEW_MODES}, got {mode!r}")
-    if mode in (
-        "off",
-        "contract",
-    ):  # contract runs on the solver's own provider (see contract)
+    if mode == "off":
         return None
     from .jev import TypeSafeEvaluator
     from .review import JEV_MODEL
@@ -181,7 +177,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         raise ConfigError(f"{IMAGES_ENV} must be one of {REPL_MODES}, got {see!r}")
     plan = (
         ReviewPlan(finish=False)
-        if review in ("off", "contract")
+        if review == "off"
         else ReviewPlan()
         if review == "jev"
         else ReviewPlan(progress_at=PROGRESS_AT, final=True)
@@ -195,7 +191,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
             replay_reasoning=_replay(environ, context),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
         ),
-        contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
@@ -262,7 +257,7 @@ def harbor_clone(environment: Any):
 
 def with_clones(config: CoreConfig, environment: Any) -> CoreConfig:
     """Contract checks and the finish check work on clones of the task container: give them Harbor's."""
-    needed = config.contract or config.verify
+    needed = config.verify
     return replace(config, make_clone=harbor_clone(environment)) if needed else config
 
 
@@ -457,7 +452,7 @@ def _write_record(
         },
         "reviews": reviews,
         "run_metrics": {
-            # Every provider call from every role (worker, llm, checkpoint, contract_writer), from the call
+            # Every provider call from every role (worker, llm, checkpoint), from the call
             # log; token totals are lower bounds when usage_unknown > 0 or open > 0. JEV is not a provider
             # call: its own journal is counted alongside, so the two can be reconciled with the reviews.
             "model_calls": provider.log.totals(),

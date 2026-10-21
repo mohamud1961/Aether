@@ -227,11 +227,11 @@ def test_a_failed_clone_never_holds_the_finish(tmp_path):
     assert row["status"] == "error" and "docker commit failed" in row["reason"]
 
 
-def test_the_verifier_runs_without_reviews_contract_self_check_or_a_check_of_its_own():
+def test_the_verifier_runs_without_reviews_self_check_or_a_check_of_its_own():
     config = V.verifier_config(
         CoreConfig(verify=True, self_check=True, control_dir="/tmp/.aether")
     )
-    assert (config.verify, config.self_check, config.contract) == (False,) * 3
+    assert (config.verify, config.self_check) == (False,) * 2
     assert config.role == "verifier" and config.reviews.finish is False
     assert config.control_dir == "/tmp/.aether-verifier"
     assert config.clm.mirror_path.startswith("/tmp/.aether-verifier/")
