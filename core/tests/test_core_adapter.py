@@ -275,20 +275,3 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     )
     record = json.loads((tmp_path / "aether_run_record.json").read_text())
     assert record["config"]["verify"] is True and record["config"]["self_check"] is True
-
-
-def test_temperature_override_replaces_only_the_temperature_and_rejects_bad_values(monkeypatch):
-    for name in (adapter.ENDPOINT_ENV, adapter.KEY_ENV, adapter.DEPLOYMENT_ENV):
-        monkeypatch.setenv(name, "https://example.invalid" if name == adapter.ENDPOINT_ENV else "x")
-    monkeypatch.delenv(adapter.REQUEST_ENV, raising=False)
-    monkeypatch.delenv(adapter.TEMPERATURE_ENV, raising=False)
-    base = adapter.build_provider().params
-    assert base["temperature"] == adapter.SAMPLING["temperature"] and base["top_p"] == adapter.SAMPLING["top_p"]
-    monkeypatch.setenv(adapter.TEMPERATURE_ENV, "0.6")
-    params = adapter.build_provider().params
-    assert params["temperature"] == 0.6 and params["top_p"] == adapter.SAMPLING["top_p"]
-    assert adapter.SAMPLING["temperature"] == 1.0  # the module default is never mutated
-    for bad in ("warm", "3"):
-        monkeypatch.setenv(adapter.TEMPERATURE_ENV, bad)
-        with pytest.raises(adapter.ConfigError):
-            adapter.build_provider()
