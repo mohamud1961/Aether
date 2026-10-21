@@ -39,6 +39,13 @@ from . import images
 
 MIRROR_PATH = "/tmp/.aether/ctx/LIVE_CTX.txt"
 HISTORY_PATH = "/tmp/.aether/ctx/HISTORY.txt"
+NOTES_VOICES = ("own", "legacy")
+NOTES_HEADER = (
+    "[your notes] You wrote this when you condensed your context. It is your own record, not the task: the task "
+    "statement at the top is the only statement of the task, and where your notes differ from it, the task "
+    "statement is right."
+)
+NOTES_TAG = "[your notes]"
 TURN_RE = re.compile(r"^\[\[CTX_TURN (\d+) role=([a-z_]+)\]\]$", re.M)
 CHARS_PER_TOKEN = 3.0  # initial estimate; recalibrated from the provider's own counts
 TOOLS_OVERHEAD_TOKENS = 1_500
@@ -65,6 +72,11 @@ class ClmSettings:
     # prompt cache never extended past such an edit (0 of 270 requests) but did on 31 of 32 pure extensions.
     # Replayed reasoning is outside ``budget_tokens`` in both modes: the model cannot condense it.
     replay_reasoning: str = "newest"
+    # Whose voice the model's edited context comes back in. "own": as the model's notes, ranked below the task
+    # statement. "legacy": as plain user turns. Audit 2026-10-21: 84 of 122 accepted edits put a restated task
+    # ("TASK: ...", "Goal: ...") and the model's own conclusions back in the user's voice, the newest statement of
+    # the task in the request; the paraphrase then outranked the task it came from.
+    notes_voice: str = "own"
 
     @property
     def limit(self) -> int:
@@ -136,6 +148,8 @@ class ClmContext:
     def __post_init__(self) -> None:
         if self.settings.replay_reasoning not in REPLAY_MODES:
             raise ValueError(f"replay_reasoning must be one of {REPLAY_MODES}")
+        if self.settings.notes_voice not in NOTES_VOICES:
+            raise ValueError(f"notes_voice must be one of {NOTES_VOICES}")
         self._armed = set(self.settings.nudge_ratios)
 
     # ----- the request ---------------------------------------------------------------------------
@@ -344,31 +358,31 @@ class ClmContext:
         )
 
     @staticmethod
-    def parse(text: str) -> list[dict[str, Any]]:
+    def parse(text: str, voice: str = "own") -> list[dict[str, Any]]:
+        """The edited mirror as messages. Blocks the model marks as its turns stay assistant turns; everything else
+        it wrote (its summaries, kept outputs, any block it labels user) is its own record, so with voice "own" it
+        comes back tagged as its notes, the first with the header that ranks it below the task statement."""
         marks = list(TURN_RE.finditer(text))
-        if not marks:
-            body = text.strip()
-            return [{"role": "user", "content": body}] if body else []
-        out = []
-        lead = text[: marks[0].start()].strip()
+        blocks: list[tuple[str, str]] = []
+        lead = (text[: marks[0].start()] if marks else text).strip()
         if lead:
-            out.append({"role": "user", "content": lead})
+            blocks.append(("user", lead))
         for k, m in enumerate(marks):
             end = marks[k + 1].start() if k + 1 < len(marks) else len(text)
             body = text[m.end() : end].strip("\n")
-            if not body.strip():
-                continue
-            out.append(
-                {
-                    "role": "assistant" if m.group(2) == "assistant" else "user",
-                    "content": body,
-                }
-            )
+            if body.strip():
+                blocks.append(("assistant" if m.group(2) == "assistant" else "user", body))
+        out, headed = [], False
+        for role, body in blocks:
+            if role == "user" and voice == "own":
+                body = f"{NOTES_TAG if headed else NOTES_HEADER}\n{body}"
+                headed = True
+            out.append({"role": role, "content": body})
         return out
 
     def apply_edit(self, text: str, upto: int) -> tuple[bool, str]:
         """Replace editable[:upto] (what the mirror held) with the parsed edit, if it fits."""
-        parsed = self.parse(text)
+        parsed = self.parse(text, self.settings.notes_voice)
         candidate = parsed + self.editable[upto:]
         used = self.tokens(list(self.pinned) + candidate)
         if used > self.settings.limit:

@@ -342,6 +342,7 @@ async def run_agent(
                         readback=config.readback,
                         hygiene=config.hygiene,
                         probe=config.probe,
+                        notes=config.clm.notes_voice,
                     )
                     + (evidence.EVIDENCE_DOC if config.evidence else "")
                     + (ledger.LEDGER_DOC if config.ledger else "")
@@ -787,6 +788,7 @@ async def _fit_context(s: _Session) -> bool:
                 clm.render(keep),
                 repl=bool(s.repl.pid),
                 remaining_s=s.remaining,
+                voice=clm.settings.notes_voice,
             )
         except (
             Exception
@@ -808,7 +810,7 @@ async def _fit_context(s: _Session) -> bool:
             s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
         before = clm.tokens()
         clm.replace_with_checkpoint(
-            summary, compaction.CHECKPOINT_NOTE + await _keep_history(s), keep
+            summary, compaction.note(clm.settings.notes_voice) + await _keep_history(s), keep
         )
         s.trace(
             "context_checkpoint",

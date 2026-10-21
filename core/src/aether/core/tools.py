@@ -102,6 +102,14 @@ old observation; do not assume a failed save left a usable copy. read_history re
 message by MSG number even when that file cannot be written; it supports bounded character pages.
 """
 
+# Notes voice "own": the edited context comes back as the model's notes, below the verbatim task statement.
+CLM_NOTES_DOC = """\
+Your edited context comes back to you marked as your notes, below the task statement. Do not restate or \
+paraphrase the task in it: the task statement stays verbatim at the top and is the only statement of the task. \
+For each fact or decision you keep, keep where it came from (the command and its output, the file, or the \
+task's own words), or mark it as assumed.
+"""
+
 TERMINAL = {
     "type": "function",
     "function": {
@@ -364,10 +372,11 @@ def system_prompt(
     readback: str = "off",
     hygiene: str = "off",
     probe: str = "off",
+    notes: str = "own",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
-    )
+    ) + (CLM_NOTES_DOC if notes == "own" else "")
     if turn not in TURN_MODES:
         raise ValueError(f"turn must be one of {TURN_MODES}")
     if readback not in READBACK_MODES:

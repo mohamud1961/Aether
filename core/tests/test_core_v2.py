@@ -10,7 +10,7 @@ import signal
 import pytest
 
 from aether.core import oversight as core_oversight
-from aether.core.clm import ClmContext, ClmSettings
+from aether.core.clm import NOTES_HEADER, ClmContext, ClmSettings
 from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.oversight import ReviewPlan
 from aether.core.provider import ChatProvider
@@ -174,7 +174,7 @@ def test_clm_mirror_round_trip_and_fit_gate():
     assert (
         ok
         and "accepted" in receipt
-        and ctx.editable == [{"role": "user", "content": "facts: cmd0..cmd2 ran fine"}]
+        and ctx.editable == [{"role": "user", "content": NOTES_HEADER + "\nfacts: cmd0..cmd2 ran fine"}]
     )
     ok, receipt = ctx.apply_edit("x" * 60_000, upto=len(ctx.editable))
     assert not ok and "rejected" in receipt and "facts" in ctx.editable[0]["content"]
