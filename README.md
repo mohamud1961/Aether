@@ -71,11 +71,17 @@ the request prefix cache-stable instead halved cost per run at equal passes. Opt
 - A pre-registered falsifier fired on our own harness on sealed held-out tasks.
 - 32 mechanisms were retired on evidence, and the [cemetery](research/cemetery.md) records why each one died.
 
-**Aether holds its own against production agents, at a fraction of the cost.** On 25 shared tasks, Aether Core with
-GLM-5.3-Flash ties Claude Code with GLM-5.1 (0.64 each, with 38% fewer tokens) and reaches 84% of Codex with
-GPT-5.6-Luna's pass rate at a tenth of the cost. Codex with GPT-6-Astra is ahead (0.82) at 42 times the cost. With
-the model held fixed, Aether beat Meta's CLM agent 23 to 20 of 26 and tied Terminus 12 to 12 of 18. These
-comparisons were chosen after the runs, and the losses are listed with the wins:
+**Aether holds its own against production agents, at a fraction of the cost.**
+
+| Aether against | Model (Aether / other) | Tasks × runs | Aether | Other | Cost per run (Aether / other) |
+|---|---|---|---|---|---|
+| Meta CLM agent | GLM-5.3-Flash / same | 13 × 2 | **23 of 26** | 20 of 26 | |
+| Terminus 2 | GLM-5.3-Flash / same | 18 runs | 12 of 18 | 12 of 18 | |
+| Claude Code | GLM-5.3-Flash / GLM-5.1 | 25 tasks, mean pass rate | 0.64 | 0.64 | $0.031 / not published |
+| Codex | GLM-5.3-Flash / GPT-5.6-Luna | 25 tasks, mean pass rate | 0.64 | 0.77 | **$0.031** / $0.316 |
+| Codex | GLM-5.3-Flash / GPT-6-Astra | 25 tasks, mean pass rate | 0.64 | 0.82 | **$0.031** / $1.302 |
+
+Comparisons chosen after the runs; every loss, run count and caveat is in
 [research/head-to-head.md](research/head-to-head.md).
 
 Evidence and limits for each finding: [research/findings.md](research/findings.md) and
