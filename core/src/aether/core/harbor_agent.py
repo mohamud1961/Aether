@@ -73,7 +73,6 @@ END_PROCESSES_MODES = ("stop", "keep")
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 NOTES_ENV = "AETHER_CORE_NOTES"  # own: edited context and checkpoints labelled as the model's notes (still role=user); legacy (default)
 INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's reason and expected result (see intent)
-RESERVE_ENV = "AETHER_CORE_RESERVE"  # on: waits end with a final window left (loop.RESERVE_*)
 FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6 Luna rejects max_tokens and top_p).
@@ -210,7 +209,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
-        delivery_reserve=_choice(environ, RESERVE_ENV, REPL_MODES, "off") == "on",
         fork=_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"),
@@ -461,7 +459,7 @@ def _write_record(
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
             "verify": config.verify, "self_check": config.self_check,
-            "delivery_reserve": config.delivery_reserve, "fork": config.fork,
+            "fork": config.fork,
             "model": provider.model,
             "params": provider.params,
             "limit_field": provider.limit_field,

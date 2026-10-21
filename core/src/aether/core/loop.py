@@ -43,21 +43,10 @@ AFTER_CUT = {"reasoning_effort": "low"}
 # Its output cap bounds that case to a quarter of the time.
 AFTER_CUT_MAX_TOKENS = 8_192
 STOP_MARGIN_S = 15.0
-# Delivery reserve (flag): a terminal or Python wait may otherwise end 5 s before the deadline, too late for a model
-# turn (2-40 s) and a write. 5 of 18 archived timeouts had a wait of 60 s or more in their last 20% and no turn after
-# it; tune-mjcf e2 lost a measured passing setting this way. With the reserve, waits end when the final window begins.
-# Its length is one slow model turn, which does not scale with the budget: over 12,113 archived turns p50 2.3 s,
-# p90 13 s, p99 118 s. Capped at a quarter of short budgets.
-RESERVE_S, RESERVE_MAX_FRACTION = 120.0, 0.25
 CONTEXT_MODES = ("project", "clm")
 VERIFIER_ROLE = (
     "verifier"  # the call-log role of the one independent finish check (see verify)
 )
-
-
-def reserve_s(timeout_s: float) -> float:
-    """The final window a delivery reserve keeps free of long waits."""
-    return min(RESERVE_S, RESERVE_MAX_FRACTION * timeout_s)
 
 
 @dataclass(frozen=True)
@@ -80,7 +69,6 @@ class CoreConfig:
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
     intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
-    delivery_reserve: bool = False  # waits end with a final window left (RESERVE_*), and results say so
     fork: bool = False  # experiment instrument: at the first finish, matched continuations on clones (see fork)
     # Run end: "keep" (the default) leaves the container as the agent left it, because a service the task needs
     # running is part of the delivered state (E0/E3: pypi-server and kv-store-grpc 0/2 under stop, 2/2 under keep),
@@ -161,15 +149,14 @@ class _Session:
         self.deadline = self.started + timeout_s - STOP_MARGIN_S
         self.result = RunResult("timeout")
         self.env = DeadlineEnvironment(env, self.remaining)
-        self.reserve_s = reserve_s(timeout_s) if config.delivery_reserve else 0.0
         self.terminals = Terminals(
-            self.env, workdir, self.wait_clock, control_dir=config.control_dir
+            self.env, workdir, self.remaining, control_dir=config.control_dir
         )
         self.files = Files(self.env, workdir)
         self.repl = Repl(
             self.env,
             workdir,
-            self.wait_clock,
+            self.remaining,
             sub_llm(provider, self.remaining, self.result.sub_usage),
             base=f"{config.control_dir}/repl",
         )
@@ -204,23 +191,11 @@ class _Session:
     def remaining(self) -> float:
         return self.deadline - time.monotonic()
 
-    def wait_clock(self) -> float:
-        """The time a wait may use, as the tools read it (they keep 5 s back): before the final window, waits end
-        where it begins; inside it, the model was told and chooses, so only the 5 s margin applies."""
-        left = self.remaining()
-        return left - self.reserve_s + 5 if self.reserve_s and left > self.reserve_s else left
-
     def elapsed(self) -> float:
         return time.monotonic() - self.started
 
     def clock(self) -> str:
-        left = self.remaining()
-        window = (
-            f"; final window: {max(0.0, left):.0f}s left, the run ends then"
-            if self.reserve_s and left <= self.reserve_s
-            else ""
-        )
-        return f"[t={self.elapsed():.0f}s of {self.timeout_s:.0f}s{window}]"
+        return f"[t={self.elapsed():.0f}s of {self.timeout_s:.0f}s]"
 
     @property
     def history(self) -> list[dict[str, Any]]:
