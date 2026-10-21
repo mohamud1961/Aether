@@ -56,10 +56,8 @@ REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
-# optional; unset means "one" (one tool call per model turn, the baseline). "many" lets the model send several calls in
-# one turn; they still run in order, as a JSON turn's actions do. Luna on the Responses API made 61% more calls than
-# on JSON turns (L2 vs L1) only because the API forbade batching, and each call resends the whole context.
-CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
+# optional; unset means "one" (one tool call per model turn, the baseline). "many" was removed (R2/N1/N2 arm e failed).
+CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one",)
 # optional; unset means "newest" (only the latest turn's reasoning is sent back). "all" sends every turn's back, so the
 # history only grows at its end and the provider's prompt cache keeps extending (Responses API with CLM only).
 REASONING_ENV = "AETHER_CORE_REASONING"
@@ -112,12 +110,13 @@ def build_provider(
     )
     effort = environ.get(EFFORT_ENV, "high").strip() or "high"
     shape = _request_shape(environ)
+    _calls(environ)  # only "one" is accepted; anything else stops the run
     sampling = dict(SAMPLING)
     params = {
         **(sampling if shape == "chat" else {}),
         "reasoning_effort": effort,
         "tool_choice": "required",
-        "parallel_tool_calls": _parallel_reads(environ) or _calls(environ) == "many",
+        "parallel_tool_calls": _parallel_reads(environ),
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
     client = AsyncOpenAI(
