@@ -348,17 +348,6 @@ reuse that terminal for the same kind of work instead of opening a new one each 
 longer needed, leave it idle; its log stays available, and the shells are closed for you at the end.""",
 }
 
-# Turn modes: "tool" replies may be a bare tool call; "analysis" asks for written analysis before every action
-# (with tool_choice "auto"; a forced tool call suppressed the writing in the S2 replay); "json" replaces native
-# tool calls with one written JSON object per reply (see textturn).
-TURN_MODES = ("tool", "analysis", "json")
-ANALYSIS_DOC = """
-Every reply: before your tool call, write in the reply text (1) what the latest results show, including anything \
-in them that contradicts what you expected or what the task requires; (2) where the task stands against each of \
-its requirements, and what has been verified and how; (3) what you will do next and the result you expect. \
-Then make the call."""
-
-
 def system_prompt(
     *,
     python_version: str,
@@ -366,7 +355,6 @@ def system_prompt(
     images: bool = False,
     mirror_path: str = MIRROR_PATH,
     history_path: str = HISTORY_PATH,
-    turn: str = "tool",
     self_check: bool = False,
     verifier: bool = False,
     readback: str = "off",
@@ -377,8 +365,6 @@ def system_prompt(
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
     ) + (CLM_NOTES_DOC if notes == "own" else "")
-    if turn not in TURN_MODES:
-        raise ValueError(f"turn must be one of {TURN_MODES}")
     if readback not in READBACK_MODES:
         raise ValueError(f"readback must be one of {READBACK_MODES}")
     if hygiene not in HYGIENE_MODES:
@@ -400,7 +386,6 @@ def system_prompt(
         )
         + (SELF_CHECK_DOC if self_check else "")
         + {"on": READBACK_DOC, "independent": INDEPENDENT_CHECK_DOC}.get(readback, "")
-        + (ANALYSIS_DOC if turn == "analysis" else "")
     )
 
 

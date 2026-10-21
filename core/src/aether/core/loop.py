@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
-from . import compaction, images, intent, textturn
+from . import compaction, images, intent
 from . import receipt as finish_receipt
 from . import finish_check
 from . import finish_report
@@ -31,7 +31,7 @@ from .provider import ChatProvider, ProviderError, parse_arguments
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from .tools import THINK_REMINDER, TURN_MODES, system_prompt, tools, validate_call
+from .tools import THINK_REMINDER, system_prompt, tools, validate_call
 from .view import VIEW_TOOLS, View
 from . import contract as acceptance, contract_loop, evidence, ledger
 from .clone import Clone
@@ -78,7 +78,6 @@ class CoreConfig:
     )
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
     contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
-    turn: str = "tool"  # "analysis": written analysis before every action (see tools.ANALYSIS_DOC)
     receipt: bool = False  # show the delivered files' bytes before the first finish takes effect (see receipt)
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
@@ -109,8 +108,6 @@ class CoreConfig:
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
-        if self.turn not in TURN_MODES:
-            raise ValueError(f"turn must be one of {TURN_MODES}")
         self.clm.check_request_limit(MAX_OUTPUT_TOKENS)
 
 
@@ -216,7 +213,6 @@ class _Session:
         ] = []  # the requirements tool's items (see ledger)
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
-        self.text_note = ""  # a JSON-turn repair note, shown with that turn's results
         self.view = View(self.env, workdir, trace) if config.view else None
 
     def clone(
@@ -336,7 +332,6 @@ async def run_agent(
                         images=see,
                         mirror_path=config.clm.mirror_path,
                         history_path=config.clm.history_path,
-                        turn="tool" if config.turn == "json" else config.turn,
                         self_check=config.self_check,
                         verifier=config.role == VERIFIER_ROLE,
                         readback=config.readback,
@@ -345,8 +340,7 @@ async def run_agent(
                         notes=config.clm.notes_voice,
                     )
                     + (evidence.EVIDENCE_DOC if config.evidence else "")
-                    + (ledger.LEDGER_DOC if config.ledger else "")
-                    + (textturn.reply_doc(s.tools) if config.turn == "json" else ""),
+                    + (ledger.LEDGER_DOC if config.ledger else ""),
                 },
                 {
                     "role": "user",
@@ -365,7 +359,6 @@ async def run_agent(
                 params=provider.params,
                 review=bool(review_transport),
                 context=config.context,
-                turn=config.turn,
                 receipt=config.receipt,
                 repl=config.repl,
                 python=python,
@@ -450,7 +443,7 @@ async def _loop(s: _Session) -> None:
         try:
             turn = await s.provider.complete(
                 request,
-                None if s.config.turn == "json" else s.tools,  # json: a plain text call
+                s.tools,
                 max_tokens=AFTER_CUT_MAX_TOKENS if cut else MAX_OUTPUT_TOKENS,
                 remaining_s=s.remaining,
                 overrides=AFTER_CUT if cut else None,
@@ -496,21 +489,6 @@ async def _loop(s: _Session) -> None:
         _append(s, assistant)
         if s.clm:
             s.clm.note_reasoning(assistant, turn.usage.get("reasoning"))
-        if s.config.turn == "json":
-            calls, readable = _text_calls(s, turn)
-            if not calls:
-                # an unreadable reply is an interface failure, not idleness: only the time limit bounds it
-                # (S5: two feal rows were stopped by three escaping errors with most of their time left)
-                idle_turns += readable and turn.finish_reason != "length"
-                if idle_turns >= 3:
-                    result.status = "no_tool_loop"
-                    return
-                continue
-            idle_turns = 0
-            if await _run_calls(s, calls, as_text=True):
-                result.status = "finished"
-                return
-            continue
         if not turn.tool_calls:
             # A turn the output limit cut off is work in progress, not idleness; the time limit bounds it (D1
             # regex-chess: three 32k-token thoughts in a row ended the run with 30 minutes left).
@@ -544,35 +522,8 @@ def _append(s: _Session, *messages: dict[str, Any]) -> None:
         s.messages.extend(messages)
 
 
-def _text_calls(s: _Session, turn: Any) -> tuple[list[dict[str, Any]], bool]:
-    """(calls in a JSON-turn reply, whether the reply was readable); with no calls the problem is shown to the
-    model and traced."""
-    obj, protocol, problem = textturn.read_reply(turn.content)
-    calls: list[dict[str, Any]] = []
-    s.text_note = problem if protocol == "repaired" else ""
-    if obj is not None:
-        calls, problem = textturn.calls_from(obj, s.result.calls)
-    if not calls and turn.finish_reason == "length":
-        problem = (
-            "it reached the output limit before the JSON object was complete; your next reply runs at low "
-            "reasoning effort, so act on what you have (write down or test a partial result)"
-        )
-    s.trace(
-        "text_turn",
-        protocol=protocol,
-        problem=problem,
-        actions=[c["function"]["name"] for c in calls],
-    )
-    if not calls:
-        _append(s, textturn.problem_message(problem, s.clock()))
-    return calls, obj is not None
-
-
-async def _run_calls(
-    s: _Session, calls: list[dict[str, Any]], as_text: bool = False
-) -> bool:
-    """Execute one turn's tool calls. Returns True when the run finished. ``as_text``: the results go back as one
-    user message (JSON turns) instead of one tool message per call."""
+async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
+    """Execute one turn's tool calls. Returns True when the run finished."""
     mirror = None
     mirror_error = ""
     if s.clm:
@@ -587,7 +538,6 @@ async def _run_calls(
             mirror_error = f"[context mirror unavailable: {type(exc).__name__}: {exc}; context unchanged]"
             s.trace("context_mirror_error", error=mirror_error)
     finished = False
-    rows: list[tuple[str, str]] = []
     buffered: dict[int, tuple[dict, str, bool, float]] = {}
     for index, call in enumerate(calls):
         name = call["function"]["name"]
@@ -620,21 +570,16 @@ async def _run_calls(
         out = await _save(s, out)
         if name != "finish":
             s.actions.append(_action_view(name, args, out))
-        if as_text:
-            rows.append((name, out))
-        else:
-            _append(
-                s,
-                {
-                    "role": "tool",
-                    "tool_call_id": call["id"],
-                    "content": f"{out}\n{s.clock()}",
-                },
-            )
+        _append(
+            s,
+            {
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "content": f"{out}\n{s.clock()}",
+            },
+        )
         if finished:
             return True
-    if as_text:
-        _append(s, textturn.results_message(rows, s.clock(), s.text_note))
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []

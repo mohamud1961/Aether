@@ -30,7 +30,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
-from .tools import HYGIENE_MODES, PROBE_MODES, READBACK_MODES, TURN_MODES
+from .tools import HYGIENE_MODES, PROBE_MODES, READBACK_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
@@ -55,7 +55,6 @@ CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
-TURN_ENV = "AETHER_CORE_TURN"  # optional; unset means "tool", the unchanged baseline
 FINISH_ENV = "AETHER_CORE_FINISH"  # optional; unset means "direct", the baseline
 FINISH_MODES = ("direct", "receipt", "nudge", "check")  # nudge/check: see finish_check
 FINISH_CHECK_ENV = "AETHER_CORE_FINISH_CHECK"  # host path of the experiment's check script (see _finish_check)
@@ -132,8 +131,7 @@ def build_provider(
     params = {
         **(sampling if shape == "chat" else {}),
         "reasoning_effort": effort,
-        # analysis turns need "auto": with a forced tool call the model wrote nothing (S2 replay)
-        "tool_choice": "auto" if _turn(environ) == "analysis" else "required",
+        "tool_choice": "required",
         "parallel_tool_calls": _parallel_reads(environ) or _calls(environ) == "many",
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
@@ -215,7 +213,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         ),
         contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
-        turn=_turn(environ),
         receipt=_finish_mode(environ) == "receipt",
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
@@ -265,10 +262,6 @@ def _finish_check(environ: Mapping[str, str]) -> str:  # required with "check"; 
     if _finish_mode(environ) == "check" or (_finish_mode(environ) == "nudge" and environ.get(FINISH_CHECK_ENV)):
         return Path(_required(FINISH_CHECK_ENV, environ)).read_text()
     return ""
-
-
-def _turn(environ: Mapping[str, str]) -> str:
-    return _choice(environ, TURN_ENV, TURN_MODES, "tool")
 
 
 def _replay(environ: Mapping[str, str], context: str) -> str:
@@ -493,7 +486,7 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
-            "turn": config.turn, "receipt": config.receipt,
+            "receipt": config.receipt,
             "verify": config.verify, "self_check": config.self_check, "view": config.view,
             "readback": config.readback, "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve, "fork": config.fork,
             "finish_second_look": [config.finish_nudge, bool(config.finish_check), config.finish_show_check],
