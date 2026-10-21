@@ -57,12 +57,10 @@ IMAGES_ENV = "AETHER_CORE_IMAGES"
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "one" (one tool call per model turn, the baseline). "many" was removed (R2/N1/N2 arm e failed).
 CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one",)
-# optional; unset means "newest" (only the latest turn's reasoning is sent back). "all" sends every turn's back, so the
-# history only grows at its end and the provider's prompt cache keeps extending (Responses API with CLM only).
+# optional; unset means "newest" (only the latest turn's reasoning is sent back); "all" sends every turn's back.
 REASONING_ENV = "AETHER_CORE_REASONING"
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
-# context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
-# Others on/off.
+# context on a clone (see verify). SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
@@ -71,8 +69,7 @@ HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: 
 NOTES_ENV = "AETHER_CORE_NOTES"  # own: edited context and checkpoints labelled as the model's notes (still role=user); legacy (default)
 INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's reason and expected result (see intent)
 FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
-# optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
-# accepts: max_completion_tokens and no sampling parameters (GPT-6 Luna rejects max_tokens and top_p).
+# optional; unset means "chat" (the GLM request). "reasoning": max_completion_tokens, no sampling parameters.
 REQUEST_ENV = "AETHER_CORE_REQUEST"
 REQUEST_SHAPES = ("chat", "reasoning", "responses")  # responses: /v1/responses, native tools + reasoning replay
 PROGRESS_AT = (0.35, 0.70)
@@ -90,9 +87,8 @@ class ConfigError(RuntimeError):
     """The launcher did not provide a valid Aether Core configuration."""
 
 
-# Flags removed after their experiments failed (core cleanup). The value is the one setting that still describes what
-# the code does; it is accepted, since asking for the baseline is satisfied. Any other non-empty value asks for a
-# behaviour that no longer exists and stops the run: a requested configuration is never silently ignored.
+# Removed flags (experiments failed). Only the value that equals the surviving baseline is accepted; any other
+# non-empty value asks for behaviour that no longer exists and stops the run.
 REMOVED_ENV = {
     "AETHER_CORE_TURN": "tool", "AETHER_CORE_FINISH": "direct", "AETHER_CORE_FINISH_CHECK": None,
     "AETHER_CORE_EVIDENCE": "off", "AETHER_CORE_LEDGER": "off", "AETHER_CORE_READBACK": "off",
