@@ -71,7 +71,6 @@ SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
-VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
 NOTES_ENV = "AETHER_CORE_NOTES"  # own: edited context and checkpoints labelled as the model's notes (still role=user); legacy (default)
 INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's reason and expected result (see intent)
 RESERVE_ENV = "AETHER_CORE_RESERVE"  # on: waits end with a final window left (loop.RESERVE_*)
@@ -210,7 +209,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         parallel_reads=_parallel_reads(environ),
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
-        view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
         delivery_reserve=_choice(environ, RESERVE_ENV, REPL_MODES, "off") == "on",
         fork=_fork(environ),
@@ -462,7 +460,7 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
-            "verify": config.verify, "self_check": config.self_check, "view": config.view,
+            "verify": config.verify, "self_check": config.self_check,
             "delivery_reserve": config.delivery_reserve, "fork": config.fork,
             "model": provider.model,
             "params": provider.params,

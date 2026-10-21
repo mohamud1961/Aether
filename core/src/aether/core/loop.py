@@ -31,7 +31,6 @@ from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools, validate_call
-from .view import VIEW_TOOLS, View
 from . import contract as acceptance, contract_loop
 from .clone import Clone
 
@@ -80,7 +79,6 @@ class CoreConfig:
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
-    view: bool = False  # field-aware view of delimited files each call changed (see view)
     intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
     delivery_reserve: bool = False  # waits end with a final window left (RESERVE_*), and results say so
     fork: bool = False  # experiment instrument: at the first finish, matched continuations on clones (see fork)
@@ -193,7 +191,6 @@ class _Session:
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
-        self.view = View(self.env, workdir, trace) if config.view else None
 
     def clone(
         self, env: Environment, timeout_s: float | None = None, read_only: bool = False
@@ -562,13 +559,8 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
     try:
         args = parse_arguments(call["function"]["arguments"])
         validate_call(name, args, s.tools)
-        viewed = s.view is not None and name in VIEW_TOOLS
-        if viewed:
-            await s.view.before()
         s.call_id = call["id"]
         out, finished = await _dispatch(s, name, args)
-        if viewed:
-            out += await s.view.after()
     except Exception as exc:
         out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
         if isinstance(exc, json.JSONDecodeError):
@@ -813,7 +805,6 @@ def _close(s: _Session) -> None:
             sum(float(x.get("wait_s") or 0) for x in s.provider.failure_log), 1
         ),
         "images_viewed": s.images_viewed,
-        **({"view_files_shown": s.view.shown} if s.view else {}),
         "python": s.repl.python,
         "python_cells": s.repl.seq,
         "llm_calls": s.repl.llm_calls,
