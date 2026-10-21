@@ -250,3 +250,18 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     )
     record = json.loads((tmp_path / "aether_run_record.json").read_text())
     assert record["config"]["verify"] is True and record["config"]["self_check"] is True
+
+
+def test_removed_settings_stop_the_run_and_only_their_baseline_value_is_accepted(monkeypatch):
+    _base_env(monkeypatch)
+    for name, baseline in adapter.REMOVED_ENV.items():
+        monkeypatch.setenv(name, "json" if baseline is None else "experiment")
+        with pytest.raises(adapter.ConfigError, match=name):
+            adapter.build_config()
+        if baseline is not None:
+            monkeypatch.setenv(name, baseline)
+            adapter.build_config()
+        monkeypatch.delenv(name)
+    monkeypatch.setenv("AETHER_CORE_REVIEW", "contract")
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_config()

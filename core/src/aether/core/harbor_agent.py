@@ -90,6 +90,24 @@ class ConfigError(RuntimeError):
     """The launcher did not provide a valid Aether Core configuration."""
 
 
+# Flags removed after their experiments failed (core cleanup). The value is the one setting that still describes what
+# the code does; it is accepted, since asking for the baseline is satisfied. Any other non-empty value asks for a
+# behaviour that no longer exists and stops the run: a requested configuration is never silently ignored.
+REMOVED_ENV = {
+    "AETHER_CORE_TURN": "tool", "AETHER_CORE_FINISH": "direct", "AETHER_CORE_FINISH_CHECK": None,
+    "AETHER_CORE_EVIDENCE": "off", "AETHER_CORE_LEDGER": "off", "AETHER_CORE_READBACK": "off",
+    "AETHER_CORE_THINK": "off", "AETHER_CORE_PROBE": "off", "AETHER_CORE_VIEW": "off",
+    "AETHER_CORE_RESERVE": "off", "AETHER_CORE_TEMPERATURE": None,
+}
+
+
+def _refuse_removed(environ: Mapping[str, str]) -> None:
+    for name, baseline in REMOVED_ENV.items():
+        value = environ.get(name, "").strip()
+        if value and value != baseline:
+            raise ConfigError(f"{name}={value!r}: this setting was removed (its experiment failed); unset it")
+
+
 def _required(name: str, environ: Mapping[str, str]) -> str:
     value = environ.get(name, "").strip()
     if not value:
@@ -161,6 +179,7 @@ def build_review(logs_dir: Path, *, environ: Mapping[str, str] | None = None):
 
 def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
     environ = os.environ if environ is None else environ
+    _refuse_removed(environ)
     review = environ.get(REVIEW_ENV, "").strip()
     context = environ.get(CONTEXT_ENV, "").strip()
     repl = environ.get(REPL_ENV, "").strip()
