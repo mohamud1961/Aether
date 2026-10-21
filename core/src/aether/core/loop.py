@@ -48,12 +48,19 @@ STOP_MARGIN_S = 15.0
 # Delivery reserve (flag): a terminal or Python wait may otherwise end 5 s before the deadline, too late for a model
 # turn (2-40 s) and a write. 5 of 18 archived timeouts had a wait of 60 s or more in their last 20% and no turn after
 # it; tune-mjcf e2 lost a measured passing setting this way. With the reserve, waits end when the final window begins.
-RESERVE_MIN_S, RESERVE_FRACTION, RESERVE_MAX_FRACTION = 60.0, 0.07, 0.25
+# Its length is one slow model turn, which does not scale with the budget: over 12,113 archived turns p50 2.3 s,
+# p90 13 s, p99 118 s. Capped at a quarter of short budgets.
+RESERVE_S, RESERVE_MAX_FRACTION = 120.0, 0.25
 RECEIPT_MIN_S = 60.0  # with less time left a finish takes effect at once
 CONTEXT_MODES = ("project", "clm")
 VERIFIER_ROLE = (
     "verifier"  # the call-log role of the one independent finish check (see verify)
 )
+
+
+def reserve_s(timeout_s: float) -> float:
+    """The final window a delivery reserve keeps free of long waits."""
+    return min(RESERVE_S, RESERVE_MAX_FRACTION * timeout_s)
 
 
 @dataclass(frozen=True)
@@ -170,11 +177,7 @@ class _Session:
         self.deadline = self.started + timeout_s - STOP_MARGIN_S
         self.result = RunResult("timeout")
         self.env = DeadlineEnvironment(env, self.remaining)
-        self.reserve_s = (
-            min(max(RESERVE_MIN_S, RESERVE_FRACTION * timeout_s), RESERVE_MAX_FRACTION * timeout_s)
-            if config.delivery_reserve
-            else 0.0
-        )
+        self.reserve_s = reserve_s(timeout_s) if config.delivery_reserve else 0.0
         self.terminals = Terminals(
             self.env, workdir, self.wait_clock, control_dir=config.control_dir
         )
