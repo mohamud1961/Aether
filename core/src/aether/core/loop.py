@@ -32,7 +32,7 @@ from .review import Transport
 from .terminal import Terminals
 from .tools import THINK_REMINDER, system_prompt, tools, validate_call
 from .view import VIEW_TOOLS, View
-from . import contract as acceptance, contract_loop, evidence
+from . import contract as acceptance, contract_loop
 from .clone import Clone
 
 MAX_OUTPUT_TOKENS = 32_768
@@ -80,7 +80,6 @@ class CoreConfig:
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
-    evidence: bool = False  # claims cite steps, open choices are named; the first finish is audited (see evidence)
     readback: str = "off"  # tools.READBACK_MODES: on = READBACK_DOC, independent = INDEPENDENT_CHECK_DOC
     think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
@@ -194,8 +193,6 @@ class _Session:
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
         self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
-        # what the runtime knows of each step (see evidence)
-        self.step_tools: dict[int, evidence.Step] = {}
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
@@ -223,18 +220,13 @@ class _Session:
         return time.monotonic() - self.started
 
     def clock(self) -> str:
-        step = (
-            f"step {self.result.steps}; "
-            if self.config.evidence
-            else ""
-        )
         left = self.remaining()
         window = (
             f"; final window: {max(0.0, left):.0f}s left, the run ends then"
             if self.reserve_s and left <= self.reserve_s
             else ""
         )
-        return f"[{step}t={self.elapsed():.0f}s of {self.timeout_s:.0f}s{window}]"
+        return f"[t={self.elapsed():.0f}s of {self.timeout_s:.0f}s{window}]"
 
     @property
     def history(self) -> list[dict[str, Any]]:
@@ -305,8 +297,6 @@ async def run_agent(
             )
             if config.intent:
                 s.tools = intent.with_intent(s.tools)
-            if config.evidence:
-                s.tools[-1] = evidence.EVIDENCE_FINISH
             pinned = [
                 {
                     "role": "system",
@@ -322,8 +312,7 @@ async def run_agent(
                         hygiene=config.hygiene,
                         probe=config.probe,
                         notes=config.clm.notes_voice,
-                    )
-                    + (evidence.EVIDENCE_DOC if config.evidence else ""),
+                    ),
                 },
                 {
                     "role": "user",
@@ -544,7 +533,6 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             out += "\n" + mirror_error
             mirror_error = ""
         s.result.steps += 1
-        s.step_tools[s.result.steps] = evidence.step_fact(name, args, out, s.workdir)
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )
@@ -781,10 +769,6 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
-    if s.config.evidence:
-        held = evidence.at_finish(s, args)
-        if held:
-            return held
     if s.config.verify and "verification" not in s.result.extras:
         from . import verify
 

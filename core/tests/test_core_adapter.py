@@ -226,26 +226,23 @@ def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
     for name in (
         adapter.VERIFY_ENV,
         adapter.SELF_CHECK_ENV,
-        adapter.EVIDENCE_ENV,
         adapter.READBACK_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence) == (False,) * 3
+    assert (config.verify, config.self_check) == (False,) * 2
     assert config.readback == "off"
     monkeypatch.setenv(adapter.VERIFY_ENV, "once")
     monkeypatch.setenv(adapter.SELF_CHECK_ENV, "on")
-    monkeypatch.setenv(adapter.EVIDENCE_ENV, "on")
     monkeypatch.setenv(adapter.READBACK_ENV, "on")
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence) == (True,) * 3
+    assert (config.verify, config.self_check) == (True,) * 2
     assert config.readback == "on"
     monkeypatch.setenv(adapter.READBACK_ENV, "independent")
     assert adapter.build_config().readback == "independent"
     for name, bad in (
         (adapter.VERIFY_ENV, "twice"),
         (adapter.SELF_CHECK_ENV, "yes"),
-        (adapter.EVIDENCE_ENV, "yes"),
         (adapter.READBACK_ENV, "yes"),
     ):
         monkeypatch.setenv(name, bad)
@@ -273,7 +270,7 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     provider = ChatProvider(
         ScriptedClient([]), model="m", params={}, log=CallLog(tmp_path / "c")
     )
-    config = CoreConfig(verify=True, self_check=True, evidence=True, readback="on")
+    config = CoreConfig(verify=True, self_check=True, readback="on")
     adapter._write_record(
         tmp_path,
         None,
@@ -285,7 +282,7 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     )
     record = json.loads((tmp_path / "aether_run_record.json").read_text())
     assert record["config"]["verify"] is True and record["config"]["self_check"] is True
-    assert record["config"]["evidence"] is True and record["config"]["readback"] == "on"
+    assert record["config"]["readback"] == "on"
 
 
 def test_the_read_back_paragraph_is_in_the_solver_prompt_only_when_on():
