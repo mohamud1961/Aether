@@ -25,13 +25,13 @@ names are aliased here, as everywhere in this repository.
 | System | Mean pass rate | Cost per run | Time per run | Tokens per run |
 |---|---|---|---|---|
 | **Aether + GLM-5.3-Flash** | **0.64** | **$0.031** | 499 s | **390k** |
-| Claude Code + GLM-5.1 | 0.64 | not published | 588 s | 628k |
+| Claude Code + GLM-5.1 | 0.64 | $0.250 (estimated) | 588 s | 628k |
 | Codex + GPT-5.6-Luna | 0.77 | $0.316 | 335 s | 1.46M |
 | Codex + GPT-6-Astra | 0.82 | $1.302 | 407 s | not published |
 
 What this shows:
 - **Against the same model family in a frontier agent, Aether ties.** It matches Claude Code with a larger GLM
-  model on maximum reasoning, using 38% fewer tokens.
+  model on maximum reasoning, using 38% fewer tokens at about an eighth of the cost.
 - **Against frontier models, Aether loses on pass rate and wins on cost.** It reaches 84% of Codex + GPT-5.6-Luna's
   pass rate at a tenth of the cost, and 78% of Codex + GPT-6-Astra's at a forty-second.
 
@@ -99,6 +99,7 @@ with the same model, at much lower cost than frontier agents.
   runs have not been made.
 - **Different models.** Only the Claude Code row uses a GLM model, and it is GLM-5.1, not GLM-5.3-Flash.
 - **Costs are list-price token costs**, computed from recorded token counts, not from invoices. Claude Code's cost is
-  not published.
+  not published, so it is estimated from its published token counts (per run: 21k uncached input, 591k
+  cached input, 15k output) at Z.ai's GLM-5.1 list price ($1.40, $0.26 and $4.40 per million tokens).
 - **The reference results are other people's runs.** We examined a few of their traces, cited in the rows, and took
   the rest as published.
