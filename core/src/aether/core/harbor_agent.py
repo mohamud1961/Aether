@@ -67,7 +67,7 @@ REASONING_ENV = "AETHER_CORE_REASONING"
 # context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC);
 # AETHER_CORE_READBACK=on|independent a read-back paragraph (tools.READBACK_MODES). Others on/off.
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
-SELF_CHECK_ENV, EVIDENCE_ENV, LEDGER_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE", "AETHER_CORE_LEDGER"
+SELF_CHECK_ENV, EVIDENCE_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_EVIDENCE"
 READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
@@ -213,7 +213,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
-        ledger=_choice(environ, LEDGER_ENV, REPL_MODES, "off") == "on",
         readback=_choice(environ, READBACK_ENV, READBACK_MODES, "off"),
         think_reminder=_choice(environ, THINK_ENV, REPL_MODES, "off") == "on",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",

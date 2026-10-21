@@ -227,20 +227,18 @@ def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
         adapter.VERIFY_ENV,
         adapter.SELF_CHECK_ENV,
         adapter.EVIDENCE_ENV,
-        adapter.LEDGER_ENV,
         adapter.READBACK_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence, config.ledger) == (False,) * 4
+    assert (config.verify, config.self_check, config.evidence) == (False,) * 3
     assert config.readback == "off"
     monkeypatch.setenv(adapter.VERIFY_ENV, "once")
     monkeypatch.setenv(adapter.SELF_CHECK_ENV, "on")
     monkeypatch.setenv(adapter.EVIDENCE_ENV, "on")
-    monkeypatch.setenv(adapter.LEDGER_ENV, "on")
     monkeypatch.setenv(adapter.READBACK_ENV, "on")
     config = adapter.build_config()
-    assert (config.verify, config.self_check, config.evidence, config.ledger) == (True,) * 4
+    assert (config.verify, config.self_check, config.evidence) == (True,) * 3
     assert config.readback == "on"
     monkeypatch.setenv(adapter.READBACK_ENV, "independent")
     assert adapter.build_config().readback == "independent"
@@ -248,7 +246,6 @@ def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
         (adapter.VERIFY_ENV, "twice"),
         (adapter.SELF_CHECK_ENV, "yes"),
         (adapter.EVIDENCE_ENV, "yes"),
-        (adapter.LEDGER_ENV, "yes"),
         (adapter.READBACK_ENV, "yes"),
     ):
         monkeypatch.setenv(name, bad)

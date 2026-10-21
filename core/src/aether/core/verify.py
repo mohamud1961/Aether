@@ -140,7 +140,6 @@ def verifier_config(config: CoreConfig) -> CoreConfig:
         reviews=ReviewPlan(finish=False),
         contract=False,
         evidence=False,
-        ledger=False,
         control_dir=root,
         clm=dataclasses.replace(
             config.clm,

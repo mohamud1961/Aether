@@ -474,7 +474,7 @@ def _check_object(where: str, value: dict[str, Any], schema: dict[str, Any]) -> 
 
 
 def _check_value(where: str, value: Any, rule: dict[str, Any]) -> None:
-    """One value against its rule; arrays and objects (the requirements ledger) are checked element by element."""
+    """One value against its rule; arrays and objects are checked element by element."""
     kind = rule["type"]
     valid = {
         "string": isinstance(value, str),

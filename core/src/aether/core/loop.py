@@ -32,7 +32,7 @@ from .review import Transport
 from .terminal import Terminals
 from .tools import THINK_REMINDER, system_prompt, tools, validate_call
 from .view import VIEW_TOOLS, View
-from . import contract as acceptance, contract_loop, evidence, ledger
+from . import contract as acceptance, contract_loop, evidence
 from .clone import Clone
 
 MAX_OUTPUT_TOKENS = 32_768
@@ -81,9 +81,6 @@ class CoreConfig:
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
     evidence: bool = False  # claims cite steps, open choices are named; the first finish is audited (see evidence)
-    ledger: bool = (
-        False  # a requirement ledger quoting the task, kept while working (see ledger)
-    )
     readback: str = "off"  # tools.READBACK_MODES: on = READBACK_DOC, independent = INDEPENDENT_CHECK_DOC
     think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
@@ -200,9 +197,6 @@ class _Session:
         # what the runtime knows of each step (see evidence)
         self.step_tools: dict[int, evidence.Step] = {}
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
-        self.ledger: list[
-            dict[str, Any]
-        ] = []  # the requirements tool's items (see ledger)
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.view = View(self.env, workdir, trace) if config.view else None
@@ -231,7 +225,7 @@ class _Session:
     def clock(self) -> str:
         step = (
             f"step {self.result.steps}; "
-            if self.config.evidence or self.config.ledger
+            if self.config.evidence
             else ""
         )
         left = self.remaining()
@@ -313,8 +307,6 @@ async def run_agent(
                 s.tools = intent.with_intent(s.tools)
             if config.evidence:
                 s.tools[-1] = evidence.EVIDENCE_FINISH
-            if config.ledger:
-                s.tools.insert(len(s.tools) - 1, ledger.LEDGER_TOOL)
             pinned = [
                 {
                     "role": "system",
@@ -331,8 +323,7 @@ async def run_agent(
                         probe=config.probe,
                         notes=config.clm.notes_voice,
                     )
-                    + (evidence.EVIDENCE_DOC if config.evidence else "")
-                    + (ledger.LEDGER_DOC if config.ledger else ""),
+                    + (evidence.EVIDENCE_DOC if config.evidence else ""),
                 },
                 {
                     "role": "user",
@@ -624,8 +615,6 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         ), False
     if name == "finish":
         return await _finish(s, args)
-    if name == "requirements" and s.config.ledger:
-        return ledger.use(s, args), False
     if name == "run_checks" and s.config.contract:
         return await contract_loop.run_checks(s), False
     if name == "terminal":
@@ -794,10 +783,6 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
     if s.config.evidence:
         held = evidence.at_finish(s, args)
-        if held:
-            return held
-    if s.config.ledger:
-        held = ledger.at_finish(s)
         if held:
             return held
     if s.config.verify and "verification" not in s.result.extras:
