@@ -78,6 +78,7 @@ END_PROCESSES_MODES = ("stop", "keep")
 PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
+INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's reason and expected result (see intent)
 RESERVE_ENV = "AETHER_CORE_RESERVE"  # on: waits end with a final window left (loop.RESERVE_*)
 FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
@@ -222,6 +223,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         finish_check=_finish_check(environ),
         finish_show_check=_finish_mode(environ) == "check",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
+        intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
         delivery_reserve=_choice(environ, RESERVE_ENV, REPL_MODES, "off") == "on",
         fork=_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),

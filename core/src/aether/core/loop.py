@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
-from . import compaction, images, textturn
+from . import compaction, images, intent, textturn
 from . import receipt as finish_receipt
 from . import finish_check
 from . import finish_report
@@ -94,6 +94,7 @@ class CoreConfig:
     finish_check: str = ""  # experiment instrument: a check command run at the first held finish
     finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
+    intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
     delivery_reserve: bool = False  # waits end with a final window left (RESERVE_*), and results say so
     fork: bool = False  # experiment instrument: at the first finish, matched continuations on clones (see fork)
     # Run end: "keep" (the default) leaves the container as the agent left it, because a service the task needs
@@ -320,6 +321,8 @@ async def run_agent(
                 history=config.context == "clm",
                 verdict=config.role == VERIFIER_ROLE,
             )
+            if config.intent:
+                s.tools = intent.with_intent(s.tools)
             if config.evidence:
                 s.tools[-1] = evidence.EVIDENCE_FINISH
             if config.ledger:
@@ -366,6 +369,7 @@ async def run_agent(
                 repl=config.repl,
                 python=python,
                 images=see,
+                intent=config.intent,
                 reviews=config.reviews.__dict__,
                 clm=config.clm.__dict__ if s.clm else None,
             )
