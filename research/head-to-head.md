@@ -82,12 +82,12 @@ Three comparisons hold the model fixed, so the harness is the only difference:
 
 | Comparison | Aether | Other | Reading |
 |---|---|---|---|
-| Gen 4 candidate vs Meta's CLM agent (`clm-minimal`, run as published), GLM-5.3-Flash, 13 tasks × 2 | 23 of 26 | 20 of 26 | Aether ahead. CLM's losses came from its 120 s command limit. Aether used fewer steps on 11 of 13 tasks. The plain Gen 4 control scored 22 of 26 |
+| Gen 4 candidate vs Meta's CLM agent (`clm-minimal`, run as published), GLM-5.3-Flash, 13 tasks × 2 | 25 of 26, $0.041 per run | 20 of 26, $0.026 per run | Aether ahead on passes; CLM cheaper per run. CLM's losses came from its 120 s command limit. Aether used fewer steps on 11 of 13 tasks. The Aether figure is the best candidate's run on these tasks; an earlier candidate scored 23 of 26 and the plain Gen 4 control 21 of 26 ($0.064 per run). The CLM run was separate, on the same tasks |
 | Aether Core vs Terminus 2, GLM-5.3-Flash, 18-run board | 12 of 18 | 12 of 18 | Tie ([research/core/](core/CORE_L1_LUNA_BOARD_PREREG_20261014.md)) |
 | Gen 4 candidate vs a stock agent, sealed held-out tasks | 5 of 9 | 4 of 6 | The pre-registered falsifier fired: no lift ([generations](generations/)) |
 
-Against Meta's CLM agent Aether is ahead by 3 of 26, and most of that gap is CLM's command time limit rather
-than its reasoning. Against Terminus and on the sealed test there is no lift. The fair summary is parity or better
+Against Meta's CLM agent Aether is ahead by 5 of 26, at about 1.6 times its cost per run, and much of that gap is
+CLM's command time limit rather than its reasoning. Against Terminus and on the sealed test there is no lift. The fair summary is parity or better
 with the same model, at much lower cost than frontier agents.
 
 ## Limits

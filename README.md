@@ -75,7 +75,7 @@ the request prefix cache-stable instead halved cost per run at equal passes. Opt
 
 | Aether against | Model (Aether / other) | Tasks × runs | Aether | Other | Cost per run (Aether / other) |
 |---|---|---|---|---|---|
-| Meta CLM agent | GLM-5.3-Flash / same | 13 × 2 | **23 of 26** | 20 of 26 | |
+| Meta CLM agent | GLM-5.3-Flash / same | 13 × 2 | **25 of 26** | 20 of 26 | $0.041 / **$0.026** |
 | Terminus 2 | GLM-5.3-Flash / same | 18 runs | 12 of 18 | 12 of 18 | |
 | Claude Code | GLM-5.3-Flash / GLM-5.1 | 25 tasks, mean pass rate | 0.64 | 0.64 | **$0.031** / $0.250 (estimated) |
 | Codex | GLM-5.3-Flash / GPT-5.6-Luna | 25 tasks, mean pass rate | 0.64 | 0.77 | **$0.031** / $0.316 |
