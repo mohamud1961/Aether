@@ -2,11 +2,14 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,4 +20,11 @@ jobs:
       - name: Dependency direction
         run: python tools/check_imports.py
       - name: Tests
-        run: python -m pytest -q
+        run: python -m pytest -q -rs --junitxml=pytest-results.xml
+      - name: Preserve test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-results
+          path: pytest-results.xml
+          if-no-files-found: warn
