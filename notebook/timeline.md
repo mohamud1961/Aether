@@ -1,14 +1,14 @@
-# Timeline, November 2025 to October 2026
+# Timeline, late 2025 to October 2026
 
 This page lists the key dated events: generations, evaluation layers, audits, the held-out evaluation, and the development sweep.
 The key result is a period of five generations, each ended by a failed test or audit rather than by a win, with one falsified lift claim.
 This matters because it shows the order in which claims were tested and withdrawn.
 
-**Generations:** Gen 1 planner memory (Nov 2025 to Feb 2026), Gen 2 receipt kernel (May to Jul 2026), Gen 3 architect, solver, verifier (Jul to Aug 2026), Gen 4 persistent worker with independent verifier (Aug 2026 onward, production from 8 Sep), Gen 5 Aether (in development from 12 Oct 2026).
+**Generations:** Gen 1 planner memory (late 2025 to Feb 2026), Gen 2 receipt kernel (May to Jul 2026), Gen 3 architect, solver, verifier (Jul to Aug 2026), Gen 4 persistent worker with independent verifier (Aug 2026 onward, production from 8 Sep), Gen 5 Aether (in development from 12 Oct 2026).
 
 ## 2025
 
-- **2025-11-22:** Gen 1 starts: a planner acts as external memory for a stateless coding agent.
+- **Late 2025:** Gen 1 starts: a planner acts as external memory for a stateless coding agent.
 
 ## 2026
 

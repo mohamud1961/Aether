@@ -18,7 +18,7 @@ A decision log, not a changelog or a results page. Each entry says what was deci
 ## How entries are indexed
 
 - `DECISIONS.md`: one row per decision, with date, reason, evidence, and the change it made.
-- `timeline.md`: dated events from November 2025 to October 2026.
+- `timeline.md`: dated events from late 2025 to October 2026.
 - `turning-points.md`: moments where a claim changed, a result overturned an assumption, or a process rule was added.
 - Entry counts depend on scope. The main branch holds 820 top-level entries; wider sets range from 1,004 to 1,793. This notebook does not add those counts together.
 

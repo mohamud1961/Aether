@@ -2,8 +2,7 @@
 
 **What should a harness add to a model, and how would we know?**
 
-The curated commit history runs from January to October 2026; the retrospective Gen 1 timeline also
-includes work dated November 2025. One principal and a fleet of coding agents built five generations of
+From late 2025 to October 2026, one principal and a fleet of coding agents built five generations of
 agent harness. The same period produced 151 evaluations of those harnesses, and an audit of nearly every
 result. Most of what we learned came from measurements that turned out to be wrong.
 

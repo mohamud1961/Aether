@@ -1,6 +1,6 @@
 # Eval catalogue
 
-Every evaluation built in the programme, November 2025 to October 2026, one line each. Detail lives on the
+Every evaluation built in the programme, late 2025 to October 2026, one line each. Detail lives on the
 [target pages](README.md) and [method pages](methods/). Grades: **A** kept as a validated instrument; **B** design kept and
 improved into the current tasks; **C** historical record (its lesson is on a target or method page); **D** retired
 (duplicate, broken or lineage hold). Terminal-Bench runs are summarised without task names; held-out evaluations appear
@@ -10,10 +10,10 @@ as aggregates only.
 
 | ID | Evaluation | When | Grade | Result |
 |---|---|---|---|---|
-| PG-01 | Middleware OSS bug-fix task set (21 IDs: fastapi F1-F3, poetry P1-P5, django D1–D5, sqlalchemy S1–S5, celery C1-C3) | Nov 2025–Feb 2026 | C | No scores recorded. Ends Jan 13 with the line's stop. |
-| PG-02 | compliance validator and synthetic thin-slice report (Eval Index v0.1) | Nov 2025–Feb 2026 | B | Validator built; report is synthetic. No model. |
-| PG-03 | TerminalBench harness experiments and determinism audit | Nov 2025–Feb 2026 | C | Not aggregated. find returned 571 summary.json; M06 says 508 (recount needed). |
-| PG-04 | Eval-layer property checks (Feb 20 sessions) | Nov 2025–Feb 2026 | C | Defects logged, no score. |
+| PG-01 | OSS bug-fix task set (21 IDs: fastapi F1-F3, poetry P1-P5, django D1–D5, sqlalchemy S1–S5, celery C1-C3) | late 2025–Feb 2026 | C | No scores recorded. Ends Jan 13 with the line's stop. |
+| PG-02 | compliance validator and synthetic thin-slice report (Eval Index v0.1) | late 2025–Feb 2026 | B | Validator built; report is synthetic. No model. |
+| PG-03 | TerminalBench harness experiments and determinism audit | late 2025–Feb 2026 | C | Not aggregated. find returned 571 summary.json; M06 says 508 (recount needed). |
+| PG-04 | Eval-layer property checks (Feb 20 sessions) | late 2025–Feb 2026 | C | Defects logged, no score. |
 | A00 | Phase 0-1 packet lineage | Mar–Jul 2026 | C | Long-horizon artifact handoff 6/6 [C]. |
 | A01 | Result-attribution guard tournament (Gen 2 harness, Phase 3; GLOSS: not listed) | Mar–Jul 2026 | B | control 0/2 target, 1/1 sentinel; ignored-IDs 0/2, KILL; no-call 1/2, keep; combined 2/2 target but 0/1 sentinel, keep for follow-up, not pr |
 | A02 | Tooling tool-contract tournament | Mar–Jul 2026 | D | 6/12 pass; all fails tool_contract. Not decided. |
