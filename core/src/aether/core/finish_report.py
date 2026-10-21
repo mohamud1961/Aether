@@ -74,14 +74,21 @@ def record(step: int, name: str, args: dict[str, Any], out: str, workdir: str) -
     )
 
 
-async def _files(env: Environment, workdir: str, control_dir: str) -> list[dict[str, Any]] | str:
+async def _files(
+    env: Environment, workdir: str, control_dir: str, written: set[str]
+) -> tuple[list[dict[str, Any]] | str, int]:
+    """The changed files (at most MAX_FILES, those a file tool wrote first) and how many changed in all."""
     try:
         paths = await receipt.changed(env, workdir, control_dir)
     except OSError as exc:
-        return f"the changed files could not be listed: {exc}"
-    paths = paths[:MAX_FILES]
+        return f"the changed files could not be listed: {exc}", 0
+    total = len(paths)
+    # Over the cap, sorted order alone kept 200 build artefacts and dropped the sources the model edited
+    # (R5.base.build-cython-ext e1), and the count read as the cap.
+    absolute = lambda p: posixpath.normpath(posixpath.join(workdir, p))
+    paths = sorted(paths, key=lambda p: absolute(p) not in written)[:MAX_FILES]
     if not paths:
-        return []
+        return [], 0
     listing = " ".join(shlex.quote(p) for p in paths)
     command = (
         f"cd {shlex.quote(workdir)} && for f in {listing}; do "
@@ -90,7 +97,7 @@ async def _files(env: Environment, workdir: str, control_dir: str) -> list[dict[
     )
     result = await env.exec(command=command, cwd=None, env=None, timeout_sec=60)
     if exit_code(result) != 0:
-        return f"the changed files could not be measured: {str(getattr(result, 'stderr', ''))[:200]}"
+        return f"the changed files could not be measured: {str(getattr(result, 'stderr', ''))[:200]}", total
     rows = []
     for line in str(getattr(result, "stdout", "") or "").splitlines():
         name, _, rest = line.partition("\t")
@@ -102,7 +109,7 @@ async def _files(env: Environment, workdir: str, control_dir: str) -> list[dict[
                 "sha256": digest or None,
             }
         )
-    return rows
+    return rows, total
 
 
 def _attribute(files: list[dict[str, Any]], steps: list[StepRecord]) -> None:
@@ -133,13 +140,16 @@ async def build(
     task: str = "",
 ) -> dict[str, Any]:
     """The report as data. Never raises for a listing failure: the failure is the reported fact."""
-    files = await _files(env, workdir, control_dir)
+    written = {s.wrote for s in steps if s.wrote and not s.failed}
+    files, total = await _files(env, workdir, control_dir, written)
     if isinstance(files, list):
         _attribute(files, steps)
     commands = [s for s in steps if s.tool in ("terminal", "python")]
     return {
         "status": status,
         "delivered_files": files,
+        "delivered_files_total": total,
+        "workdir": workdir,
         "steps": len(steps),
         "commands": len(commands),
         "commands_nonzero_exit": [s.step for s in commands if s.exit not in (None, 0)],
@@ -165,7 +175,12 @@ def render(report: dict[str, Any]) -> str:
     elif not files:
         out.append("- delivered files: none changed under the working directory since the run started")
     else:
-        out.append(f"- delivered files ({len(files)} changed since the run started):")
+        total = report.get("delivered_files_total", len(files))
+        where = f" under {report['workdir']}" if report.get("workdir") else ""
+        listed = (
+            f"; {len(files)} listed, those a file tool wrote first" if total > len(files) else ""
+        )
+        out.append(f"- delivered files ({total} changed{where} since the run started{listed}):")
         for f in files:
             wrote = (
                 f"last written by a file tool at step {f['last_file_tool_write']}"
