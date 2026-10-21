@@ -1,62 +1,143 @@
-# Harness engineering research
+# Aether
 
-**What should a harness add to a model, and how would we know?**
+**A research programme on agent harnesses: what should a harness add to a frontier model, and how would we know?**
 
-From late 2025 to October 2026, one principal and a fleet of coding agents built five generations of
-agent harness. The same period produced 151 evaluations of those harnesses, and an audit of nearly every
-result. Most of what we learned came from measurements that turned out to be wrong.
+By [Mohamud Mohamud](https://github.com/mohamud1961)
 
-## Five findings
+Aether is not a coding-agent product. It is a year-long empirical investigation into the layer between a model and
+the world: the loop, tools, context, verification and evaluation that turn a language model into an agent. Over five
+harness generations and 151 evaluations, every claimed gain was put against pre-registered predictions, sealed
+held-out tasks and row-level audits of the traces. Most claimed gains did not survive that, and the ways they failed
+are the main findings.
 
-1. **Cheaper calls made trajectories more expensive.** Cutting context bytes by 29% raised model calls by 56%.
-2. **A pre-registered falsifier fired on our own harness.** On sealed held-out tasks it solved 5/9 against a stock agent's 4/6.
-3. **A completion verifier needs its own evaluation.** One verifier ran 0 real checks in 20 runs while reporting success.
-4. **Most measured wins were measurement artefacts.** A "78.5%" batch was a rate-limit storm: 456 of 482 verifier rounds errored.
-5. **Review without the agent's claims catches more.** 15/18 wrong finishes caught, against 10/18 with claims.
+## The thesis
 
-Details and limits: [research/findings.md](research/findings.md). How the run loop broke and was fixed:
-[research/run-loop-engineering.md](research/run-loop-engineering.md). How failures became evals became harness
-changes: [research/outer-loop.md](research/outer-loop.md).
+> **The better the model, the better the system.**
 
-## Matched results
+A harness should measure and release model capability, not supply it. Every mechanism is held to one test: *would a
+stronger model make this code redundant, or want to override it?* If so, it is a crutch, and it goes. Build the
+workbench, never the crutch.
 
-The table includes matched comparisons and one held-out campaign with unequal valid-row counts.
-Denominators and limits are shown; the held-out row is not a paired estimate of lift.
+The programme splits an agent run into four roles with hard boundaries:
 
-| Comparison | Aether | Other side | Reading |
-|---|---|---|---|
-| Gen 4 candidate vs a stock reference agent, sealed held-out tasks | 5 of 9 | 4 of 6 | The pre-registered falsifier fired: no lift |
-| Aether Core vs a stock reference agent, GLM-5.3-Flash, 18-row board | 12 of 18 | 12 of 18 | Tie |
-| Finish review without the agent's claims vs with them, offline bench | 15 of 18 wrong finishes caught | 10 of 18 | Better without the claims; offline only |
-| Structured file tools vs a stock reference agent, one build task | 3 of 3 | 0 of 2 | One task; small sample |
-| Cache-stable context vs the earlier context, 16 rows each | 10 of 16 at $0.014 per row | 10 of 16 at $0.031 | Same passes at half the cost |
-| Requirement ledger vs none, 15 rows each | 6 of 15 | 8 of 15 | Worse; not kept |
+| Role | Job | Boundary |
+|---|---|---|
+| **Solver** | Works the task with real tools | Never sees the grader |
+| **Verifier** | Checks the actual task state, not the solver's account of it | Read-only; never sees the grader |
+| **Harness** | Executes, records and bounds; holds the invariants | Never decides what the task needs |
+| **Grader** | Scores the result after the run ends | External; never part of the loop |
 
-No generation has a frozen benchmark win against a stock agent. Details: [research/generations/](research/generations/).
+> *The model pilots. The harness instruments. The verifier reflects. The ledger remembers. The grader decides.*
 
-## How this was built
+Full statement: [docs/VISION.md](docs/VISION.md).
 
-One principal directed the work, and coding agents did most of the implementation, analysis and auditing: Codex
-from spring, ChatGPT in late summer, and from 8 October Claude in Claude Code, orchestrating Sonnet and Haiku
-subagents. Gen 5 (`aether/core/`) was built in that last phase; its commits carry their `Co-Authored-By` trailers.
-The operating model, its review gates and the incidents that shaped them are in [workflows/](workflows/). Where to
-find evidence of specific skills: [docs/evidence-map.md](docs/evidence-map.md).
+## Research questions
+
+1. **False completion.** Agents finish confidently with wrong work. Can a harness tell a true finish from a false
+   one, and who should do the checking: the agent itself, a second model, or the environment?
+2. **Verification independence.** What does a verifier need to see, and what must it *not* see, to catch errors the
+   solver cannot?
+3. **Context economics.** What does context management cost at the level of a whole trajectory, not a single call?
+4. **Measurement validity.** When an agent result improves, how often is the improvement real?
+5. **Harness or model.** Which failures belong to the harness, and which to the model, and does a lever that helps
+   one model help another?
+
+## What we found
+
+**Verification is where a harness adds most, and where it fails most quietly.**
+- A completion verifier reported success across 20 runs while executing 0 real checks.
+- A reviewer shown the task and the real outputs, but *not* the agent's claims, caught 15 of 18 wrong finishes.
+  Shown the claims, it caught 10.
+- A requirement ledger, prewritten acceptance checks, a same-model reviewer and a reading judge were all
+  tried against false completion. None separated true finishes from false ones well enough to keep; the judge
+  scored at chance (AUROC 0.475).
+
+**Models answer pointed questions well, but do not choose to ask them.**
+- Shown its own output in a field-aware view and asked whether it was right, a model caught a reversed file 18 of 18
+  times. With the file shown raw, it caught it 1 time in 18.
+- Inside real runs, the same evidence led to 1 repair in 9.
+- Every lever that relied on the model asking itself failed. The open harness question is *who asks, and when*.
+
+**Outcomes are close to deterministic per model and task.**
+- The same harness and text gave one model 22 of 22 passes on a task where another model was wrong in nearly every
+  run, and the reverse on a second task.
+- A lever that only corrects one model's reading of one task is a crutch by the programme's own test.
+
+**Cheaper calls made trajectories more expensive.** Cutting context bytes by 29% raised model calls by 56%. Making
+the request prefix cache-stable instead halved cost per run at equal passes. Optimise the trajectory, not the call.
+
+**Most measured wins were measurement artefacts.**
+- A "78.5%" batch was a rate-limit storm: 456 of 482 verifier rounds had errored.
+- A pre-registered falsifier fired on our own harness on sealed held-out tasks.
+- 32 mechanisms were retired on evidence, and the [cemetery](research/cemetery.md) records why each one died.
+
+Evidence and limits for each finding: [research/findings.md](research/findings.md) and
+[research/core/](research/core/).
+
+## Contributions
+
+- **Aether Core** ([aether/core/](aether/core/)): a lean agent runtime in which every turn, tool call, result and
+  timing is recorded. It has persistent named terminals, model-managed context, deadline visibility and disposable
+  container clones for running checks without touching the graded state.
+- **A validated evaluation suite** ([evals/](evals/), [harness_evals/](harness_evals/)): 28 tasks whose graders are
+  themselves tested against known-bad states and careless agents. `python -m harness_evals validate-graders evals`
+  re-runs those checks.
+- **A synthesis of 312 external agent runs** ([research/synthesis/](research/synthesis/)): a mechanism map, a failure
+  taxonomy and dossiers across other harnesses.
+- **An open research record:** every Gen 5 pre-registration with its results ([research/core/](research/core/)), the
+  retired mechanisms ([research/cemetery.md](research/cemetery.md)), and how each finding sits against published work
+  ([research/related-work.md](research/related-work.md)).
+
+## Method
+
+- **Pre-registration.** Every experiment states its question, predictions and falsifier before it runs. Results are
+  appended without editing the predictions, and failed predictions are recorded as failed.
+- **Row-level audits.** Every result is checked against its traces. An audit overturned a published-looking win more
+  than once ([case studies](workflows/case-studies/)).
+- **Graders are tested too.** Each of the 28 evaluation tasks is validated against known-bad states and careless
+  agents before it scores anything ([evals/](evals/)).
+- **No Fake Work.** A check that a known-bad case cannot fail is not a check, and a green produced by stubs, mocks or
+  shims does not count ([docs/no-fake-work.md](docs/no-fake-work.md)).
+- **Clean context.** No benchmark, grader or hidden-test framing ever reaches the model, and tests enforce it.
+
+## Five generations
+
+Each generation tested a different answer to "what should the harness add?" Each was replaced because a measurement
+said so.
+
+| Gen | Hypothesis | What ended it |
+|---|---|---|
+| 1. Planner memory | A planner as external memory for a stateless coding agent | An oracle mount leaked answers; one idea survived: the oracle-free verifier |
+| 2. Receipt kernel | A "done" claim needs a receipt; a task profile is generated before the loop | Fake progress: lock-in, circular self-checks, shape-only success |
+| 3. Architect, solver, verifier | A model writes the harness config and the solver and verifier prompts | The architect's proof authority was unsound; the verifier ran no real checks |
+| 4. Persistent worker, independent verifier | One persistent model owns the task; an independent verifier checks completion | A sealed held-out test did not support the lift claim |
+| 5. Aether Core | The model pilots a lean, fully recorded loop; the harness only instruments | Current: the false-completion programme above |
+
+The full arc: [research/generations/](research/generations/).
 
 ## The repository
 
 | Folder | What's inside |
 |---|---|
-| [aether/](aether/) | The harness: Aether Core, the current lean loop ([aether/core/](aether/core/)), and the Gen 4 runtime it replaced (persistent worker, independent verifier, thin loop) |
-| [harness_evals/](harness_evals/) | The eval runner: task format, sandboxed runs, grader validity, trial rows, statistics |
-| [docs/](docs/) | The harness vision, architecture layers, engineering standards and the No Fake Work rule |
-| [evals/](evals/) | 28 tasks across nine targets, each validated against known-bad states and careless agents. Eight evaluation methods, and a catalogue of all 151 evaluations |
-| [research/](research/) | The findings, run-loop engineering, the outer loop, a synthesis of 312 external runs, five harness generations, postmortems |
-| [workflows/](workflows/) | How the work was run: the principal's role, governance, orchestrating agent fleets |
+| [aether/](aether/) | The harness: Aether Core ([aether/core/](aether/core/)), the current lean loop, and the Gen 4 runtime it replaced |
+| [research/](research/) | Findings, generation pages, postmortems, the cemetery, a synthesis of 312 external agent runs, and every Gen 5 pre-registration ([research/core/](research/core/)) |
+| [evals/](evals/) | 28 validated evaluation tasks across nine targets, eight evaluation methods, and a catalogue of all 151 evaluations |
+| [harness_evals/](harness_evals/) | The evaluation runner: task format, sandboxed runs, grader validity, trial rows, statistics |
+| [docs/](docs/) | The vision, architecture layers, engineering standards and the No Fake Work rule |
+| [workflows/](workflows/) | How one person ran the programme with a fleet of coding agents: roles, review gates, handoffs, incidents |
 | [notebook/](notebook/) | Decisions, turning points and a timeline |
+
+## How the work was done
+
+One principal directed the programme. Coding agents did most of the implementation, analysis and auditing: Codex
+from spring, ChatGPT in late summer, and from 8 October Claude in Claude Code, orchestrating Sonnet and Haiku
+subagents. Running research this way is itself a multi-agent system, with work packets, review gates, concurrency
+limits and failure modes of its own, and it is documented as one in [workflows/](workflows/).
 
 ## Quick start
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
+python -m pytest -q
 python -m harness_evals validate-graders evals
 ```
