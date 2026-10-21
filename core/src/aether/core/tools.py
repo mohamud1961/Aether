@@ -291,34 +291,10 @@ Do not repeat checks that already passed; then finish."""
 )
 
 
-# Read-back of delivered files (P1 step 3). In the P1 probes GLM found its reversed CSV rows when asked to read the
-# file by the task's own definition (18/21) but not when asked to check generically (4/21); its self-checks had
-# compared the file with the variable that wrote it, which cannot fail.
 # P1 reasoning probe (2026-10-16): on replayed zero-reasoning requests, GLM-5.3-Flash ignored the provider's
 # thinking switches (thinking.type=enabled, chat_template_kwargs.enable_thinking); this message after the turn's
 # results raised the calls that reasoned from 0/12 to 7/12. Opt-in (CoreConfig.think_reminder).
 THINK_REMINDER = "[reminder] Think through the last result and your next step before acting."
-READBACK_DOC = """
-Each file the task asks you to deliver: after writing it, read it back from disk and interpret it exactly as the \
-task defines it, not as the code that wrote it intended. For each column, field, unit, ordering or segment, quote \
-the task's words that define it and say what the file actually holds under that definition; compare that with your \
-result and with any source the task names. A comparison of the file with the variable or code that produced it \
-cannot fail, so it does not count. Where the task's own words specify a format, a source or a procedure exactly, \
-follow them over library, domain or example conventions; depart only if following them is impossible, and say so. \
-Fix any mismatch before you finish."""
-# Independent check (P1 check-independence study, 2026-10-16): in 122 archived GLM rows, checks that re-used the
-# writer's reading (views, tuple compares, positional loads) passed every reversed file they met; the few that read the
-# file by its declared fields and tested a fact obtained elsewhere caught 3/3. READBACK_DOC asked for the reading but
-# not for the independent fact, and failed (step 4). Opt-in, as a read-back mode.
-INDEPENDENT_CHECK_DOC = """
-Each file the task asks you to deliver: before you finish, test it the way its consumer will read it, against facts \
-you did not get from the code that wrote it. First write down one or more checkable facts the correct result must \
-satisfy, taken from the task's words, the source data, or the documented behaviour of the library or tool you used, \
-not from your own output. Then load the delivered file from disk exactly as its declared format defines it (by its \
-field names, units and order) and test those facts against it in code. A comparison of the file with the variable or \
-code that produced it, or a check that reads the file the same way your writer does, cannot fail, so it does not \
-count. If a test fails, find the cause, fix the file and test again."""
-READBACK_MODES = ("off", "on", "independent")  # on: READBACK_DOC; independent: INDEPENDENT_CHECK_DOC
 
 # Delivery hygiene (overnight E5): E0/E2/E4 polyglot runs left the compiled binary beside the "single file" they
 # were asked for, and finished after the receipt listed it. "placebo" is a neutral line of similar length, the control.
@@ -357,7 +333,6 @@ def system_prompt(
     history_path: str = HISTORY_PATH,
     self_check: bool = False,
     verifier: bool = False,
-    readback: str = "off",
     hygiene: str = "off",
     probe: str = "off",
     notes: str = "legacy",
@@ -365,8 +340,6 @@ def system_prompt(
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
     ) + (CLM_NOTES_DOC if notes == "own" else "")
-    if readback not in READBACK_MODES:
-        raise ValueError(f"readback must be one of {READBACK_MODES}")
     if hygiene not in HYGIENE_MODES:
         raise ValueError(f"hygiene must be one of {HYGIENE_MODES}")
     if probe not in PROBE_MODES:
@@ -385,7 +358,6 @@ def system_prompt(
             context=context if clm else "",
         )
         + (SELF_CHECK_DOC if self_check else "")
-        + {"on": READBACK_DOC, "independent": INDEPENDENT_CHECK_DOC}.get(readback, "")
     )
 
 

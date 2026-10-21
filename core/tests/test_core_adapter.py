@@ -226,24 +226,17 @@ def test_verify_and_self_check_are_explicit_opt_ins(monkeypatch):
     for name in (
         adapter.VERIFY_ENV,
         adapter.SELF_CHECK_ENV,
-        adapter.READBACK_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
     config = adapter.build_config()
     assert (config.verify, config.self_check) == (False,) * 2
-    assert config.readback == "off"
     monkeypatch.setenv(adapter.VERIFY_ENV, "once")
     monkeypatch.setenv(adapter.SELF_CHECK_ENV, "on")
-    monkeypatch.setenv(adapter.READBACK_ENV, "on")
     config = adapter.build_config()
     assert (config.verify, config.self_check) == (True,) * 2
-    assert config.readback == "on"
-    monkeypatch.setenv(adapter.READBACK_ENV, "independent")
-    assert adapter.build_config().readback == "independent"
     for name, bad in (
         (adapter.VERIFY_ENV, "twice"),
         (adapter.SELF_CHECK_ENV, "yes"),
-        (adapter.READBACK_ENV, "yes"),
     ):
         monkeypatch.setenv(name, bad)
         with pytest.raises(adapter.ConfigError):
@@ -270,7 +263,7 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     provider = ChatProvider(
         ScriptedClient([]), model="m", params={}, log=CallLog(tmp_path / "c")
     )
-    config = CoreConfig(verify=True, self_check=True, readback="on")
+    config = CoreConfig(verify=True, self_check=True)
     adapter._write_record(
         tmp_path,
         None,
@@ -282,27 +275,6 @@ def test_the_run_record_names_the_verify_and_self_check_switches(tmp_path):
     )
     record = json.loads((tmp_path / "aether_run_record.json").read_text())
     assert record["config"]["verify"] is True and record["config"]["self_check"] is True
-    assert record["config"]["readback"] == "on"
-
-
-def test_the_read_back_paragraph_is_in_the_solver_prompt_only_when_on():
-    from aether.core.tools import READBACK_DOC, system_prompt
-
-    off = system_prompt(python_version="3.12", clm=True)
-    on = system_prompt(python_version="3.12", clm=True, readback="on")
-    assert READBACK_DOC not in off and READBACK_DOC in on
-    assert on.replace(READBACK_DOC, "") == off  # the baseline prompt is otherwise unchanged
-
-
-def test_the_independent_check_paragraph_replaces_read_back_only_in_its_mode():
-    from aether.core.tools import INDEPENDENT_CHECK_DOC, READBACK_DOC, system_prompt
-
-    off = system_prompt(python_version="3.12", clm=True)
-    ind = system_prompt(python_version="3.12", clm=True, readback="independent")
-    assert INDEPENDENT_CHECK_DOC in ind and READBACK_DOC not in ind and INDEPENDENT_CHECK_DOC not in off
-    assert ind.replace(INDEPENDENT_CHECK_DOC, "") == off
-    with pytest.raises(ValueError):
-        system_prompt(python_version="3.12", clm=True, readback=True)
 
 
 def test_temperature_override_replaces_only_the_temperature_and_rejects_bad_values(monkeypatch):

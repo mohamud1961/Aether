@@ -80,7 +80,6 @@ class CoreConfig:
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
-    readback: str = "off"  # tools.READBACK_MODES: on = READBACK_DOC, independent = INDEPENDENT_CHECK_DOC
     think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
     intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
@@ -308,7 +307,6 @@ async def run_agent(
                         history_path=config.clm.history_path,
                         self_check=config.self_check,
                         verifier=config.role == VERIFIER_ROLE,
-                        readback=config.readback,
                         hygiene=config.hygiene,
                         probe=config.probe,
                         notes=config.clm.notes_voice,

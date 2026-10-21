@@ -30,7 +30,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
-from .tools import HYGIENE_MODES, PROBE_MODES, READBACK_MODES
+from .tools import HYGIENE_MODES, PROBE_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
@@ -64,11 +64,11 @@ CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
 # history only grows at its end and the provider's prompt cache keeps extending (Responses API with CLM only).
 REASONING_ENV = "AETHER_CORE_REASONING"
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
-# context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC);
-# AETHER_CORE_READBACK=on|independent a read-back paragraph (tools.READBACK_MODES). Others on/off.
+# context on a clone (see verify). AETHER_CORE_SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
+# Others on/off.
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
-READBACK_ENV, THINK_ENV = "AETHER_CORE_READBACK", "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
+THINK_ENV = "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
 PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
@@ -212,7 +212,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         parallel_reads=_parallel_reads(environ),
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
-        readback=_choice(environ, READBACK_ENV, READBACK_MODES, "off"),
         think_reminder=_choice(environ, THINK_ENV, REPL_MODES, "off") == "on",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
@@ -468,7 +467,7 @@ def _write_record(
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
             "verify": config.verify, "self_check": config.self_check, "view": config.view,
-            "readback": config.readback, "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve, "fork": config.fork,
+            "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve, "fork": config.fork,
             "model": provider.model,
             "params": provider.params,
             "limit_field": provider.limit_field,
