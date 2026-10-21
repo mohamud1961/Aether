@@ -24,9 +24,7 @@ MAX_TERMINALS = 8
 # model while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
 MAX_WAIT_S = 300.0
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-_ANSI = re.compile(
-    r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?"
-)
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?")
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 # seq, exit, optional per-stage exits of the command's last pipeline (bash only, joined by "."), cwd
 _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
@@ -98,18 +96,14 @@ def clean(text: str) -> str:
 
 
 class Terminals:
-    def __init__(
-        self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR
-    ) -> None:
+    def __init__(self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR) -> None:
         self._env = env
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
         self._sessions: dict[str, Session] = {}
         self._generations: dict[str, int] = {}
-        self._launching: set[str] = (
-            set()
-        )  # PID files resolve a lost launch reply during cleanup
+        self._launching: set[str] = set()  # PID files resolve a lost launch reply during cleanup
         self.left_running: list[str] = []  # close(keep=True): processes left alive at run end
 
     @property
@@ -118,9 +112,7 @@ class Terminals:
 
     async def _start(self, name: str) -> Session:
         if len(self._sessions) + len(self._launching) >= MAX_TERMINALS:
-            raise ValueError(
-                f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}"
-            )
+            raise ValueError(f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}")
         generation = self._generations.get(name, 0)
         self._generations[name] = generation + 1
         # A dot is outside the accepted name alphabet, so generations cannot
@@ -147,13 +139,10 @@ class Terminals:
         )
         res = await run(
             self._env,
-            f"rm -rf {q(root)} && mkdir -p {q(root)} && mkfifo {q(root + '/in')} "
-            f"&& : > {q(root + '/out.log')}",
+            f"rm -rf {q(root)} && mkdir -p {q(root)} && mkfifo {q(root + '/in')} && : > {q(root + '/out.log')}",
         )
         if res.code != 0:
-            raise RuntimeError(
-                f"terminal setup failed: {(res.stderr or res.stdout).strip()[:300]}"
-            )
+            raise RuntimeError(f"terminal setup failed: {(res.stderr or res.stdout).strip()[:300]}")
         await put_bytes(self._env, wrapper.encode(), f"{root}/run.sh")
         # `setsid -f` forks without the shell's `&`: a background job of a non-interactive shell starts with
         # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did
@@ -171,18 +160,18 @@ class Terminals:
         )
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
-            raise RuntimeError(
-                f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}"
-            )
+            raise RuntimeError(f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}")
         session = Session(
-            name, root, int(lines[0]), lines[1] == "pty", bash=lines[2:3] == ["bash"],
+            name,
+            root,
+            int(lines[0]),
+            lines[1] == "pty",
+            bash=lines[2:3] == ["bash"],
             grew_at=time.monotonic(),
         )
         self._sessions[name] = session  # ownership precedes fallible initialization
         self._launching.remove(root)
-        await self._write(
-            session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n'
-        )
+        await self._write(session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n')
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             size, mark, _alive = await self._poll(session, 0)
@@ -219,9 +208,7 @@ class Terminals:
             await stop_process_tree(self._env, list(set(pids)))
         self._sessions.clear()
         if unresolved:
-            raise OSError(
-                "terminal cleanup could not resolve startup: " + "; ".join(unresolved)
-            )
+            raise OSError("terminal cleanup could not resolve startup: " + "; ".join(unresolved))
         self._launching.clear()
 
     async def _write(self, session: Session, text: str) -> None:
@@ -237,13 +224,10 @@ class Terminals:
             raise TerminalGone(f"terminal {session.name} is not running")
         if res.code != 0:
             raise RuntimeError(
-                f"could not send input to terminal {session.name}: "
-                f"{(res.stderr or res.stdout).strip()[:200]}"
+                f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
             )
 
-    async def _poll(
-        self, session: Session, seq: int | None
-    ) -> tuple[int, re.Match | None, bool]:
+    async def _poll(self, session: Session, seq: int | None) -> tuple[int, re.Match | None, bool]:
         q = shlex.quote
         probe = (
             "true"
@@ -259,12 +243,8 @@ class Terminals:
             f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null",
         )
         rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
-        if (
-            not size_text.strip().isdigit()
-        ):  # the log is gone (the control directory was deleted)
-            raise TerminalGone(
-                f"the log of terminal {session.name} ({session.log}) is missing"
-            )
+        if not size_text.strip().isdigit():  # the log is gone (the control directory was deleted)
+            raise TerminalGone(f"the log of terminal {session.name} ({session.log}) is missing")
         size = int(size_text.strip())
         mark = None if seq is None else _MARK.search(clean(rest))
         return size, mark, "__ALIVE__" in rest
@@ -273,9 +253,7 @@ class Terminals:
         q = shlex.quote
         n = end - start
         if n <= VIEW_HEAD + VIEW_TAIL:
-            res = await run(
-                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n}"
-            )
+            res = await run(self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n}")
             return res.stdout
         res = await run(
             self._env,
@@ -319,19 +297,13 @@ class Terminals:
             )
         tree, frontier = set(), {session.pid}
         while frontier:
-            frontier = {
-                p for p, v in procs.items() if v[0] in frontier and p not in tree
-            }
+            frontier = {p for p, v in procs.items() if v[0] in frontier and p not in tree}
             tree |= frontier
-        shown = [
-            (p, procs[p]) for p in tree if not any(w in procs[p][5] for w in _WRAPPERS)
-        ]
+        shown = [(p, procs[p]) for p in tree if not any(w in procs[p][5] for w in _WRAPPERS)]
         shown.sort(key=lambda item: -item[1][2])
         out = []
         for pid, (_ppid, state, cpu, age, wchan, cmd) in shown[:limit]:
-            what = _STATES.get(state, state) + (
-                f" in {wchan}" if state in "SD" and wchan not in ("", "0") else ""
-            )
+            what = _STATES.get(state, state) + (f" in {wchan}" if state in "SD" and wchan not in ("", "0") else "")
             out.append(f"{cmd} (pid {pid}, {what}, {cpu:.0f}s CPU in {age:.0f}s)")
         if len(shown) > limit:
             out.append(f"{len(shown) - limit} more")
@@ -347,9 +319,7 @@ class Terminals:
         interrupt: bool = False,
     ) -> str:
         if not _NAME.match(name):
-            raise ValueError(
-                "terminal name must be 1-32 chars of letters, digits, _ or -"
-            )
+            raise ValueError("terminal name must be 1-32 chars of letters, digits, _ or -")
         if mode not in ("command", "keys"):
             raise ValueError("mode must be 'command' or 'keys'")
         session = self._sessions.get(name)
@@ -358,15 +328,10 @@ class Terminals:
             session = await self._restart(session)
             note = f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
             if mode == "keys":
-                return (
-                    note
-                    + "[Your keystrokes were not sent; start the intended program again before sending keys.]"
-                )
+                return note + "[Your keystrokes were not sent; start the intended program again before sending keys.]"
         if session is None:
             session = await self._start(name)
-            note = (
-                f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
-            )
+            note = f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
         if input and mode == "command" and not interrupt and session.pending:
             # Look at the running command first. Writing the new one into the busy shell queued it unseen and
             # moved `pending` to it, so "still running" then described a command that had not started
@@ -376,11 +341,7 @@ class Terminals:
             except TerminalGone:
                 earlier = ""
             if session.pending and name in self._sessions:
-                return (
-                    note
-                    + f"[input not sent: terminal {name} is still running its previous command]\n"
-                    + earlier
-                )
+                return note + f"[input not sent: terminal {name} is still running its previous command]\n" + earlier
             note += earlier + "\n" if earlier else ""
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
@@ -405,32 +366,23 @@ class Terminals:
             return note + await self._collect(session, started, wait_s)
         except TerminalGone as gone:
             await self._restart(session, start=False)
-            return (
-                note
-                + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
-            )
+            return note + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
 
     async def _restart(self, session: Session, start: bool = True) -> Session:
         await stop_process_tree(self._env, [session.pid])
         self._sessions.pop(session.name, None)
         return await self._start(session.name) if start else session
 
-    async def _send(
-        self, session: Session, input: str, mode: str, interrupt: bool
-    ) -> None:
+    async def _send(self, session: Session, input: str, mode: str, interrupt: bool) -> None:
         if interrupt:
             await self._write(session, "\x03")
-            if (
-                not session.pty
-            ):  # no line discipline: signal the shell's children directly
+            if not session.pty:  # no line discipline: signal the shell's children directly
                 await run(
                     self._env,
                     f"for c in $(pgrep -P {session.pid}); do pkill -INT -P $c; sleep 0.3; pkill -TERM -P $c; done; true",
                 )
             await asyncio.sleep(0.5)
-            session.pending = (
-                0  # Ctrl-C discards queued input, including the old completion marker
-            )
+            session.pending = 0  # Ctrl-C discards queued input, including the old completion marker
             if not input:
                 input, mode = "true", "command"
         if input and mode == "command":
@@ -445,7 +397,7 @@ class Terminals:
             src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
             if session.bash:
                 src = f"__aether_ps=; {_PIPE_TRAP}; {src}; trap - RETURN"
-                stages = '"${__aether_ps:+_$(echo $__aether_ps | tr \' \' .)}"'
+                stages = "\"${__aether_ps:+_$(echo $__aether_ps | tr ' ' .)}\""
             await self._write(
                 session,
                 f"{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
@@ -454,9 +406,7 @@ class Terminals:
         elif input:
             keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
             await self._write(session, keys)
-            if (
-                "\x03" in keys
-            ):  # Ctrl-C typed as keys discards the pending marker just as interrupt=true does
+            if "\x03" in keys:  # Ctrl-C typed as keys discards the pending marker just as interrupt=true does
                 await asyncio.sleep(0.5)
                 session.pending = 0
 
@@ -497,7 +447,11 @@ class Terminals:
             status = f"[terminal {name} exited; it restarts on next use]"
         elif mark is not None:
             stages = (mark.group(3) or "").split(".")
-            piped = f" · last pipeline's stage exits {' | '.join(stages)}" if set(stages) - {"0"} and len(stages) > 1 else ""
+            piped = (
+                f" · last pipeline's stage exits {' | '.join(stages)}"
+                if set(stages) - {"0"} and len(stages) > 1
+                else ""
+            )
             status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {mark.group(4).strip()}]"
         elif seq is not None:
             quiet = time.monotonic() - session.grew_at
