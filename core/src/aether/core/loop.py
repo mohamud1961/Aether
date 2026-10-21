@@ -30,7 +30,7 @@ from .provider import ChatProvider, ProviderError, parse_arguments
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from .tools import THINK_REMINDER, system_prompt, tools, validate_call
+from .tools import system_prompt, tools, validate_call
 from .view import VIEW_TOOLS, View
 from . import contract as acceptance, contract_loop
 from .clone import Clone
@@ -80,7 +80,6 @@ class CoreConfig:
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
     )
-    think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
     intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
     delivery_reserve: bool = False  # waits end with a final window left (RESERVE_*), and results say so
@@ -551,8 +550,6 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []
-    if s.config.think_reminder:  # after every result and image, so tool messages stay contiguous
-        _append(s, {"role": "user", "content": THINK_REMINDER})
     if mirror is not None:
         await _read_back(s, *mirror)
     return False

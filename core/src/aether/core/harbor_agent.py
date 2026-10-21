@@ -68,7 +68,6 @@ REASONING_ENV = "AETHER_CORE_REASONING"
 # Others on/off.
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
-THINK_ENV = "AETHER_CORE_THINK"  # THINK: tools.THINK_REMINDER each turn
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
 PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
@@ -212,7 +211,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         parallel_reads=_parallel_reads(environ),
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
-        think_reminder=_choice(environ, THINK_ENV, REPL_MODES, "off") == "on",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
         delivery_reserve=_choice(environ, RESERVE_ENV, REPL_MODES, "off") == "on",
@@ -467,7 +465,7 @@ def _write_record(
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
             "verify": config.verify, "self_check": config.self_check, "view": config.view,
-            "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve, "fork": config.fork,
+            "delivery_reserve": config.delivery_reserve, "fork": config.fork,
             "model": provider.model,
             "params": provider.params,
             "limit_field": provider.limit_field,

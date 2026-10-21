@@ -291,11 +291,6 @@ Do not repeat checks that already passed; then finish."""
 )
 
 
-# P1 reasoning probe (2026-10-16): on replayed zero-reasoning requests, GLM-5.3-Flash ignored the provider's
-# thinking switches (thinking.type=enabled, chat_template_kwargs.enable_thinking); this message after the turn's
-# results raised the calls that reasoned from 0/12 to 7/12. Opt-in (CoreConfig.think_reminder).
-THINK_REMINDER = "[reminder] Think through the last result and your next step before acting."
-
 # Delivery hygiene (overnight E5): E0/E2/E4 polyglot runs left the compiled binary beside the "single file" they
 # were asked for, and finished after the receipt listed it. "placebo" is a neutral line of similar length, the control.
 HYGIENE_MODES = ("off", "on", "placebo")
