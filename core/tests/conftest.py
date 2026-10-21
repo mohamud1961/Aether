@@ -5,7 +5,8 @@ run Core on the host, where each terminal shell and REPL server outlived its tes
 repeated runs exhausted the process table (42 tests then failed with "fork failed"). The kill is narrow: only
 processes that appeared during the test whose command line names this session's temp directory or Core's control
 directory, plus their descendants. Never pytest itself or its ancestors. (Not by process group: a terminal's shell
-starts in a group of its own.)
+starts in a group of its own.) A terminal shell whose run.sh a test killed (to simulate a terminal dying) is
+orphaned to init and names no marker, so a new orphan running Core's own wrapper shell command is stopped too.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ import time
 
 import pytest
 
-from aether.core.env import CONTROL_DIR
+from aether.core.env import _WRAPPER_CMDS, CONTROL_DIR
 
 
 def processes() -> dict[int, tuple[int, int, str]]:
@@ -43,8 +44,10 @@ def leftovers(before: set[int], markers: list[str]) -> list[int]:
         pid = table.get(pid, (1, 0, ""))[0]
     roots = {
         p
-        for p, (_, _, cmd) in table.items()
-        if p not in before and p not in protected and any(m in cmd for m in markers)
+        for p, (ppid, _, cmd) in table.items()
+        if p not in before
+        and p not in protected
+        and (any(m in cmd for m in markers) or (ppid == 1 and any(w in cmd for w in _WRAPPER_CMDS)))
     }
     found, frontier = set(roots), set(roots)
     while frontier:

@@ -48,3 +48,25 @@ def test_processes_that_are_not_the_tests_are_left_alone(tmp_path):
     finally:
         other.kill()
         other.wait()
+
+
+def test_a_shell_orphaned_by_killing_its_run_sh_is_found(tmp_path):
+    """test_core_terminal kills run.sh to simulate a dead terminal; the shell under it outlives it, orphaned to init."""
+    before = set(processes())
+    work = tmp_path / "work"
+    work.mkdir()
+
+    async def go():
+        t = Terminals(LocalEnv(work), str(work), lambda: 1000.0, control_dir=str(tmp_path / "ctl"))
+        await t.use(input="echo ready")
+        pid = t._sessions["main"].pid
+        os.kill(pid, 9)
+        await asyncio.sleep(0.5)
+        return pid
+
+    killed = asyncio.run(go())
+    table = processes()
+    orphans = [p for p in set(table) - before if table[p][0] == 1 and "--noprofile" in table[p][2]]
+    assert orphans, "the shell under the killed run.sh should outlive it"
+    assert killed not in table and set(orphans) <= set(leftovers(before, [str(tmp_path.resolve())]))
+    stop(leftovers(before, [str(tmp_path.resolve())]))
