@@ -100,3 +100,21 @@ def test_a_listing_failure_is_reported_not_raised():
     text = finish_report.render(report)
     assert "delivered files: unknown (the changed files could not be listed" in text
     assert "[no finish summary: the run did not finish]" in text
+
+
+def test_over_the_listing_cap_the_count_is_true_and_file_tool_writes_are_listed_first(tmp_path):
+    # R5.base.build-cython-ext e1: 200+ build artefacts; the report said "200 changed" (the cap) and the two sources
+    # the model edited, which sorted after the artefacts, were not listed.
+    script = [
+        _turn("terminal", {"input": "mkdir -p build && for i in $(seq 1 205); do echo $i > build/f$i; done"}, "c1"),
+        _turn("write_file", {"path": "zz_source.py", "content": "print(1)\n"}, "c2"),
+        _turn("finish", {"summary": "done"}, "c3"),
+    ]
+    result, client, work = _run(tmp_path, script)
+    report = result.extras["finish_report"]
+    listed = [f["path"] for f in report["delivered_files"]]
+    assert len(listed) == finish_report.MAX_FILES
+    assert listed[0] == str(work / "zz_source.py")  # what a file tool wrote comes before unattributed files
+    assert report["delivered_files_total"] == 206
+    text = finish_report.render(report)
+    assert f"206 changed under {work} since the run started; {finish_report.MAX_FILES} listed" in text
