@@ -117,13 +117,20 @@ class Repl:
         started = time.monotonic()
         if interrupt and self.pending:
             await run(self._env, f"kill -INT {self.pid} 2>/dev/null; true")
-        submit = ""
-        if code:
+        submit, earlier = "", ""
+        if code and self.pending:
+            # Look at the pending cell before answering: it may have finished (or, after an interrupt, stopped)
+            # since the last call. Refusing unseen gave a stale "still running" six times in gcode e2 (~130 s).
+            earlier = await self._wait(self.pending, 5.0 if interrupt else 0.0, time.monotonic())
             if self.pending:
-                return (
-                    "[python] a cell is still running; call python with empty code to keep waiting, or "
-                    "interrupt=true to stop it"
+                return earlier.replace(
+                    "still running after",
+                    "still running (this code was not run) after",
+                    1,
                 )
+            earlier += "\n"
+            started = time.monotonic()
+        if code:
             self.seq += 1
             self.pending, self.cursor = self.seq, 0
             tmp, cell = (
@@ -138,7 +145,11 @@ class Repl:
                 submit = f"mv {tmp} {cell}; "
         if not self.pending:
             return "[python] nothing is running"
-        seq = self.pending
+        return earlier + await self._wait(self.pending, wait_s, started, submit)
+
+    async def _wait(self, seq: int, wait_s: float, started: float, submit: str = "") -> str:
+        """Wait up to ``wait_s`` on cell ``seq`` (submitting it first when ``submit`` is given) and report its new
+        output and state: finished, the REPL gone, or still running."""
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, self._remaining() - 5))
         while True:
             left = wait_s - (time.monotonic() - started)
