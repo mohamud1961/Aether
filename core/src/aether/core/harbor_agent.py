@@ -79,6 +79,7 @@ PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tool
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
 RESERVE_ENV = "AETHER_CORE_RESERVE"  # on: waits end with a final window left (loop.RESERVE_*)
+FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
 # optional; unset means "chat" (the GLM request, unchanged). "reasoning" is the request an OpenAI reasoning model
 # accepts: max_completion_tokens and no sampling parameters (GPT-6 Luna rejects max_tokens and top_p).
 REQUEST_ENV = "AETHER_CORE_REQUEST"
@@ -222,6 +223,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         finish_show_check=_finish_mode(environ) == "check",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
         delivery_reserve=_choice(environ, RESERVE_ENV, REPL_MODES, "off") == "on",
+        fork=_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"),
         probe=_choice(environ, PROBE_ENV, PROBE_MODES, "off"),
@@ -236,6 +238,13 @@ def _choice(
     if value not in modes:
         raise ConfigError(f"{name} must be one of {', '.join(modes)}, got {value!r}")
     return value
+
+
+def _fork(environ: Mapping[str, str]) -> bool:
+    on = _choice(environ, FORK_ENV, REPL_MODES, "off") == "on"
+    if on and _choice(environ, VERIFY_ENV, VERIFY_MODES, "off") != "off":
+        raise ConfigError(f"{FORK_ENV} and {VERIFY_ENV} both act at the first finish; use one")
+    return on
 
 
 def _request_shape(environ: Mapping[str, str]) -> str:
@@ -480,7 +489,7 @@ def _write_record(
             "parallel_reads": config.parallel_reads,
             "turn": config.turn, "receipt": config.receipt,
             "verify": config.verify, "self_check": config.self_check, "view": config.view,
-            "readback": config.readback, "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve,
+            "readback": config.readback, "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve, "fork": config.fork,
             "finish_second_look": [config.finish_nudge, bool(config.finish_check), config.finish_show_check],
             "evidence": config.evidence,
             "model": provider.model,

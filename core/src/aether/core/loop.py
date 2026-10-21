@@ -95,6 +95,7 @@ class CoreConfig:
     finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
     delivery_reserve: bool = False  # waits end with a final window left (RESERVE_*), and results say so
+    fork: bool = False  # experiment instrument: at the first finish, matched continuations on clones (see fork)
     # Run end: "keep" (the default) leaves the container as the agent left it, because a service the task needs
     # running is part of the delivered state (E0/E3: pypi-server and kv-store-grpc 0/2 under stop, 2/2 under keep),
     # and records what was still running in ``left_running``. The container is owned by the trial and removed after
@@ -205,6 +206,7 @@ class _Session:
         self.contract_shown = False
         self.receipt_shown = False
         self.second_look_shown = False
+        self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
         # what the runtime knows of each step (see evidence)
         self.step_tools: dict[int, evidence.Step] = {}
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
@@ -267,12 +269,17 @@ async def run_agent(
     review_transport: Transport | None = None,
     review_call: Callable[..., Awaitable[Any]] | None = None,
     config: CoreConfig | None = None,
+    resume: list[dict[str, Any]] | ClmContext | None = None,
 ) -> RunResult:
+    """``resume``: continue an existing history instead of starting one (the fork arms use it): a message list
+    (system prompt and task included) for the project context, a ``ClmContext`` for clm."""
     config = config or CoreConfig(
         reviews=ReviewPlan(finish=review_transport is not None)
     )
     if not math.isfinite(timeout_s) or timeout_s <= 0:
         raise ValueError("timeout_s must be finite and positive")
+    if resume is not None and isinstance(resume, ClmContext) != (config.context == "clm"):
+        raise ValueError("resume must match the context: a ClmContext for clm, a message list otherwise")
     s = _Session(
         env,
         task,
@@ -343,9 +350,9 @@ async def run_agent(
                 },
             ]
             if config.context == "clm":
-                s.clm = ClmContext(pinned=pinned, settings=config.clm)
+                s.clm = resume or ClmContext(pinned=pinned, settings=config.clm)
             else:
-                s.messages = list(pinned)
+                s.messages = list(resume) if resume is not None else list(pinned)
             trace(
                 "start",
                 workdir=workdir,
@@ -645,6 +652,7 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
         viewed = s.view is not None and name in VIEW_TOOLS
         if viewed:
             await s.view.before()
+        s.call_id = call["id"]
         out, finished = await _dispatch(s, name, args)
         if viewed:
             out += await s.view.after()
@@ -854,6 +862,10 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         from . import verify
 
         return await verify.at_finish(s)
+    if s.config.fork and "fork" not in s.result.extras:
+        from . import fork
+
+        return await fork.at_finish(s)
     if (
         (s.config.finish_nudge or s.config.finish_check)
         and not s.second_look_shown
