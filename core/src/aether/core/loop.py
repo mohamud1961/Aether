@@ -89,7 +89,6 @@ class CoreConfig:
     # and records what was still running in ``left_running``. The container is owned by the trial and removed after
     # grading, which is the cleanup. "stop" kills every process started in a terminal (the pre-E3 behaviour).
     end_processes: str = "keep"
-    probe: str = "off"  # tools.PROBE_MODES: one separating-probe line (on) or its placebo, at the start of the work
     hygiene: str = "off"  # tools.HYGIENE_MODES: one delivery-hygiene line (on) or its placebo in the solver prompt
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
@@ -307,7 +306,6 @@ async def run_agent(
                         self_check=config.self_check,
                         verifier=config.role == VERIFIER_ROLE,
                         hygiene=config.hygiene,
-                        probe=config.probe,
                         notes=config.clm.notes_voice,
                     ),
                 },

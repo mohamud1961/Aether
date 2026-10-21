@@ -30,7 +30,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, azure_base_url
-from .tools import HYGIENE_MODES, PROBE_MODES
+from .tools import HYGIENE_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
@@ -70,7 +70,6 @@ VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
 SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
-PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
 NOTES_ENV = "AETHER_CORE_NOTES"  # own: edited context and checkpoints labelled as the model's notes (still role=user); legacy (default)
@@ -217,7 +216,6 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         fork=_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"),
-        probe=_choice(environ, PROBE_ENV, PROBE_MODES, "off"),
     )
 
 

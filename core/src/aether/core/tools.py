@@ -303,21 +303,6 @@ locations that the task did not ask for (build outputs, test copies, scratch scr
 before deciding it has failed, and read the whole of its output once it finishes.""",
 }
 
-# Separating probe (overnight, after E15): audited failures wrote one reading of an ambiguous requirement and never
-# ran an input on which the readings differ (SPARQL 46620f911ea4ec46 line 21). Inserted at the start of the work,
-# not at finish. "placebo" is a neutral line of similar length, the control.
-PROBE_MODES = ("off", "on", "placebo")
-PROBE_DOC = {
-    "on": """
-- When a requirement can reasonably be read in more than one way and the readings would produce different \
-results, settle it before building: write the readings down, run a tiny input on which they give different \
-results, and choose the one the task's own words, examples or source data support. If nothing decides it, \
-say in your summary which reading you chose and why.""",
-    "placebo": """
-- Give each terminal you open a short name that says what it is for, such as build, server or tests, and \
-reuse that terminal for the same kind of work instead of opening a new one each time. When a terminal is no \
-longer needed, leave it idle; its log stays available, and the shells are closed for you at the end.""",
-}
 
 def system_prompt(
     *,
@@ -329,7 +314,6 @@ def system_prompt(
     self_check: bool = False,
     verifier: bool = False,
     hygiene: str = "off",
-    probe: str = "off",
     notes: str = "legacy",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
@@ -337,12 +321,7 @@ def system_prompt(
     ) + (CLM_NOTES_DOC if notes == "own" else "")
     if hygiene not in HYGIENE_MODES:
         raise ValueError(f"hygiene must be one of {HYGIENE_MODES}")
-    if probe not in PROBE_MODES:
-        raise ValueError(f"probe must be one of {PROBE_MODES}")
     base = BASE_PROMPT
-    if probe != "off" and not verifier:  # after the first working rule, before any building
-        head, sep, tail = base.partition("history or system state.")
-        base = head + sep + PROBE_DOC[probe] + tail
     if hygiene != "off" and not verifier:  # inserted before the closing "Call finish only when..." line
         head, sep, tail = base.rpartition("\n- Call finish only when")
         base = head + HYGIENE_DOC[hygiene] + sep + tail
