@@ -81,3 +81,60 @@ def test_a_marker_naming_another_turn_is_not_trusted():
     ok, _ = ctx.apply_edit(text, upto)
     assert ok
     assert ctx.editable[0]["role"] == "assistant" and "tool_calls" not in ctx.editable[0]
+
+
+def _paired(history):
+    """The provider contract: each native call is followed at once by exactly its results, and no result is native
+    without its call there."""
+    j = 0
+    while j < len(history):
+        m = history[j]
+        if m["role"] == "tool":
+            return False
+        ids = [c["id"] for c in m.get("tool_calls") or ()]
+        if [r.get("tool_call_id") for r in history[j + 1 : j + 1 + len(ids)]] != ids or any(
+            r["role"] != "tool" for r in history[j + 1 : j + 1 + len(ids)]
+        ):
+            return False
+        j += 1 + len(ids)
+    return True
+
+
+def test_a_moved_result_without_its_call_is_not_kept_native():
+    """Audit A2: keep the harness note, move the unchanged c1 result after it, drop the c1 call."""
+    ctx = _ctx("legacy")
+    upto = len(ctx.editable)
+    text = ctx.render(upto)
+    call = text[text.index("[[CTX_TURN 0 role=assistant]]") : text.index("[[CTX_TURN 1 role=tool]]")]
+    result = text[text.index("[[CTX_TURN 1 role=tool]]") : text.index("[[CTX_TURN 2 role=assistant]]")]
+    edited = text.replace(call, "").replace(result, "") + "\n" + result
+    ok, _ = ctx.apply_edit(edited, upto)
+    assert ok
+    assert _paired(ctx.editable)
+    assert not any(m["role"] == "tool" and m.get("tool_call_id") == "c1" for m in ctx.editable)
+
+
+def test_random_edits_never_leave_an_unpaired_native_history():
+    import random
+
+    rng = random.Random(20261021)
+    for _ in range(3000):
+        ctx = _ctx(rng.choice(["own", "legacy"]))
+        upto = len(ctx.editable)
+        text = ctx.render(upto)
+        starts = [m.start() for m in __import__("re").finditer(r"\[\[CTX_TURN \d+ role=\w+\]\]", text)]
+        pieces = [text[a:b] for a, b in zip(starts, starts[1:] + [len(text)])]
+        op = rng.choice(["shuffle", "drop", "modify", "duplicate"])
+        if op == "shuffle":
+            rng.shuffle(pieces)
+        elif op == "drop":
+            pieces = [p for p in pieces if rng.random() > 0.3]
+        elif op == "modify":
+            k = rng.randrange(len(pieces))
+            pieces[k] = pieces[k].rstrip("\n") + " (edited)\n"
+        else:
+            k = rng.randrange(len(pieces))
+            pieces.insert(rng.randrange(len(pieces) + 1), pieces[k])
+        ok, _ = ctx.apply_edit(text[: starts[0]] + "".join(pieces) if pieces else "my notes", upto)
+        if ok:
+            assert _paired(ctx.editable), (op, [m["role"] for m in ctx.editable])

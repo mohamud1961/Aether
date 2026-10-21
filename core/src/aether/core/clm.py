@@ -406,7 +406,7 @@ class ClmContext:
             )
             seen.add(i)
             blocks.append((i if same else None, role, body))
-        keep = [orig is not None for orig, _, _ in blocks]
+        keep = [orig is not None and blocks[j][1] != "tool" for j, (orig, _, _) in enumerate(blocks)]
         for j, (orig, _, _) in enumerate(blocks):
             msg = self.editable[orig] if orig is not None else {}
             if keep[j] and msg.get("tool_calls"):
@@ -416,12 +416,8 @@ class ClmContext:
                     o == orig + n + 1 and r == "tool" and self.editable[o].get("tool_call_id") == ids[n]
                     for n, (o, r, _) in enumerate(results)
                 )
-        for j, (_, role, _) in enumerate(blocks):  # a result is native only after its native call
-            if role == "tool" and keep[j]:
-                start = j
-                while start > 0 and blocks[start - 1][1] == "tool":
-                    start -= 1
-                keep[j] = start > 0 and keep[start - 1]
+                for n in range(len(ids)) if keep[j] else ():  # a result is native only inside its own call's unit
+                    keep[j + 1 + n] = True
         out, headed = [], False
         voice = self.settings.notes_voice
         for (orig, role, body), kept in zip(blocks, keep):
