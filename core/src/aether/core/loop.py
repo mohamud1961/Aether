@@ -20,7 +20,6 @@ from typing import Any, Awaitable, Callable
 
 from . import compaction, images, intent
 from . import receipt as finish_receipt
-from . import finish_check
 from . import finish_report
 from .clm import ClmContext, ClmSettings
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
@@ -51,7 +50,6 @@ STOP_MARGIN_S = 15.0
 # Its length is one slow model turn, which does not scale with the budget: over 12,113 archived turns p50 2.3 s,
 # p90 13 s, p99 118 s. Capped at a quarter of short budgets.
 RESERVE_S, RESERVE_MAX_FRACTION = 120.0, 0.25
-RECEIPT_MIN_S = 60.0  # with less time left a finish takes effect at once
 CONTEXT_MODES = ("project", "clm")
 VERIFIER_ROLE = (
     "verifier"  # the call-log role of the one independent finish check (see verify)
@@ -78,7 +76,6 @@ class CoreConfig:
     )
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
     contract: bool = False  # acceptance checks written before the work, offered as information (see contract)
-    receipt: bool = False  # show the delivered files' bytes before the first finish takes effect (see receipt)
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
@@ -88,10 +85,7 @@ class CoreConfig:
         False  # a requirement ledger quoting the task, kept while working (see ledger)
     )
     readback: str = "off"  # tools.READBACK_MODES: on = READBACK_DOC, independent = INDEPENDENT_CHECK_DOC
-    finish_nudge: bool = False  # hold the first finish once for one more look (see finish_check)
     think_reminder: bool = False  # a one-line reminder to think before acting after every turn (tools.THINK_REMINDER)
-    finish_check: str = ""  # experiment instrument: a check command run at the first held finish
-    finish_show_check: bool = False  # show the check's result with the nudge (else it is only recorded)
     view: bool = False  # field-aware view of delimited files each call changed (see view)
     intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
     delivery_reserve: bool = False  # waits end with a final window left (RESERVE_*), and results say so
@@ -202,8 +196,6 @@ class _Session:
         self.contract: acceptance.Contract | None = None
         self.contract_task: asyncio.Task | None = None
         self.contract_shown = False
-        self.receipt_shown = False
-        self.second_look_shown = False
         self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
         # what the runtime knows of each step (see evidence)
         self.step_tools: dict[int, evidence.Step] = {}
@@ -300,13 +292,13 @@ async def run_agent(
 
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
-            # the start marker: files newer than it are what the run changed (the receipt, the verifier and the
-            # finish report use it). Only the receipt and the verifier need it to work; for the report a missing
-            # marker is a reported fact, not a run failure.
+            # the start marker: files newer than it are what the run changed (the verifier and the finish report
+            # use it). Only the verifier needs it to work; for the report a missing marker is a reported fact, not a
+            # run failure.
             try:
                 await finish_receipt.mark(s.env, config.control_dir)
             except OSError:
-                if config.receipt or config.verify:
+                if config.verify:
                     raise
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
@@ -359,7 +351,6 @@ async def run_agent(
                 params=provider.params,
                 review=bool(review_transport),
                 context=config.context,
-                receipt=config.receipt,
                 repl=config.repl,
                 python=python,
                 images=see,
@@ -817,25 +808,6 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         from . import fork
 
         return await fork.at_finish(s)
-    if (
-        (s.config.finish_nudge or s.config.finish_check)
-        and not s.second_look_shown
-        and s.remaining() > RECEIPT_MIN_S
-    ):
-        s.second_look_shown = True
-        text, record = await finish_check.second_look(
-            s.env, s.config.finish_check, s.config.finish_show_check
-        )
-        s.result.extras["finish_check"] = record
-        s.trace(
-            "finish_second_look", summary=args.get("summary", ""), text=text, **record
-        )
-        return text, False
-    if s.config.receipt and not s.receipt_shown and s.remaining() > RECEIPT_MIN_S:
-        s.receipt_shown = True
-        text = await finish_receipt.receipt(s.env, s.workdir, s.config.control_dir)
-        s.trace("finish_receipt", summary=args.get("summary", ""), receipt=text)
-        return text, False
     skip = s.oversight.finish_gate(s.remaining())
     if skip:
         s.trace(

@@ -55,9 +55,6 @@ CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
-FINISH_ENV = "AETHER_CORE_FINISH"  # optional; unset means "direct", the baseline
-FINISH_MODES = ("direct", "receipt", "nudge", "check")  # nudge/check: see finish_check
-FINISH_CHECK_ENV = "AETHER_CORE_FINISH_CHECK"  # host path of the experiment's check script (see _finish_check)
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "one" (one tool call per model turn, the baseline). "many" lets the model send several calls in
 # one turn; they still run in order, as a JSON turn's actions do. Luna on the Responses API made 61% more calls than
@@ -213,16 +210,12 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         ),
         contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
-        receipt=_finish_mode(environ) == "receipt",
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         evidence=_choice(environ, EVIDENCE_ENV, REPL_MODES, "off") == "on",
         ledger=_choice(environ, LEDGER_ENV, REPL_MODES, "off") == "on",
         readback=_choice(environ, READBACK_ENV, READBACK_MODES, "off"),
         think_reminder=_choice(environ, THINK_ENV, REPL_MODES, "off") == "on",
-        finish_nudge=_finish_mode(environ) in ("nudge", "check"),
-        finish_check=_finish_check(environ),
-        finish_show_check=_finish_mode(environ) == "check",
         view=_choice(environ, VIEW_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
         delivery_reserve=_choice(environ, RESERVE_ENV, REPL_MODES, "off") == "on",
@@ -252,16 +245,6 @@ def _fork(environ: Mapping[str, str]) -> bool:
 
 def _request_shape(environ: Mapping[str, str]) -> str:
     return _choice(environ, REQUEST_ENV, REQUEST_SHAPES, "chat")
-
-
-def _finish_mode(environ: Mapping[str, str]) -> str:
-    return _choice(environ, FINISH_ENV, FINISH_MODES, "direct")
-
-
-def _finish_check(environ: Mapping[str, str]) -> str:  # required with "check"; with "nudge" recorded, never shown
-    if _finish_mode(environ) == "check" or (_finish_mode(environ) == "nudge" and environ.get(FINISH_CHECK_ENV)):
-        return Path(_required(FINISH_CHECK_ENV, environ)).read_text()
-    return ""
 
 
 def _replay(environ: Mapping[str, str], context: str) -> str:
@@ -486,10 +469,8 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
-            "receipt": config.receipt,
             "verify": config.verify, "self_check": config.self_check, "view": config.view,
             "readback": config.readback, "think_reminder": config.think_reminder, "delivery_reserve": config.delivery_reserve, "fork": config.fork,
-            "finish_second_look": [config.finish_nudge, bool(config.finish_check), config.finish_show_check],
             "evidence": config.evidence,
             "model": provider.model,
             "params": provider.params,

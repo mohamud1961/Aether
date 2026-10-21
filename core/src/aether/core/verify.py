@@ -130,7 +130,7 @@ class _Labelled:
 
 def verifier_config(config: CoreConfig) -> CoreConfig:
     """The solver's configuration for the verifier's run: its own control directory and context files, no
-    reviews, contract, receipt or self-check paragraph, and no check of its own."""
+    reviews, contract or self-check paragraph, and no check of its own."""
     root = f"{config.control_dir}-verifier"
     return dataclasses.replace(
         config,
@@ -139,7 +139,6 @@ def verifier_config(config: CoreConfig) -> CoreConfig:
         role=VERIFIER_ROLE,
         reviews=ReviewPlan(finish=False),
         contract=False,
-        receipt=False,
         evidence=False,
         ledger=False,
         control_dir=root,
