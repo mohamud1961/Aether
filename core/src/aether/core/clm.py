@@ -72,11 +72,12 @@ class ClmSettings:
     # prompt cache never extended past such an edit (0 of 270 requests) but did on 31 of 32 pure extensions.
     # Replayed reasoning is outside ``budget_tokens`` in both modes: the model cannot condense it.
     replay_reasoning: str = "newest"
-    # Whose voice the model's edited context comes back in. "own": as the model's notes, ranked below the task
-    # statement. "legacy": as plain user turns. Audit 2026-10-21: 84 of 122 accepted edits put a restated task
-    # ("TASK: ...", "Goal: ...") and the model's own conclusions back in the user's voice, the newest statement of
-    # the task in the request; the paraphrase then outranked the task it came from.
-    notes_voice: str = "own"
+    # How the model's edited context is framed when it comes back. Both modes send it in role=user messages (the
+    # role is not changed). "own" prefixes each such block with a "[your notes]" label, the first with a header
+    # ranking it below the task statement, and changes the checkpoint prompt and a system-prompt sentence (a framing
+    # package, under test in N3). "legacy" (default) is the original behaviour. Audit 2026-10-21: 84 of 122
+    # accepted edits put a restated task and the model's own conclusions back as unlabelled user text.
+    notes_voice: str = "legacy"
 
     @property
     def limit(self) -> int:
@@ -358,10 +359,10 @@ class ClmContext:
         )
 
     @staticmethod
-    def parse(text: str, voice: str = "own") -> list[dict[str, Any]]:
+    def parse(text: str, voice: str = "legacy") -> list[dict[str, Any]]:
         """The edited mirror as messages. Blocks the model marks as its turns stay assistant turns; everything else
         it wrote (its summaries, kept outputs, any block it labels user) is its own record, so with voice "own" it
-        comes back tagged as its notes, the first with the header that ranks it below the task statement."""
+        comes back labelled as its notes (still role=user), the first with the header that ranks it below the task."""
         marks = list(TURN_RE.finditer(text))
         blocks: list[tuple[str, str]] = []
         lead = (text[: marks[0].start()] if marks else text).strip()

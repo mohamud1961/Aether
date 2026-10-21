@@ -372,7 +372,7 @@ def system_prompt(
     readback: str = "off",
     hygiene: str = "off",
     probe: str = "off",
-    notes: str = "own",
+    notes: str = "legacy",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path

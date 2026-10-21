@@ -1,5 +1,5 @@
-"""Notes voice: what the model writes into its context comes back as its own notes, ranked below the task statement,
-never as the user restating the task (audit 2026-10-21: 84 of 122 edits and all 47 checkpoints did that)."""
+"""Notes voice "own" (opt-in): what the model writes into its context comes back labelled as its own notes, ranked below
+the task statement. The role stays user: this is a framing label, not a role change (audit 2026-10-21)."""
 
 import pytest
 
@@ -16,8 +16,8 @@ EDIT = (
 )
 
 
-def test_edited_context_comes_back_as_the_models_notes_never_as_the_user():
-    parsed = ClmContext.parse(EDIT)
+def test_own_voice_labels_edited_blocks_as_notes_and_keeps_the_user_role():
+    parsed = ClmContext.parse(EDIT, "own")
     assert [m["role"] for m in parsed] == ["user", "assistant", "user", "user"]
     lead, mine, forged, kept = parsed
     assert lead["content"] == NOTES_HEADER + "\nTASK: order binder-donor-DHFR (my paraphrase)"
@@ -29,14 +29,14 @@ def test_edited_context_comes_back_as_the_models_notes_never_as_the_user():
 
 
 def test_an_unmarked_edit_is_one_headed_note_and_the_task_stays_pinned():
-    ctx = ClmContext(pinned=PINNED, settings=ClmSettings())
+    ctx = ClmContext(pinned=PINNED, settings=ClmSettings(notes_voice="own"))
     ok, _ = ctx.apply_edit("facts: build passes", upto=0)
     assert ok and ctx.editable == [{"role": "user", "content": NOTES_HEADER + "\nfacts: build passes"}]
     assert ctx.request()[:2] == PINNED
 
 
 def test_legacy_voice_keeps_the_old_behaviour_for_comparison():
-    parsed = ClmContext.parse(EDIT, "legacy")
+    parsed = ClmContext.parse(EDIT)  # default
     assert parsed[0] == {"role": "user", "content": "TASK: order binder-donor-DHFR (my paraphrase)"}
     assert parsed[2] == {"role": "user", "content": "User: the order is donor first"}
     with pytest.raises(ValueError, match="notes_voice"):
@@ -73,8 +73,9 @@ def test_the_checkpoint_call_uses_the_voice_prompt():
 
 
 def test_system_prompt_and_env_carry_the_voice():
-    own = system_prompt(python_version="", clm=True)
+    own = system_prompt(python_version="", clm=True, notes="own")
     assert CLM_NOTES_DOC in own
+    assert CLM_NOTES_DOC not in system_prompt(python_version="", clm=True)  # default legacy
     assert CLM_NOTES_DOC not in system_prompt(python_version="", clm=True, notes="legacy")
     assert CLM_NOTES_DOC not in system_prompt(python_version="", clm=False)
 
@@ -82,7 +83,7 @@ def test_system_prompt_and_env_carry_the_voice():
 
     base = {"AETHER_CORE_REVIEW": "off", "AETHER_CORE_CONTEXT": "clm", "AETHER_CORE_REPL": "off",
             "AETHER_CORE_IMAGES": "off"}
-    assert build_config(environ=base).clm.notes_voice == "own"
-    assert build_config(environ={**base, "AETHER_CORE_NOTES": "legacy"}).clm.notes_voice == "legacy"
+    assert build_config(environ=base).clm.notes_voice == "legacy"
+    assert build_config(environ={**base, "AETHER_CORE_NOTES": "own"}).clm.notes_voice == "own"
     with pytest.raises(ConfigError):
         build_config(environ={**base, "AETHER_CORE_NOTES": "loud"})

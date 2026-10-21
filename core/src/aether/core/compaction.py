@@ -5,9 +5,9 @@ Prime Intellect Ltd.), taken verbatim from
 PrimeIntellect-ai/prime-agent@3e0893260eefdab3c8391dab9b7386d6cc864a62,
 ``crates/pa-core/src/session_engine/compaction{,_utils}.rs``.
 
-With notes voice "own" (the default) the prompt is adapted: the Goal and Constraints sections, which restated the
+With notes voice "own" (opt-in, under test in N3) the prompt is adapted: the Goal and Constraints sections, which restated the
 task in the summary, are replaced by an instruction not to restate it, and decisions carry their evidence or are
-marked assumed. The summary comes back as the model's record, ranked below the verbatim task statement.
+marked assumed. The summary is labelled as the model's record, ranked below the verbatim task statement; it is still a user-role message.
 
 Used only after the CLM rollback-and-retry budget is spent; every use is traced
 and counted in the run record.
@@ -131,7 +131,7 @@ async def checkpoint(
     *,
     repl: bool,
     remaining_s: Callable[[], float],
-    voice: str = "own",
+    voice: str = "legacy",
 ) -> tuple[str, dict[str, Any]]:
     """Return (summary, usage). Raises on failure with the reason; the caller records it.
 

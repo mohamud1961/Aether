@@ -78,7 +78,7 @@ END_PROCESSES_MODES = ("stop", "keep")
 PROBE_ENV = "AETHER_CORE_PROBE"  # optional; unset means "off"; on/placebo: tools.PROBE_DOC
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 VIEW_ENV = "AETHER_CORE_VIEW"  # on: field-aware view of changed delimited files after each call (see view)
-NOTES_ENV = "AETHER_CORE_NOTES"  # own (default): edited context and checkpoints come back as the model's notes, below the task (see clm)
+NOTES_ENV = "AETHER_CORE_NOTES"  # own: edited context and checkpoints labelled as the model's notes (still role=user); legacy (default)
 INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's reason and expected result (see intent)
 RESERVE_ENV = "AETHER_CORE_RESERVE"  # on: waits end with a final window left (loop.RESERVE_*)
 FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
@@ -211,7 +211,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         reviews=plan,
         clm=ClmSettings(
             replay_reasoning=_replay(environ, context),
-            notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "own"),
+            notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
         ),
         contract=review == "contract",
         parallel_reads=_parallel_reads(environ),
