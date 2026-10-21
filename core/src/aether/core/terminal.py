@@ -367,6 +367,21 @@ class Terminals:
             note = (
                 f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
             )
+        if input and mode == "command" and not interrupt and session.pending:
+            # Look at the running command first. Writing the new one into the busy shell queued it unseen and
+            # moved `pending` to it, so "still running" then described a command that had not started
+            # (overfull-hbox e1: the model's kill commands waited ~100 s behind the solver).
+            try:
+                earlier = await self._collect(session, time.monotonic(), 0.0)
+            except TerminalGone:
+                earlier = ""
+            if session.pending and name in self._sessions:
+                return (
+                    note
+                    + f"[input not sent: terminal {name} is still running its previous command]\n"
+                    + earlier
+                )
+            note += earlier + "\n" if earlier else ""
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
         try:
