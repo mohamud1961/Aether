@@ -381,9 +381,60 @@ class ClmContext:
             out.append({"role": role, "content": body})
         return out
 
+    def _unchanged(self, text: str, upto: int) -> list[dict[str, Any]]:
+        """The edit as messages, keeping the original message for every block the model left exactly as rendered.
+
+        Rebuilding every block from text turned untouched tool results into role=user (labelled as notes under
+        "own") and tool calls into "[tool_call ...]" text (P1: R5.base.protein-assembly e1r2, 2 -> 52 user
+        messages after a one-line edit). A call and its results stay native only together, unchanged and in order;
+        anything else goes the text way, as ``parse`` builds it."""
+        marks = list(TURN_RE.finditer(text))
+        lead = (text[: marks[0].start()] if marks else text).strip()
+        blocks: list[tuple[int | None, str, str]] = [(None, "user", lead)] if lead else []
+        seen: set[int] = set()
+        for k, m in enumerate(marks):
+            end = marks[k + 1].start() if k + 1 < len(marks) else len(text)
+            body = text[m.end() : end].strip("\n")
+            if not body.strip():
+                continue
+            i, role = int(m.group(1)), m.group(2)
+            same = (
+                i < upto
+                and i not in seen
+                and self.editable[i].get("role") == role
+                and body == render_message(self.editable[i]).strip("\n")
+            )
+            seen.add(i)
+            blocks.append((i if same else None, role, body))
+        keep = [orig is not None and blocks[j][1] != "tool" for j, (orig, _, _) in enumerate(blocks)]
+        for j, (orig, _, _) in enumerate(blocks):
+            msg = self.editable[orig] if orig is not None else {}
+            if keep[j] and msg.get("tool_calls"):
+                ids = [c.get("id") for c in msg["tool_calls"]]
+                results = blocks[j + 1 : j + 1 + len(ids)]
+                keep[j] = len(results) == len(ids) and all(
+                    o == orig + n + 1 and r == "tool" and self.editable[o].get("tool_call_id") == ids[n]
+                    for n, (o, r, _) in enumerate(results)
+                )
+                for n in range(len(ids)) if keep[j] else ():  # a result is native only inside its own call's unit
+                    keep[j + 1 + n] = True
+        out, headed = [], False
+        voice = self.settings.notes_voice
+        for (orig, role, body), kept in zip(blocks, keep):
+            if kept:
+                out.append(self.editable[orig])
+                continue
+            role = "assistant" if role == "assistant" else "user"
+            if role == "user" and voice == "own":
+                body = f"{NOTES_TAG if headed else NOTES_HEADER}\n{body}"
+                headed = True
+            out.append({"role": role, "content": body})
+        return out
+
     def apply_edit(self, text: str, upto: int) -> tuple[bool, str]:
-        """Replace editable[:upto] (what the mirror held) with the parsed edit, if it fits."""
-        parsed = self.parse(text, self.settings.notes_voice)
+        """Replace editable[:upto] (what the mirror held) with the edit, if it fits; untouched blocks keep their
+        original message."""
+        parsed = self._unchanged(text, upto)
         candidate = parsed + self.editable[upto:]
         used = self.tokens(list(self.pinned) + candidate)
         if used > self.settings.limit:
