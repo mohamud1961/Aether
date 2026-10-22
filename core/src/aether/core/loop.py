@@ -23,7 +23,7 @@ from . import receipt as finish_receipt
 from . import finish_report
 from .clm import ClmContext, ClmSettings
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
-from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes
+from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes, run
 from .files import Files
 from .oversight import Oversight, ReviewPlan, final_feedback, progress_feedback
 from .provider import ChatProvider, ProviderError, parse_arguments
@@ -467,6 +467,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         except Exception as exc:
             mirror_error = f"[context mirror unavailable: {type(exc).__name__}: {exc}; context unchanged]"
             s.trace("context_mirror_error", error=mirror_error)
+    failed = bool(mirror_error)
     finished = False
     buffered: dict[int, tuple[dict, str, bool, float]] = {}
     for index, call in enumerate(calls):
@@ -488,6 +489,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         args, out, finished, duration = (
             buffered.pop(index) if index in buffered else await _invoke(s, call)
         )
+        failed = failed or out.startswith("error:")
         if mirror_error:
             out += "\n" + mirror_error
             mirror_error = ""
@@ -513,12 +515,38 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         )
         if finished:
             return True
+    if failed:
+        await _require_environment(s)
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []
     if mirror is not None:
         await _read_back(s, *mirror)
     return False
+
+
+class EnvironmentLost(RuntimeError):
+    """The sandbox stopped answering mid-run; the run ends as ``environment_error``."""
+
+
+async def _require_environment(s: _Session) -> None:
+    """After a turn with a failed tool or context write, confirm the sandbox still answers. P2 (10-22): Daytona
+    deleted two sandboxes mid-run and Core called the model for 13 and 25 more minutes, every tool failing."""
+    error = ""
+    for attempt in range(2):
+        try:
+            await run(s.env, "true", timeout_s=20)
+            return
+        except TimeoutError:
+            if s.remaining() <= 0:
+                raise
+            error = "no answer within 20 s"
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        if attempt == 0:
+            await asyncio.sleep(2)
+    s.trace("environment_lost", error=error)
+    raise EnvironmentLost(f"the sandbox stopped answering: {error}")
 
 
 async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:

@@ -332,6 +332,10 @@ class Terminals:
         if session is None:
             session = await self._start(name)
             note = f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
+        if input and mode == "command" and not input.strip("\x03 \n"):
+            # Ctrl-C as a command is an interrupt (P2 10-22: "\x03" refused as "input not sent" again and again)
+            input, interrupt = "", True
+            note += "[Ctrl-C in command input was sent as interrupt=true]\n"
         if input and mode == "command" and not interrupt and session.pending:
             # Look at the running command first. Writing the new one into the busy shell queued it unseen and
             # moved `pending` to it, so "still running" then described a command that had not started
@@ -341,7 +345,10 @@ class Terminals:
             except TerminalGone:
                 earlier = ""
             if session.pending and name in self._sessions:
-                return note + f"[input not sent: terminal {name} is still running its previous command]\n" + earlier
+                return note + (
+                    f"[input not sent: terminal {name} is still running its previous command. To run it now, call "
+                    f'terminal with name="{name}2" (a new terminal) or with interrupt=true to stop that command]\n'
+                ) + earlier
             note += earlier + "\n" if earlier else ""
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
@@ -363,10 +370,15 @@ class Terminals:
             )
             await self._send(session, input, mode, interrupt)
         try:
-            return note + await self._collect(session, started, wait_s)
+            out = await self._collect(session, started, wait_s)
         except TerminalGone as gone:
             await self._restart(session, start=False)
             return note + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
+        keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input) if mode == "keys" else ""
+        if keys.strip() and keys.isprintable() and out.startswith("(no new output)"):
+            # P2 (10-22) vulnerable-secret: "echo hi" typed 53 times without Enter, each answered only by silence
+            out += "\n[keys sent without Enter: they wait on the current input line and nothing was submitted; end them with \\n]"
+        return note + out
 
     async def _restart(self, session: Session, start: bool = True) -> Session:
         await stop_process_tree(self._env, [session.pid])

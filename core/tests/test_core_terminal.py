@@ -427,3 +427,42 @@ def test_an_unterminated_heredoc_body_is_run_unchanged(tmp_path):
     out, written = asyncio.run(go())
     assert written == "only line\n"
     assert "__AETHER_DONE" not in out
+
+
+def test_ctrl_c_sent_as_a_command_interrupts_the_busy_terminal(tmp_path):
+    # P2 (10-22) sqlite-db-truncate: "\x03" sent in command mode was refused as "input not sent" again and again.
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="sleep 60", wait_s=0.5)
+        stopped = await t.use(input="\x03", wait_s=10)
+        after = await t.use(input="echo alive")
+        return stopped, after
+
+    stopped, after = asyncio.run(go())
+    assert "input not sent" not in stopped and "interrupt" in stopped
+    assert "alive" in after and "[exit 0" in after
+
+
+def test_input_refused_by_a_busy_terminal_names_both_ways_out(tmp_path):
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="sleep 60", wait_s=0.5)
+        return await t.use(input="echo next")
+
+    refused = asyncio.run(go())
+    first = refused.splitlines()[0]
+    assert "input not sent" in first and "interrupt=true" in first and 'name="main2"' in first
+
+
+def test_keys_without_enter_at_a_quiet_prompt_say_nothing_was_submitted(tmp_path):
+    # P2 (10-22) vulnerable-secret: "echo hi" sent 53 times in keys mode, no Enter, each answered "(no new output)".
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="true")
+        typed = await t.use(input="echo hi", mode="keys", wait_s=1)
+        entered = await t.use(input="\n", mode="keys", wait_s=2)
+        return typed, entered
+
+    typed, entered = asyncio.run(go())
+    assert "nothing was submitted" in typed
+    assert "nothing was submitted" not in entered
