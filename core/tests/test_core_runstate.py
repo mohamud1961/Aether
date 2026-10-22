@@ -183,3 +183,35 @@ def test_flag_off_is_the_baseline(tmp_path):
     assert result.status == "finished"
     assert "state" not in [t["name"] for t in client.requests[0]["tools"]]
     assert "run_state" not in result.extras and "## Run state" not in result.final_account
+
+
+def test_notes_and_failures_survive_a_context_checkpoint(tmp_path):
+    """The checkpoint summary is the model's; the run state (notes, failing checks) is shown again whole after it."""
+    import dataclasses
+    import json
+
+    from tests.core_fakes import call
+    from tests.test_core_v2 import TASK as V2_TASK, _clm_config, _run, _text
+
+    quote = V2_TASK.split(".")[0].strip()
+    big = "y" * 3000
+    script = [
+        call("state", {"action": "require", "quote": quote, "check": "test -f never-made.txt"}, "s1"),
+        call("state", {"action": "check", "id": 1}, "s2"),
+        call("state", {"action": "note", "text": "KEY-PROGRESS-NOTE best result in /tmp/best.bin"}, "s3"),
+    ]
+    script += [call("terminal", {"input": f"echo {i}{big}"}, f"c{i}") for i in range(6)]
+    script += [call("finish", {"summary": "done"}, "f1"), call("finish", {"summary": "done"}, "f2")]
+    config = dataclasses.replace(
+        _clm_config(tmp_path, budget_tokens=9000, reserve_tokens=500, keep_recent_tokens=2500), state=True
+    )
+    texts = [_text(f"## Goal\nSUMMARY-MARKER-{k}") for k in range(4)]
+    result, rows, client = _run(tmp_path, script, config=config, text_script=texts)
+    assert result.status == "finished"
+    assert [r for r in rows if r["event"] == "context_checkpoint" and r["ok"]], "no checkpoint happened"
+    tool_requests = [r for r in client.requests if "tools" in r]
+    after = next(i for i, r in enumerate(tool_requests) if "SUMMARY-MARKER" in json.dumps(r["messages"]))
+    later = json.dumps(tool_requests[after + 1]["messages"]) if after + 1 < len(tool_requests) else ""
+    assert "KEY-PROGRESS-NOTE" in later and "#1 [failed" in later  # re-shown after the checkpoint
+    assert "[state: failing #1" in json.dumps(tool_requests[-1]["messages"])  # the reminder rides every result
+    assert result.extras["run_state"]["held"] is True

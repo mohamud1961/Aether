@@ -137,8 +137,15 @@ class Item:
     reason: str = ""
 
 
+# Quotes are matched with whitespace, case, markdown emphasis/code marks and typographic quotes and dashes set aside:
+# on the 39 dev tasks a model's quote without the backticks failed 68/244 times, and Q1's anchor matching broke on
+# curly quotes. Everything else must be the task's own words.
+TYPOGRAPHY = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u2013": "-", "\u2014": "-"})
+
+
 def _norm(text: Any) -> str:
-    return re.sub(r"\s+", " ", str(text or "")).strip().lower()
+    text = re.sub(r"[`*]", "", str(text or "").translate(TYPOGRAPHY))
+    return re.sub(r"\s+", " ", text).strip().lower()
 
 
 def sentences(task: str) -> list[str]:
@@ -262,8 +269,8 @@ class RunState:
                 return f"item {item.id}: check replaced; status unchecked until it is run"
             quote = str(args.get("quote") or "").strip()
             if not quote or _norm(quote) not in _norm(self.task):
-                raise ValueError("require: quote must be the task's own words, copied exactly (whitespace and case "
-                                 "aside); it was not found in the task")
+                raise ValueError("require: quote must be the task's own words, copied exactly (whitespace, case and "
+                                 "markdown marks aside); it was not found in the task")
             if len(self.items) >= MAX_ITEMS:
                 raise ValueError(f"at most {MAX_ITEMS} items")
             item = Item(len(self.items) + 1, quote, check)
