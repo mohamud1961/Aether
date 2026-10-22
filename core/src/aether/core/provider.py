@@ -116,6 +116,10 @@ def _replayable(call: dict[str, Any]) -> dict[str, Any]:
     return {**call, "function": {**call["function"], "arguments": "{}"}}
 
 
+def base_url(endpoint: str, api: str = "azure") -> str:  # openai: the endpoint is already the base URL
+    return endpoint.strip().rstrip("/") + "/" if api == "openai" else azure_base_url(endpoint)
+
+
 def azure_base_url(endpoint: str) -> str:
     value = endpoint.strip().rstrip("/")
     parsed = urlparse(value)

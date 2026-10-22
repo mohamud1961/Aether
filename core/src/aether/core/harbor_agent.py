@@ -28,7 +28,7 @@ from .clone import Clone, compose_clone
 from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
-from .provider import ChatProvider, azure_base_url
+from .provider import ChatProvider, base_url
 from .tools import HYGIENE_MODES
 
 HARBOR_IMPORT_ERROR = None
@@ -73,7 +73,7 @@ FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuation
 REQUEST_ENV = "AETHER_CORE_REQUEST"
 REQUEST_SHAPES = ("chat", "reasoning", "responses")  # responses: /v1/responses, native tools + reasoning replay
 PROGRESS_AT = (0.35, 0.70)
-ENDPOINT_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT"
+ENDPOINT_ENV, API_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT", "AETHER_CORE_API"  # API: azure (default) or openai
 KEY_ENV = "AETHER_FW_GLM_53_FLASH_KEY"
 DEPLOYMENT_ENV = "AETHER_FW_GLM_53_FLASH_DEPLOYMENT"
 EFFORT_ENV, DEADLINE_ENV = "AETHER_TB4_REASONING_EFFORT", "AETHER_AGENT_DEADLINE_SEC"
@@ -134,7 +134,7 @@ def build_provider(
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
     client = AsyncOpenAI(
         api_key=key,
-        base_url=azure_base_url(endpoint),
+        base_url=base_url(endpoint, _choice(environ, API_ENV, ("azure", "openai"), "azure")),
         max_retries=0,
         timeout=httpx.Timeout(connect=30.0, read=240.0, write=60.0, pool=30.0),
     )

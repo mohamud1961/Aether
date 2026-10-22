@@ -141,6 +141,18 @@ def test_request_shape_defaults_to_the_unchanged_glm_request(monkeypatch):
     )
 
 
+def test_api_selects_the_base_url(monkeypatch):
+    _provider_env(monkeypatch)
+    monkeypatch.delenv(adapter.API_ENV, raising=False)
+    assert str(adapter.build_provider()._client.base_url) == "https://example.invalid/openai/v1/"
+    monkeypatch.setenv(adapter.ENDPOINT_ENV, "https://flint.example.invalid/v1")
+    monkeypatch.setenv(adapter.API_ENV, "openai")
+    assert str(adapter.build_provider()._client.base_url) == "https://flint.example.invalid/v1/"
+    monkeypatch.setenv(adapter.API_ENV, "bogus")
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_provider()
+
+
 def test_reasoning_request_shape_sends_what_an_openai_reasoning_model_accepts(
     monkeypatch,
 ):
