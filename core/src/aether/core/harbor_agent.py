@@ -28,7 +28,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
-from .strict import StrictChatProvider
+from .strict import StrictChatProvider, extra_sampling
 from .tools import HYGIENE_MODES
 
 HARBOR_IMPORT_ERROR = None
@@ -124,7 +124,7 @@ def build_provider(
     effort = environ.get(EFFORT_ENV, "high").strip() or "high"
     shape = _request_shape(environ)
     _calls(environ)  # only "one" is accepted; anything else stops the run
-    sampling = dict(SAMPLING)
+    sampling = {**SAMPLING, **extra_sampling(environ)}
     params = {
         **(sampling if shape == "chat" else {}),
         "reasoning_effort": effort,

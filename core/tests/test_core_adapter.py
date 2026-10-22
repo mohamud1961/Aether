@@ -293,3 +293,17 @@ def test_removed_settings_stop_the_run_and_only_their_baseline_value_is_accepted
     monkeypatch.setenv("AETHER_CORE_REVIEW", "contract")
     with pytest.raises(adapter.ConfigError):
         adapter.build_config()
+
+
+def test_top_k_is_sent_only_when_set_and_a_bad_value_stops_the_run(monkeypatch):
+    # P2 (10-22): Flint's kit recommends top_k=20; the OpenAI request set has no top_k, so it goes in extra_body
+    _provider_env(monkeypatch)
+    monkeypatch.delenv("AETHER_CORE_TOP_K", raising=False)
+    assert "extra_body" not in adapter.build_provider()._request([], None, 1, None)["params"]
+    monkeypatch.setenv("AETHER_CORE_TOP_K", "20")
+    params = adapter.build_provider()._request([], None, 1, None)["params"]
+    assert params["extra_body"] == {"top_k": 20} and params["temperature"] == 1.0
+    for bad in ("0", "twenty", "-5"):
+        monkeypatch.setenv("AETHER_CORE_TOP_K", bad)
+        with pytest.raises(ValueError):
+            adapter.build_provider()
