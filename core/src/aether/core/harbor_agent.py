@@ -62,7 +62,7 @@ REASONING_ENV = "AETHER_CORE_REASONING"
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
 # context on a clone (see verify). SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
-SELF_CHECK_ENV = "AETHER_CORE_SELF_CHECK"
+SELF_CHECK_ENV, STATE_ENV = "AETHER_CORE_SELF_CHECK", "AETHER_CORE_STATE"  # STATE=on: run state (see runstate)
 END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" (the default); see loop.CoreConfig
 END_PROCESSES_MODES = ("stop", "keep")
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
@@ -212,7 +212,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
         fork=_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
-        hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"),
+        hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"), state=_choice(environ, STATE_ENV, REPL_MODES, "off") == "on",
     )
 
 
@@ -459,7 +459,7 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
-            "verify": config.verify, "self_check": config.self_check,
+            "verify": config.verify, "self_check": config.self_check, "state": config.state,
             "fork": config.fork,
             "model": provider.model,
             "params": provider.params,

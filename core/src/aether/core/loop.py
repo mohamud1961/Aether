@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
-from . import compaction, images, intent
+from . import compaction, images, intent, runstate
 from . import receipt as finish_receipt
 from . import finish_report
 from .clm import ClmContext, ClmSettings
@@ -74,6 +74,7 @@ class CoreConfig:
     # grading, which is the cleanup. "stop" kills every process started in a terminal (the pre-E3 behaviour).
     end_processes: str = "keep"
     hygiene: str = "off"  # tools.HYGIENE_MODES: one delivery-hygiene line (on) or its placebo in the solver prompt
+    state: bool = False  # run state: harness-run requirement checks, notes, finish re-check (see runstate)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
 
     def __post_init__(self) -> None:
@@ -173,6 +174,7 @@ class _Session:
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
+        self.state = runstate.RunState(task, workdir) if config.state and config.role != VERIFIER_ROLE else None
 
     def clone(
         self, env: Environment, timeout_s: float | None = None, read_only: bool = False
@@ -260,6 +262,8 @@ async def run_agent(
             )
             if config.intent:
                 s.tools = intent.with_intent(s.tools)
+            if s.state:
+                s.tools = runstate.with_state(s.tools)
             pinned = [
                 {
                     "role": "system",
@@ -273,7 +277,8 @@ async def run_agent(
                         verifier=config.role == VERIFIER_ROLE,
                         hygiene=config.hygiene,
                         notes=config.clm.notes_voice,
-                    ),
+                    )
+                    + (runstate.STATE_DOC if s.state else ""),
                 },
                 {
                     "role": "user",
@@ -345,6 +350,9 @@ async def run_agent(
                     task=s.task,
                 )
                 s.result.final_account = finish_report.render(s.result.extras["finish_report"])
+            if s.state:
+                s.result.extras["run_state"] = s.state.record()
+                s.result.final_account += "\n\n" + s.state.account()
         except Exception as exc:
             cleanup_errors.append(f"finish report: {type(exc).__name__}: {exc}")
         _close(s)
@@ -489,6 +497,10 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         )
         s.trace("tool", name=name, args=args, result=out, duration_s=duration)
         out = await _save(s, out)
+        if s.state and not finished:
+            if name in ("write_file", "edit_file") and not out.startswith("error"):
+                s.state.wrote()
+            out = _with_state(s, out)
         if name != "finish":
             s.actions.append(_action_view(name, args, out))
         _append(
@@ -547,6 +559,8 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         ), False
     if name == "finish":
         return await _finish(s, args)
+    if name == "state" and s.state:
+        return await s.state.act(s.env, args, s.remaining()), False
     if name == "terminal":
         return await s.terminals.use(
             name=str(args.get("name") or "main"),
@@ -667,6 +681,8 @@ async def _fit_context(s: _Session) -> bool:
         clm.replace_with_checkpoint(
             summary, compaction.note(clm.settings.notes_voice) + await _keep_history(s), keep
         )
+        if s.state:  # the checkpoint summary is the model's; the run state is shown again whole
+            s.state.dirty = True
         s.trace(
             "context_checkpoint",
             ok=True,
@@ -709,8 +725,22 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
     _attach(s.history, text)
 
 
+def _with_state(s: _Session, out: str) -> str:
+    """The run state view after a change or checkpoint; otherwise one line while a check is failing."""
+    if s.state.dirty:
+        s.state.dirty = False
+        return f"{out}\n\n{s.state.view()}"
+    line = s.state.reminder()
+    return f"{out}\n{line}" if line else out
+
+
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
+    if s.state:
+        held, text = await s.state.at_finish(s.env, s.remaining(), s.timeout_s)
+        s.trace("state_finish", held=held, state=s.state.record())
+        if held:
+            return text, False
     if s.config.verify and "verification" not in s.result.extras:
         from . import verify
 
