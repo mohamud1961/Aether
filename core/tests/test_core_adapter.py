@@ -153,6 +153,22 @@ def test_api_selects_the_base_url(monkeypatch):
         adapter.build_provider()
 
 
+def test_strict_tools_close_every_schema_only_when_on(monkeypatch):
+    from aether.core.tools import tools
+
+    _provider_env(monkeypatch)
+    sent = tools(python=False)
+    monkeypatch.delenv("AETHER_CORE_STRICT_TOOLS", raising=False)
+    plain = adapter.build_provider()._request([], sent, 1, None)["tools"]
+    assert plain == sent and not any("strict" in t["function"] for t in plain)
+    monkeypatch.setenv("AETHER_CORE_STRICT_TOOLS", "on")
+    strict = adapter.build_provider()._request([], sent, 1, None)["tools"]
+    assert all(t["function"]["strict"] is True for t in strict)
+    assert all(t["function"]["parameters"]["additionalProperties"] is False for t in strict)
+    assert not any("strict" in t["function"] for t in sent)  # the caller's list is untouched
+    assert adapter.build_provider()._request([], None, 1, None).get("tools") is None
+
+
 def test_reasoning_request_shape_sends_what_an_openai_reasoning_model_accepts(
     monkeypatch,
 ):

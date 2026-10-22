@@ -7,8 +7,7 @@ Configuration comes from the launcher's environment only:
 - ``AETHER_CORE_CONTEXT``: ``project`` (C1 view) or ``clm`` (model-managed context, CLM method);
 - ``AETHER_CORE_REPL`` / ``AETHER_CORE_IMAGES``: ``on`` or ``off`` (Python REPL / view_image tool);
   all four are required; there is no silent default;
-- ``AETHER_TB4_REASONING_EFFORT``: reasoning effort (default ``high``);
-- ``AETHER_AGENT_DEADLINE_SEC``: the task's agent timeout, when Harbor does not pass one.
+- ``AETHER_TB4_REASONING_EFFORT``: effort (default ``high``); ``AETHER_AGENT_DEADLINE_SEC``: the task's time limit.
 A missing or invalid setting stops the run before any model call.
 """
 
@@ -29,6 +28,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
+from .strict import StrictChatProvider
 from .tools import HYGIENE_MODES
 
 HARBOR_IMPORT_ERROR = None
@@ -142,7 +142,7 @@ def build_provider(
         from .responses import ResponsesProvider
 
         return ResponsesProvider(client, model=model, params=params, log=log)
-    return ChatProvider(
+    return (StrictChatProvider if _choice(environ, "AETHER_CORE_STRICT_TOOLS", REPL_MODES, "off") == "on" else ChatProvider)(
         client,
         model=model,
         params=params,
