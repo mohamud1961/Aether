@@ -443,7 +443,9 @@ def test_ctrl_c_sent_as_a_command_interrupts_the_busy_terminal(tmp_path):
     assert "alive" in after and "[exit 0" in after
 
 
-def test_input_refused_by_a_busy_terminal_names_both_ways_out(tmp_path):
+def test_input_refused_by_a_busy_terminal_names_every_way_out(tmp_path):
+    # P2 (10-22) sqlite-db-truncate state: an interactive python3 sat at ">>>" while "exit" and "print" were
+    # refused 20+ times; nothing said that keys mode types into the running program.
     async def go():
         t, _ = _terms(tmp_path)
         await t.use(input="sleep 60", wait_s=0.5)
@@ -452,6 +454,7 @@ def test_input_refused_by_a_busy_terminal_names_both_ways_out(tmp_path):
     refused = asyncio.run(go())
     first = refused.splitlines()[0]
     assert "input not sent" in first and "interrupt=true" in first and 'name="main2"' in first
+    assert 'mode="keys"' in first
 
 
 def test_keys_without_enter_at_a_quiet_prompt_say_nothing_was_submitted(tmp_path):

@@ -347,7 +347,8 @@ class Terminals:
             if session.pending and name in self._sessions:
                 return note + (
                     f"[input not sent: terminal {name} is still running its previous command. To run it now, call "
-                    f'terminal with name="{name}2" (a new terminal) or with interrupt=true to stop that command]\n'
+                    f'terminal with name="{name}2" (a new terminal) or with interrupt=true to stop that command; '
+                    f'to type into the running program instead, use mode="keys"]\n'
                 ) + earlier
             note += earlier + "\n" if earlier else ""
         started = time.monotonic()
