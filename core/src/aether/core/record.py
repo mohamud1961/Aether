@@ -232,7 +232,10 @@ class Record:
             self.trace("record_finish", hold=False, **row)
             return False, "", row
         latest = self._latest()
-        failing = [c for c in latest if c.failed]
+        # a regression left in place: the newest run fails after an earlier run of the same command passed. A one-off
+        # command that failed once is exploration, not a contradiction (pilot1 tune-mjcf: 10 such holds, all noise).
+        passed = {norm(c.command) for c in self.checks if c.passed}
+        failing = [c for c in latest if c.failed and norm(c.command) in passed]
         reruns = await self._reruns(latest, delivered, row)
         broke = [r for r in reruns if r["exit"] not in (0, None)]
         row.update(failing=[short(c.command) for c in failing], reruns=reruns)
@@ -244,7 +247,7 @@ class Record:
         left = self.remaining()
         lines = ["[finish not yet accepted. Harness record of your own commands, exact results:]"]
         for c in failing:
-            lines.append(f"- The newest run of `{short(c.command)}` (t={c.t:.0f}s) exited {c.exit}; it has not passed since.")
+            lines.append(f"- `{short(c.command)}` passed earlier; its newest run (t={c.t:.0f}s) exited {c.exit}.")
         for r in reruns:
             if r["exit"] is None:
                 continue

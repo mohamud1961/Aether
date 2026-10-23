@@ -102,12 +102,25 @@ def test_finish_is_accepted_when_the_rerun_agrees(tmp_path):
     run(go, tmp_path)
 
 
-def test_finish_holds_when_the_newest_run_of_a_check_failed(tmp_path):
+def test_finish_holds_when_a_check_that_passed_fails_on_its_newest_run(tmp_path):
     async def go(rig):
-        (rig.work / "t.py").write_text("raise SystemExit(2)\n")
+        t = rig.work / "t.py"
+        t.write_text("print('ok')\n")
+        await rig.cmd("python3 t.py")
+        t.write_text("raise SystemExit(2)\n")
         await rig.cmd("python3 t.py")
         hold, text, _ = await rig.record.at_finish()
-        assert hold and "exited 2; it has not passed since" in text
+        assert hold and "passed earlier; its newest run (t=20s) exited 2" in text
+
+    run(go, tmp_path)
+
+
+def test_a_one_off_command_that_failed_once_does_not_hold_the_finish(tmp_path):
+    async def go(rig):
+        (rig.work / "explore.py").write_text("raise SystemExit(1)\n")
+        await rig.cmd("python3 explore.py")
+        hold, _text, row = await rig.record.at_finish()
+        assert not hold and row["failing"] == []
 
     run(go, tmp_path)
 
@@ -193,13 +206,17 @@ def test_the_loop_holds_a_finish_on_a_failing_check_then_ends_on_the_next(tmp_pa
     from tests.test_core_responses import turn_events
 
     events = [
-        turn_events(1, call=("terminal", {"input": "printf 'raise SystemExit(5)\\n' > t.py && python3 t.py"}, "c1")),
-        turn_events(2, call=("finish", {"summary": "done"}, "c2")),
-        turn_events(3, call=("finish", {"summary": "done anyway"}, "c3")),
+        turn_events(1, call=("terminal", {"input": "printf 'print(1)\\n' > t.py"}, "c1")),
+        turn_events(2, call=("terminal", {"input": "python3 t.py"}, "c2")),
+        turn_events(3, call=("terminal", {"input": "printf 'raise SystemExit(5)\\n' > t.py"}, "c3")),
+        turn_events(4, call=("terminal", {"input": "python3 t.py"}, "c4")),
+        turn_events(5, call=("finish", {"summary": "done"}, "c5")),
+        turn_events(6, call=("finish", {"summary": "done anyway"}, "c6")),
     ]
     result, client = _loop(tmp_path, events, record=True)
     assert result.status == "finished"
-    assert "it has not passed since" in str(client.requests[2]["input"])
+    assert "exits 5 now" in str(client.requests[4]["input"])  # the regression, in the stream
+    assert "its newest run" in str(client.requests[5]["input"])  # and at the held finish
     assert result.extras["record"]["failed"] == 1
 
 
