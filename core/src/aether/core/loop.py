@@ -32,6 +32,7 @@ from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools, validate_call
 from .clone import Clone
+from .record import NEUTRAL_HOLD, Record
 
 MAX_OUTPUT_TOKENS = 32_768
 # A turn the output limit cuts off before any tool call is almost never followed by action at the same effort:
@@ -76,6 +77,8 @@ class CoreConfig:
     hygiene: str = "off"  # tools.HYGIENE_MODES: one delivery-hygiene line (on) or its placebo in the solver prompt
     state: bool = False  # run state: harness-run requirement checks, notes, finish re-check (see runstate)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
+    record: bool = False  # the harness's record of the model's own command results, its facts and finish re-run (record)
+    finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
@@ -175,6 +178,11 @@ class _Session:
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.state = runstate.RunState(task, workdir) if config.state and config.role != VERIFIER_ROLE else None
+        self.record = (
+            Record(self.env, workdir, config.control_dir, self.remaining, trace)
+            if config.record and config.role != VERIFIER_ROLE else None
+        )
+        self.held = False  # the neutral finish hold was used
 
     def clone(
         self, env: Environment, timeout_s: float | None = None, read_only: bool = False
@@ -498,6 +506,10 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )
         s.trace("tool", name=name, args=args, result=out, duration_s=duration)
+        if s.record and name == "terminal":
+            fact = await s.record.after_terminal(args, out, s.elapsed())
+            if fact:
+                out = f"{out}\n{fact}"
         out = await _save(s, out)
         if s.state and not finished:
             if name in ("write_file", "edit_file") and not out.startswith("error"):
@@ -719,6 +731,10 @@ async def _fit_context(s: _Session) -> bool:
             kept_messages=len(clm.editable) - 1,
             summary=summary,
         )
+        if s.record:  # the summary is the model's; the exact check results are restated by the harness
+            note = await s.record.after_checkpoint()
+            if note:
+                _attach(clm.editable, note)
         if clm.over_limit():
             s.result.status, s.result.error = (
                 "context_error",
@@ -764,6 +780,14 @@ def _with_state(s: _Session, out: str) -> str:
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
+    if s.record:
+        hold, text, _row = await s.record.at_finish()
+        if hold:
+            return text, False
+    elif s.config.finish_hold == "neutral" and not s.held:
+        s.held = True
+        s.trace("finish_hold", kind="neutral", remaining_s=round(s.remaining(), 1))
+        return NEUTRAL_HOLD.format(left=s.remaining()), False
     if s.state:
         held, text = await s.state.at_finish(s.env, s.remaining(), s.timeout_s)
         s.trace("state_finish", held=held, state=s.state.record())
@@ -826,6 +850,8 @@ def _close(s: _Session) -> None:
         "llm_errors": s.repl.llm_errors,
         "clm": s.clm.stats.__dict__ if s.clm else None,
         "model_calls": s.provider.log.totals(),
+        "record": s.record.summary() if s.record else None,
+        "finish_hold": s.config.finish_hold,
     }
     s.trace(
         "end",

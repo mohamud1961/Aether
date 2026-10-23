@@ -205,7 +205,7 @@ class ChatProvider:
         """The exact client arguments, with sampling and tool parameters grouped under ``params``."""
         params = {
             **self.params,
-            **(overrides or {}),
+            **{k: v for k, v in (overrides or {}).items() if k != "reasoning_effort" or self.params.get(k, "") is not None},
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -214,9 +214,9 @@ class ChatProvider:
             "messages": deepcopy(messages),
             self.limit_field: max_tokens,
         }
-        if (
-            tools is None
-        ):  # plain text call (e.g. a context checkpoint): no tool parameters at all
+        if params.get("reasoning_effort", "") is None:  # a model without effort levels (Flint): never sent
+            params.pop("reasoning_effort")
+        if tools is None:  # plain text call (e.g. a context checkpoint): no tool parameters at all
             params.pop("tool_choice", None)
             params.pop("parallel_tool_calls", None)
         else:

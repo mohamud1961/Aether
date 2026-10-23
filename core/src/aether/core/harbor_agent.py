@@ -28,24 +28,19 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
+from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
 from .tools import HYGIENE_MODES
 
 HARBOR_IMPORT_ERROR = None
 try:  # Utility configuration functions remain importable without the optional framework.
     from harbor.agents.base import BaseAgent
-except (
-    ImportError
-) as exc:  # actual agent construction fails; never pretend Harbor is present
+except ImportError as exc:  # actual agent construction fails; never pretend Harbor is present
     HARBOR_IMPORT_ERROR = exc
 
     class BaseAgent:  # type: ignore[no-redef]
-        def __init__(
-            self, logs_dir: Path, model_name: str | None = None, **kwargs: Any
-        ) -> None:
-            raise RuntimeError(
-                "Harbor adapter unavailable; install aether-core[harbor]"
-            ) from HARBOR_IMPORT_ERROR
+        def __init__(self, logs_dir: Path, model_name: str | None = None, **kwargs: Any) -> None:
+            raise RuntimeError("Harbor adapter unavailable; install aether-core[harbor]") from HARBOR_IMPORT_ERROR
 
 
 REVIEW_ENV = "AETHER_CORE_REVIEW"
@@ -127,7 +122,7 @@ def build_provider(
     sampling = {**SAMPLING, **extra_sampling(environ)}
     params = {
         **(sampling if shape == "chat" else {}),
-        "reasoning_effort": effort,
+        "reasoning_effort": None if effort == "none" else effort,  # none: never sent (no effort levels)
         "tool_choice": "required",
         "parallel_tool_calls": _parallel_reads(environ),
     }
@@ -213,7 +208,15 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         fork=_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"), state=_choice(environ, STATE_ENV, REPL_MODES, "off") == "on",
+        **_record(environ),
     )
+
+
+def _record(environ: Mapping[str, str]) -> dict:
+    record, hold = _choice(environ, RECORD_ENV, REPL_MODES, "off") == "on", _choice(environ, HOLD_ENV, HOLD_MODES, "off")
+    if record and hold != "off":
+        raise ConfigError(f"{RECORD_ENV} and {HOLD_ENV} both act at the first finish; use one")
+    return {"record": record, "finish_hold": hold}
 
 
 def _choice(
@@ -263,9 +266,7 @@ def harbor_clone(environment: Any):
     project = _sanitize_docker_compose_project_name(environment.session_id)
 
     async def make(env: Any, timeout_s: float | None = None, read_only=False) -> Clone:
-        return await compose_clone(
-            env, project, timeout_s=timeout_s, read_only=read_only
-        )
+        return await compose_clone(env, project, timeout_s=timeout_s, read_only=read_only)
 
     return make
 
@@ -276,9 +277,7 @@ def with_clones(config: CoreConfig, environment: Any) -> CoreConfig:
     return replace(config, make_clone=harbor_clone(environment)) if needed else config
 
 
-def agent_timeout(
-    passed: float | None, *, environ: Mapping[str, str] | None = None
-) -> float:
+def agent_timeout(passed: float | None, *, environ: Mapping[str, str] | None = None) -> float:
     environ = os.environ if environ is None else environ
     if passed and math.isfinite(float(passed)) and float(passed) > 0:
         return float(passed)
@@ -288,9 +287,7 @@ def agent_timeout(
     except ValueError:
         value = 0.0
     if not math.isfinite(value) or value <= 0:
-        raise ConfigError(
-            f"no agent timeout: Harbor passed none and {DEADLINE_ENV}={raw!r}"
-        )
+        raise ConfigError(f"no agent timeout: Harbor passed none and {DEADLINE_ENV}={raw!r}")
     return value
 
 
