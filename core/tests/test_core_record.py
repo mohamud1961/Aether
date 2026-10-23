@@ -318,3 +318,17 @@ def test_config_measure_mode():
     c = build_config(environ={**BASE, "AETHER_CORE_RECORD": "measure"})
     assert c.record is True and c.record_measure is True
     assert build_config(environ={**BASE, "AETHER_CORE_RECORD": "on"}).record_measure is False
+
+
+def test_measure_ignores_timing_and_pid_noise_control(tmp_path):
+    """Only the wall-clock and process id differ between versions: not a result, no hold."""
+    async def go(rig):
+        app = rig.work / "srv.py"
+        app.write_text("import os\nprint('Server started with PID', os.getpid())\nprint('took 0.31s')\n")
+        await rig.cmd("python3 srv.py")
+        app.write_text("import os\nprint('Server started with PID', os.getpid())\nprint('took 0.52s')\n# v2\n")
+        await rig.cmd("python3 srv.py")
+        hold, text, row = await rig.record.at_finish()
+        assert row["measured"] == 0 and not hold, text
+
+    run_measure(go, tmp_path)

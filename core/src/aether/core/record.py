@@ -85,10 +85,16 @@ def results(out: str) -> list[str]:
     return seen
 
 
+# run-to-run noise, never a result: shell `time`, process ids, wall-clock durations, timestamps, addresses
+_NOISE = re.compile(r"^(real|user|sys)\s|\bpid\b|\belapsed\b|\btook\b|\d(\.\d+)?\s*(ms|s|sec|secs|seconds)\b|"
+                    r"\d\d:\d\d:\d\d|0x[0-9a-f]{6,}", re.I)
+
+
 def differing(a: str, b: str) -> tuple[list[str], list[str]]:
-    """The result lines only in ``a`` and only in ``b``."""
-    ra, rb = results(a), results(b)
-    return [x for x in ra if x not in rb][:RESULT_LINES], [x for x in rb if x not in ra][:RESULT_LINES]
+    """The result lines only in ``a`` and only in ``b``, the last ones (where checks print verdicts), noise dropped."""
+    ra = [x for x in results(a) if not _NOISE.search(x)]
+    rb = [x for x in results(b) if not _NOISE.search(x)]
+    return [x for x in ra if x not in rb][-RESULT_LINES:], [x for x in rb if x not in ra][-RESULT_LINES:]
 
 
 def norm(command: str) -> str:
