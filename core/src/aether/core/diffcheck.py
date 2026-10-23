@@ -1,30 +1,9 @@
-"""An executable check of the task's output, written from the task alone while the solver works (AETHER_CORE_DIFFCHECK).
+"""Optional candidate-check mechanics (AETHER_CORE_DIFFCHECK).
 
-Why (semantic study, 23 Oct): Flint's wrong deliverables ran: they were wrong in behaviour (a sharded layer that
-diverged from the unsharded one, a port that diverged from the original program, a query that matched the wrong
-rows). Every finish-time lever left them unchanged (the model re-finishes at once), reading checks share the
-solver's prior, and the solver's own checks are fitted to its own file. What did catch such errors was an
-independent, executed comparison against a source of truth the task supplies (the original program, a definition
-in the task, a documented interface), written before seeing the candidate.
-
-What it does:
-- At the first action, a second run of the Core loop (same model, fresh context, its own call-log role and control
-  directory, in the same container) gets the task and a brief (AUTHOR_BRIEF): write ``{dir}/check.py`` comparing
-  a candidate's behaviour with a reference built from the task's own sources, plus ``good_candidate.*`` and
-  ``broken_candidate.*`` and the path of the file to check in ``{dir}/target``. It never sees the solver's work:
-  it starts before there is any, and it is told not to read or change the solver's files.
-- The harness accepts the check only if it behaves as claimed: exit 0 on the good candidate and 1 on the broken
-  one, run by the harness. A check that cannot tell them apart is never shown (traced as rejected).
-- From then on, whenever the target file exists with new content, the harness runs the check (at most once per
-  MIN_GAP_S, each run bounded). A disagreement is appended to the solver's current tool result with the check's
-  own input / expected / actual lines and the command to re-run it, in the terminal workflow the solver already
-  uses. The same disagreement is said once; agreement after a disagreement is said once.
-- The check's source is held by the harness: if the file is changed in the container, the harness's copy is
-  restored before the next run (so a check is never refitted to the candidate), and that is traced.
-
-What it is not: no hold, no verdict, no finish veto. The check can be wrong and says so. The solver decides.
-Limits: the author's terminal commands are not sandboxed; its write_file/edit_file calls outside ``{dir}`` are
-traced as boundary breaches, its shell writes are not seen. One target file per run.
+The author currently runs in the solver's unrestricted environment and can read/change the candidate or race the
+solver. The public start path therefore fails closed until the runtime provides actual isolation. A separate
+directory and a prompt do not establish independence. Separating one supplied good/broken pair proves only that
+those two samples are distinguished; it does not establish oracle correctness.
 """
 
 from __future__ import annotations
@@ -33,11 +12,14 @@ import asyncio
 import base64
 import dataclasses
 import hashlib
+import json
+import os
 import re
 import shlex
+import uuid
 from typing import Any, Awaitable, Callable
 
-from .env import Environment, put_bytes, run
+from .env import Environment, ExecResult, put_bytes, run
 from .oversight import ReviewPlan
 
 DIFFCHECK_ENV = "AETHER_CORE_DIFFCHECK"
@@ -46,17 +28,20 @@ AUTHOR_ROLE = "diffcheck"
 AUTHOR_SHARE, AUTHOR_MAX_S, AUTHOR_MIN_S = 0.35, 900.0, 120.0
 CHECK_S, MIN_GAP_S, RESERVE_S = 300, 60.0, 90.0
 SHOWN_CHARS = 2_500
+MAX_CANDIDATE_BYTES = 16 * 1024 * 1024
 TRACE_FILE = "diffcheck_trace.jsonl"
+_UNVERIFIED_REASON = "same-container author has unrestricted solver-workspace access; no isolation certificate provider exists"
 
-AUTHOR_BRIEF = """Someone else is working on the task below in this container; you will not see their work. Your job: \
-write an executable check that compares a candidate solution's actual behaviour against the best source of truth \
-this task makes available.
+AUTHOR_BRIEF = """The author and solver currently share an unrestricted container. The author may see or change the \
+candidate, and a prompt cannot enforce separation. Do not describe a result as independent. Separating one supplied \
+good/broken pair demonstrates only discrimination of those two samples, not correctness of the check's oracle. Your \
+task, if an isolated runtime explicitly enables it, is to write an executable check from task-supplied sources.
 
 1. List each behaviour the task requires, quoting the task.
 2. Identify the sources of truth available from the task and the files it supplies: an original implementation or \
 program to stay equivalent to, a supplied evaluator or data, a documented format or interface, or a definition in \
 the task you can compute directly. Prefer executing supplied originals over re-implementing them.
-3. Build an independent reference for the required behaviour from those sources.
+3. Build a reference for the required behaviour from those sources.
 4. Choose inputs that discriminate: typical cases, boundaries, unusual combinations, and inputs beyond the examples \
 the task gives.
    Where the task leaves a convention open (a tensor or matrix layout, an ordering, a number or text format, a \
@@ -71,21 +56,22 @@ and exits 1 on any disagreement, 2 if the check itself could not run, 0 if none.
 {dir}/broken_candidate.<ext>, a plausible but wrong variant (check exits 1). The harness re-runs both and uses \
 your check only if they behave so.
 
-Rules: create, change or delete nothing outside {dir} (copy supplied files there if you must modify them). The \
-file the task asks for may not exist yet or be incomplete: do not open it or depend on it. Call finish when the \
-check is validated.
+Rules: create, change or delete nothing outside {dir}. This is not enforced by the current shared environment. \
+Do not report isolation or oracle correctness based only on the sample pair.
 
 The task:
 {task}"""
 
-FOUND = """[independent check: {target} disagrees]
-A check written separately, from the task alone (it never saw your work; it can be wrong), compared your file's \
-behaviour with a reference and found:
+FOUND = """[candidate check result, provenance unverified: {target} disagrees]
+The candidate check reported this difference (the check may be wrong):
 {output}
-Re-run it: python3 {check} --candidate {target}"""
-AGREES = "[independent check: {target} now agrees with it (python3 {check} --candidate {target})]"
+This check separated one supplied good/broken pair; that does not establish oracle correctness. Re-run it: \
+python3 {check} --candidate {target}"""
+AGREES = "[candidate check result, provenance unverified: {target} agrees with the check; this does not establish task correctness (python3 {check} --candidate {target})]"
+INCONCLUSIVE = "[candidate check inconclusive, provenance unverified: {target}: {reason}]"
 
 _NOISE = re.compile(r"\b\d+(\.\d+)?\s*(ms|s|sec|seconds)\b|0x[0-9a-f]+", re.I)
+_DISAGREEMENT = re.compile(r"input:\s*.+?\s*/\s*expected:\s*.+?\s*/\s*actual:\s*.+", re.I | re.S)
 
 
 def author_config(config: Any) -> Any:
@@ -117,21 +103,26 @@ class DiffCheck:
         self.remaining, self.trace, self._author, self.clock = remaining, trace, author, clock
         self.check, self.target = f"{check_dir}/check.py", ""
         self.source = b""  # the accepted check, held by the harness
-        self.state = "idle"  # idle | authoring | ready | rejected | failed
+        self.state = "idle"  # idle | unverified | authoring | ready | rejected | failed | cancelled
         self.job: asyncio.Task[Any] | None = None
         self.last_sha = self.last_shown = ""
         self.last_run = -MIN_GAP_S
         self.runs: list[dict[str, Any]] = []
         self.errors = 0
+        self._started = False
+        self._accepted_manifest: dict[str, str] = {}
+        self._seen_hashes: set[str] = set()
+        self._last_input_issue = ""
+        self.validation = "not_run"
 
     def start(self) -> None:
-        timeout = author_timeout(self.remaining())
-        if timeout is None:
-            self.trace("diffcheck_skipped", reason="too little time", remaining=round(self.remaining()))
+        """Fail closed: this source has no runtime-provided isolation certificate."""
+        if self._started:
             return
-        brief = AUTHOR_BRIEF.format(dir=self.dir, task=self.task, check_s=CHECK_S)
-        self.state, self.job = "authoring", asyncio.ensure_future(self._author(brief, timeout))
-        self.trace("diffcheck_author_started", timeout_s=round(timeout))
+        self._started = True
+        self.state = "unverified"
+        self.trace("diffcheck_admission_blocked", reason=_UNVERIFIED_REASON,
+                   provenance="unverified", author_started=False)
 
     async def after_action(self) -> str:
         """Called after each tool result; returns a note for the solver ('' when there is none)."""
@@ -147,10 +138,25 @@ class DiffCheck:
             return ""
 
     async def _accept(self) -> None:
-        exc = self.job.exception() if self.job and not self.job.cancelled() else None
-        if exc is not None:
+        if self.job is None:
+            self.state = "failed"
+            self.trace("diffcheck_author_failed", reason="missing author task")
+            return
+        if self.job.cancelled():
+            self.state = "cancelled"
+            self.trace("diffcheck_author_cancelled", reason="author task cancelled before acceptance")
+            return
+        try:
+            result = self.job.result()
+        except Exception as exc:
             self.state = "failed"
             self.trace("diffcheck_author_failed", error=f"{type(exc).__name__}: {exc}")
+            return
+        status = getattr(result, "status", None)
+        if status != "finished":
+            self.state = "failed"
+            self.trace("diffcheck_author_inconclusive", status=status or "missing_status",
+                       reason="author did not finish successfully")
             return
         q = shlex.quote
         found = await run(self.env, f"cat {q(self.dir)}/target 2>/dev/null | head -1; echo; "
@@ -167,51 +173,231 @@ class DiffCheck:
             self.trace("diffcheck_rejected", reason="incomplete", target=self.target, files=names)
             return
         self.source = base64.b64decode(encoded.strip())
+        self.validation = "two_sample_discrimination_only"
+        self._accepted_manifest = await self._manifest()
+        if any(value in {"symlink", "unreadable", "non_regular"} for value in self._accepted_manifest.values()):
+            self.state = "rejected"
+            self.trace("diffcheck_rejected", reason="checker inputs contain non-regular or unreadable files")
+            return
         codes = {}
         for name in (good, broken):
             r = await self._exec(f"{self.dir}/{name}")
             codes[name] = r.code
+            if r.code is None or r.code not in (0, 1):
+                self.state = "rejected"
+                self.trace("diffcheck_rejected", reason="two-sample validation inconclusive", exits=codes,
+                           validation="two_sample_discrimination_only", oracle_correctness="unverified")
+                return
         if codes[good] != 0 or codes[broken] != 1:
             self.state = "rejected"
-            self.trace("diffcheck_rejected", reason="does not separate its own candidates", exits=codes)
+            self.trace("diffcheck_rejected", reason="does not separate its two supplied samples", exits=codes,
+                       validation="two_sample_discrimination_only", oracle_correctness="unverified")
+            return
+        if await self._manifest() != self._accepted_manifest:
+            self.state = "rejected"
+            self.trace("diffcheck_rejected", reason="checker or support inputs changed during sample validation",
+                       validation="two_sample_discrimination_only", oracle_correctness="unverified")
             return
         self.state = "ready"
-        self.trace("diffcheck_ready", target=self.target, check_sha=hashlib.sha256(self.source).hexdigest()[:12],
-                   exits=codes)
+        self.trace("diffcheck_candidate_ready_unverified", target=self.target,
+                   check_sha256=hashlib.sha256(self.source).hexdigest(), exits=codes,
+                   validation="two_sample_discrimination_only", oracle_correctness="unverified",
+                   provenance="unverified")
+
+    async def _manifest(self) -> dict[str, str]:
+        """Return hashes of every regular file under the check directory, including support dependencies."""
+        script = """import hashlib,json,os,stat,sys
+root=os.path.abspath(sys.argv[1]); out={}
+for base,dirs,files in os.walk(root,followlinks=False):
+    for name in list(dirs):
+        path=os.path.join(base,name); rel=os.path.relpath(path,root)
+        try: mode=os.lstat(path).st_mode
+        except OSError: out[rel]="unreadable"; dirs.remove(name); continue
+        if stat.S_ISLNK(mode): out[rel]="symlink"; dirs.remove(name)
+    for name in sorted(files):
+        path=os.path.join(base,name); rel=os.path.relpath(path,root)
+        try: mode=os.lstat(path).st_mode
+        except OSError: out[rel]="unreadable"; continue
+        if stat.S_ISLNK(mode): out[rel]="symlink"; continue
+        if not stat.S_ISREG(mode): out[rel]="non_regular"; continue
+        h=hashlib.sha256()
+        try:
+            with open(path,"rb") as f:
+                for b in iter(lambda:f.read(1024*1024),b""): h.update(b)
+            out[rel]=h.hexdigest()
+        except OSError: out[rel]="unreadable"
+print(json.dumps(out,sort_keys=True))
+"""
+        result = await run(self.env, f"python3 -c {shlex.quote(script)} {shlex.quote(self.dir)}", timeout_s=30)
+        if result.code != 0:
+            raise OSError(f"checker-input manifest failed: {result.stderr or result.stdout}")
+        manifest = json.loads(result.stdout)
+        if not isinstance(manifest, dict):
+            raise ValueError("checker-input manifest is not an object")
+        return manifest
 
     async def _exec(self, candidate: str) -> Any:
         q = shlex.quote
         bound = f"$(command -v timeout >/dev/null 2>&1 && echo 'timeout {CHECK_S}')"  # not every image has it
-        return await run(self.env, f"cd {q(self.dir)} && {bound} python3 {q(self.check)} "
-                         f"--candidate {q(candidate)} 2>&1", timeout_s=CHECK_S + 30)
+        command = f"cd {q(self.dir)} && {bound} python3 -B {q(self.check)} --candidate {q(candidate)} 2>&1"
+        try:
+            async with asyncio.timeout(CHECK_S):
+                return await run(self.env, command, timeout_s=CHECK_S + 1)
+        except (TimeoutError, asyncio.TimeoutError):
+            return ExecResult(124, "", "checker timed out")
 
     async def _run(self) -> str:
-        q = shlex.quote
+        issue = await self._verify_inputs()
+        if issue is not None:
+            return issue
+        digest, snapshot, failure = await self._snapshot_target()
+        if failure == "missing":
+            return self._inconclusive("target_missing", self.target, "candidate file is missing")
+        if failure == "too_large":
+            return self._inconclusive("target_too_large", self.target,
+                                      f"candidate exceeds {MAX_CANDIDATE_BYTES} byte snapshot limit")
+        if failure:
+            return self._inconclusive("target_unstable", self.target, "candidate changed while snapshotting")
+        if digest in self._seen_hashes:
+            await self._remove_snapshot(snapshot)
+            return ""
         if self.clock() - self.last_run < MIN_GAP_S:
+            await self._remove_snapshot(snapshot)
             return ""
-        got = await run(self.env, f"[ -s {q(self.target)} ] && sha256sum < {q(self.target)} | cut -c1-16; "
-                        f"sha256sum < {q(self.check)} | cut -c1-16", timeout_s=30)
-        lines = got.stdout.split()
-        if len(lines) < 2 or lines[0] == self.last_sha:
-            return ""
-        if lines[1] != hashlib.sha256(self.source).hexdigest()[:16]:
-            await put_bytes(self.env, self.source, self.check)
-            self.trace("diffcheck_check_restored", check=self.check)
-        self.last_sha, self.last_run = lines[0], self.clock()
-        result = await self._exec(self.target)
+        # An artifact identity gets at most one attempt, including when the checker is inconclusive.
+        self._seen_hashes.add(digest)
+        self.last_sha, self.last_run = digest, self.clock()
+        try:
+            result = await self._exec(snapshot)
+        except (TimeoutError, asyncio.TimeoutError):
+            await self._remove_snapshot(snapshot)
+            self.runs.append({"t": round(self.clock(), 1), "sha": digest, "exit": None, "status": "timeout"})
+            self.trace("diffcheck_run_inconclusive", target=self.target, sha256=digest,
+                       reason="checker timed out", provenance="unverified")
+            return INCONCLUSIVE.format(target=self.target, reason="checker timed out")
+        await self._remove_snapshot(snapshot)
+        if await self._target_hash() != digest:
+            self.runs.append({"t": round(self.clock(), 1), "sha": digest, "exit": result.code,
+                              "status": "inconclusive_changed_during_check"})
+            self.trace("diffcheck_run_inconclusive", target=self.target, sha256=digest,
+                       reason="candidate changed during check", exit=result.code, provenance="unverified")
+            return INCONCLUSIVE.format(target=self.target, reason="candidate changed during check")
+        issue = await self._verify_inputs(after_check=True)
+        if issue is not None:
+            self.runs.append({"t": round(self.clock(), 1), "sha": digest, "exit": result.code,
+                              "status": "inconclusive_checker_inputs_changed"})
+            return issue or INCONCLUSIVE.format(target=self.target, reason="checker/support files changed")
         out = result.stdout.strip()
-        self.runs.append({"t": round(self.clock(), 1), "sha": lines[0], "exit": result.code})
-        self.trace("diffcheck_run", target=self.target, sha=lines[0], exit=result.code, output=out[-SHOWN_CHARS:])
-        if result.code == 1:
+        if result.code is None or result.code not in (0, 1):
+            reason = "checker timed out" if result.code == 124 else f"checker exited inconclusively ({result.code})"
+            self.runs.append({"t": round(self.clock(), 1), "sha": digest, "exit": result.code,
+                              "status": "inconclusive"})
+            self.trace("diffcheck_run_inconclusive", target=self.target, sha256=digest, exit=result.code,
+                       reason=reason, output=out[-SHOWN_CHARS:], provenance="unverified")
+            return INCONCLUSIVE.format(target=self.target, reason=reason)
+        status = "agrees" if result.code == 0 else "disagrees"
+        if result.code == 1 and not _DISAGREEMENT.search(out):
+            status = "inconclusive"
+        self.runs.append({"t": round(self.clock(), 1), "sha": digest, "exit": result.code, "status": status})
+        self.trace("diffcheck_run", target=self.target, sha256=digest, exit=result.code, status=status,
+                   output=out[-SHOWN_CHARS:], provenance="unverified")
+        if status == "disagrees":
             key = _NOISE.sub("", out)
             if key == self.last_shown:
                 return ""
             self.last_shown = key
             return FOUND.format(target=self.target, output=out[-SHOWN_CHARS:], check=self.check)
-        if result.code == 0 and self.last_shown:
+        if status == "inconclusive":
+            return INCONCLUSIVE.format(target=self.target, reason="exit 1 without input/expected/actual evidence")
+        if status == "agrees" and self.last_shown:
             self.last_shown = ""
             return AGREES.format(target=self.target, check=self.check)
         return ""
+
+    async def _verify_inputs(self, *, after_check: bool = False) -> str | None:
+        """Restore the checker source; refuse to run when any other checker/support file changed or disappeared."""
+        if not self._accepted_manifest:
+            return self._inconclusive("missing_input_manifest", self.dir, "checker inputs were not sealed")
+        current = await self._manifest()
+        changed = sorted(name for name in set(current) | set(self._accepted_manifest)
+                         if current.get(name) != self._accepted_manifest.get(name))
+        if "check.py" in changed:
+            await put_bytes(self.env, self.source, self.check)
+            self.trace("diffcheck_check_restored", check=self.check, reason="checker source changed or deleted")
+            if after_check:
+                return self._inconclusive("checker_changed_during_check", self.check,
+                                          "checker source changed during check")
+            current = await self._manifest()
+            changed = sorted(name for name in set(current) | set(self._accepted_manifest)
+                             if current.get(name) != self._accepted_manifest.get(name))
+        if changed:
+            fingerprint = hashlib.sha256(json.dumps(current, sort_keys=True).encode()).hexdigest()
+            return self._inconclusive("checker_inputs_changed", ", ".join(changed),
+                                      "checker/support files changed or were deleted", fingerprint)
+        self._last_input_issue = ""
+        return None
+
+    def _inconclusive(self, kind: str, target: str, reason: str, fingerprint: str = "") -> str:
+        identity = f"{kind}:{fingerprint or target}"
+        if identity == self._last_input_issue:
+            return ""
+        self._last_input_issue = identity
+        self.trace("diffcheck_input_inconclusive", kind=kind, target=target, reason=reason,
+                   provenance="unverified")
+        return INCONCLUSIVE.format(target=target, reason=reason)
+
+    async def _snapshot_target(self) -> tuple[str, str, str]:
+        """Take a stable full-content snapshot before running the checker."""
+        suffix = os.path.splitext(self.target)[1] or ".candidate"
+        snapshot = os.path.join(os.path.dirname(self.target), f".aether-diffcheck-{uuid.uuid4().hex}{suffix}")
+        script = """import hashlib,json,os,stat,sys,tempfile
+src,dst=sys.argv[1:3]; limit=int(sys.argv[3])
+try: before=os.lstat(src)
+except FileNotFoundError:
+    print(json.dumps({"status":"missing"})); sys.exit(3)
+if not stat.S_ISREG(before.st_mode):
+    print(json.dumps({"status":"unstable"})); sys.exit(4)
+if before.st_size > limit:
+    print(json.dumps({"status":"too_large"})); sys.exit(6)
+try:
+    with open(src,"rb") as f: data=f.read(limit+1)
+    after=os.lstat(src)
+except FileNotFoundError:
+    print(json.dumps({"status":"unstable"})); sys.exit(5)
+if len(data) > limit:
+    print(json.dumps({"status":"too_large"})); sys.exit(6)
+if (before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)!=(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns) or len(data)!=after.st_size:
+    print(json.dumps({"status":"unstable"})); sys.exit(5)
+h=hashlib.sha256(data).hexdigest(); parent=os.path.dirname(dst) or "."; os.makedirs(parent,exist_ok=True)
+fd,tmp=tempfile.mkstemp(prefix=".diffcheck-",dir=parent)
+try:
+    with os.fdopen(fd,"wb") as f: f.write(data); f.flush(); os.fsync(f.fileno())
+    os.chmod(tmp,stat.S_IMODE(before.st_mode))
+    os.replace(tmp,dst)
+except BaseException:
+    try: os.unlink(tmp)
+    except OSError: pass
+    raise
+print(json.dumps({"status":"ok","sha256":h}))
+"""
+        result = await run(self.env, f"python3 -c {shlex.quote(script)} {shlex.quote(self.target)} "
+                           f"{shlex.quote(snapshot)} {MAX_CANDIDATE_BYTES}", timeout_s=30)
+        try:
+            payload = json.loads(result.stdout)
+        except (ValueError, TypeError):
+            return "", snapshot, "unstable"
+        if payload.get("status") != "ok":
+            return "", snapshot, payload.get("status", "unstable")
+        return payload["sha256"], snapshot, ""
+
+    async def _target_hash(self) -> str | None:
+        script = "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())"
+        result = await run(self.env, f"python3 -c {shlex.quote(script)} {shlex.quote(self.target)} 2>/dev/null",
+                           timeout_s=30)
+        return result.stdout.strip() if result.code == 0 else None
+
+    async def _remove_snapshot(self, snapshot: str) -> None:
+        await run(self.env, f"rm -f -- {shlex.quote(snapshot)}", timeout_s=10)
 
     async def close(self) -> None:
         if self.job is not None and not self.job.done():
@@ -220,8 +406,11 @@ class DiffCheck:
                 await self.job
             except BaseException:  # the author's cancellation is the expected outcome here
                 pass
-            self.trace("diffcheck_author_cancelled")
+            self.state = "cancelled"
+            self.trace("diffcheck_author_cancelled", reason="author task cancelled during close")
 
     def summary(self) -> dict[str, Any]:
         return {"state": self.state, "target": self.target, "runs": self.runs, "errors": self.errors,
-                "shown": sum(1 for r in self.runs if r["exit"] == 1)}
+                "shown": sum(1 for r in self.runs if r.get("status") == "disagrees"),
+                "provenance": "unverified", "oracle_correctness": "unverified",
+                "validation": self.validation}

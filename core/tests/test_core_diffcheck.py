@@ -1,11 +1,14 @@
-"""The differential check (AETHER_CORE_DIFFCHECK): a check written from the task alone, accepted only if it separates
-its own good and broken candidates, run by the harness on the solver's file. Real files, real python3 processes;
-the author is scripted (it writes the files a model would write). Each test fails without the mechanism."""
+"""Offline component mechanics plus the public fail-closed admission path.
+
+The scripted author tests do not establish author isolation or oracle correctness. The loop test checks that no
+same-container author run occurs.
+"""
 
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
 from aether.core import diffcheck
 from aether.core.diffcheck import DiffCheck, author_config
@@ -29,12 +32,24 @@ for x in (0, 1, -3, 10**12):
         print(f"input: {x} / expected: {2 * x} / actual: {got}"); bad += 1
 sys.exit(1 if bad else 0)
 '''
+CHECK_WITH_SUPPORT = '''import argparse, importlib.util, sys
+import reference
+p = argparse.ArgumentParser(); p.add_argument("--candidate"); a = p.parse_args()
+spec = importlib.util.spec_from_file_location("cand", a.candidate); m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+for x in (0, 1, -3, 10**12):
+    expected = reference.double(x); actual = m.double(x)
+    if actual != expected:
+        print(f"input: {x} / expected: {expected} / actual: {actual}"); sys.exit(1)
+sys.exit(0)
+'''
 GOOD, BROKEN = "def double(x):\n    return 2 * x\n", "def double(x):\n    return x + 2\n"
+REFERENCE = "def double(x):\n    return 2 * x\n"
 
 
 class Rig:
     def __init__(self, root: Path, *, check: str = CHECK, broken: str = BROKEN, fail: bool = False,
-                 remaining: float = 3600.0) -> None:
+                 remaining: float = 3600.0, status: str = "finished", support: str | None = None) -> None:
         self.root, self.dir, self.target = root, root / "dc", root / "app" / "double.py"
         self.dir.mkdir()
         self.target.parent.mkdir()
@@ -42,6 +57,7 @@ class Rig:
         self.briefs: list[str] = []
         self.now = 0.0
         self.check, self.broken, self.fail = check, broken, fail
+        self.status, self.support = status, support
         self.dc = DiffCheck(LocalEnv(root), f"Write {self.target} defining double(x).", str(self.dir),
                             lambda: remaining, lambda event, **data: self.rows.append((event, data)), self.author,
                             lambda: self.now)
@@ -54,6 +70,17 @@ class Rig:
         (self.dir / "good_candidate.py").write_text(GOOD)
         (self.dir / "broken_candidate.py").write_text(self.broken)
         (self.dir / "target").write_text(f"{self.target}\n")
+        if self.support is not None:
+            (self.dir / "reference.py").write_text(self.support)
+        return SimpleNamespace(status=self.status)
+
+    async def prime_component(self) -> None:
+        """Bypass public admission to test deterministic checker mechanics only."""
+        self.dc.state = "authoring"
+        brief = diffcheck.AUTHOR_BRIEF.format(dir=str(self.dir), task=self.dc.task, check_s=diffcheck.CHECK_S)
+        self.dc.job = asyncio.create_task(self.author(brief, 10.0))
+        await asyncio.gather(self.dc.job, return_exceptions=True)
+        await self.dc._accept()
 
     async def step(self, content: str | None = None, advance: float = 61.0) -> str:
         if content is not None:
@@ -69,7 +96,7 @@ class Rig:
 def run(fn, tmp_path, **kw):
     async def go():
         rig = Rig(tmp_path, **kw)
-        rig.dc.start()
+        await rig.prime_component()
         try:
             return await fn(rig)
         finally:
@@ -78,14 +105,16 @@ def run(fn, tmp_path, **kw):
     return asyncio.run(go())
 
 
-def test_a_wrong_file_gets_the_checks_own_disagreement_and_the_command_to_rerun_it(tmp_path):
+def test_a_wrong_file_gets_only_a_provenance_unverified_candidate_check_result(tmp_path):
     async def go(rig):
         note = await rig.step("def double(x):\n    return x * x\n")
-        assert "[independent check: " in note and "disagrees" in note
+        assert "[candidate check result, provenance unverified:" in note and "disagrees" in note
         assert "input: 1 / expected: 2 / actual: 1" in note
         assert f"python3 {rig.dir}/check.py --candidate {rig.target}" in note
-        assert "can be wrong" in note
-        assert rig.dc.state == "ready" and "diffcheck_ready" in rig.events()
+        assert "may be wrong" in note
+        assert "does not establish oracle correctness" in note
+        assert rig.dc.state == "ready" and "diffcheck_candidate_ready_unverified" in rig.events()
+        assert rig.dc.summary()["validation"] == "two_sample_discrimination_only"
 
     run(go, tmp_path)
 
@@ -102,7 +131,7 @@ def test_the_same_disagreement_is_said_once_and_agreement_after_it_once(tmp_path
     async def go(rig):
         assert "disagrees" in await rig.step("def double(x):\n    return x * x\n")
         assert await rig.step("def double(x):\n    return x * x  # same behaviour\n") == ""
-        assert "now agrees" in await rig.step(GOOD)
+        assert "agrees with the check" in await rig.step(GOOD)
         assert await rig.step(GOOD + "# still right\n") == ""
 
     run(go, tmp_path)
@@ -156,21 +185,234 @@ def test_an_author_failure_is_traced_and_says_nothing(tmp_path):
     run(go, tmp_path, fail=True)
 
 
-def test_no_author_when_too_little_time_is_left(tmp_path):
-    async def go(rig):
-        assert rig.dc.job is None and rig.events() == ["diffcheck_skipped"]
+def test_public_start_fails_closed_and_never_launches_author(tmp_path):
+    async def go():
+        rig = Rig(tmp_path)
+        rig.dc.start()
+        assert rig.dc.state == "unverified" and rig.dc.job is None and rig.briefs == []
+        assert rig.events() == ["diffcheck_admission_blocked"]
+        assert (await rig.step("def double(x):\n    return x * x\n")) == ""
+        assert rig.dc.runs == []
+        assert rig.dc.summary()["oracle_correctness"] == "unverified"
+        assert rig.dc.summary()["validation"] == "not_run"
 
-    run(go, tmp_path, remaining=200.0)
+    asyncio.run(go())
 
 
-def test_the_brief_is_the_task_alone_and_forbids_the_solvers_files(tmp_path):
+def test_the_brief_does_not_claim_the_author_cannot_see_solver_files(tmp_path):
     async def go(rig):
         await rig.step()
         brief = rig.briefs[0]
-        assert brief.endswith(f"The task:\nWrite {rig.target} defining double(x).")
-        assert "do not open it or depend on it" in brief and "nothing outside" in brief
+        assert "author may see or change the candidate" in brief
+        assert "prompt cannot enforce separation" in brief
+        assert "only discrimination of those two samples" in brief
+        assert "not correctness of the check's oracle" in brief
 
     run(go, tmp_path)
+
+
+def test_deleted_check_is_restored_but_deleted_support_file_blocks_run(tmp_path):
+    async def go(rig):
+        (rig.dir / "check.py").unlink()
+        note = await rig.step("def double(x):\n    return x * x\n")
+        assert "disagrees" in note
+        assert (rig.dir / "check.py").read_text() == CHECK
+        assert "diffcheck_check_restored" in rig.events()
+
+    run(go, tmp_path)
+
+
+def test_changed_support_dependency_is_inconclusive(tmp_path):
+    async def go(rig):
+        (rig.dir / "reference.py").write_text("def double(x):\n    return x + 2\n")
+        note = await rig.step("def double(x):\n    return x * x\n")
+        assert "checker/support files changed or were deleted" in note
+        assert rig.dc.runs == []
+
+    run(go, tmp_path, check=CHECK_WITH_SUPPORT, support=REFERENCE)
+
+
+def test_deleted_support_dependency_is_inconclusive(tmp_path):
+    async def go(rig):
+        (rig.dir / "reference.py").unlink()
+        note = await rig.step("def double(x):\n    return x * x\n")
+        assert "checker/support files changed or were deleted" in note
+        assert rig.dc.runs == []
+
+    run(go, tmp_path, check=CHECK_WITH_SUPPORT, support=REFERENCE)
+
+
+def test_added_symlink_support_directory_is_inconclusive(tmp_path):
+    async def go(rig):
+        outside = rig.root / "outside"
+        outside.mkdir()
+        (outside / "reference.py").write_text(REFERENCE)
+        (rig.dir / "linked-reference").symlink_to(outside, target_is_directory=True)
+        note = await rig.step(GOOD)
+        assert "checker/support files changed or were deleted" in note
+        assert rig.dc.runs == []
+
+    run(go, tmp_path)
+
+
+def test_missing_candidate_is_inconclusive_not_agreement(tmp_path):
+    async def go(rig):
+        note = await rig.step()
+        assert "candidate file is missing" in note
+        assert rig.dc.runs == []
+
+    run(go, tmp_path)
+
+
+def test_candidate_snapshot_is_bounded(tmp_path):
+    async def go(rig):
+        note = await rig.step("x" * (diffcheck.MAX_CANDIDATE_BYTES + 1))
+        assert "candidate exceeds 16777216 byte snapshot limit" in note
+        assert rig.dc.runs == []
+
+    run(go, tmp_path)
+
+
+def test_candidate_snapshot_preserves_file_mode(tmp_path):
+    async def go(rig):
+        rig.target.write_text(GOOD)
+        rig.target.chmod(0o751)
+        rig.now += 61.0
+        assert await rig.dc.after_action() == ""
+        assert rig.dc.runs[-1]["exit"] == 0
+
+    check = "\n".join([
+        "import argparse, os, pathlib, sys",
+        "p=argparse.ArgumentParser(); p.add_argument('--candidate'); a=p.parse_args()",
+        "name=pathlib.Path(a.candidate).name",
+        "if name.startswith('good_candidate'): sys.exit(0)",
+        "if name.startswith('broken_candidate'):",
+        "    print('input: 1 / expected: 2 / actual: 3'); sys.exit(1)",
+        "if '.aether-diffcheck-' in name and os.stat(a.candidate).st_mode & 0o777 != 0o751:",
+        "    sys.exit(2)",
+        "sys.exit(0)",
+    ])
+    run(go, tmp_path, check=check)
+
+
+def test_changed_candidate_during_subprocess_check_is_discarded(tmp_path):
+    async def go(rig):
+        marker = rig.root / "checker-started"
+        slow_check = CHECK.replace(
+            "bad = 0",
+            f"from pathlib import Path\nimport time\nPath({str(marker)!r}).write_text('started')\n"
+            "time.sleep(0.25)\nbad = 0",
+        )
+        rig.check = slow_check
+        rig.dc.state = "authoring"
+        brief = diffcheck.AUTHOR_BRIEF.format(dir=str(rig.dir), task=rig.dc.task, check_s=diffcheck.CHECK_S)
+        rig.dc.job = asyncio.create_task(rig.author(brief, 10.0))
+        await asyncio.gather(rig.dc.job, return_exceptions=True)
+        await rig.dc._accept()
+        marker.unlink(missing_ok=True)  # ignore the marker from two-sample validation
+        task = asyncio.create_task(rig.step("def double(x):\n    return x * x\n"))
+        for _ in range(200):
+            if marker.exists():
+                break
+            await asyncio.sleep(0.005)
+        assert marker.exists(), "checker subprocess did not start"
+        rig.target.write_text(GOOD)
+        note = await task
+        assert "candidate changed during check" in note
+        assert rig.dc.runs[-1]["status"] == "inconclusive_changed_during_check"
+        assert "disagrees" not in note
+
+    run(go, tmp_path)
+
+
+def test_checker_changed_during_run_is_restored_and_result_discarded(tmp_path):
+    async def go(rig):
+        note = await rig.step("def double(x):\n    return x * x\n")
+        assert "checker source changed during check" in note, (note, rig.rows, rig.dc.runs)
+        assert rig.dc.runs[-1]["status"] == "inconclusive_checker_inputs_changed"
+        assert (rig.dir / "check.py").read_text() == rig.check
+
+    check = "\n".join([
+        "import argparse, pathlib, sys",
+        "p=argparse.ArgumentParser(); p.add_argument('--candidate'); a=p.parse_args()",
+        "name=pathlib.Path(a.candidate).name",
+        "if name.startswith('good_candidate'): sys.exit(0)",
+        "if '.aether-diffcheck-' in a.candidate:",
+        "    pathlib.Path(__file__).write_text('changed')",
+        "print('input: 1 / expected: 2 / actual: 1')",
+        "sys.exit(1)",
+    ])
+    run(go, tmp_path, check=check)
+
+
+def test_cancelled_author_is_not_accepted(tmp_path):
+    async def go():
+        rig = Rig(tmp_path)
+        rig.dc.state = "authoring"
+
+        async def wait_forever():
+            await asyncio.Future()
+
+        rig.dc.job = asyncio.create_task(wait_forever())
+        rig.dc.job.cancel()
+        await asyncio.sleep(0)
+        await rig.dc.after_action()
+        assert rig.dc.state == "cancelled" and rig.dc.runs == []
+        assert "diffcheck_author_cancelled" in rig.events()
+
+    asyncio.run(go())
+
+
+def test_author_timeout_status_is_not_accepted(tmp_path):
+    async def go(rig):
+        assert rig.dc.state == "failed" and rig.dc.runs == []
+        event = next(data for name, data in rig.rows if name == "diffcheck_author_inconclusive")
+        assert event["status"] == "timeout"
+
+    run(go, tmp_path, status="timeout")
+
+
+def test_checker_inconclusive_status_is_recorded_once_per_artifact(tmp_path):
+    async def go(rig):
+        note = await rig.step(GOOD)
+        assert "checker exited inconclusively (2)" in note
+        assert rig.dc.runs[-1]["status"] == "inconclusive"
+        assert await rig.step(advance=61.0) == ""
+        assert len(rig.dc.runs) == 1
+
+    check = '''import os,sys
+name=os.path.basename(sys.argv[sys.argv.index("--candidate")+1])
+if name.startswith("good_candidate"): sys.exit(0)
+if name.startswith("broken_candidate"):
+    print("input: 1 / expected: 2 / actual: 3"); sys.exit(1)
+sys.exit(2)
+'''
+    run(go, tmp_path, check=check)
+
+
+def test_checker_timeout_is_reported_as_inconclusive(tmp_path):
+    async def go(rig):
+        original = diffcheck.CHECK_S
+        diffcheck.CHECK_S = 0.01
+        try:
+            note = await rig.step(GOOD)
+            assert "checker timed out" in note
+            assert rig.dc.runs[-1]["status"] == "inconclusive"
+            assert await rig.step(advance=61.0) == ""
+            assert len(rig.dc.runs) == 1
+        finally:
+            diffcheck.CHECK_S = original
+            # LocalEnv waits are cancelled; let the tiny fixture process exit before cleanup.
+            await asyncio.sleep(0.35)
+
+    check = '''import os,sys,time
+name=os.path.basename(sys.argv[sys.argv.index("--candidate")+1])
+if name.startswith("good_candidate"): sys.exit(0)
+if name.startswith("broken_candidate"):
+    print("input: 1 / expected: 2 / actual: 3"); sys.exit(1)
+time.sleep(0.25)
+'''
+    run(go, tmp_path, check=check)
 
 
 def test_flag_and_author_configuration():
@@ -182,7 +424,7 @@ def test_flag_and_author_configuration():
     assert author.control_dir.endswith("-diffcheck") and author.clm.mirror_path.startswith(author.control_dir)
 
 
-# ---- through the loop: the author is a second Core run on the same provider, its note reaches the solver ----
+# ---- through the loop: same-container author is blocked before any model call ----
 
 from aether.core.calls import CallLog  # noqa: E402
 from aether.core.clm import ClmSettings  # noqa: E402
@@ -197,18 +439,18 @@ def _turn(name, args, call_id):
 
 
 class RoleClient:
-    """Serves the author's script to requests whose task is the author's brief, the solver's script otherwise."""
+    """Keeps an author script available so an accidental author call is observable."""
 
     def __init__(self, solver: list, author: list) -> None:
         self.solver, self.author = ScriptedClient(solver), ScriptedClient(author)
         self.chat = type("C", (), {"completions": type("D", (), {"create": self._create})()})()
 
     async def _create(self, **kwargs):
-        mine = any("Someone else is working on the task" in str(m.get("content")) for m in kwargs["messages"])
+        mine = any("author may see or change the candidate" in str(m.get("content")) for m in kwargs["messages"])
         return await (self.author if mine else self.solver).chat.completions.create(**kwargs)
 
 
-def test_the_loop_runs_the_author_and_shows_the_disagreement_in_the_solvers_next_result(tmp_path):
+def test_the_loop_blocks_the_shared_environment_author(tmp_path):
     work, ctl = tmp_path / "work", tmp_path / "ctl"
     work.mkdir()
     ctl.mkdir()
@@ -226,11 +468,11 @@ def test_the_loop_runs_the_author_and_shows_the_disagreement_in_the_solvers_next
                         clm=ClmSettings(mirror_path=f"{ctl}/ctx/LIVE_CTX.txt", history_path=f"{ctl}/ctx/HISTORY.txt"))
     result = asyncio.run(run_agent(env=LocalEnv(work), task=task, workdir=str(work), provider=provider,
                                    timeout_s=900, trace=Trace(tmp_path / "logs" / "core_trace.jsonl"), config=config))
-    assert result.status == "finished" and not client.solver.script and not client.author.script
+    assert result.status == "finished" and not client.solver.script
+    assert client.author.script  # the author model script was not consumed
     shown = [m["content"] for r in client.solver.requests for m in r["messages"] if m.get("role") == "tool"]
-    assert any("disagrees" in c and "input: 1 / expected: 2 / actual: 1" in c for c in shown)
-    assert not any("Someone else is working" in str(m.get("content")) for r in client.solver.requests
-                   for m in r["messages"])  # the solver never sees the author's brief
-    assert result.extras["diffcheck"]["state"] == "ready" and result.extras["diffcheck"]["shown"] >= 1
-    assert set(provider.log.by_role) == {"worker", diffcheck.AUTHOR_ROLE}
-    assert (tmp_path / "logs" / diffcheck.TRACE_FILE).exists()
+    assert not any("candidate check" in c for c in shown)
+    assert result.extras["diffcheck"]["state"] == "unverified"
+    assert result.extras["diffcheck"]["provenance"] == "unverified"
+    assert result.extras["diffcheck"]["runs"] == []
+    assert set(provider.log.by_role) == {"worker"}
