@@ -400,3 +400,28 @@ def test_a_check_script_the_work_deleted_is_not_rerun_and_does_not_hold(tmp_path
         assert not hold and row["reruns"][0]["exit"] is None and "test.pl" in row["reruns"][0]["skipped"], text
 
     run(go, tmp_path)
+
+
+def test_paths_mode_states_only_missing_named_paths_and_records_no_checks(tmp_path):
+    async def go(rig):
+        rig.record.paths_only = True
+        clock = {"left": 600.0}
+        rig.record.remaining = lambda: clock["left"]
+        rig.record.total = 600.0
+        (rig.work / "t.py").write_text("print('ok')\n")
+        await rig.cmd("python3 t.py")
+        clock["left"] = 100.0  # straight to the 80% point: one notice, missing path only
+        late = await rig.cmd("ls")
+        assert "do not exist yet" in late and "out.json" in late and rig.record.checks == []
+        hold, text, row = await rig.record.at_finish()
+        assert hold and "out.json" in text and "reruns" not in row
+        (rig.work / "out.json").write_text("{}")
+        rig.record.finish_seen = False
+        assert (await rig.record.at_finish())[0] is False  # created: nothing to say
+
+    run_measure(go, tmp_path, task="Write the result to WORK/out.json.")
+
+
+def test_config_paths_mode():
+    c = build_config(environ={**BASE, "AETHER_CORE_RECORD": "paths"})
+    assert c.record and c.record_measure and c.record_paths

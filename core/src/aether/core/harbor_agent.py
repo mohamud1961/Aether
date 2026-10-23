@@ -216,7 +216,8 @@ def _record(environ: Mapping[str, str]) -> dict:
     mode, hold = _choice(environ, RECORD_ENV, RECORD_MODES, "off"), _choice(environ, HOLD_ENV, HOLD_MODES, "off")
     if mode != "off" and hold != "off":
         raise ConfigError(f"{RECORD_ENV} and {HOLD_ENV} both act at the first finish; use one")
-    return {"record": mode != "off", "record_measure": mode == "measure", "finish_hold": hold}
+    return {"record": mode != "off", "record_measure": mode in ("measure", "paths"), "record_paths": mode == "paths",
+            "finish_hold": hold}
 
 
 def _choice(

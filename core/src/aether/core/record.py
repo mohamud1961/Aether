@@ -42,7 +42,8 @@ _EXEC = {
 }
 _PREFIX = {"sudo", "time", "nice", "env", "nohup", "stdbuf", "exec", "command"}
 _NOT_RUN = re.compile(r"(-m pip\b|\bpip3? |\buv (pip|add|venv|sync)|\bnpm (i|install|ci)\b|\bapt(-get)? )")
-RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure")  # on: record, facts, finish re-run
+RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure", "paths")  # on: record, facts, re-run;
+# paths: only the task-named paths that do not exist yet (at half time, 80% and the first finish)
 HOLD_ENV, HOLD_MODES = "AETHER_CORE_FINISH_HOLD", ("off", "neutral")  # neutral: first finish held once, no facts
 MAX_FILES = 300
 SAVE_BYTES = 5_000_000
@@ -134,8 +135,9 @@ class Check:
 class Record:
     def __init__(
         self, env: Environment, workdir: str, control_dir: str, remaining: Callable[[], float], trace,
-        measure: bool = False, task: str = "",
+        measure: bool = False, task: str = "", paths_only: bool = False,
     ) -> None:
+        self.paths_only = paths_only
         self.env, self.workdir, self.control_dir, self.measure = env, workdir, control_dir, measure
         self.remaining, self.trace = remaining, trace
         self.versions = f"{control_dir}/versions"
@@ -175,6 +177,8 @@ class Record:
                 self.to_create = []
                 self.to_create = await self._missing(self.named)
                 self.trace("record_named", named=self.named, absent_at_start=self.to_create)
+            if self.paths_only:
+                return await self._late()
             done = self.completed(args, out)
             if done is None or not is_check(done[0]):
                 return await self._late()
@@ -226,7 +230,7 @@ class Record:
         if self.late_done or used < LATE_AT:
             return ""
         self.late_done = self.mid_done = True
-        facts = self._measured(await self.snapshot(save=False), [])
+        facts = [] if self.paths_only else self._measured(await self.snapshot(save=False), [])
         absent = await self._absent()
         if absent:
             facts.append(f"- Paths the task names that do not exist yet: {', '.join(absent)}")
@@ -314,6 +318,14 @@ class Record:
             return False, "", {"examined": False}
         self.finish_seen = True
         row: dict[str, Any] = {"examined": True, "checks": len(self.checks)}
+        if self.paths_only:
+            absent = await self._absent()
+            row.update(absent=absent, hold=bool(absent))
+            self.trace("record_finish", **row)
+            if not absent:
+                return False, "", row
+            return True, (f"[finish not yet accepted] Paths the task names that do not exist: {', '.join(absent)}. "
+                          f"You have {self.remaining():.0f}s. Create them, or call finish again to finish as is."), row
         try:
             delivered = await self.snapshot(save=True)
         except Exception as exc:
