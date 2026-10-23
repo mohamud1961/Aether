@@ -457,8 +457,8 @@ def test_input_refused_by_a_busy_terminal_names_every_way_out(tmp_path):
     assert 'mode="keys"' in first
 
 
-def test_keys_without_enter_at_a_quiet_prompt_say_nothing_was_submitted(tmp_path):
-    # P2 (10-22) vulnerable-secret: "echo hi" sent 53 times in keys mode, no Enter, each answered "(no new output)".
+def test_quiet_shell_prompt_waits_for_enter_before_executing_raw_keys(tmp_path):
+    # At a quiet shell prompt, input may be buffered until Enter; silence alone is not a delivery receipt.
     async def go():
         t, _ = _terms(tmp_path)
         await t.use(input="true")
@@ -467,5 +467,29 @@ def test_keys_without_enter_at_a_quiet_prompt_say_nothing_was_submitted(tmp_path
         return typed, entered
 
     typed, entered = asyncio.run(go())
-    assert "nothing was submitted" in typed
-    assert "nothing was submitted" not in entered
+    assert "(no new output)" in typed
+    assert "nothing was submitted" not in typed
+    assert "no new output after these keys" in typed
+    assert "hi" in entered
+
+
+def test_quiet_foreground_reader_may_consume_keys_without_enter(tmp_path):
+    # A quiet foreground stdin reader can consume raw bytes even when its output is empty.
+    async def go():
+        t, work = _terms(tmp_path)
+        command = (
+            "stty -icanon -echo 2>/dev/null || true; "
+            "python3 -c 'import sys; from pathlib import Path; "
+            "Path(\"captured-keys\").write_bytes(sys.stdin.buffer.read(3))'"
+        )
+        started = await t.use(input=command, wait_s=0.5)
+        sent = await t.use(input="abc", mode="keys", wait_s=2)
+        return started, sent, (work / "captured-keys").read_bytes()
+
+    started, sent, captured = asyncio.run(go())
+    assert "still running" in started
+    assert captured == b"abc"
+    assert "[exit 0" in sent
+    assert "nothing was submitted" not in sent
+    assert "no new output after these keys" in sent
+    assert "Silence cannot show whether the input was accepted" in sent

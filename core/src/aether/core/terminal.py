@@ -377,8 +377,12 @@ class Terminals:
             return note + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
         keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input) if mode == "keys" else ""
         if keys.strip() and keys.isprintable() and out.startswith("(no new output)"):
-            # P2 (10-22) vulnerable-secret: "echo hi" typed 53 times without Enter, each answered only by silence
-            out += "\n[keys sent without Enter: they wait on the current input line and nothing was submitted; end them with \\n]"
+            # Silence does not reveal whether a foreground program consumed raw input.
+            out += (
+                "\n[no new output after these keys; the foreground program may have "
+                "consumed them. Silence cannot show whether the input was accepted. "
+                "Send \\n only if the current program expects it.]"
+            )
         return note + out
 
     async def _restart(self, session: Session, start: bool = True) -> Session:

@@ -493,6 +493,12 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     buffered: dict[int, tuple[dict, str, bool, float]] = {}
     for index, call in enumerate(calls):
         name = call["function"]["name"]
+        if name == "finish" and failed:
+            # The ordinary end-of-turn probe below is skipped when finish ends
+            # this response. Check here so a same-response finish cannot hide
+            # an earlier tool or context-mirror failure. A live sandbox still
+            # permits the model to finish after an ordinary tool error.
+            await _require_environment(s)
         if s.config.parallel_reads and name == "read_file" and index not in buffered:
             end = index
             while end < len(calls) and calls[end]["function"]["name"] == "read_file":
@@ -554,8 +560,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     return False
 
 
-class EnvironmentLost(RuntimeError):
-    """The sandbox stopped answering mid-run; the run ends as ``environment_error``."""
+class EnvironmentUnverified(RuntimeError):
+    """A failed probe could not confirm the sandbox is live; the run ends as ``environment_error``."""
 
 
 async def _require_environment(s: _Session) -> None:
@@ -564,8 +570,12 @@ async def _require_environment(s: _Session) -> None:
     error = ""
     for attempt in range(2):
         try:
-            await run(s.env, "true", timeout_s=20)
-            return
+            probe = await run(s.env, "true", timeout_s=20)
+            if probe.code == 0:
+                return
+            error = f"'true' probe did not report exit 0 (reported {probe.code})"
+            if probe.stderr or probe.stdout:
+                error += f": {(probe.stderr or probe.stdout).strip()[:200]}"
         except TimeoutError:
             if s.remaining() <= 0:
                 raise
@@ -574,8 +584,8 @@ async def _require_environment(s: _Session) -> None:
             error = f"{type(exc).__name__}: {exc}"
         if attempt == 0:
             await asyncio.sleep(2)
-    s.trace("environment_lost", error=error)
-    raise EnvironmentLost(f"the sandbox stopped answering: {error}")
+    s.trace("environment_unverified", error=error)
+    raise EnvironmentUnverified(f"the sandbox could not be confirmed live: {error}")
 
 
 async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
