@@ -387,3 +387,16 @@ def test_measure_is_quiet_once_the_named_path_exists_control(tmp_path):
         assert not hold and row["measured"] == 0, text
 
     run_measure(go, tmp_path, task="Write the answer to WORK/out.txt (see https://example.com/a/b and/or 1/2).")
+
+
+def test_a_check_script_the_work_deleted_is_not_rerun_and_does_not_hold(tmp_path):
+    """pilot1 record regex-log: test.pl passed, was removed as clean-up, and its re-run 'failed' (false hold)."""
+    async def go(rig):
+        (rig.work / "regex.txt").write_text("a+\n")
+        (rig.work / "test.pl").write_text("exit 0;\n")
+        await rig.cmd("perl test.pl")
+        await rig.cmd("rm -f test.pl")
+        hold, text, row = await rig.record.at_finish()
+        assert not hold and row["reruns"][0]["exit"] is None and "test.pl" in row["reruns"][0]["skipped"], text
+
+    run(go, tmp_path)

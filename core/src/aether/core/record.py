@@ -373,6 +373,11 @@ class Record:
         picks = [c for c in latest if c.passed and c.elapsed <= RERUN_MAX_ORIG_S][-RERUNS:]
         out = []
         for c in picks:
+            gone = await self._gone(c)
+            if gone:  # the work removed its own check script (delivery clean-up): nothing to re-run, nothing to say
+                out.append({"command": short(c.command), "t": c.t, "cwd": c.cwd, "orig_exit": c.exit, "exit": None,
+                            "skipped": f"removed since: {', '.join(gone)}", "tail": ""})
+                continue
             limit = min(RERUN_MAX_S, max(30.0, 3 * c.elapsed + 10), self.remaining() * 0.25)
             q = shlex.quote
             body = f"cd {q(c.cwd)} && bash -c {q(c.command)}"
@@ -433,6 +438,15 @@ class Record:
                 lines.append(f"- Changed or created after your last check ran (t={last.t:.0f}s, "
                              f"`{short(last.command, 80)}`): {', '.join(stale[:8])}")
         return lines
+
+    async def _gone(self, c: Check) -> list[str]:
+        """Files the command names that existed when it ran and are absent now (pilot1 regex-log: the model deleted
+        test.pl before finishing; re-running it 'failed' with no such file, a false hold)."""
+        named = {w for w in re.findall(r"[\w./-]+\.\w+", c.command) if not w.startswith("-")}
+        paths = sorted(w if w.startswith("/") else f"{c.cwd.rstrip('/')}/{w}" for w in named)
+        root = self.workdir.rstrip("/") + "/"
+        existed = [p for p in paths if p.startswith(root) and p[len(root):] in c.files or not p.startswith(root)]
+        return await self._missing(existed) if existed else []
 
     async def _undo(self, delivered: dict[str, str]) -> list[str]:
         """Put back any delivered file the re-run changed (its copy was saved by the finish snapshot)."""
