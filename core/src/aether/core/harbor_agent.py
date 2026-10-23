@@ -28,7 +28,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
-from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV
+from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
 from .tools import HYGIENE_MODES
 
@@ -213,10 +213,10 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
 
 
 def _record(environ: Mapping[str, str]) -> dict:
-    record, hold = _choice(environ, RECORD_ENV, REPL_MODES, "off") == "on", _choice(environ, HOLD_ENV, HOLD_MODES, "off")
-    if record and hold != "off":
+    mode, hold = _choice(environ, RECORD_ENV, RECORD_MODES, "off"), _choice(environ, HOLD_ENV, HOLD_MODES, "off")
+    if mode != "off" and hold != "off":
         raise ConfigError(f"{RECORD_ENV} and {HOLD_ENV} both act at the first finish; use one")
-    return {"record": record, "finish_hold": hold}
+    return {"record": mode != "off", "record_measure": mode == "measure", "finish_hold": hold}
 
 
 def _choice(

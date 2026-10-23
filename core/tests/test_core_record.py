@@ -227,3 +227,94 @@ def test_the_neutral_hold_holds_the_first_finish_without_facts(tmp_path):
     result, client = _loop(tmp_path, events, finish_hold="neutral")
     after = str(client.requests[1]["input"])
     assert result.status == "finished" and "finish not yet accepted" in after and "harness record" not in after
+
+
+class MeasureRig(Rig):
+    def __init__(self, root: Path) -> None:
+        super().__init__(root)
+        self.record = Record(self.env, str(self.work), str(self.control), lambda: 600.0,
+                             lambda event, **data: self.rows.append((event, data)), measure=True)
+
+
+def run_measure(coro_fn, tmp_path):
+    async def go():
+        rig = MeasureRig(tmp_path)
+        await rig.start()
+        try:
+            return await coro_fn(rig)
+        finally:
+            await rig.terms.close()
+
+    return asyncio.run(go())
+
+
+def test_measure_names_the_saved_version_that_scored_differently(tmp_path):
+    """path-tracing shape: a scorer exits 0 both times; the better earlier version is not the one being delivered."""
+    async def go(rig):
+        (rig.work / "score.py").write_text("print('similarity', open('render.txt').read().strip())\n")
+        render = rig.work / "render.txt"
+        render.write_text("0.9143\n")
+        await rig.cmd("python3 score.py")
+        render.write_text("0.8657\n")
+        await rig.cmd("python3 score.py")
+        hold, text, row = await rig.record.at_finish()
+        assert hold and row["measured"] >= 1
+        assert "similarity 0.9143" in text and "similarity 0.8657" in text
+        saved = text.split("render.txt saved at ", 1)[1].split(")", 1)[0]
+        assert Path(saved).read_text() == "0.9143\n"  # the better version is really there to restore
+
+    run_measure(go, tmp_path)
+
+
+def test_measure_holds_when_the_fresh_rerun_prints_a_different_result(tmp_path):
+    async def go(rig):
+        (rig.work / "check.py").write_text("import os\nprint('score', 1.0 if os.environ.get('GOOD') else 0.2)\n")
+        await rig.cmd("export GOOD=1")
+        await rig.cmd("python3 check.py")
+        hold, text, row = await rig.record.at_finish()
+        assert hold and "exits 0 but prints: score 0.2" in text and "score 1.0" in text
+        assert "passed again" not in text
+
+    run_measure(go, tmp_path)
+
+
+def test_measure_reports_files_changed_after_the_last_check(tmp_path):
+    async def go(rig):
+        (rig.work / "a.py").write_text("print('ok 1')\n")
+        await rig.cmd("python3 a.py")
+        (rig.work / "a.py").write_text("print('ok 2')\n")
+        hold, text, _ = await rig.record.at_finish()
+        assert hold and "Changed or created after your last check ran" in text and "a.py" in text
+
+    run_measure(go, tmp_path)
+
+
+def test_measure_accepts_a_finish_when_results_are_stable_control(tmp_path):
+    """Passing control: same file, same result, nothing changed after: no hold, nothing said."""
+    async def go(rig):
+        (rig.work / "a.py").write_text("print('total 42')\n")
+        await rig.cmd("python3 a.py")
+        await rig.cmd("python3 a.py")
+        hold, text, row = await rig.record.at_finish()
+        assert not hold and text == "" and row["measured"] == 0
+
+    run_measure(go, tmp_path)
+
+
+def test_record_on_keeps_v2_behaviour_without_measure(tmp_path):
+    async def go(rig):
+        (rig.work / "score.py").write_text("print('similarity', open('r.txt').read().strip())\n")
+        (rig.work / "r.txt").write_text("0.9\n")
+        await rig.cmd("python3 score.py")
+        (rig.work / "r.txt").write_text("0.5\n")
+        await rig.cmd("python3 score.py")
+        hold, _text, row = await rig.record.at_finish()
+        assert not hold and "measured" in row and row["measured"] == 0
+
+    run(go, tmp_path)
+
+
+def test_config_measure_mode():
+    c = build_config(environ={**BASE, "AETHER_CORE_RECORD": "measure"})
+    assert c.record is True and c.record_measure is True
+    assert build_config(environ={**BASE, "AETHER_CORE_RECORD": "on"}).record_measure is False

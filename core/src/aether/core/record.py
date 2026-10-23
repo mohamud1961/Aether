@@ -13,6 +13,11 @@ record alone it states facts, never interpretations:
   being delivered. If a re-run fails where the terminal run passed, or a check's newest run failed, the finish is
   held once with those facts; the next finish is always accepted. A re-run that changes delivered files is undone.
 
+With ``measure`` (AETHER_CORE_RECORD=measure) the record also keeps the lines each check printed. At the first finish
+it states, as facts: a check whose printed results differ between an earlier version of the delivered files (saved)
+and the newest one; a fresh-shell re-run that exits 0 but prints different results from the run it repeats; and
+delivered files changed after the newest check ran. Which result is better is the model's call, never the harness's.
+
 Interactive (keys) input and the python tool have no exit status and are never scored. Exit 0 says the command ran,
 not that the work is right. Substrate errors here are traced and never fail the run.
 """
@@ -37,7 +42,7 @@ _EXEC = {
 }
 _PREFIX = {"sudo", "time", "nice", "env", "nohup", "stdbuf", "exec", "command"}
 _NOT_RUN = re.compile(r"(-m pip\b|\bpip3? |\buv (pip|add|venv|sync)|\bnpm (i|install|ci)\b|\bapt(-get)? )")
-RECORD_ENV = "AETHER_CORE_RECORD"  # on: this record, its facts and the finish re-run
+RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure")  # on: record, facts, finish re-run
 HOLD_ENV, HOLD_MODES = "AETHER_CORE_FINISH_HOLD", ("off", "neutral")  # neutral: first finish held once, no facts
 MAX_FILES = 300
 SAVE_BYTES = 5_000_000
@@ -46,6 +51,9 @@ RERUN_MAX_S = 180.0
 RERUNS = 2
 VIEW_CHECKS = 6
 OUT_TAIL = 1500
+KEEP_OUT = 1200  # printed output kept per check (measure)
+RESULT_LINES = 3
+_FOOTER = re.compile(r"\n?\[(exit \d+|still running)[^\n]*\]\s*$")
 
 
 def is_check(command: str) -> bool:
@@ -66,6 +74,23 @@ def is_check(command: str) -> bool:
     return False
 
 
+def results(out: str) -> list[str]:
+    """The printed lines that carry numbers or a verdict word: what a check reports, in order, without duplicates."""
+    seen: list[str] = []
+    for line in _FOOTER.sub("", out).splitlines():
+        line = " ".join(line.split())
+        if line and len(line) <= 300 and line not in seen and re.search(r"\d|\b(pass|fail|ok|error|true|false|mismatch|"
+                                                                        r"match|differ|wrong|correct)", line, re.I):
+            seen.append(line)
+    return seen
+
+
+def differing(a: str, b: str) -> tuple[list[str], list[str]]:
+    """The result lines only in ``a`` and only in ``b``."""
+    ra, rb = results(a), results(b)
+    return [x for x in ra if x not in rb][:RESULT_LINES], [x for x in rb if x not in ra][:RESULT_LINES]
+
+
 def norm(command: str) -> str:
     return " ".join(command.split())
 
@@ -84,6 +109,7 @@ class Check:
     elapsed: float
     cwd: str
     files: dict[str, str] = field(default_factory=dict)  # relative path -> sha256 when it finished
+    out: str = ""  # tail of what it printed (measure)
 
     @property
     def passed(self) -> bool:
@@ -96,9 +122,10 @@ class Check:
 
 class Record:
     def __init__(
-        self, env: Environment, workdir: str, control_dir: str, remaining: Callable[[], float], trace
+        self, env: Environment, workdir: str, control_dir: str, remaining: Callable[[], float], trace,
+        measure: bool = False,
     ) -> None:
-        self.env, self.workdir, self.control_dir = env, workdir, control_dir
+        self.env, self.workdir, self.control_dir, self.measure = env, workdir, control_dir, measure
         self.remaining, self.trace = remaining, trace
         self.versions = f"{control_dir}/versions"
         self.checks: list[Check] = []
@@ -133,7 +160,8 @@ class Record:
                 return ""
             command, code, elapsed, cwd = done
             files = await self.snapshot(save=code == 0)
-            check = Check(len(self.checks) + 1, round(t, 1), command, code, elapsed, cwd, files)
+            check = Check(len(self.checks) + 1, round(t, 1), command, code, elapsed, cwd, files,
+                          _FOOTER.sub("", out)[-KEEP_OUT:] if self.measure else "")
             earlier = [c for c in self.checks if norm(c.command) == norm(command) and c.passed]
             self.checks.append(check)
             self.trace("record_check", seq=check.seq, command=short(command, 400), exit=code, cwd=cwd,
@@ -239,7 +267,9 @@ class Record:
         reruns = await self._reruns(latest, delivered, row)
         broke = [r for r in reruns if r["exit"] not in (0, None)]
         row.update(failing=[short(c.command) for c in failing], reruns=reruns)
-        hold = bool(failing or broke)
+        measured = self._measured(delivered, reruns) if self.measure else []
+        row["measured"] = len(measured)
+        hold = bool(failing or broke or measured)
         row["hold"] = hold
         self.trace("record_finish", **row)
         if not hold:
@@ -248,8 +278,9 @@ class Record:
         lines = ["[finish not yet accepted. Harness record of your own commands, exact results:]"]
         for c in failing:
             lines.append(f"- `{short(c.command)}` passed earlier; its newest run (t={c.t:.0f}s) exited {c.exit}.")
+        lines += measured
         for r in reruns:
-            if r["exit"] is None:
+            if r["exit"] is None or r.get("differs"):
                 continue
             if r["exit"] == 0:
                 lines.append(f"- `{r['command']}` passed again in a fresh shell against the files being delivered.")
@@ -291,9 +322,52 @@ class Record:
                 item.update(exit=result.code, tail=(result.stdout or result.stderr)[-OUT_TAIL:])
             except Exception as exc:  # no result is not a failure of the work: reported to the trace only
                 item.update(exit=None, error=f"{type(exc).__name__}: {exc}", tail="")
+            if self.measure and item["exit"] == 0:
+                then, now = differing(c.out, item["tail"])
+                if then or now:
+                    item["differs"] = {"then": then, "now": now}
             item["restored"] = await self._undo(delivered)
             out.append(item)
         return out
+
+    def _measured(self, delivered: dict[str, str], reruns: list[dict[str, Any]]) -> list[str]:
+        """Facts comparing what checks printed across versions of the delivered files (measure)."""
+        lines: list[str] = []
+        runs: dict[str, list[Check]] = {}
+        for c in self.checks:
+            if c.passed:
+                runs.setdefault(norm(c.command), []).append(c)
+        for group in runs.values():
+            newest = group[-1]
+            earlier = []
+            for c in group[:-1]:
+                old = sorted(p for p, h in c.files.items() if p in delivered and delivered[p] != h)
+                then, _now = differing(c.out, newest.out)
+                if old and then:
+                    earlier.append((c, old, then))
+            if not earlier:
+                continue
+            lines.append(f"- `{short(newest.command)}` printed different results on earlier versions of files you "
+                         "are delivering:")
+            for c, old, then in earlier[-2:]:
+                saved = ", ".join(f"{p} saved at {self._saved(p, c.files[p])}" for p in old[:4])
+                lines.append(f"    t={c.t:.0f}s: {' | '.join(then)}  ({saved})")
+            _then, now = differing(earlier[-1][0].out, newest.out)
+            lines.append(f"    newest, t={newest.t:.0f}s: {' | '.join(now) or '(none of those lines)'}")
+        for r in reruns:
+            if r.get("differs"):
+                lines.append(
+                    f"- `{r['command']}` printed at t={r['t']:.0f}s: {' | '.join(r['differs']['then']) or '-'}; run "
+                    f"again now in a fresh shell against the files being delivered it exits 0 but prints: "
+                    f"{' | '.join(r['differs']['now']) or '-'}"
+                )
+        if self.checks:
+            last = self.checks[-1]
+            stale = sorted(p for p, h in delivered.items() if last.files.get(p) != h)
+            if stale:
+                lines.append(f"- Changed or created after your last check ran (t={last.t:.0f}s, "
+                             f"`{short(last.command, 80)}`): {', '.join(stale[:8])}")
+        return lines
 
     async def _undo(self, delivered: dict[str, str]) -> list[str]:
         """Put back any delivered file the re-run changed (its copy was saved by the finish snapshot)."""

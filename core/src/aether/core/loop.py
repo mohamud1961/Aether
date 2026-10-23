@@ -78,6 +78,7 @@ class CoreConfig:
     state: bool = False  # run state: harness-run requirement checks, notes, finish re-check (see runstate)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
     record: bool = False  # the harness's record of the model's own command results, its facts and finish re-run (record)
+    record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
 
     def __post_init__(self) -> None:
@@ -179,7 +180,7 @@ class _Session:
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.state = runstate.RunState(task, workdir) if config.state and config.role != VERIFIER_ROLE else None
         self.record = (
-            Record(self.env, workdir, config.control_dir, self.remaining, trace)
+            Record(self.env, workdir, config.control_dir, self.remaining, trace, measure=config.record_measure)
             if config.record and config.role != VERIFIER_ROLE else None
         )
         self.held = False  # the neutral finish hold was used
