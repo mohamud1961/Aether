@@ -2,21 +2,19 @@
 
 The model works as it already does (terminal, files). The harness reads each finished terminal command's exit
 status, and when the command ran the work (``is_check``: an interpreter, test runner, compiler, ``./x``, diff), it
-hashes the files the run changed under the working directory and keeps a copy of every passing version. From that
+hashes a bounded sample of changed files under the working directory and copies eligible passing bytes. From that
 record alone it states facts, never interpretations:
 
 - in the stream: a check that passed before and fails now, with the files changed since and where the passing
   version is saved (restoring is a plain ``cp``);
 - after a context checkpoint: the latest exact result of each recent check, which the summary cannot rewrite;
-- at the first finish: the newest passing checks are run again in a fresh shell (a new exec in the same container,
-  as the grader's commands run: no terminal variables, functions, venv activation or REPL memory) against the files
-  being delivered. If a re-run fails where the terminal run passed, or a check's newest run failed, the finish is
-  held once with those facts; the next finish is always accepted. A re-run that changes delivered files is undone.
+- at finish: restate prior observations without re-executing arbitrary commands in the live solver environment.
+  A fresh shell in the same container does not isolate file/process/dependency side effects. No safe replay
+  backend is implemented here, so finish replay is explicitly skipped.
 
 With ``measure`` (AETHER_CORE_RECORD=measure) the record also keeps the lines each check printed. At the first finish
 it states, as facts: a check whose printed results differ between an earlier version of the delivered files (saved)
-and the newest one; a fresh-shell re-run that exits 0 but prints different results from the run it repeats; and
-delivered files changed after the newest check ran. Which result is better is the model's call, never the harness's.
+and the newest one; delivered files changed after the newest check ran. Which result is better is the model's call, never the harness's.
 
 Interactive (keys) input and the python tool have no exit status and are never scored. Exit 0 says the command ran,
 not that the work is right. Substrate errors here are traced and never fail the run.
@@ -26,6 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
+import posixpath
 import shlex
 from typing import Any, Callable
 
@@ -42,14 +41,11 @@ _EXEC = {
 }
 _PREFIX = {"sudo", "time", "nice", "env", "nohup", "stdbuf", "exec", "command"}
 _NOT_RUN = re.compile(r"(-m pip\b|\bpip3? |\buv (pip|add|venv|sync)|\bnpm (i|install|ci)\b|\bapt(-get)? )")
-RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure", "paths")  # on: record, facts, re-run;
+RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure", "paths")  # on: record and scoped facts;
 # paths: only the task-named paths that do not exist yet (at half time, 80% and the first finish)
 HOLD_ENV, HOLD_MODES = "AETHER_CORE_FINISH_HOLD", ("off", "neutral")  # neutral: first finish held once, no facts
 MAX_FILES = 300
 SAVE_BYTES = 5_000_000
-RERUN_MAX_ORIG_S = 120.0
-RERUN_MAX_S = 180.0
-RERUNS = 2
 VIEW_CHECKS = 6
 OUT_TAIL = 1500
 KEEP_OUT = 1200  # printed output kept per check (measure)
@@ -150,6 +146,7 @@ class Record:
         self.named = sorted({p for p in _TASK_PATH.findall(task) if not p.startswith(("/dev/", "/proc/"))})[:20]
         self.to_create: list[str] | None = None  # named paths absent at the first command
         self.errors = 0
+        self.retained: set[tuple[str, str]] = set()  # validated byte copies, not every hashed file
 
     # -- observing -------------------------------------------------------------------------------------------
     def completed(self, args: dict[str, Any], out: str) -> tuple[str, int, float, str] | None:
@@ -157,6 +154,10 @@ class Record:
         name = str(args.get("name") or "main")
         text = str(args.get("input", ""))
         mode = str(args.get("mode") or "command")
+        if args.get("interrupt") or "\x03" in text or r"\x03" in text:
+            # Terminal recovery may synthesize `true` to regain a prompt. Its exit 0 is
+            # not a result from the interrupted command and must not qualify that file.
+            self.pending.pop(name, None)
         sent = text if mode == "command" and text.strip("\x03 \n") and "[input not sent" not in out else ""
         if sent:
             self.pending.pop(name, None)
@@ -186,12 +187,12 @@ class Record:
             files = await self.snapshot(save=code == 0)
             check = Check(len(self.checks) + 1, round(t, 1), command, code, elapsed, cwd, files,
                           _FOOTER.sub("", out)[-KEEP_OUT:] if self.measure else "")
-            earlier = [c for c in self.checks if norm(c.command) == norm(command) and c.passed]
+            earlier = [c for c in self.checks if (c.cwd, c.command) == (cwd, command) and c.passed]
             self.checks.append(check)
             self.trace("record_check", seq=check.seq, command=short(command, 400), exit=code, cwd=cwd,
                        elapsed=elapsed, files=len(files))
             if check.failed and earlier:
-                return self._regression(check, earlier[-1])
+                return await self._regression(check, earlier[-1])
             return await self._late()
         except Exception as exc:  # the record is an instrument: its failure is traced, the run goes on
             self.errors += 1
@@ -230,7 +231,7 @@ class Record:
         if self.late_done or used < LATE_AT:
             return ""
         self.late_done = self.mid_done = True
-        facts = [] if self.paths_only else self._measured(await self.snapshot(save=False), [])
+        facts = [] if self.paths_only else await self._measured(await self.snapshot(save=False), [])
         absent = await self._absent()
         if absent:
             facts.append(f"- Paths the task names that do not exist yet: {', '.join(absent)}")
@@ -240,19 +241,32 @@ class Record:
         return "\n".join([f"[harness record, {self.remaining():.0f}s left: exact results of your own commands]", *facts,
                            "Whatever is in the working directory when time runs out is what is delivered."])
 
-    def _regression(self, now: Check, then: Check) -> str:
+    async def _regression(self, now: Check, then: Check) -> str:
         changed = sorted(p for p, h in then.files.items() if now.files.get(p) != h)
         lines = [f"[harness record] this command exited 0 at t={then.t:.0f}s and exits {now.exit} now."]
         if changed:
-            lines.append("Files changed since then (the t=%.0fs version of each is saved):" % then.t)
+            lines.append("Files changed since then (retained byte copies are named where available):")
             for path in changed[:8]:
-                lines.append(f"  {path}: {self._saved(path, then.files[path])}")
+                location = await self._retained_location(path, then.files[path]) or "no validated retained copy"
+                lines.append(f"  {path}: {location}")
         else:
-            lines.append("No file the run changed under the working directory differs since then.")
+            lines.append("No captured file hash differs; the snapshot does not cover all workspace state.")
         return "\n".join(lines)
 
     def _saved(self, path: str, digest: str) -> str:
-        return f"{self.versions}/{digest}/{path.rsplit('/', 1)[-1]}"
+        return f"{self.versions}/{digest}/{path}"
+
+    async def _retained_location(self, path: str, digest: str) -> str | None:
+        if (path, digest) not in self.retained:
+            return None
+        source = self._saved(path, digest)
+        q = shlex.quote
+        result = await run(self.env, f"(sha256sum < {q(source)} 2>/dev/null || shasum -a 256 < {q(source)})", timeout_s=30)
+        if result.code == 0 and result.stdout.split()[:1] == [digest]:
+            return source
+        self.retained.discard((path, digest))
+        self.trace("record_copy_unavailable", path=path, expected_sha256=digest)
+        return None
 
     async def snapshot(self, save: bool) -> dict[str, str]:
         """sha256 of each file the run changed under the working directory; with ``save``, keep a copy of each
@@ -262,8 +276,11 @@ class Record:
         marker = q(f"{self.control_dir}/{MARKER}")
         store = q(self.versions)
         keep = (
-            f'if [ ! -e {store}/"$h" ] && [ "$(wc -c < "$f")" -lt {SAVE_BYTES} ]; then '
-            f'mkdir -p {store}/"$h" && cp -p "$f" {store}/"$h"/"$(basename "$f")"; fi; '
+            f'dest={store}/"$h"/"${{f#./}}"; '
+            f'if [ ! -f "$dest" ] && [ "$(wc -c < "$f")" -lt {SAVE_BYTES} ]; then '
+            'mkdir -p "$(dirname "$dest")" && cp -p "$f" "$dest"; fi; '
+            'if [ -f "$dest" ]; then ch=$( (sha256sum "$dest" 2>/dev/null || shasum -a 256 "$dest") | cut -c1-64); '
+            '[ "$ch" = "$h" ] && kept=1; fi; '
             if save else ""
         )
         command = (
@@ -271,16 +288,21 @@ class Record:
             f"find . -xdev \\( {prune} \\) -prune -o -type f -newer {marker} -size -20M -print 2>/dev/null | "
             f"head -n {MAX_FILES} | while IFS= read -r f; do "
             f'h=$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f") | cut -c1-64); '
-            f'[ -n "$h" ] || continue; {keep}printf "%s %s\\n" "$h" "${{f#./}}"; done'
+            f'[ -n "$h" ] || continue; kept=0; {keep}printf "%s\\t%s\\t%s\\n" "$h" "$kept" "${{f#./}}"; done'
         )
         result = await run(self.env, command, timeout_s=max(5.0, min(60.0, self.remaining())))
         if result.code != 0:
             raise OSError(f"snapshot failed: {(result.stderr or result.stdout).strip()[:200]}")
         files: dict[str, str] = {}
         for line in result.stdout.splitlines():
-            digest, _, path = line.partition(" ")
-            if len(digest) == 64 and path:
+            parts = line.split("\t", 2)
+            if len(parts) != 3:
+                continue
+            digest, kept, path = parts
+            if re.fullmatch(r"[0-9a-f]{64}", digest) and path and not posixpath.isabs(path) and ".." not in path.split("/"):
                 files[path] = digest
+                if kept == "1":
+                    self.retained.add((path, digest))
         return files
 
     # -- after a checkpoint ----------------------------------------------------------------------------------
@@ -299,16 +321,16 @@ class Record:
             line = f"  t={c.t:.0f}s exit {c.exit}: {short(c.command)}"
             if now is not None:
                 changed = sorted(p for p, h in c.files.items() if now.get(p) != h)
-                line += f" (files changed since: {', '.join(changed[:5])})" if changed else " (files unchanged since)"
+                line += f" (files changed since: {', '.join(changed[:5])})" if changed else " (captured file hashes unchanged since; snapshot scope is limited)"
             lines.append(line)
         return "\n".join(lines)
 
     def _latest(self) -> list[Check]:
         """The newest run of each distinct check command, oldest first."""
-        seen: dict[str, Check] = {}
+        seen: dict[tuple[str, str], Check] = {}
         for c in self.checks:
-            seen.pop(norm(c.command), None)
-            seen[norm(c.command)] = c
+            seen.pop((c.cwd, c.command), None)
+            seen[(c.cwd, c.command)] = c
         return list(seen.values())
 
     # -- at finish ------------------------------------------------------------------------------------------
@@ -336,12 +358,12 @@ class Record:
         latest = self._latest()
         # a regression left in place: the newest run fails after an earlier run of the same command passed. A one-off
         # command that failed once is exploration, not a contradiction (pilot1 tune-mjcf: 10 such holds, all noise).
-        passed = {norm(c.command) for c in self.checks if c.passed}
-        failing = [c for c in latest if c.failed and norm(c.command) in passed]
+        passed = {(c.cwd, c.command) for c in self.checks if c.passed}
+        failing = [c for c in latest if c.failed and (c.cwd, c.command) in passed]
         reruns = await self._reruns(latest, delivered, row)
         broke = [r for r in reruns if r["exit"] not in (0, None)]
         row.update(failing=[short(c.command) for c in failing], reruns=reruns)
-        measured = self._measured(delivered, reruns) if self.measure else []
+        measured = await self._measured(delivered, reruns) if self.measure else []
         absent = await self._absent() if self.measure else []
         if absent:
             measured.append(f"- Paths the task names that do not exist: {', '.join(absent)}")
@@ -356,69 +378,25 @@ class Record:
         for c in failing:
             lines.append(f"- `{short(c.command)}` passed earlier; its newest run (t={c.t:.0f}s) exited {c.exit}.")
         lines += measured
-        for r in reruns:
-            if r["exit"] is None or r.get("differs"):
-                continue
-            if r["exit"] == 0:
-                lines.append(f"- `{r['command']}` passed again in a fresh shell against the files being delivered.")
-            else:
-                result = (f"did not finish within {r['limit']:.0f}s" if r["exit"] == 124 else f"exits {r['exit']}")
-                lines.append(
-                    f"- `{r['command']}` exited 0 in your terminal at t={r['t']:.0f}s; run again now in a fresh shell "
-                    f"(same container, cwd {r['cwd']}, none of your terminal's variables or Python session) against "
-                    f"the files being delivered, it {result}. Output tail:\n{r['tail']}"
-                )
-        for r in reruns:
-            if r.get("restored"):
-                lines.append(f"- That re-run changed {', '.join(r['restored'])}; they were put back as you left them.")
         lines.append(
-            f"Passing versions you ran are saved under {self.versions}/<sha256>/<name>. You have {left:.0f}s. "
+            f"Retained byte copies are under {self.versions}/<sha256>/<relative-path>; a command exit is not semantic correctness. You have {left:.0f}s. "
             "Fix what this shows, restore a saved version, or call finish again to finish as is."
         )
         return True, "\n".join(lines), row
 
     async def _reruns(self, latest: list[Check], delivered: dict[str, str], row: dict) -> list[dict[str, Any]]:
-        left = self.remaining()
-        if left < 90:
-            row["reruns_skipped"] = f"{left:.0f}s left"
-            return []
-        picks = [c for c in latest if c.passed and c.elapsed <= RERUN_MAX_ORIG_S][-RERUNS:]
-        out = []
-        for c in picks:
-            gone = await self._gone(c)
-            if gone:  # the work removed its own check script (delivery clean-up): nothing to re-run, nothing to say
-                out.append({"command": short(c.command), "t": c.t, "cwd": c.cwd, "orig_exit": c.exit, "exit": None,
-                            "skipped": f"removed since: {', '.join(gone)}", "tail": ""})
-                continue
-            limit = min(RERUN_MAX_S, max(30.0, 3 * c.elapsed + 10), self.remaining() * 0.25)
-            q = shlex.quote
-            body = f"cd {q(c.cwd)} && bash -c {q(c.command)}"
-            command = (
-                f"if command -v timeout >/dev/null 2>&1; then timeout -k 5 {int(limit)} bash -c {q(body)}; "
-                f"else bash -c {q(body)}; fi 2>&1 | tail -c {OUT_TAIL}; exit ${{PIPESTATUS[0]}}"
-            )
-            item: dict[str, Any] = {"command": short(c.command), "t": c.t, "cwd": c.cwd, "orig_exit": c.exit,
-                                    "limit": limit}
-            try:
-                result = await run(self.env, f"bash -c {q(command)}", timeout_s=limit + 20)
-                item.update(exit=result.code, tail=(result.stdout or result.stderr)[-OUT_TAIL:])
-            except Exception as exc:  # no result is not a failure of the work: reported to the trace only
-                item.update(exit=None, error=f"{type(exc).__name__}: {exc}", tail="")
-            if self.measure and item["exit"] == 0:
-                then, now = differing(c.out, item["tail"])
-                if then or now:
-                    item["differs"] = {"then": then, "now": now}
-            item["restored"] = await self._undo(delivered)
-            out.append(item)
-        return out
+        # Never replay an arbitrary terminal command on the delivered workspace: undoing selected file
+        # bytes cannot roll back new/deleted files, processes, external writes or mutable dependencies.
+        row["reruns_skipped"] = "no isolated replay backend; original observations retained"
+        return []
 
-    def _measured(self, delivered: dict[str, str], reruns: list[dict[str, Any]]) -> list[str]:
+    async def _measured(self, delivered: dict[str, str], reruns: list[dict[str, Any]]) -> list[str]:
         """Facts comparing what checks printed across versions of the delivered files (measure)."""
         lines: list[str] = []
-        runs: dict[str, list[Check]] = {}
+        runs: dict[tuple[str, str], list[Check]] = {}
         for c in self.checks:
             if c.passed:
-                runs.setdefault(norm(c.command), []).append(c)
+                runs.setdefault((c.cwd, c.command), []).append(c)
         for group in runs.values():
             newest = group[-1]
             earlier = []
@@ -432,17 +410,14 @@ class Record:
             lines.append(f"- `{short(newest.command)}` printed different results on earlier versions of files you "
                          "are delivering:")
             for c, old, then in earlier[-2:]:
-                saved = ", ".join(f"{p} saved at {self._saved(p, c.files[p])}" for p in old[:4])
+                locations = []
+                for p in old[:4]:
+                    location = await self._retained_location(p, c.files[p])
+                    locations.append(f"{p} saved at {location}" if location else f"{p}: no validated retained copy")
+                saved = ", ".join(locations)
                 lines.append(f"    t={c.t:.0f}s: {' | '.join(then)}  ({saved})")
             _then, now = differing(earlier[-1][0].out, newest.out)
             lines.append(f"    newest, t={newest.t:.0f}s: {' | '.join(now) or '(none of those lines)'}")
-        for r in reruns:
-            if r.get("differs"):
-                lines.append(
-                    f"- `{r['command']}` printed at t={r['t']:.0f}s: {' | '.join(r['differs']['then']) or '-'}; run "
-                    f"again now in a fresh shell against the files being delivered it exits 0 but prints: "
-                    f"{' | '.join(r['differs']['now']) or '-'}"
-                )
         if self.checks:
             last = self.checks[-1]
             stale = sorted(p for p, h in delivered.items() if last.files.get(p) != h)
@@ -450,34 +425,6 @@ class Record:
                 lines.append(f"- Changed or created after your last check ran (t={last.t:.0f}s, "
                              f"`{short(last.command, 80)}`): {', '.join(stale[:8])}")
         return lines
-
-    async def _gone(self, c: Check) -> list[str]:
-        """Files the command names that existed when it ran and are absent now (pilot1 regex-log: the model deleted
-        test.pl before finishing; re-running it 'failed' with no such file, a false hold)."""
-        named = {w for w in re.findall(r"[\w./-]+\.\w+", c.command) if not w.startswith("-")}
-        paths = sorted(w if w.startswith("/") else f"{c.cwd.rstrip('/')}/{w}" for w in named)
-        root = self.workdir.rstrip("/") + "/"
-        existed = [p for p in paths if p.startswith(root) and p[len(root):] in c.files or not p.startswith(root)]
-        return await self._missing(existed) if existed else []
-
-    async def _undo(self, delivered: dict[str, str]) -> list[str]:
-        """Put back any delivered file the re-run changed (its copy was saved by the finish snapshot)."""
-        try:
-            now = await self.snapshot(save=False)
-        except Exception as exc:
-            self.trace("record_error", where="undo", error=f"{type(exc).__name__}: {exc}")
-            return []
-        moved = sorted(p for p, h in delivered.items() if now.get(p) != h)
-        q = shlex.quote
-        restored = []
-        for path in moved:
-            source = self._saved(path, delivered[path])
-            result = await run(
-                self.env, f"cd {q(self.workdir)} && test -f {q(source)} && cp -p {q(source)} {q(path)}", timeout_s=30
-            )
-            if result.code == 0:
-                restored.append(path)
-        return restored
 
     def summary(self) -> dict[str, Any]:
         return {

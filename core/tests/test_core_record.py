@@ -1,5 +1,5 @@
-"""The run record (AETHER_CORE_RECORD): real terminal commands, real files, real re-runs. Each fact below is the
-mechanism's whole point, and each test fails without it (no record: no fact, no hold, no restore)."""
+"""The run record (AETHER_CORE_RECORD): real terminal commands and files. The instrument must not
+repeat arbitrary commands on the mutable delivered workspace."""
 
 from __future__ import annotations
 
@@ -78,26 +78,26 @@ def test_a_check_that_passed_and_now_fails_names_the_saved_passing_version(tmp_p
     run(go, tmp_path)
 
 
-def test_finish_reruns_in_a_fresh_shell_and_holds_when_terminal_state_carried_the_pass(tmp_path):
+def test_finish_keeps_the_observation_without_unisolated_replay(tmp_path):
     async def go(rig):
         (rig.work / "check.py").write_text("import os, sys\nsys.exit(0 if os.environ.get('TOKEN') else 1)\n")
         await rig.cmd("export TOKEN=yes")
         assert "exit 0" in await rig.cmd("python3 check.py")  # passes only because of the terminal's variable
         hold, text, row = await rig.record.at_finish()
-        assert hold and "fresh shell" in text and "it exits 1" in text
-        assert row["reruns"][0]["orig_exit"] == 0 and row["reruns"][0]["exit"] == 1
+        assert not hold and text == ""
+        assert row["reruns"] == [] and "no isolated replay backend" in row["reruns_skipped"]
         again = await rig.record.at_finish()
         assert again[0] is False  # the next finish is always accepted
 
     run(go, tmp_path)
 
 
-def test_finish_is_accepted_when_the_rerun_agrees(tmp_path):
+def test_finish_reports_that_unisolated_replay_was_not_performed(tmp_path):
     async def go(rig):
         (rig.work / "ok.py").write_text("print('fine')\n")
         await rig.cmd("python3 ok.py")
         hold, text, row = await rig.record.at_finish()
-        assert not hold and text == "" and row["reruns"][0]["exit"] == 0
+        assert not hold and text == "" and row["reruns"] == []
 
     run(go, tmp_path)
 
@@ -125,13 +125,18 @@ def test_a_one_off_command_that_failed_once_does_not_hold_the_finish(tmp_path):
     run(go, tmp_path)
 
 
-def test_a_rerun_that_changes_delivered_files_is_undone(tmp_path):
+def test_finish_never_reexecutes_a_command_that_creates_untracked_side_effects(tmp_path):
     async def go(rig):
-        (rig.work / "gen.py").write_text("open('out.txt', 'a').write('x')\n")
+        (rig.work / "gen.py").write_text(
+            "from pathlib import Path\n"
+            "if Path('out.txt').exists(): Path('unexpected.txt').write_text('side effect')\n"
+            "open('out.txt', 'a').write('x')\n"
+        )
         await rig.cmd("python3 gen.py")
         delivered = (rig.work / "out.txt").read_text()
         hold, _text, row = await rig.record.at_finish()
-        assert row["reruns"][0]["restored"] == ["out.txt"]
+        assert not (rig.work / "unexpected.txt").exists()
+        assert row["reruns"] == []
         assert (rig.work / "out.txt").read_text() == delivered
 
     run(go, tmp_path)
@@ -267,14 +272,14 @@ def test_measure_names_the_saved_version_that_scored_differently(tmp_path):
     run_measure(go, tmp_path)
 
 
-def test_measure_holds_when_the_fresh_rerun_prints_a_different_result(tmp_path):
+def test_measure_does_not_invent_a_fresh_environment_result(tmp_path):
     async def go(rig):
         (rig.work / "check.py").write_text("import os\nprint('score', 1.0 if os.environ.get('GOOD') else 0.2)\n")
         await rig.cmd("export GOOD=1")
         await rig.cmd("python3 check.py")
         hold, text, row = await rig.record.at_finish()
-        assert hold and "exits 0 but prints: score 0.2" in text and "score 1.0" in text
-        assert "passed again" not in text
+        assert not hold and text == "" and row["reruns"] == []
+        assert "no isolated replay backend" in row["reruns_skipped"]
 
     run_measure(go, tmp_path)
 
@@ -397,7 +402,7 @@ def test_a_check_script_the_work_deleted_is_not_rerun_and_does_not_hold(tmp_path
         await rig.cmd("perl test.pl")
         await rig.cmd("rm -f test.pl")
         hold, text, row = await rig.record.at_finish()
-        assert not hold and row["reruns"][0]["exit"] is None and "test.pl" in row["reruns"][0]["skipped"], text
+        assert not hold and row["reruns"] == [] and "no isolated replay backend" in row["reruns_skipped"], text
 
     run(go, tmp_path)
 
@@ -425,3 +430,69 @@ def test_paths_mode_states_only_missing_named_paths_and_records_no_checks(tmp_pa
 def test_config_paths_mode():
     c = build_config(environ={**BASE, "AETHER_CORE_RECORD": "paths"})
     assert c.record and c.record_measure and c.record_paths
+
+
+def test_equal_content_in_different_paths_has_two_real_retained_copies(tmp_path):
+    async def go(rig):
+        for path in ("left/a.txt", "right/b.txt"):
+            (rig.work / path).parent.mkdir()
+            (rig.work / path).write_text("same bytes\n")
+        files = await rig.record.snapshot(save=True)
+        for path in ("left/a.txt", "right/b.txt"):
+            assert Path(rig.record._saved(path, files[path])).read_bytes() == b"same bytes\n"
+            assert (path, files[path]) in rig.record.retained
+    run(go, tmp_path)
+
+
+def test_same_command_in_another_cwd_is_not_a_regression_of_the_first(tmp_path):
+    async def go(rig):
+        for folder, body in (("left", "pass\n"), ("right", "raise SystemExit(3)\n")):
+            (rig.work / folder).mkdir()
+            (rig.work / folder / "check.py").write_text(body)
+        await rig.cmd("cd left")
+        await rig.cmd("python3 check.py")
+        await rig.cmd("cd ../right")
+        out = await rig.cmd("python3 check.py")
+        assert "harness record" not in out
+        assert (await rig.record.at_finish())[0] is False
+    run(go, tmp_path)
+
+
+def test_quoted_whitespace_changes_command_identity(tmp_path):
+    async def go(rig):
+        await rig.cmd("python3 -c \"assert 'a  b' == 'a  b'\"")
+        out = await rig.cmd("python3 -c \"assert 'a b' == 'a  b'\"")
+        assert "harness record" not in out
+        assert (await rig.record.at_finish())[0] is False
+    run(go, tmp_path)
+
+
+def test_modified_saved_copy_is_not_advertised_as_a_recovery_candidate(tmp_path):
+    async def go(rig):
+        app = rig.work / "app.py"
+        app.write_text("print('ok')\n")
+        await rig.cmd("python3 app.py")
+        first = rig.record.checks[-1]
+        saved = Path(rig.record._saved("app.py", first.files["app.py"]))
+        saved.write_text("corrupted copy\n")
+        app.write_text("raise SystemExit(3)\n")
+        out = await rig.cmd("python3 app.py")
+        assert "no validated retained copy" in out
+        assert str(saved) not in out
+        assert any(event == "record_copy_unavailable" for event, _ in rig.rows)
+    run(go, tmp_path)
+
+
+def test_interrupt_prompt_recovery_is_not_recorded_as_a_successful_old_command(tmp_path):
+    async def go(rig):
+        (rig.work / "slow.py").write_text("import time\ntime.sleep(30)\n")
+        args = {"name": "main", "input": "python3 slow.py"}
+        out = await rig.terms.use(**args, wait_s=0.3)
+        assert "still running" in out
+        await rig.record.after_terminal(args, out, 1)
+        assert rig.record.pending
+        interrupt = {"name": "main", "input": "", "interrupt": True}
+        out = await rig.terms.use(**interrupt, wait_s=5)
+        await rig.record.after_terminal(interrupt, out, 2)
+        assert rig.record.pending == {} and rig.record.checks == []
+    run(go, tmp_path)
