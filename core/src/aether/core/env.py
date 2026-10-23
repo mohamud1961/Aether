@@ -16,6 +16,9 @@ from typing import Any, Protocol
 CONTROL_DIR = "/tmp/.aether"
 # Linux caps a single argv string at 128 KiB; stay well below it.
 INLINE_BYTES = 48_000
+# Exit codes of the one-shot write scripts below: each maps to the message its own step produced when the steps
+# were separate execs (see docs/EXEC_COLLAPSE.md).
+_RESOLVE, _DIRECTORY, _MKDIR, _WRITE, _CHMOD, _RENAME = 10, 11, 12, 13, 14, 15
 
 
 class Environment(Protocol):
@@ -81,6 +84,48 @@ def exit_code(result: Any) -> int | None:
         if isinstance(value, int) and not isinstance(value, bool):
             return value
     return None
+
+
+def _b64(data: bytes) -> str:
+    return shlex.quote(base64.b64encode(data).decode())
+
+
+def _rename(src: str, dst: str) -> str:
+    """A shell compound command that renames ``src`` over ``dst`` atomically, never moving a payload *inside* a
+    directory. ``src`` and ``dst`` are already-quoted shell words."""
+    replace = shlex.quote("import os,sys; os.replace(sys.argv[1],sys.argv[2])")
+    return (
+        f'if [ "$(uname -s)" = Linux ]; then mv -fT {src} {dst}; '
+        f"else python3 -c {replace} {src} {dst}; fi"
+    )
+
+
+def atomic_write(path: str, data: bytes, code: int) -> str:
+    """One shell statement that replaces ``path`` with ``data`` atomically: temp file beside the target, then the
+    same rename as :func:`put_bytes`. The parent directory is created if missing; the temp file is removed and
+    ``code`` is the exit status on any failure."""
+    q = shlex.quote
+    temporary = path + ".aether-" + uuid.uuid4().hex + ".tmp"
+    return (
+        f"mkdir -p {q(os.path.dirname(path) or '.')} && "
+        f"printf %s {_b64(data)} | base64 -d > {q(temporary)} && {_rename(q(temporary), q(path))} "
+        f"|| {{ rm -f {q(temporary)}; exit {code}; }}"
+    )
+
+
+def _write_failure(result: ExecResult, remote: str) -> OSError:
+    """The error the failed step raised when the steps were separate execs."""
+    detail = (result.stderr or result.stdout).strip()[:300]
+    return OSError(
+        {
+            _RESOLVE: f"cannot resolve write target {remote}",
+            _DIRECTORY: f"cannot write {remote}: {detail}",
+            _MKDIR: f"mkdir for {remote} failed: {detail}",
+            _WRITE: f"write {remote} failed: {detail}",
+            _CHMOD: f"preserving permissions of {remote} failed",
+            _RENAME: f"committing write to {remote} failed: {detail}",
+        }.get(result.code, f"write {remote} failed: {detail}")
+    )
 
 
 def alive_test(pid: int) -> str:
@@ -168,61 +213,61 @@ async def put_bytes(
 ) -> None:
     """Replace bytes atomically within the target directory. Interrupted transfers preserve the old file.
 
-    Existing symlinks are followed; atomic replacement must not silently replace the link itself.
+    Existing symlinks are followed; atomic replacement must not silently replace the link itself. A payload that
+    fits inline costs one environment call: resolve, refuse a directory, mkdir, write, chmod and rename are one
+    shell script. A larger one costs three: that script without the payload, the upload, and chmod with the rename.
     """
     q = shlex.quote
+    # Rename the target pathname, never move a payload *inside* a directory.
+    # Linux mv -T also rejects a directory that appeared after the preflight.
+    # The non-Linux path supports local development with the same semantics.
+    preflight = (
+        f"if [ -L {q(remote)} ]; then t=$(readlink -f {q(remote)} 2>/dev/null || realpath {q(remote)}) "
+        f"|| exit {_RESOLVE}; else t={q(remote)}; fi; "
+    )
+    refuse_directory = (
+        f"if [ -d \"$t\" ]; then echo 'write target is a directory' >&2; exit {_DIRECTORY}; fi; "
+    )
+    if len(data) <= INLINE_BYTES:
+        rename = _rename('"$tmp"', '"$t"')
+        res = await run(
+            env,
+            'tmp=""; trap \'[ -z "$tmp" ] || rm -f "$tmp"\' 0; '
+            + preflight
+            + refuse_directory
+            + f'mkdir -p "$(dirname "$t")" || exit {_MKDIR}; '
+            + f'tmp="$t.aether-{uuid.uuid4().hex}.tmp"; '
+            + f'printf %s {_b64(data)} | base64 -d > "$tmp" || exit {_WRITE}; '
+            + (f'chmod {q(mode)} "$tmp" || exit {_CHMOD}; ' if mode else "")
+            + f"{rename} || exit {_RENAME}; tmp=''",
+        )
+        if res.code != 0:
+            raise _write_failure(res, remote)
+        return
     resolved = await run(
         env,
-        f"if [ -L {q(remote)} ]; then readlink -f {q(remote)} 2>/dev/null || "
-        f"realpath {q(remote)}; else printf '%s\\n' {q(remote)}; fi",
+        preflight
+        + "printf '%s\\n' \"$t\"; "
+        + refuse_directory
+        + f'mkdir -p "$(dirname "$t")" || exit {_MKDIR}',
     )
     if resolved.code != 0:
-        raise OSError(f"cannot resolve write target {remote}")
+        raise _write_failure(resolved, remote)
     target = resolved.stdout.removesuffix("\n")
-    checked = await run(
-        env,
-        f"if [ -d {q(target)} ]; then echo 'write target is a directory' >&2; exit 2; fi",
-    )
-    if checked.code != 0:
-        raise OSError(
-            f"cannot write {remote}: {(checked.stderr or checked.stdout).strip()[:300]}"
-        )
-    parent = q(os.path.dirname(target) or ".")
     temporary = target + ".aether-" + uuid.uuid4().hex + ".tmp"
     committed = False
     try:
-        res = await run(env, f"mkdir -p {parent}")
-        if res.code != 0:
-            raise OSError(f"mkdir for {remote} failed: {res.stderr.strip()[:300]}")
-        if len(data) <= INLINE_BYTES:
-            payload = base64.b64encode(data).decode()
-            res = await run(env, f"printf %s {q(payload)} | base64 -d > {q(temporary)}")
-            if res.code != 0:
-                raise OSError(
-                    f"write {remote} failed: {(res.stderr or res.stdout).strip()[:300]}"
-                )
-        else:
-            with tempfile.TemporaryDirectory() as tmp:
-                local = Path(tmp) / "payload"
-                local.write_bytes(data)
-                await env.upload_file(local, temporary)
-        if mode:
-            res = await run(env, f"chmod {q(mode)} {q(temporary)}")
-            if res.code != 0:
-                raise OSError(f"preserving permissions of {remote} failed")
-        # Rename the target pathname, never move a payload *inside* a directory.
-        # Linux mv -T also rejects a directory that appeared after the preflight.
-        # The non-Linux path supports local development with the same semantics.
-        rename = q("import os,sys; os.replace(sys.argv[1],sys.argv[2])")
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "payload"
+            local.write_bytes(data)
+            await env.upload_file(local, temporary)
         res = await run(
             env,
-            f'if [ "$(uname -s)" = Linux ]; then mv -fT {q(temporary)} {q(target)}; '
-            f"else python3 -c {rename} {q(temporary)} {q(target)}; fi",
+            (f"chmod {q(mode)} {q(temporary)} || exit {_CHMOD}; " if mode else "")
+            + f"{_rename(q(temporary), q(target))} || exit {_RENAME}",
         )
         if res.code != 0:
-            raise OSError(
-                f"committing write to {remote} failed: {res.stderr.strip()[:300]}"
-            )
+            raise _write_failure(res, remote)
         committed = True
     finally:
         if not committed:

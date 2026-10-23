@@ -1,10 +1,9 @@
 """Persistent named terminals inside the task container.
 
-Each terminal is one long-lived bash fed through a FIFO. When ``script`` exists
-the shell runs on a pseudo-terminal, so interactive programs (python, gdb, node)
-and Ctrl-C behave normally. All output is appended to a log that stays in the
-container; the model sees new output since its last look (head and tail when
-large) and can grep the full log itself.
+Each terminal is one long-lived bash fed through a FIFO. When ``script`` exists the shell runs on a
+pseudo-terminal, so interactive programs (python, gdb, node) and Ctrl-C behave normally. All output is appended to a
+log that stays in the container; the model sees new output since its last look (head and tail when large) and can
+grep the full log itself.
 """
 
 from __future__ import annotations
@@ -15,28 +14,29 @@ import re
 import shlex
 import time
 
-from .env import list_process_tree, CONTROL_DIR, Environment, alive_test, put_bytes, run, stop_process_tree
+from .env import CONTROL_DIR, Environment, alive_test, atomic_write, list_process_tree, put_bytes, run
+from .env import stop_process_tree
 
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000
 MAX_TERMINALS = 8
-# One tool call blocks the loop at most this long, so scheduled reviews and the elapsed-time readout reach the
-# model while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
+# One tool call blocks the loop at most this long, so scheduled reviews and the elapsed-time readout reach the model
+# while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
 MAX_WAIT_S = 300.0
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?")
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 # seq, exit, optional per-stage exits of the command's last pipeline (bash only, joined by "."), cwd
 _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
-# bash: a RETURN trap fires as the sourced command file finishes, while PIPESTATUS still holds the stage exits of
-# its last pipeline. The body is run unchanged (an appended capture line would land inside an unterminated
-# heredoc) and the exit is the file's own. The trap is removed again, so a RETURN trap of the model's is lost.
+# bash: a RETURN trap fires as the sourced command file finishes, while PIPESTATUS still holds the stage exits of its
+# last pipeline. The body runs unchanged (an appended capture line would land inside an unterminated heredoc) and
+# the exit is the file's own. The trap is removed again, so a RETURN trap of the model's is lost.
 _PIPE_TRAP = "trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
-# One line per process: /proc/<pid>/stat, wait channel, command line. Plain sh + /proc, because many task images
-# have no procps. Used to say what a still-running command is doing (D1 compcert: `opam install ... | tail` sat
-# silent and asleep for 1300 s and the model saw only "(no new output)" five times before it looked).
+# One line per process: /proc/<pid>/stat, wait channel, command line. Plain sh + /proc, because many task images have
+# no procps. Used to say what a still-running command is doing (D1 compcert: `opam install ... | tail` sat silent
+# and asleep for 1300 s and the model saw only "(no new output)" five times before it looked).
 _PROCS = (
     "cut -d' ' -f1 /proc/uptime 2>/dev/null; getconf CLK_TCK 2>/dev/null || echo 100; "
     "for d in /proc/[0-9]*; do s=$(cat $d/stat 2>/dev/null) || continue; w=$(cat $d/wchan 2>/dev/null); "
@@ -48,12 +48,8 @@ _PROCS = (
 
 _WRAPPERS = ("run.sh", "script -qfc", "bash --noprofile --norc")
 _STATES = {
-    "R": "running",
-    "S": "sleeping",
-    "D": "in uninterruptible I/O",
-    "T": "stopped",
-    "t": "stopped by a tracer",
-    "Z": "exited (zombie)",
+    "R": "running", "S": "sleeping", "D": "in uninterruptible I/O",
+    "T": "stopped", "t": "stopped by a tracer", "Z": "exited (zombie)",
 }
 
 _INIT = (
@@ -120,18 +116,19 @@ class Terminals:
         suffix = name if generation == 0 else f"{name}.{generation}"
         root = f"{self._control_dir}/term/{suffix}"
         q = shlex.quote
+        log, fifo = q(root + "/out.log"), q(root + "/in")
         wrapper = "\n".join(
             [
                 "#!/bin/sh",
                 f"echo $$ > {q(root + '/pid')}",
                 f"cd {q(self._workdir)} 2>/dev/null || cd /",
-                f"exec 3<> {q(root + '/in')}",
+                f"exec 3<> {fifo}",
                 f"if {_PTY_TEST}; then",
-                f"  script -qfc 'bash --noprofile --norc -i' /dev/null <&3 >> {q(root + '/out.log')} 2>&1",
+                f"  script -qfc 'bash --noprofile --norc -i' /dev/null <&3 >> {log} 2>&1",
                 "elif command -v bash >/dev/null 2>&1; then",
-                f"  bash --noprofile --norc <&3 >> {q(root + '/out.log')} 2>&1",
+                f"  bash --noprofile --norc <&3 >> {log} 2>&1",
                 "else",
-                f"  sh <&3 >> {q(root + '/out.log')} 2>&1",
+                f"  sh <&3 >> {log} 2>&1",
                 "fi",
                 f"echo $? > {q(root + '/exit')}",
                 "",
@@ -161,14 +158,8 @@ class Terminals:
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
             raise RuntimeError(f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}")
-        session = Session(
-            name,
-            root,
-            int(lines[0]),
-            lines[1] == "pty",
-            bash=lines[2:3] == ["bash"],
-            grew_at=time.monotonic(),
-        )
+        session = Session(name, root, int(lines[0]), lines[1] == "pty", bash=lines[2:3] == ["bash"],
+                          grew_at=time.monotonic())
         self._sessions[name] = session  # ownership precedes fallible initialization
         self._launching.remove(root)
         await self._write(session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n')
@@ -185,12 +176,12 @@ class Terminals:
         return session
 
     async def close(self, keep: bool = False) -> None:
-        """Stop every terminal and everything started in it. The shell runs under ``script`` in a session of its
-        own, so a process-group kill does not reach it or its jobs; the whole process tree is collected from
-        /proc first (while parents are alive, so nohup'd jobs are still descendants), then TERM, then KILL.
+        """Stop every terminal and everything started in it. The shell runs under ``script`` in a session of its own,
+        so a process-group kill does not reach it or its jobs; the whole process tree is collected from /proc first
+        (while parents are alive, so nohup'd jobs are still descendants), then TERM, then KILL.
 
-        ``keep``: kill nothing. The processes still running under the terminals are recorded in ``left_running``
-        (pid and command line, wrapper shells excluded) and the container is left as the agent left it."""
+        ``keep``: kill nothing; the processes still running under the terminals are recorded in ``left_running`` (pid
+        and command line, wrapper shells excluded) and the container is left as the agent left it."""
         pids = [s.pid for s in self._sessions.values()]
         unresolved = []
         for root in list(self._launching):
@@ -211,43 +202,68 @@ class Terminals:
             raise OSError("terminal cleanup could not resolve startup: " + "; ".join(unresolved))
         self._launching.clear()
 
-    async def _write(self, session: Session, text: str) -> None:
-        await put_bytes(self._env, text.encode(), f"{session.root}/pending")
+    async def _write(
+        self,
+        session: Session,
+        text: str,
+        *,
+        cmd: tuple[str, bytes] | None = None,
+        wait: tuple[int, float] | None = None,
+    ) -> tuple[int, re.Match | None, bool] | None:
+        """Deliver input in one exec: the command file (written atomically), the pending line, and the fifo.
+
+        With ``wait`` (seq, seconds) the same exec also waits in the container, up to 3 s, for that command's
+        marker and returns the (size, marker, alive) probe ``_poll`` would have returned.
+        """
         q = shlex.quote
-        res = await run(
-            self._env,
-            f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}; "
-            f"cat {q(session.root + '/pending')} > {q(session.fifo)}",
-            timeout_s=20,
-        )
+        log = q(session.log)
+        steps = ([atomic_write(*cmd, 4)] if cmd else []) + [
+            atomic_write(f"{session.root}/pending", text.encode(), 5),
+            f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
+            f"cat {q(session.root + '/pending')} > {q(session.fifo)} || exit 6",
+        ]
+        if wait is not None:
+            seq, ticks = wait[0], int(max(0.0, min(wait[1], 3.0)) / 0.1)
+            steps.append(
+                f"i=0; m=''; while [ -r {log} ]; do m=$({self._probe(session, seq)});"
+                f' [ -n "$m" ] && break; [ $i -ge {ticks} ] && break; {alive_test(session.pid)} || break; '
+                f"sleep 0.1; i=$((i+1)); done; printf '%s\\n' \"$m\"; "
+                f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log}"
+            )
+        res = await run(self._env, "; ".join(steps), timeout_s=20)
         if res.code == 3 and "dead" in res.stdout:
             raise TerminalGone(f"terminal {session.name} is not running")
         if res.code != 0:
             raise RuntimeError(
                 f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
             )
+        return None if wait is None else self._probe_result(session, wait[0], res.stdout)
+
+    def _probe(self, session: Session, seq: int) -> str:
+        return (
+            f"tail -c +{session.cursor + 1} {shlex.quote(session.log)} | grep -a -o "
+            f"'__AETHER_DONE_{seq}_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
+        )
+
+    def _probe_result(
+        self, session: Session, seq: int | None, out: str
+    ) -> tuple[int, re.Match | None, bool]:
+        rest, _, size = out.rpartition("__SIZE__\n")
+        if not size.strip().isdigit():  # the log is gone (the control directory was deleted)
+            raise TerminalGone(f"the log of terminal {session.name} ({session.log}) is missing")
+        return int(size.strip()), None if seq is None else _MARK.search(clean(rest)), "__ALIVE__" in rest
 
     async def _poll(self, session: Session, seq: int | None) -> tuple[int, re.Match | None, bool]:
         q = shlex.quote
-        probe = (
-            "true"
-            if seq is None
-            else f"tail -c +{session.cursor + 1} {q(session.log)} "
-            f"| grep -a -o '__AETHER_DONE_{seq}_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
-        )
         # The marker is looked for before the size is taken: the other way round, a command that finished in
         # between showed its marker with the output cut at the earlier size (the rest came with the next call).
+        probe = "true" if seq is None else self._probe(session, seq)
         res = await run(
             self._env,
             f"{probe}; {alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; "
             f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null",
         )
-        rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
-        if not size_text.strip().isdigit():  # the log is gone (the control directory was deleted)
-            raise TerminalGone(f"the log of terminal {session.name} ({session.log}) is missing")
-        size = int(size_text.strip())
-        mark = None if seq is None else _MARK.search(clean(rest))
-        return size, mark, "__ALIVE__" in rest
+        return self._probe_result(session, seq, res.stdout)
 
     async def _read(self, session: Session, start: int, end: int) -> str:
         q = shlex.quote
@@ -287,14 +303,8 @@ class Terminals:
             if not pid_s.isdigit() or len(f) < 20:
                 continue
             cpu = (int(f[11]) + int(f[12])) / hz
-            procs[int(pid_s)] = (
-                int(f[1]),
-                f[0],
-                cpu,
-                uptime - int(f[19]) / hz,
-                wchan.strip(),
-                cmd.strip() or comm,
-            )
+            procs[int(pid_s)] = (int(f[1]), f[0], cpu, uptime - int(f[19]) / hz, wchan.strip(),
+                                cmd.strip() or comm)
         tree, frontier = set(), {session.pid}
         while frontier:
             frontier = {p for p, v in procs.items() if v[0] in frontier and p not in tree}
@@ -309,15 +319,8 @@ class Terminals:
             out.append(f"{len(shown) - limit} more")
         return out
 
-    async def use(
-        self,
-        *,
-        name: str = "main",
-        input: str = "",
-        mode: str = "command",
-        wait_s: float = 30.0,
-        interrupt: bool = False,
-    ) -> str:
+    async def use(self, *, name: str = "main", input: str = "", mode: str = "command",
+                  wait_s: float = 30.0, interrupt: bool = False) -> str:
         if not _NAME.match(name):
             raise ValueError("terminal name must be 1-32 chars of letters, digits, _ or -")
         if mode not in ("command", "keys"):
@@ -354,7 +357,7 @@ class Terminals:
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
         try:
-            await self._send(session, input, mode, interrupt)
+            first = await self._send(session, input, mode, interrupt, wait_s)
         except TerminalGone as gone:
             # It died between calls (killed, `exit`, its files deleted). The input never reached it, so it goes
             # to a fresh terminal; left as it was, every later call failed the same way (V3: 45 such errors).
@@ -369,9 +372,9 @@ class Terminals:
                 f"[{gone}; its shell state (cwd, variables, jobs) is gone. A fresh terminal {name} was "
                 "started and your input sent to it]\n"
             )
-            await self._send(session, input, mode, interrupt)
+            first = await self._send(session, input, mode, interrupt, wait_s)
         try:
-            out = await self._collect(session, started, wait_s)
+            out = await self._collect(session, started, wait_s, first)
         except TerminalGone as gone:
             await self._restart(session, start=False)
             return note + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
@@ -390,7 +393,10 @@ class Terminals:
         self._sessions.pop(session.name, None)
         return await self._start(session.name) if start else session
 
-    async def _send(self, session: Session, input: str, mode: str, interrupt: bool) -> None:
+    async def _send(
+        self, session: Session, input: str, mode: str, interrupt: bool, wait_s: float
+    ) -> tuple[int, re.Match | None, bool] | None:
+        first = None
         if interrupt:
             await self._write(session, "\x03")
             if not session.pty:  # no line discipline: signal the shell's children directly
@@ -410,15 +416,16 @@ class Terminals:
             # read) swallow the marker, so the command looked "still running" until wait_s ran out.
             body = input if input.endswith("\n") else input + "\n"
             cmd_file = f"{session.root}/cmd_{session.seq}.sh"
-            await put_bytes(self._env, body.encode(), cmd_file)
             src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
             if session.bash:
                 src = f"__aether_ps=; {_PIPE_TRAP}; {src}; trap - RETURN"
                 stages = "\"${__aether_ps:+_$(echo $__aether_ps | tr ' ' .)}\""
-            await self._write(
+            first = await self._write(
                 session,
                 f"{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
                 f'{session.seq} "$__aether_s" {stages} "$PWD"\n',
+                cmd=(cmd_file, body.encode()),
+                wait=(session.seq, wait_s),
             )
         elif input:
             keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
@@ -426,20 +433,25 @@ class Terminals:
             if "\x03" in keys:  # Ctrl-C typed as keys discards the pending marker just as interrupt=true does
                 await asyncio.sleep(0.5)
                 session.pending = 0
+        return first
 
-    async def _collect(self, session: Session, started: float, wait_s: float) -> str:
+    async def _collect(
+        self,
+        session: Session,
+        started: float,
+        wait_s: float,
+        first: tuple[int, re.Match | None, bool] | None = None,
+    ) -> str:
         name = session.name
         seq = session.pending or None
-        size, mark, alive, last_size, stable_since = (
-            session.cursor,
-            None,
-            True,
-            -1,
-            time.monotonic(),
-        )
+        size, mark, alive, last_size, stable_since = session.cursor, None, True, -1, time.monotonic()
         delay = 0.2
         while True:
-            size, mark, alive = await self._poll(session, seq)
+            if first is not None:  # already waited for the marker inside the send's own exec
+                size, mark, alive = first
+                first = None
+            else:
+                size, mark, alive = await self._poll(session, seq)
             now = time.monotonic()
             if size != session.last_size:
                 session.last_size, session.grew_at = size, now
