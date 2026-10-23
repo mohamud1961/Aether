@@ -230,15 +230,16 @@ def test_the_neutral_hold_holds_the_first_finish_without_facts(tmp_path):
 
 
 class MeasureRig(Rig):
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, task: str = "") -> None:
         super().__init__(root)
         self.record = Record(self.env, str(self.work), str(self.control), lambda: 600.0,
-                             lambda event, **data: self.rows.append((event, data)), measure=True)
+                             lambda event, **data: self.rows.append((event, data)), measure=True,
+                             task=task.replace("WORK", str(self.work)))
 
 
-def run_measure(coro_fn, tmp_path):
+def run_measure(coro_fn, tmp_path, task=""):
     async def go():
-        rig = MeasureRig(tmp_path)
+        rig = MeasureRig(tmp_path, task)
         await rig.start()
         try:
             return await coro_fn(rig)
@@ -351,3 +352,38 @@ def test_measure_states_the_facts_once_late_in_the_run_before_any_finish(tmp_pat
         assert "harness record" not in await rig.cmd("ls")  # once only
 
     run_measure(go, tmp_path)
+
+
+def test_measure_states_task_named_paths_still_missing_at_half_time_and_at_finish(tmp_path):
+    """Timeout-with-no-deliverable shape (P2: recover.json, gpt2.c, attack.py never written)."""
+    async def go(rig):
+        (rig.work / "data.db").write_text("input")
+        clock = {"left": 600.0}
+        rig.record.remaining = lambda: clock["left"]
+        rig.record.total = 600.0
+        await rig.cmd("ls")
+        assert rig.record.to_create == [f"{rig.work}/recover.json"]  # the input already existed: not a deliverable
+        clock["left"] = 290.0
+        mid = await rig.cmd("ls")
+        note = mid.split("[harness record", 1)[1]
+        assert "do not exist yet" in note and "recover.json" in note and "data.db" not in note
+        assert "harness record" not in await rig.cmd("ls")  # once
+        hold, text, _ = await rig.record.at_finish()
+        assert hold and "recover.json" in text
+
+    run_measure(go, tmp_path, task="Read WORK/data.db and write the rows to WORK/recover.json.")
+
+
+def test_measure_is_quiet_once_the_named_path_exists_control(tmp_path):
+    async def go(rig):
+        clock = {"left": 600.0}
+        rig.record.remaining = lambda: clock["left"]
+        rig.record.total = 600.0
+        await rig.cmd("ls")
+        (rig.work / "out.txt").write_text("done")
+        clock["left"] = 290.0
+        assert "harness record" not in await rig.cmd("ls")
+        hold, text, row = await rig.record.at_finish()
+        assert not hold and row["measured"] == 0, text
+
+    run_measure(go, tmp_path, task="Write the answer to WORK/out.txt (see https://example.com/a/b and/or 1/2).")

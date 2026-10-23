@@ -180,7 +180,7 @@ class _Session:
         self.pending_cleanup: list[tuple[str, Any]] = []
         self.state = runstate.RunState(task, workdir) if config.state and config.role != VERIFIER_ROLE else None
         self.record = (
-            Record(self.env, workdir, config.control_dir, self.remaining, trace, measure=config.record_measure)
+            Record(self.env, workdir, config.control_dir, self.remaining, trace, measure=config.record_measure, task=task)
             if config.record and config.role != VERIFIER_ROLE else None
         )
         self.held = False  # the neutral finish hold was used

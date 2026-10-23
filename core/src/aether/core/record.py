@@ -52,6 +52,9 @@ RERUNS = 2
 VIEW_CHECKS = 6
 OUT_TAIL = 1500
 KEEP_OUT = 1200  # printed output kept per check (measure)
+# absolute paths in the task statement; those missing at the first command are what the work must create
+_TASK_PATH = re.compile(r"(?<![\w.:/])(/(?:[\w.-]+/)*[\w-][\w.-]*\w)")
+MID_AT = 0.5  # measure: named paths still missing are stated at half time
 LATE_AT = 0.8  # measure: once this share of the time is used, the finish facts are stated in the stream (timeouts
                # never reach finish: P2 replay, 5 of 11 pilot tasks failed by timeout)
 RESULT_LINES = 3
@@ -131,7 +134,7 @@ class Check:
 class Record:
     def __init__(
         self, env: Environment, workdir: str, control_dir: str, remaining: Callable[[], float], trace,
-        measure: bool = False,
+        measure: bool = False, task: str = "",
     ) -> None:
         self.env, self.workdir, self.control_dir, self.measure = env, workdir, control_dir, measure
         self.remaining, self.trace = remaining, trace
@@ -141,6 +144,9 @@ class Record:
         self.finish_seen = False
         self.total = remaining()
         self.late_done = False
+        self.mid_done = False
+        self.named = sorted({p for p in _TASK_PATH.findall(task) if not p.startswith(("/dev/", "/proc/"))})[:20]
+        self.to_create: list[str] | None = None  # named paths absent at the first command
         self.errors = 0
 
     # -- observing -------------------------------------------------------------------------------------------
@@ -165,6 +171,10 @@ class Record:
     async def after_terminal(self, args: dict[str, Any], out: str, t: float) -> str:
         """Record a finished check; return a regression fact for the model ('' when there is none)."""
         try:
+            if self.measure and self.to_create is None:
+                self.to_create = []
+                self.to_create = await self._missing(self.named)
+                self.trace("record_named", named=self.named, absent_at_start=self.to_create)
             done = self.completed(args, out)
             if done is None or not is_check(done[0]):
                 return await self._late()
@@ -184,12 +194,42 @@ class Record:
             self.trace("record_error", where="after_terminal", error=f"{type(exc).__name__}: {exc}")
             return ""
 
+    async def _missing(self, paths: list[str]) -> list[str]:
+        if not paths:
+            return []
+        q = " ".join(shlex.quote(p) for p in paths)
+        try:
+            result = await run(self.env, f"for p in {q}; do [ -e \"$p\" ] || echo \"$p\"; done", timeout_s=30)
+        except Exception as exc:  # unknown is not absent: nothing is said
+            self.errors += 1
+            self.trace("record_error", where="missing", error=f"{type(exc).__name__}: {exc}")
+            return []
+        return [line for line in result.stdout.splitlines() if line in paths]
+
+    async def _absent(self) -> list[str]:
+        """Paths the task names that were absent at the first command and are still absent."""
+        return await self._missing(self.to_create or [])
+
     async def _late(self) -> str:
-        """measure: once, when LATE_AT of the time is used, the same facts the finish would state."""
-        if not self.measure or self.late_done or self.finish_seen or self.remaining() > (1 - LATE_AT) * self.total:
+        """measure: at MID_AT of the time, named paths still missing; once at LATE_AT, the finish facts."""
+        if not self.measure or self.finish_seen:
             return ""
-        self.late_done = True
+        used = 1 - self.remaining() / self.total if self.total else 0.0
+        if not self.mid_done and MID_AT <= used < LATE_AT:
+            self.mid_done = True
+            absent = await self._absent()
+            self.trace("record_mid", absent=absent, remaining_s=round(self.remaining(), 1))
+            if absent:
+                return (f"[harness record, {self.remaining():.0f}s left] Paths the task names that do not exist yet: "
+                        f"{', '.join(absent)}. Whatever exists when time runs out is what is delivered.")
+            return ""
+        if self.late_done or used < LATE_AT:
+            return ""
+        self.late_done = self.mid_done = True
         facts = self._measured(await self.snapshot(save=False), [])
+        absent = await self._absent()
+        if absent:
+            facts.append(f"- Paths the task names that do not exist yet: {', '.join(absent)}")
         self.trace("record_late", facts=len(facts), remaining_s=round(self.remaining(), 1))
         if not facts:
             return ""
@@ -290,6 +330,9 @@ class Record:
         broke = [r for r in reruns if r["exit"] not in (0, None)]
         row.update(failing=[short(c.command) for c in failing], reruns=reruns)
         measured = self._measured(delivered, reruns) if self.measure else []
+        absent = await self._absent() if self.measure else []
+        if absent:
+            measured.append(f"- Paths the task names that do not exist: {', '.join(absent)}")
         row["measured"] = len(measured)
         hold = bool(failing or broke or measured)
         row["hold"] = hold
