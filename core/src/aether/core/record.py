@@ -52,6 +52,8 @@ RERUNS = 2
 VIEW_CHECKS = 6
 OUT_TAIL = 1500
 KEEP_OUT = 1200  # printed output kept per check (measure)
+LATE_AT = 0.8  # measure: once this share of the time is used, the finish facts are stated in the stream (timeouts
+               # never reach finish: P2 replay, 5 of 11 pilot tasks failed by timeout)
 RESULT_LINES = 3
 _FOOTER = re.compile(r"\n?\[(exit \d+|still running)[^\n]*\]\s*$")
 
@@ -137,6 +139,8 @@ class Record:
         self.checks: list[Check] = []
         self.pending: dict[str, str] = {}  # terminal name -> command still running in it
         self.finish_seen = False
+        self.total = remaining()
+        self.late_done = False
         self.errors = 0
 
     # -- observing -------------------------------------------------------------------------------------------
@@ -163,7 +167,7 @@ class Record:
         try:
             done = self.completed(args, out)
             if done is None or not is_check(done[0]):
-                return ""
+                return await self._late()
             command, code, elapsed, cwd = done
             files = await self.snapshot(save=code == 0)
             check = Check(len(self.checks) + 1, round(t, 1), command, code, elapsed, cwd, files,
@@ -172,13 +176,25 @@ class Record:
             self.checks.append(check)
             self.trace("record_check", seq=check.seq, command=short(command, 400), exit=code, cwd=cwd,
                        elapsed=elapsed, files=len(files))
-            if not (check.failed and earlier):
-                return ""
-            return self._regression(check, earlier[-1])
+            if check.failed and earlier:
+                return self._regression(check, earlier[-1])
+            return await self._late()
         except Exception as exc:  # the record is an instrument: its failure is traced, the run goes on
             self.errors += 1
             self.trace("record_error", where="after_terminal", error=f"{type(exc).__name__}: {exc}")
             return ""
+
+    async def _late(self) -> str:
+        """measure: once, when LATE_AT of the time is used, the same facts the finish would state."""
+        if not self.measure or self.late_done or self.finish_seen or self.remaining() > (1 - LATE_AT) * self.total:
+            return ""
+        self.late_done = True
+        facts = self._measured(await self.snapshot(save=False), [])
+        self.trace("record_late", facts=len(facts), remaining_s=round(self.remaining(), 1))
+        if not facts:
+            return ""
+        return "\n".join([f"[harness record, {self.remaining():.0f}s left: exact results of your own commands]", *facts,
+                           "Whatever is in the working directory when time runs out is what is delivered."])
 
     def _regression(self, now: Check, then: Check) -> str:
         changed = sorted(p for p, h in then.files.items() if now.files.get(p) != h)

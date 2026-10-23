@@ -332,3 +332,22 @@ def test_measure_ignores_timing_and_pid_noise_control(tmp_path):
         assert row["measured"] == 0 and not hold, text
 
     run_measure(go, tmp_path)
+
+
+def test_measure_states_the_facts_once_late_in_the_run_before_any_finish(tmp_path):
+    """Timeout shape: the run never calls finish, so the better saved version must be named while time remains."""
+    async def go(rig):
+        clock = {"left": 600.0}
+        rig.record.remaining = lambda: clock["left"]
+        rig.record.total = 600.0
+        (rig.work / "score.py").write_text("print('cos', open('r.txt').read().strip())\n")
+        (rig.work / "r.txt").write_text("0.91\n")
+        await rig.cmd("python3 score.py")
+        (rig.work / "r.txt").write_text("0.86\n")
+        assert "harness record" not in await rig.cmd("python3 score.py")  # early: nothing said
+        clock["left"] = 100.0
+        late = await rig.cmd("ls")
+        assert "100s left" in late and "cos 0.91" in late and "cos 0.86" in late
+        assert "harness record" not in await rig.cmd("ls")  # once only
+
+    run_measure(go, tmp_path)
