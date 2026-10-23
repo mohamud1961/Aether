@@ -392,42 +392,48 @@ class AetherCoreAgent(BaseAgent):
                     f"Aether runtime failed ({result.status}): {result.error}"
                 )
         finally:
-            await continuation.finish(environment, logs, pending)
             try:
-                if provider is not None and config is not None:
-                    _write_record(
-                        logs,
-                        result,
-                        started=started,
-                        workdir=workdir,
-                        config=config,
-                        review=environ.get(REVIEW_ENV),
-                        provider=provider,
-                    )
-                else:
-                    logs.mkdir(parents=True, exist_ok=True)
-                    (logs / "aether_run_record.json").write_text(
-                        json.dumps(
-                            {
-                                "schema": "aether.core.run_record.v1",
-                                "status": "configuration_error",
-                                "error": "adapter configuration failed before provider construction; see trial exception",
-                                "elapsed_s": round(time.time() - started, 3),
-                                "run_metrics": {"model_calls": None},
-                            }
-                        )
-                    )
-                if provider is not None:
-                    for attr, key in (
-                        ("n_input_tokens", "input"),
-                        ("n_cache_tokens", "cached"),
-                        ("n_output_tokens", "output"),
-                    ):
-                        if hasattr(context, attr):
-                            value = provider.log.usage().get(key)
-                            setattr(
-                                context, attr, None if value is None else int(value)
-                            )
+                # Core's own cleanup must run even if capture is cancelled or raises.
+                writers = None
+                if result is not None:
+                    writers = (getattr(result, "extras", None) or {}).get("left_running")
+                await continuation.finish(environment, logs, pending, active_writers=writers)
             finally:
-                if provider is not None:
-                    await provider.aclose()
+                try:
+                    if provider is not None and config is not None:
+                        _write_record(
+                            logs,
+                            result,
+                            started=started,
+                            workdir=workdir,
+                            config=config,
+                            review=environ.get(REVIEW_ENV),
+                            provider=provider,
+                        )
+                    else:
+                        logs.mkdir(parents=True, exist_ok=True)
+                        (logs / "aether_run_record.json").write_text(
+                            json.dumps(
+                                {
+                                    "schema": "aether.core.run_record.v1",
+                                    "status": "configuration_error",
+                                    "error": "adapter configuration failed before provider construction; see trial exception",
+                                    "elapsed_s": round(time.time() - started, 3),
+                                    "run_metrics": {"model_calls": None},
+                                }
+                            )
+                        )
+                    if provider is not None:
+                        for attr, key in (
+                            ("n_input_tokens", "input"),
+                            ("n_cache_tokens", "cached"),
+                            ("n_output_tokens", "output"),
+                        ):
+                            if hasattr(context, attr):
+                                value = provider.log.usage().get(key)
+                                setattr(
+                                    context, attr, None if value is None else int(value)
+                                )
+                finally:
+                    if provider is not None:
+                        await provider.aclose()
