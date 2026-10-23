@@ -73,6 +73,8 @@ def test_directory_target_is_not_reported_as_a_successful_file_write(
 
 
 def test_a_directory_created_during_transfer_is_never_used_as_a_destination(tmp_path):
+    # A payload above INLINE_BYTES is uploaded before the rename, so the directory can still appear between the
+    # preflight and the commit (docs/EXEC_COLLAPSE.md: the inline write is one exec and has no such gap).
     target = tmp_path / "out"
 
     class DirectoryAppears(LocalEnv):
@@ -83,7 +85,7 @@ def test_a_directory_created_during_transfer_is_never_used_as_a_destination(tmp_
 
     with pytest.raises(OSError, match="committing write"):
         asyncio.run(
-            Files(DirectoryAppears(tmp_path), str(tmp_path)).write("out", "content")
+            Files(DirectoryAppears(tmp_path), str(tmp_path)).write("out", "content" * 10000)
         )
     assert list(target.iterdir()) == []
     assert not list(tmp_path.glob("*.aether-*.tmp"))
