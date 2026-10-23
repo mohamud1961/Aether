@@ -21,6 +21,7 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
+from . import continuation
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .clone import Clone, compose_clone
@@ -359,7 +360,7 @@ class AetherCoreAgent(BaseAgent):
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
         environ = {**os.environ, **self._extra_env}
         logs, started = Path(self.logs_dir), time.time()
-        provider, config, result, workdir = None, None, None, None
+        provider, config, result, workdir, pending = None, None, None, None, None
         try:
             timeout_s = agent_timeout(self._agent_timeout_sec, environ=environ)
             config = build_config(environ=environ)
@@ -367,6 +368,7 @@ class AetherCoreAgent(BaseAgent):
             transport = build_review(logs, environ=environ)
             workdir = await discover_workdir(environment)
             config = with_clones(config, environment)
+            instruction, pending = await continuation.begin(environment, environ, logs, instruction, workdir)
             result = await run_agent(
                 env=environment,
                 task=instruction,
@@ -390,6 +392,7 @@ class AetherCoreAgent(BaseAgent):
                     f"Aether runtime failed ({result.status}): {result.error}"
                 )
         finally:
+            await continuation.finish(environment, logs, pending)
             try:
                 if provider is not None and config is not None:
                     _write_record(
