@@ -28,6 +28,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
+from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
 from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
 from .tools import HYGIENE_MODES
@@ -209,6 +210,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"), state=_choice(environ, STATE_ENV, REPL_MODES, "off") == "on",
         **_record(environ),
+        diffcheck=_choice(environ, DIFFCHECK_ENV, DIFFCHECK_MODES, "off") == "on",
     )
 
 

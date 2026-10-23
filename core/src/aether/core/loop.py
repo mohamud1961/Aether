@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from typing import Any, Awaitable, Callable
 
-from . import compaction, images, intent, runstate
+from . import compaction, diffcheck, images, intent, runstate
 from . import receipt as finish_receipt
 from . import finish_report
 from .clm import ClmContext, ClmSettings
@@ -81,6 +81,7 @@ class CoreConfig:
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
+    diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
@@ -186,6 +187,11 @@ class _Session:
             if config.record and config.role != VERIFIER_ROLE else None
         )
         self.held = False  # the neutral finish hold was used
+        self.diffcheck = (
+            diffcheck.DiffCheck(self.env, task, f"{config.control_dir}/diffcheck", self.remaining, trace, _diffcheck_author(self),
+                        self.elapsed)
+            if config.diffcheck and config.role == "worker" else None
+        )
 
     def clone(
         self, env: Environment, timeout_s: float | None = None, read_only: bool = False
@@ -263,6 +269,8 @@ async def run_agent(
             except OSError:
                 if config.verify:
                     raise
+            if s.diffcheck:
+                s.diffcheck.start()
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
             s.tools = tools(
@@ -328,6 +336,8 @@ async def run_agent(
         )
     finally:
         cleanup_errors = []
+        if s.diffcheck:
+            await s.diffcheck.close()
         s.env.cleanup_until(time.monotonic() + max(1.0, STOP_MARGIN_S))
         for name, task in s.pending_cleanup:
             try:
@@ -513,6 +523,10 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             fact = await s.record.after_terminal(args, out, s.elapsed())
             if fact:
                 out = f"{out}\n{fact}"
+        if s.diffcheck and name != "finish":
+            found = await s.diffcheck.after_action()
+            if found:
+                out = f"{out}\n{found}"
         out = await _save(s, out)
         if s.state and not finished:
             if name in ("write_file", "edit_file") and not out.startswith("error"):
@@ -826,6 +840,21 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     )
 
 
+def _diffcheck_author(s: _Session) -> Callable[[str, float], Awaitable[Any]]:
+    """The differential check.s author: a fresh Core run in the same container, working in the check directory (see diffcheck)."""
+
+    async def author(brief: str, timeout_s: float) -> RunResult:
+        from .verify import _Labelled
+
+        await run(s.env, f"mkdir -p {shlex.quote(s.diffcheck.dir)}")
+        return await run_agent(env=s.env, task=brief, workdir=s.diffcheck.dir,
+                               provider=_Labelled(s.provider, diffcheck.AUTHOR_ROLE), timeout_s=timeout_s,
+                               trace=Trace(s.trace.path.with_name(diffcheck.TRACE_FILE)),
+                               config=diffcheck.author_config(s.config))
+
+    return author
+
+
 def _close(s: _Session) -> None:
     r = s.result
     r.failed_attempts = s.provider.log.totals()["all"]["failed"]
@@ -834,7 +863,7 @@ def _close(s: _Session) -> None:
     r.sub_usage = s.provider.log.usage(  # this run's helper calls; the verifier's are reported by verify
         [x for x in roles if x.startswith(own + ".")]
         if own != "worker"
-        else [x for x in roles if x != own and not x.startswith(VERIFIER_ROLE)]
+        else [x for x in roles if x != own and not x.startswith((VERIFIER_ROLE, diffcheck.AUTHOR_ROLE))]
     )
     statuses: dict[str, int] = {}
     for row in s.provider.failure_log:
@@ -854,6 +883,8 @@ def _close(s: _Session) -> None:
         "clm": s.clm.stats.__dict__ if s.clm else None,
         "model_calls": s.provider.log.totals(),
         "record": s.record.summary() if s.record else None,
+        "diffcheck": {**s.diffcheck.summary(), "usage": s.provider.log.usage(
+            [x for x in roles if x.startswith(diffcheck.AUTHOR_ROLE)])} if s.diffcheck else None,
         "finish_hold": s.config.finish_hold,
     }
     s.trace(
