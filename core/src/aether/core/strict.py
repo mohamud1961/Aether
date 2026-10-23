@@ -9,6 +9,7 @@ server keeps the call format but not the schema (smoke 10-22: ``terminal`` calle
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Mapping
 
 from .provider import ChatProvider
@@ -44,6 +45,25 @@ def extra_sampling(environ: Mapping[str, str]) -> dict[str, Any]:
     if not raw.isdigit() or int(raw) < 1:
         raise ValueError(f"{TOP_K_ENV} must be a positive integer, got {raw!r}")
     return {"extra_body": {"top_k": int(raw)}}
+
+
+PROXY_AUTH_ENV = "AETHER_CORE_PROXY_AUTH_FILE"
+
+
+def proxy_headers(environ: Mapping[str, str]) -> dict[str, str]:
+    """Modal proxy-auth headers for a Flint endpoint. The file named by ``AETHER_CORE_PROXY_AUTH_FILE`` holds two
+    lines: the token id, then the token secret. Unset means no headers. Errors name the variable, never the contents."""
+    raw = environ.get(PROXY_AUTH_ENV, "").strip()
+    if not raw:
+        return {}
+    try:
+        text = Path(raw).expanduser().read_text()
+    except OSError as exc:
+        raise ValueError(f"{PROXY_AUTH_ENV} names a file that cannot be read") from exc
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) != 2:
+        raise ValueError(f"{PROXY_AUTH_ENV} file must hold exactly two non-empty lines: token id, then token secret")
+    return {"Modal-Key": lines[0], "Modal-Secret": lines[1]}
 
 
 class StrictChatProvider(ChatProvider):

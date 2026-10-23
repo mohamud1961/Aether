@@ -28,7 +28,7 @@ from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
-from .strict import StrictChatProvider, extra_sampling
+from .strict import StrictChatProvider, extra_sampling, proxy_headers
 from .tools import HYGIENE_MODES
 
 HARBOR_IMPORT_ERROR = None
@@ -133,7 +133,7 @@ def build_provider(
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
     client = AsyncOpenAI(
-        api_key=key,
+        api_key=key, default_headers=proxy_headers(environ),
         base_url=base_url(endpoint, _choice(environ, API_ENV, ("azure", "openai"), "azure")),
         max_retries=0,
         timeout=httpx.Timeout(connect=30.0, read=240.0, write=60.0, pool=30.0),
