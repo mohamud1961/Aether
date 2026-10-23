@@ -59,6 +59,9 @@ the task you can compute directly. Prefer executing supplied originals over re-i
 3. Build an independent reference for the required behaviour from those sources.
 4. Choose inputs that discriminate: typical cases, boundaries, unusual combinations, and inputs beyond the examples \
 the task gives.
+   Where the task leaves a convention open (a tensor or matrix layout, an ordering, a number or text format, a \
+rounding, an argument convention), do not pick one: accept every reading the task's wording allows, and flag a \
+behaviour only if it is wrong under all of them.
 5. Write {dir}/check.py: `python3 {dir}/check.py --candidate PATH` runs the candidate at PATH and the reference on \
 the same inputs, through the interface the task specifies, prints each disagreement as input / expected / actual, \
 and exits 1 on any disagreement, 2 if the check itself could not run, 0 if none. Under {check_s} seconds.
