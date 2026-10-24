@@ -50,7 +50,7 @@ VIEW_CHECKS = 6
 OUT_TAIL = 1500
 KEEP_OUT = 1200  # printed output kept per check (measure)
 # absolute paths in the task statement; those missing at the first command are what the work must create
-_TASK_PATH = re.compile(r"(?<![\w.:/])(/(?:[\w.-]+/)*[\w-][\w.-]*\w)")
+_TASK_PATH = re.compile(r"(?<![\w.:/])(/(?:[\w.-]+/)*[\w.-]+\w)")
 MID_AT = 0.5  # measure: named paths still missing are stated at half time
 LATE_AT = 0.8  # measure: once this share of the time is used, the finish facts are stated in the stream (timeouts
                # never reach finish: P2 replay, 5 of 11 pilot tasks failed by timeout)
@@ -154,11 +154,12 @@ class Record:
         name = str(args.get("name") or "main")
         text = str(args.get("input", ""))
         mode = str(args.get("mode") or "command")
-        if args.get("interrupt") or "\x03" in text or r"\x03" in text:
-            # Terminal recovery may synthesize `true` to regain a prompt. Its exit 0 is
-            # not a result from the interrupted command and must not qualify that file.
-            self.pending.pop(name, None)
-        sent = text if mode == "command" and text.strip("\x03 \n") and "[input not sent" not in out else ""
+        # Ctrl-C delivery does not prove the old command completed. Preserve
+        # its pending identity until a real exit marker or an actually sent
+        # replacement command provides new process evidence.
+        sent = text if (mode == "command" and not args.get("interrupt")
+                        and text.strip("\x03 \n") and "[input not sent" not in out
+                        and "supplied input was not submitted" not in out) else ""
         if sent:
             self.pending.pop(name, None)
         done = _DONE.search(out)
@@ -268,6 +269,24 @@ class Record:
         self.trace("record_copy_unavailable", path=path, expected_sha256=digest)
         return None
 
+    def _explicit_named_relative(self) -> list[str]:
+        """Task-mentioned files inside workdir, bounded and without parent traversal."""
+        base = posixpath.normpath(self.workdir)
+        prefix = base.rstrip("/") + "/"
+        out: list[str] = []
+        control = posixpath.normpath(self.control_dir)
+        for absolute in self.named[:20]:
+            full = posixpath.normpath(absolute)
+            if not full.startswith(prefix) or full == control or full.startswith(control.rstrip("/") + "/"):
+                continue
+            rel = full[len(prefix):]
+            parts = rel.split("/")
+            if (not rel or len(rel) > 4096 or
+                    any(part in ("", ".", "..") or part in SKIP for part in parts)):
+                continue
+            out.append(rel)
+        return sorted(set(out))
+
     async def snapshot(self, save: bool) -> dict[str, str]:
         """sha256 of each file the run changed under the working directory; with ``save``, keep a copy of each
         version not kept yet (content-addressed, files under SAVE_BYTES)."""
@@ -283,10 +302,29 @@ class Record:
             '[ "$ch" = "$h" ] && kept=1; fi; '
             if save else ""
         )
+        # Named task outputs receive priority even if their mtime predates
+        # the run (e.g. archive extraction or cp -p) or find has >MAX_FILES
+        # unrelated changed files. Refuse symlinked path components. This
+        # improves evidence coverage; it is not atomic candidate custody.
+        explicit = []
+        for rel in self._explicit_named_relative():
+            relative = "./" + rel
+            parts = rel.split("/")
+            no_symlinks = " && ".join(
+                f"[ ! -L {q('./' + '/'.join(parts[:n]))} ]"
+                for n in range(1, len(parts) + 1)
+            )
+            explicit.append(
+                f"if [ -f {q(relative)} ] && {no_symlinks} "
+                f"&& [ \"$(wc -c < {q(relative)})\" -lt 20000000 ]; "
+                f"then printf '%s\\n' {q(relative)}; fi;"
+            )
+        first = " ".join(explicit)
         command = (
             f"cd {q(self.workdir)} && test -e {marker} && "
-            f"find . -xdev \\( {prune} \\) -prune -o -type f -newer {marker} -size -20M -print 2>/dev/null | "
-            f"head -n {MAX_FILES} | while IFS= read -r f; do "
+            f"{{ {first} find . -xdev \\( {prune} \\) -prune -o -type f "
+            f"-newer {marker} -size -20M -print 2>/dev/null; }} "
+            f"| awk '!seen[$0]++' | head -n {MAX_FILES} | while IFS= read -r f; do "
             f'h=$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f") | cut -c1-64); '
             f'[ -n "$h" ] || continue; kept=0; {keep}printf "%s\\t%s\\t%s\\n" "$h" "$kept" "${{f#./}}"; done'
         )

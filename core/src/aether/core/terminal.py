@@ -229,12 +229,16 @@ class Terminals:
 
     async def _poll(self, session: Session, seq: int | None) -> tuple[int, re.Match | None, bool]:
         q = shlex.quote
-        probe = (
-            "true"
-            if seq is None
-            else f"tail -c +{session.cursor + 1} {q(session.log)} "
-            f"| grep -a -o '__AETHER_DONE_{seq}_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
-        )
+        # Arbitrary command stdout must never be treated as an authoritative
+        # shell completion receipt. Only the shell wrapper writes done_<seq>.
+        # The startup marker (seq 0) predates this per-command mechanism.
+        if seq is None:
+            probe = "true"
+        elif seq == 0:
+            probe = (f"tail -c +{session.cursor + 1} {q(session.log)} "
+                     f"| grep -a -o '__AETHER_DONE_0_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1")
+        else:
+            probe = f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
         # The marker is looked for before the size is taken: the other way round, a command that finished in
         # between showed its marker with the output cut at the earlier size (the rest came with the next call).
         res = await run(
@@ -353,6 +357,8 @@ class Terminals:
             note += earlier + "\n" if earlier else ""
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
+        if interrupt and input:
+            note += "[interrupt requested; supplied input was not submitted because shell readiness is unconfirmed]\n"
         try:
             await self._send(session, input, mode, interrupt)
         except TerminalGone as gone:
@@ -364,6 +370,12 @@ class Terminals:
                     f"[{gone}; its interactive program and shell state are gone. A fresh terminal "
                     f"{name} was started. Your keystrokes were not sent to the new shell; "
                     "start the intended program again before sending keys.]"
+                )
+            if interrupt:
+                return note + (
+                    f"[{gone}; a fresh terminal {name} was started. The interrupt targeted "
+                    "the lost session, and supplied command input was not sent. Retry "
+                    "the intended command explicitly.]"
                 )
             note += (
                 f"[{gone}; its shell state (cwd, variables, jobs) is gone. A fresh terminal {name} was "
@@ -398,10 +410,12 @@ class Terminals:
                     self._env,
                     f"for c in $(pgrep -P {session.pid}); do pkill -INT -P $c; sleep 0.3; pkill -TERM -P $c; done; true",
                 )
-            await asyncio.sleep(0.5)
-            session.pending = 0  # Ctrl-C discards queued input, including the old completion marker
-            if not input:
-                input, mode = "true", "command"
+            # Interrupt delivery is not proof that the foreground program exited
+            # or that the shell resumed reading commands. Keep the previous
+            # completion marker pending until _collect actually observes it.
+            # Never queue model shell text behind an unconfirmed foreground
+            # interpreter: Python/REPLs can consume it as their own input.
+            return
         if input and mode == "command":
             session.seq += 1
             session.pending = session.seq
@@ -415,17 +429,23 @@ class Terminals:
             if session.bash:
                 src = f"__aether_ps=; {_PIPE_TRAP}; {src}; trap - RETURN"
                 stages = "\"${__aether_ps:+_$(echo $__aether_ps | tr ' ' .)}\""
+            # Write the completion receipt outside stdout, atomically AFTER
+            # the original command returns to the shell. A program printing a
+            # completion-looking line cannot forge command completion.
+            marker = f"{session.root}/done_{session.seq}"
+            temporary_marker = f"{marker}.tmp"
             await self._write(
                 session,
                 f"{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
-                f'{session.seq} "$__aether_s" {stages} "$PWD"\n',
+                f'{session.seq} "$__aether_s" {stages} "$PWD" > {shlex.quote(temporary_marker)} '
+                f"&& mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}\n",
             )
         elif input:
             keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
+            # Raw Ctrl-C might be swallowed by a foreground program. As with
+            # interrupt=true, retain pending until the original marker proves
+            # the shell actually resumed execution.
             await self._write(session, keys)
-            if "\x03" in keys:  # Ctrl-C typed as keys discards the pending marker just as interrupt=true does
-                await asyncio.sleep(0.5)
-                session.pending = 0
 
     async def _collect(self, session: Session, started: float, wait_s: float) -> str:
         name = session.name
@@ -457,7 +477,9 @@ class Terminals:
             session.pending = 0
         text = clean(await self._read(session, session.cursor, size))
         session.cursor = size
-        text = _MARK.sub("", text).strip("\n")
+        # Runtime completion receipts are out-of-band. Keep user/program
+        # stdout verbatim even if it resembles our completion protocol.
+        text = text.strip("\n")
         elapsed = time.monotonic() - started
         if not alive:
             self._sessions.pop(name, None)

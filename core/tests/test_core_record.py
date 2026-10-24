@@ -494,5 +494,9 @@ def test_interrupt_prompt_recovery_is_not_recorded_as_a_successful_old_command(t
         interrupt = {"name": "main", "input": "", "interrupt": True}
         out = await rig.terms.use(**interrupt, wait_s=5)
         await rig.record.after_terminal(interrupt, out, 2)
-        assert rig.record.pending == {} and rig.record.checks == []
+        # The interrupt ended the old command for real: its own authoritative nonzero exit is retained,
+        # the pending identity is resolved, and no synthetic prompt-recovery success replaces that result.
+        assert rig.record.pending == {}
+        assert [c.command for c in rig.record.checks] == ["python3 slow.py"]
+        assert rig.record.checks[0].exit != 0 and not rig.record.checks[0].passed
     run(go, tmp_path)
