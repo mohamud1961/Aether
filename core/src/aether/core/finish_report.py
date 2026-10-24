@@ -93,7 +93,7 @@ async def _files(
     command = (
         f"cd {shlex.quote(workdir)} && for f in {listing}; do "
         f'printf "%s\\t%s\\t%s\\n" "$f" "$(stat -c %s "$f" 2>/dev/null || wc -c < "$f")" '
-        f'"$(sha256sum "$f" 2>/dev/null | cut -d" " -f1)"; done'
+        f'"$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null) | cut -d" " -f1)"; done'
     )
     result = await env.exec(command=command, cwd=None, env=None, timeout_sec=60)
     if exit_code(result) != 0:
@@ -102,11 +102,17 @@ async def _files(
     for line in str(getattr(result, "stdout", "") or "").splitlines():
         name, _, rest = line.partition("\t")
         size, _, digest = rest.partition("\t")
+        # A missing SHA executable used to return exit 0 through cut and
+        # silently publish a delivered-file row with sha256=None. Never call
+        # that an exact measured byte identity. Missing/malformed output is
+        # one incomplete evidence observation, not a zero-byte file or PASS.
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            return "the changed files could not be fingerprinted exactly", total
         rows.append(
             {
                 "path": posixpath.normpath(posixpath.join(workdir, name)),
                 "bytes": int(size) if size.strip().isdigit() else None,
-                "sha256": digest or None,
+                "sha256": digest,
             }
         )
     return rows, total

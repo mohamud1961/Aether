@@ -86,13 +86,18 @@ async def probe(env: Any, workdir: str, timeout_s: float = 60) -> dict[str, Any]
 def _scratch_script(roots: tuple[str, ...], since: int) -> str:
     paths = " ".join(shlex.quote(r) for r in roots)
     return f"""if stat -c %Z / >/dev/null 2>&1; then Z='-c %Z'; else Z='-f %c'; fi
+if command -v sha256sum >/dev/null 2>&1; then HASH_TOOL=sha256sum
+elif command -v shasum >/dev/null 2>&1; then HASH_TOOL=shasum
+else echo 'scratch SHA-256 hashing unavailable' >&2; exit 4
+fi
 n=0; m=$(( ($(date +%s) - {int(since)}) / 60 + 2 ))  # -cmin narrows cheaply; the exact cut-off is below
 for r in {paths}; do [ -d "$r" ] && find "$r" -xdev -type f -cmin -"$m" -size -{MAX_SCRATCH_BYTES}c; done |
 while IFS= read -r f; do
   c=$(stat $Z "$f" 2>/dev/null) || continue
   [ "$c" -ge {int(since)} ] || continue
   n=$((n + 1)); [ "$n" -le {MAX_SCRATCH_FILES} ] || break
-  sha256sum "$f"
+  if [ "$HASH_TOOL" = sha256sum ]; then sha256sum "$f"
+  else shasum -a 256 "$f"; fi
 done"""
 
 

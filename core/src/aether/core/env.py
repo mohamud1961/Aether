@@ -221,21 +221,21 @@ async def put_bytes(
         # Linux mv -T also rejects a directory that appeared after the preflight.
         # The non-Linux path supports local development with the same semantics.
         rename = q("import os,sys; os.replace(sys.argv[1],sys.argv[2])")
-        precondition = ""
-        if len(data) > INLINE_BYTES:
-            # A transport may return successfully after writing fewer/different
-            # bytes. Verify the staged file *before* the final rename, in the
-            # same remote commit command. No extra worker/model turn is needed.
-            # The checksum operation adds sandbox I/O only for uploaded files.
-            expected_payload = hashlib.sha256(data).hexdigest()
-            precondition = (
-                f"if [ ! -f {q(temporary)} ]; then "
-                "echo 'upload integrity failure: staged upload missing' >&2; exit 12; fi; "
-                f"actual_payload=$( (sha256sum < {q(temporary)} 2>/dev/null || "
-                f"shasum -a 256 < {q(temporary)}) | cut -c1-64 ); "
-                f'if [ "$actual_payload" != {q(expected_payload)} ]; then '
-                "echo 'upload integrity failure: staged bytes differ from submitted payload' >&2; exit 12; fi; "
-            )
+        # Every stage, including inline base64 writes and exact text edits,
+        # must have the bytes the model actually submitted before replacement.
+        # Checking uploads but trusting smaller staged files made an otherwise
+        # successful edit silently publish corrupt bytes after lower-layer
+        # corruption. This check is part of the same remote commit command.
+        expected_payload = hashlib.sha256(data).hexdigest()
+        proof_label = "upload integrity failure" if len(data) > INLINE_BYTES else "write integrity failure"
+        precondition = (
+            f"if [ ! -f {q(temporary)} ]; then "
+            f"echo '{proof_label}: staged file missing' >&2; exit 12; fi; "
+            f"actual_payload=$( (sha256sum < {q(temporary)} 2>/dev/null || "
+            f"shasum -a 256 < {q(temporary)}) | cut -c1-64 ); "
+            f'if [ "$actual_payload" != {q(expected_payload)} ]; then '
+            f"echo '{proof_label}: staged bytes differ from submitted payload' >&2; exit 12; fi; "
+        )
         if expected_sha256 is not None:
             # The comparison and final rename run in the SAME remote shell
             # invocation. This catches stale edits as late as practical,

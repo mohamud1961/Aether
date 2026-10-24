@@ -14,7 +14,7 @@ outside the size filter was repaired in the clone and certified).
 A name or link target containing a newline (or a link target containing "|") would let a line be forged, so the
 script refuses it and the parser refuses any path listed twice: nothing is bound then.
 
-Uses POSIX sh, find, sha256sum, readlink and GNU/busybox ``stat -c`` (BSD ``stat -f`` where ``-c`` is missing).
+Uses POSIX sh, find, sha256sum (or shasum -a 256), readlink and GNU/busybox ``stat -c`` (BSD ``stat -f`` where ``-c`` is missing).
 """
 
 from __future__ import annotations
@@ -77,7 +77,13 @@ def _script(workdir: str) -> str:
     prune = " -o ".join(f"-name {shlex.quote(n)}" for n in receipt.SKIP)
     walk = f"find . -xdev \\( {prune} \\) -prune"
     return f"""cd -- {w} || {{ echo "working directory unavailable: {workdir}" >&2; exit 3; }}
-command -v sha256sum >/dev/null 2>&1 || {{ echo "sha256sum unavailable" >&2; exit 4; }}
+if command -v sha256sum >/dev/null 2>&1; then
+  hash_tool=sha256sum
+elif command -v shasum >/dev/null 2>&1; then
+  hash_tool=shasum
+else
+  echo "sha256sum unavailable (shasum unavailable too)" >&2; exit 4
+fi
 nl=$(printf '\\nx'); nl=${{nl%x}}
 if [ -n "$({walk} -o -name "*$nl*" -print 2>/dev/null | head -n 1)" ]; then
   echo "a path contains a newline; the manifest cannot be read unambiguously" >&2; exit 9
@@ -87,7 +93,11 @@ if stat -c %a . >/dev/null 2>&1; then S='-c'; F='M|%F|%a|%n'; else S='-f'; F='M|
 {walk} -o -exec stat "$S" "$F" {{}} + || exit 6
 {walk} -o -type l -exec sh -c 'for p; do t=$(readlink "$p") || exit 1; case "$t" in *"|"*|*"$0"*) exit 1;; esac
   printf "L|%s|%s\\n" "$t" "$p"; done' "$nl" {{}} + || {{ echo "a link could not be read, or its target has | or a newline" >&2; exit 7; }}
-{walk} -o -type f -exec sha256sum {{}} + || exit 8
+if [ "$hash_tool" = sha256sum ]; then
+  {walk} -o -type f -exec sha256sum {{}} + || exit 8
+else
+  {walk} -o -type f -exec shasum -a 256 {{}} + || exit 8
+fi
 if [ -r /proc/mounts ]; then
   here=$(pwd -P)
   while read -r _ mnt _; do case "$mnt" in "$here"/*) echo "U|.${{mnt#"$here"}}";; esac; done < /proc/mounts

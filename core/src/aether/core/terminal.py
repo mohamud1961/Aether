@@ -31,7 +31,7 @@ _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
 # bash: a RETURN trap fires as the sourced command file finishes, while PIPESTATUS still holds the stage exits of
 # its last pipeline. The body is run unchanged (an appended capture line would land inside an unterminated
 # heredoc) and the exit is the file's own. The trap is removed again, so a RETURN trap of the model's is lost.
-_PIPE_TRAP = "trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
+_PIPE_TRAP = "builtin trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
 # One line per process: /proc/<pid>/stat, wait channel, command line. Plain sh + /proc, because many task images
@@ -427,7 +427,24 @@ class Terminals:
             await put_bytes(self._env, body.encode(), cmd_file)
             src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
             if session.bash:
-                src = f"__aether_ps=; {_PIPE_TRAP}; {src}; trap - RETURN"
+                # A RETURN trap is persistent model-owned Bash state. Prior code
+                # installed ours unconditionally and removed it after sourcing
+                # the command, destroying a user trap set before/during it.
+                # Instrument only when no user RETURN trap is present, and
+                # remove ours only if the sourced command left it unchanged.
+                # With a user trap, overall shell exit is still authoritative;
+                # optional per-stage PIPESTATUS is intentionally unavailable.
+                src = (
+                    "__aether_ps=; __aether_owns_return=0; "
+                    'if [ -z "$(builtin trap -p RETURN)" ]; then '
+                    f"{_PIPE_TRAP}; __aether_owns_return=1; "
+                    '__aether_return_definition="$(builtin trap -p RETURN)"; '
+                    "fi; "
+                    f"{src}; "
+                    'if [ "$__aether_owns_return" = 1 ] && '
+                    '[ "$(builtin trap -p RETURN)" = "$__aether_return_definition" ]; '
+                    "then builtin trap - RETURN; fi"
+                )
                 stages = "\"${__aether_ps:+_$(echo $__aether_ps | tr ' ' .)}\""
             # Write the completion receipt outside stdout, atomically AFTER
             # the original command returns to the shell. A program printing a
