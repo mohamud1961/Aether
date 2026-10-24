@@ -10,14 +10,20 @@ it. Needs Linux and a docker daemon (the VM); see test_core_faults_linux.
 
 from __future__ import annotations
 
+import json
 import subprocess
 
 from aether.core import binding as B
 from aether.core import boundary as BD
 from aether.core import clone as C
+from aether.core.calls import CallLog
+from aether.core.clm import ClmSettings
 from aether.core.files import Files
+from aether.core.loop import CoreConfig, Trace, run_agent
+from aether.core.provider import ChatProvider
 from aether.core.repl import Repl
 from aether.core.terminal import Terminals
+from tests.core_fakes import ScriptedClient, chunk, tool_chunk
 from tests.test_core_faults_linux import _go, box, image, pytestmark  # noqa: F401
 
 WRITES = [
@@ -145,6 +151,82 @@ def test_a_read_only_clone_refuses_every_write_to_the_delivered_files(box):
             ).returncode
             != 0
         )
+
+
+def test_a_bound_read_only_defect_returns_its_evidence_and_the_solver_repairs(box, tmp_path):
+    """Full Core loop on the real docker clone: a genuinely bound read-only defect goes back exactly once.
+
+    No clone is injected (``CoreConfig.make_clone`` stays None, so production ``clone.Clone.create`` runs with the
+    verifier's ``read_only=True``) and nothing states the boundary: ``boundary.probe`` measures it inside the
+    container. The verifier's refutation of the delivered red is therefore a bare ``defect_found`` rather than
+    ``_writable``/``_unbound``/``_partial``: it must reach the solver as the result of its first finish, the solver's
+    next turn must repair the delivered file, and its following finish must end the work with no second check.
+
+    Linux and a docker daemon only (the VM); this is not run on the macOS development host.
+    """
+
+    def turn(name, args, call_id):
+        return [
+            tool_chunk(name, args, call_id=call_id),
+            chunk(finish="tool_calls"),
+            chunk(usage={"prompt_tokens": 10, "completion_tokens": 3}),
+        ]
+
+    script = [
+        turn("write_file", {"path": "/app/colour.txt", "content": "red\n"}, "s1"),
+        turn("finish", {"summary": "wrote the colour"}, "s2"),
+        turn("terminal", {"input": "cat /app/colour.txt"}, "v1"),
+        turn(
+            "finish",
+            {
+                "verdict": "defect_found",
+                "evidence": "colour.txt says red; the task asks for blue",
+            },
+            "v2",
+        ),
+        turn("write_file", {"path": "/app/colour.txt", "content": "blue\n"}, "s3"),
+        turn("finish", {"summary": "fixed"}, "s4"),
+    ]
+    client = ScriptedClient(script)
+    provider = ChatProvider(
+        client, model="scripted", params={}, log=CallLog(tmp_path / "calls.jsonl")
+    )
+    result = _go(
+        run_agent(
+            env=box,
+            task="Write the word blue into /app/colour.txt.",
+            workdir="/app",
+            provider=provider,
+            timeout_s=900,
+            trace=Trace(tmp_path / "logs" / "core_trace.jsonl"),
+            config=CoreConfig(
+                control_dir="/tmp/.aether-core",
+                verify=True,
+                clm=ClmSettings(
+                    mirror_path="/tmp/.aether-core/ctx/LIVE_CTX.txt",
+                    history_path="/tmp/.aether-core/ctx/HISTORY.txt",
+                ),
+            ),
+        )
+    )
+    row = result.extras["verification"]
+    assert result.status == "finished" and not client.script
+    # measured, not stated: the probe really saw a read-only delivered tree in this clone
+    assert row["boundary"] == "read_only", row["boundary_detail"]
+    assert row["status"] == "defect_found" and row["finding"] == "defect_found"
+    assert row["clone_changes"] == {"modified": [], "deleted": [], "created": []}
+    # the evidence was the result of the solver's first finish, so it is in the solver's next request
+    shown = json.dumps(client.requests[4]["messages"][-1])
+    assert "defect found" in shown and "the task asks for blue" in shown
+    # the repair landed in the delivered tree, and the second finish ended the work (no second check)
+    assert _go(box.exec("cat /app/colour.txt")).stdout.strip() == "blue"
+    assert result.extras["finish_args"] == {"summary": "fixed"}
+    events = [
+        json.loads(line)["event"]
+        for line in (tmp_path / "logs" / "core_trace.jsonl").read_text().splitlines()
+    ]
+    assert events.count("verification") == 1
+    assert len(client.requests) == 6  # s1, s2, v1, v2, s3, s4
 
 
 def test_a_writable_clone_is_probed_as_writable(box):
