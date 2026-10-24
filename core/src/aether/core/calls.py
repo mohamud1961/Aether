@@ -90,7 +90,11 @@ class CallLog:
         totals = self._totals(role)
         totals["failed"] += not outcome.get("ok")
         totals["cancelled"] += outcome.get("error") == "cancelled"
-        totals["usage_unknown"] += bool(missing)
+        # Even a syntactically complete usage dict on a failed/cancelled
+        # attempt is not proof that provider billing concluded at these
+        # figures. Retain recorded provider numbers for audit, but exact
+        # complete-run totals remain UNKNOWN when any attempt failed.
+        totals["usage_unknown"] += bool(missing) or not bool(outcome.get("ok"))
         for f in USAGE_FIELDS:
             totals[f] += int(usage.get(f, 0))
             totals[f"missing_{f}"] += f not in usage
@@ -99,6 +103,10 @@ class CallLog:
             "kind": "end",
             "seq": seq,
             "usage_missing": missing,
+            "usage_certainty": (
+                "incomplete_attempt" if not bool(outcome.get("ok")) else
+                "fields_missing" if missing else "fully_reported_success"
+            ),
             **{
                 k: (self._blob(v, rows) if k == "response" else v)
                 for k, v in outcome.items()
@@ -153,13 +161,19 @@ class CallLog:
         return out
 
     def usage(self, roles: list[str] | None = None) -> dict[str, int | None]:
-        """Exact reported totals only when every selected attempt reported that field; otherwise unknown."""
+        """Per-field reported totals, only if all selected attempts completed successfully.
+
+        An incomplete response may contain partial usage telemetry. This
+        method must not present such numbers as exact full-run billing.
+        A successful call missing one field does not invalidate a *different*
+        explicitly reported field: missingness is scoped per field.
+        """
         selected = set(self.by_role if roles is None else roles)
         rows = [t for role, t in self.by_role.items() if role in selected]
         unfinished = any(role in selected for role in self._open.values())
         return {
             f: None
-            if unfinished or any(t[f"missing_{f}"] for t in rows)
+            if unfinished or any(t["failed"] or t[f"missing_{f}"] for t in rows)
             else sum(t[f] for t in rows)
             for f in USAGE_FIELDS
         }

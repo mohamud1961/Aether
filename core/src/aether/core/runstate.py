@@ -15,9 +15,10 @@ an item met; its "no commitment" ablation was the worst. So here:
   check is re-run at finish anyway);
 - ``note`` keeps progress, breakthroughs and where the current best deliverable is; notes are never trimmed and the
   state view is shown again after any change and after a context checkpoint;
-- at finish every check is re-run on the delivered state, and the task's requirement sentences that no item quotes
-  are listed (the N2 coverage rule). If anything failed, is unchecked or uncovered, or no item exists, and real time
-  remains, that finish is held once with the list; the next finish always ends the work.
+- at finish every explicitly recorded check is re-run on the delivered state, and task requirement sentences
+  that no recorded item quotes are listed (the N2 coverage rule). If recorded items are failed, unchecked, or
+  uncovered, and real time remains, that finish is held once; the next finish always ends the work.
+  No model-authored items means optional bookkeeping is absent, not a proven deliverable defect: do not hold.
 - the final account (for people, never shown to the model) lists every item with its last harness-run result.
 
 What it cannot do: a check the model writes encodes its own reading of the task (Q1/Q1-R), so a misread
@@ -57,8 +58,9 @@ STATE_TOOL = {
     "type": "function",
     "function": {
         "name": "state",
-        "description": "Your run state, kept by the harness. action=require adds a requirement (quote the task's "
-        "own words; give a shell check that exits 0 only when it holds on the delivered state); action=check "
+        "description": "Your optional run state. action=require with NO id creates a requirement (quote the task's "
+        "own words; give a shell check that exits 0 only when it holds on the delivered state); "
+        "action=require WITH id only replaces a check of an already created requirement; action=check "
         "runs an item's check now and records the result (only a check run sets passed or failed); action=note "
         "records progress, a breakthrough, or where your current best deliverable is; action=give_up closes an "
         "item you cannot meet, with the reason (it is reported as not met). Every call returns the state.",
@@ -73,7 +75,8 @@ STATE_TOOL = {
                     "when this requirement holds on the delivered state (test the real output the way it will be "
                     "used). It may also replace an item's check: give id with action=require.",
                 },
-                "id": {"type": "integer", "description": "check / give_up / require (replace a check): item id."},
+                "id": {"type": "integer", "description": "Only for check, give_up, or require REPLACING an existing "
+                       "item's check. Omit id when creating a new requirement. The first new item gets id 1."},
                 "text": {"type": "string", "description": "note: the note. give_up: the reason."},
             },
             "required": ["action"],
@@ -230,7 +233,15 @@ class RunState:
         ident = args.get("id")
         item = next((i for i in self.items if i.id == ident), None)
         if item is None:
-            raise ValueError(f"state: no item with id {ident!r}; ids: {[i.id for i in self.items] or 'none yet'}")
+            available = [i.id for i in self.items]
+            hint = (
+                " To create the first requirement use action=require with a verbatim task quote and "
+                "a check, and omit id; id=1 is returned *after* creation."
+                if not available else
+                " To add another requirement use action=require with quote and check, and omit id; "
+                "id is only for an already existing item."
+            )
+            raise ValueError(f"state: no item with id {ident!r}; ids: {available or 'none yet'}.{hint}")
         return item
 
     async def act(self, env: Environment, args: dict[str, Any], remaining_s: float) -> str:
@@ -239,8 +250,17 @@ class RunState:
         try:
             head = await self._act(env, action, args, remaining_s)
         except ValueError as exc:
-            return f"error: {exc}\n\n{self.view()}"
-        self.events.append({"t": self._t(), "action": action, "id": args.get("id"), "result": head[:200]})
+            # An API rejection was still a *real attempted model tool action*.
+            # The ordinary loop records its raw result; also keep its
+            # unsuccessful state-ledger event so offline activation analysis
+            # cannot mistake a failed invocation for non-activation.
+            error = f"error: {exc}"
+            self.events.append({"t": self._t(), "action": action, "id": args.get("id"),
+                                "ok": False, "result": error[:200]})
+            self.dirty = False
+            return f"{error}\n\n{self.view()}"
+        self.events.append({"t": self._t(), "action": action, "id": args.get("id"),
+                            "ok": True, "result": head[:200]})
         self.dirty = False  # the view goes with this result
         return f"{head}\n\n{self.view()}"
 
@@ -347,14 +367,19 @@ class RunState:
                 await self._run(env, item, min(CHECK_TIMEOUT_S, left))
         self.final_checked = True
         problems = []
-        if not self.items:
-            problems.append("- no requirements are recorded")
-        for i in self.items:
-            if i.status in ("failed", "unchecked", "stale"):
-                problems.append(f"- #{i.id} {i.status}: {i.quote[:120]!r}")
-        missing = self.uncovered()
-        if missing:
-            problems.append(f"- {len(missing)} task requirement sentence(s) no item quotes")
+        # The run-state tool is optional. When the model has never created an
+        # item, lack of internal bookkeeping is *not* task-native evidence of
+        # an incorrect deliverable and must not consume a model turn by
+        # vetoing finish. Keep the empty ledger visible in the human account.
+        # Existing explicit model-chosen requirements still get rechecked and
+        # can hold a finish once as before.
+        if self.items:
+            for i in self.items:
+                if i.status in ("failed", "unchecked", "stale"):
+                    problems.append(f"- #{i.id} {i.status}: {i.quote[:120]!r}")
+            missing = self.uncovered()
+            if missing:
+                problems.append(f"- {len(missing)} task requirement sentence(s) no item quotes")
         left = remaining_s - (self._clock() - started)
         hold = bool(problems) and not self.held and left >= max(HOLD_MIN_S, 0.1 * timeout_s)
         self.events.append({"t": self._t(), "action": "finish", "held": hold, "problems": len(problems)})

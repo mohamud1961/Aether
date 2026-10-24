@@ -7,8 +7,10 @@ and call-log role. Its brief is neutral (no completion claim) and lists the file
 solver's reasoning, transcript, summary or claims reaches it. Everything it runs happens in the clone.
 
 It ends with one of three findings (tools.VERDICT_FINISH):
-- defect_found: the evidence goes back to the solver as the result of its finish and the work continues; the
-  solver decides what to do with it, and its next finish ends the work. There is never a second check.
+- defect_found: a *fully fingerprint-bound and verified read-only* clone finding reaches the solver as the
+  first finish result; the solver decides whether to edit or finish again. Unbound, partial or writable-clone
+  findings are advisory only and cannot force another model turn. A bound finding is still the same model's
+  hypothesis, not a literal task oracle. There is never a second check.
 - no_defect_found: the finish takes effect. It certifies nothing unless it is bound: every file of the delivered
   tree was unchanged in the clone when the verifier concluded, and unchanged in the original when the check ended.
 - undetermined: the finish takes effect; missing evidence (no network, no running services in the clone) is not a
@@ -23,8 +25,8 @@ missing deliverable itself, so the verifier keeps build and scratch output under
 check changed and what it reported, as a proposed repair, and the work continues. A bound entry that changed in the
 original during the check makes the finding stale (the finish takes effect). If any manifest cannot be taken, the
 finding is recorded as ``<finding>_unbound``; if the tree has unbound parts (pruned directories such as .git, mount
-points), as ``<finding>_partial``. A defect it found still goes back to the solver in both cases. Nothing outside
-the working directory is bound, and a change made and reverted before the closing manifest is not seen: the
+points), as ``<finding>_partial``. A defect hypothesis with unbound or partial provenance is kept in the audit record but does NOT block
+the solver's finish. Nothing outside the working directory is bound, and a change made and reverted before the closing manifest is not seen: the
 binding compares states, it does not watch the review.
 
 Boundary (Codex D5 reconciliation: a verifier wrote a repair, checked it, restored the original and confirmed,
@@ -234,7 +236,13 @@ async def _review(
     if after is not None and now is not None:
         row["clone_changes"] = binding.changes(before, after)
         changed = binding.changes(before, now)
-        row["original_changed"] = changed["modified"] + changed["deleted"]
+        # A file *created* in the original during the check can be the missing
+        # deliverable itself (reviewer finding: ./new-output.txt). Dropping it
+        # would let a bare, now-stale defect_found hold the finish on input the
+        # check never saw; any changed original entry must make the finding stale.
+        row["original_changed"] = (
+            changed["modified"] + changed["deleted"] + changed["created"]
+        )
 
 
 def _finding(row: dict[str, Any], result: Any) -> tuple[str | None, str]:
@@ -344,9 +352,14 @@ async def at_finish(s: Any) -> tuple[str, bool]:
         usage=_usage(s.provider),
     )
     _record(s, row)
-    if finding == "defect_found" and status.startswith("defect_found"):
-        note = UNBOUND_NOTE if status.endswith("_unbound") else ""
-        return DEFECT.format(evidence=evidence_text) + note, False
+    # A separate model's defect hypothesis can be actionable, but cannot
+    # justify an *automatic* finish veto when its input/source binding is
+    # unavailable, only partial, or the supposed read-only clone was writable.
+    # The status is retained in the factual trace/report; a provenance-weak
+    # model opinion becomes advisory, not an independent literal contract
+    # failure. Even a fully bound hypothesis is not an authoritative grader.
+    if finding == "defect_found" and status == "defect_found":
+        return DEFECT.format(evidence=evidence_text), False
     if status == "void_candidate_modified":
         changed = row["clone_changes"]
         files = [

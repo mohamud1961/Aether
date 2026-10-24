@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import asyncio
 import math
 from dataclasses import dataclass
@@ -164,12 +165,18 @@ async def run(
 
 
 async def put_bytes(
-    env: Environment, data: bytes, remote: str, *, mode: str | None = None
+    env: Environment, data: bytes, remote: str, *, mode: str | None = None,
+    expected_sha256: str | None = None,
 ) -> None:
     """Replace bytes atomically within the target directory. Interrupted transfers preserve the old file.
 
     Existing symlinks are followed; atomic replacement must not silently replace the link itself.
     """
+    if expected_sha256 is not None and (
+        len(expected_sha256) != 64 or
+        any(ch not in "0123456789abcdef" for ch in expected_sha256)
+    ):
+        raise ValueError("expected_sha256 must be a lowercase SHA-256 digest")
     q = shlex.quote
     resolved = await run(
         env,
@@ -214,10 +221,45 @@ async def put_bytes(
         # Linux mv -T also rejects a directory that appeared after the preflight.
         # The non-Linux path supports local development with the same semantics.
         rename = q("import os,sys; os.replace(sys.argv[1],sys.argv[2])")
+        precondition = ""
+        if len(data) > INLINE_BYTES:
+            # A transport may return successfully after writing fewer/different
+            # bytes. Verify the staged file *before* the final rename, in the
+            # same remote commit command. No extra worker/model turn is needed.
+            # The checksum operation adds sandbox I/O only for uploaded files.
+            expected_payload = hashlib.sha256(data).hexdigest()
+            precondition = (
+                f"if [ ! -f {q(temporary)} ]; then "
+                "echo 'upload integrity failure: staged upload missing' >&2; exit 12; fi; "
+                f"actual_payload=$( (sha256sum < {q(temporary)} 2>/dev/null || "
+                f"shasum -a 256 < {q(temporary)}) | cut -c1-64 ); "
+                f'if [ "$actual_payload" != {q(expected_payload)} ]; then '
+                "echo 'upload integrity failure: staged bytes differ from submitted payload' >&2; exit 12; fi; "
+            )
+        if expected_sha256 is not None:
+            # The comparison and final rename run in the SAME remote shell
+            # invocation. This catches stale edits as late as practical,
+            # though uncooperative concurrent writers can still race between
+            # the hash check and rename: filesystem CAS is not guaranteed.
+            precondition += (
+                f"if [ ! -f {q(target)} ]; then echo 'edit conflict: source missing' >&2; exit 9; fi; "
+                f"actual=$( (sha256sum < {q(target)} 2>/dev/null || "
+                f"shasum -a 256 < {q(target)}) | cut -c1-64 ); "
+                f"if [ \"$actual\" != {q(expected_sha256)} ]; then "
+                f"echo 'edit conflict: file content changed before commit' >&2; exit 9; fi; "
+                + (
+                    f"current_mode=$(stat -Lc %a {q(target)} 2>/dev/null || "
+                    f"stat -Lf %Lp {q(target)} 2>/dev/null); "
+                    f"if [ \"$current_mode\" != {q(mode)} ]; then "
+                    f"echo 'edit conflict: file permissions changed before commit' >&2; exit 9; fi; "
+                    if mode else ""
+                )
+            )
         res = await run(
             env,
-            f'if [ "$(uname -s)" = Linux ]; then mv -fT {q(temporary)} {q(target)}; '
-            f"else python3 -c {rename} {q(temporary)} {q(target)}; fi",
+            precondition
+            + f'if [ "$(uname -s)" = Linux ]; then mv -fT {q(temporary)} {q(target)}; '
+            + f"else python3 -c {rename} {q(temporary)} {q(target)}; fi",
         )
         if res.code != 0:
             raise OSError(

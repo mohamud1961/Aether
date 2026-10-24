@@ -275,7 +275,7 @@ class ClmContext:
         return (
             f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
             f"It is mirrored at {self.settings.mirror_path}; condense it when convenient by editing that file (keep what "
-            "you still need, drop the rest). A turn that only edits that file and prints nothing is free."
+            "you still need, drop the rest). This shrinks future context; the model/tool turn still uses time and tokens."
             if top < 0.75
             else f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
             f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary."

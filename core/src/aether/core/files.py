@@ -10,11 +10,38 @@ import posixpath
 import base64
 import codecs
 import shlex
+import hashlib
 
 from .env import Environment, get_bytes, put_bytes, run
 
 MAX_READ_CHARS = 40_000
 DEFAULT_LINES = 400
+
+
+def _edit_miss_evidence(path: str, payload: bytes, text: str, old_str: str) -> str:
+    """Only actual read-time bytes, never an invented corrected edit.
+
+    Bounded diagnostic for failed exact edits. The file may change after our
+    read, so this is intentionally NOT a durable current-version claim.
+    """
+    observed = hashlib.sha256(payload).hexdigest()
+    label = f"observed read-time sha256={observed} (not a current/durable file guarantee)"
+    # Do not scan arbitrary approximate matches or suggest a replacement.
+    # Choose at most four exact token fragments from the submitted old text;
+    # quote only the first real source line containing one.
+    anchors = [part[:96] for part in old_str[:2048].split() if len(part) >= 8]
+    anchors = sorted(anchors[:12], key=len, reverse=True)[:4]
+    for anchor in anchors:
+        index = text.find(anchor)
+        if index < 0:
+            continue
+        line_num = text.count("\n", 0, index) + 1
+        begin = text.rfind("\n", 0, index) + 1
+        last = text.find("\n", index)
+        line = text[begin:last if last >= 0 else len(text)]
+        preview = line[:240] + ("…" if len(line) > 240 else "")
+        return f"{label}; exact source fragment observed at line {line_num}: {preview!r}"
+    return label
 
 
 class Files:
@@ -110,30 +137,44 @@ class Files:
             raise ValueError(
                 "old_str is empty; use write_file to create or replace a whole file"
             )
+        payload = await get_bytes(self._env, path)
         try:
-            text = (await get_bytes(self._env, path)).decode()
+            text = payload.decode()
         except UnicodeDecodeError as exc:
             raise ValueError(f"{path} is not UTF-8 text") from exc
         count = text.count(old_str)
         if count == 0:
+            evidence = _edit_miss_evidence(path, payload, text, old_str)
             raise ValueError(
-                f"old_str not found in {path}; re-read the file and copy the exact text"
+                f"old_str not found in {path}; no write attempted; {evidence}; "
+                "re-read the file and copy the exact text"
             )
         if count > 1 and not replace_all:
             raise ValueError(
                 f"old_str occurs {count} times in {path}; add context to make it unique "
                 f"or set replace_all=true"
             )
+        # The first actual edit starts at the first old_str in the *source*.
+        # Looking for new_str in updated text is wrong if that same new_str
+        # already occurred earlier: the receipt then points at an unchanged
+        # line and can mislead the model about which source bytes it edited.
+        first_edit_at = text.find(old_str)
         updated = (
             text.replace(old_str, new_str)
             if replace_all
             else text.replace(old_str, new_str, 1)
         )
         mode = await self._mode(path)
-        await put_bytes(self._env, updated.encode(), path, mode=mode)
+        # Exact edit only: do not silently replace source bytes that changed
+        # after the one raw read used to locate the model's old_str.
+        # The substrate rechecks this hash immediately before rename, though
+        # an uncooperative writer can still race that check (not atomic CAS).
+        await put_bytes(
+            self._env, updated.encode(), path, mode=mode,
+            expected_sha256=hashlib.sha256(payload).hexdigest(),
+        )
         self.written[path] = len(updated.encode())
-        at = updated.find(new_str) if new_str else text.find(old_str)
-        line = updated.count("\n", 0, max(0, at)) + 1
+        line = text.count("\n", 0, first_edit_at) + 1
         lines = updated.split("\n")
         lo, hi = max(0, line - 4), min(len(lines), line + new_str.count("\n") + 3)
         snippet = "\n".join(f"{i + 1:6d}  {lines[i]}" for i in range(lo, hi))

@@ -1,5 +1,6 @@
 """The one independent finish check: a fresh-context run of the same model on a clone, its verdict, and what the
-solver sees (defect_found: the evidence, work continues; otherwise the finish takes effect), bound to the delivered state."""
+solver sees (a fully bound read-only defect_found: the evidence, work continues; otherwise — including any writable
+clone or a finding made stale by a changed original — the finish takes effect), bound to the delivered state."""
 
 from __future__ import annotations
 
@@ -105,9 +106,14 @@ def _run(tmp_path, script, *, timeout_s=900, make_clone=None):
     return result, client, provider, box
 
 
-def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_finish_ends_the_work(
-    tmp_path,
-):
+def test_a_writable_clone_refutation_is_advisory_and_adds_no_solver_turn(tmp_path):
+    """This fixture's PathClone is writable, and the real probe reports it as such (adjudicated 24 Oct).
+
+    A writable clone does not bind what the verifier read, so its defect hypothesis is advisory: the finding is
+    recorded as defect_found_writable, the finish takes effect, the delivered red stays red, no evidence reaches the
+    solver and it is given no extra turn. s3/s4 are deliberately absent from the script: the solver must never be
+    called again. The positive, fully bound read-only case lives in test_core_readonly_linux (real docker clone).
+    """
     PathClone.made.clear()
     script = [
         _turn("write_file", {"path": "colour.txt", "content": "red\n"}, "s1"),
@@ -122,13 +128,12 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
             },
             "v2",
         ),
-        # the solver acts on it and finishes; there is no second check
-        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s3"),
-        _turn("finish", {"summary": "fixed"}, "s4"),
     ]
     result, client, provider, box = _run(tmp_path, script)
     assert result.status == "finished" and not client.script
-    assert (box / "work" / "colour.txt").read_text() == "blue\n"
+    # red stays red: an advisory finding changes neither the delivered state nor the turn count
+    assert (box / "work" / "colour.txt").read_text() == "red\n"
+    assert result.extras["finish_args"] == {"summary": "wrote the colour"}
 
     # the verifier's first request: the brief with the task, and nothing of the solver's turns or summary
     first = client.requests[2]["messages"]
@@ -157,12 +162,10 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
     assert "No such file" in json.dumps(client.requests[3]["messages"][-1])
     assert clone.closed
 
-    # the solver saw the evidence as the result of its finish
-    shown = json.dumps(client.requests[4]["messages"][-1])
-    assert (
-        "defect found" in shown
-        and "the task asks for blue" in shown
-        and "no second check" in shown
+    # the solver is never called again: s1, s2 and the verifier's v1, v2 are every request made
+    assert len(client.requests) == 4
+    assert "the task asks for blue" not in json.dumps(
+        [r["messages"] for r in client.requests]
     )
 
     row = result.extras["verification"]
@@ -171,14 +174,21 @@ def test_a_refutation_goes_back_to_the_solver_with_the_evidence_and_its_next_fin
         and row["steps"] == 2
         and row["usage"]["input"] == 20
     )
-    # each run reports its own calls; the row's totals include both
-    assert result.usage["input"] == 40 and provider.log.usage()["input"] == 60
+    # each run reports its own calls; the row's totals include both (2 solver turns, 2 verifier turns)
+    assert result.usage["input"] == 20 and provider.log.usage()["input"] == 40
     assert set(provider.log.by_role) == {"worker", "verifier"}
     events = [
         json.loads(x)["event"]
         for x in (tmp_path / "logs" / "core_trace.jsonl").read_text().splitlines()
     ]
     assert events.count("verification") == 1
+    # the advisory status is still kept for audit even though it held nothing
+    (recorded,) = [
+        json.loads(x)
+        for x in (tmp_path / "logs" / "core_trace.jsonl").read_text().splitlines()
+        if json.loads(x)["event"] == "verification"
+    ]
+    assert recorded["status"] == "defect_found_writable"
     assert (tmp_path / "logs" / V.TRACE_FILE).exists()
 
 
@@ -360,6 +370,38 @@ def test_a_finding_is_stale_when_the_original_changed_during_the_check(tmp_path)
     row = result.extras["verification"]
     assert row["status"] == "stale_original_changed" and row["original_changed"]
     assert result.status == "finished"
+
+
+def test_a_file_created_in_the_original_during_the_check_makes_the_finding_stale(tmp_path):
+    """Reviewer finding: a new original output during the review is changed input, not a defect to hold on.
+
+    A service or background job can create a deliverable in the original workspace while the verifier reviews its
+    clone (./new-output.txt). The check never saw that input, so a bare defect_found must not hold the finish: the
+    finding is stale_original_changed, the finish takes effect and the solver gets no evidence turn.
+    """
+
+    async def clone_then_background_output(env, timeout_s=None, read_only=False):
+        made = PathClone(tmp_path / "box")
+        (tmp_path / "box" / "work" / "new-output.txt").write_text("collected later\n")
+        return made
+
+    script = [
+        _turn("write_file", {"path": "colour.txt", "content": "blue\n"}, "s1"),
+        _turn("finish", {"summary": "done"}, "s2"),
+        _turn(
+            "finish",
+            {"verdict": "defect_found", "evidence": "colour.txt says red"},
+            "v1",
+        ),
+    ]
+    result, client, _, box = _run(tmp_path, script, make_clone=clone_then_background_output)
+    row = result.extras["verification"]
+    assert row["status"] == "stale_original_changed"
+    assert row["original_changed"] == ["./new-output.txt"]
+    # stale input cannot hold: the finish takes effect and the solver is not called again
+    assert result.status == "finished" and not client.script and len(client.requests) == 3
+    assert (box / "work" / "colour.txt").read_text() == "blue\n"
+    assert (box / "work" / "new-output.txt").read_text() == "collected later\n"
 
 
 def test_undetermined_holds_nothing(tmp_path):

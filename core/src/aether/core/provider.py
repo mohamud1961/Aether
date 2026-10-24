@@ -250,6 +250,13 @@ class ChatProvider:
                                 int(tc.index or 0),
                                 {"id": "", "name": "", "arguments": ""},
                             )
+                            # A stream slot has one immutable call identity.
+                            # A changed ID would bind an action to the wrong
+                            # provider history message (or duplicate another).
+                            if tc.id and slot["id"] and slot["id"] != tc.id:
+                                raise IncompleteStream(
+                                    f"provider changed tool-call ID for index {int(tc.index or 0)}"
+                                )
                             slot["id"] = tc.id or slot["id"]
                             if tc.function is not None:
                                 slot["name"] += tc.function.name or ""
@@ -269,6 +276,13 @@ class ChatProvider:
             raise IncompleteStream(
                 "provider stream ended without a finish_reason; partial response retained"
             )
+        if turn.finish_reason == "tool_calls" and not calls:
+            raise IncompleteStream("provider declared tool_calls but supplied none")
+        ids = [c["id"] or f"call_{i}" for i, c in sorted(calls.items())]
+        if len(ids) != len(set(ids)):
+            raise IncompleteStream("provider returned duplicate tool-call IDs")
+        if any(not c["name"] for c in calls.values()):
+            raise IncompleteStream("provider returned a tool call without a function name")
         turn.tool_calls = [
             {
                 "id": c["id"] or f"call_{i}",
