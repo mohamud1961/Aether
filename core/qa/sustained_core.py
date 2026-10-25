@@ -12,8 +12,11 @@ import hashlib
 import json
 import os
 import platform
+import resource
+import shlex
 import statistics
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -54,7 +57,13 @@ def sample(root, turns, started, baseline_pids):
         if Path(value).resolve() == root.resolve()
         or root.resolve() in Path(value).resolve().parents
     )
+    owned_files = [p for p in root.rglob("*") if p.is_file()]
+    cpu = resource.getrusage(resource.RUSAGE_SELF)
+    child_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
     return {
+        "host_self_cpu_s": cpu.ru_utime + cpu.ru_stime,
+        "reaped_child_cpu_s": child_cpu.ru_utime + child_cpu.ru_stime,
+        "file_bytes": sum(p.stat().st_size for p in owned_files),
         "owned_cwd_processes": owned_cwd,
         "turns": turns,
         "elapsed_s": time.monotonic() - started,
@@ -63,8 +72,19 @@ def sample(root, turns, started, baseline_pids):
         "fd_count": len(os.listdir("/dev/fd")) if Path("/dev/fd").is_dir() else None,
         "threads": threading.active_count(),
         "async_tasks": len(asyncio.all_tasks()),
-        "files": sum(1 for p in root.rglob("*") if p.is_file()),
+        "files": len(owned_files),
     }
+
+
+class FixtureEnvironment(LocalEnv):
+    def __init__(self, work, scratch):
+        super().__init__(work)
+        self.scratch = scratch
+
+    async def exec(self, command, **kwargs):
+        return await super().exec(
+            "export TMPDIR=" + shlex.quote(str(self.scratch)) + "; " + command, **kwargs
+        )
 
 
 class Client:
@@ -103,6 +123,7 @@ class Client:
         if name == "view_image":
             import base64
             import io
+
             from PIL import Image
 
             attached = [
@@ -435,6 +456,12 @@ async def episode(folder, seconds, min_turns, mode):
     folder.mkdir(parents=True, exist_ok=False)
     work = folder / "work"
     work.mkdir()
+    scratch = folder / "sandbox-tmp"
+    scratch.mkdir()
+    host_scratch = folder / "host-tmp"
+    host_scratch.mkdir()
+    previous_tempdir = tempfile.tempdir
+    tempfile.tempdir = str(host_scratch)
     (work / "tree").mkdir()
     for i in range(1200):
         (work / "tree" / f"{i:05d}").write_text(str(i))
@@ -476,7 +503,7 @@ async def episode(folder, seconds, min_turns, mode):
     )
     started = time.monotonic()
     result = await run_agent(
-        env=LocalEnv(work),
+        env=FixtureEnvironment(work, scratch),
         task="Perform the prescribed local mechanical fixture; preserve source bytes and produce artifact.txt.",
         workdir=str(work),
         provider=provider,
@@ -605,6 +632,10 @@ async def episode(folder, seconds, min_turns, mode):
     require(last < max(3.0, first * 4), "gross sustained latency degradation")
     require(not list(folder.rglob("*.aether-*.tmp")), "staging files leaked")
     require(
+        not list(scratch.iterdir()) and not list(host_scratch.iterdir()),
+        "temporary directories leaked",
+    )
+    require(
         sum(p.is_file() for p in work.rglob("*")) <= 1210,
         "unexpected task-tree file accumulation",
     )
@@ -667,6 +698,7 @@ async def episode(folder, seconds, min_turns, mode):
     }
     (folder / "SUMMARY.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps({k: v for k, v in summary.items() if k != "health"}), flush=True)
+    tempfile.tempdir = previous_tempdir
     return summary
 
 
@@ -684,6 +716,19 @@ async def main():
     )
     args.out.mkdir(parents=True, exist_ok=False)
     rows = []
+    unhandled = []
+    loop = asyncio.get_running_loop()
+
+    def observe_unhandled(loop, context):
+        unhandled.append(
+            {
+                "message": context.get("message"),
+                "exception": str(context.get("exception")),
+            }
+        )
+        loop.default_exception_handler(context)
+
+    loop.set_exception_handler(observe_unhandled)
     try:
         for i in range(args.repeats):
             rows.append(
@@ -710,6 +755,8 @@ async def main():
             + "\n"
         )
         raise
+    await asyncio.sleep(0)
+    require(not unhandled, "unhandled async exceptions: " + str(unhandled))
     (args.out / "SUMMARY.json").write_text(
         json.dumps(
             {
