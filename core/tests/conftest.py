@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import time
 
@@ -46,8 +47,18 @@ def cwds(pids: set[int]) -> dict[int, str]:
             except OSError:
                 pass
         return found
+    # The macOS system lsof is normally /usr/sbin/lsof, absent from the
+    # intentionally reduced PATH of the local Gateway test runner. Preserve
+    # process ownership cleanup instead of silently skipping leaked shells.
+    lsof = shutil.which("lsof")
+    if not lsof and Path("/usr/sbin/lsof").is_file():
+        lsof = "/usr/sbin/lsof"
+    if not lsof:
+        raise RuntimeError(
+            "test process cleanup unavailable: lsof not installed and /proc absent"
+        )
     out = subprocess.run(
-        ["lsof", "-a", "-d", "cwd", "-Fpn", "-p", ",".join(map(str, sorted(pids)))], capture_output=True, text=True
+        [lsof, "-a", "-d", "cwd", "-Fpn", "-p", ",".join(map(str, sorted(pids)))], capture_output=True, text=True
     ).stdout
     found, pid = {}, None
     for line in out.splitlines():
