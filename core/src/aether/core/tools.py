@@ -195,7 +195,8 @@ WRITE_FILE = {
     "type": "function",
     "function": {
         "name": "write_file",
-        "description": "Create or overwrite a file with the given content (parents are created; permissions kept).",
+        "description": "Create or atomically replace this path with the given content (parents are created; permissions kept). "
+        "A hard-linked alias at another path keeps its previous bytes; only this path is replaced. A symlink to a regular file is followed.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -210,8 +211,8 @@ EDIT_FILE = {
     "type": "function",
     "function": {
         "name": "edit_file",
-        "description": "Replace an exact, unique occurrence of old_str with new_str in a file "
-        "(or every occurrence with replace_all=true).",
+        "description": "Replace an exact, unique occurrence of old_str with new_str in a regular file "
+        "(or every occurrence with replace_all=true). The path is atomically replaced; any hard-linked alias keeps its previous bytes. A symlink to a regular file is followed.",
         "parameters": {
             "type": "object",
             "properties": {

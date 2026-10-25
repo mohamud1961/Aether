@@ -6,11 +6,12 @@ the task working directory.
 
 from __future__ import annotations
 
-import posixpath
 import base64
+import binascii
 import codecs
-import shlex
 import hashlib
+import posixpath
+import shlex
 
 from .env import Environment, get_bytes, put_bytes, run
 
@@ -25,7 +26,9 @@ def _edit_miss_evidence(path: str, payload: bytes, text: str, old_str: str) -> s
     read, so this is intentionally NOT a durable current-version claim.
     """
     observed = hashlib.sha256(payload).hexdigest()
-    label = f"observed read-time sha256={observed} (not a current/durable file guarantee)"
+    label = (
+        f"observed read-time sha256={observed} (not a current/durable file guarantee)"
+    )
     # Do not scan arbitrary approximate matches or suggest a replacement.
     # Choose at most four exact token fragments from the submitted old text;
     # quote only the first real source line containing one.
@@ -38,9 +41,11 @@ def _edit_miss_evidence(path: str, payload: bytes, text: str, old_str: str) -> s
         line_num = text.count("\n", 0, index) + 1
         begin = text.rfind("\n", 0, index) + 1
         last = text.find("\n", index)
-        line = text[begin:last if last >= 0 else len(text)]
+        line = text[begin : last if last >= 0 else len(text)]
         preview = line[:240] + ("…" if len(line) > 240 else "")
-        return f"{label}; exact source fragment observed at line {line_num}: {preview!r}"
+        return (
+            f"{label}; exact source fragment observed at line {line_num}: {preview!r}"
+        )
     return label
 
 
@@ -65,8 +70,14 @@ class Files:
         res = await run(
             self._env,
             f"if [ -e {q} ] || [ -L {q} ]; then "
+            f"if [ -d {q} ]; then echo 'write target is a directory' >&2; exit 4; fi; "
+            f"if [ ! -f {q} ]; then echo 'write target is not a regular file' >&2; exit 5; fi; "
             f"stat -Lc %a {q} 2>/dev/null || stat -Lf %Lp {q}; else echo MISSING; fi",
         )
+        if res.code == 4:
+            raise OSError(f"write target is a directory: {path}")
+        if res.code == 5:
+            raise OSError(f"write target is not a regular file: {path}")
         mode = res.stdout.strip()
         if res.code != 0 or (mode != "MISSING" and not mode.isdigit()):
             raise OSError(f"cannot determine permissions of {path}")
@@ -91,9 +102,9 @@ class Files:
         page_program = (
             f"BEGIN {{skip={offset}; left={MAX_READ_CHARS + 1}}} "
             f'NR>={start} && NR<={end} {{line=sprintf("%6d  %s\\n",NR,$0); n=length(line); '
-            'if(skip>=n) {skip-=n} else {line=substr(line,skip+1); skip=0; '
+            "if(skip>=n) {skip-=n} else {line=substr(line,skip+1); skip=0; "
             'if(length(line)>left) line=substr(line,1,left); printf "%s",line; '
-            'left-=length(line); if(left==0) exit}} '
+            "left-=length(line); if(left==0) exit}} "
             f"NR>{end} {{exit}}"
         )
         res = await run(
@@ -103,14 +114,21 @@ class Files:
             f"if [ -s {q} ]; then grep -qI '' {q}; kind=$?; "
             f"if [ $kind -gt 1 ]; then echo 'file classification read failed' >&2; exit 3; fi; "
             f"if [ $kind -eq 1 ]; then echo BINARY; wc -c < {q} || exit 3; exit 0; fi; fi; "
-            f"awk 'END {{print NR}}' {q} || exit 3; "
+            f"total=$(awk 'END {{print NR}}' {q}) || exit 3; "
             "read_tmp=$(mktemp -d) || exit 3; "
             "trap 'rm -rf \"$read_tmp\"' 0; "
-            f"LC_ALL=C awk {shlex.quote(page_program)} {q} > \"$read_tmp/page\" || exit 3; "
-            "base64 < \"$read_tmp/page\" || exit 3",
+            f'LC_ALL=C awk {shlex.quote(page_program)} {q} > "$read_tmp/page" || exit 3; '
+            'page_hash=$( (sha256sum < "$read_tmp/page" 2>/dev/null || '
+            'shasum -a 256 < "$read_tmp/page" 2>/dev/null) | cut -c1-64); '
+            "if [ ${#page_hash} -ne 64 ]; then echo 'read integrity hash unavailable' >&2; exit 3; fi; "
+            "case \"$page_hash\" in *[!0-9a-f]*) echo 'read integrity hash invalid' >&2; exit 3;; esac; "
+            'printf \'%s\\n%s\\n\' "$total" "$page_hash"; '
+            'base64 < "$read_tmp/page" || exit 3',
         )
         if res.code == 3:
-            raise OSError(f"cannot read {path}: {(res.stderr or res.stdout).strip()[:200]}")
+            raise OSError(
+                f"cannot read {path}: {(res.stderr or res.stdout).strip()[:200]}"
+            )
 
         if res.code != 0:
             raise FileNotFoundError(
@@ -122,9 +140,28 @@ class Files:
                 f"[{path}: binary file, {size} bytes; not shown as text. Inspect it in the terminal "
                 f"(xxd, od, file, strings) or with the python tool]"
             )
-        total_s, _, body = res.stdout.partition("\n")
-        total = int(total_s.strip() or 0)
-        payload = base64.b64decode(body)
+        total_s, _, remainder = res.stdout.partition("\n")
+        digest_s, _, body = remainder.partition("\n")
+        if (
+            not total_s.isdigit()
+            or len(digest_s) != 64
+            or any(ch not in "0123456789abcdef" for ch in digest_s)
+        ):
+            raise OSError(
+                f"cannot verify read response for {path}: missing page identity"
+            )
+        total = int(total_s)
+        try:
+            encoded = "".join(body.split())
+            payload = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise OSError(
+                f"cannot verify read response for {path}: malformed base64 page"
+            ) from exc
+        if hashlib.sha256(payload).hexdigest() != digest_s:
+            raise OSError(
+                f"cannot verify read response for {path}: page bytes differ from source observation"
+            )
         more_bytes = len(payload) > MAX_READ_CHARS
         decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         body = decoder.decode(payload[:MAX_READ_CHARS], final=not more_bytes)
@@ -157,6 +194,9 @@ class Files:
             raise ValueError(
                 "old_str is empty; use write_file to create or replace a whole file"
             )
+        # Check the file type before download_file opens the path: reading a FIFO
+        # can otherwise wait indefinitely for a writer before the edit can fail.
+        mode = await self._mode(path)
         payload = await get_bytes(self._env, path)
         try:
             text = payload.decode()
@@ -184,13 +224,15 @@ class Files:
             if replace_all
             else text.replace(old_str, new_str, 1)
         )
-        mode = await self._mode(path)
         # Exact edit only: do not silently replace source bytes that changed
         # after the one raw read used to locate the model's old_str.
         # The substrate rechecks this hash immediately before rename, though
         # an uncooperative writer can still race that check (not atomic CAS).
         await put_bytes(
-            self._env, updated.encode(), path, mode=mode,
+            self._env,
+            updated.encode(),
+            path,
+            mode=mode,
             expected_sha256=hashlib.sha256(payload).hexdigest(),
         )
         self.written[path] = len(updated.encode())

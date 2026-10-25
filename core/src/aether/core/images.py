@@ -13,12 +13,13 @@ mirror never contains image data.
 from __future__ import annotations
 
 import base64
-from copy import deepcopy
+import hashlib
 import io
 import json
-from typing import Any
-
+import re
 import shlex
+from copy import deepcopy
+from typing import Any
 
 from .env import Environment, get_bytes, run
 
@@ -30,6 +31,21 @@ MAX_SIDE = 1024
 KEEP_IMAGES = 2
 IMAGE_TOKENS = 1_500  # conservative per-image cost used by the context budget
 IMAGE_CHARS = int(IMAGE_TOKENS * 3)
+
+
+async def _source_sha256(env: Environment, path: str) -> str:
+    """Hash the environment-side bytes so a valid but altered download is rejected."""
+    q = shlex.quote(path)
+    result = await run(
+        env,
+        f"(sha256sum < {q} 2>/dev/null || shasum -a 256 < {q})",
+    )
+    fields = result.stdout.split()
+    if result.code != 0 or not fields or not re.fullmatch(r"[0-9a-f]{64}", fields[0]):
+        raise ValueError(
+            f"{path} source bytes could not be verified; image was not shown"
+        )
+    return fields[0]
 
 
 def available() -> bool:
@@ -47,8 +63,11 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
     # Size is checked inside the sandbox, before anything is copied to the host.
     res = await run(
         env,
+        f"if [ ! -f {shlex.quote(path)} ]; then echo 'not a regular file' >&2; exit 2; fi; "
         f"stat -c %s {shlex.quote(path)} 2>/dev/null || wc -c < {shlex.quote(path)}",
     )
+    if res.code != 0:
+        raise ValueError(f"{path} is not a readable regular file")
     try:
         nbytes = int(res.stdout.split()[0])
     except (IndexError, ValueError):
@@ -58,6 +77,11 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
     data = await get_bytes(env, path)
     if len(data) > MAX_FILE_BYTES:  # the file grew between the check and the copy
         raise ValueError(f"{path} is {len(data)} bytes; the limit is {MAX_FILE_BYTES}")
+    source_digest = await _source_sha256(env, path)
+    if hashlib.sha256(data).hexdigest() != source_digest:
+        raise ValueError(
+            f"{path} transfer differs from observed source bytes; image was not shown"
+        )
     try:
         img = Image.open(io.BytesIO(data))  # lazy: reads the header only
         width, height = img.size

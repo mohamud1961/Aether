@@ -9,30 +9,36 @@ context the model manages itself under a token budget (``clm``; see ``clm``).
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
 import hashlib
 import json
 import math
 import shlex
-from pathlib import Path
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from . import compaction, diffcheck, images, intent, runstate
+from . import compaction, diffcheck, finish_report, images, intent, runstate
 from . import receipt as finish_receipt
-from . import finish_report
 from .clm import ClmContext, ClmSettings
+from .clone import Clone
 from .context import SAVE_OVER, SAVED_NOTE, project, saved_path, size_chars
-from .env import CONTROL_DIR, DeadlineEnvironment, Environment, get_bytes, put_bytes, run
+from .env import (
+    CONTROL_DIR,
+    DeadlineEnvironment,
+    Environment,
+    get_bytes,
+    put_bytes,
+    run,
+)
 from .files import Files
 from .oversight import Oversight, ReviewPlan, final_feedback, progress_feedback
 from .provider import ChatProvider, ProviderError, parse_arguments
+from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools, validate_call
-from .clone import Clone
-from .record import NEUTRAL_HOLD, Record
 
 MAX_OUTPUT_TOKENS = 32_768
 # A turn the output limit cuts off before any tool call is almost never followed by action at the same effort:
@@ -367,7 +373,14 @@ async def run_agent(
                 await closer()
             except Exception as exc:
                 cleanup_errors.append(f"{name}: {type(exc).__name__}: {exc}")
+        if s.terminals.cleanup_uncertainties:
+            cleanup_errors.append("earlier terminal cleanup unverified: " + "; ".join(s.terminals.cleanup_uncertainties))
         s.result.extras["cleanup_errors"] = cleanup_errors
+        s.result.extras["process_cleanup"] = {
+            "terminals": s.terminals.cleanup_receipt,
+            "repl": s.repl.cleanup_receipt,
+            "scope": "observed process identities; detached ownership before observation is not established",
+        }
         s.result.extras["end_processes"] = s.config.end_processes
         s.result.extras["left_running"] = s.terminals.left_running
         try:
@@ -388,6 +401,8 @@ async def run_agent(
                 s.result.final_account += "\n\n" + s.state.account()
         except Exception as exc:
             cleanup_errors.append(f"finish report: {type(exc).__name__}: {exc}")
+        if cleanup_errors:
+            s.result.final_account += "\n\n[cleanup incomplete or unverified]\n" + "\n".join(cleanup_errors)
         _close(s)
     return s.result
 

@@ -8,6 +8,7 @@ filesystem restored from an external snapshot may not be observable.
 from __future__ import annotations
 
 import shlex
+import posixpath
 
 from .env import Environment, exit_code
 
@@ -29,7 +30,14 @@ async def mark(env: Environment, control_dir: str) -> None:
 
 def _find(workdir: str, control_dir: str) -> str:
     marker = shlex.quote(f"{control_dir}/{MARKER}")
-    prune = " -o ".join(f"-name {shlex.quote(name)}" for name in SKIP)
+    tests = [f"-name {shlex.quote(name)}" for name in SKIP]
+    # A configured control store may be inside the workspace. Never treat
+    # recorder copies or tool command files as task artifacts, recursively.
+    if posixpath.isabs(workdir) and posixpath.isabs(control_dir):
+        relative = posixpath.relpath(control_dir, workdir)
+        if relative != ".." and not relative.startswith("../"):
+            tests.append("-path " + shlex.quote("." if relative == "." else "./" + relative))
+    prune = " -o ".join(tests)
     return (
         f"cd {shlex.quote(workdir)} && "
         f"find . -xdev \\( {prune} \\) -prune -o -type f \\( -newer {marker} -o -cnewer {marker} \\) -print0"

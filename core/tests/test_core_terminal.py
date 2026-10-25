@@ -379,7 +379,13 @@ def test_failed_startup_after_launch_still_has_an_owned_process_to_close(
             if pid_file.exists():
                 from aether.core.env import stop_process_tree
 
-                await stop_process_tree(terminals._env, [int(pid_file.read_text())])
+                # Cleanup now rejects an already absent root as unverified
+                # rather than inventing descendant ownership. Do not request
+                # another cleanup after the independent liveness check passed.
+                from aether.core.env import alive_test, run
+                check = await run(terminals._env, alive_test(int(pid_file.read_text())))
+                if check.code == 0:
+                    await stop_process_tree(terminals._env, [int(pid_file.read_text())])
 
     asyncio.run(go())
 

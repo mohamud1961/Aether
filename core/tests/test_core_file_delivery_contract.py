@@ -330,7 +330,7 @@ def test_symlink_pivot_at_commit_is_reported_as_uncertain_without_rollback(tmp_p
                 alias.symlink_to(other.name)
             return result
 
-    with pytest.raises(OSError, match="destination bytes differ"):
+    with pytest.raises(OSError, match="write committed.*(destination bytes differ|could not be verified)"):
         asyncio.run(Files(PivotAtCommit(work), str(work)).write("alias", "GOOD"))
     assert original.read_bytes() == b"GOOD"  # actual effect retained, never rolled back
     assert alias.is_symlink() and alias.read_bytes() == b"other"
@@ -339,11 +339,15 @@ def test_symlink_pivot_at_commit_is_reported_as_uncertain_without_rollback(tmp_p
 
 def test_lost_readback_reports_committed_but_unverified_effect(tmp_path):
     class LostReadback(LocalEnv):
+        committed = False
         async def exec(self, command, **kwargs):
-            if command.startswith("sha256sum <"):
+            if self.committed and "sha256sum <" in command:
                 from types import SimpleNamespace
                 return SimpleNamespace(return_code=1, stdout="", stderr="synthetic lost readback")
-            return await super().exec(command, **kwargs)
+            result = await super().exec(command, **kwargs)
+            if result.return_code == 0 and ("mv -fT" in command or "os.replace" in command):
+                self.committed = True
+            return result
 
     files = Files(LostReadback(tmp_path), str(tmp_path))
     with pytest.raises(OSError, match="write committed.*could not be verified"):
@@ -355,10 +359,14 @@ def test_lost_readback_reports_committed_but_unverified_effect(tmp_path):
 
 def test_thrown_readback_fault_preserves_committed_effect_evidence(tmp_path):
     class ThrownReadback(LocalEnv):
+        committed = False
         async def exec(self, command, **kwargs):
-            if command.startswith("sha256sum <"):
+            if self.committed and "sha256sum <" in command:
                 raise TimeoutError("transport lost after commit")
-            return await super().exec(command, **kwargs)
+            result = await super().exec(command, **kwargs)
+            if result.return_code == 0 and ("mv -fT" in command or "os.replace" in command):
+                self.committed = True
+            return result
 
     files = Files(ThrownReadback(tmp_path), str(tmp_path))
     with pytest.raises(OSError, match="write committed.*could not be verified"):

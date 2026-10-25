@@ -10,12 +10,22 @@ large) and can grep the full log itself.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import re
 import shlex
 import time
+from dataclasses import dataclass, field
 
-from .env import list_process_tree, CONTROL_DIR, Environment, alive_test, put_bytes, run, stop_process_tree
+from .env import (
+    CONTROL_DIR,
+    Environment,
+    ProcessCleanupError,
+    alive_test,
+    list_process_tree,
+    process_identities,
+    put_bytes,
+    run,
+    stop_process_tree,
+)
 
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000
@@ -24,7 +34,9 @@ MAX_TERMINALS = 8
 # model while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
 MAX_WAIT_S = 300.0
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?")
+_ANSI = re.compile(
+    r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?"
+)
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 # seq, exit, optional per-stage exits of the command's last pipeline (bash only, joined by "."), cwd
 _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
@@ -80,6 +92,8 @@ class Session:
     last_size: int = 0
     grew_at: float = 0.0  # monotonic time the log last grew
     ready: bool = False
+    identity: dict[str, str] = field(default_factory=dict)
+    cleanup_warning: str = ""
 
     @property
     def log(self) -> str:
@@ -96,15 +110,23 @@ def clean(text: str) -> str:
 
 
 class Terminals:
-    def __init__(self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR) -> None:
+    def __init__(
+        self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR
+    ) -> None:
         self._env = env
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
+        self.cleanup_uncertainties: list[str] = []
+        self.cleanup_receipt: dict = {}
         self._sessions: dict[str, Session] = {}
         self._generations: dict[str, int] = {}
-        self._launching: set[str] = set()  # PID files resolve a lost launch reply during cleanup
-        self.left_running: list[str] = []  # close(keep=True): processes left alive at run end
+        self._launching: set[str] = (
+            set()
+        )  # PID files resolve a lost launch reply during cleanup
+        self.left_running: list[
+            str
+        ] = []  # close(keep=True): processes left alive at run end
 
     @property
     def names(self) -> list[str]:
@@ -112,7 +134,9 @@ class Terminals:
 
     async def _start(self, name: str) -> Session:
         if len(self._sessions) + len(self._launching) >= MAX_TERMINALS:
-            raise ValueError(f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}")
+            raise ValueError(
+                f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}"
+            )
         generation = self._generations.get(name, 0)
         self._generations[name] = generation + 1
         # A dot is outside the accepted name alphabet, so generations cannot
@@ -123,6 +147,8 @@ class Terminals:
         wrapper = "\n".join(
             [
                 "#!/bin/sh",
+                f"if [ -r /proc/$$/stat ]; then sed 's/.*) //' /proc/$$/stat | awk '{{print $20}}' > {q(root + '/birth')}; "
+                f"else ps -p $$ -o lstart= | awk '{{$1=$1;print}}' > {q(root + '/birth')}; fi",
                 f"echo $$ > {q(root + '/pid')}",
                 f"cd {q(self._workdir)} 2>/dev/null || cd /",
                 f"exec 3<> {q(root + '/in')}",
@@ -142,7 +168,9 @@ class Terminals:
             f"rm -rf {q(root)} && mkdir -p {q(root)} && mkfifo {q(root + '/in')} && : > {q(root + '/out.log')}",
         )
         if res.code != 0:
-            raise RuntimeError(f"terminal setup failed: {(res.stderr or res.stdout).strip()[:300]}")
+            raise RuntimeError(
+                f"terminal setup failed: {(res.stderr or res.stdout).strip()[:300]}"
+            )
         await put_bytes(self._env, wrapper.encode(), f"{root}/run.sh")
         # `setsid -f` forks without the shell's `&`: a background job of a non-interactive shell starts with
         # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did
@@ -160,7 +188,9 @@ class Terminals:
         )
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
-            raise RuntimeError(f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}")
+            raise RuntimeError(
+                f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}"
+            )
         session = Session(
             name,
             root,
@@ -171,7 +201,17 @@ class Terminals:
         )
         self._sessions[name] = session  # ownership precedes fallible initialization
         self._launching.remove(root)
-        await self._write(session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n')
+        try:
+            session.identity = await process_identities(self._env, [session.pid])
+        except OSError as exc:
+            session.cleanup_warning = (
+                "[process identity unavailable; later cleanup may be unverified: "
+                + str(exc)[:160]
+                + "]\n"
+            )
+        await self._write(
+            session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n'
+        )
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             size, mark, _alive = await self._poll(session, 0)
@@ -193,23 +233,55 @@ class Terminals:
         (pid and command line, wrapper shells excluded) and the container is left as the agent left it."""
         pids = [s.pid for s in self._sessions.values()]
         unresolved = []
+        identities = {
+            k: v
+            for session in self._sessions.values()
+            for k, v in session.identity.items()
+        }
         for root in list(self._launching):
             try:
-                result = await run(self._env, f"cat {shlex.quote(root + '/pid')}")
-                raw = result.stdout.strip()
-                if result.code != 0 or not raw.isdigit() or int(raw) <= 1:
-                    raise OSError("owned PID unavailable")
-                pids.append(int(raw))
+                result = await run(
+                    self._env,
+                    f"cat {shlex.quote(root + '/pid')}; cat {shlex.quote(root + '/birth')}",
+                )
+                parts = result.stdout.splitlines()
+                if (
+                    result.code != 0
+                    or len(parts) != 2
+                    or not parts[0].isdigit()
+                    or int(parts[0]) <= 1
+                    or not parts[1].strip()
+                ):
+                    raise OSError("owned PID/birth identity unavailable")
+                pids.append(int(parts[0]))
+                identities[parts[0]] = parts[1].strip()
             except Exception as exc:
                 unresolved.append(f"{root}: {type(exc).__name__}: {exc}")
         if pids and keep:
-            self.left_running = await list_process_tree(self._env, list(set(pids)))
+            self.left_running = await list_process_tree(
+                self._env, list(set(pids)), identities=identities
+            )
+            self.cleanup_receipt = {
+                "status": "retained",
+                "observed_processes": self.left_running,
+                "scope": "observed live descendants/groups; no signals sent",
+            }
         elif pids:
-            await stop_process_tree(self._env, list(set(pids)))
+            self.cleanup_receipt = await stop_process_tree(
+                self._env, list(set(pids)), identities=identities
+            )
         self._sessions.clear()
         if unresolved:
-            raise OSError("terminal cleanup could not resolve startup: " + "; ".join(unresolved))
+            raise OSError(
+                "terminal cleanup could not resolve startup: " + "; ".join(unresolved)
+            )
         self._launching.clear()
+        if self.cleanup_uncertainties:
+            self.cleanup_receipt = {
+                **self.cleanup_receipt,
+                "status": "partial_unverified",
+                "prior_uncertainties": list(self.cleanup_uncertainties),
+            }
 
     async def _write(self, session: Session, text: str) -> None:
         await put_bytes(self._env, text.encode(), f"{session.root}/pending")
@@ -227,7 +299,9 @@ class Terminals:
                 f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
             )
 
-    async def _poll(self, session: Session, seq: int | None) -> tuple[int, re.Match | None, bool]:
+    async def _poll(
+        self, session: Session, seq: int | None
+    ) -> tuple[int, re.Match | None, bool]:
         q = shlex.quote
         # Arbitrary command stdout must never be treated as an authoritative
         # shell completion receipt. Only the shell wrapper writes done_<seq>.
@@ -235,8 +309,10 @@ class Terminals:
         if seq is None:
             probe = "true"
         elif seq == 0:
-            probe = (f"tail -c +{session.cursor + 1} {q(session.log)} "
-                     f"| grep -a -o '__AETHER_DONE_0_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1")
+            probe = (
+                f"tail -c +{session.cursor + 1} {q(session.log)} "
+                f"| grep -a -o '__AETHER_DONE_0_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
+            )
         else:
             probe = f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
         # The marker is looked for before the size is taken: the other way round, a command that finished in
@@ -247,8 +323,12 @@ class Terminals:
             f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null",
         )
         rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
-        if not size_text.strip().isdigit():  # the log is gone (the control directory was deleted)
-            raise TerminalGone(f"the log of terminal {session.name} ({session.log}) is missing")
+        if (
+            not size_text.strip().isdigit()
+        ):  # the log is gone (the control directory was deleted)
+            raise TerminalGone(
+                f"the log of terminal {session.name} ({session.log}) is missing"
+            )
         size = int(size_text.strip())
         mark = None if seq is None else _MARK.search(clean(rest))
         return size, mark, "__ALIVE__" in rest
@@ -257,7 +337,9 @@ class Terminals:
         q = shlex.quote
         n = end - start
         if n <= VIEW_HEAD + VIEW_TAIL:
-            res = await run(self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n}")
+            res = await run(
+                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n}"
+            )
             return res.stdout
         res = await run(
             self._env,
@@ -301,13 +383,19 @@ class Terminals:
             )
         tree, frontier = set(), {session.pid}
         while frontier:
-            frontier = {p for p, v in procs.items() if v[0] in frontier and p not in tree}
+            frontier = {
+                p for p, v in procs.items() if v[0] in frontier and p not in tree
+            }
             tree |= frontier
-        shown = [(p, procs[p]) for p in tree if not any(w in procs[p][5] for w in _WRAPPERS)]
+        shown = [
+            (p, procs[p]) for p in tree if not any(w in procs[p][5] for w in _WRAPPERS)
+        ]
         shown.sort(key=lambda item: -item[1][2])
         out = []
         for pid, (_ppid, state, cpu, age, wchan, cmd) in shown[:limit]:
-            what = _STATES.get(state, state) + (f" in {wchan}" if state in "SD" and wchan not in ("", "0") else "")
+            what = _STATES.get(state, state) + (
+                f" in {wchan}" if state in "SD" and wchan not in ("", "0") else ""
+            )
             out.append(f"{cmd} (pid {pid}, {what}, {cpu:.0f}s CPU in {age:.0f}s)")
         if len(shown) > limit:
             out.append(f"{len(shown) - limit} more")
@@ -323,7 +411,9 @@ class Terminals:
         interrupt: bool = False,
     ) -> str:
         if not _NAME.match(name):
-            raise ValueError("terminal name must be 1-32 chars of letters, digits, _ or -")
+            raise ValueError(
+                "terminal name must be 1-32 chars of letters, digits, _ or -"
+            )
         if mode not in ("command", "keys"):
             raise ValueError("mode must be 'command' or 'keys'")
         session = self._sessions.get(name)
@@ -332,10 +422,16 @@ class Terminals:
             session = await self._restart(session)
             note = f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
             if mode == "keys":
-                return note + "[Your keystrokes were not sent; start the intended program again before sending keys.]"
+                return (
+                    note
+                    + session.cleanup_warning
+                    + "[Your keystrokes were not sent; start the intended program again before sending keys.]"
+                )
         if session is None:
             session = await self._start(name)
-            note = f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
+            note = (
+                f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
+            )
         if input and mode == "command" and not input.strip("\x03 \n"):
             # Ctrl-C as a command is an interrupt (P2 10-22: "\x03" refused as "input not sent" again and again)
             input, interrupt = "", True
@@ -349,11 +445,15 @@ class Terminals:
             except TerminalGone:
                 earlier = ""
             if session.pending and name in self._sessions:
-                return note + (
-                    f"[input not sent: terminal {name} is still running its previous command. To run it now, call "
-                    f'terminal with name="{name}2" (a new terminal) or with interrupt=true to stop that command; '
-                    f'to type into the running program instead, use mode="keys"]\n'
-                ) + earlier
+                return (
+                    note
+                    + (
+                        f"[input not sent: terminal {name} is still running its previous command. To run it now, call "
+                        f'terminal with name="{name}2" (a new terminal) or with interrupt=true to stop that command; '
+                        f'to type into the running program instead, use mode="keys"]\n'
+                    )
+                    + earlier
+                )
             note += earlier + "\n" if earlier else ""
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
@@ -366,16 +466,24 @@ class Terminals:
             # to a fresh terminal; left as it was, every later call failed the same way (V3: 45 such errors).
             session = await self._restart(session)
             if mode == "keys":
-                return note + (
-                    f"[{gone}; its interactive program and shell state are gone. A fresh terminal "
-                    f"{name} was started. Your keystrokes were not sent to the new shell; "
-                    "start the intended program again before sending keys.]"
+                return (
+                    note
+                    + session.cleanup_warning
+                    + (
+                        f"[{gone}; its interactive program and shell state are gone. A fresh terminal "
+                        f"{name} was started. Your keystrokes were not sent to the new shell; "
+                        "start the intended program again before sending keys.]"
+                    )
                 )
             if interrupt:
-                return note + (
-                    f"[{gone}; a fresh terminal {name} was started. The interrupt targeted "
-                    "the lost session, and supplied command input was not sent. Retry "
-                    "the intended command explicitly.]"
+                return (
+                    note
+                    + session.cleanup_warning
+                    + (
+                        f"[{gone}; a fresh terminal {name} was started. The interrupt targeted "
+                        "the lost session, and supplied command input was not sent. Retry "
+                        "the intended command explicitly.]"
+                    )
                 )
             note += (
                 f"[{gone}; its shell state (cwd, variables, jobs) is gone. A fresh terminal {name} was "
@@ -386,8 +494,16 @@ class Terminals:
             out = await self._collect(session, started, wait_s)
         except TerminalGone as gone:
             await self._restart(session, start=False)
-            return note + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
-        keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input) if mode == "keys" else ""
+            return (
+                note
+                + session.cleanup_warning
+                + f"[{gone}; output since then is lost. Terminal {name} restarts on next use]"
+            )
+        keys = (
+            _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
+            if mode == "keys"
+            else ""
+        )
         if keys.strip() and keys.isprintable() and out.startswith("(no new output)"):
             # Silence does not reveal whether a foreground program consumed raw input.
             out += (
@@ -395,17 +511,32 @@ class Terminals:
                 "consumed them. Silence cannot show whether the input was accepted. "
                 "Send \\n only if the current program expects it.]"
             )
-        return note + out
+        return note + session.cleanup_warning + out
 
     async def _restart(self, session: Session, start: bool = True) -> Session:
-        await stop_process_tree(self._env, [session.pid])
+        warning = ""
+        try:
+            await stop_process_tree(
+                self._env, [session.pid], identities=session.identity
+            )
+        except ProcessCleanupError as exc:
+            if not exc.receipt.get("missing_roots"):
+                raise
+            warning = "[previous terminal root exited before cleanup observation; detached descendants unverified]\n"
+            self.cleanup_uncertainties.append(str(exc))
         self._sessions.pop(session.name, None)
-        return await self._start(session.name) if start else session
+        fresh = await self._start(session.name) if start else session
+        fresh.cleanup_warning += warning
+        return fresh
 
-    async def _send(self, session: Session, input: str, mode: str, interrupt: bool) -> None:
+    async def _send(
+        self, session: Session, input: str, mode: str, interrupt: bool
+    ) -> None:
         if interrupt:
             await self._write(session, "\x03")
-            if not session.pty:  # no line discipline: signal the shell's children directly
+            if (
+                not session.pty
+            ):  # no line discipline: signal the shell's children directly
                 await run(
                     self._env,
                     f"for c in $(pgrep -P {session.pid}); do pkill -INT -P $c; sleep 0.3; pkill -TERM -P $c; done; true",

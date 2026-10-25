@@ -47,3 +47,18 @@ def test_change_inventory_does_not_claim_deleted_files_or_complete_custody(tmp_p
 
     observed = asyncio.run(receipt.changed(env, str(work), str(control)))
     assert observed == []  # current-file scan cannot prove historical deletion
+
+
+def test_recorder_does_not_recursively_capture_its_own_control_store(tmp_path):
+    from aether.core.record import Record
+    work=tmp_path/'work';work.mkdir();control=work/'ctl';control.mkdir()
+    env=LocalEnv(work)
+    async def scenario():
+        await receipt.mark(env,str(control))
+        (work/'artifact.txt').write_text('actual task artifact')
+        record=Record(env,str(work),str(control),lambda:100,lambda *a,**kw:None)
+        first=await record.snapshot(save=True)
+        second=await record.snapshot(save=True)
+        assert first==second=={'artifact.txt': __import__('hashlib').sha256(b'actual task artifact').hexdigest()}
+        assert len([p for p in (control/'versions').rglob('*') if p.is_file()])==1
+    asyncio.run(scenario())

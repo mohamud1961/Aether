@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import base64
 import json
-from pathlib import Path
 import shlex
 import time
+from pathlib import Path
 from typing import Awaitable, Callable
 
 from .env import (
@@ -21,6 +21,7 @@ from .env import (
     INLINE_BYTES,
     Environment,
     alive_test,
+    process_identities,
     put_bytes,
     run,
     stop_process_tree,
@@ -54,6 +55,8 @@ class Repl:
         )
         self.base = base
         self.pid = 0
+        self.identity: dict[str, str] = {}
+        self.cleanup_receipt: dict = {}
         self.seq = 0
         self.pending = 0
         self.cursor = 0
@@ -87,12 +90,15 @@ class Repl:
                 f"python REPL launch failed: {(res.stderr or res.stdout).strip()[:300]}"
             )
         self.pid, self.python = int(pid[0]), version
+        self.identity = await process_identities(self._env, [self.pid])
         return version
 
     async def close(self) -> None:
         """Stop the kernel process (it dies with the container anyway; outside one it would linger)."""
         if self.pid:
-            await stop_process_tree(self._env, [self.pid])
+            self.cleanup_receipt = await stop_process_tree(
+                self._env, [self.pid], identities=self.identity
+            )
             self.pid = 0
 
     async def run(
@@ -121,7 +127,9 @@ class Repl:
         if code and self.pending:
             # Look at the pending cell before answering: it may have finished (or, after an interrupt, stopped)
             # since the last call. Refusing unseen gave a stale "still running" six times in gcode e2 (~130 s).
-            earlier = await self._wait(self.pending, 5.0 if interrupt else 0.0, time.monotonic())
+            earlier = await self._wait(
+                self.pending, 5.0 if interrupt else 0.0, time.monotonic()
+            )
             if self.pending:
                 return earlier.replace(
                     "still running after",
@@ -147,7 +155,9 @@ class Repl:
             return "[python] nothing is running"
         return earlier + await self._wait(self.pending, wait_s, started, submit)
 
-    async def _wait(self, seq: int, wait_s: float, started: float, submit: str = "") -> str:
+    async def _wait(
+        self, seq: int, wait_s: float, started: float, submit: str = ""
+    ) -> str:
         """Wait up to ``wait_s`` on cell ``seq`` (submitting it first when ``submit`` is given) and report its new
         output and state: finished, the REPL gone, or still running."""
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, self._remaining() - 5))
