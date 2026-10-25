@@ -26,7 +26,7 @@ import pytest
 def processes() -> dict[int, tuple[int, int, str]]:
     """pid -> (ppid, pgid, command) for every live process visible to this user (zombies are already dead)."""
     ps = subprocess.Popen(
-        ["ps", "-axo", "pid=,ppid=,pgid=,stat=,command="],
+        ["ps", "-ww", "-axo", "pid=,ppid=,pgid=,stat=,command="],
         stdout=subprocess.PIPE,
         text=True,
     )

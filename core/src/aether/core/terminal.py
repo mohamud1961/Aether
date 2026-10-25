@@ -46,6 +46,10 @@ _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
 _PIPE_TRAP = "builtin trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
+_PROMPT_RECEIPT = (
+    "$(__aether_prompt_status=$?; builtin declare -F __aether_prompt_receipt >/dev/null "
+    '&& __aether_prompt_receipt "$__aether_prompt_status")'
+)
 # One line per process: /proc/<pid>/stat, wait channel, command line. Plain sh + /proc, because many task images
 # have no procps. Used to say what a still-running command is doing (D1 compcert: `opam install ... | tail` sat
 # silent and asleep for 1300 s and the model saw only "(no new output)" five times before it looked).
@@ -176,13 +180,24 @@ class Terminals:
         # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did
         # nothing (found on Linux in D1; the macOS tests use the pipe path and never saw it).
         run_sh, pid_file = q(root + "/run.sh"), q(root + "/pid")
+        # setsid changes sessions, not inherited ignored signal dispositions.
+        # Reset the new shell's initial SIGINT, preserving later task traps.
+        launch = (
+            "python3 -c "
+            + q(
+                "import os,signal,sys;signal.signal(signal.SIGINT,signal.SIG_DFL);"
+                'os.execvp("sh",["sh",*sys.argv[1:]])'
+            )
+            + " "
+            + run_sh
+        )
         self._launching.add(root)
         res = await run(
             self._env,
             f"if command -v setsid >/dev/null 2>&1 && setsid -f true >/dev/null 2>&1; then "
-            f"nohup setsid -f sh {run_sh} >/dev/null 2>&1 </dev/null; "
-            f"elif command -v setsid >/dev/null 2>&1; then nohup setsid sh {run_sh} >/dev/null 2>&1 </dev/null & "
-            f"else nohup sh {run_sh} >/dev/null 2>&1 </dev/null & fi; "
+            f"nohup setsid -f {launch} >/dev/null 2>&1 </dev/null; "
+            f"elif command -v setsid >/dev/null 2>&1; then nohup setsid {launch} >/dev/null 2>&1 </dev/null & "
+            f"else nohup {launch} >/dev/null 2>&1 </dev/null & fi; "
             f"i=0; while [ ! -s {pid_file} ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; cat {pid_file}; "
             f"{_PTY_TEST} && echo pty || echo nopty; command -v bash >/dev/null 2>&1 && echo bash || echo sh",
         )
@@ -209,8 +224,26 @@ class Terminals:
                 + str(exc)[:160]
                 + "]\n"
             )
+        init = _INIT
+        if session.pty and session.bash:
+            # SIGINT can skip the sourced line's normal completion writer.
+            # A prompt callback proves Bash regained control and captures the
+            # real exit status, without queuing text into a live interpreter.
+            init += (
+                "__aether_prompt_seq=0; __aether_prompt_owner=$$; __aether_prompt_receipt() { "
+                "local __aether_prompt_rc=$1; "
+                'if [ "${__aether_prompt_seq:-0}" -gt 0 ] && '
+                '[ "$$" = "${__aether_prompt_owner:-0}" ]; then '
+                f'local __aether_prompt_file={q(root)}/done_"$__aether_prompt_seq"; '
+                'if [ ! -f "$__aether_prompt_file" ]; then '
+                "builtin printf '__AETHER_DONE_%s_%s__ %s\\n' "
+                '"$__aether_prompt_seq" "$__aether_prompt_rc" "$PWD" '
+                '> "$__aether_prompt_file.tmp" && '
+                'command mv -f "$__aether_prompt_file.tmp" "$__aether_prompt_file"; '
+                'fi; fi; return "$__aether_prompt_rc"; };\n'
+            )
         await self._write(
-            session, _INIT + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n'
+            session, init + 'printf \'\\n__AETHER_DONE_%s_%s__ %s\\n\' 0 "$?" "$PWD"\n'
         )
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
@@ -557,6 +590,21 @@ class Terminals:
             cmd_file = f"{session.root}/cmd_{session.seq}.sh"
             await put_bytes(self._env, body.encode(), cmd_file)
             src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
+            prompt = ""
+            if session.pty and session.bash:
+                # PS1 expansion sees the original command status even after
+                # PROMPT_COMMAND. Leave that task-owned scalar/array untouched.
+                # A quiet existence guard makes inherited PS1 harmless in a
+                # nested Bash lacking our function; owner $$ prevents a child
+                # that explicitly inherits the function from claiming recovery.
+                # Replacing PS1/disabling promptvars inside the command can
+                # remove this fallback: retain unverified pending, never infer
+                # completion from interrupt delivery alone.
+                prefix = shlex.quote(_PROMPT_RECEIPT)
+                prompt = (
+                    f"__aether_prompt_seq={session.seq}; "
+                    f'case "$PS1" in {prefix}*) ;; *) PS1={prefix}"$PS1";; esac; '
+                )
             if session.bash:
                 # A RETURN trap is persistent model-owned Bash state. Prior code
                 # installed ours unconditionally and removed it after sourcing
@@ -584,7 +632,7 @@ class Terminals:
             temporary_marker = f"{marker}.tmp"
             await self._write(
                 session,
-                f"{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
+                f"{prompt}{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
                 f'{session.seq} "$__aether_s" {stages} "$PWD" > {shlex.quote(temporary_marker)} '
                 f"&& mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}\n",
             )

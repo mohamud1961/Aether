@@ -163,7 +163,7 @@ try:
         if action == 'list':
             for pid in sorted(owned):
                 if not live(table.get(pid)):continue
-                cmd=subprocess.run(['ps','-p',str(pid),'-o','command='],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=3)
+                cmd=subprocess.run(['ps','-ww','-p',str(pid),'-o','command='],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=3)
                 if cmd.returncode or not cmd.stdout.strip():
                     current=snapshot().get(pid)
                     if not live(current) or current[3]!=owned[pid]:continue
@@ -223,6 +223,7 @@ async def list_process_tree(
         if row["pid"] not in pids
         and row.get("command")
         and not row["command"].startswith(_WRAPPER_CMDS)
+        and row["command"] != "sh -c bash --noprofile --norc -i"
     ]
 
 

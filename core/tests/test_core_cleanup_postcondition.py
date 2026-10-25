@@ -253,6 +253,18 @@ def test_observer_faults_preserve_unverified_outcome_for_real_process(tmp_path, 
             if command.startswith("python3 -c "):
                 if fault == "timeout":
                     raise TimeoutError("injected observer timeout")
+                if fault == "enumeration":
+                    # Linux enumerates /proc without invoking ps. Inject the
+                    # fault at that actual syscall as well as the ps fallback.
+                    words = shlex.split(command)
+                    words[2] = (
+                        "import os\n_original_listdir=os.listdir\n"
+                        "def _denied_listdir(path):\n"
+                        " if path=='/proc':raise PermissionError('injected enumeration denial')\n"
+                        " return _original_listdir(path)\n"
+                        "os.listdir=_denied_listdir\n" + words[2]
+                    )
+                    command = shlex.join(words)
                 path = bin_dir if fault == "enumeration" else tmp_path / "missing-bin"
                 command = "PATH=" + shlex.quote(str(path)) + " " + command
             return await super().exec(command, **kwargs)
