@@ -1,10 +1,11 @@
 """Source-actual CLM nudge claims: context footprint is not free inference."""
+import os
 import ast
 from pathlib import Path
 import types
 import unittest
 
-FILE=Path(__file__).resolve().parents[1]/"src/aether/core/clm.py"
+FILE=Path(os.environ.get("AETHER_CORE_TEST_PACKAGE_ROOT", Path(__file__).resolve().parents[1]/"src/aether/core"))/"clm.py"
 module=ast.parse(FILE.read_text())
 cls=next(x for x in module.body if isinstance(x,ast.ClassDef) and x.name=="ClmContext")
 method=next(x for x in cls.body if isinstance(x,ast.FunctionDef) and x.name=="nudge")

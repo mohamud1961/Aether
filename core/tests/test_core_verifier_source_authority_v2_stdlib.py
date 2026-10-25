@@ -4,6 +4,7 @@ No model, sandbox, grader, benchmark or paid infrastructure. The async source
 is compiled from real production file; all external I/O functions are fakes.
 """
 from __future__ import annotations
+import os
 import ast
 import asyncio
 from pathlib import Path
@@ -12,7 +13,7 @@ import types
 import typing
 import unittest
 
-FILE=Path(__file__).resolve().parents[1]/"src/aether/core/verify.py"
+FILE=Path(os.environ.get("AETHER_CORE_TEST_PACKAGE_ROOT", Path(__file__).resolve().parents[1]/"src/aether/core"))/"verify.py"
 TREE=ast.parse(FILE.read_text())
 def original(name):
     found=[n for n in TREE.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name==name]

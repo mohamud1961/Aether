@@ -5,13 +5,14 @@ No model, network, GPU, task evaluator or installed pytest required.
 """
 from __future__ import annotations
 
+import os
 import ast
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace as NS
 import unittest
 
-SOURCE = Path(__file__).resolve().parents[1] / "src/aether/core/loop.py"
+SOURCE = Path(os.environ.get("AETHER_CORE_TEST_PACKAGE_ROOT", Path(__file__).resolve().parents[1] / "src/aether/core")) / "loop.py"
 TREE = ast.parse(SOURCE.read_text())
 FUNCTION = next(x for x in TREE.body if isinstance(x, ast.AsyncFunctionDef) and x.name == "_run_calls")
 EVENTS = []

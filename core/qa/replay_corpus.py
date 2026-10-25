@@ -57,7 +57,6 @@ import asyncio
 import copy
 import hashlib
 import json
-import os
 import shutil
 import shlex
 import sys
@@ -1162,18 +1161,68 @@ def run_negative_controls(manifest: dict, root_map: dict) -> dict:
 class NoProcessReplayEnv:
     """Fail-closed environment for scripted Core-loop playback; it never launches a process."""
 
-    def __init__(self, root: Path, playback: dict[str, str]) -> None:
+    def __init__(
+        self,
+        root: Path,
+        playback: dict[str, str],
+        playback_sequences: dict[str, list[str]] | None = None,
+    ) -> None:
         self.root = root
         self.playback = {sha256_text(action): observation for action, observation in playback.items()}
+        self.playback_sequences = {
+            sha256_text(action): list(observations)
+            for action, observations in (playback_sequences or {}).items()
+        }
+        overlap = self.playback.keys() & self.playback_sequences.keys()
+        if overlap:
+            raise ValueError("an exact action cannot use both scalar and sequence playback")
+        self.playback_sequence_positions = {key: 0 for key in self.playback_sequences}
         self.setup_command = f"mkdir -p {shlex.quote(str(root / 'control'))}"
         self.exec_request_hashes: list[str] = []
         self.blocked_exec_hashes: list[str] = []
         self.terminal_action_hashes: list[str] = []
         self.playback_hits: list[str] = []
         self.blocked_actions: list[str] = []
+        self.playback_sequence_hits: list[dict[str, Any]] = []
         self.upload_calls = 0
         self.download_calls = 0
         self.process_launches = 0
+
+    def terminal_observation(self, action: str, *, mode: str, interrupt: bool) -> str:
+        """Return a scalar or next exact-action observation; mismatches never advance a queue."""
+        action_hash = sha256_text(action)
+        self.terminal_action_hashes.append(action_hash)
+        if mode != "command" or interrupt:
+            self.blocked_actions.append(action_hash)
+            return "[playback blocked: no exact recorded observation; action not executed]"
+        if action_hash in self.playback_sequences:
+            position = self.playback_sequence_positions[action_hash]
+            observations = self.playback_sequences[action_hash]
+            if position >= len(observations):
+                self.blocked_actions.append(action_hash)
+                return "[playback blocked: no exact recorded observation; action not executed]"
+            observation = observations[position]
+            self.playback_sequence_positions[action_hash] = position + 1
+            self.playback_hits.append(action_hash)
+            self.playback_sequence_hits.append(
+                {
+                    "action_sha256": action_hash,
+                    "sequence_index": position,
+                    "observation_sha256": sha256_text(observation),
+                }
+            )
+            return observation
+        if action_hash in self.playback:
+            self.playback_hits.append(action_hash)
+            return self.playback[action_hash]
+        self.blocked_actions.append(action_hash)
+        return "[playback blocked: no exact recorded observation; action not executed]"
+
+    def remaining_playback_sequences(self) -> dict[str, int]:
+        return {
+            action_hash: len(observations) - self.playback_sequence_positions[action_hash]
+            for action_hash, observations in self.playback_sequences.items()
+        }
 
     async def exec(
         self,
@@ -1283,6 +1332,8 @@ def run_scripted(
     task: str,
     *,
     playback: dict[str, str] | None = None,
+    playback_sequences: dict[str, list[str]] | None = None,
+    capture_provider_requests: bool = False,
     model: str = "flint",
     params: dict | None = None,
     timeout_s: float = 60.0,
@@ -1294,7 +1345,7 @@ def run_scripted(
 
     root = Path(tempfile.mkdtemp(prefix="aether-c1-t2-"))
     (root / "work").mkdir()
-    env = NoProcessReplayEnv(root, playback or {})
+    env = NoProcessReplayEnv(root, playback or {}, playback_sequences)
     client = ScriptedClient(script)
     provider = ChatProvider(
         client,
@@ -1317,13 +1368,7 @@ def run_scripted(
         wait_s: float = 30.0,
         interrupt: bool = False,
     ) -> str:
-        action_hash = sha256_text(str(input))
-        env.terminal_action_hashes.append(action_hash)
-        if mode != "command" or interrupt or action_hash not in env.playback:
-            env.blocked_actions.append(action_hash)
-            return "[playback blocked: no exact recorded observation; action not executed]"
-        env.playback_hits.append(action_hash)
-        return env.playback[action_hash]
+        return env.terminal_observation(str(input), mode=mode, interrupt=interrupt)
 
     original_use = Terminals.use
     original_shell = asyncio.create_subprocess_shell
@@ -1359,18 +1404,21 @@ def run_scripted(
     trace_rows = []
     try:
         if trace_path.is_file():
-            trace_rows = [json.loads(line) for line in trace_path.read_text().splitlines() if line.strip()]
+            trace_rows = [json.loads(line) for line in trace_path.read_text().split("\n") if line.strip()]
     except Exception as exc:
         error = error or f"TRACE_READ_{type(exc).__name__}"
         trace_rows = []
     elapsed = round(time.monotonic() - started, 3)
     shutil.rmtree(root, ignore_errors=True)
+    temporary_workdirs_removed = not root.exists()
     return {
         "env": env,
         "result": result,
         "error": error,
         "trace": trace_rows,
         "elapsed_s": elapsed,
+        "provider_requests": client.requests if capture_provider_requests else None,
+        "temporary_workdirs_removed": temporary_workdirs_removed,
     }
 
 

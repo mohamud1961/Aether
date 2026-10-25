@@ -3,6 +3,7 @@
 Import real runstate source with a fake sibling env to avoid optional infra deps.
 """
 from __future__ import annotations
+import os
 import asyncio
 import importlib.util
 from pathlib import Path
@@ -11,7 +12,7 @@ import types
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
-SRC=ROOT/"src/aether/core/runstate.py"
+SRC=Path(os.environ.get("AETHER_CORE_TEST_PACKAGE_ROOT", ROOT/"src/aether/core"))/"runstate.py"
 pkgname="_offline_runstate_fixture"
 pkg=types.ModuleType(pkgname)
 pkg.__path__=[str(SRC.parent)]

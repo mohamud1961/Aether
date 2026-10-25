@@ -11,7 +11,7 @@ import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"src"))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from aether.core.record import Record
-from aether.core.receipt import MARKER, SKIP
+from aether.core.receipt import MARKER, SKIP, mark
 from tests.core_fakes import LocalEnv
 
 def fixture(fn):
@@ -45,7 +45,11 @@ class RecorderNamedEdges(unittest.TestCase):
     def test_old_non_named_file_still_out_of_snapshot(self):
         async def run(root,work,ctl,record):
             f=work/"old-unmentioned.txt";f.write_text("untouched");old(f)
-            self.assertNotIn("old-unmentioned.txt",await record("Create output elsewhere").snapshot(save=False))
+            instance=record("Create output elsewhere")
+            # The untouched file must predate BOTH mtime and ctime marker.
+            # Restoring mtime after creation no longer makes a file invisible.
+            await mark(instance.env,str(ctl))
+            self.assertNotIn("old-unmentioned.txt",await instance.snapshot(save=False))
         fixture(run)
 
     def test_named_skipped_directory_not_traversed(self):

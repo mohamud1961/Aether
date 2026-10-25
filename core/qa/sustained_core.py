@@ -100,6 +100,28 @@ class Client:
         if not self.previous:
             return
         identity, name, args = self.previous
+        if name == "view_image":
+            import base64
+            import io
+            from PIL import Image
+
+            attached = [
+                part["image_url"]["url"]
+                for message in packet["messages"]
+                if isinstance(message.get("content"), list)
+                for part in message["content"]
+                if part.get("type") == "image_url"
+            ]
+            require(attached, "image tool succeeded without a provider-visible image")
+            image = Image.open(
+                io.BytesIO(base64.b64decode(attached[-1].split(",", 1)[1]))
+            )
+            require(
+                image.size == (1, 1)
+                and image.convert("RGB").getpixel((0, 0))
+                == (((int(identity.split("-")[1]) - 5) // 16) % 256, 17, 231),
+                "provider-visible image pixels corrupted",
+            )
         results = [
             m
             for m in packet["messages"]
@@ -212,7 +234,7 @@ class Client:
             name, args = (
                 "terminal",
                 {
-                    "input": "python3 -c \"from pathlib import Path;import hashlib;d=Path('artifact.txt').read_bytes();print('CHECK_SHA',hashlib.sha256(d).hexdigest())\""
+                    "input": "python3 build.py && python3 -c \"from pathlib import Path;import hashlib;d=Path('artifact.txt').read_bytes();print('CHECK_SHA',hashlib.sha256(d).hexdigest())\""
                 },
             )
         elif phase == 3:
@@ -239,7 +261,7 @@ class Client:
             name, args = (
                 "terminal",
                 {
-                    "input": "python3 -c \"print('α雪-output-'*3000); print('FULL_LOG_END')\""
+                    "input": f"python3 -c \"from pathlib import Path; Path('pixel.ppm').write_text('P3\\n1 1\\n255\\n{cycle % 256} 17 231\\n'); print('α雪-output-'*3000); print('FULL_LOG_END_{cycle}')\""
                 },
             )
         elif phase == 9:
@@ -285,6 +307,13 @@ class Client:
         )
 
 
+def expected_bundle(cycle):
+    return {
+        "version": f"version-{cycle}-α雪",
+        "rows": [{"id": i, "value": str(i)} for i in range(1200)],
+    }
+
+
 def validate_trace(rows, plan):
     models = [r for r in rows if r["event"] == "model"]
     actual = [c for r in models for c in r.get("tool_calls", [])]
@@ -308,12 +337,46 @@ def validate_trace(rows, plan):
             "tool arguments changed",
         )
         text = str(observation["result"])
+        if name in (
+            "write_file",
+            "edit_file",
+            "read_file",
+            "read_history",
+            "python",
+            "view_image",
+        ):
+            require(not text.startswith("error:"), f"required {name} action failed")
+        if name == "write_file":
+            require(text.startswith("wrote "), "write acknowledgement missing")
+        if name == "edit_file":
+            require(text.startswith("edited "), "edit acknowledgement missing")
+        if name == "view_image":
+            require(
+                text.startswith("[image ") and "PPM 1x1 RGB; shown below]" in text,
+                "image observation missing or incorrect",
+            )
+        if name == "python" and "SOAK_COUNTER" in args.get("code", ""):
+            cycle = (int(identity.split("-")[1]) - 5) // 16
+            require(
+                f"SOAK_COUNTER {cycle + 1}" in text,
+                "persistent Python trace state lost",
+            )
         if name == "terminal" and "CHECK_SHA" in args.get("input", ""):
             cycle = (int(identity.split("-")[1]) - 5) // 16
             expected = hashlib.sha256(f"version-{cycle}-α雪\n".encode()).hexdigest()
             require(
                 expected in text and "[exit 0 " in text,
                 "independent intermediate artifact check failed",
+            )
+            bundle = expected_bundle(cycle)
+            bundle_hash = hashlib.sha256(
+                json.dumps(
+                    bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ).encode()
+            ).hexdigest()
+            require(
+                f"BUILD_SHA {bundle_hash}" in text,
+                "independent rebuild artifact check failed",
             )
         if name == "terminal" and "DELIBERATE_FAILURE" in args.get("input", ""):
             require(
@@ -322,6 +385,8 @@ def validate_trace(rows, plan):
             )
         if name == "terminal" and "STATE-%s" in args.get("input", ""):
             require("STATE-preserved" in text, "persistent shell state lost")
+        if name == "terminal" and "print('TREE'" in args.get("input", ""):
+            require("TREE 1200" in text, "large artifact tree changed during episode")
         if name == "read_file" and args["path"] == "artifact.txt":
             cycle = (int(identity.split("-")[1]) - 5) // 16
             require(f"version-{cycle}-α雪" in text, "artifact readback differs")
@@ -331,11 +396,26 @@ def negative_trace_controls(rows, plan):
     from copy import deepcopy
 
     controls = []
-    for mode in ("duplicate_action_id", "false_success", "corrupt_artifact_check"):
+    for mode in (
+        "duplicate_action_id",
+        "false_success",
+        "corrupt_artifact_check",
+        "failed_image",
+        "failed_edit",
+    ):
         bad = deepcopy(rows)
         if mode == "duplicate_action_id":
             model = [r for r in bad if r["event"] == "model"]
             model[1]["tool_calls"][0]["id"] = model[0]["tool_calls"][0]["id"]
+        elif mode in ("failed_image", "failed_edit"):
+            target = next(
+                r
+                for r in bad
+                if r["event"] == "tool"
+                and r["name"]
+                == ("view_image" if mode == "failed_image" else "edit_file")
+            )
+            target["result"] = "error: injected required tool failure"
         else:
             needle = "DELIBERATE_FAILURE" if mode == "false_success" else "CHECK_SHA"
             target = next(
@@ -362,6 +442,9 @@ async def episode(folder, seconds, min_turns, mode):
     (work / "pixel.ppm").write_bytes(b"P3\n1 1\n255\n255 0 0\n")
     (work / "heartbeat.py").write_text(
         "import time\nfrom pathlib import Path\ni=0\nwhile True:\n i+=1\n Path('heartbeat').write_text(str(i))\n time.sleep(.1)\n"
+    )
+    (work / "build.py").write_text(
+        "from pathlib import Path\nimport json,hashlib\nrows=[{'id':int(p.name),'value':p.read_text()} for p in sorted(Path('tree').iterdir())]\nobj={'version':Path('artifact.txt').read_text().rstrip('\\n'),'rows':rows}\nraw=json.dumps(obj,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()\nPath('compiled.json').write_bytes(raw)\nprint('BUILD_SHA',hashlib.sha256(raw).hexdigest())\n"
     )
     client = Client(folder, seconds, min_turns, mode)
 
@@ -427,6 +510,11 @@ async def episode(folder, seconds, min_turns, mode):
         "wrong final artifact",
     )
     require(
+        json.loads((work / "compiled.json").read_text())
+        == expected_bundle(client.expected_edits - 1),
+        "final rebuilt data artifact incorrect",
+    )
+    require(
         int((work / "heartbeat").read_text()) >= max(1, int(seconds * 4)),
         "service did not remain productive",
     )
@@ -438,6 +526,13 @@ async def episode(folder, seconds, min_turns, mode):
         r["result"].split("\n", 1)[1] for r in tools if r.get("name") == "read_history"
     ]
     require(len(history) >= 3, "missing history pages")
+    require(len(history) % 3 == 0, "incomplete history paging round")
+    for start in range(0, len(history), 3):
+        recovered = json.loads("".join(history[start : start + 3]))
+        require(
+            "ANCHOR-α-" in recovered["content"] and "-TAIL-雪" in recovered["content"],
+            "earlier source history round lost bytes",
+        )
     source = json.loads("".join(history[-3:]))
     require(
         "ANCHOR-α-" in source["content"] and "-TAIL-雪" in source["content"],
@@ -454,10 +549,23 @@ async def episode(folder, seconds, min_turns, mode):
     )
     # The full source output must survive clipping in an actual terminal log.
     logs = list((folder / "ctl").rglob("*.log")) + list((folder / "ctl").rglob("log"))
+    main_log = (folder / "ctl/term/main/out.log").read_text(errors="replace")
+    other_log = (folder / "ctl/term/other/out.log").read_text(errors="replace")
+    for cycle in range(client.expected_edits):
+        require(
+            f"FULL_LOG_END_{cycle}" in main_log and f"SOAK-MARK-{cycle}" in other_log,
+            "documented accumulated log lost a cycle marker",
+        )
     require(
-        any("FULL_LOG_END" in p.read_text(errors="replace") for p in logs),
-        "full output log unavailable",
+        {p.name for p in (work / "tree").iterdir()}
+        == {f"{i:05d}" for i in range(1200)},
+        "large tree lost entries",
     )
+    for i in range(1200):
+        require(
+            (work / "tree" / f"{i:05d}").read_text() == str(i),
+            "large tree bytes corrupted",
+        )
     health = client.health + [after_cleanup]
     baseline = client.health[min(3, len(client.health) - 1)]
     steady = client.health[3:] or client.health
@@ -516,6 +624,7 @@ async def episode(folder, seconds, min_turns, mode):
         folder / "calls.jsonl",
         folder / "logs" / "aether_run_record.json",
         work / "artifact.txt",
+        work / "compiled.json",
         *logs,
     ]:
         digest = hashlib.sha256()

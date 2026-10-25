@@ -4,6 +4,7 @@ Runs shell commands only in isolated tempfile via fake Harbor-like environment.
 No provider, model, benchmark, service or paid infrastructure.
 """
 from __future__ import annotations
+import os
 import asyncio
 import importlib.util
 import hashlib
@@ -17,7 +18,7 @@ import types
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
-SRC=ROOT/"src/aether/core"
+SRC=Path(os.environ.get("AETHER_CORE_TEST_PACKAGE_ROOT", ROOT/"src/aether/core"))
 PKG="_core_f4_test_package"
 pkg=types.ModuleType(PKG);pkg.__path__=[str(SRC)]
 sys.modules[PKG]=pkg
@@ -93,7 +94,10 @@ class RealSourceLocalConflict(unittest.TestCase):
         self.assertNotIn("     1  MODEL_NEW above",out)
     def test_race_before_mode_does_not_overwrite_other_writer(self):
         self.self_mutation("before_mode",lambda p:p.write_text("OTHER_WRITER\n"))
-        with self.assertRaisesRegex(OSError,"conflict"):
+        # Type preflight now precedes the read (so FIFOs cannot block it).
+        # The injected writer can therefore win before the initial read: a
+        # read-miss is as truthful as a later optimistic edit conflict.
+        with self.assertRaisesRegex((OSError,ValueError),"conflict|old_str not found.*no write attempted"):
             self.edit()
         self.assertTrue(self.env.triggered)
         self.assertEqual(self.target.read_bytes(),b"OTHER_WRITER\n")

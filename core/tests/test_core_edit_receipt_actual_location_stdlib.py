@@ -2,6 +2,7 @@
 
 No Harbor/provider/model or external process, no benchmark.
 """
+import os
 import asyncio
 import hashlib
 import importlib.util
@@ -10,7 +11,7 @@ import sys
 import types
 import unittest
 
-FILE=Path(__file__).resolve().parents[1]/"src/aether/core/files.py"
+FILE=Path(os.environ.get("AETHER_CORE_TEST_PACKAGE_ROOT", Path(__file__).resolve().parents[1]/"src/aether/core"))/"files.py"
 pkgname="_offline_files_fixture"
 pkg=types.ModuleType(pkgname);pkg.__path__=[str(FILE.parent)]
 envmod=types.ModuleType(pkgname+".env")
