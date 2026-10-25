@@ -247,15 +247,30 @@ def resolved_response(end: dict | None, blobs: dict) -> dict | None:
 
 
 def resolve_symbol(symbol: str, root_map: dict) -> tuple[Path | None, str]:
-    """``$COHORT/relative/path`` -> the operator's root for ``COHORT``; missing is explicit."""
+    """Resolve archive metadata within its root; never follow trace/client-log aliases."""
     if not symbol.startswith("$") or "/" not in symbol:
         return None, "MALFORMED_SYMBOL"
     name, _, relative = symbol[1:].partition("/")
     root = root_map.get(name)
     if not root:
         return None, f"ROOT_NOT_CONFIGURED:{name}"
-    path = Path(root) / relative
-    return path, "" if path.is_file() else "SOURCE_NOT_FOUND"
+    if Path(relative).is_absolute() or ".." in Path(relative).parts:
+        return None, "SOURCE_PATH_TRAVERSAL_DENIED"
+    base = Path(root).resolve()
+    path = base / relative
+    # Archives are immutable during qualification. Reject symlink components
+    # for BOTH payload files before is_file/read_bytes can follow either one.
+    for source in (path, path.with_name("core_calls.jsonl")):
+        for component in (source, *source.parents):
+            if component == base:
+                break
+            if component.is_symlink():
+                return None, "SOURCE_SYMLINK_DENIED"
+        if not source.resolve().is_relative_to(base):
+            return None, "SOURCE_OUTSIDE_ROOT_DENIED"
+    if not path.is_file():
+        return None, "SOURCE_NOT_FOUND"
+    return path, ""
 
 
 # --------------------------------------------------------------------------------------------

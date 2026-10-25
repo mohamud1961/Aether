@@ -196,6 +196,7 @@ async def _review(
 ) -> None:
     produced = await receipt.changed(s.env, s.workdir, s.config.control_dir)
     row["produced_files"] = len(produced)
+    row["produced_files_scope"] = "files with mtimes newer than start marker; not a complete change count"
     before = await _manifest(s.env, s, row, work_end)
     if before is not None:
         row.update(bound_entries=len(before.entries), unbound=before.unbound)

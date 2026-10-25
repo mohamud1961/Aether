@@ -85,13 +85,33 @@ class Files:
         start = max(1, int(start_line))
         end = start + max(1, min(int(num_lines), 4000)) - 1
         q = shlex.quote(path)
+        # Slice numbered UTF-8 output in bytes, bounding remote staging to one
+        # page even if selected source lines are huge. The decoder below owns
+        # incomplete trailing code points and the continuation byte offset.
+        page_program = (
+            f"BEGIN {{skip={offset}; left={MAX_READ_CHARS + 1}}} "
+            f'NR>={start} && NR<={end} {{line=sprintf("%6d  %s\\n",NR,$0); n=length(line); '
+            'if(skip>=n) {skip-=n} else {line=substr(line,skip+1); skip=0; '
+            'if(length(line)>left) line=substr(line,1,left); printf "%s",line; '
+            'left-=length(line); if(left==0) exit}} '
+            f"NR>{end} {{exit}}"
+        )
         res = await run(
             self._env,
             f"if [ ! -f {q} ]; then echo 'not a regular file (or missing)' >&2; exit 2; fi; "
-            f"if [ -s {q} ] && ! head -c 8192 {q} | grep -qI ''; then echo BINARY; wc -c < {q}; exit 0; fi; "
-            f"awk 'END {{print NR}}' {q}; awk 'NR>={start} && NR<={end} {{printf \"%6d  %s\\n\", NR, $0}}' {q} "
-            f"| tail -c +{offset + 1} | head -c {MAX_READ_CHARS + 1} | base64",
+            f"if [ ! -r {q} ]; then echo 'file is not readable' >&2; exit 3; fi; "
+            f"if [ -s {q} ]; then grep -qI '' {q}; kind=$?; "
+            f"if [ $kind -gt 1 ]; then echo 'file classification read failed' >&2; exit 3; fi; "
+            f"if [ $kind -eq 1 ]; then echo BINARY; wc -c < {q} || exit 3; exit 0; fi; fi; "
+            f"awk 'END {{print NR}}' {q} || exit 3; "
+            "read_tmp=$(mktemp -d) || exit 3; "
+            "trap 'rm -rf \"$read_tmp\"' 0; "
+            f"LC_ALL=C awk {shlex.quote(page_program)} {q} > \"$read_tmp/page\" || exit 3; "
+            "base64 < \"$read_tmp/page\" || exit 3",
         )
+        if res.code == 3:
+            raise OSError(f"cannot read {path}: {(res.stderr or res.stdout).strip()[:200]}")
+
         if res.code != 0:
             raise FileNotFoundError(
                 f"{path}: {(res.stderr or res.stdout).strip()[:200]}"

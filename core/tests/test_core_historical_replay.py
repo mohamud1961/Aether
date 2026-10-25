@@ -51,3 +51,24 @@ def test_missing_required_evidence_cannot_produce_a_green_replay_gate():
         changed = copy.deepcopy(baseline)
         changed[section] = missing
         assert not replay._verdict(changed)["ok"], section
+
+
+def test_archive_resolution_rejects_trace_call_log_aliases_and_traversal(tmp_path):
+    replay = _replay_module()
+    root, outside = tmp_path / "root", tmp_path / "outside"
+    root.mkdir(); outside.mkdir()
+    secret = outside / "trace.jsonl"
+    secret.write_text("synthetic locked payload")
+    trace = root / "core_trace.jsonl"
+    trace.symlink_to(secret)
+    assert replay.resolve_symbol("$A/core_trace.jsonl", {"A": str(root)}) == (None, "SOURCE_SYMLINK_DENIED")
+    trace.unlink(); trace.write_text("safe synthetic trace")
+    calls = root / "core_calls.jsonl"
+    calls.symlink_to(secret)
+    assert replay.resolve_symbol("$A/core_trace.jsonl", {"A": str(root)}) == (None, "SOURCE_SYMLINK_DENIED")
+    calls.unlink()
+    assert replay.resolve_symbol("$A/../outside/trace.jsonl", {"A": str(root)}) == (None, "SOURCE_PATH_TRAVERSAL_DENIED")
+    (root / "aliasdir").symlink_to(outside, target_is_directory=True)
+    assert replay.resolve_symbol("$A/aliasdir/trace.jsonl", {"A": str(root)}) == (None, "SOURCE_SYMLINK_DENIED")
+    assert replay.resolve_symbol("$A/core_trace.jsonl", {"A": str(root)}) == (trace, "")
+    assert replay.resolve_symbol("$A/missing.jsonl", {"A": str(root)}) == (None, "SOURCE_NOT_FOUND")

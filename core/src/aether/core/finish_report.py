@@ -19,6 +19,7 @@ The report is written to the run record. The model never sees it, so it cannot c
 from __future__ import annotations
 
 import posixpath
+import json
 import re
 import shlex
 from dataclasses import dataclass
@@ -198,7 +199,7 @@ def render(report: dict[str, Any]) -> str:
             wrote = (
                 f"last written by a file tool at step {f['last_file_tool_write']}"
                 if f["last_file_tool_write"]
-                else "written by a shell or Python step (step not attributable)"
+                else "no file-tool write attributed"
             )
             named = f["steps_naming_it_after"]
             seen = (
@@ -206,7 +207,7 @@ def render(report: dict[str, Any]) -> str:
                 if named
                 else "not named by any later step"
             )
-            out.append(f"  - {f['path']} · {f['bytes']} bytes · sha256 {str(f['sha256'])[:16]} · {wrote} · {seen}")
+            out.append(f"  - {json.dumps(f['path'], ensure_ascii=True)} · {f['bytes']} bytes · sha256 {str(f['sha256'])[:16]} · {wrote} · {seen}")
     out.append("- inventory scope: newer file mtimes under the working directory plus recorded file-tool writes; not an exhaustive change inventory")
     out.append(
         f"- commands: {report['commands']} (non-zero exit at steps {report['commands_nonzero_exit'] or 'none'}; "
