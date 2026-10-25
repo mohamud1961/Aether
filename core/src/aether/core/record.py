@@ -24,12 +24,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
+import json
 import posixpath
 import shlex
 from typing import Any, Callable
 
 from .env import Environment, run
-from .receipt import MARKER, SKIP
+from .receipt import MARKER, SKIP, changed
 
 _DONE = re.compile(r"\[exit (\d+)(?: · last pipeline's stage exits [^\]]*?)? · ([\d.]+)s · terminal (\S+) · cwd ([^\]\n]*)\]\s*$")
 _RUNNING = re.compile(r"\[still running after \d+s")
@@ -106,6 +107,11 @@ def norm(command: str) -> str:
 def short(command: str, limit: int = 160) -> str:
     one = norm(command)
     return one if len(one) <= limit else one[: limit - 3] + "..."
+
+
+def _display_paths(paths: list[str]) -> str:
+    """Quote untrusted filenames in harness-authored facts; filesystem keys stay exact."""
+    return ", ".join(json.dumps(path, ensure_ascii=True) for path in paths)
 
 
 @dataclass
@@ -227,7 +233,7 @@ class Record:
             self.trace("record_mid", absent=absent, remaining_s=round(self.remaining(), 1))
             if absent:
                 return (f"[harness record, {self.remaining():.0f}s left] Paths the task names that do not exist yet: "
-                        f"{', '.join(absent)}. Whatever exists when time runs out is what is delivered.")
+                        f"{_display_paths(absent)}. Whatever exists when time runs out is what is delivered.")
             return ""
         if self.late_done or used < LATE_AT:
             return ""
@@ -235,7 +241,7 @@ class Record:
         facts = [] if self.paths_only else await self._measured(await self.snapshot(save=False), [])
         absent = await self._absent()
         if absent:
-            facts.append(f"- Paths the task names that do not exist yet: {', '.join(absent)}")
+            facts.append(f"- Paths the task names that do not exist yet: {_display_paths(absent)}")
         self.trace("record_late", facts=len(facts), remaining_s=round(self.remaining(), 1))
         if not facts:
             return ""
@@ -248,8 +254,9 @@ class Record:
         if changed:
             lines.append("Files changed since then (retained byte copies are named where available):")
             for path in changed[:8]:
-                location = await self._retained_location(path, then.files[path]) or "no validated retained copy"
-                lines.append(f"  {path}: {location}")
+                location = await self._retained_location(path, then.files[path])
+                label = json.dumps(location, ensure_ascii=True) if location else "no validated retained copy"
+                lines.append(f"  {json.dumps(path, ensure_ascii=True)}: {label}")
         else:
             lines.append("No captured file hash differs; the snapshot does not cover all workspace state.")
         return "\n".join(lines)
@@ -288,56 +295,75 @@ class Record:
         return sorted(set(out))
 
     async def snapshot(self, save: bool) -> dict[str, str]:
-        """sha256 of each file the run changed under the working directory; with ``save``, keep a copy of each
-        version not kept yet (content-addressed, files under SAVE_BYTES)."""
+        """Bounded sample of named outputs and newer mtimes; hashes are observations, not complete custody.
+        With ``save``, retain eligible byte copies whose content hashes match.
+        """
         q = shlex.quote
-        prune = " -o ".join(f"-name {q(name)}" for name in SKIP)
-        marker = q(f"{self.control_dir}/{MARKER}")
+        candidates = ["./" + p for p in self._explicit_named_relative()]
+        candidates += await changed(self.env, self.workdir, self.control_dir)
+        candidates = list(dict.fromkeys("./" + posixpath.normpath(p).removeprefix("./") for p in candidates))
+        # Keep shell requests below Linux's per-argument limit even for deep
+        # paths. Eligibility filtering happens remotely before the file cap.
+        batches, batch, size = [], [], 0
+        for path in candidates:
+            cost = len(q(path).encode()) + 1
+            if batch and size + cost > 32_000:
+                batches.append(batch)
+                batch, size = [], 0
+            batch.append(path)
+            size += cost
+        if batch:
+            batches.append(batch)
+        files: dict[str, str] = {}
         store = q(self.versions)
+        # Check every path component without line splitting or dirname's
+        # newline-stripping command substitution. No symlink is followed for
+        # source capture or retained-copy writes. This is not atomic custody.
+        source_guard = (
+            'rest=${f#./}; walk=.; safe=1; '
+            'while :; do part=${rest%%/*}; walk="$walk/$part"; '
+            '[ ! -L "$walk" ] || { safe=0; break; }; '
+            'case "$rest" in */*) rest=${rest#*/};; *) break;; esac; done; '
+            '[ "$safe" = 1 ] && [ -f "$f" ] || continue; '
+            'size=$(wc -c < "$f") || exit 3; [ "$size" -lt 20000000 ] || continue; '
+        )
         keep = (
-            f'dest={store}/"$h"/"${{f#./}}"; '
-            f'if [ ! -f "$dest" ] && [ "$(wc -c < "$f")" -lt {SAVE_BYTES} ]; then '
-            'mkdir -p "$(dirname "$dest")" && cp -p "$f" "$dest"; fi; '
-            'if [ -f "$dest" ]; then ch=$( (sha256sum "$dest" 2>/dev/null || shasum -a 256 "$dest") | cut -c1-64); '
-            '[ "$ch" = "$h" ] && kept=1; fi; '
+            f'dest={store}/"$h"/"${{f#./}}"; walk={store}/"$h"; rest=${{f#./}}; safe=1; '
+            f'[ ! -L {q(self.control_dir)} ] && [ ! -L {store} ] && [ ! -L "$walk" ] || safe=0; '
+            'while :; do part=${rest%%/*}; walk="$walk/$part"; '
+            '[ ! -L "$walk" ] || { safe=0; break; }; '
+            'case "$rest" in */*) rest=${rest#*/};; *) break;; esac; done; '
+            'if [ "$safe" = 1 ]; then '
+            f'if [ ! -f "$dest" ] && [ "$size" -lt {SAVE_BYTES} ]; then '
+            'parent=${dest%/*}; mkdir -p "$parent" && cp -p "$f" "$dest"; fi; '
+            'if [ -f "$dest" ]; then ch=$(sha256sum < "$dest" 2>/dev/null || shasum -a 256 < "$dest") || exit 3; '
+            '[ "${ch%% *}" = "$h" ] && kept=1; fi; fi; '
             if save else ""
         )
-        # Named task outputs receive priority even if their mtime predates
-        # the run (e.g. archive extraction or cp -p) or find has >MAX_FILES
-        # unrelated changed files. Refuse symlinked path components. This
-        # improves evidence coverage; it is not atomic candidate custody.
-        explicit = []
-        for rel in self._explicit_named_relative():
-            relative = "./" + rel
-            parts = rel.split("/")
-            no_symlinks = " && ".join(
-                f"[ ! -L {q('./' + '/'.join(parts[:n]))} ]"
-                for n in range(1, len(parts) + 1)
+        for batch in batches:
+            remaining = MAX_FILES - len(files)
+            if remaining <= 0:
+                break
+            command = (
+                f"cd {q(self.workdir)} || exit 3; count=0; for f in {' '.join(q(p) for p in batch)}; do "
+                f'[ "$count" -lt {remaining} ] || break; '
+                + source_guard
+                + 'hash=$(sha256sum < "$f" 2>/dev/null || shasum -a 256 < "$f") || exit 3; '
+                + 'h=${hash%% *}; kept=0; ' + keep
+                + 'printf "%s\\0%s\\0%s\\0" "$h" "$kept" "${f#./}"; count=$((count+1)); done'
             )
-            explicit.append(
-                f"if [ -f {q(relative)} ] && {no_symlinks} "
-                f"&& [ \"$(wc -c < {q(relative)})\" -lt 20000000 ]; "
-                f"then printf '%s\\n' {q(relative)}; fi;"
-            )
-        first = " ".join(explicit)
-        command = (
-            f"cd {q(self.workdir)} && test -e {marker} && "
-            f"{{ {first} find . -xdev \\( {prune} \\) -prune -o -type f "
-            f"-newer {marker} -size -20M -print 2>/dev/null; }} "
-            f"| awk '!seen[$0]++' | head -n {MAX_FILES} | while IFS= read -r f; do "
-            f'h=$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f") | cut -c1-64); '
-            f'[ -n "$h" ] || continue; kept=0; {keep}printf "%s\\t%s\\t%s\\n" "$h" "$kept" "${{f#./}}"; done'
-        )
-        result = await run(self.env, command, timeout_s=max(5.0, min(60.0, self.remaining())))
-        if result.code != 0:
-            raise OSError(f"snapshot failed: {(result.stderr or result.stdout).strip()[:200]}")
-        files: dict[str, str] = {}
-        for line in result.stdout.splitlines():
-            parts = line.split("\t", 2)
-            if len(parts) != 3:
-                continue
-            digest, kept, path = parts
-            if re.fullmatch(r"[0-9a-f]{64}", digest) and path and not posixpath.isabs(path) and ".." not in path.split("/"):
+            result = await run(self.env, command, timeout_s=max(5.0, min(60.0, self.remaining())))
+            if result.code != 0:
+                raise OSError(f"snapshot failed: {(result.stderr or result.stdout).strip()[:200]}")
+            fields = result.stdout.split("\0")
+            if fields[-1] != "" or (len(fields) - 1) % 3:
+                raise OSError("snapshot failed: incomplete filename/digest record")
+            allowed = {p.removeprefix("./") for p in batch}
+            for index in range(0, len(fields) - 1, 3):
+                digest, kept, path = fields[index:index + 3]
+                if (not re.fullmatch(r"[0-9a-f]{64}", digest) or kept not in ("0", "1")
+                        or path not in allowed or path in files):
+                    raise OSError("snapshot failed: invalid filename/digest record")
                 files[path] = digest
                 if kept == "1":
                     self.retained.add((path, digest))
@@ -359,7 +385,7 @@ class Record:
             line = f"  t={c.t:.0f}s exit {c.exit}: {short(c.command)}"
             if now is not None:
                 changed = sorted(p for p, h in c.files.items() if now.get(p) != h)
-                line += f" (files changed since: {', '.join(changed[:5])})" if changed else " (captured file hashes unchanged since; snapshot scope is limited)"
+                line += f" (files changed since: {_display_paths(changed[:5])})" if changed else " (captured file hashes unchanged since; snapshot scope is limited)"
             lines.append(line)
         return "\n".join(lines)
 
@@ -384,7 +410,7 @@ class Record:
             self.trace("record_finish", **row)
             if not absent:
                 return False, "", row
-            return True, (f"[finish not yet accepted] Paths the task names that do not exist: {', '.join(absent)}. "
+            return True, (f"[finish not yet accepted] Paths the task names that do not exist: {_display_paths(absent)}. "
                           f"You have {self.remaining():.0f}s. Create them, or call finish again to finish as is."), row
         try:
             delivered = await self.snapshot(save=True)
@@ -404,7 +430,7 @@ class Record:
         measured = await self._measured(delivered, reruns) if self.measure else []
         absent = await self._absent() if self.measure else []
         if absent:
-            measured.append(f"- Paths the task names that do not exist: {', '.join(absent)}")
+            measured.append(f"- Paths the task names that do not exist: {_display_paths(absent)}")
         row["measured"] = len(measured)
         hold = bool(failing or broke or measured)
         row["hold"] = hold
@@ -417,7 +443,7 @@ class Record:
             lines.append(f"- `{short(c.command)}` passed earlier; its newest run (t={c.t:.0f}s) exited {c.exit}.")
         lines += measured
         lines.append(
-            f"Retained byte copies are under {self.versions}/<sha256>/<relative-path>; a command exit is not semantic correctness. You have {left:.0f}s. "
+            f"Retained byte copies are under {json.dumps(self.versions, ensure_ascii=True)}/<sha256>/<relative-path>; a command exit is not semantic correctness. You have {left:.0f}s. "
             "Fix what this shows, restore a saved version, or call finish again to finish as is."
         )
         return True, "\n".join(lines), row
@@ -451,7 +477,7 @@ class Record:
                 locations = []
                 for p in old[:4]:
                     location = await self._retained_location(p, c.files[p])
-                    locations.append(f"{p} saved at {location}" if location else f"{p}: no validated retained copy")
+                    locations.append(f"{json.dumps(p, ensure_ascii=True)} saved at {json.dumps(location, ensure_ascii=True)}" if location else f"{json.dumps(p, ensure_ascii=True)}: no validated retained copy")
                 saved = ", ".join(locations)
                 lines.append(f"    t={c.t:.0f}s: {' | '.join(then)}  ({saved})")
             _then, now = differing(earlier[-1][0].out, newest.out)
@@ -461,7 +487,7 @@ class Record:
             stale = sorted(p for p, h in delivered.items() if last.files.get(p) != h)
             if stale:
                 lines.append(f"- Changed or created after your last check ran (t={last.t:.0f}s, "
-                             f"`{short(last.command, 80)}`): {', '.join(stale[:8])}")
+                             f"`{short(last.command, 80)}`): {_display_paths(stale[:8])}")
         return lines
 
     def summary(self) -> dict[str, Any]:

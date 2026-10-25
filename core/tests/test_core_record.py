@@ -4,6 +4,7 @@ repeat arbitrary commands on the mutable delivered workspace."""
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 import time
 
@@ -72,7 +73,7 @@ def test_a_check_that_passed_and_now_fails_names_the_saved_passing_version(tmp_p
         app.write_text("raise SystemExit(3)\n")
         out = await rig.cmd("python3 app.py")
         assert "exited 0 at t=10s and exits 3 now" in out
-        saved = next(line.split(": ", 1)[1] for line in out.splitlines() if line.strip().startswith("app.py:"))
+        saved = json.loads(next(line.split(": ", 1)[1] for line in out.splitlines() if line.strip().startswith('"app.py":')))
         assert Path(saved).read_text() == "print('ok')\n"  # restoring is a plain cp of a real copy
 
     run(go, tmp_path)
@@ -149,7 +150,7 @@ def test_after_checkpoint_restates_exact_results_and_staleness(tmp_path):
         await rig.cmd("python3 a.py")
         app.write_text("print(2)\n")
         note = await rig.record.after_checkpoint()
-        assert "exit 0: python3 a.py (files changed since: a.py)" in note
+        assert 'exit 0: python3 a.py (files changed since: "a.py")' in note
 
     run(go, tmp_path)
 
@@ -266,7 +267,7 @@ def test_measure_names_the_saved_version_that_scored_differently(tmp_path):
         hold, text, row = await rig.record.at_finish()
         assert hold and row["measured"] >= 1
         assert "similarity 0.9143" in text and "similarity 0.8657" in text
-        saved = text.split("render.txt saved at ", 1)[1].split(")", 1)[0]
+        saved, _ = json.JSONDecoder().raw_decode(text.split('"render.txt" saved at ', 1)[1])
         assert Path(saved).read_text() == "0.9143\n"  # the better version is really there to restore
 
     run_measure(go, tmp_path)
