@@ -4,7 +4,7 @@ Audits found final summaries that the delivered state contradicts ("17 documents
 "verified against synonyms.txt" over a file that does not match it, "written to out.txt" over prose plus the
 answer). A same-model check shares the reading that made the error, so the report does not judge. It states only
 what the harness observed:
-- the files under the working directory changed since the run started, with size and sha256;
+- current regular files observed with mtime or ctime newer than the start marker, plus recorded successful file-tool writes, with size and sha256;
 - every terminal and Python step, with its exit code where the terminal reported one;
 - for each delivered file, the step that last wrote it when a file tool did (shell and Python writes are not
   attributable), and the later steps whose command names the file. Naming a file is not checking it; the report
@@ -162,7 +162,7 @@ async def build(
         "delivered_files": files,
         "delivered_files_total": total,
         "delivery_inventory_complete": False,
-        "delivery_inventory_scope": "newer mtimes under workdir plus recorded file-tool writes; shell writes preserving older timestamps may be absent",
+        "delivery_inventory_scope": "current regular files with mtime or POSIX ctime newer than the start marker, plus recorded successful file-tool writes; deletions, special files, and externally restored filesystem state are outside this observation",
         "workdir": workdir,
         "steps": len(steps),
         "commands": len(commands),
@@ -208,7 +208,7 @@ def render(report: dict[str, Any]) -> str:
                 else "not named by any later step"
             )
             out.append(f"  - {json.dumps(f['path'], ensure_ascii=True)} · {f['bytes']} bytes · sha256 {str(f['sha256'])[:16]} · {wrote} · {seen}")
-    out.append("- inventory scope: newer file mtimes under the working directory plus recorded file-tool writes; not an exhaustive change inventory")
+    out.append("- inventory scope: current regular files with newer mtime or POSIX change time, plus recorded file-tool writes; deletions and special files are not enumerated, so this is not an exhaustive change inventory or complete custody inventory")
     out.append(
         f"- commands: {report['commands']} (non-zero exit at steps {report['commands_nonzero_exit'] or 'none'}; "
         f"no exit reported at steps {report['commands_without_exit'] or 'none'}; a failed pipeline stage hidden "

@@ -295,7 +295,7 @@ class Record:
         return sorted(set(out))
 
     async def snapshot(self, save: bool) -> dict[str, str]:
-        """Bounded sample of named outputs and newer mtimes; hashes are observations, not complete custody.
+        """Bounded sample of named outputs and current files with newer mtime/ctime; hashes are observations, not complete custody.
         With ``save``, retain eligible byte copies whose content hashes match.
         """
         q = shlex.quote

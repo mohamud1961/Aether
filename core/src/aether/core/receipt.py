@@ -1,8 +1,8 @@
-"""The run's start marker and the list of files changed since it (used by the verifier, the finish report and the
-binding check).
+"""The run's start marker and a bounded observation of current regular files changed since it.
 
-``mark`` records the start time on disk when the run begins; ``changed`` lists the files under the working directory
-that are newer than it.
+The scan compares both modification time and POSIX change time with the marker. This detects ordinary shell writes
+even when the command restores the old mtime. It does not prove a complete custody history: deleted files and a
+filesystem restored from an external snapshot may not be observable.
 """
 
 from __future__ import annotations
@@ -32,12 +32,12 @@ def _find(workdir: str, control_dir: str) -> str:
     prune = " -o ".join(f"-name {shlex.quote(name)}" for name in SKIP)
     return (
         f"cd {shlex.quote(workdir)} && "
-        f"find . -xdev \\( {prune} \\) -prune -o -type f -newer {marker} -print0"
+        f"find . -xdev \\( {prune} \\) -prune -o -type f \\( -newer {marker} -o -cnewer {marker} \\) -print0"
     )
 
 
 async def changed(env: Environment, workdir: str, control_dir: str) -> list[str]:
-    """Paths relative to ``workdir`` with mtimes newer than ``mark``. Raises on listing failure."""
+    """Current regular-file paths with newer mtime or ctime than ``mark``. Raises on listing failure."""
     marker = shlex.quote(f"{control_dir}/{MARKER}")
     command = f"test -e {marker} && {_find(workdir, control_dir)}"  # no marker is an error, not "nothing changed"
     result = await env.exec(command=command, cwd=None, env=None, timeout_sec=30)
