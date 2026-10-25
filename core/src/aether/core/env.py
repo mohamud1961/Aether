@@ -266,6 +266,22 @@ async def put_bytes(
                 f"committing write to {remote} failed: {res.stderr.strip()[:300]}"
             )
         committed = True
+        # A successful rename acknowledges the operation, not the destination
+        # bytes. Read the requested path again through the transport before
+        # reporting success; it may have changed or a symlink may have pivoted.
+        # This is an observation at acknowledgement time, never durable CAS.
+        try:
+            proof = await run(
+                env,
+                f"sha256sum < {q(remote)} 2>/dev/null || shasum -a 256 < {q(remote)} 2>/dev/null",
+            )
+        except Exception as exc:
+            raise OSError(f"write committed to {remote}, but destination could not be verified") from exc
+        if proof.code != 0 or not proof.stdout.split():
+            raise OSError(f"write committed to {remote}, but destination could not be verified")
+        if proof.stdout.split()[0] != expected_payload:
+            raise OSError(f"write committed to {remote}, but destination bytes differ from submitted payload")
+
     finally:
         if not committed:
             try:

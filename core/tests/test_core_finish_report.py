@@ -117,4 +117,4 @@ def test_over_the_listing_cap_the_count_is_true_and_file_tool_writes_are_listed_
     assert listed[0] == str(work / "zz_source.py")  # what a file tool wrote comes before unattributed files
     assert report["delivered_files_total"] == 206
     text = finish_report.render(report)
-    assert f"206 changed under {work} since the run started; {finish_report.MAX_FILES} listed" in text
+    assert f"206 identified under {work}; {finish_report.MAX_FILES} listed" in text

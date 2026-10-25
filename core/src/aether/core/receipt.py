@@ -32,12 +32,12 @@ def _find(workdir: str, control_dir: str) -> str:
     prune = " -o ".join(f"-name {shlex.quote(name)}" for name in SKIP)
     return (
         f"cd {shlex.quote(workdir)} && "
-        f"find . -xdev \\( {prune} \\) -prune -o -type f -newer {marker} -print 2>/dev/null | sort"
+        f"find . -xdev \\( {prune} \\) -prune -o -type f -newer {marker} -print0"
     )
 
 
 async def changed(env: Environment, workdir: str, control_dir: str) -> list[str]:
-    """Paths (relative to ``workdir``) of the files changed since ``mark``. Raises if they cannot be listed."""
+    """Paths relative to ``workdir`` with mtimes newer than ``mark``. Raises on listing failure."""
     marker = shlex.quote(f"{control_dir}/{MARKER}")
     command = f"test -e {marker} && {_find(workdir, control_dir)}"  # no marker is an error, not "nothing changed"
     result = await env.exec(command=command, cwd=None, env=None, timeout_sec=30)
@@ -45,6 +45,9 @@ async def changed(env: Environment, workdir: str, control_dir: str) -> list[str]
         raise OSError(
             f"changed files could not be listed: {str(getattr(result, 'stderr', ''))[:200]}"
         )
-    return [
-        line for line in str(getattr(result, "stdout", "") or "").splitlines() if line
-    ]
+    # POSIX names may contain every line separator. NUL is the only safe
+    # delimiter; sort locally so a pipeline cannot mask find's exit status.
+    output = str(getattr(result, "stdout", "") or "")
+    if output and not output.endswith("\0"):
+        raise OSError("changed files listing was truncated (missing NUL terminator)")
+    return sorted(output[:-1].split("\0")) if output else []

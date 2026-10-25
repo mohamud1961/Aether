@@ -82,36 +82,41 @@ async def _files(
         paths = await receipt.changed(env, workdir, control_dir)
     except OSError as exc:
         return f"the changed files could not be listed: {exc}", 0
+    # File tools are also known effects even when timestamps were preserved.
+    # An absent/unreadable known output makes measurement unknown below.
+    absolute = lambda p: posixpath.normpath(posixpath.join(workdir, p))
+    paths = sorted({absolute(p) for p in paths} | {absolute(p) for p in written})
     total = len(paths)
     # Over the cap, sorted order alone kept 200 build artefacts and dropped the sources the model edited
     # (R5.base.build-cython-ext e1), and the count read as the cap.
-    absolute = lambda p: posixpath.normpath(posixpath.join(workdir, p))
-    paths = sorted(paths, key=lambda p: absolute(p) not in written)[:MAX_FILES]
+    paths = sorted(paths, key=lambda p: p not in written)[:MAX_FILES]
     if not paths:
         return [], 0
     listing = " ".join(shlex.quote(p) for p in paths)
+    # NUL-delimited triples keep legal tabs/newlines/backslashes in pathnames.
+    # Hash stdin so GNU SHA utilities do not escape a pathname into the digest.
     command = (
         f"cd {shlex.quote(workdir)} && for f in {listing}; do "
-        f'printf "%s\\t%s\\t%s\\n" "$f" "$(stat -c %s "$f" 2>/dev/null || wc -c < "$f")" '
-        f'"$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null) | cut -d" " -f1)"; done'
+        'size=$(wc -c < "$f") || exit 1; '
+        'digest=$(sha256sum < "$f" 2>/dev/null || shasum -a 256 < "$f" 2>/dev/null) || exit 1; '
+        'printf "%s\\0%s\\0%s\\0" "$f" "$size" "${digest%% *}"; done'
     )
     result = await env.exec(command=command, cwd=None, env=None, timeout_sec=60)
     if exit_code(result) != 0:
         return f"the changed files could not be measured: {str(getattr(result, 'stderr', ''))[:200]}", total
+    output = str(getattr(result, "stdout", "") or "")
+    parts = output.split("\0")
+    if not output.endswith("\0") or len(parts) != len(paths) * 3 + 1:
+        return "the changed files measurement was incomplete", total
     rows = []
-    for line in str(getattr(result, "stdout", "") or "").splitlines():
-        name, _, rest = line.partition("\t")
-        size, _, digest = rest.partition("\t")
-        # A missing SHA executable used to return exit 0 through cut and
-        # silently publish a delivered-file row with sha256=None. Never call
-        # that an exact measured byte identity. Missing/malformed output is
-        # one incomplete evidence observation, not a zero-byte file or PASS.
-        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+    for index, expected_name in enumerate(paths):
+        name, size, digest = parts[index * 3 : index * 3 + 3]
+        if name != expected_name or not size.strip().isdigit() or not re.fullmatch(r"[0-9a-f]{64}", digest):
             return "the changed files could not be fingerprinted exactly", total
         rows.append(
             {
                 "path": posixpath.normpath(posixpath.join(workdir, name)),
-                "bytes": int(size) if size.strip().isdigit() else None,
+                "bytes": int(size),
                 "sha256": digest,
             }
         )
@@ -155,6 +160,8 @@ async def build(
         "status": status,
         "delivered_files": files,
         "delivered_files_total": total,
+        "delivery_inventory_complete": False,
+        "delivery_inventory_scope": "newer mtimes under workdir plus recorded file-tool writes; shell writes preserving older timestamps may be absent",
         "workdir": workdir,
         "steps": len(steps),
         "commands": len(commands),
@@ -179,14 +186,14 @@ def render(report: dict[str, Any]) -> str:
     if isinstance(files, str):
         out.append(f"- delivered files: unknown ({files})")
     elif not files:
-        out.append("- delivered files: none changed under the working directory since the run started")
+        out.append("- delivered files: none identified by timestamp scan or recorded file-tool writes")
     else:
         total = report.get("delivered_files_total", len(files))
         where = f" under {report['workdir']}" if report.get("workdir") else ""
         listed = (
             f"; {len(files)} listed, those a file tool wrote first" if total > len(files) else ""
         )
-        out.append(f"- delivered files ({total} changed{where} since the run started{listed}):")
+        out.append(f"- delivered files ({total} identified{where}{listed}):")
         for f in files:
             wrote = (
                 f"last written by a file tool at step {f['last_file_tool_write']}"
@@ -200,6 +207,7 @@ def render(report: dict[str, Any]) -> str:
                 else "not named by any later step"
             )
             out.append(f"  - {f['path']} · {f['bytes']} bytes · sha256 {str(f['sha256'])[:16]} · {wrote} · {seen}")
+    out.append("- inventory scope: newer file mtimes under the working directory plus recorded file-tool writes; not an exhaustive change inventory")
     out.append(
         f"- commands: {report['commands']} (non-zero exit at steps {report['commands_nonzero_exit'] or 'none'}; "
         f"no exit reported at steps {report['commands_without_exit'] or 'none'}; a failed pipeline stage hidden "
