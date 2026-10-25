@@ -467,6 +467,7 @@ def _write_record(
             "reviews": config.reviews.__dict__,
             "clm": config.clm.__dict__,
             "parallel_reads": config.parallel_reads,
+            "evidence_presentation": config.evidence_presentation,
             "verify": config.verify, "self_check": config.self_check, "state": config.state,
             "fork": config.fork,
             "model": provider.model,
