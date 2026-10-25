@@ -163,6 +163,16 @@ class ClmContext:
             # attested at append time. Use off or reconstruct from clean start.
             raise ValueError("cannot append-time attest a prepopulated raw history")
 
+    def append_digest_candidate(self, message_id: int) -> str | None:
+        """Append-time index key only; callers must reverify selected raw/pages.
+
+        Avoid reserializing every historical payload merely to locate candidates.
+        This method alone never attests the current mutable raw message.
+        """
+        if self.settings.attest_original_history and 0 <= message_id < len(self._append_message_sha256):
+            return self._append_message_sha256[message_id]
+        return None
+
     def original_message_digest(self, message_id: int) -> str | None:
         """Opt-in verified original JSON source hash, not a task-state verdict."""
         if not self.settings.attest_original_history:

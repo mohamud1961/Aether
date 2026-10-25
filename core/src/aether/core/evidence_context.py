@@ -7,7 +7,7 @@ task requirements.
 
 Only actual `read_history(MSG id)` handles are used; never invent an ID
 from a historical event ordinal. Readback is verified against Core's original
-stored JSON message, but Core does not yet append-time attest raw history.
+stored JSON message against its opt-in append-time digest.
 """
 
 from __future__ import annotations
@@ -66,24 +66,26 @@ def history_index(
         raise ValueError("history index limit must be 1..3")
     # Tool-only comparison avoids serialising pinned prompts, model reasoning,
     # and image inputs just to check whether an original tool result is hot.
-    visible = Counter(_source_json(m) for m in baseline if m.get("role") == "tool")
-    missing: list[tuple[int, dict[str, Any], str]] = []
+    visible = Counter(_digest(_source_json(m)) for m in baseline if m.get("role") == "tool")
+    missing: list[int] = []
     # Consume visible occurrences first, preserving distinct historical tool
     # events even when two outputs happen to be textually identical.
     for index, msg in enumerate(ctx.raw):
         if msg.get("role") != "tool":
             continue
-        source = _source_json(msg)
-        if visible[source]:
-            visible[source] -= 1
+        candidate = ctx.append_digest_candidate(index)
+        if candidate is not None and visible[candidate]:
+            visible[candidate] -= 1
         else:
-            missing.append((index, msg, source))
+            missing.append(index)
     if not missing:
         return None, {"reason": "all_original_tool_messages_visible", "eligible": 0}
     verified: list[dict[str, Any]] = []
-    for index, original, source in reversed(missing):
+    for index in reversed(missing):
         if len(verified) == limit:
             break
+        original = ctx.raw[index]
+        source = _source_json(original)
         if ctx.original_message_digest(index) != _digest(source):
             # Missing or altered append-time source identity disqualifies the
             # entry even if a fresh read agrees with a freshly changed raw.
@@ -101,7 +103,7 @@ def history_index(
     if not verified:
         return None, {"reason": "no_exact_source_pages_qualified", "eligible": len(missing)}
     listed_ids = {item["message_id"] for item in verified}
-    unlisted_ids = [i for i, _, _ in missing if i not in listed_ids]
+    unlisted_ids = [i for i in missing if i not in listed_ids]
     not_listed = len(unlisted_ids)
     # Repeated tool name, retrieval arguments and authority warning belong in
     # the common heading, not one ~300-byte copy per historic tool message.
