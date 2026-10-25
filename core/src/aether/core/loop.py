@@ -82,10 +82,19 @@ class CoreConfig:
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
+    evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
+        from .evidence_context import CONTEXT_EVIDENCE_MODES
+
+        if self.evidence_presentation not in CONTEXT_EVIDENCE_MODES:
+            raise ValueError(f"evidence_presentation must be one of {CONTEXT_EVIDENCE_MODES}")
+        if self.evidence_presentation != "off" and self.context != "clm":
+            raise ValueError("evidence_presentation requires Core CLM history")
+        if self.evidence_presentation == "history_index" and not self.clm.attest_original_history:
+            raise ValueError("history_index requires append-time original-history attestation")
         self.clm.check_request_limit(MAX_OUTPUT_TOKENS)
 
 
@@ -170,6 +179,9 @@ class _Session:
         )
         self.actions: list[str] = []
         self.clm: ClmContext | None = None
+        # Optional and ephemeral: index the first decision after a new CLM
+        # edit/checkpoint/rollback, not every later turn (prompt-cost guard).
+        self.evidence_index_last_generation: tuple[int, int, int] | None = None
         self.messages: list[dict[str, Any]] = []
         self.tools: list[dict[str, Any]] = []
         self.pending_images: list[
@@ -389,6 +401,27 @@ async def _loop(s: _Session) -> None:
         if s.clm and not await _fit_context(s):
             return
         request = s.clm.request() if s.clm else project(s.messages, tight=tight)
+        if s.config.evidence_presentation != "off":
+            from .evidence_context import select_context
+
+            generation = (
+                s.clm.stats.edits_accepted,
+                s.clm.stats.checkpoints,
+                s.clm.stats.rollbacks,
+            )
+            if s.evidence_index_last_generation == generation:
+                presentation = {
+                    "policy": s.config.evidence_presentation,
+                    "changed": False,
+                    "reason": "already_presented_for_context_generation",
+                }
+            else:
+                request, presentation = select_context(
+                    s.clm, request, s.tools, policy=s.config.evidence_presentation
+                )
+                if presentation.get("changed") is True:
+                    s.evidence_index_last_generation = generation
+            s.trace("context_evidence_presentation", **presentation)
         result.request_chars.append(size_chars(request))
         sizes = {"held": s.clm.held(), "request": s.clm.tokens()} if s.clm else None
         try:

@@ -31,6 +31,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from dataclasses import dataclass, field
+import hashlib
 import json
 import re
 from typing import Any
@@ -78,6 +79,10 @@ class ClmSettings:
     # package, under test in N3). "legacy" (default) is the original behaviour. Audit 2026-10-21: 84 of 122
     # accepted edits put a restated task and the model's own conclusions back as unlabelled user text.
     notes_voice: str = "legacy"
+    # Opt-in only: record SHA-256 of each original raw message when appended.
+    # This identifies later in-process mutation, not malicious edits to both
+    # source and digest, and does not reconstruct an original task VM.
+    attest_original_history: bool = False
 
     @property
     def limit(self) -> int:
@@ -134,6 +139,7 @@ class ClmContext:
     raw: list[dict[str, Any]] = field(
         default_factory=list
     )  # every appended message as shown; edits never touch it
+    _append_message_sha256: list[str] = field(default_factory=list, init=False, repr=False)
     stats: ClmStats = field(default_factory=ClmStats)
     chars_per_token: float = CHARS_PER_TOKEN
     _armed: set[float] = field(default_factory=set)
@@ -152,6 +158,23 @@ class ClmContext:
         if self.settings.notes_voice not in NOTES_VOICES:
             raise ValueError(f"notes_voice must be one of {NOTES_VOICES}")
         self._armed = set(self.settings.nudge_ratios)
+        if self.settings.attest_original_history and self.raw:
+            # No post-hoc declaration that externally supplied history was
+            # attested at append time. Use off or reconstruct from clean start.
+            raise ValueError("cannot append-time attest a prepopulated raw history")
+
+    def original_message_digest(self, message_id: int) -> str | None:
+        """Opt-in verified original JSON source hash, not a task-state verdict."""
+        if not self.settings.attest_original_history:
+            return None
+        if not 0 <= message_id < len(self.raw):
+            return None
+        if message_id >= len(self._append_message_sha256):
+            return None
+        text = json.dumps(self.raw[message_id], ensure_ascii=False)
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        recorded = self._append_message_sha256[message_id]
+        return digest if digest == recorded else None
 
     # ----- the request ---------------------------------------------------------------------------
     def request(self) -> list[dict[str, Any]]:
@@ -238,7 +261,15 @@ class ClmContext:
 
     def append(self, *messages: dict[str, Any]) -> None:
         self.editable.extend(messages)
-        self.raw.extend(deepcopy(messages))
+        copied = deepcopy(messages)
+        self.raw.extend(copied)
+        if self.settings.attest_original_history:
+            self._append_message_sha256.extend(
+                hashlib.sha256(
+                    json.dumps(message, ensure_ascii=False).encode("utf-8")
+                ).hexdigest()
+                for message in copied
+            )
         for m in messages:
             if m.get("role") == "tool":
                 self._recent_outputs = (

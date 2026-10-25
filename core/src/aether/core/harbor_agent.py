@@ -63,6 +63,7 @@ END_PROCESSES_ENV = "AETHER_CORE_END_PROCESSES"  # optional; unset means "keep" 
 END_PROCESSES_MODES = ("stop", "keep")
 HYGIENE_ENV = "AETHER_CORE_HYGIENE"  # optional; unset means "off"; on/placebo: tools.HYGIENE_DOC
 NOTES_ENV = "AETHER_CORE_NOTES"  # own: edited context and checkpoints labelled as the model's notes (still role=user); legacy (default)
+CONTEXT_EVIDENCE_ENV = "AETHER_CORE_CONTEXT_EVIDENCE_PRESENTATION"  # optional off/history_index
 INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's reason and expected result (see intent)
 FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
 # optional; unset means "chat" (the GLM request). "reasoning": max_completion_tokens, no sampling parameters.
@@ -201,6 +202,10 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         clm=ClmSettings(
             replay_reasoning=_replay(environ, context),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
+            attest_original_history=(
+                _choice(environ, CONTEXT_EVIDENCE_ENV, ("off", "history_index"), "off")
+                == "history_index"
+            ),
         ),
         parallel_reads=_parallel_reads(environ),
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
@@ -211,6 +216,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"), state=_choice(environ, STATE_ENV, REPL_MODES, "off") == "on",
         **_record(environ),
         diffcheck=_choice(environ, DIFFCHECK_ENV, DIFFCHECK_MODES, "off") == "on",
+        evidence_presentation=_choice(
+            environ, CONTEXT_EVIDENCE_ENV, ("off", "history_index"), "off"
+        ),
     )
 
 
