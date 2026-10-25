@@ -209,13 +209,20 @@ class ResponsesProvider(ChatProvider):
             getattr(final, "model", "") or ""
         )
         turn.usage = _usage(getattr(final, "usage", None))
+        call_ids = [c["id"] for _, c in sorted(turn.streamed_calls.items())]
+        if any(not call_id for call_id in call_ids):
+            raise IncompleteStream("provider returned a function call without a call ID")
+        if len(call_ids) != len(set(call_ids)):
+            raise IncompleteStream("provider returned duplicate function call IDs")
+        if any(not c["name"] for c in turn.streamed_calls.values()):
+            raise IncompleteStream("provider returned a function call without a name")
         turn.tool_calls = [
             {
-                "id": c["id"] or f"call_{i}",
+                "id": c["id"],
                 "type": "function",
                 "function": {"name": c["name"], "arguments": c["arguments"] or "{}"},
             }
-            for i, c in sorted(turn.streamed_calls.items())
+            for _, c in sorted(turn.streamed_calls.items())
         ]
         turn.reasoning_items = reasoning
         if getattr(final, "status", "") == "incomplete":
