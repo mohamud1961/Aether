@@ -164,8 +164,10 @@ try:
             for pid in sorted(owned):
                 if not live(table.get(pid)):continue
                 cmd=subprocess.run(['ps','-p',str(pid),'-o','command='],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=3)
-                if cmd.returncode==1:continue
-                if cmd.returncode:raise RuntimeError('owned command observation failed')
+                if cmd.returncode or not cmd.stdout.strip():
+                    current=snapshot().get(pid)
+                    if not live(current) or current[3]!=owned[pid]:continue
+                    raise RuntimeError('live owned process command observation failed; retention unverified')
                 processes.append({'pid':pid,'command':cmd.stdout.strip()[:200]})
         status = 'observed'
         print('AETHER_CLEANUP_V1 '+json.dumps({'nonce':nonce,'roots':roots,'status':status,'processes':processes,'identities':{str(r):table[r][3] for r in roots},'identity_precision':precision}))
@@ -205,7 +207,7 @@ print('AETHER_CLEANUP_V1 '+json.dumps({'nonce':nonce,'roots':roots,'status':stat
 sys.exit(0 if status=='confirmed_stopped' else 1)
 """
 
-_WRAPPER_CMDS = ("script -qfc", "bash --noprofile --norc", "/run.sh")
+_WRAPPER_CMDS = ("script -qfc ", "bash --noprofile --norc")
 
 
 async def list_process_tree(
@@ -218,7 +220,9 @@ async def list_process_tree(
     return [
         f"{row['pid']} {row['command']}"
         for row in receipt["processes"]
-        if row.get("command") and not any(w in row["command"] for w in _WRAPPER_CMDS)
+        if row["pid"] not in pids
+        and row.get("command")
+        and not row["command"].startswith(_WRAPPER_CMDS)
     ]
 
 

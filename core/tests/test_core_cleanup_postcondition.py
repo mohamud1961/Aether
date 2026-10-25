@@ -267,3 +267,39 @@ def test_observer_faults_preserve_unverified_outcome_for_real_process(tmp_path, 
         assert p.poll() is None
     finally:
         dispose(p)
+
+
+def test_empty_command_text_cannot_hide_a_live_retained_process(tmp_path):
+    import shlex
+    import shutil
+
+    from aether.core.env import list_process_tree
+
+    binary = shutil.which("ps")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python3").symlink_to(sys.executable)
+    fake = bin_dir / "ps"
+    fake.write_text(
+        '#!/bin/sh\ncase "$*" in *command=*) exit 0;; *) exec '
+        + shlex.quote(binary)
+        + ' "$@";; esac\n'
+    )
+    fake.chmod(0o755)
+
+    class MissingCommands(LocalEnv):
+        async def exec(self, command, **kwargs):
+            if command.startswith("python3 -c "):
+                command = "PATH=" + shlex.quote(str(bin_dir)) + " " + command
+            return await super().exec(command, **kwargs)
+
+    p = spawn(
+        tmp_path,
+        "import time,sys;from pathlib import Path;Path(sys.argv[1]).touch();time.sleep(120)",
+    )
+    try:
+        with pytest.raises(OSError, match="unverified|observation failed"):
+            asyncio.run(list_process_tree(MissingCommands(tmp_path), [p.pid]))
+        assert p.poll() is None
+    finally:
+        dispose(p)
