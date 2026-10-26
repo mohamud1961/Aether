@@ -111,6 +111,8 @@ def test_signal_denial_reports_survivor_and_partial_effect_evidence(tmp_path):
 
     class DeniedSignal(LocalEnv):
         async def exec(self, command, **kwargs):
+            # Rewrite only the Python observer; the shell fallback tail runs only when python3 is absent (rc 127).
+            command, sep, tail = command.partition("; __aether_rc=")
             words = shlex.split(command)
             if len(words) > 5 and words[0] == "python3" and words[5] == "stop":
                 # Explicit syscall fault injection; target is an independently
@@ -120,7 +122,7 @@ def test_signal_denial_reports_survivor_and_partial_effect_evidence(tmp_path):
                     + words[2]
                 )
                 command = shlex.join(words)
-            return await super().exec(command, **kwargs)
+            return await super().exec(command + sep + tail, **kwargs)
 
     p = spawn(
         tmp_path,
@@ -256,6 +258,7 @@ def test_observer_faults_preserve_unverified_outcome_for_real_process(tmp_path, 
                 if fault == "enumeration":
                     # Linux enumerates /proc without invoking ps. Inject the
                     # fault at that actual syscall as well as the ps fallback.
+                    command, sep, tail = command.partition("; __aether_rc=")
                     words = shlex.split(command)
                     words[2] = (
                         "import os\n_original_listdir=os.listdir\n"
@@ -264,7 +267,7 @@ def test_observer_faults_preserve_unverified_outcome_for_real_process(tmp_path, 
                         " return _original_listdir(path)\n"
                         "os.listdir=_denied_listdir\n" + words[2]
                     )
-                    command = shlex.join(words)
+                    command = shlex.join(words) + sep + tail
                 path = bin_dir if fault == "enumeration" else tmp_path / "missing-bin"
                 command = "PATH=" + shlex.quote(str(path)) + " " + command
             return await super().exec(command, **kwargs)
@@ -274,9 +277,15 @@ def test_observer_faults_preserve_unverified_outcome_for_real_process(tmp_path, 
         "import time,sys;from pathlib import Path;Path(sys.argv[1]).touch();time.sleep(120)",
     )
     try:
-        with pytest.raises(OSError, match="unverified"):
-            asyncio.run(stop_process_tree(BrokenObserver(tmp_path), [p.pid]))
-        assert p.poll() is None
+        if fault == "python_missing" and os.path.isdir("/proc/1"):
+            # Without python3 the shell observer takes over through /proc: a real, verified stop.
+            receipt = asyncio.run(stop_process_tree(BrokenObserver(tmp_path), [p.pid]))
+            assert receipt["status"] == "confirmed_stopped" and "shell observer" in receipt["coverage"], receipt
+            p.wait(timeout=5)
+        else:
+            with pytest.raises(OSError, match="unverified"):
+                asyncio.run(stop_process_tree(BrokenObserver(tmp_path), [p.pid]))
+            assert p.poll() is None
     finally:
         dispose(p)
 

@@ -24,6 +24,20 @@ MAX_TERMINALS = 8
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
 
+# Reset SIGINT to its default, then exec sh on the script (run.sh's re-exec; see TerminalLifecycle._start).
+_PY_RESET = 'import os,signal,sys;signal.signal(signal.SIGINT,signal.SIG_DFL);os.execvp("sh",["sh",*sys.argv[1:]])'
+_PERL_RESET = '$SIG{INT}="DEFAULT"; exec "sh", @ARGV'
+
+# run.sh's preamble: re-exec the script once with SIGINT at its default (see TerminalLifecycle._start).
+SIGINT_RESET = "\n".join([
+    'if [ -z "$AETHER_SIGINT_RESET" ]; then export AETHER_SIGINT_RESET=1',
+    '  if env --default-signal=INT true >/dev/null 2>&1; then exec env --default-signal=INT sh "$0"',
+    f"  elif command -v python3 >/dev/null 2>&1; then exec python3 -c {shlex.quote(_PY_RESET)} \"$0\"",
+    f"  elif command -v perl >/dev/null 2>&1; then exec perl -e {shlex.quote(_PERL_RESET)} \"$0\"; fi",
+    "fi",
+    "unset AETHER_SIGINT_RESET",
+])
+
 _INIT = (
     "stty -echo 2>/dev/null; export PS1='' PS2='' PROMPT_COMMAND='' TERM=dumb PAGER=cat "
     "GIT_PAGER=cat SYSTEMD_PAGER=cat DEBIAN_FRONTEND=noninteractive; "
@@ -76,6 +90,11 @@ class TerminalLifecycle:
         wrapper = "\n".join(
             [
                 "#!/bin/sh",
+                # A shell started in the background begins with SIGINT ignored, and sh cannot un-ignore it, so
+                # Ctrl-C would do nothing in the terminal. Re-exec once through whichever tool can reset it: task
+                # images often have no python3 (10-26 Modal baseline: 9/32 runs had no terminal when the reset
+                # required python3). With none of them the shell starts anyway and Ctrl-C reports "still running".
+                SIGINT_RESET,
                 f"if [ -r /proc/$$/stat ]; then sed 's/.*) //' /proc/$$/stat | awk '{{print $20}}' > {q(root + '/birth')}; "
                 f"else ps -p $$ -o lstart= | awk '{{$1=$1;print}}' > {q(root + '/birth')}; fi",
                 f"echo $$ > {q(root + '/pid')}",
@@ -105,17 +124,8 @@ class TerminalLifecycle:
         # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did
         # nothing (found on Linux in D1; the macOS tests use the pipe path and never saw it).
         run_sh, pid_file = q(root + "/run.sh"), q(root + "/pid")
-        # setsid changes sessions, not inherited ignored signal dispositions.
-        # Reset the new shell's initial SIGINT, preserving later task traps.
-        launch = (
-            "python3 -c "
-            + q(
-                "import os,signal,sys;signal.signal(signal.SIGINT,signal.SIG_DFL);"
-                'os.execvp("sh",["sh",*sys.argv[1:]])'
-            )
-            + " "
-            + run_sh
-        )
+        # setsid changes sessions, not inherited ignored signal dispositions: run.sh resets SIGINT itself.
+        launch = f"sh {run_sh}"
         self._launching.add(root)
         res = await run(
             self._env,

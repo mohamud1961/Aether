@@ -9,6 +9,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from .process_shell import SH_OBSERVER
+
 CONTROL_DIR = "/tmp/.aether"
 
 
@@ -237,6 +239,8 @@ async def _process_observation(
         raise ValueError("cleanup roots must be owned process IDs above 1")
     roots = sorted(set(pids))
     nonce = uuid.uuid4().hex
+    bindings = " ".join(f"{pid}={tick}" for pid, tick in (identities or {}).items())
+    # Task images often have no python3 (10-26 Modal baseline: 9/32): the shell twin then observes through /proc.
     command = (
         "python3 -c "
         + shlex.quote(_CLEANUP_OBSERVER)
@@ -248,6 +252,12 @@ async def _process_observation(
         + action
         + " "
         + shlex.quote(json.dumps(identities))
+        # 127: no python3 here. The Python observer itself exits 0 or 1.
+        + "; __aether_rc=$?; if [ $__aether_rc -eq 127 ]; then sh -c "
+        + shlex.quote(SH_OBSERVER)
+        + " sh "
+        + " ".join(shlex.quote(a) for a in (nonce, action, json.dumps(roots), " ".join(map(str, roots)), bindings))
+        + "; else exit $__aether_rc; fi"
     )
     try:
         result = await run(env, command, timeout_s=15)
@@ -264,7 +274,7 @@ async def _process_observation(
         ]
         if len(lines) != 1:
             raise ValueError(
-                "missing unique observer receipt (python3/process enumeration may be unavailable)"
+                "missing unique observer receipt (process enumeration may be unavailable)"
             )
         receipt = json.loads(lines[0].partition(" ")[2])
         if receipt.get("nonce") != nonce or receipt.get("roots") != roots:
