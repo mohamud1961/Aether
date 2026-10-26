@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -134,3 +136,17 @@ def test_k1_one_symlink_in_a_capture_keeps_every_other_row(tmp_path):
     rows = {r["remote"]: r for r in json.loads((logs / "continuation" / "capture_manifest.json").read_text())["rows"]}
     assert rows["/app/good.txt"]["status"] == "captured", rows
     assert rows["/app/link.txt"]["status"] == "error" and "symlink" in rows["/app/link.txt"]["error"], rows
+
+
+def test_every_core_module_imports_first_in_a_fresh_interpreter():
+    """Found in installed qualification: importing aether.core.transfer before env was a circular import."""
+    import aether.core as core
+
+    # repl_server is a program the REPL tool runs in the sandbox (it reads argv at start), not an importable module
+    names = sorted(p.stem for p in Path(core.__file__).parent.glob("*.py") if p.stem not in ("__init__", "repl_server"))
+    failed = {}
+    for name in names:
+        proc = subprocess.run([sys.executable, "-c", f"import aether.core.{name}"], capture_output=True, text=True)
+        if proc.returncode:
+            failed[name] = proc.stderr.strip().splitlines()[-1]
+    assert not failed, failed

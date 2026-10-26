@@ -322,5 +322,14 @@ async def run(
     )
 
 
-# File transfer lives in transfer.py; these names stay importable from env for existing callers.
-from .transfer import INLINE_BYTES, atomic_write, get_bytes, put_bytes  # noqa: E402,F401
+# File transfer lives in transfer.py, which imports this module; its names stay importable from env for existing
+# callers, resolved on first use. An eager import here made `import aether.core.transfer` alone a circular import.
+_TRANSFER = frozenset({"INLINE_BYTES", "atomic_write", "get_bytes", "put_bytes"})
+
+
+def __getattr__(name: str):
+    if name in _TRANSFER:
+        from . import transfer
+
+        return getattr(transfer, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
