@@ -20,6 +20,7 @@ from .env import (
     Environment,
     ProcessCleanupError,
     alive_test,
+    atomic_write,
     list_process_tree,
     process_identities,
     put_bytes,
@@ -316,46 +317,64 @@ class Terminals:
                 "prior_uncertainties": list(self.cleanup_uncertainties),
             }
 
-    async def _write(self, session: Session, text: str) -> None:
-        await put_bytes(self._env, text.encode(), f"{session.root}/pending")
+    async def _write(
+        self,
+        session: Session,
+        text: str,
+        *,
+        cmd: tuple[str, bytes] | None = None,
+        wait: tuple[int, float] | None = None,
+    ) -> tuple[int, re.Match | None, bool] | None:
+        """Deliver input in one exec: the command file and the pending line (each written atomically, staged and
+        committed bytes checked against their digest), then the fifo after the liveness check.
+
+        With ``wait`` (seq, seconds) the same exec also waits in the container, up to 3 s, for that command's
+        completion receipt and returns the (size, marker, alive) probe ``_poll`` would have returned.
+        """
         q = shlex.quote
-        res = await run(
-            self._env,
-            f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}; "
-            f"cat {q(session.root + '/pending')} > {q(session.fifo)}",
-            timeout_s=20,
-        )
+        log = q(session.log)
+        steps = ([atomic_write(*cmd, 4)] if cmd else []) + [
+            atomic_write(f"{session.root}/pending", text.encode(), 5),
+            f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
+            f"cat {q(session.root + '/pending')} > {q(session.fifo)} || exit 6",
+        ]
+        if wait is not None:
+            seq, ticks = wait[0], int(max(0.0, min(wait[1], 3.0)) / 0.1)
+            # The receipt is looked for before the size is taken, as in _poll.
+            steps.append(
+                f"i=0; m=''; while [ -r {log} ]; do m=$({self._probe(session, seq)});"
+                f' [ -n "$m" ] && break; [ $i -ge {ticks} ] && break; {alive_test(session.pid)} || break; '
+                f"sleep 0.1; i=$((i+1)); done; printf '%s\\n' \"$m\"; "
+                f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log}"
+            )
+        res = await run(self._env, "; ".join(steps), timeout_s=20)
         if res.code == 3 and "dead" in res.stdout:
             raise TerminalGone(f"terminal {session.name} is not running")
         if res.code != 0:
             raise RuntimeError(
                 f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
             )
+        return None if wait is None else self._probe_result(session, wait[0], res.stdout)
 
-    async def _poll(
-        self, session: Session, seq: int | None
-    ) -> tuple[int, re.Match | None, bool]:
+    def _probe(self, session: Session, seq: int | None) -> str:
+        """Shell words printing the completion receipt of command ``seq`` (nothing while it runs)."""
         q = shlex.quote
         # Arbitrary command stdout must never be treated as an authoritative
         # shell completion receipt. Only the shell wrapper writes done_<seq>.
         # The startup marker (seq 0) predates this per-command mechanism.
         if seq is None:
-            probe = "true"
-        elif seq == 0:
-            probe = (
+            return "true"
+        if seq == 0:
+            return (
                 f"tail -c +{session.cursor + 1} {q(session.log)} "
                 f"| grep -a -o '__AETHER_DONE_0_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
             )
-        else:
-            probe = f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
-        # The marker is looked for before the size is taken: the other way round, a command that finished in
-        # between showed its marker with the output cut at the earlier size (the rest came with the next call).
-        res = await run(
-            self._env,
-            f"{probe}; {alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; "
-            f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null",
-        )
-        rest, _, size_text = res.stdout.rpartition("__SIZE__\n")
+        return f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
+
+    def _probe_result(
+        self, session: Session, seq: int | None, out: str
+    ) -> tuple[int, re.Match | None, bool]:
+        rest, _, size_text = out.rpartition("__SIZE__\n")
         if (
             not size_text.strip().isdigit()
         ):  # the log is gone (the control directory was deleted)
@@ -365,6 +384,19 @@ class Terminals:
         size = int(size_text.strip())
         mark = None if seq is None else _MARK.search(clean(rest))
         return size, mark, "__ALIVE__" in rest
+
+    async def _poll(
+        self, session: Session, seq: int | None
+    ) -> tuple[int, re.Match | None, bool]:
+        q = shlex.quote
+        # The marker is looked for before the size is taken: the other way round, a command that finished in
+        # between showed its marker with the output cut at the earlier size (the rest came with the next call).
+        res = await run(
+            self._env,
+            f"{self._probe(session, seq)}; {alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; "
+            f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null",
+        )
+        return self._probe_result(session, seq, res.stdout)
 
     async def _read(self, session: Session, start: int, end: int) -> str:
         q = shlex.quote
@@ -493,7 +525,7 @@ class Terminals:
         if interrupt and input:
             note += "[interrupt requested; supplied input was not submitted because shell readiness is unconfirmed]\n"
         try:
-            await self._send(session, input, mode, interrupt)
+            first = await self._send(session, input, mode, interrupt, wait_s)
         except TerminalGone as gone:
             # It died between calls (killed, `exit`, its files deleted). The input never reached it, so it goes
             # to a fresh terminal; left as it was, every later call failed the same way (V3: 45 such errors).
@@ -522,9 +554,9 @@ class Terminals:
                 f"[{gone}; its shell state (cwd, variables, jobs) is gone. A fresh terminal {name} was "
                 "started and your input sent to it]\n"
             )
-            await self._send(session, input, mode, interrupt)
+            first = await self._send(session, input, mode, interrupt, wait_s)
         try:
-            out = await self._collect(session, started, wait_s)
+            out = await self._collect(session, started, wait_s, first)
         except TerminalGone as gone:
             await self._restart(session, start=False)
             return (
@@ -563,8 +595,8 @@ class Terminals:
         return fresh
 
     async def _send(
-        self, session: Session, input: str, mode: str, interrupt: bool
-    ) -> None:
+        self, session: Session, input: str, mode: str, interrupt: bool, wait_s: float = 0.0
+    ) -> tuple[int, re.Match | None, bool] | None:
         if interrupt:
             await self._write(session, "\x03")
             if (
@@ -588,7 +620,6 @@ class Terminals:
             # read) swallow the marker, so the command looked "still running" until wait_s ran out.
             body = input if input.endswith("\n") else input + "\n"
             cmd_file = f"{session.root}/cmd_{session.seq}.sh"
-            await put_bytes(self._env, body.encode(), cmd_file)
             src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
             prompt = ""
             if session.pty and session.bash:
@@ -630,11 +661,13 @@ class Terminals:
             # completion-looking line cannot forge command completion.
             marker = f"{session.root}/done_{session.seq}"
             temporary_marker = f"{marker}.tmp"
-            await self._write(
+            return await self._write(
                 session,
                 f"{prompt}{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
                 f'{session.seq} "$__aether_s" {stages} "$PWD" > {shlex.quote(temporary_marker)} '
                 f"&& mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}\n",
+                cmd=(cmd_file, body.encode()),
+                wait=(session.seq, wait_s),
             )
         elif input:
             keys = _HEX.sub(lambda m: chr(int(m.group(1), 16)), input)
@@ -643,7 +676,13 @@ class Terminals:
             # the shell actually resumed execution.
             await self._write(session, keys)
 
-    async def _collect(self, session: Session, started: float, wait_s: float) -> str:
+    async def _collect(
+        self,
+        session: Session,
+        started: float,
+        wait_s: float,
+        first: tuple[int, re.Match | None, bool] | None = None,
+    ) -> str:
         name = session.name
         seq = session.pending or None
         size, mark, alive, last_size, stable_since = (
@@ -655,7 +694,11 @@ class Terminals:
         )
         delay = 0.2
         while True:
-            size, mark, alive = await self._poll(session, seq)
+            if first is not None:  # already waited for the receipt inside the send's own exec
+                size, mark, alive = first
+                first = None
+            else:
+                size, mark, alive = await self._poll(session, seq)
             now = time.monotonic()
             if size != session.last_size:
                 session.last_size, session.grew_at = size, now

@@ -21,13 +21,14 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
+from . import continuation
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .clone import Clone, compose_clone
-from .jev import jev_calls
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
 from .provider import ChatProvider, base_url
+from .runrecord import JEV_JOURNAL, write_record as _write_record
 from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
 from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
@@ -77,7 +78,7 @@ EFFORT_ENV, DEADLINE_ENV = "AETHER_TB4_REASONING_EFFORT", "AETHER_AGENT_DEADLINE
 SAMPLING = {"temperature": 1.0, "top_p": 0.95}  # identical to the s10c solver for a fair comparison
 JEV_MAX_CALLS, JEV_CAP_GBP = 6, "0.10"
 CALLS_FILE = "core_calls.jsonl"  # every provider request and response (see calls)
-JEV_JOURNAL, JEV_TIMEOUT_S = "core_jev_journal.jsonl", 30.0
+JEV_TIMEOUT_S = 30.0
 
 
 class ConfigError(RuntimeError):
@@ -367,7 +368,7 @@ class AetherCoreAgent(BaseAgent):
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
         environ = {**os.environ, **self._extra_env}
         logs, started = Path(self.logs_dir), time.time()
-        provider, config, result, workdir = None, None, None, None
+        provider, config, result, workdir, pending = None, None, None, None, None
         try:
             timeout_s = agent_timeout(self._agent_timeout_sec, environ=environ)
             config = build_config(environ=environ)
@@ -375,6 +376,7 @@ class AetherCoreAgent(BaseAgent):
             transport = build_review(logs, environ=environ)
             workdir = await discover_workdir(environment)
             config = with_clones(config, environment)
+            instruction, pending = await continuation.begin(environment, environ, logs, instruction, workdir)
             result = await run_agent(
                 env=environment,
                 task=instruction,
@@ -399,111 +401,47 @@ class AetherCoreAgent(BaseAgent):
                 )
         finally:
             try:
-                if provider is not None and config is not None:
-                    _write_record(
-                        logs,
-                        result,
-                        started=started,
-                        workdir=workdir,
-                        config=config,
-                        review=environ.get(REVIEW_ENV),
-                        provider=provider,
-                    )
-                else:
-                    logs.mkdir(parents=True, exist_ok=True)
-                    (logs / "aether_run_record.json").write_text(
-                        json.dumps(
-                            {
-                                "schema": "aether.core.run_record.v1",
-                                "status": "configuration_error",
-                                "error": "adapter configuration failed before provider construction; see trial exception",
-                                "elapsed_s": round(time.time() - started, 3),
-                                "run_metrics": {"model_calls": None},
-                            }
-                        )
-                    )
-                if provider is not None:
-                    for attr, key in (
-                        ("n_input_tokens", "input"),
-                        ("n_cache_tokens", "cached"),
-                        ("n_output_tokens", "output"),
-                    ):
-                        if hasattr(context, attr):
-                            value = provider.log.usage().get(key)
-                            setattr(
-                                context, attr, None if value is None else int(value)
-                            )
+                # Core's own cleanup must run even if capture is cancelled or raises.
+                writers = None
+                if result is not None:
+                    writers = (getattr(result, "extras", None) or {}).get("left_running")
+                await continuation.finish(environment, logs, pending, active_writers=writers)
             finally:
-                if provider is not None:
-                    await provider.aclose()
-
-
-def _write_record(
-    logs: Path,
-    result,
-    *,
-    started: float,
-    workdir: str,
-    config: CoreConfig,
-    review: str | None,
-    provider: ChatProvider,
-) -> None:
-    chars = result.request_chars if result else []
-    reviews = result.reviews if result else []
-    record = {
-        "schema": "aether.core.run_record.v1",
-        "status": result.status if result else "crashed",
-        "error": result.error
-        if result
-        else "run raised before returning; see the Harbor trial exception",
-        "steps": result.steps if result else None,
-        "workdir": workdir,
-        "elapsed_s": round(time.time() - started, 1),
-        "config": {
-            "review": review,
-            "context": config.context,
-            "repl": config.repl,
-            "images": config.images,
-            "reviews": config.reviews.__dict__,
-            "clm": config.clm.__dict__,
-            "parallel_reads": config.parallel_reads,
-            "evidence_presentation": config.evidence_presentation,
-            "verify": config.verify, "self_check": config.self_check, "state": config.state,
-            "fork": config.fork,
-            "model": provider.model,
-            "params": provider.params,
-            "limit_field": provider.limit_field,
-        },
-        "reviews": reviews,
-        "run_metrics": {
-            # Every provider call from every role (worker, llm, checkpoint), from the call
-            # log; token totals are lower bounds when usage_unknown > 0 or open > 0. JEV is not a provider
-            # call: its own journal is counted alongside, so the two can be reconciled with the reviews.
-            "model_calls": provider.log.totals(),
-            "jev_calls": jev_calls(logs / JEV_JOURNAL),
-            "worker_turns": result.calls if result else None,
-            "provider_attempt_count": provider.log.totals()["all"]["attempts"],
-            "provider_failed_attempt_count": provider.log.totals()["all"]["failed"],
-            "provider_input_tokens": provider.log.usage()["input"],
-            "provider_cached_input_tokens": provider.log.usage()["cached"],
-            "provider_output_tokens": provider.log.usage()["output"],
-            "provider_reasoning_tokens": provider.log.usage()["reasoning"],
-            "mean_request_chars": round(sum(chars) / len(chars)) if chars else None,
-            "max_request_chars": max(chars) if chars else None,
-            "review_count": len(reviews),
-            "review_holds": 0,  # advice never blocked execution
-            "review_objections": sum(r["status"] == "hold" for r in reviews),
-            "review_errors": sum(r["status"] == "error" for r in reviews),
-            "review_kinds": [r.get("at", r.get("kind")) for r in reviews],
-            "sub_model_usage": result.sub_usage if result else None,
-            **(result.extras if result else {}),
-        },
-    }
-    logs.mkdir(parents=True, exist_ok=True)
-    (logs / "aether_run_record.json").write_text(
-        json.dumps(record, indent=2, default=str), encoding="utf-8"
-    )
-    # The run's delivered account is the report, not the model's summary alone (see loop.RunResult.final_account).
-    account = result.final_account if result else ""
-    if account:
-        (logs / "finish_report.md").write_text(account, encoding="utf-8")
+                try:
+                    if provider is not None and config is not None:
+                        _write_record(
+                            logs,
+                            result,
+                            started=started,
+                            workdir=workdir,
+                            config=config,
+                            review=environ.get(REVIEW_ENV),
+                            provider=provider,
+                        )
+                    else:
+                        logs.mkdir(parents=True, exist_ok=True)
+                        (logs / "aether_run_record.json").write_text(
+                            json.dumps(
+                                {
+                                    "schema": "aether.core.run_record.v1",
+                                    "status": "configuration_error",
+                                    "error": "adapter configuration failed before provider construction; see trial exception",
+                                    "elapsed_s": round(time.time() - started, 3),
+                                    "run_metrics": {"model_calls": None},
+                                }
+                            )
+                        )
+                    if provider is not None:
+                        for attr, key in (
+                            ("n_input_tokens", "input"),
+                            ("n_cache_tokens", "cached"),
+                            ("n_output_tokens", "output"),
+                        ):
+                            if hasattr(context, attr):
+                                value = provider.log.usage().get(key)
+                                setattr(
+                                    context, attr, None if value is None else int(value)
+                                )
+                finally:
+                    if provider is not None:
+                        await provider.aclose()
