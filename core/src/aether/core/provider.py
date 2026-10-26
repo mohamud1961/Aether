@@ -10,10 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 import inspect
-import math
 from dataclasses import dataclass, field
 import json
 import random
@@ -22,6 +19,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from .calls import CallLog
+from .provider_errors import IncompleteStream, ProviderError, _is_transport, _retry_after
 
 RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
 MAX_ATTEMPTS = 8
@@ -30,23 +28,6 @@ MAX_ATTEMPTS = 8
 # attempts are ~3 min of backoff; the 2026-10-20 storm lasted ~20 min and ended 9 valid runs as provider_error.
 RATE_LIMIT_STATUS = frozenset({429, 529})
 MAX_RATE_LIMIT_ATTEMPTS = 120
-
-
-class ProviderError(RuntimeError):
-    """The provider could not produce a response (after retries) or rejected the request."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        status: int | None = None,
-        context_overflow: bool = False,
-        deadline: bool = False,
-    ) -> None:
-        super().__init__(message)
-        self.status = status
-        self.context_overflow = context_overflow
-        self.deadline = deadline  # the run's time ran out; not a provider fault
 
 
 @dataclass
@@ -453,48 +434,6 @@ class ChatProvider:
             },
         )
         return row
-
-
-class IncompleteStream(ProviderError):
-    """The stream stopped before a finish_reason. Nothing from it was dispatched, so the call is safe to retry
-    (B1 dna-assembly: one cut stream at 256 s ended the whole run at 636 s of 1800 s)."""
-
-
-def _is_transport(exc: Exception) -> bool:
-    name = type(exc).__name__
-    return name in {
-        "APIConnectionError",
-        "APITimeoutError",
-        "RemoteProtocolError",
-        "ReadTimeout",
-        "ConnectError",
-        "ReadError",
-        "ConnectionResetError",
-    }
-
-
-def _retry_after(exc: Exception) -> float | None:
-    response = getattr(exc, "response", None)
-    headers = getattr(response, "headers", None) or {}
-    for key in ("retry-after-ms", "retry-after"):
-        value = headers.get(key) if hasattr(headers, "get") else None
-        if value:
-            try:
-                seconds = float(value) / (1000.0 if key.endswith("ms") else 1.0)
-            except ValueError:
-                if key.endswith("ms"):
-                    continue
-                try:
-                    deadline = parsedate_to_datetime(value)
-                    if deadline.tzinfo is None:
-                        deadline = deadline.replace(tzinfo=timezone.utc)
-                    seconds = (deadline - datetime.now(timezone.utc)).total_seconds()
-                except (TypeError, ValueError, OverflowError):
-                    continue
-            if math.isfinite(seconds):
-                return max(seconds, 0.5)
-    return None
-    return None
 
 
 def parse_arguments(raw: str) -> dict[str, Any]:
