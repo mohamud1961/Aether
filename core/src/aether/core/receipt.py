@@ -17,9 +17,20 @@ SKIP = (".git", "__pycache__", "node_modules", "venv", ".venv", "site-packages")
 
 
 async def mark(env: Environment, control_dir: str) -> None:
-    """Record the run's start time on disk; files newer than this are what the run changed."""
+    """Record the run's start time on disk; files newer than this are what the run changed.
+
+    File timestamps are clock-tick coarse (a few ms on Linux) and ``find -newer`` is strict, so a write in the
+    marker's own tick would be invisible. Return only once ``find -newer`` itself, the inventory's comparator, sees a
+    file touched after the marker as newer: every later write is then newer, every earlier one is not.
+    """
+    marker = shlex.quote(f"{control_dir}/{MARKER}")
+    tick = shlex.quote(f"{control_dir}/{MARKER}.tick")
     result = await env.exec(
-        command=f"touch {shlex.quote(f'{control_dir}/{MARKER}')}",
+        command=(
+            f"touch {marker} && touch {tick} && n=0 && "
+            f"while [ -z \"$(find {tick} -newer {marker})\" ]; do n=$((n+1)); [ $n -le 3000 ] || exit 1; "
+            f"sleep 0.001 2>/dev/null; touch {tick} || exit 1; done; rm -f {tick}"
+        ),
         cwd=None,
         env=None,
         timeout_sec=30,
