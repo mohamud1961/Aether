@@ -288,17 +288,24 @@ def _parse_hashes(stdout: str) -> tuple[dict[int, str], dict[int, str], bool]:
     return before, after, seen_before and seen_after
 
 
-def _extract(archive: Path, root: Path) -> None:
-    """Extract the snapshot archive, refusing any member that could leave ``root``."""
+def _extract(archive: Path, root: Path) -> set[str]:
+    """Extract the snapshot's regular files and directories, refusing any member that could leave ``root``.
+
+    Returns the names of the other members (a symlink or hard link in the request): their rows are errors of their
+    own, and every other row is still captured. Refusing the whole archive voided good rows for one link.
+    """
     with tarfile.open(archive, mode="r:") as tar:
-        members = tar.getmembers()
-        for member in members:
+        members, other = [], set()
+        for member in tar.getmembers():
             name = member.name
             if not name or posixpath.isabs(name) or ".." in Path(name).parts:
                 raise ValueError(f"snapshot member escapes the archive: {name!r}")
-            if not (member.isfile() or member.isdir()):
-                raise ValueError(f"snapshot member is not a regular file: {name!r}")
+            if member.isfile() or member.isdir():
+                members.append(member)
+            else:
+                other.add(name)
         tar.extractall(root, members=members)
+    return other
 
 
 def _row_for(target: Target, index: int, before: Mapping[int, str], after: Mapping[int, str],
@@ -342,9 +349,12 @@ async def _populate(environment: Any, out: Path, capture: Capture, rows: list[di
     staging = Path(tempfile.mkdtemp(prefix="snapshot-", dir=out))
     try:
         await asyncio.wait_for(environment.download_file(archive, local_archive), capture.timeout_s)
-        _extract(local_archive, staging)
+        other = _extract(local_archive, staging)
         for index, target in enumerate(capture.targets):
-            row, data = _row_for(target, index, before, after, staging)
+            if target.remote.lstrip("/") in other:
+                row, data = _row(target, "error", error="not a regular file (a symlink or link); not captured"), None
+            else:
+                row, data = _row_for(target, index, before, after, staging)
             if data is not None:
                 try:
                     stored = out / CAPTURE_DIR / target.local

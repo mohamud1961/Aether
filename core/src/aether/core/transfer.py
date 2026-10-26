@@ -209,7 +209,7 @@ async def put_bytes(
                 f"( if [ -L {q(remote)} ]; then readlink -f {q(remote)} 2>/dev/null || realpath {q(remote)}; "
                 f"else cd {requested_parent} && actual_parent=$(pwd -P && printf .) && "
                 "actual_parent=${actual_parent%.} && actual_parent=${actual_parent%?} && "
-                f"printf '%s/%s\\n' \"$actual_parent\" {q(os.path.basename(remote))}; fi ) "
+                f"printf '%s/%s\\n' \"${{actual_parent%/}}\" {q(os.path.basename(remote))}; fi ) "
                 "|| echo __AETHER_NO_IDENTITY__; echo __AETHER_PROOF__; "
                 f"if [ ! -f {q(remote)} ]; then echo 'destination is not a regular file' >&2; exit 13; fi; "
                 f"sha256sum < {q(remote)} 2>/dev/null || shasum -a 256 < {q(remote)} 2>/dev/null",

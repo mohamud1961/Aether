@@ -128,6 +128,12 @@ class TerminalLifecycle:
         )
         lines = res.stdout.split()
         if res.code != 0 or len(lines) < 2 or not lines[0].isdigit():
+            # A reply came back and no PID file appeared within the launch's 10 s wait: nothing is owned to
+            # resolve at close. Kept in _launching, every later close() raised and the root held a terminal slot.
+            self._launching.discard(root)
+            self.cleanup_uncertainties.append(
+                f"{root}: launch reported failure with no PID; a shell starting after the 10 s wait is unobserved"
+            )
             raise RuntimeError(
                 f"terminal launch failed: {(res.stderr or res.stdout).strip()[:300]}"
             )

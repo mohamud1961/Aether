@@ -17,7 +17,7 @@ import time
 from .env import CONTROL_DIR, Environment, alive_test, run
 from .terminal_procs import describe_processes
 from .terminal_session import MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle  # noqa: F401 (re-exported)
-from .transfer import atomic_write
+from .transfer import INLINE_BYTES, atomic_write, put_bytes
 
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000
@@ -33,15 +33,13 @@ _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
 # bash: a RETURN trap fires as the sourced command file finishes, while PIPESTATUS still holds the stage exits of
 # its last pipeline. The body is run unchanged (an appended capture line would land inside an unterminated
-# heredoc) and the exit is the file's own. The trap is removed again, so a RETURN trap of the model's is lost.
+# heredoc) and the exit is the file's own. It is installed only when the model has no RETURN trap and removed only
+# if the command left it unchanged (see _send), so a RETURN trap of the model's survives.
 _PIPE_TRAP = "builtin trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
 _PROMPT_RECEIPT = (
     "$(__aether_prompt_status=$?; builtin declare -F __aether_prompt_receipt >/dev/null "
     '&& __aether_prompt_receipt "$__aether_prompt_status")'
 )
-
-
-
 
 
 def clean(text: str) -> str:
@@ -88,7 +86,9 @@ class Terminals(TerminalLifecycle):
         """
         q = shlex.quote
         log = q(session.log)
-        steps = ([atomic_write(*cmd, 4)] if cmd else []) + [
+        # A done_<seq> already on disk (stale, or planted before the send) must not complete this command.
+        clear = [f"rm -f {q(f'{session.root}/done_{wait[0]}')} || exit 7"] if wait is not None and wait[0] else []
+        steps = clear + ([atomic_write(*cmd, 4)] if cmd else []) + [
             atomic_write(f"{session.root}/pending", text.encode(), 5),
             f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
             f"cat {q(session.root + '/pending')} > {q(session.fifo)} || exit 6",
@@ -100,7 +100,7 @@ class Terminals(TerminalLifecycle):
                 f"i=0; m=''; while [ -r {log} ]; do m=$({self._probe(session, seq)});"
                 f' [ -n "$m" ] && break; [ $i -ge {ticks} ] && break; {alive_test(session.pid)} || break; '
                 f"sleep 0.1; i=$((i+1)); done; printf '%s\\n' \"$m\"; "
-                f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log}"
+                f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log} 2>/dev/null; true"
             )
         res = await run(self._env, "; ".join(steps), timeout_s=20)
         if res.code == 3 and "dead" in res.stdout:
@@ -109,7 +109,12 @@ class Terminals(TerminalLifecycle):
             raise RuntimeError(
                 f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
             )
-        return None if wait is None else self._probe_result(session, wait[0], res.stdout)
+        if wait is None:
+            return None
+        try:
+            return self._probe_result(session, wait[0], res.stdout)
+        except TerminalGone:  # the input was delivered; _collect observes and reports the missing log itself
+            return None
 
     def _probe(self, session: Session, seq: int | None) -> str:
         """Shell words printing the completion receipt of command ``seq`` (nothing while it runs)."""
@@ -215,8 +220,9 @@ class Terminals(TerminalLifecycle):
             # (overfull-hbox e1: the model's kill commands waited ~100 s behind the solver).
             try:
                 earlier = await self._collect(session, time.monotonic(), 0.0)
-            except TerminalGone:
-                earlier = ""
+            except TerminalGone as gone:
+                session = await self._restart(session)
+                earlier = f"[{gone}; its previous command's output is lost. A fresh terminal {name} was started]"
             if session.pending and name in self._sessions:
                 return (
                     note
@@ -352,14 +358,18 @@ class Terminals(TerminalLifecycle):
             # Write the completion receipt outside stdout, atomically AFTER
             # the original command returns to the shell. A program printing a
             # completion-looking line cannot forge command completion.
+            inline = (cmd_file, body.encode())
+            if len(inline[1]) > INLINE_BYTES:  # one argv string is capped at 128 KiB on Linux
+                await put_bytes(self._env, inline[1], cmd_file)
+                inline = None
             marker = f"{session.root}/done_{session.seq}"
             temporary_marker = f"{marker}.tmp"
             return await self._write(
                 session,
-                f"{prompt}{src}; printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
+                f"{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
                 f'{session.seq} "$__aether_s" {stages} "$PWD" > {shlex.quote(temporary_marker)} '
-                f"&& mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}\n",
-                cmd=(cmd_file, body.encode()),
+                f"&& command mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}\n",
+                cmd=inline,
                 wait=(session.seq, wait_s),
             )
         elif input:
