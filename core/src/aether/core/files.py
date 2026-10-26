@@ -101,7 +101,9 @@ class Files:
         # incomplete trailing code points and the continuation byte offset.
         page_program = (
             f"BEGIN {{skip={offset}; left={MAX_READ_CHARS + 1}}} "
-            f'NR>={start} && NR<={end} {{line=sprintf("%6d  %s\\n",NR,$0); n=length(line); '
+            # Only the number goes through sprintf: mawk (the Debian/Ubuntu default awk) caps a sprintf result at
+            # 8192 bytes, so formatting the whole line failed every read of a file with a longer line.
+            f'NR>={start} && NR<={end} {{line=sprintf("%6d  ",NR) $0 "\\n"; n=length(line); '
             "if(skip>=n) {skip-=n} else {line=substr(line,skip+1); skip=0; "
             'if(length(line)>left) line=substr(line,1,left); printf "%s",line; '
             "left-=length(line); if(left==0) exit}} "
