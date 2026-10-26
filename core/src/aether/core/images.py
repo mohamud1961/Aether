@@ -21,7 +21,8 @@ import shlex
 from copy import deepcopy
 from typing import Any
 
-from .env import Environment, get_bytes, run
+from .env import Environment, run
+from .transfer import get_bytes
 
 MAX_FILE_BYTES = 30_000_000
 MAX_PIXELS = (

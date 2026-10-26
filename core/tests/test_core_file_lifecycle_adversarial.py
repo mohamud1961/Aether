@@ -383,7 +383,7 @@ def test_failed_transfer_reports_a_stage_that_could_not_be_removed(tmp_path):
         ]
     )
     trace = tmp_path / "trace.jsonl"
-    result = asyncio.run(
+    asyncio.run(
         run_agent(
             env=FailedStageCleanup(work),
             task="Write artifact.txt",

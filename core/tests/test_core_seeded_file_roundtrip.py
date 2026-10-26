@@ -91,7 +91,7 @@ def test_newline_terminated_parent_directory_keeps_exact_write_identity(tmp_path
     parent.mkdir(parents=True)
     trace = tmp_path / "trace.jsonl"
     name = "parent\n/child\n/result.txt"
-    result = asyncio.run(
+    asyncio.run(
         run_agent(
             env=LocalEnv(work),
             task="Write the named result.",

@@ -30,7 +30,7 @@ import shlex
 from typing import Any, Callable
 
 from .env import Environment, run
-from .receipt import MARKER, SKIP, changed
+from .receipt import SKIP, changed
 
 _DONE = re.compile(r"\[exit (\d+)(?: · last pipeline's stage exits [^\]]*?)? · ([\d.]+)s · terminal (\S+) · cwd ([^\]\n]*)\]\s*$")
 _RUNNING = re.compile(r"\[still running after \d+s")

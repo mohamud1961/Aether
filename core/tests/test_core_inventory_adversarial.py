@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import shlex
-from pathlib import Path
 import time
 
 from aether.core import receipt

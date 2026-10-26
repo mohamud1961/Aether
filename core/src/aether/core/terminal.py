@@ -20,13 +20,12 @@ from .env import (
     Environment,
     ProcessCleanupError,
     alive_test,
-    atomic_write,
     list_process_tree,
     process_identities,
-    put_bytes,
     run,
     stop_process_tree,
 )
+from .transfer import atomic_write, put_bytes
 
 VIEW_HEAD = 3_000
 VIEW_TAIL = 8_000

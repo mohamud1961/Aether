@@ -19,7 +19,8 @@ import shlex
 import uuid
 from typing import Any, Awaitable, Callable
 
-from .env import Environment, ExecResult, put_bytes, run
+from .env import Environment, ExecResult, run
+from .transfer import put_bytes
 from .oversight import ReviewPlan
 
 DIFFCHECK_ENV = "AETHER_CORE_DIFFCHECK"

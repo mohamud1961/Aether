@@ -13,7 +13,7 @@ import hashlib
 import posixpath
 import shlex
 
-from .env import Environment, get_bytes, put_bytes, run
+from .env import Environment, get_bytes, put_bytes, run  # transfer names via env: a stdlib test stubs .env alone
 
 MAX_READ_CHARS = 40_000
 DEFAULT_LINES = 400

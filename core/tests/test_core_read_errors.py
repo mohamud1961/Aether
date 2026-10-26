@@ -40,7 +40,6 @@ def test_empty_whitespace_binary_and_multibyte_pages_remain_distinct(tmp_path):
 def test_second_read_stage_failure_is_not_a_successful_empty_page(tmp_path):
     import shlex
     import shutil
-    from pathlib import Path
 
     real_awk = shutil.which("awk")
     assert real_awk, "real awk is required for this failure-injection control"
