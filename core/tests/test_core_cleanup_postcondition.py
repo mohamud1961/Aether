@@ -290,6 +290,7 @@ def test_observer_faults_preserve_unverified_outcome_for_real_process(tmp_path, 
         dispose(p)
 
 
+@pytest.mark.skipif(os.path.isdir("/proc/1"), reason="fakes ps output; with /proc the command is read from cmdline")
 def test_empty_command_text_cannot_hide_a_live_retained_process(tmp_path):
     import shlex
     import shutil
