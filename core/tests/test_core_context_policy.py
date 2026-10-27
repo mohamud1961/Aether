@@ -107,6 +107,7 @@ def test_read_delta_takes_only_the_configured_field():
         ("<think>plan it</think>\n\nanswer", "plan it", "answer"),
         ("plan it</think>answer", "plan it", "answer"),  # opening tag in the template, not the output
         ("no tags here", "", "no tags here"),
+        ("<think>run git log first\n", "run git log first\n", ""),  # tool-call turn: no closing tag
     ],
 )
 def test_finish_splits_inline_think_tags(content, reasoning, rest):

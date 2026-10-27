@@ -39,8 +39,14 @@ def read_delta(wire: str, delta: Any, turn: Any) -> None:
 
 
 def finish(wire: str, turn: Any) -> None:
-    """After the stream: split inline ``<think>`` reasoning out of the content (``think_tags`` only)."""
-    if wire != "think_tags" or CLOSE not in turn.content:
+    """After the stream: split inline ``<think>`` reasoning out of the content (``think_tags`` only). On a tool-call
+    turn MiniMax on Dahl sends ``<think>...`` with no closing tag (gate g1, 2026-10-27): all of it is reasoning."""
+    if wire != "think_tags":
+        return
+    if CLOSE not in turn.content:
+        if turn.content.lstrip().startswith(OPEN):
+            turn.reasoning += turn.content.lstrip()[len(OPEN):]
+            turn.content = ""
         return
     head, _, tail = turn.content.partition(CLOSE)
     turn.reasoning += head.split(OPEN, 1)[1] if OPEN in head else head
