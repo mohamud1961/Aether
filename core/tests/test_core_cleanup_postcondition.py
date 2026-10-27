@@ -324,3 +324,32 @@ def test_empty_command_text_cannot_hide_a_live_retained_process(tmp_path):
         assert p.poll() is None
     finally:
         dispose(p)
+
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc/1"), reason="the /proc observer exists only on Linux")
+def test_a_retained_process_is_listed_without_ps(tmp_path):
+    import shlex
+
+    from aether.core.env import list_process_tree
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python3").symlink_to(sys.executable)  # the observer's PATH holds python3 and no ps
+
+    class NoPs(LocalEnv):
+        async def exec(self, command, **kwargs):
+            if command.startswith("python3 -c "):
+                command = "PATH=" + shlex.quote(str(bin_dir)) + " " + command
+            return await super().exec(command, **kwargs)
+
+    p = spawn(
+        tmp_path,
+        "import subprocess,time,sys;from pathlib import Path;"
+        "c=subprocess.Popen(['sleep','117']);Path(sys.argv[1]).touch();time.sleep(120)",
+    )
+    try:
+        listed = asyncio.run(list_process_tree(NoPs(tmp_path), [p.pid]))
+        assert [row.split(" ", 1)[1] for row in listed] == ["sleep 117"]
+    finally:
+        dispose(p)  # its group holds the sleep child too

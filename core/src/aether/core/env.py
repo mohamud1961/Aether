@@ -119,6 +119,15 @@ def snapshot():
     if os.getpid() not in table: raise RuntimeError('process observer absent from enumeration')
     return table
 
+def command_of(pid):
+    # Task images often have no ps (10-27 Modal board: 20/32); /proc is what snapshot() already trusts.
+    if precision == 'proc_start_ticks':
+        try:
+            with open('/proc/'+str(pid)+'/cmdline','rb') as f: return f.read().replace(b'\0',b' ').decode('utf-8','replace').strip()
+        except OSError: return ''
+    cmd=subprocess.run(['ps','-ww','-p',str(pid),'-o','command='],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=3)
+    return '' if cmd.returncode else cmd.stdout.strip()
+
 def live(row):
     return row is not None and not row[2].startswith(('Z','X'))
 
@@ -158,12 +167,12 @@ try:
         if action == 'list':
             for pid in sorted(owned):
                 if not live(table.get(pid)):continue
-                cmd=subprocess.run(['ps','-ww','-p',str(pid),'-o','command='],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=3)
-                if cmd.returncode or not cmd.stdout.strip():
+                text=command_of(pid)
+                if not text:
                     current=snapshot().get(pid)
                     if not live(current) or current[3]!=owned[pid]:continue
                     raise RuntimeError('live owned process command observation failed; retention unverified')
-                processes.append({'pid':pid,'command':cmd.stdout.strip()[:200]})
+                processes.append({'pid':pid,'command':text[:200]})
         status = 'observed'
         print('AETHER_CLEANUP_V1 '+json.dumps({'nonce':nonce,'roots':roots,'status':status,'processes':processes,'identities':{str(r):table[r][3] for r in roots},'identity_precision':precision}))
         sys.exit(0)
