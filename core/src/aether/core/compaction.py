@@ -172,3 +172,14 @@ async def checkpoint(
             f"reasoning={turn.usage.get('reasoning')}"
         )
     raise ValueError("checkpoint call returned no text (" + "; ".join(empties) + ")")
+
+
+def unsummarised(exc: Exception, history_path: str) -> str:
+    """Stand-in summary when the checkpoint call failed: says plainly that nothing was summarised and where the
+    dropped turns are, so the model can recover any fact it still needs instead of trusting a summary that never was."""
+    return (
+        f"No summary is available: the summary call failed ({type(exc).__name__}: {str(exc)[:200]}). The older turns "
+        f"were dropped unsummarised. Their full text is saved in {history_path}; read_history retrieves a message. "
+        "Re-check any earlier result you rely on (files and terminal logs on disk are unchanged)."
+    )
+

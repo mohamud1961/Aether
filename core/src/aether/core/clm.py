@@ -143,28 +143,32 @@ class ClmContext:
 
     def _replayed(self) -> list[dict[str, Any]]:
         """The assistant messages whose reasoning the next request sends back."""
-        turns = [
-            m
-            for m in self.editable
-            if m.get("role") == "assistant" and m.get("reasoning_content")
-        ]
+        turns = [m for m in self.editable if m.get("role") == "assistant" and m.get("reasoning_content")]
         if self.settings.replay_reasoning in ("all", "segment"):
             return turns
-        last = next(
-            (m for m in reversed(self.editable) if m.get("role") == "assistant"), None
-        )
+        last = next((m for m in reversed(self.editable) if m.get("role") == "assistant"), None)
         return [last] if last is not None and last.get("reasoning_content") else []
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
-        chars = images.size_chars(
-            self.request() if messages is None else images.limit(messages)
-        )
+        chars = images.size_chars(self.request() if messages is None else images.limit(messages))
         r_chars, r_tokens = self._replayed_reasoning() if messages is None else (0, 0)
-        return (
-            int((chars - r_chars) / self.chars_per_token)
-            + r_tokens
-            + TOOLS_OVERHEAD_TOKENS
-        )
+        return int((chars - r_chars) / self.chars_per_token) + r_tokens + TOOLS_OVERHEAD_TOKENS
+
+    def window_tokens(self, messages: list[dict[str, Any]]) -> int:
+        """Tokens these messages add to ``held()``, counted as ``held()`` counts them (raw characters let encrypted
+        reasoning through at a fraction of its cost: Mercury segment checkpointed 31,043 to 30,918 tokens and ended)."""
+        stripped = [{k: v for k, v in m.items() if k != "reasoning_content"} for m in messages]
+        total = int(images.size_chars(images.limit(stripped)) / self.chars_per_token)
+        if self.settings.replay_reasoning == "segment":
+            ids = {id(m) for m in messages}
+            replayed = self._replayed()
+            newest = replayed[-1] if replayed else None
+            for m in replayed:
+                if id(m) in ids and m is not newest:
+                    t = self._counted(m)
+                    c = len(json.dumps(m["reasoning_content"], ensure_ascii=False))
+                    total += int(c / self.chars_per_token) if t is None else t
+        return total
 
     def held(self) -> int:
         """Tokens the budget governs: the request minus the newest turn's replayed reasoning. That reasoning is the
@@ -190,10 +194,10 @@ class ClmContext:
 
         The newest turn's reasoning is replayed in the next request and tokenizes far more densely than tool
         output: in D1 a 32k-token reasoning turn was estimated at 27.7k and counted at 38.2k (budget 32k)."""
-        self._reasoning[id(message)] = (
-            message,
-            None if reasoning_tokens is None else int(reasoning_tokens),
-        )
+        # A 0 next to reasoning text is a missing count (MiniMax on Dahl), not a measurement: estimate it instead.
+        if not reasoning_tokens and message.get("reasoning_content"):
+            reasoning_tokens = None
+        self._reasoning[id(message)] = (message, None if reasoning_tokens is None else int(reasoning_tokens))
 
     def _counted(self, msg: dict[str, Any]) -> int | None:
         entry = self._reasoning.get(id(msg))
@@ -468,10 +472,7 @@ class ClmContext:
         ]
         keep = len(self.editable)
         for i in reversed(starts):
-            if (
-                self.tokens(self.editable[i:]) - TOOLS_OVERHEAD_TOKENS
-                > self.settings.keep_recent_tokens
-            ):
+            if self.window_tokens(self.editable[i:]) > self.settings.keep_recent_tokens:
                 break
             keep = i
         if keep <= 0:
