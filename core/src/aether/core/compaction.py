@@ -58,6 +58,8 @@ Use this EXACT format:
 - [Any data, examples, or references needed to continue]
 - [Or "(none)" if not applicable]
 
+Do not record how full the context is or how much time is left: both change, and the harness reports them \
+fresh.
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
 # Notes voice "own": the task statement stays verbatim above the summary, so the summary must not carry a second,
@@ -91,6 +93,8 @@ nothing checked it, write "assumed, not checked"]
 - [Observed facts, data, examples or references needed to continue, each with where it was observed]
 - [Or "(none)" if not applicable]
 
+Do not record how full the context is or how much time is left: both change, and the harness reports them \
+fresh.
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
 KERNEL_PERSIST_SUMMARY_NOTE = (

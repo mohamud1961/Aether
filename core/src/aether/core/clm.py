@@ -246,10 +246,21 @@ class ClmContext:
                 return ""
             self._last_urgent = self._turn
             self.stats.urgent_nudges += 1
+            # 10-27 board: the old "only about N left" read as the end of the run (path-tracing e1 finished citing
+            # context limits; sqlite e2 skipped a check because "context is nearly exhausted"), and it left out the
+            # replayed reasoning that made up most of the request.
+            outside = self._replayed_reasoning()[1]
+            whole = (
+                f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
+                "sent back as well but outside this budget."
+                if outside
+                else ""
+            )
             return (
-                f"[context: urgent] {used} of {limit} tokens used; only about {room} left. Condense "
-                f"{self.settings.mirror_path} now (keep facts, paths, decisions and open problems; drop the rest), and "
-                "send large outputs to files instead of the conversation."
+                f"[context: urgent] {used} of {limit} tokens of your editable context used; about {room} left before "
+                "older turns are replaced by a summary. The run continues after that: this is not a time or turn "
+                f"limit.{whole} Condense {self.settings.mirror_path} now (keep facts, paths, decisions and open "
+                "problems; drop the rest), and send large outputs to files instead of the conversation."
             )
         crossed = [r for r in self._armed if ratio >= r]
         if not crossed:
@@ -263,7 +274,8 @@ class ClmContext:
             "you still need, drop the rest). This shrinks future context; the model/tool turn still uses time and tokens."
             if top < 0.75
             else f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
-            f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary."
+            f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary and the run "
+            "continues."
         )
 
     def _rearm(self, ratio: float | None = None) -> None:
@@ -464,3 +476,9 @@ class ClmContext:
         self.stats.checkpoints += 1
         self._rollbacks_in_episode = 0
         self._rearm()
+        # The summary is written while the context is full and can say so (sqlite e2: "Context is nearly exhausted
+        # (~29.8k/29.9k tokens)" carried past a checkpoint that cut the request from 83k to 10k); state it fresh.
+        self.editable[0]["content"] += (
+            f"\n\n[context] Now, after this summary: {self.held()} of {self.settings.budget_tokens} tokens used. "
+            "Any statement above about the context being full predates the summary."
+        )

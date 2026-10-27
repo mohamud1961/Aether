@@ -24,6 +24,7 @@ class Stub:
         self._armed={threshold,0.75}
     def held(self):return self.usage
     def tokens(self):return self.usage
+    def _replayed_reasoning(self):return (0,0)
     def _rearm(self,ratio):return None
 
 class ClmCostClaim(unittest.TestCase):
