@@ -226,6 +226,7 @@ def _run(
     timeout_s=600.0,
     sleep=None,
     text_script=None,
+    params=None,
 ):
     work = tmp_path / "work"
     work.mkdir(exist_ok=True)
@@ -233,7 +234,7 @@ def _run(
     provider = ChatProvider(
         client,
         model="glm",
-        params={"tool_choice": "required", "parallel_tool_calls": False},
+        params={"tool_choice": "required", "parallel_tool_calls": False, **(params or {})},
         **({"sleep": sleep} if sleep else {}),
     )
 
@@ -683,6 +684,8 @@ def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
     result, rows, client = _run(tmp_path, script, config=_clm_config(tmp_path))
     second = client.requests[1]["messages"]
     assert "output limit before any tool call" in json.dumps(second[-1])
+    # a model with effort levels gets the note unchanged (pinned: the 10-27 fix must not alter it)
+    assert "instead of reasoning further in one turn; your next turn runs at low reasoning effort. [t=" in second[-1]["content"]
     assert result.status == "finished"
     # the turn after a cut runs at low effort; the run's own effort returns after it (known-bad: a sticky override)
     assert (
@@ -695,6 +698,28 @@ def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
         or client.requests[0]["reasoning_effort"] != "low"
     )
     assert [r.get("effort") for r in rows if r.get("event") == "model"] == [None, "low"]
+
+
+def test_a_cut_turn_on_a_model_without_effort_levels_is_not_told_it_runs_at_low_effort(tmp_path):
+    # Flint baseline 10-26 feal-differential: the cut note promised "low reasoning effort", the trace recorded
+    # effort=low, but the provider never sends reasoning_effort to a model without effort levels.
+    cut = [
+        chunk(reasoning="thinking " * 20),
+        chunk(finish="length"),
+        chunk(usage={"prompt_tokens": 500, "completion_tokens": 3000}),
+    ]
+    script = [cut, call("finish", {"summary": "x"}, "c1")]
+    result, rows, client = _run(
+        tmp_path, script, config=_clm_config(tmp_path), params={"reasoning_effort": None}
+    )
+    note = json.dumps(client.requests[1]["messages"][-1])
+    assert "output limit before any tool call" in note
+    assert "low reasoning effort" not in note
+    assert "8192" in note.replace(",", "")  # what does change after a cut is stated instead
+    assert "reasoning_effort" not in client.requests[1]
+    assert client.requests[1]["max_tokens"] == 8_192  # the existing retry ceiling is unchanged
+    assert [r.get("effort") for r in rows if r.get("event") == "model"] == [None, None]
+    assert result.status == "finished"
 
 
 def test_malformed_tool_arguments_are_replayed_as_an_empty_object_and_reported(

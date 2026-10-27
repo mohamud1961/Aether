@@ -481,7 +481,7 @@ async def _loop(s: _Session) -> None:
             reasoning=turn.reasoning,
             content=turn.content,
             tool_calls=turn.tool_calls,
-            effort=AFTER_CUT["reasoning_effort"] if cut else None,
+            effort=AFTER_CUT["reasoning_effort"] if cut and s.provider.takes_effort else None,
         )
         cut = turn.finish_reason == "length" and not turn.tool_calls
         assistant = turn.assistant_message()
@@ -501,8 +501,12 @@ async def _loop(s: _Session) -> None:
                 note = (
                     "Your last turn reached the output limit before any tool call; "
                     "its reasoning is above. Act on it now with a tool call (for example write down or test "
-                    "your partial result) instead of reasoning further in one turn; your next turn runs at "
-                    "low reasoning effort. "
+                    "your partial result) instead of reasoning further in one turn; "
+                    + (  # only what really changes: a model without effort levels gets the smaller limit alone
+                        "your next turn runs at low reasoning effort. "
+                        if s.provider.takes_effort
+                        else f"your next turn's output limit is {AFTER_CUT_MAX_TOKENS:,} tokens. "
+                    )
                 )
             else:
                 note = "Continue by using a tool, or call finish if done. "

@@ -176,6 +176,11 @@ class ChatProvider:
             if inspect.isawaitable(result):
                 await result
 
+    @property
+    def takes_effort(self) -> bool:
+        """Whether reasoning_effort reaches the model: None means it has no effort levels, and none is sent."""
+        return self.params.get("reasoning_effort", "") is not None
+
     def _request(
         self,
         messages: list[dict],
@@ -186,7 +191,7 @@ class ChatProvider:
         """The exact client arguments, with sampling and tool parameters grouped under ``params``."""
         params = {
             **self.params,
-            **{k: v for k, v in (overrides or {}).items() if k != "reasoning_effort" or self.params.get(k, "") is not None},
+            **{k: v for k, v in (overrides or {}).items() if k != "reasoning_effort" or self.takes_effort},
             "stream": True,
             "stream_options": {"include_usage": True},
         }
