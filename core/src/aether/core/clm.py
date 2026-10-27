@@ -148,7 +148,7 @@ class ClmContext:
             for m in self.editable
             if m.get("role") == "assistant" and m.get("reasoning_content")
         ]
-        if self.settings.replay_reasoning == "all":
+        if self.settings.replay_reasoning in ("all", "segment"):
             return turns
         last = next(
             (m for m in reversed(self.editable) if m.get("role") == "assistant"), None
@@ -171,7 +171,17 @@ class ClmContext:
         model's live working memory, sent once and dropped after its next turn; the model cannot condense it and a
         checkpoint never sees it. Counting it let a single long thought trigger a checkpoint that discarded it (D1
         circuit-fibsqrt: three 32k-token thoughts each summarised away, about 1100 s of reasoning redone)."""
+        if self.settings.replay_reasoning == "segment":
+            return self.tokens() - self._newest_reasoning_tokens()
         return self.tokens() - self._replayed_reasoning()[1]
+
+    def _newest_reasoning_tokens(self) -> int:
+        """Tokens of the newest assistant turn's replayed reasoning (``segment`` leaves only this out of the budget)."""
+        last = next((m for m in reversed(self.editable) if m.get("role") == "assistant"), None)
+        if last is None or not last.get("reasoning_content"):
+            return 0
+        t = self._counted(last)
+        return int(len(json.dumps(last["reasoning_content"], ensure_ascii=False)) / self.chars_per_token) if t is None else t
 
     def note_reasoning(
         self, message: dict[str, Any], reasoning_tokens: int | None

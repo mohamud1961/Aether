@@ -24,6 +24,7 @@ from typing import Any, Mapping
 from . import continuation
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
+from .reasoning_wire import WIRES
 from .clone import Clone, compose_clone
 from .loop import CONTEXT_MODES, CoreConfig, Trace, default_review_call, run_agent
 from .oversight import ReviewPlan
@@ -69,6 +70,7 @@ INTENT_ENV = "AETHER_CORE_INTENT"  # on: every action tool takes the model's rea
 FORK_ENV = "AETHER_CORE_FORK"  # on: experiment instrument, matched continuations at the first finish (fork)
 # optional; unset means "chat" (the GLM request). "reasoning": max_completion_tokens, no sampling parameters.
 REQUEST_ENV = "AETHER_CORE_REQUEST"
+WIRE_ENV = "AETHER_CORE_REASONING_WIRE"  # optional; where the provider carries reasoning (see reasoning_wire)
 REQUEST_SHAPES = ("chat", "reasoning", "responses")  # responses: /v1/responses, native tools + reasoning replay
 PROGRESS_AT = (0.35, 0.70)
 ENDPOINT_ENV, API_ENV = "AETHER_FW_GLM_53_FLASH_ENDPOINT", "AETHER_CORE_API"  # API: azure (default) or openai
@@ -146,6 +148,7 @@ def build_provider(
         params=params,
         log=log,
         limit_field="max_tokens" if shape == "chat" else "max_completion_tokens",
+        reasoning_wire=_choice(environ, WIRE_ENV, WIRES, "reasoning_content"),
     )
 
 
@@ -257,10 +260,11 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
     if value not in REPLAY_MODES:
         raise ConfigError(f"{REASONING_ENV} must be one of {', '.join(REPLAY_MODES)}")
     # "all" on chat (overnight E7): chat assistant messages carry reasoning_content like the newest turn already
-    # does. CLM's held() leaves every replayed reasoning out of the budget (10-27 board: a median 58% of the largest
-    # request), so only a checkpoint, triggered by the rest of the context, ever drops it.
-    if value == "all" and context != "clm":
-        raise ConfigError(f"{REASONING_ENV}=all needs model-managed context (clm)")
+    # does. Under "all", CLM's held() leaves every replayed reasoning out of the budget (10-27 board: a median 58% of
+    # the largest request), so only a checkpoint, triggered by the rest of the context, ever drops it. "segment"
+    # counts older replayed reasoning against the budget.
+    if value in ("all", "segment") and context != "clm":
+        raise ConfigError(f"{REASONING_ENV}={value} needs model-managed context (clm)")
     return value
 
 

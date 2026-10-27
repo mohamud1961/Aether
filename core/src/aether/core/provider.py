@@ -18,6 +18,8 @@ import time
 from typing import Any, Callable
 from urllib.parse import urlparse
 
+from . import reasoning_wire as reasoning_wire_mod
+
 from .calls import CallLog
 from .provider_errors import IncompleteStream, ProviderError, _is_transport, _retry_after
 
@@ -128,18 +130,12 @@ def _usage(raw: Any) -> dict[str, int]:
     return out
 
 
-def _extra(obj: Any, name: str) -> Any:
-    value = getattr(obj, name, None)
-    if value is None:
-        extra = getattr(obj, "model_extra", None) or {}
-        value = extra.get(name)
-    return value
-
-
 LIMIT_FIELDS = ("max_tokens", "max_completion_tokens")
 
 
 class ChatProvider:
+    reasoning_wire = "reasoning_content"  # the default wire (see reasoning_wire); instances may override it
+
     def __init__(
         self,
         client: Any,
@@ -149,7 +145,11 @@ class ChatProvider:
         sleep: Callable[[float], Any] = asyncio.sleep,
         log: CallLog | None = None,
         limit_field: str = "max_tokens",
+        reasoning_wire: str = "reasoning_content",
     ) -> None:
+        if reasoning_wire not in reasoning_wire_mod.WIRES:
+            raise ValueError(f"reasoning_wire must be one of {reasoning_wire_mod.WIRES}, got {reasoning_wire!r}")
+        self.reasoning_wire = reasoning_wire
         if limit_field not in LIMIT_FIELDS:
             raise ValueError(
                 f"limit_field must be one of {LIMIT_FIELDS}, got {limit_field!r}"
@@ -197,7 +197,7 @@ class ChatProvider:
         }
         request: dict[str, Any] = {
             "model": self.model,
-            "messages": deepcopy(messages),
+            "messages": reasoning_wire_mod.outgoing(self.reasoning_wire, deepcopy(messages)),
             self.limit_field: max_tokens,
         }
         if params.get("reasoning_effort", "") is None:  # a model without effort levels (Flint): never sent
@@ -230,7 +230,7 @@ class ChatProvider:
                     delta = choice.delta
                     if delta is not None:
                         turn.content += getattr(delta, "content", None) or ""
-                        turn.reasoning += _extra(delta, "reasoning_content") or ""
+                        reasoning_wire_mod.read_delta(self.reasoning_wire, delta, turn)
                         for tc in getattr(delta, "tool_calls", None) or ():
                             slot = calls.setdefault(
                                 int(tc.index or 0),
@@ -258,6 +258,7 @@ class ChatProvider:
                         await outcome
                 except Exception as exc:
                     turn.stream_close_error = f"{type(exc).__name__}: {exc}"
+        reasoning_wire_mod.finish(self.reasoning_wire, turn)
         if turn.finish_reason is None:
             raise IncompleteStream(
                 "provider stream ended without a finish_reason; partial response retained"

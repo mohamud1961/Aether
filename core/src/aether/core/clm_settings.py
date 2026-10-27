@@ -30,7 +30,9 @@ class ClmSettings:
     # live working memory; older turns' is dropped). "all": every turn's, so the request only ever grows at its end.
     # L2 audit: dropping the previous turn's reasoning edits the middle of the history every turn, and the provider's
     # prompt cache never extended past such an edit (0 of 270 requests) but did on 31 of 32 pure extensions.
-    # Replayed reasoning is outside ``budget_tokens`` in both modes: the model cannot condense it.
+    # Replayed reasoning is outside ``budget_tokens`` in "newest" and "all". "segment" replays like "all" but the
+    # budget counts every replayed reasoning except the newest turn's, so a checkpoint bounds the whole request and
+    # drops older reasoning with the turns it summarises (between checkpoints the request only grows at its end).
     replay_reasoning: str = "newest"
     # How the model's edited context is framed when it comes back. Both modes send it in role=user messages (the
     # role is not changed). "own" prefixes each such block with a "[your notes]" label, the first with a header
@@ -65,4 +67,4 @@ class ClmSettings:
             )
 
 
-REPLAY_MODES = ("newest", "all")
+REPLAY_MODES = ("newest", "all", "segment")
