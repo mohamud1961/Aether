@@ -499,3 +499,37 @@ def test_quiet_foreground_reader_may_consume_keys_without_enter(tmp_path):
     assert "nothing was submitted" not in sent
     assert "no new output after these keys" in sent
     assert "Silence cannot show whether the input was accepted" in sent
+
+
+class _StrictEnv(LocalEnv):
+    """Decodes command output as strict UTF-8, as the Harbor environments do (LocalEnv replaces bad bytes)."""
+
+    async def exec(self, command, cwd=None, env=None, timeout_sec=None):
+        self.commands.append(command)
+        proc = await asyncio.create_subprocess_shell(
+            command, cwd=cwd or str(self.root), stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL,
+        )
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec or 30)
+        from types import SimpleNamespace
+
+        return SimpleNamespace(return_code=proc.returncode, stdout=out.decode(), stderr=err.decode())
+
+
+@pytest.mark.parametrize("command", [
+    "printf 'bin \\203\\377 tail\\n'",  # bytes that are not UTF-8 (path-tracing baseline: `strings` on a binary)
+    "python3 -c \"print('é' * 6000)\"",  # a large view whose head/tail cut falls inside a 2-byte character
+])
+def test_output_that_is_not_valid_utf8_is_shown_and_does_not_wedge_the_terminal(tmp_path, command):
+    async def go():
+        work = tmp_path / "work"
+        work.mkdir()
+        t = Terminals(_StrictEnv(work), str(work), lambda: 1000.0, control_dir=str(tmp_path / "ctl"))
+        _OPEN.append(t)
+        first = await t.use(input=command)
+        second = await t.use(input="echo still-works")
+        return first, second
+
+    first, second = asyncio.run(go())
+    assert "[exit 0" in first and "�" in first
+    assert "still-works" in second and "[exit 0" in second

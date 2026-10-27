@@ -10,6 +10,7 @@ large) and can grep the full log itself.
 from __future__ import annotations
 
 import asyncio
+import base64
 import re
 import shlex
 import time
@@ -45,6 +46,11 @@ _PROMPT_RECEIPT = (
 def clean(text: str) -> str:
     text = _ANSI.sub("", text).replace("\r\n", "\n").replace("\r", "")
     return text
+
+
+def _text(b64: str) -> str:
+    """Log bytes sent as base64, as text; bytes that are not UTF-8 become U+FFFD."""
+    return base64.b64decode("".join(b64.split())).decode("utf-8", "replace")
 
 
 class Terminals(TerminalLifecycle):
@@ -159,20 +165,24 @@ class Terminals(TerminalLifecycle):
         return self._probe_result(session, seq, res.stdout)
 
     async def _read(self, session: Session, start: int, end: int) -> str:
+        # The bytes travel as base64 and are decoded here: the environment decodes command output as strict UTF-8, so
+        # one byte that is not (binary output, or a character cut by head -c) failed the read, and as the cursor did
+        # not move every later call reread it and failed too (path-tracing baseline: 21 calls).
         q = shlex.quote
         n = end - start
         if n <= VIEW_HEAD + VIEW_TAIL:
             res = await run(
-                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n}"
+                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n} | base64"
             )
-            return res.stdout
+            return _text(res.stdout)
         res = await run(
             self._env,
-            f"tail -c +{start + 1} {q(session.log)} | head -c {VIEW_HEAD}; "
-            f"printf '\\n\\x00SPLIT\\x00\\n'; tail -c +{start + 1} {q(session.log)} "
-            f"| head -c {n} | tail -c {VIEW_TAIL}",
+            f"tail -c +{start + 1} {q(session.log)} | head -c {VIEW_HEAD} | base64; "
+            f"echo '#SPLIT#'; tail -c +{start + 1} {q(session.log)} "
+            f"| head -c {n} | tail -c {VIEW_TAIL} | base64",
         )
-        head, _, tail = res.stdout.partition("\n\x00SPLIT\x00\n")
+        head, _, tail = res.stdout.partition("#SPLIT#")
+        head, tail = _text(head), _text(tail)
         return (
             f"{head}\n…[{n - VIEW_HEAD - VIEW_TAIL} bytes omitted; full output is in {session.log} "
             f"at byte offsets {start}-{end}; use grep/sed/tail on it]…\n{tail}"
