@@ -63,3 +63,15 @@ def test_a_checkpoint_still_over_budget_is_fitted_instead_of_ending_the_run(tmp_
     assert result.status == "finished", result.error
     cps = [r for r in rows if r["event"] == "context_checkpoint" and r["ok"]]
     assert cps and all("trimmed_turns" in r for r in cps)  # fitted by trimming kept turns or cutting the summary
+
+
+def test_context_budget_is_configurable_and_validated():
+    import pytest
+
+    from aether.core.harbor_agent import ConfigError, _budget
+
+    assert _budget({}) == {}
+    assert _budget({"AETHER_CORE_CONTEXT_BUDGET": "128000"}) == {"budget_tokens": 128000, "keep_recent_tokens": 32000}
+    for bad in ("12000", "lots", "-5"):
+        with pytest.raises(ConfigError):
+            _budget({"AETHER_CORE_CONTEXT_BUDGET": bad})

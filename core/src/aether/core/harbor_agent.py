@@ -57,6 +57,7 @@ PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one",)
 # optional; unset means "newest" (only the latest turn's reasoning is sent back); "all" sends every turn's back.
 REASONING_ENV = "AETHER_CORE_REASONING"
+BUDGET_ENV = "AETHER_CORE_CONTEXT_BUDGET"  # optional; editable-context tokens (default 32000); see _budget
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
 # context on a clone (see verify). SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
 VERIFY_ENV, VERIFY_MODES = "AETHER_CORE_VERIFY", ("off", "once")
@@ -205,6 +206,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         reviews=plan,
         clm=ClmSettings(
             replay_reasoning=_replay(environ, context),
+            **_budget(environ),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
             attest_original_history=(
                 _choice(environ, CONTEXT_EVIDENCE_ENV, ("off", "history_index"), "off")
@@ -266,6 +268,18 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
     if value in ("all", "segment") and context != "clm":
         raise ConfigError(f"{REASONING_ENV}={value} needs model-managed context (clm)")
     return value
+
+
+def _budget(environ: Mapping[str, str]) -> dict:
+    """The editable-context budget, sized to the model rather than fixed (M1 b0, 2026-10-28: at 32000 a long-window
+    model was urged to condense 54K to 4K at 658 s, dropping 25K of replayed reasoning and the evidence against its
+    open hypothesis). The kept window after a checkpoint scales with it (a quarter, at least the 8000 default)."""
+    raw = environ.get(BUDGET_ENV, "").strip()
+    if not raw:
+        return {}
+    if not raw.isdigit() or int(raw) < 16_000:
+        raise ConfigError(f"{BUDGET_ENV} must be an integer number of tokens >= 16000")
+    return {"budget_tokens": int(raw), "keep_recent_tokens": max(8_000, int(raw) // 4)}
 
 
 def _calls(environ: Mapping[str, str]) -> str:
