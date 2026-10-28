@@ -88,6 +88,7 @@ class CoreConfig:
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
+    env_brief: bool = False  # what the container provides (tools, packages, files), measured once, in the task (env_brief)
     start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
@@ -291,6 +292,12 @@ async def run_agent(
 
                 start_note, row = await start_copy.take(s.env, workdir, config.control_dir)
                 trace("start_copy", **row)
+            if config.env_brief and config.role == "worker":
+                from . import env_brief
+
+                brief, row = await env_brief.take(s.env, workdir)
+                trace("env_brief", **row)
+                start_note = "\n".join(x for x in (brief, start_note) if x)
             # the start marker: files newer than it are what the run changed (the verifier and the finish report
             # use it). Only the verifier needs it to work; for the report a missing marker is a reported fact, not a
             # run failure.

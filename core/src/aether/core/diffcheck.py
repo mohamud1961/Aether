@@ -38,7 +38,7 @@ DIFFCHECK_ENV = "AETHER_CORE_DIFFCHECK"
 DIFFCHECK_MODES = ("off", "on")
 AUTHOR_ROLE = "diffcheck"
 AUTHOR_SHARE, AUTHOR_MAX_S, AUTHOR_MIN_S = 0.6, 900.0, 120.0  # 0.35 timed out authors (y2, 28 Oct)
-CHECK_S, MIN_GAP_S, RESERVE_S = 300, 60.0, 90.0
+CHECK_S, MIN_GAP_S, RESERVE_S, FINISH_WAIT_S = 300, 60.0, 90.0, 120.0  # an unbounded finish wait idled 410 s (y2)
 SHOWN_CHARS = 2_500
 MAX_CANDIDATE_BYTES = 16 * 1024 * 1024
 TRACE_FILE = "diffcheck_trace.jsonl"
@@ -137,7 +137,7 @@ class DiffCheck:
             return ""
         try:
             if self.state == "authoring" and self.job is not None:
-                wait = self.remaining() - RESERVE_S - CHECK_S
+                wait = min(FINISH_WAIT_S, self.remaining() - RESERVE_S - CHECK_S)
                 if wait > 0:
                     self.trace("diffcheck_finish_wait", max_s=round(wait))
                     await asyncio.wait({self.job}, timeout=wait)
