@@ -21,6 +21,7 @@ from .env import (
     INLINE_BYTES,
     Environment,
     alive_test,
+    list_process_tree,
     process_identities,
     put_bytes,
     run,
@@ -93,9 +94,21 @@ class Repl:
         self.identity = await process_identities(self._env, [self.pid])
         return version
 
-    async def close(self) -> None:
-        """Stop the kernel process (it dies with the container anyway; outside one it would linger)."""
-        if self.pid:
+    async def close(self, keep: bool = False) -> None:
+        """Stop the kernel process (it dies with the container anyway; outside one it would linger).
+
+        ``keep`` (end_processes "keep", as for terminals): signal nothing, and record what still runs under the
+        kernel. A whole-tree stop killed services the model had started from python and left as the deliverable
+        (28 Oct homolog: a detached telnet listener started with subprocess.Popen died at the end of the run)."""
+        if self.pid and keep:
+            left = await list_process_tree(self._env, [self.pid], identities=self.identity)
+            self.cleanup_receipt = {
+                "status": "retained",
+                "observed_processes": left,
+                "scope": "observed live descendants/groups; no signals sent",
+            }
+            self.pid = 0
+        elif self.pid:
             self.cleanup_receipt = await stop_process_tree(
                 self._env, [self.pid], identities=self.identity
             )

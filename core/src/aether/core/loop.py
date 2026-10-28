@@ -393,7 +393,7 @@ async def run_agent(
             except TimeoutError:
                 cleanup_errors.append(f"{name}: still running when the run ended")
         keep = s.config.end_processes == "keep"
-        for name, closer in (("terminals", lambda: s.terminals.close(keep=keep)), ("repl", s.repl.close)):
+        for name, closer in (("terminals", lambda: s.terminals.close(keep=keep)), ("repl", lambda: s.repl.close(keep=keep))):
             try:
                 await closer()
             except Exception as exc:

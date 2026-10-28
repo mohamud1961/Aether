@@ -50,10 +50,10 @@ def test_startup_failure_after_repl_launch_still_closes_the_process(
 def test_cleanup_continues_when_another_closer_fails(tmp_path, monkeypatch):
     closed = []
 
-    async def terminal_close(self):
+    async def terminal_close(self, keep=False):
         raise OSError("terminal cleanup failure")
 
-    async def repl_close(self):
+    async def repl_close(self, keep=False):
         closed.append("repl")
 
     monkeypatch.setattr(Terminals, "close", terminal_close)
