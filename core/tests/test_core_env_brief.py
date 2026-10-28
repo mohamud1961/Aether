@@ -18,7 +18,8 @@ def test_the_brief_lists_present_and_missing_tools_and_the_working_tree(tmp_path
     monkeypatch.setattr(env_brief, "TOOLS", ("sh", "no-such-tool-aether"))
     brief, row = asyncio.run(env_brief.take(LocalEnv(tmp_path), str(tmp_path / "app")))
     assert row["ok"] and brief.startswith("(Environment, measured by the harness")
-    assert "available: sh" in brief and "not installed: no-such-tool-aether" in brief
+    assert "available: sh" in brief and "not found on PATH: no-such-tool-aether" in brief
+    assert "package managers:" in brief and "package servers:" in brief  # whether software can be installed
     assert "./data.bin (5 B)" in brief
 
 
