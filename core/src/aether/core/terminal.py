@@ -25,6 +25,13 @@ VIEW_TAIL = 8_000
 # One tool call blocks the loop at most this long, so scheduled reviews and the elapsed-time readout reach the
 # model while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
 MAX_WAIT_S = 300.0
+KEYS_SILENT_S = 10.0  # keys with no output at all return after this; empty input still waits the full wait_s
+PROMPT_QUIET_S = 5.0  # a running command quiet this long with a prompt as its last line returns early
+# Last lines that ask a person for input (x0 compcert: opam/apt [Y/n] prompts held two calls ~590 s)
+_ASKS = re.compile(
+    r"(\[[Yy]/[Nn]\]|\[[yY]/[nN]\]|\([Yy]/[Nn]\)|\(yes/no(/\[fingerprint\])?\)|[Pp]assword( for [^:]*)?:|"
+    r"[Pp]assphrase[^:]*:|[Cc]ontinue\?|[Pp]roceed\?|\[[Yy]es/[Nn]o\]|Press (any key|ENTER|RETURN)[^\n]*)\??\s*$"
+)
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 _ANSI = re.compile(
     r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?"
@@ -280,7 +287,7 @@ class Terminals(TerminalLifecycle):
             )
             first = await self._send(session, input, mode, interrupt, wait_s)
         try:
-            out = await self._collect(session, started, wait_s, first)
+            out = await self._collect(session, started, wait_s, first, settle=mode == "keys" and bool(input))
         except TerminalGone as gone:
             await self._restart(session, start=False)
             return (
@@ -395,7 +402,11 @@ class Terminals(TerminalLifecycle):
         started: float,
         wait_s: float,
         first: tuple[int, re.Match | None, bool] | None = None,
+        settle: bool = False,
     ) -> str:
+        """``settle``: keystrokes were sent to a running program, so return once its output settles, as the tool
+        promises (x0 2026-10-28: keys to a VM console behind a running command waited the full wait_s every call,
+        334 s of one run). A running command whose last line asks for input returns early too."""
         name = session.name
         seq = session.pending or None
         size, mark, alive, last_size, stable_since = (
@@ -405,7 +416,7 @@ class Terminals(TerminalLifecycle):
             -1,
             time.monotonic(),
         )
-        delay = 0.2
+        delay, asking = 0.2, False
         while True:
             if first is not None:  # already waited for the receipt inside the send's own exec
                 size, mark, alive = first
@@ -421,6 +432,15 @@ class Terminals(TerminalLifecycle):
                 last_size, stable_since = size, now
             if seq is None and now - started >= 0.5 and now - stable_since >= 1.5:
                 break
+            if settle and now - started >= 0.5 and (
+                (size != session.cursor and now - stable_since >= 2.0) or now - started >= KEYS_SILENT_S
+            ):
+                break
+            if seq is not None and now - stable_since >= PROMPT_QUIET_S and size > session.cursor:
+                tail = clean(await self._read(session, max(session.cursor, size - 300), size))
+                if _ASKS.search(tail.rstrip("\n").rsplit("\n", 1)[-1]):
+                    asking = True
+                    break
             if now - started >= wait_s:
                 break
             await asyncio.sleep(delay)
@@ -447,6 +467,9 @@ class Terminals(TerminalLifecycle):
         elif seq is not None:
             quiet = time.monotonic() - session.grew_at
             status = (
+                "[its last line looks like a prompt waiting for input; answer it with mode=\"keys\" (end with \\n) "
+                "or interrupt it]\n" if asking else ""
+            ) + (
                 f"[still running after {elapsed:.0f}s · "
                 + (f"no new output for {quiet:.0f}s · " if quiet >= 10 else "")
                 + f"terminal {name}; call again with empty input to keep waiting, use interrupt=true to "

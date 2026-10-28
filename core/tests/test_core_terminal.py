@@ -538,3 +538,41 @@ def test_output_that_is_not_valid_utf8_is_shown_and_does_not_wedge_the_terminal(
     if command.startswith("printf"):
         assert "�" in first
     assert "still-works" in second and "[exit 0" in second
+
+
+def test_keys_to_a_running_program_return_once_its_output_settles(tmp_path):
+    # A program reading lines behind a running command (a VM console, a REPL): keys used to wait the full wait_s.
+    async def go():
+        t, _ = _terms(tmp_path)
+        await t.use(input="while read l; do echo got:$l; done", wait_s=1)
+        started = asyncio.get_running_loop().time()
+        out = await t.use(input="hello\n", mode="keys", wait_s=60)
+        return out, asyncio.get_running_loop().time() - started
+
+    out, took = asyncio.run(go())
+    assert "got:hello" in out
+    assert took < 15, took  # known-bad (old source): ~60 s
+
+
+def test_a_running_command_asking_for_input_returns_early_and_says_so(tmp_path):
+    async def go():
+        t, _ = _terms(tmp_path)
+        started = asyncio.get_running_loop().time()
+        out = await t.use(input='printf "Do you want to continue? [Y/n] "; read a; echo answered:$a', wait_s=60)
+        took = asyncio.get_running_loop().time() - started
+        reply = await t.use(input="y\n", mode="keys", wait_s=30)
+        return out, took, reply
+
+    out, took, reply = asyncio.run(go())
+    assert took < 20, took  # known-bad (old source): ~60 s
+    assert "looks like a prompt waiting for input" in out and "still running" in out
+    assert "answered:y" in reply
+
+
+def test_a_quiet_command_without_a_prompt_still_waits(tmp_path):
+    async def go():
+        t, _ = _terms(tmp_path)
+        return await t.use(input="echo building; sleep 8; echo built", wait_s=30)
+
+    out = asyncio.run(go())
+    assert "built" in out and "[exit 0" in out and "looks like a prompt" not in out
