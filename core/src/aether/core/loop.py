@@ -89,6 +89,9 @@ class CoreConfig:
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
+    # Reasoning effort for the request that first sees a newly attached image ("" = the run's own). 28 Oct: an
+    # image-reading task went 0/3 at high and 2/3 valid at xhigh run-wide; this spends the extra effort only there.
+    image_effort: str = ""
     env_brief: bool = False  # what the container provides (tools, packages, files), measured once, in the task (env_brief)
     start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
@@ -202,6 +205,7 @@ class _Session:
             dict[str, Any]
         ] = []  # shown after the current turn's tool results
         self.images_viewed = 0
+        self.new_image = False  # the next request is the first to carry a newly attached image (image_effort)
         self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
@@ -464,13 +468,15 @@ async def _loop(s: _Session) -> None:
             s.trace("context_evidence_presentation", **presentation)
         result.request_chars.append(size_chars(request))
         sizes = {"held": s.clm.held(), "request": s.clm.tokens()} if s.clm else None
+        look = s.new_image and bool(s.config.image_effort) and s.provider.takes_effort and not cut
+        s.new_image = False
         try:
             turn = await s.provider.complete(
                 request,
                 s.tools,
                 max_tokens=min(AFTER_CUT_MAX_TOKENS, s.config.max_output_tokens) if cut else s.config.max_output_tokens,
                 remaining_s=s.remaining,
-                overrides=AFTER_CUT if cut else None,
+                overrides=AFTER_CUT if cut else ({"reasoning_effort": s.config.image_effort} if look else None),
                 role=s.config.role,
             )
         except ProviderError as exc:
@@ -506,7 +512,8 @@ async def _loop(s: _Session) -> None:
             reasoning=turn.reasoning,
             content=turn.content,
             tool_calls=turn.tool_calls,
-            effort=AFTER_CUT["reasoning_effort"] if cut and s.provider.takes_effort else None,
+            effort=AFTER_CUT["reasoning_effort"] if cut and s.provider.takes_effort else (
+                s.config.image_effort if look else None),
         )
         cut = turn.finish_reason == "length" and not turn.tool_calls
         assistant = turn.assistant_message()
@@ -632,6 +639,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []
+        s.new_image = True
     if mirror is not None:
         await _read_back(s, *mirror)
     return False

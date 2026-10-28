@@ -237,6 +237,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "off") == "on",
         env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
+        image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""),
     )
 
 
