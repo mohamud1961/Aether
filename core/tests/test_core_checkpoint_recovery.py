@@ -75,3 +75,44 @@ def test_context_budget_is_configurable_and_validated():
     for bad in ("12000", "lots", "-5"):
         with pytest.raises(ConfigError):
             _budget({"AETHER_CORE_CONTEXT_BUDGET": bad})
+
+
+def test_output_ceiling_is_configurable_and_reaches_the_request():
+    import pytest
+
+    from aether.core.harbor_agent import ConfigError, _max_output
+    from aether.core.loop import CoreConfig
+
+    assert _max_output({}) == {} and CoreConfig().max_output_tokens == 16_384
+    assert _max_output({"AETHER_CORE_MAX_OUTPUT": "12288"}) == {"max_output_tokens": 12288}
+    for bad in ("1000", "big"):
+        with pytest.raises(ConfigError):
+            _max_output({"AETHER_CORE_MAX_OUTPUT": bad})
+
+
+def test_the_output_ceiling_is_what_each_turn_requests(tmp_path):
+    script = [call("terminal", {"input": "echo hi"}, "c0"), call("finish", {"summary": "done"}, "c1")]
+    import dataclasses
+
+    config = dataclasses.replace(_clm_config(tmp_path), max_output_tokens=12288)
+    result, _, client = _run(tmp_path, script, config=config)
+    assert result.status == "finished"
+    limits = {r.get("max_tokens") or r.get("max_completion_tokens") or r.get("max_output_tokens") for r in client.requests}
+    assert limits == {12288}, limits
+
+
+def test_chained_requests_send_only_new_items_after_the_previous_response():
+    from aether.core.responses import ResponsesProvider
+
+    p = ResponsesProvider(object(), model="m", params={}, chain=True)
+    sys_ = {"role": "system", "content": "s"}
+    first = [sys_, {"role": "user", "content": "task"}]
+    assert p._chained(first) == {}  # nothing to chain from
+    p._last = (first, "resp_1")
+    turn = [{"type": "reasoning", "encrypted_content": "x"}, {"type": "function_call", "call_id": "c1", "name": "t",
+                                                               "arguments": "{}"}]
+    out = {"type": "function_call_output", "call_id": "c1", "output": "ok"}
+    assert p._chained(first + turn + [out]) == {"input": [out], "previous_response_id": "resp_1"}
+    edited = [sys_, {"role": "user", "content": "task (condensed)"}] + turn + [out]
+    assert p._chained(edited) == {}  # an edited history is sent whole
+    assert p._chained(first + turn) == {}  # nothing new after the turn's own output

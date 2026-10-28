@@ -31,8 +31,11 @@ def test_o1_replay_a_cut_32k_thought_is_kept_and_the_request_exceeds_the_editabl
     )  # the excess is exactly the replayed reasoning, now measurable
 
 
+WORST = 32000 + 2 * MAX_OUTPUT_TOKENS
+
+
 @pytest.mark.parametrize(
-    "limit, ok", [(None, True), (131_072, True), (97_536, True), (97_535, False)]
+    "limit, ok", [(None, True), (131_072, True), (WORST, True), (WORST - 1, False)]
 )
 def test_request_limit_is_checked_at_configuration_against_the_worst_case(limit, ok):
     settings = ClmSettings(budget_tokens=32000, request_limit_tokens=limit)
@@ -41,7 +44,6 @@ def test_request_limit_is_checked_at_configuration_against_the_worst_case(limit,
     else:
         with pytest.raises(ValueError, match="exceeds the provider request limit"):
             CoreConfig(context="clm", clm=settings)
-    assert 32000 + 2 * MAX_OUTPUT_TOKENS == 97_536
 
 
 def test_every_model_call_traces_held_and_whole_request_tokens(tmp_path):

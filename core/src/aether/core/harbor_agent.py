@@ -57,6 +57,8 @@ PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one",)
 # optional; unset means "newest" (only the latest turn's reasoning is sent back); "all" sends every turn's back.
 REASONING_ENV = "AETHER_CORE_REASONING"
+CHAIN_ENV = "AETHER_CORE_CHAIN"  # optional on/off (Responses only): previous_response_id chaining, stored responses
+MAX_OUTPUT_ENV = "AETHER_CORE_MAX_OUTPUT"  # optional; per-turn output ceiling in tokens (default 16384); see _max_output
 BUDGET_ENV = "AETHER_CORE_CONTEXT_BUDGET"  # optional; editable-context tokens (default 32000); see _budget
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
 # context on a clone (see verify). SELF_CHECK=on adds the self-check paragraph (tools.SELF_CHECK_DOC).
@@ -142,7 +144,8 @@ def build_provider(
     if shape == "responses":
         from .responses import ResponsesProvider
 
-        return ResponsesProvider(client, model=model, params=params, log=log)
+        chain = _choice(environ, CHAIN_ENV, REPL_MODES, "off") == "on"
+        return ResponsesProvider(client, model=model, params=params, log=log, chain=chain)
     return (StrictChatProvider if _choice(environ, "AETHER_CORE_STRICT_TOOLS", REPL_MODES, "off") == "on" else ChatProvider)(
         client,
         model=model,
@@ -225,7 +228,20 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         evidence_presentation=_choice(
             environ, CONTEXT_EVIDENCE_ENV, ("off", "history_index"), "off"
         ),
+        **_max_output(environ),
     )
+
+
+def _max_output(environ: Mapping[str, str]) -> dict:
+    """The per-turn output ceiling. The rate limiter admits each request by prompt plus this ceiling, so an unused
+    ceiling spends rate-limit headroom (mission 2026-10-28: 31% of run time in rate-limit waits; 1 of 2910 turns
+    over 16k output tokens)."""
+    raw = environ.get(MAX_OUTPUT_ENV, "").strip()
+    if not raw:
+        return {}
+    if not raw.isdigit() or int(raw) < 4_096:
+        raise ConfigError(f"{MAX_OUTPUT_ENV} must be an integer number of tokens >= 4096")
+    return {"max_output_tokens": int(raw)}
 
 
 def _record(environ: Mapping[str, str]) -> dict:

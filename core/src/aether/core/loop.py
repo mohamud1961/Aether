@@ -40,7 +40,7 @@ from .review import Transport
 from .terminal import Terminals
 from .tools import system_prompt, tools, validate_call
 
-MAX_OUTPUT_TOKENS = 32_768
+MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
 # A turn the output limit cuts off before any tool call is almost never followed by action at the same effort:
 # in the archived rows 30 of 32 such turns produced nothing, and V2 dna-assembly lost 550-900 s of each row to
 # two or three in a row. The next turn runs at low effort, to act on the reasoning it already has.
@@ -88,6 +88,9 @@ class CoreConfig:
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
+    # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
+    # an unused ceiling costs rate-limit headroom (mission 2026-10-28: 2910 Luna turns, p99.9 11k, max 17k).
+    max_output_tokens: int = MAX_OUTPUT_TOKENS
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
     def __post_init__(self) -> None:
@@ -101,7 +104,7 @@ class CoreConfig:
             raise ValueError("evidence_presentation requires Core CLM history")
         if self.evidence_presentation == "history_index" and not self.clm.attest_original_history:
             raise ValueError("history_index requires append-time original-history attestation")
-        self.clm.check_request_limit(MAX_OUTPUT_TOKENS)
+        self.clm.check_request_limit(self.max_output_tokens)
 
 
 @dataclass
@@ -443,7 +446,7 @@ async def _loop(s: _Session) -> None:
             turn = await s.provider.complete(
                 request,
                 s.tools,
-                max_tokens=AFTER_CUT_MAX_TOKENS if cut else MAX_OUTPUT_TOKENS,
+                max_tokens=min(AFTER_CUT_MAX_TOKENS, s.config.max_output_tokens) if cut else s.config.max_output_tokens,
                 remaining_s=s.remaining,
                 overrides=AFTER_CUT if cut else None,
                 role=s.config.role,

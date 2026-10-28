@@ -118,9 +118,12 @@ class ResponsesProvider(ChatProvider):
     """``ChatProvider`` (retries, deadlines, call log) with the Responses request and stream."""
 
     def __init__(
-        self, client: Any, *, cache_key: str | None = None, **kwargs: Any
+        self, client: Any, *, cache_key: str | None = None, chain: bool = False, **kwargs: Any
     ) -> None:
         super().__init__(client, **kwargs)
+        # chain: stored responses, and a request that only extends the previous one sends the new items after
+        # previous_response_id (the provider holds the rest). Any other request, or any failure, sends it all.
+        self.chain, self._last = chain, None
         self.limit_field = "max_output_tokens"
         # One key per provider (one response chain): the API routes calls with the same key and prefix to the same
         # cache, as Codex does per session. Without it, parallel runs sharing the system prompt are routed by the
@@ -159,7 +162,13 @@ class ResponsesProvider(ChatProvider):
     async def _stream_once(self, request: dict[str, Any], turn: Turn) -> None:
         started = time.monotonic()
         args = {k: v for k, v in request.items() if k != "params"}
-        stream = await self._client.responses.create(**args, **request["params"])
+        params = dict(request["params"])
+        full = args["input"]
+        if self.chain:
+            params["store"] = True
+            args = {**args, **self._chained(full)}
+            self._last = None  # restored only on success: a failed or retried call resends everything
+        stream = await self._client.responses.create(**args, **params)
         reasoning: list[dict[str, Any]] = []
         final = None
         try:
@@ -225,6 +234,8 @@ class ResponsesProvider(ChatProvider):
             for _, c in sorted(turn.streamed_calls.items())
         ]
         turn.reasoning_items = reasoning
+        if self.chain and turn.response_id:
+            self._last = (full, turn.response_id)
         if getattr(final, "status", "") == "incomplete":
             reason = (
                 getattr(getattr(final, "incomplete_details", None), "reason", "") or ""
@@ -235,3 +246,18 @@ class ResponsesProvider(ChatProvider):
         else:
             turn.finish_reason = "tool_calls" if turn.tool_calls else "stop"
         turn.latency_s = time.monotonic() - started
+
+    def _chained(self, full: list[dict[str, Any]]) -> dict[str, Any]:
+        """The input to send: after the previous request's items and that turn's own output items (reasoning,
+        text, calls, which the provider stored with the response), only what is new."""
+        if self._last is None:
+            return {}
+        sent, response_id = self._last
+        if len(full) <= len(sent) or full[: len(sent)] != sent:
+            return {}
+        rest = full[len(sent):]
+        while rest and (rest[0].get("type") in ("reasoning", "function_call") or rest[0].get("role") == "assistant"):
+            rest = rest[1:]
+        if not rest:
+            return {}
+        return {"input": rest, "previous_response_id": response_id}
