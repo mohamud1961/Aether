@@ -10,7 +10,7 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-from aether.core import diffcheck
+from aether.core import diffcheck, diffcheck_text
 from aether.core.diffcheck import DiffCheck, author_config
 from aether.core.harbor_agent import build_config
 from tests.core_fakes import LocalEnv
@@ -55,6 +55,7 @@ class Rig:
         self.target.parent.mkdir()
         self.rows: list[tuple[str, dict]] = []
         self.briefs: list[str] = []
+        self.author_envs: list = []
         self.now = 0.0
         self.check, self.broken, self.fail = check, broken, fail
         self.status, self.support = status, support
@@ -62,8 +63,9 @@ class Rig:
                             lambda: remaining, lambda event, **data: self.rows.append((event, data)), self.author,
                             lambda: self.now)
 
-    async def author(self, brief: str, timeout_s: float) -> None:
+    async def author(self, brief: str, timeout_s: float, env=None) -> None:
         self.briefs.append(brief)
+        self.author_envs.append(env)
         if self.fail:
             raise RuntimeError("provider down")
         (self.dir / "check.py").write_text(self.check)
@@ -77,7 +79,7 @@ class Rig:
     async def prime_component(self) -> None:
         """Bypass public admission to test deterministic checker mechanics only."""
         self.dc.state = "authoring"
-        brief = diffcheck.AUTHOR_BRIEF.format(dir=str(self.dir), task=self.dc.task, check_s=diffcheck.CHECK_S)
+        brief = diffcheck_text.AUTHOR_BRIEF.format(dir=str(self.dir), task=self.dc.task, check_s=diffcheck.CHECK_S)
         self.dc.job = asyncio.create_task(self.author(brief, 10.0))
         await asyncio.gather(self.dc.job, return_exceptions=True)
         await self.dc._accept()
@@ -188,7 +190,7 @@ def test_an_author_failure_is_traced_and_says_nothing(tmp_path):
 def test_public_start_fails_closed_and_never_launches_author(tmp_path):
     async def go():
         rig = Rig(tmp_path)
-        rig.dc.start()
+        await rig.dc.start()
         assert rig.dc.state == "unverified" and rig.dc.job is None and rig.briefs == []
         assert rig.events() == ["diffcheck_admission_blocked"]
         assert (await rig.step("def double(x):\n    return x * x\n")) == ""
@@ -305,7 +307,7 @@ def test_changed_candidate_during_subprocess_check_is_discarded(tmp_path):
         )
         rig.check = slow_check
         rig.dc.state = "authoring"
-        brief = diffcheck.AUTHOR_BRIEF.format(dir=str(rig.dir), task=rig.dc.task, check_s=diffcheck.CHECK_S)
+        brief = diffcheck_text.AUTHOR_BRIEF.format(dir=str(rig.dir), task=rig.dc.task, check_s=diffcheck.CHECK_S)
         rig.dc.job = asyncio.create_task(rig.author(brief, 10.0))
         await asyncio.gather(rig.dc.job, return_exceptions=True)
         await rig.dc._accept()
@@ -476,3 +478,86 @@ def test_the_loop_blocks_the_shared_environment_author(tmp_path):
     assert result.extras["diffcheck"]["provenance"] == "unverified"
     assert result.extras["diffcheck"]["runs"] == []
     assert set(provider.log.by_role) == {"worker"}
+
+
+class Box(LocalEnv):
+    """Stands in for the author's own container: every command it runs is recorded apart from the solver's."""
+
+    closed = False
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def isolated(tmp_path, fn, **kw):
+    async def go():
+        rig = Rig(tmp_path, **kw)
+        box = Box(tmp_path)
+        async def factory(timeout_s):
+            return box
+        rig.dc._box_factory = factory
+        await rig.dc.start()
+        await asyncio.gather(rig.dc.job, return_exceptions=True)
+        try:
+            return await fn(rig, box)
+        finally:
+            await rig.dc.close()
+        assert box.closed
+
+    return asyncio.run(go())
+
+
+def _checks(env):
+    return [c for c in env.commands if "check.py --candidate" in c]
+
+
+def test_isolated_author_works_in_its_box_and_the_check_runs_only_there(tmp_path):
+    async def go(rig, box):
+        assert rig.author_envs == [box] and "you will never see their work" in rig.briefs[0]
+        note = await rig.step("def double(x):\n    return x * x\n")
+        assert note.startswith("[independent check:") and "disagrees" in note and "input: 1" in note
+        assert _checks(box) and not _checks(rig.dc.env)
+        assert "diffcheck_ready" in rig.events() and rig.dc.summary()["provenance"] == "isolated_clone"
+
+    isolated(tmp_path, go)
+
+
+def test_isolated_finish_with_a_disagreeing_file_is_held_once(tmp_path):
+    async def go(rig, box):
+        rig.target.write_text("def double(x):\n    return x * x\n")
+        first = await rig.dc.at_finish()
+        assert "disagrees" in first and "has not taken effect" in first
+        assert await rig.dc.at_finish() == ""  # a second finish always takes effect
+
+    isolated(tmp_path, go)
+
+
+def test_isolated_finish_holds_when_the_disagreement_was_already_shown(tmp_path):
+    async def go(rig, box):
+        assert "disagrees" in await rig.step("def double(x):\n    return x * x\n")
+        held = await rig.dc.at_finish()
+        assert "disagrees" in held and "has not taken effect" in held
+
+    isolated(tmp_path, go)
+
+
+def test_isolated_finish_with_an_agreeing_file_takes_effect(tmp_path):
+    async def go(rig, box):
+        rig.target.write_text(GOOD)
+        assert await rig.dc.at_finish() == ""
+        assert rig.dc.runs[-1]["status"] == "agrees"
+
+    isolated(tmp_path, go)
+
+
+def test_isolated_box_failure_is_traced_and_the_run_goes_on(tmp_path):
+    async def go():
+        rig = Rig(tmp_path)
+        async def factory(timeout_s):
+            raise RuntimeError("docker commit failed")
+        rig.dc._box_factory = factory
+        await rig.dc.start()
+        assert rig.dc.state == "failed" and rig.briefs == [] and "diffcheck_box_failed" in rig.events()
+        assert await rig.dc.at_finish() == ""
+
+    asyncio.run(go())

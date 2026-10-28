@@ -322,7 +322,7 @@ def harbor_clone(environment: Any):
 
 def with_clones(config: CoreConfig, environment: Any) -> CoreConfig:
     """Contract checks and the finish check work on clones of the task container: give them Harbor's."""
-    needed = config.verify
+    needed = config.verify or config.diffcheck
     return replace(config, make_clone=harbor_clone(environment)) if needed else config
 
 

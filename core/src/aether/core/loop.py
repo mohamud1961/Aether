@@ -212,7 +212,7 @@ class _Session:
         self.held = False  # the neutral finish hold was used
         self.diffcheck = (
             diffcheck.DiffCheck(self.env, task, f"{config.control_dir}/diffcheck", self.remaining, trace, _diffcheck_author(self),
-                        self.elapsed)
+                        self.elapsed, box=(lambda t: self.clone(self.env, timeout_s=t)) if config.make_clone else None)
             if config.diffcheck and config.role == "worker" else None
         )
 
@@ -293,7 +293,7 @@ async def run_agent(
                 if config.verify:
                     raise
             if s.diffcheck:
-                s.diffcheck.start()
+                await s.diffcheck.start()
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
             s.tools = tools(
@@ -892,6 +892,10 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         s.trace("state_finish", held=held, state=s.state.record())
         if held:
             return text, False
+    if s.diffcheck:
+        note = await s.diffcheck.at_finish()
+        if note:
+            return note, False
     if s.config.verify and "verification" not in s.result.extras:
         from . import verify
 
@@ -923,13 +927,15 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
 
 
 def _diffcheck_author(s: _Session) -> Callable[[str, float], Awaitable[Any]]:
-    """The differential check.s author: a fresh Core run in the same container, working in the check directory (see diffcheck)."""
+    """The differential check's author: a fresh Core run in the check's own container (isolated mode) or, in
+    component tests only, the given environment, working in the check directory (see diffcheck)."""
 
-    async def author(brief: str, timeout_s: float) -> RunResult:
+    async def author(brief: str, timeout_s: float, env: Environment | None = None) -> RunResult:
         from .verify import _Labelled
 
-        await run(s.env, f"mkdir -p {shlex.quote(s.diffcheck.dir)}")
-        return await run_agent(env=s.env, task=brief, workdir=s.diffcheck.dir,
+        env = env if env is not None else s.env
+        await run(env, f"mkdir -p {shlex.quote(s.diffcheck.dir)}")
+        return await run_agent(env=env, task=brief, workdir=s.diffcheck.dir,
                                provider=_Labelled(s.provider, diffcheck.AUTHOR_ROLE), timeout_s=timeout_s,
                                trace=Trace(s.trace.path.with_name(diffcheck.TRACE_FILE)),
                                config=diffcheck.author_config(s.config))
