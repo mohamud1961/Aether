@@ -57,8 +57,9 @@ def available() -> bool:
     return True
 
 
-async def load(env: Environment, path: str) -> tuple[str, str]:
-    """Return (description, data URL). Raises with a plain reason the model can act on."""
+async def load(env: Environment, path: str, region: list[int] | None = None) -> tuple[str, str]:
+    """Return (description, data URL). Raises with a plain reason the model can act on. ``region``: crop to
+    [left, top, right, bottom] of the source pixels before any downscale (image_region)."""
     from PIL import Image
 
     # Size is checked inside the sandbox, before anything is copied to the host.
@@ -97,11 +98,25 @@ async def load(env: Environment, path: str) -> tuple[str, str]:
     if getattr(img, "n_frames", 1) > 1:
         img.seek(0)
     img = img.convert("RGBA" if "A" in mode else "RGB")
+    box = None
+    if region is not None:
+        from .image_region import check
+
+        box = check(region, size)
+        img = img.crop(box)
+        zoom = min(4, MAX_SIDE // max(img.size))  # small text reads better enlarged
+        if zoom > 1:
+            img = img.resize((img.size[0] * zoom, img.size[1] * zoom), Image.LANCZOS)
     if max(img.size) > MAX_SIDE:
         img.thumbnail((MAX_SIDE, MAX_SIDE))
     out = io.BytesIO()
     img.save(out, format="PNG")
-    shown = "" if img.size == size else f", shown at {img.size[0]}x{img.size[1]}"
+    crop = f", region {list(box)}" if box else ""
+    native = box and img.size == (box[2] - box[0], box[3] - box[1])
+    if box and not native and img.size[0] > box[2] - box[0]:
+        crop += f", enlarged {img.size[0] // (box[2] - box[0])}x to {img.size[0]}x{img.size[1]}"
+        native = True
+    shown = crop + ("" if img.size == size or native else f", shown at {img.size[0]}x{img.size[1]}")
     desc = f"{path}: {fmt} {size[0]}x{size[1]} {mode}{shown}"
     return desc, "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
 

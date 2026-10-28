@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from . import compaction, diffcheck, finish_report, images, intent, runstate
+from . import compaction, diffcheck, finish_report, image_region, images, intent, runstate
 from . import receipt as finish_receipt
 from .clm import ClmContext, ClmSettings
 from .clone import Clone
@@ -88,6 +88,7 @@ class CoreConfig:
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
+    image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
     env_brief: bool = False  # what the container provides (tools, packages, files), measured once, in the task (env_brief)
     start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
@@ -316,6 +317,8 @@ async def run_agent(
                 history=config.context == "clm",
                 verdict=config.role == VERIFIER_ROLE,
             )
+            if config.image_region and see:
+                s.tools = image_region.with_region(s.tools)
             if config.intent:
                 s.tools = intent.with_intent(s.tools)
             if config.open_issues:
@@ -718,7 +721,7 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         ), False
     if name == "view_image":
         path = s.files.resolve(args["path"])
-        desc, url = await images.load(s.env, path)
+        desc, url = await images.load(s.env, path, region=args.get("region"))
         s.pending_images.append(images.message(desc, url))
         s.images_viewed += 1
         return f"[image {desc}; shown below]", False

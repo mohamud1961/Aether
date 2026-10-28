@@ -34,6 +34,7 @@ from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
 from .open_issues import OPEN_ISSUES_ENV
 from .start_copy import START_COPY_ENV
 from .env_brief import ENV_BRIEF_ENV
+from .image_region import IMAGE_REGION_ENV
 from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
 from .tools import HYGIENE_MODES
@@ -235,6 +236,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         open_issues=_choice(environ, OPEN_ISSUES_ENV, REPL_MODES, "off") == "on",
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "off") == "on",
         env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
+        image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
     )
 
 
