@@ -37,7 +37,7 @@ from .diffcheck_text import AGREES, AGREES_ISOLATED, FINISH_HOLD, FOUND, FOUND_I
 DIFFCHECK_ENV = "AETHER_CORE_DIFFCHECK"
 DIFFCHECK_MODES = ("off", "on")
 AUTHOR_ROLE = "diffcheck"
-AUTHOR_SHARE, AUTHOR_MAX_S, AUTHOR_MIN_S = 0.35, 900.0, 120.0
+AUTHOR_SHARE, AUTHOR_MAX_S, AUTHOR_MIN_S = 0.6, 900.0, 120.0  # 0.35 timed out authors (y2, 28 Oct)
 CHECK_S, MIN_GAP_S, RESERVE_S = 300, 60.0, 90.0
 SHOWN_CHARS = 2_500
 MAX_CANDIDATE_BYTES = 16 * 1024 * 1024
@@ -75,8 +75,7 @@ class DiffCheck:
                  trace: Callable[..., None], author: Callable[..., Awaitable[Any]],
                  clock: Callable[[], float], box: Callable[[float], Awaitable[Any]] | None = None) -> None:
         self.env, self.task, self.dir = env, task, check_dir
-        self._box_factory, self.box = box, None  # isolated mode: the author's own container (see module doc)
-        self.held = False
+        self._box_factory, self.box, self.held = box, None, False  # isolated mode: the author's own container
         self.remaining, self.trace, self._author, self.clock = remaining, trace, author, clock
         self.check, self.target = f"{check_dir}/check.py", ""
         self.source = b""  # the accepted check, held by the harness
@@ -116,10 +115,14 @@ class DiffCheck:
         t0 = self.clock()
         try:
             self.box = await self._box_factory(min(300.0, timeout))
-            await run(self.box, f"mkdir -p {shlex.quote(self.dir)}", timeout_s=30)
+            probe = await run(self.box, f"mkdir -p {shlex.quote(self.dir)} && command -v python3", timeout_s=30)
         except Exception as exc:  # an instrument: no box, no check; the run goes on
             self.state = "failed"
             self.trace("diffcheck_box_failed", error=f"{type(exc).__name__}: {exc}"[:500])
+            return
+        if probe.code != 0:  # the check and its harness-side manifest run on python3
+            self.state = "failed"
+            self.trace("diffcheck_skipped", reason="no python3 in the task container")
             return
         timeout = author_timeout(self.remaining()) or AUTHOR_MIN_S
         brief = ISOLATED_BRIEF.format(dir=self.dir, task=self.task, check_s=CHECK_S)

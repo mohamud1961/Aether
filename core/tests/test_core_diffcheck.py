@@ -575,3 +575,22 @@ def test_isolated_finish_holds_on_a_disagreement_printed_one_field_per_line(tmp_
 
     assert MULTILINE_CHECK != CHECK
     isolated(tmp_path, go, check=MULTILINE_CHECK)
+
+
+def test_isolated_box_without_python3_skips_once_and_stays_quiet(tmp_path):
+    class NoPython(Box):
+        async def exec(self, command, cwd=None, env=None, timeout_sec=None):
+            return await super().exec(command.replace("command -v python3", "false"), cwd, env, timeout_sec)
+
+    async def go():
+        rig = Rig(tmp_path)
+        box = NoPython(tmp_path)
+        async def factory(timeout_s):
+            return box
+        rig.dc._box_factory = factory
+        await rig.dc.start()
+        assert rig.dc.state == "failed" and rig.briefs == [] and "diffcheck_skipped" in rig.events()
+        assert await rig.step("def double(x):\n    return x * x\n") == ""
+        assert not any(e == "diffcheck_error" for e in rig.events())
+
+    asyncio.run(go())

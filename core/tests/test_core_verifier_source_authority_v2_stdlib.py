@@ -92,10 +92,11 @@ class CoreVerifierSourceBinding(unittest.TestCase):
         (message,finished),s=run_case("defect_found",unbound=True,writable=True)
         self.assertTrue(finished)
         self.assertEqual(s.rows[0]["status"],"defect_found_unbound_writable")
-    def test_partial_tree_cannot_veto(self):
+    def test_partial_tree_on_a_held_readonly_clone_holds_once(self):
         (message,finished),s=run_case("defect_found",partial=True)
-        self.assertTrue(finished)
-        self.assertEqual(s.rows[0]["status"],"defect_found_partial")
+        self.assertFalse(finished)
+        self.assertIn("defect held",message)
+        self.assertEqual(s.rows[0]["status"],"defect_found")
     def test_writable_clone_cannot_veto(self):
         (message,finished),s=run_case("defect_found",writable=True)
         self.assertTrue(finished)

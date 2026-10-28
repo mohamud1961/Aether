@@ -88,6 +88,7 @@ class CoreConfig:
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
+    start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
     # an unused ceiling costs rate-limit headroom (mission 2026-10-28: 2910 Luna turns, p99.9 11k, max 17k).
@@ -284,6 +285,12 @@ async def run_agent(
 
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
+            start_note = ""
+            if config.start_copy and config.role == "worker":
+                from . import start_copy
+
+                start_note, row = await start_copy.take(s.env, workdir, config.control_dir)
+                trace("start_copy", **row)
             # the start marker: files newer than it are what the run changed (the verifier and the finish report
             # use it). Only the verifier needs it to work; for the report a missing marker is a reported fact, not a
             # run failure.
@@ -326,7 +333,8 @@ async def run_agent(
                 },
                 {
                     "role": "user",
-                    "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)",
+                    "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
+                    + (f"\n{start_note}" if start_note else ""),
                 },
             ]
             if config.context == "clm":

@@ -25,7 +25,8 @@ missing deliverable itself, so the verifier keeps build and scratch output under
 check changed and what it reported, as a proposed repair, and the work continues. A bound entry that changed in the
 original during the check makes the finding stale (the finish takes effect). If any manifest cannot be taken, the
 finding is recorded as ``<finding>_unbound``; if the tree has unbound parts (pruned directories such as .git, mount
-points), as ``<finding>_partial``. A defect hypothesis with unbound or partial provenance is kept in the audit record but does NOT block
+points) on a writable clone, as ``<finding>_partial`` (on a held read-only clone pruned directories cannot change, so the
+finding stands as bound). A defect hypothesis with unbound or partial provenance is kept in the audit record but does NOT block
 the solver's finish. Nothing outside the working directory is bound, and a change made and reverted before the closing manifest is not seen: the
 binding compares states, it does not watch the review.
 
@@ -290,7 +291,11 @@ def _status(row: dict[str, Any], finding: str | None) -> str:
         return "void_candidate_modified"
     if row.get("original_changed"):
         return "stale_original_changed"
-    return finding + ("_partial" if row.get("unbound") else "") + writable
+    # Pruned directories (.git, __pycache__, ...) are not fingerprinted, but a held read-only clone could not
+    # change them either, and the solver does not act during the check: there the finding stands as bound.
+    # (y1, 28 Oct: an executed, evidenced defect was made advisory by one __pycache__ and the wrong file shipped.)
+    partial = row.get("unbound") and writable
+    return finding + ("_partial" if partial else "") + writable
 
 
 async def at_finish(s: Any) -> tuple[str, bool]:
