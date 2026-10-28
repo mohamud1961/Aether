@@ -45,7 +45,8 @@ TRACE_FILE = "diffcheck_trace.jsonl"
 _UNVERIFIED_REASON = "same-container author has unrestricted solver-workspace access; no isolation certificate provider exists"
 
 _NOISE = re.compile(r"\b\d+(\.\d+)?\s*(ms|s|sec|seconds)\b|0x[0-9a-f]+", re.I)
-_DISAGREEMENT = re.compile(r"input:\s*.+?\s*/\s*expected:\s*.+?\s*/\s*actual:\s*.+", re.I | re.S)
+# input / expected / actual, separated by " / " or by line breaks (authors write both)
+_DISAGREEMENT = re.compile(r"input:\s*.+?\s*(/|\n)\s*expected:\s*.+?\s*(/|\n)\s*actual:\s*.+", re.I | re.S)
 
 
 def author_config(config: Any) -> Any:

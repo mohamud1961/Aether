@@ -561,3 +561,17 @@ def test_isolated_box_failure_is_traced_and_the_run_goes_on(tmp_path):
         assert await rig.dc.at_finish() == ""
 
     asyncio.run(go())
+
+
+MULTILINE_CHECK = CHECK.replace('print(f"input: {x} / expected: {2 * x} / actual: {got}")',
+                                'print(f"input: {x}\\nexpected: {2 * x}\\nactual: {got}")')
+
+
+def test_isolated_finish_holds_on_a_disagreement_printed_one_field_per_line(tmp_path):
+    async def go(rig, box):
+        rig.target.write_text("def double(x):\n    return x * x\n")
+        held = await rig.dc.at_finish()
+        assert "disagrees" in held and "expected: 2" in held and "has not taken effect" in held
+
+    assert MULTILINE_CHECK != CHECK
+    isolated(tmp_path, go, check=MULTILINE_CHECK)
