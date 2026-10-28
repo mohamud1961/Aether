@@ -238,3 +238,23 @@ def test_hygiene_off_is_the_unchanged_prompt_and_on_or_placebo_add_one_line_befo
 
     with pytest.raises(ValueError):
         system_prompt(python_version="3.12", clm=True, hygiene="bogus")
+
+
+def test_provider_backs_off_a_rate_limit_reported_inside_the_stream():
+    # The SDK raises an in-stream SSE error event as APIError with no status code (M1 b0, 2026-10-28).
+    class APIError(Exception):
+        pass
+
+    waits = []
+
+    async def sleep(s):
+        waits.append(s)
+
+    limited = APIError("Your requests to gpt-6-luna have exceeded token rate limit. Please retry after 6 seconds.")
+    storm = [limited for _ in range(8)]
+    p = ChatProvider(ScriptedClient(storm + [call("finish", {"summary": "x"})]), model="m", params={}, sleep=sleep)
+    turn = asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+    assert turn.attempts == 9 and waits[0] == 6.0
+    p = ChatProvider(ScriptedClient([APIError("some other stream failure")]), model="m", params={}, sleep=sleep)
+    with pytest.raises(ProviderError):
+        asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))

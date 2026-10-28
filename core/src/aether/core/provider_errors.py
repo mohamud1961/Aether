@@ -6,6 +6,7 @@ Split from provider.py (module-size cap, 2026-10-26) with the code unchanged.
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -66,3 +67,15 @@ def _retry_after(exc: Exception) -> float | None:
             if math.isfinite(seconds):
                 return max(seconds, 0.5)
     return None
+
+
+def _in_band_rate_limit(text: str) -> bool:
+    """A rate limit the provider reported inside a 200 stream (an SSE ``error`` event): the SDK raises it with no
+    status code. M1 b0 (2026-10-28): "exceeded token rate limit" ended runs at step 5 with no retry."""
+    lowered = text.lower()
+    return "rate limit" in lowered or "rate_limit" in lowered or "too many requests" in lowered
+
+
+def _retry_after_text(text: str) -> float | None:
+    match = re.search(r"retry after (\d+(?:\.\d+)?) seconds?", text, re.IGNORECASE)
+    return max(float(match.group(1)), 0.5) if match else None

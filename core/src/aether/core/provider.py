@@ -21,7 +21,8 @@ from urllib.parse import urlparse
 from . import reasoning_wire as reasoning_wire_mod
 
 from .calls import CallLog
-from .provider_errors import IncompleteStream, ProviderError, _is_transport, _retry_after
+from .provider_errors import (IncompleteStream, ProviderError, _in_band_rate_limit, _is_transport, _retry_after,
+                              _retry_after_text)
 
 RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
 MAX_ATTEMPTS = 8
@@ -358,12 +359,14 @@ class ChatProvider:
                     raise ProviderError(
                         text[:500], status=400, context_overflow=True
                     ) from exc
+                in_band = status is None and _in_band_rate_limit(text)
                 transient = (
-                    status in RETRYABLE_STATUS
+                    in_band
+                    or status in RETRYABLE_STATUS
                     or status is None
                     and (_is_transport(exc) or isinstance(exc, IncompleteStream))
                 )
-                rate_limited = status in RATE_LIMIT_STATUS
+                rate_limited = in_band or status in RATE_LIMIT_STATUS
                 other_failures += not rate_limited
                 if (
                     not transient
@@ -373,7 +376,7 @@ class ChatProvider:
                     raise ProviderError(
                         f"{type(exc).__name__}: {text[:500]}", status=status
                     ) from exc
-                hinted = _retry_after(exc)
+                hinted = _retry_after(exc) or _retry_after_text(text)
                 wait = hinted or delay * (0.75 + 0.5 * random.random())
                 row.update(wait_s=round(wait, 2), retry_after=hinted)
                 failures.append(row)
