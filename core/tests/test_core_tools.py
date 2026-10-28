@@ -258,3 +258,22 @@ def test_provider_backs_off_a_rate_limit_reported_inside_the_stream():
     p = ChatProvider(ScriptedClient([APIError("some other stream failure")]), model="m", params={}, sleep=sleep)
     with pytest.raises(ProviderError):
         asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+
+
+def test_provider_retries_a_server_fault_reported_inside_the_stream_a_bounded_number_of_times():
+    # Mission ho5 (2026-10-28): an in-stream "overloaded" error ended the run at once (known-bad: no retry).
+    class APIError(Exception):
+        pass
+
+    waits = []
+
+    async def sleep(s):
+        waits.append(s)
+
+    busy = APIError("The server is overloaded or not ready yet. Please try again later.")
+    p = ChatProvider(ScriptedClient([busy, busy, call("finish", {"summary": "x"})]), model="m", params={}, sleep=sleep)
+    turn = asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+    assert turn.attempts == 3 and len(waits) == 2
+    p = ChatProvider(ScriptedClient([busy] * 20), model="m", params={}, sleep=sleep)
+    with pytest.raises(ProviderError):
+        asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))

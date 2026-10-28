@@ -21,7 +21,8 @@ from urllib.parse import urlparse
 from . import reasoning_wire as reasoning_wire_mod
 
 from .calls import CallLog
-from .provider_errors import (IncompleteStream, ProviderError, _in_band_rate_limit, _is_transport, _retry_after,
+from .provider_errors import (IncompleteStream, ProviderError, _in_band_rate_limit, _in_band_transient, _is_transport,
+                              _retry_after,
                               _retry_after_text)
 
 RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
@@ -364,7 +365,7 @@ class ChatProvider:
                     in_band
                     or status in RETRYABLE_STATUS
                     or status is None
-                    and (_is_transport(exc) or isinstance(exc, IncompleteStream))
+                    and (_is_transport(exc) or isinstance(exc, IncompleteStream) or _in_band_transient(text))
                 )
                 rate_limited = in_band or status in RATE_LIMIT_STATUS
                 other_failures += not rate_limited

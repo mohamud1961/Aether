@@ -76,6 +76,14 @@ def _in_band_rate_limit(text: str) -> bool:
     return "rate limit" in lowered or "rate_limit" in lowered or "too many requests" in lowered
 
 
+def _in_band_transient(text: str) -> bool:
+    """A server fault the provider reported inside a 200 stream (no status code). Mission ho5 (2026-10-28):
+    "The server is overloaded or not ready yet. Please try again later." ended a run at once as provider_error."""
+    lowered = text.lower()
+    return any(k in lowered for k in ("overloaded", "not ready yet", "try again later", "server_error",
+                                      "service unavailable", "internal server error"))
+
+
 def _retry_after_text(text: str) -> float | None:
     match = re.search(r"retry after (\d+(?:\.\d+)?) seconds?", text, re.IGNORECASE)
     return max(float(match.group(1)), 0.5) if match else None
