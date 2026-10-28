@@ -38,6 +38,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
+from . import open_issues
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -91,6 +92,7 @@ class CoreConfig:
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
     # an unused ceiling costs rate-limit headroom (mission 2026-10-28: 2910 Luna turns, p99.9 11k, max 17k).
     max_output_tokens: int = MAX_OUTPUT_TOKENS
+    open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
     def __post_init__(self) -> None:
@@ -302,6 +304,8 @@ async def run_agent(
             )
             if config.intent:
                 s.tools = intent.with_intent(s.tools)
+            if config.open_issues:
+                s.tools = open_issues.with_field(s.tools)
             if s.state:
                 s.tools = runstate.with_state(s.tools)
             pinned = [
@@ -868,6 +872,13 @@ def _with_state(s: _Session, out: str) -> str:
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     s.result.extras["finish_args"] = args
+    if s.config.open_issues and not s.result.extras.get("open_issues_held"):
+        text = open_issues.hold(args, s.remaining(), s.timeout_s)
+        s.trace("open_issues", issues=open_issues.issues(args), held=text is not None,
+                remaining_s=round(s.remaining(), 1))
+        if text:
+            s.result.extras["open_issues_held"] = True
+            return text, False
     if s.record:
         hold, text, _row = await s.record.at_finish()
         if hold:
