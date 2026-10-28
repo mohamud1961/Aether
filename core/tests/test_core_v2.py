@@ -11,7 +11,7 @@ import pytest
 
 from aether.core import oversight as core_oversight
 from aether.core.clm import ClmContext, ClmSettings
-from aether.core.loop import CoreConfig, Trace, run_agent
+from aether.core.loop import MAX_OUTPUT_TOKENS, CoreConfig, Trace, run_agent
 from aether.core.oversight import ReviewPlan
 from aether.core.provider import ChatProvider
 from aether.core.repl import Repl
@@ -692,7 +692,7 @@ def test_a_turn_cut_off_by_the_output_limit_is_reported_as_such(tmp_path):
         client.requests[1]["reasoning_effort"] == "low"
         and client.requests[1]["max_tokens"] == 8_192
     )
-    assert client.requests[0]["max_tokens"] == 32_768
+    assert client.requests[0]["max_tokens"] == MAX_OUTPUT_TOKENS
     assert (
         "reasoning_effort" not in client.requests[0]
         or client.requests[0]["reasoning_effort"] != "low"
