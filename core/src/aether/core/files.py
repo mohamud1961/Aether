@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 import codecs
+import difflib
 import hashlib
 import posixpath
 import shlex
@@ -20,33 +21,43 @@ DEFAULT_LINES = 400
 
 
 def _edit_miss_evidence(path: str, payload: bytes, text: str, old_str: str) -> str:
-    """Only actual read-time bytes, never an invented corrected edit.
+    """Where the intended text really is, from read-time bytes only: never an invented corrected edit.
 
-    Bounded diagnostic for failed exact edits. The file may change after our
-    read, so this is intentionally NOT a durable current-version claim.
+    y12-y14: 34 of 456 edits missed and the next call was usually a full re-read. The message now leads with the
+    file's own lines near the best anchor (numbered), and says when old_str matches apart from whitespace. The file
+    may change after this read, so none of it is a durable current-version claim.
     """
     observed = hashlib.sha256(payload).hexdigest()
-    label = (
-        f"observed read-time sha256={observed} (not a current/durable file guarantee)"
-    )
-    # Do not scan arbitrary approximate matches or suggest a replacement.
-    # Choose at most four exact token fragments from the submitted old text;
-    # quote only the first real source line containing one.
+    label = f"observed read-time sha256={observed} (not a current/durable file guarantee)"
+    lines = text.split("\n")
+    want = [w.strip() for w in old_str.strip("\n").split("\n")]
+    have = [h.strip() for h in lines]
+    if want and any(want):
+        for i in range(len(have) - len(want) + 1):
+            if have[i : i + len(want)] == want:
+                return (f"old_str matches lines {i + 1}-{i + len(want)} apart from whitespace or indentation; "
+                        f"copy their exact text:\n{_numbered(lines, i, i + len(want))}\n({label})")
     anchors = [part[:96] for part in old_str[:2048].split() if len(part) >= 8]
     anchors = sorted(anchors[:12], key=len, reverse=True)[:4]
     for anchor in anchors:
         index = text.find(anchor)
         if index < 0:
             continue
-        line_num = text.count("\n", 0, index) + 1
-        begin = text.rfind("\n", 0, index) + 1
-        last = text.find("\n", index)
-        line = text[begin : last if last >= 0 else len(text)]
-        preview = line[:240] + ("…" if len(line) > 240 else "")
-        return (
-            f"{label}; exact source fragment observed at line {line_num}: {preview!r}"
-        )
-    return label
+        line = text.count("\n", 0, index)
+        return (f"the file's own lines near an exact fragment of old_str (line {line + 1}):\n"
+                f"{_numbered(lines, max(0, line - 3), min(len(lines), line + len(want) + 3))}\n({label})")
+    first = next((w for w in want if w), "")
+    close = difflib.get_close_matches(first, have, n=1, cutoff=0.6) if first and len(lines) <= 20_000 else []
+    if close:
+        line = have.index(close[0])
+        return (f"no exact fragment of old_str was found; the file's line most like its first line is {line + 1}:\n"
+                f"{_numbered(lines, max(0, line - 3), min(len(lines), line + len(want) + 3))}\n({label})")
+    return f"no fragment of old_str was found in the file; re-read it ({label})"
+
+
+def _numbered(lines: list[str], begin: int, end: int, cap: int = 40, width: int = 240) -> str:
+    end = min(end, begin + cap)
+    return "\n".join(f"{n + 1:6d}  {lines[n][:width]}{'…' if len(lines[n]) > width else ''}" for n in range(begin, end))
 
 
 class Files:
@@ -208,8 +219,7 @@ class Files:
         if count == 0:
             evidence = _edit_miss_evidence(path, payload, text, old_str)
             raise ValueError(
-                f"old_str not found in {path}; no write attempted; {evidence}; "
-                "re-read the file and copy the exact text"
+                f"old_str not found in {path}; no write attempted; {evidence}"
             )
         if count > 1 and not replace_all:
             raise ValueError(

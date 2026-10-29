@@ -82,3 +82,4 @@ def test_a_none_rival_lets_the_first_finish_end_the_run(tmp_path):
     result, rows, client = _run(tmp_path, script, config=config, text_script=[_text("NONE")])
     assert result.status == "finished"
     assert next(r for r in rows if r["event"] == "rival")["handed_back"] is False
+
