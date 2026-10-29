@@ -70,6 +70,9 @@ for such a choice, find what in the task or its inputs decides it.
 - Leave the working directory as it is (do not change, delete or add files there): build and keep scratch output \
 under /tmp. A check made \
 on a changed copy says nothing about the delivered state; if you believe a change would fix it, describe the change.
+- Report only what bears on what the task asks for. A defect is a way the state fails something the task requires: \
+quote the task's words it fails. A true observation about something the task does not ask for is not a defect; \
+leave it out, since acting on it can break work that meets the task.
 - Finding: defect_found only for a defect you have shown, with the observation that shows it and the correct result \
 if you know it. no_defect_found when you checked the requirements and found none, saying what you covered. \
 undetermined when the evidence you can get here does not settle it (missing network, services or data is not a \
