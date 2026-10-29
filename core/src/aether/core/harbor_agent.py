@@ -279,7 +279,8 @@ def _fork(environ: Mapping[str, str]) -> dict[str, Any]:
     if on and _choice(environ, VERIFY_ENV, VERIFY_MODES, "off") != "off":
         raise ConfigError(f"{FORK_ENV} and {VERIFY_ENV} both act at the first finish; use one")
     try:
-        return {"fork": on, "fork_arms": fork.load_arms(environ) if on else ()}
+        keep = on and _choice(environ, fork.KEEP_ENV, REPL_MODES, "off") == "on"
+        return {"fork": on, "fork_arms": fork.load_arms(environ) if on else (), "fork_keep": keep}
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
 

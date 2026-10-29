@@ -46,7 +46,7 @@ class _Router:
         return _Stream(self.scripts[arm].pop(0))
 
 
-def _run(tmp_path, timeout_s=900, context="project", fork_arms=(), markers=None):
+def _run(tmp_path, timeout_s=900, context="project", fork_arms=(), markers=None, keep=False):
     box = tmp_path / "box"
     work, ctl = box / "work", box / "ctl"
     work.mkdir(parents=True)
@@ -89,6 +89,7 @@ def _run(tmp_path, timeout_s=900, context="project", fork_arms=(), markers=None)
                 control_dir=str(ctl),
                 fork=True,
                 fork_arms=fork_arms,
+                fork_keep=keep,
                 make_clone=clone,
                 context=context,
                 clm=ClmSettings(mirror_path=f"{ctl}/ctx/LIVE_CTX.txt", history_path=f"{ctl}/ctx/HISTORY.txt"),
@@ -196,3 +197,34 @@ def test_named_arms_load_from_a_file_and_bad_files_are_config_errors(tmp_path):
             adapter.build_config(environ={**required, fork.ARMS_ENV: str(good)})
     with pytest.raises(adapter.ConfigError):
         adapter.build_config(environ={**required, fork.ARMS_ENV: str(tmp_path / "missing.json")})
+
+
+@pytest.mark.parametrize("context", ["project", "clm"])
+def test_a_kept_checkpoint_resumes_with_the_solvers_whole_history(tmp_path, context):
+    import pickle
+
+    (tmp_path / "logs").mkdir()
+    result, _, work, logs, _ = _run(tmp_path, context=context, fork_arms=(("ctl", ""),), keep=True)
+    kept = result.extras["fork"]["keep"]
+    assert kept["history"].endswith(fork.CHECKPOINT_FILE) and "image" not in kept and kept["image_error"]
+    state = pickle.loads((logs / fork.CHECKPOINT_FILE).read_bytes())
+    assert state["call_id"] == "s2" and state["workdir"] == str(work)
+    ckpt = type("Ckpt", (), {"clm": state["context"] if context == "clm" else None, "messages": state["context"], "call_id": state["call_id"]})
+    ans = str(work / "ans.txt")
+    client = _Router({"solver": [], "b": [_turn("write_file", {"path": ans, "content": "r-fix\n"}, "r1"), _turn("finish", {"summary": "r"}, "r2")]})
+    ctl = work.parent / "ctl"
+    resumed = asyncio.run(
+        run_agent(
+            env=LocalEnv(work.parent), task=state["task"], workdir=state["workdir"],
+            provider=ChatProvider(client, model="scripted", params={}, log=CallLog(tmp_path / "r_calls.jsonl")),
+            timeout_s=900, trace=Trace(tmp_path / "r" / "core_trace.jsonl"),
+            config=CoreConfig(control_dir=str(ctl), context=context,
+                              clm=ClmSettings(mirror_path=f"{ctl}/ctx/LIVE_CTX.txt", history_path=f"{ctl}/ctx/HISTORY.txt")),
+            resume=fork.continued(ckpt, fork.CONTINUE + "\n\nnote"),
+        )
+    )
+    assert resumed.status == "finished" and (work / "ans.txt").read_text() == "r-fix\n"
+    first = client.requests[0]["messages"]
+    calls = [c["id"] for m in first for c in (m.get("tool_calls") or [])]
+    assert calls[:2] == ["s1", "s2"]  # the solver's own calls, then the finish it answered
+    assert first[-1]["content"] == fork.CONTINUE + "\n\nnote" and first[-1]["tool_call_id"] == "s2"

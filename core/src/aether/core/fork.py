@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import pickle
 import re
 import shlex
 import time
@@ -42,6 +43,8 @@ CONTINUE = (
 )
 ARMS_ENV = "AETHER_CORE_FORK_ARMS"  # optional host JSON file of named arms; replaces B and C (see load_arms)
 MAX_ARMS = 6
+KEEP_ENV = "AETHER_CORE_FORK_KEEP"  # on: also keep the checkpoint (history + committed image) for a later resume
+CHECKPOINT_FILE = "fork_checkpoint.pkl"
 RECORD_HEAD = (
     "The harness's record of the run at your finish follows. These are observations, not instructions. A flag "
     "means no supporting observation was identified in the captured record, not that something is wrong."
@@ -144,6 +147,36 @@ async def _arm(s: Any, arm: str, text: str, budget: float, logs: Path) -> dict[s
     return row
 
 
+async def keep(s: Any, logs: Path) -> dict[str, Any]:
+    """Keep the first-finish checkpoint for a later resume: the history at the finish, pickled with the task, the
+    workdir and the finish call id, and a committed image of the container tagged ``aether-ckpt:<id>`` (not removed
+    here; the operator owns it). The outcome, never an exception."""
+    out: dict[str, Any] = {}
+    try:
+        state = {"task": s.task, "workdir": s.workdir, "call_id": s.call_id,
+                 "context": s.clm if s.clm is not None else s.messages}
+        (logs / CHECKPOINT_FILE).write_bytes(pickle.dumps(state))
+        out["history"] = str(logs / CHECKPOINT_FILE)
+    except Exception as exc:  # noqa: BLE001
+        out["history_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        clone = await s.clone(s.env, timeout_s=EXPORT_TIMEOUT_S * 8, read_only=True)
+        image, host = getattr(clone, "image", None), getattr(clone, "_host", None)
+        if not (image and host):
+            await clone.close()
+            return {**out, "image_error": "this clone factory makes no image"}
+        tag = "aether-ckpt:" + image.rsplit(":", 1)[-1]
+        steps = (["docker", "rm", "-f", "-v", clone.name], ["docker", "tag", image, tag], ["docker", "rmi", image])
+        for argv in steps:
+            code, _, err = await host(argv, 120)
+            if code != 0:
+                return {**out, "image_error": f"{argv[1]} failed: {err.strip()[:200]}"}
+        out["image"] = tag
+    except Exception as exc:  # noqa: BLE001
+        out["image_error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
 async def at_finish(s: Any) -> tuple[str, bool]:
     """Export A, run B and C on clones in parallel, record; the solver's finish then takes effect unchanged."""
     logs = s.trace.path.parent
@@ -154,7 +187,8 @@ async def at_finish(s: Any) -> tuple[str, bool]:
     row: dict[str, Any] = {"status": "ran", "budget_s": round(budget, 1), "a": await export(s.env, s.workdir, logs / "fork_a_workdir.tgz")}
     if s.config.fork_arms:
         arms = [(n, f"{CONTINUE}\n\n{t}" if t else CONTINUE) for n, t in s.config.fork_arms]
-        rows = await asyncio.gather(*(_arm(s, arm, text, budget, logs) for arm, text in arms))
+        kept = keep(s, logs) if s.config.fork_keep else asyncio.sleep(0, None)
+        *rows, row["keep"] = await asyncio.gather(*(_arm(s, arm, text, budget, logs) for arm, text in arms), kept)
         row.update({r["arm"]: r for r in rows})
         s.result.extras["fork"] = row
         s.trace("fork", **row)
