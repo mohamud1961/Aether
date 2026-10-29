@@ -83,3 +83,13 @@ def test_a_none_rival_lets_the_first_finish_end_the_run(tmp_path):
     assert result.status == "finished"
     assert next(r for r in rows if r["event"] == "rival")["handed_back"] is False
 
+
+
+def test_exec_mode_hands_back_a_run_it_note_once_without_a_model_call(tmp_path):
+    assert build_config(environ={**BASE, "AETHER_CORE_RIVAL": "exec"}).exec_check is True
+    assert build_config(environ={**BASE, "AETHER_CORE_RIVAL": "exec"}).rival is False
+    script = [call("finish", {"summary": "done"}, "c0"), call("finish", {"summary": "ran it"}, "c1")]
+    config = dataclasses.replace(_clm_config(tmp_path), exec_check=True)
+    result, rows, client = _run(tmp_path, script, config=config)
+    assert result.status == "finished" and len(client.requests) == 2  # one handback, no extra model call
+    assert "run the deliverable itself" in json.dumps(client.requests[1]["messages"])

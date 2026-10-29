@@ -22,7 +22,7 @@ from typing import Any, Awaitable, Callable
 
 from .env import Environment, run
 
-RIVAL_ENV = "AETHER_CORE_RIVAL"
+RIVAL_ENV = "AETHER_CORE_RIVAL"  # off | on (fresh rival call) | exec (ablation: no rival, run-it handback)
 MARKER = "rival_start"
 MIN_LEFT_S, MIN_LEFT_SHARE = 120.0, 0.15
 FILE_CAP, TOTAL_CAP, MAX_FILES = 40_000, 120_000, 40  # y12/y13: 12K cut 8 of 37 candidates mid-file, unmarked
@@ -43,6 +43,22 @@ HANDBACK = (  # choose, never merge: in y14 merging rival features into a tested
     "features into an answer your own tests already passed. Then call finish "
     "again; the next finish ends the task. {left:.0f}s remain.]\n<rival>\n{rival}\n</rival>"
 )
+
+
+EXEC_HANDBACK = (  # ablation (ChatGPT review, 29 Oct): is the rival's gain the rival, or being made to execute?
+    "[finish not taken yet: before finishing, run the deliverable itself the way the task will use it, against what "
+    "the task states it must do (install anything it needs to run). Reading the code or working an example by hand "
+    "does not count. If it already ran that way, say what you ran and finish again. Keep your answer unless that run "
+    "shows a fault. The next finish ends the task. {left:.0f}s remain.]"
+)
+
+
+def exec_at_finish(remaining_s: Callable[[], float], timeout_s: float) -> tuple[str | None, dict[str, Any]]:
+    """The execution-only handback, once, when enough time is left; no model call."""
+    left = remaining_s()
+    if not due(left, timeout_s):
+        return None, {"asked": False, "reason": "time", "remaining_s": round(left, 1), "mode": "exec"}
+    return EXEC_HANDBACK.format(left=left), {"asked": True, "mode": "exec"}
 
 
 def marker_path(control_dir: str) -> str:

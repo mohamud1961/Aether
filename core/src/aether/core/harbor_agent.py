@@ -235,7 +235,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         ),
         **_max_output(environ),
         open_issues=_choice(environ, OPEN_ISSUES_ENV, REPL_MODES, "off") == "on",
-        rival=_choice(environ, RIVAL_ENV, REPL_MODES, "off") == "on",
+        rival=_choice(environ, RIVAL_ENV, ("off", "on", "exec"), "off") == "on",
+        exec_check=_choice(environ, RIVAL_ENV, ("off", "on", "exec"), "off") == "exec",
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
         env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",

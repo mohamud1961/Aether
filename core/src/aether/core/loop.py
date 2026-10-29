@@ -99,6 +99,7 @@ class CoreConfig:
     # an unused ceiling costs rate-limit headroom (mission 2026-10-28: 2910 Luna turns, p99.9 11k, max 17k).
     max_output_tokens: int = MAX_OUTPUT_TOKENS
     rival: bool = False  # at the first finish, a fresh call writes the strongest rival answer, handed back once (rival)
+    exec_check: bool = False  # ablation of rival: the first finish is handed back once asking to run the deliverable
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
@@ -932,6 +933,14 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         note = await s.diffcheck.at_finish()
         if note:
             return note, False
+    if s.config.exec_check and not s.config.rival and "rival" not in s.result.extras:
+        from . import rival
+
+        text, row = rival.exec_at_finish(s.remaining, s.timeout_s)
+        s.result.extras["rival"] = row
+        s.trace("rival", handed_back=text is not None, **row)
+        if text:
+            return text, False
     if s.config.rival and "rival" not in s.result.extras:
         from . import rival
 
