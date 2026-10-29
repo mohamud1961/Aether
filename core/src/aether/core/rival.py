@@ -36,10 +36,12 @@ PROMPT = (
     "differs, with its path. Then, in one line starting 'Test:', name an observable test that would show which of "
     "the two is better.\nIf you do not expect any rival to be better, reply with the single word NONE."
 )
-HANDBACK = (
+HANDBACK = (  # choose, never merge: in y14 merging rival features into a tested answer broke it
     "[finish not taken yet: a fresh reviewer who saw only the task and your files proposes the rival below. It is "
-    "unverified and may be wrong. Run a test that tells the two apart, keep whichever the evidence favours, then "
-    "call finish again; the next finish ends the task. {left:.0f}s remain.]\n<rival>\n{rival}\n</rival>"
+    "unverified and may be wrong. Run a test that tells the two apart. Then choose one: keep your answer exactly as it "
+    "is, or replace it with the rival where the test shows the rival is better. Do not merge the rival's extra "
+    "features into an answer your own tests already passed. Then call finish "
+    "again; the next finish ends the task. {left:.0f}s remain.]\n<rival>\n{rival}\n</rival>"
 )
 
 
