@@ -25,10 +25,11 @@ from .env import Environment, run
 RIVAL_ENV = "AETHER_CORE_RIVAL"
 MARKER = "rival_start"
 MIN_LEFT_S, MIN_LEFT_SHARE = 120.0, 0.15
-FILE_CAP, TOTAL_CAP, MAX_FILES = 12_000, 40_000, 40
+FILE_CAP, TOTAL_CAP, MAX_FILES = 40_000, 120_000, 40  # y12/y13: 12K cut 8 of 37 candidates mid-file, unmarked
 MAX_TOKENS = 16_000
 PROMPT = (
-    "Someone produced the candidate above for the task. You cannot run anything.\n"
+    "Someone produced the candidate above for the task. You cannot run anything. A file marked as cut continues "
+    "beyond what is shown; do not judge it by the cut.\n"
     "Write the strongest rival to it: a different answer or implementation that you expect to meet the task "
     "better (more correct, more complete, or better on a criterion the task states, such as speed, format or "
     "covering every case). Give the rival concretely: the exact answer, or the full contents of each file that "
@@ -57,7 +58,8 @@ async def changed_files(env: Environment, workdir: str, control_dir: str) -> lis
     script = (
         f"cd {q(workdir)} && find . -type f -newer {q(marker_path(control_dir))} -not -path './.git/*' "
         f"-size -2M 2>/dev/null | sort | head -n {MAX_FILES} | while IFS= read -r f; do "
-        f"grep -Iq . \"$f\" 2>/dev/null || continue; printf '\\0FILE %s\\0' \"$f\"; head -c {FILE_CAP} \"$f\"; done"
+        f"grep -Iq . \"$f\" 2>/dev/null || continue; printf '\\0FILE %s %s\\0' \"$(wc -c < \"$f\" | tr -d ' ')\" \"$f\"; "
+        f"head -c {FILE_CAP} \"$f\"; done"
     )
     result = await run(env, script, timeout_s=60)
     out: list[tuple[str, str]] = []
@@ -66,10 +68,14 @@ async def changed_files(env: Environment, workdir: str, control_dir: str) -> lis
     for i in range(1, len(parts) - 1, 2):
         if not parts[i].startswith("FILE "):
             continue
-        path = posixpath.normpath(posixpath.join(workdir, parts[i][5:]))
+        size, _, rel = parts[i][5:].partition(" ")
+        path = posixpath.normpath(posixpath.join(workdir, rel))
         text = parts[i + 1]
         if total + len(text) > TOTAL_CAP:
-            break
+            out.append((path, f"[not shown: {size} bytes; the shown files reached the size limit]"))
+            continue
+        if size.isdigit() and int(size) > len(text.encode()):  # a cut file must never read as the whole file
+            text += f"\n[... cut here: shown the first {len(text.encode())} of {size} bytes; the file continues]"
         total += len(text)
         out.append((path, text))
     return out

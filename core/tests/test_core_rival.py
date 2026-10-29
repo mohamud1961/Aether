@@ -34,6 +34,18 @@ def test_only_files_changed_after_the_start_marker_are_shown(tmp_path):
     assert files == [(str(work / "sol.sql"), "SELECT 1;\n")]  # unchanged input and binary files are not shown
 
 
+def test_a_cut_file_says_it_was_cut(tmp_path, monkeypatch):
+    work, ctl = tmp_path / "app", tmp_path / "ctl"
+    work.mkdir(), ctl.mkdir()
+    env = LocalEnv(tmp_path)
+    asyncio.run(rival.mark_start(env, str(ctl)))
+    os.utime(ctl / rival.MARKER, (time.time() - 30, time.time() - 30))
+    (work / "big.py").write_text("x = 1\n" * 20)
+    monkeypatch.setattr(rival, "FILE_CAP", 30)
+    [(path, text)] = asyncio.run(rival.changed_files(env, str(work), str(ctl)))
+    assert text.startswith("x = 1\n") and "cut here: shown the first 30 of 120 bytes" in text
+
+
 def test_none_and_late_finishes_ask_nothing_back():
     assert rival.is_none("NONE") and rival.is_none(" none. ") and not rival.is_none("NONE of the moves; use e2e4")
     assert rival.due(500, 900) and not rival.due(100, 900) and not rival.due(200, 1800)
