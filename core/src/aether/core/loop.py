@@ -76,6 +76,7 @@ class CoreConfig:
     )
     intent: bool = False  # every action tool takes the model's reason and expected result (see intent)
     fork: bool = False  # experiment instrument: at the first finish, matched continuations on clones (see fork)
+    fork_arms: tuple[tuple[str, str], ...] = ()  # named fork arms (fork.load_arms); empty: B and C
     # Run end: "keep" (the default) leaves the container as the agent left it, because a service the task needs
     # running is part of the delivered state (E0/E3: pypi-server and kv-store-grpc 0/2 under stop, 2/2 under keep),
     # and records what was still running in ``left_running``. The container is owned by the trial and removed after

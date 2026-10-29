@@ -26,8 +26,8 @@ def _turn(name, args, call_id):
 class _Router:
     """Serves the solver's script, or an arm's, by what the newest message answers (the arms run in parallel)."""
 
-    def __init__(self, scripts):
-        self.scripts, self.requests = {k: list(v) for k, v in scripts.items()}, []
+    def __init__(self, scripts, markers=None):
+        self.scripts, self.requests, self.markers = {k: list(v) for k, v in scripts.items()}, [], markers or {}
         from types import SimpleNamespace
 
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
@@ -36,14 +36,17 @@ class _Router:
         self.requests.append(kwargs)
         texts = [str(m.get("content", "")) for m in kwargs["messages"] if m.get("role") == "tool"]
         arm = "solver"
-        if any(fork.RECORD_HEAD in t for t in texts):
+        named = [a for m, a in self.markers.items() if any(m in t for t in texts)]
+        if named:
+            arm = named[0]
+        elif any(fork.RECORD_HEAD in t for t in texts):
             arm = "c"
         elif any(fork.CONTINUE in t for t in texts):
             arm = "b"
         return _Stream(self.scripts[arm].pop(0))
 
 
-def _run(tmp_path, timeout_s=900, context="project"):
+def _run(tmp_path, timeout_s=900, context="project", fork_arms=(), markers=None):
     box = tmp_path / "box"
     work, ctl = box / "work", box / "ctl"
     work.mkdir(parents=True)
@@ -63,7 +66,9 @@ def _run(tmp_path, timeout_s=900, context="project"):
                 _turn("write_file", {"path": ans, "content": "c-fix\n"}, "c1"),
                 _turn("finish", {"summary": "c"}, "c2"),
             ],
-        }
+            **{a: [_turn("write_file", {"path": ans, "content": f"{a}-fix\n"}, f"{a}1"), _turn("finish", {"summary": a}, f"{a}2")] for a in (markers or {}).values()},
+        },
+        markers,
     )
     provider = ChatProvider(client, model="scripted", params={}, log=CallLog(tmp_path / "calls.jsonl"))
     made = []
@@ -83,6 +88,7 @@ def _run(tmp_path, timeout_s=900, context="project"):
             config=CoreConfig(
                 control_dir=str(ctl),
                 fork=True,
+                fork_arms=fork_arms,
                 make_clone=clone,
                 context=context,
                 clm=ClmSettings(mirror_path=f"{ctl}/ctx/LIVE_CTX.txt", history_path=f"{ctl}/ctx/HISTORY.txt"),
@@ -148,3 +154,45 @@ def test_the_fork_is_off_unless_set_and_never_with_the_verifier():
     assert adapter.build_config(environ={**required, adapter.FORK_ENV: "on"}).fork is True
     with pytest.raises(adapter.ConfigError):
         adapter.build_config(environ={**required, adapter.FORK_ENV: "on", adapter.VERIFY_ENV: "once"})
+
+
+def test_named_arms_replace_b_and_c_and_each_adds_only_its_text(tmp_path):
+    (tmp_path / "logs").mkdir()
+    arms = (("ctl", ""), ("cue", "MARK-cue look again"), ("ev", "MARK-ev a note"))
+    markers = {"MARK-cue": "cue", "MARK-ev": "ev"}
+    # the bare control is routed by CONTINUE alone, as "b"
+    result, client, work, _, made = _run(tmp_path, fork_arms=arms, markers=markers)
+    row = result.extras["fork"]
+    assert (work / "ans.txt").read_text() == "wrong\n" and made == [False] * 3
+    assert set(row) >= {"a", "ctl", "cue", "ev"} and "b" not in row and "c" not in row
+    assert _member(row["ctl"]["export"]) == "b-fix\n"
+    assert _member(row["cue"]["export"]) == "cue-fix\n" and _member(row["ev"]["export"]) == "ev-fix\n"
+    last = {}
+    for req in client.requests:
+        m = req["messages"][-1]
+        if m.get("role") == "tool" and fork.CONTINUE in str(m["content"]):
+            last.setdefault(m["content"], m)
+    assert set(last) == {fork.CONTINUE, f"{fork.CONTINUE}\n\nMARK-cue look again", f"{fork.CONTINUE}\n\nMARK-ev a note"}
+    assert not any(fork.RECORD_HEAD in t for t in last)
+
+
+def test_named_arms_load_from_a_file_and_bad_files_are_config_errors(tmp_path):
+    required = {
+        adapter.REVIEW_ENV: "off",
+        adapter.CONTEXT_ENV: "project",
+        adapter.REPL_ENV: "off",
+        adapter.IMAGES_ENV: "off",
+        adapter.FORK_ENV: "on",
+    }
+    good = tmp_path / "arms.json"
+    good.write_text('[{"name": "ctl", "text": ""}, {"name": "ev", "text": "note"}]')
+    cfg = adapter.build_config(environ={**required, fork.ARMS_ENV: str(good)})
+    assert cfg.fork_arms == (("ctl", ""), ("ev", "note"))
+    assert adapter.build_config(environ=required).fork_arms == ()
+    for bad in ('[{"name": "a", "text": ""}]', '[{"name": "x", "text": ""}, {"name": "x", "text": "y"}]', "[]",
+                '[{"name": "Bad", "text": ""}]', '[{"name": "ok"}]', "not json"):
+        good.write_text(bad)
+        with pytest.raises(adapter.ConfigError):
+            adapter.build_config(environ={**required, fork.ARMS_ENV: str(good)})
+    with pytest.raises(adapter.ConfigError):
+        adapter.build_config(environ={**required, fork.ARMS_ENV: str(tmp_path / "missing.json")})

@@ -21,7 +21,7 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
-from . import continuation
+from . import continuation, fork
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .reasoning_wire import WIRES
@@ -225,7 +225,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",
-        fork=_fork(environ),
+        **_fork(environ),
         end_processes=_choice(environ, END_PROCESSES_ENV, END_PROCESSES_MODES, "keep"),
         hygiene=_choice(environ, HYGIENE_ENV, HYGIENE_MODES, "off"), state=_choice(environ, STATE_ENV, REPL_MODES, "off") == "on",
         **_record(environ),
@@ -274,11 +274,14 @@ def _choice(
     return value
 
 
-def _fork(environ: Mapping[str, str]) -> bool:
+def _fork(environ: Mapping[str, str]) -> dict[str, Any]:
     on = _choice(environ, FORK_ENV, REPL_MODES, "off") == "on"
     if on and _choice(environ, VERIFY_ENV, VERIFY_MODES, "off") != "off":
         raise ConfigError(f"{FORK_ENV} and {VERIFY_ENV} both act at the first finish; use one")
-    return on
+    try:
+        return {"fork": on, "fork_arms": fork.load_arms(environ) if on else ()}
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
 
 
 def _request_shape(environ: Mapping[str, str]) -> str:
