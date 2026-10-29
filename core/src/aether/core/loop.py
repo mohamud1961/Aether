@@ -98,6 +98,7 @@ class CoreConfig:
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
     # an unused ceiling costs rate-limit headroom (mission 2026-10-28: 2910 Luna turns, p99.9 11k, max 17k).
     max_output_tokens: int = MAX_OUTPUT_TOKENS
+    rival: bool = False  # at the first finish, a fresh call writes the strongest rival answer, handed back once (rival)
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
@@ -292,6 +293,10 @@ async def run_agent(
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
             start_note = ""
+            if config.rival and config.role == "worker":
+                from . import rival
+
+                await rival.mark_start(s.env, config.control_dir)
             if config.start_copy and config.role == "worker":
                 from . import start_copy
 
@@ -922,6 +927,16 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         note = await s.diffcheck.at_finish()
         if note:
             return note, False
+    if s.config.rival and "rival" not in s.result.extras:
+        from . import rival
+
+        text, row = await rival.at_finish(
+            s.env, s.provider.complete, task=s.task, summary=str(args.get("summary", "")), workdir=s.workdir,
+            control_dir=s.config.control_dir, remaining_s=s.remaining, timeout_s=s.timeout_s)
+        s.result.extras["rival"] = row
+        s.trace("rival", handed_back=text is not None, **row)
+        if text:
+            return text, False
     if s.config.verify and "verification" not in s.result.extras:
         from . import verify
 

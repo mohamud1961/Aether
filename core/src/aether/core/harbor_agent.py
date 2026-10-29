@@ -32,6 +32,7 @@ from .provider import ChatProvider, base_url
 from .runrecord import JEV_JOURNAL, write_record as _write_record
 from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
 from .open_issues import OPEN_ISSUES_ENV
+from .rival import RIVAL_ENV
 from .start_copy import START_COPY_ENV
 from .env_brief import ENV_BRIEF_ENV
 from .image_region import IMAGE_REGION_ENV
@@ -234,6 +235,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         ),
         **_max_output(environ),
         open_issues=_choice(environ, OPEN_ISSUES_ENV, REPL_MODES, "off") == "on",
+        rival=_choice(environ, RIVAL_ENV, REPL_MODES, "off") == "on",
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
         env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
