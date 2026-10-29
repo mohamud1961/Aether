@@ -38,5 +38,6 @@ def test_a_missing_working_directory_gives_no_note(tmp_path):
 
 
 def test_the_flag_is_off_by_default_and_on_when_asked():
-    assert build_config(environ=BASE).start_copy is False
+    assert build_config(environ=BASE).start_copy is True  # default on
+    assert build_config(environ={**BASE, "AETHER_CORE_START_COPY": "off"}).start_copy is False
     assert build_config(environ={**BASE, "AETHER_CORE_START_COPY": "on"}).start_copy is True

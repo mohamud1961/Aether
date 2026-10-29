@@ -1,4 +1,4 @@
-"""A copy of the working directory as it was before the first action (AETHER_CORE_START_COPY=on).
+"""A copy of the working directory as it was before the first action (AETHER_CORE_START_COPY, default on; "off" disables).
 
 Why (pass/fail study, 28 Oct, 47 Luna runs): wrong runs destroyed irreplaceable inputs before reading them (a
 database opened before its write-ahead log was copied, a repository reset before the final check) and then
