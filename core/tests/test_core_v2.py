@@ -748,6 +748,25 @@ def test_malformed_tool_arguments_are_replayed_as_an_empty_object_and_reported(
     assert result.status == "finished"
 
 
+def test_a_call_cut_off_by_the_output_limit_says_so(tmp_path):
+    # y13/y14: all 4 bad-JSON calls were turns that hit the output limit mid-arguments; "not valid JSON" hid why
+    from types import SimpleNamespace
+
+    bad = SimpleNamespace(
+        index=0,
+        id="b1",
+        function=SimpleNamespace(name="write_file", arguments='{"path": "/app/a.py", "content": "x = 1'),
+    )
+    script = [
+        [chunk(tool_calls=[bad]), chunk(finish="length")],
+        call("finish", {"summary": "x"}, "c1"),
+    ]
+    result, rows, client = _run(tmp_path, script, config=_clm_config(tmp_path))
+    told = [m for m in client.requests[1]["messages"] if m.get("role") == "tool"][-1]["content"]
+    assert "reached the output limit while writing this call" in told and "not valid JSON" not in told
+    assert result.status == "finished"
+
+
 def test_one_long_thought_does_not_trigger_a_checkpoint_that_discards_it(tmp_path):
     # D1 circuit-fibsqrt: each 32k-token reasoning turn pushed the count over budget; the checkpoint (which never
     # sees reasoning) then summarised everything away, and the model re-derived its plan from a 3k summary, 3 times.

@@ -196,6 +196,7 @@ class _Session:
             config.reviews, transport, call, timeout_s, control_dir=config.control_dir
         )
         self.actions: list[str] = []
+        self.output_cut = False
         self.clm: ClmContext | None = None
         # Optional and ephemeral: index the first decision after a new CLM
         # edit/checkpoint/rollback, not every later turn (prompt-cost guard).
@@ -550,6 +551,7 @@ async def _loop(s: _Session) -> None:
             _append(s, {"role": "user", "content": note + s.clock()})
             continue
         idle_turns = 0
+        s.output_cut = turn.finish_reason == "length"  # a call cut off by the output limit has broken arguments
         if await _run_calls(s, turn.tool_calls):
             result.status = "finished"
             return
@@ -691,7 +693,10 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
         out, finished = await _dispatch(s, name, args)
     except Exception as exc:
         out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
-        if isinstance(exc, json.JSONDecodeError):
+        if isinstance(exc, json.JSONDecodeError) and s.output_cut:  # y13/y14: 4 of 4 bad-JSON calls were cut off here
+            out += (" (your turn reached the output limit while writing this call, so its arguments were cut off and "
+                    "nothing ran; write long content in smaller parts, e.g. write_file a first part, then append the rest from the terminal)")
+        elif isinstance(exc, json.JSONDecodeError):
             out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
     return args, out, finished, round(time.monotonic() - started, 3)
 
