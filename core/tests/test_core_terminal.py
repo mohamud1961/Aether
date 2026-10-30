@@ -412,6 +412,27 @@ def test_a_failing_pipeline_stage_is_reported_not_hidden(tmp_path):
         assert "__AETHER_DONE" not in out and "__aether" not in out
 
 
+def test_a_models_xtrace_traces_its_commands_not_the_terminal_bookkeeping(tmp_path):
+    # configure-git, 30 Oct: after `set -eux` every result was our wrapper's trace, and head/tail truncation hid the
+    # real output. The model's own command stays traced; exits and stage exits are unchanged; `set +x` ends it.
+    async def go():
+        t, _ = _terms(tmp_path)
+        on = await t.use(input="set -x")
+        traced = await t.use(input="echo visible-out; false | cat")
+        failed = await t.use(input="echo x | false")
+        off = await t.use(input="set +x; echo after")
+        quiet = await t.use(input="echo plain")
+        return on, traced, failed, off, quiet
+
+    on, traced, failed, off, quiet = asyncio.run(go())
+    assert "+ echo visible-out" in traced and "visible-out" in traced
+    assert "[exit 0 · last pipeline's stage exits 1 | 0 ·" in traced
+    assert "[exit 1 · last pipeline's stage exits 0 | 1 ·" in failed
+    assert "+ echo plain" not in quiet and "plain" in quiet and "[exit 0 ·" in quiet
+    for out in (on, traced, failed, off, quiet):
+        assert "__aether" not in out and "__AETHER_DONE" not in out, out
+
+
 def test_return_from_a_command_file_keeps_its_own_exit(tmp_path):
     # `return` leaves the sourced file before the capture line: the exit must be the return's, not a stale one
     async def go():

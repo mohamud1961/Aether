@@ -43,11 +43,19 @@ _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
 # its last pipeline. The body is run unchanged (an appended capture line would land inside an unterminated
 # heredoc) and the exit is the file's own. It is installed only when the model has no RETURN trap and removed only
 # if the command left it unchanged (see _send), so a RETURN trap of the model's survives.
-_PIPE_TRAP = "builtin trap '__aether_ps=\"${PIPESTATUS[*]}\"' RETURN"
+_PIPE_TRAP = "builtin trap '{ __aether_ps=\"${PIPESTATUS[*]}\"; } 2>/dev/null' RETURN"
 _PROMPT_RECEIPT = (
-    "$(__aether_prompt_status=$?; builtin declare -F __aether_prompt_receipt >/dev/null "
+    "$({ __aether_prompt_status=$?; set +x; } 2>/dev/null; builtin declare -F __aether_prompt_receipt >/dev/null "
     '&& __aether_prompt_receipt "$__aether_prompt_status")'
 )
+# A model's `set -x` persists in its shell and traced every line Aether adds around a command into the result; with
+# head/tail truncation the trace of our own bookkeeping was all the model saw (configure-git, 30 Oct). Our lines run
+# with xtrace off ({ ...; } 2>/dev/null hides the switch itself); the model's xtrace state is restored on its command
+# file's first line and after it. The test of $- is POSIX, so it works in sh as well as bash.
+_XSTATE = '__aether_x=; [ "${-#*x}" = "$-" ] || __aether_x=1; set +x; '
+_QUIET = "{ " + _XSTATE + "} 2>/dev/null; "
+_TRACE_BACK = '{ [ -z "$__aether_x" ] || set -x; } 2>/dev/null; '
+_CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the command may have run set -x or set +x
 
 
 def clean(text: str) -> str:
@@ -314,10 +322,9 @@ class Terminals(TerminalLifecycle):
         self, session: Session, input: str, mode: str, interrupt: bool, wait_s: float = 0.0
     ) -> tuple[int, re.Match | None, bool] | None:
         if interrupt:
-            await self._write(session, "\x03")
-            if (
-                not session.pty
-            ):  # no line discipline: signal the shell's children directly
+            if session.pty:
+                await self._write(session, "\x03")
+            else:  # no line discipline: a written \x03 is only a stray byte on the next line; signal the children
                 await run(
                     self._env,
                     f"for c in $(pgrep -P {session.pid}); do pkill -INT -P $c; sleep 0.3; pkill -TERM -P $c; done; true",
@@ -335,8 +342,9 @@ class Terminals(TerminalLifecycle):
             # body and the marker as separate stdin lines let any program that reads stdin (apt-get, dpkg,
             # read) swallow the marker, so the command looked "still running" until wait_s ran out.
             body = input if input.endswith("\n") else input + "\n"
+            body = _TRACE_BACK + body  # on line 1, so the shell's line numbers for the command are unchanged
             cmd_file = f"{session.root}/cmd_{session.seq}.sh"
-            src, stages = f". {shlex.quote(cmd_file)}; __aether_s=$?", ""
+            src, stages = f". {shlex.quote(cmd_file)}; {_CAPTURE}", ""
             prompt = ""
             if session.pty and session.bash:
                 # PS1 expansion sees the original command status even after
@@ -383,9 +391,9 @@ class Terminals(TerminalLifecycle):
             temporary_marker = f"{marker}.tmp"
             return await self._write(
                 session,
-                f"{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
+                f"{_QUIET}{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
                 f'{session.seq} "$__aether_s" {stages} "$PWD" > {shlex.quote(temporary_marker)} '
-                f"&& command mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}\n",
+                f"&& command mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}; {_TRACE_BACK.strip().rstrip(';')}\n",
                 cmd=inline,
                 wait=(session.seq, wait_s),
             )
