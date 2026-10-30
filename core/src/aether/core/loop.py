@@ -102,6 +102,7 @@ class CoreConfig:
     max_output_tokens: int = MAX_OUTPUT_TOKENS
     rival: bool = False  # at the first finish, a fresh call writes the strongest rival answer, handed back once (rival)
     exec_check: bool = False  # ablation of rival: the first finish is handed back once asking to run the deliverable
+    card: bool = False  # at the first finish, a fresh reading of the request alone is handed back once (card)
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
@@ -297,7 +298,7 @@ async def run_agent(
             if exit_code(setup_result) != 0:
                 raise OSError("control directory setup did not report success")
             start_note = ""
-            if config.rival and config.role == "worker":
+            if (config.rival or config.card) and config.role == "worker":
                 from . import rival
 
                 await rival.mark_start(s.env, config.control_dir)
@@ -949,6 +950,16 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         text, row = await rival.at_finish(
             s.env, s.provider.complete, task=s.task, summary=str(args.get("summary", "")), workdir=s.workdir,
             control_dir=s.config.control_dir, remaining_s=s.remaining, timeout_s=s.timeout_s)
+        s.result.extras["rival"] = row
+        s.trace("rival", handed_back=text is not None, **row)
+        if text:
+            return text, False
+    if s.config.card and "rival" not in s.result.extras:
+        from . import card
+
+        text, row = await card.at_finish(
+            s.env, s.provider.complete, task=s.task, workdir=s.workdir, control_dir=s.config.control_dir,
+            remaining_s=s.remaining, timeout_s=s.timeout_s)
         s.result.extras["rival"] = row
         s.trace("rival", handed_back=text is not None, **row)
         if text:
