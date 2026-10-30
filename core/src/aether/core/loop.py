@@ -103,6 +103,7 @@ class CoreConfig:
     rival: bool = False  # at the first finish, a fresh call writes the strongest rival answer, handed back once (rival)
     exec_check: bool = False  # ablation of rival: the first finish is handed back once asking to run the deliverable
     card: bool = False  # at the first finish, a fresh reading of the request alone is handed back once (card)
+    card_probe: bool = False  # the card's reader also writes a script observing each item; Core runs it once (card)
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
@@ -959,7 +960,7 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
 
         text, row = await card.at_finish(
             s.env, s.provider.complete, task=s.task, workdir=s.workdir, control_dir=s.config.control_dir,
-            remaining_s=s.remaining, timeout_s=s.timeout_s)
+            remaining_s=s.remaining, timeout_s=s.timeout_s, probe=s.config.card_probe)
         s.result.extras["rival"] = row
         s.trace("rival", handed_back=text is not None, **row)
         if text:

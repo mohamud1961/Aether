@@ -67,3 +67,46 @@ def test_an_empty_card_lets_the_first_finish_end_the_run(tmp_path):
                                 text_script=[_text("")])
     assert result.status == "finished"
     assert next(r for r in rows if r["event"] == "rival")["handed_back"] is False
+
+
+def test_probe_mode_sets_both_flags():
+    c = build_config(environ={**BASE, "AETHER_CORE_RIVAL": "probe"})
+    assert c.card is True and c.card_probe is True and c.rival is False
+    assert build_config(environ={**BASE, "AETHER_CORE_RIVAL": "card"}).card_probe is False
+
+
+def test_script_of_takes_the_last_shell_block():
+    text = "1. item\n```sh\necho a\n```\nmore\n```bash\necho b\n```\n"
+    assert card.script_of(text) == "echo b"
+    assert card.script_of("no script here") is None
+
+
+def test_a_probe_runs_the_readers_script_on_the_current_state_and_hands_back_its_output(tmp_path):
+    out = tmp_path / "work" / "out.txt"
+    script = [
+        call("write_file", {"path": str(out), "content": "41\n"}, "c0"),
+        call("finish", {"summary": "answer written"}, "c1"),
+        call("terminal", {"input": "echo checked"}, "c2"),
+        call("finish", {"summary": "checked"}, "c3"),
+    ]
+    reading = f"1. out.txt must hold 42.\n```sh\necho \"item 1 bytes=$(wc -c < {out} | tr -d ' ')\"\n```\n"
+    config = dataclasses.replace(_clm_config(tmp_path), card=True, card_probe=True)
+    result, rows, client = _run(tmp_path, script, config=config, text_script=[_text(reading)])
+    assert result.status == "finished"
+    row = next(r for r in rows if r["event"] == "rival")
+    assert row["mode"] == "probe" and row["script"] is True and row["exit"] == 0
+    probe_request = json.dumps(next(r for r in client.requests if "tools" not in r)["messages"])
+    assert "Change nothing" in probe_request and "answer written" not in probe_request and "41" not in probe_request
+    handback = json.dumps(client.requests[-1]["messages"])
+    assert "<observed exit=" in handback and "item 1 bytes=3" in handback  # only running the script prints this
+    assert len([r for r in rows if r["event"] == "rival"]) == 1
+
+
+def test_a_probe_without_a_script_falls_back_to_the_reading(tmp_path):
+    script = [call("finish", {"summary": "done"}, "c0"), call("finish", {"summary": "done again"}, "c1")]
+    config = dataclasses.replace(_clm_config(tmp_path), card=True, card_probe=True)
+    result, rows, client = _run(tmp_path, script, config=config, text_script=[_text("1. something")])
+    row = next(r for r in rows if r["event"] == "rival")
+    assert row["handed_back"] and row["script"] is False
+    handback = json.dumps(client.requests[-1]["messages"])
+    assert "<reading>" in handback and "<observed" not in handback

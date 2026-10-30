@@ -11,18 +11,27 @@ At the first finish with enough time left, one plain call in a fresh context see
 that were there before the first action (never the run's work, history or reasoning) and writes what the finished
 work must satisfy. It is handed back once, unverified; the model checks its work against it and decides. The next
 finish ends the run. Core never judges the card or the work.
+
+Probe (AETHER_CORE_RIVAL=probe; K2, 30 Oct): handed a card, Luna re-ran its own checks and re-finished (1 changed
+deliverable in 18 handbacks): a reading is a claim, and the model's own yardstick absorbs it. The same call also
+writes a script that observes each item, using the request's own commands, paths and addresses as written; Core runs
+it once in the current environment and hands back its output with the reading, so a failing item arrives as an
+observation the model did not choose. The script is the reader's and may be wrong; Core never interprets its output.
 """
 
 from __future__ import annotations
 
 import posixpath
+import re
 import shlex
 from typing import Any, Awaitable, Callable
 
 from .env import Environment, run
 from .rival import due, marker_path
+from .transfer import put_bytes
 
 MAX_FILES, MAX_TOKENS = 200, 8_000
+PROBE_S, PROBE_CHARS = 120, 6_000
 PROMPT = (  # the K1 probe prompt (research/core_mission_20261028/k1_restate/prompt.txt), verbatim apart from layout
     "Here is a request someone gave to an engineer, followed by the names of the files they provided.\n\n"
     "Before any work starts, write down precisely what the finished work must satisfy for the request to be met. "
@@ -50,8 +59,49 @@ async def provided_files(env: Environment, workdir: str, control_dir: str) -> li
     return [posixpath.normpath(posixpath.join(workdir, line)) for line in result.stdout.splitlines() if line.strip()]
 
 
-def request(task: str, files: list[str]) -> list[dict[str, Any]]:
-    return [{"role": "user", "content": PROMPT.format(task=task, files="\n".join(files) or "(none)")}]
+PROBE_PROMPT = (
+    "\n\nAfter the reading, write one shell script in a single ```sh block that observes, in the environment where "
+    "the work was done (working directory {workdir}), whether each item holds in the finished work. For each item, "
+    "echo a line naming it, then run the observation. Where the request states a command, path, address or "
+    "invocation, use it exactly as written. Change nothing: do not install, edit, create, delete, restart, commit or "
+    "push anything, and give no command input it would wait for. Print what is observed, not a verdict."
+)
+PROBE_HANDBACK = (
+    "[finish not taken yet: a separate reader, given only your request and the names of the files provided with it "
+    "(not your work and not this conversation), wrote the reading below and a script to observe each item. The "
+    "script was run once, as written, in the current environment; its output is below. The reading and the script "
+    "are unverified and may be wrong. Where an observation shows the work failing an item that the request supports, "
+    "fix it; where the script or the reading is wrong, say why and leave the work as it is. Make no change the "
+    "request does not call for. Then call finish again; the next finish ends the task. {left:.0f}s remain.]\n"
+    "<reading>\n{card}\n</reading>\n<script>\n{script}\n</script>\n<observed exit=\"{code}\">\n{out}\n</observed>"
+)
+_SCRIPT = re.compile(r"```(?:sh|bash|shell)?[ \t]*\n(.*?)```", re.S)
+
+
+def request(task: str, files: list[str], workdir: str | None = None) -> list[dict[str, Any]]:
+    content = PROMPT.format(task=task, files="\n".join(files) or "(none)")
+    if workdir is not None:
+        content += PROBE_PROMPT.format(workdir=workdir)
+    return [{"role": "user", "content": content}]
+
+
+def script_of(text: str) -> str | None:
+    """The last fenced shell block, or None."""
+    blocks = [b.strip() for b in _SCRIPT.findall(text) if b.strip()]
+    return blocks[-1] if blocks else None
+
+
+async def observe(env: Environment, script: str, workdir: str, control_dir: str) -> tuple[int, str]:
+    """Run the reader's script once, as written, with no input; its exit code and the tail of its output."""
+    path = posixpath.join(control_dir, "probe.sh")
+    await put_bytes(env, script.encode(), path)
+    q = shlex.quote
+    limit = f"timeout {PROBE_S} " if (await run(env, "command -v timeout")).code == 0 else ""  # else run()'s own limit
+    result = await run(env, f"cd {q(workdir)} && {limit}sh {q(path)} </dev/null 2>&1", timeout_s=PROBE_S + 30)
+    out = (result.stdout or "") + (result.stderr or "")
+    if len(out) > PROBE_CHARS:
+        out = f"[first {len(out) - PROBE_CHARS} chars cut]\n" + out[-PROBE_CHARS:]
+    return result.code, out
 
 
 async def at_finish(
@@ -63,6 +113,7 @@ async def at_finish(
     control_dir: str,
     remaining_s: Callable[[], float],
     timeout_s: float,
+    probe: bool = False,
 ) -> tuple[str | None, dict[str, Any]]:
     """The hand-back text (None: the finish takes effect) and a trace row. Called once per run."""
     left = remaining_s()
@@ -70,12 +121,24 @@ async def at_finish(
         return None, {"asked": False, "reason": "time", "remaining_s": round(left, 1), "mode": "card"}
     try:
         files = await provided_files(env, workdir, control_dir)
-        turn = await complete(request(task, files), None, max_tokens=MAX_TOKENS, remaining_s=remaining_s,
-                              role="card")
+        turn = await complete(request(task, files, workdir if probe else None), None, max_tokens=MAX_TOKENS,
+                              remaining_s=remaining_s, role="card")
     except Exception as exc:  # an instrument: no card, the finish takes effect
         return None, {"asked": True, "mode": "card", "error": f"{type(exc).__name__}: {exc}"[:300]}
     text = (turn.content or "").strip()
-    row = {"asked": True, "mode": "card", "files": len(files), "chars": len(text), "usage": dict(turn.usage)}
+    row = {"asked": True, "mode": "probe" if probe else "card", "files": len(files), "chars": len(text),
+           "usage": dict(turn.usage)}
     if not text:
         return None, row
-    return HANDBACK.format(left=remaining_s(), card=text), row
+    script = script_of(text) if probe else None
+    if script is None:
+        row["script"] = False if probe else None
+        return HANDBACK.format(left=remaining_s(), card=text), row
+    try:
+        code, out = await observe(env, script, workdir, control_dir)
+    except Exception as exc:  # an instrument: the reading alone
+        row.update(script=True, probe_error=f"{type(exc).__name__}: {exc}"[:300])
+        return HANDBACK.format(left=remaining_s(), card=text), row
+    row.update(script=True, exit=code, out_chars=len(out))
+    reading = text[: text.rfind("```", 0, text.rfind("```"))].rstrip() or text
+    return PROBE_HANDBACK.format(left=remaining_s(), card=reading, script=script, code=code, out=out), row
