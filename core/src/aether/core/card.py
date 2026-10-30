@@ -32,6 +32,7 @@ from .transfer import put_bytes
 
 MAX_FILES, MAX_TOKENS = 200, 8_000
 PROBE_S, PROBE_CHARS = 120, 6_000
+PROBE_MAX_TOKENS = 32_000  # K3 e1: 3 of 4 probe calls spent all 8K on reasoning and wrote nothing
 PROMPT = (  # the K1 probe prompt (research/core_mission_20261028/k1_restate/prompt.txt), verbatim apart from layout
     "Here is a request someone gave to an engineer, followed by the names of the files they provided.\n\n"
     "Before any work starts, write down precisely what the finished work must satisfy for the request to be met. "
@@ -121,8 +122,8 @@ async def at_finish(
         return None, {"asked": False, "reason": "time", "remaining_s": round(left, 1), "mode": "card"}
     try:
         files = await provided_files(env, workdir, control_dir)
-        turn = await complete(request(task, files, workdir if probe else None), None, max_tokens=MAX_TOKENS,
-                              remaining_s=remaining_s, role="card")
+        turn = await complete(request(task, files, workdir if probe else None), None,
+                              max_tokens=PROBE_MAX_TOKENS if probe else MAX_TOKENS, remaining_s=remaining_s, role="card")
     except Exception as exc:  # an instrument: no card, the finish takes effect
         return None, {"asked": True, "mode": "card", "error": f"{type(exc).__name__}: {exc}"[:300]}
     text = (turn.content or "").strip()
