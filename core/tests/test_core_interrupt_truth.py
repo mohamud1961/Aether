@@ -101,3 +101,22 @@ def test_record_pending_after_interrupt_with_unsent_command():
     )
     assert result is None
     assert record.pending == {"main": "run_actual_checker"}
+
+
+def test_an_interrupt_key_alone_is_not_reported_as_unsent_input(tmp_path):
+    # 10-30 mission audit: 54 calls sent "\x03" with interrupt=true and were told their input was not submitted.
+    async def scenario() -> None:
+        work = tmp_path / "w"
+        work.mkdir()
+        terminal = Terminals(LocalEnv(work), str(work), lambda: 1000.0, control_dir=str(tmp_path / "ctl"))
+        try:
+            await terminal.use(input="sleep 20", wait_s=0.2)
+            for key in ("\x03", "\\x03"):
+                response = await terminal.use(input=key, mode="keys", interrupt=True, wait_s=1)
+                assert "not submitted" not in response
+            response = await terminal.use(input="echo X", interrupt=True, wait_s=1)
+            assert "not submitted" in response
+        finally:
+            await terminal.close()
+
+    asyncio.run(scenario())

@@ -261,7 +261,8 @@ class Terminals(TerminalLifecycle):
             note += earlier + "\n" if earlier else ""
         started = time.monotonic()
         wait_s = max(0.0, min(float(wait_s), MAX_WAIT_S, max(0.0, self._clock() - 5)))
-        if interrupt and input:
+        # An input that is only the interrupt key (54 mission calls sent "\x03" with interrupt=true) loses nothing.
+        if interrupt and _HEX.sub(lambda m: chr(int(m.group(1), 16)), input).strip("\x03"):
             note += "[interrupt requested; supplied input was not submitted because shell readiness is unconfirmed]\n"
         try:
             first = await self._send(session, input, mode, interrupt, wait_s)

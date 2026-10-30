@@ -53,3 +53,15 @@ def test_a_checkpoint_restates_the_context_size_after_it():
 def test_both_summary_prompts_keep_context_and_time_status_out_of_the_summary():
     for prompt in (compaction.SUMMARIZATION_PROMPT, compaction.SUMMARIZATION_PROMPT_OWN):
         assert "Do not record how full the context is or how much time is left" in prompt
+
+
+def test_the_threshold_nudge_counts_the_replayed_reasoning_too():
+    # 10-30 mission audit: the threshold nudge alone stated 77% while the request was ~60K tokens.
+    ctx = ClmContext(pinned=PINNED, settings=ClmSettings(budget_tokens=32000, replay_reasoning="all"))
+    ctx.append({"role": "user", "content": "tool output " * 4500})
+    thought = {"role": "assistant", "content": None, "reasoning_content": "r" * 1000}
+    ctx.append(thought)
+    ctx.note_reasoning(thought, 20000)
+    note = ctx.nudge()
+    assert note.startswith("[context] Your editable context is at")
+    assert f"about {ctx.tokens()} tokens: 20000 of them are your earlier reasoning" in note

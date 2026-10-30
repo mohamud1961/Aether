@@ -255,6 +255,11 @@ class ClmContext:
         room = limit - used
         largest = max(self._recent_outputs or [0]) / self.chars_per_token
         self._turn += 1
+        outside = self._replayed_reasoning()[1]  # replayed reasoning: sent, but outside the editable budget
+        whole = (
+            f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
+            "sent back as well but outside this budget."
+        ) if outside else ""
         if used > limit // 2 and room < max(0.10 * limit, 2 * largest):
             if self._turn - self._last_urgent < URGENT_EVERY_TURNS:
                 return ""
@@ -263,13 +268,6 @@ class ClmContext:
             # 10-27 board: the old "only about N left" read as the end of the run (path-tracing e1 finished citing
             # context limits; sqlite e2 skipped a check because "context is nearly exhausted"), and it left out the
             # replayed reasoning that made up most of the request.
-            outside = self._replayed_reasoning()[1]
-            whole = (
-                f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
-                "sent back as well but outside this budget."
-                if outside
-                else ""
-            )
             return (
                 f"[context: urgent] {used} of {limit} tokens of your editable context used; about {room} left before "
                 "older turns are replaced by a summary. The run continues after that: this is not a time or turn "
@@ -282,14 +280,15 @@ class ClmContext:
         top = max(crossed)
         self._armed -= set(crossed)
         self.stats.nudges += 1
-        return (
-            f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
+        # 10-30 audit: without the whole-request clause 153/617 nudges understated the request by >25 points
+        head = f"[context] Your editable context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget."
+        head += whole + " "
+        return head + (
             f"It is mirrored at {self.settings.mirror_path}; condense it when convenient by editing that file (keep what "
             "you still need, drop the rest). This shrinks future context; the model/tool turn still uses time and tokens."
             if top < 0.75
-            else f"[context] Your context is at {ratio:.0%} of its {self.settings.budget_tokens}-token budget. "
-            f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary and the run "
-            "continues."
+            else f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary and the "
+            "run continues."
         )
 
     def _rearm(self, ratio: float | None = None) -> None:
