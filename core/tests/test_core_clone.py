@@ -224,12 +224,19 @@ def _network(nets, egress):
     host = _NetHost(nets)
     clone = asyncio.run(V.Clone.create(_TaskEnv(host, host.real), host, egress=egress))
     start = next(c for c in host.calls if c[:2] == ["docker", "run"])
-    return start[start.index("--network") + 1], clone.egress
+    made = [c for c in host.calls if c[:3] == ["docker", "network", "create"]]
+    asyncio.run(clone.close())
+    removed = [c for c in host.calls if c[:3] == ["docker", "network", "rm"]]
+    return start[start.index("--network") + 1], clone.egress, made, removed
 
 
-def test_a_clone_mirrors_the_task_containers_egress_only_when_asked():
-    assert _network({"proj_default": False}, egress=True) == ("bridge", True)
-    assert _network({"proj_default": False}, egress=False) == ("none", False)  # verify clones stay offline
-    assert _network({"proj_internal": True}, egress=True) == ("none", False)
-    assert _network({"none": False}, egress=True) == ("none", False)
-    assert _network(None, egress=True) == ("none", False)  # cannot tell: no network
+def test_a_clone_mirrors_the_task_containers_egress_only_when_asked_on_a_network_of_its_own():
+    net, egress, made, removed = _network({"proj_default": False}, egress=True)
+    assert egress and net.startswith("aether-clone-") and net.endswith("-net")
+    assert made == [["docker", "network", "create", "--driver", "bridge", "-o",
+                     "com.docker.network.bridge.enable_icc=false", net]]  # never the shared default bridge
+    assert removed == [["docker", "network", "rm", net]]
+    for nets, ask in (({"proj_default": False}, False), ({"proj_internal": True}, True), ({"none": False}, True),
+                      (None, True)):  # verify clones, an internal network, no network, cannot tell: all offline
+        net, egress, made, removed = _network(nets, egress=ask)
+        assert (net, egress, made, removed) == ("none", False, [], [])

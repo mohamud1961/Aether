@@ -99,6 +99,20 @@ async def _has_egress(host: HostRun, cid: str) -> bool:
     return False
 
 
+async def _own_network(host: HostRun, name: str) -> str:
+    """A bridge network for one clone: NAT egress, no other container on it, inter-container traffic off. The shared
+    default bridge would let concurrent clones reach each other; the task's own network, the solver's services."""
+    network = f"{name}-net"
+    code, _, err = await host(
+        ["docker", "network", "create", "--driver", "bridge", "-o", "com.docker.network.bridge.enable_icc=false",
+         network],
+        60,
+    )
+    if code != 0:
+        raise CloneError(f"docker network create failed: {err.strip()[:300]}")
+    return network
+
+
 # docker commit copies the container's labels into the image, so a clone of a compose service carries the same
 # project and service labels, and `docker compose exec main` (how Harbor runs every command) may pick the clone:
 # in V3 the worker's terminal and file writes went into the contract writer's clone and were lost with it. The
@@ -201,7 +215,7 @@ class Clone:
         host: HostRun,
         owns_image: bool = True,
         read_only: bool = False,
-        egress: bool = False,
+        network: str = "none",
     ) -> None:
         self.name, self.image, self._host, self._owns_image = (
             name,
@@ -209,11 +223,16 @@ class Clone:
             host,
             owns_image,
         )
-        self.read_only, self.egress = read_only, egress
+        self.read_only, self.network = read_only, network
+
+    @property
+    def egress(self) -> bool:
+        return self.network != "none"
 
     @staticmethod
-    def _run_args(name: str, image: str, read_only: bool = False, egress: bool = False) -> list[str]:
-        # No network unless the task container itself has egress (_has_egress): never beyond the task's policy.
+    def _run_args(name: str, image: str, read_only: bool = False, network: str = "none") -> list[str]:
+        # No network unless the task container itself has egress (_has_egress), and then one of the clone's own
+        # (_own_network): never beyond the task's policy, never shared with another container.
         return [
             "docker",
             "run",
@@ -223,7 +242,7 @@ class Clone:
             name,
             *(_READ_ONLY if read_only else []),
             "--network",
-            "bridge" if egress else "none",
+            network,
             "--security-opt",
             "no-new-privileges",
             "--pids-limit",
@@ -296,21 +315,24 @@ class Clone:
         egress: bool = False,
     ) -> "Clone":
         cid = await identify(env, host, known)
-        egress = egress and await _has_egress(host, cid)
         tag = f"aether-clone:{uuid.uuid4().hex[:12]}"
         name = tag.replace(":", "-")
+        network = "none"
         try:
+            if egress and await _has_egress(host, cid):
+                network = await _own_network(host, name)
             code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
             if code != 0:
                 raise CloneError(f"docker commit failed: {err.strip()[:300]}")
-            code, _, err = await host(cls._run_args(name, tag, read_only, egress), 180)
+            code, _, err = await host(cls._run_args(name, tag, read_only, network), 180)
             if code != 0:
                 raise CloneError(f"docker run of the clone failed: {err.strip()[:300]}")
-            return cls(name, tag, cleanup_host, read_only=read_only, egress=egress)
+            return cls(name, tag, cleanup_host, read_only=read_only, network=network)
         except BaseException as exc:
             for argv in (
                 ["docker", "rm", "-f", "-v", name],
                 ["docker", "rmi", "-f", tag],
+                *([["docker", "network", "rm", network]] if network != "none" else []),
             ):
                 try:
                     code, _, err = await cleanup_host(argv, 10)
@@ -359,14 +381,14 @@ class Clone:
         """Another throwaway container from the same commit (the image stays owned by this clone)."""
         name = f"{self.name}-{uuid.uuid4().hex[:6]}"
         code, _, err = await self._host(
-            self._run_args(name, self.image, self.read_only, self.egress), 180
+            self._run_args(name, self.image, self.read_only), 180
         )
         if code != 0:
             raise CloneError(
                 f"docker run of a sibling clone failed: {err.strip()[:300]}"
             )
         return Clone(
-            name, self.image, self._host, owns_image=False, read_only=self.read_only, egress=self.egress
+            name, self.image, self._host, owns_image=False, read_only=self.read_only
         )
 
     async def close(self) -> None:
@@ -374,6 +396,8 @@ class Clone:
         commands = [["docker", "rm", "-f", "-v", self.name]]
         if self._owns_image:
             commands.append(["docker", "rmi", "-f", self.image])
+        if self.network != "none":
+            commands.append(["docker", "network", "rm", self.network])
         for command in commands:
             try:
                 code, _, error = await self._host(command, 10)
