@@ -28,14 +28,16 @@ import posixpath
 import shlex
 from typing import Any, Callable
 
+from . import task_commands
 from .env import Environment, run
 from .receipt import SKIP, changed
 from .record_checks import _FOOTER, Check, differing, is_check, norm, results, short  # noqa: F401 (re-exported)
 
 _DONE = re.compile(r"\[exit (\d+)(?: · last pipeline's stage exits [^\]]*?)? · ([\d.]+)s · terminal (\S+) · cwd ([^\]\n]*)\]\s*$")
 _RUNNING = re.compile(r"\[still running after \d+s")
-RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure", "paths")  # on: record and scoped facts;
-# paths: only the task-named paths that do not exist yet (at half time, 80% and the first finish)
+RECORD_ENV, RECORD_MODES = "AETHER_CORE_RECORD", ("off", "on", "measure", "paths", "coverage")  # on: record and
+# scoped facts; paths: only the task-named paths that do not exist yet (at half time, 80% and the first finish);
+# coverage: paths, plus at the first finish the commands the task shows that no command run contained (task_commands)
 HOLD_ENV, HOLD_MODES = "AETHER_CORE_FINISH_HOLD", ("off", "neutral")  # neutral: first finish held once, no facts
 MAX_FILES = 300
 SAVE_BYTES = 5_000_000
@@ -54,12 +56,22 @@ def _display_paths(paths: list[str]) -> str:
     return ", ".join(json.dumps(path, ensure_ascii=True) for path in paths)
 
 
+def _sent(args: dict[str, Any], out: str) -> str:
+    """The command text this terminal call submitted ('' for keys, interrupts and input the terminal refused)."""
+    text = str(args.get("input", ""))
+    ok = (str(args.get("mode") or "command") == "command" and not args.get("interrupt") and text.strip("\x03 \n")
+          and "[input not sent" not in out and "supplied input was not submitted" not in out)
+    return text if ok else ""
+
+
 class Record:
     def __init__(
         self, env: Environment, workdir: str, control_dir: str, remaining: Callable[[], float], trace,
-        measure: bool = False, task: str = "", paths_only: bool = False,
+        measure: bool = False, task: str = "", paths_only: bool = False, commands: bool = False,
     ) -> None:
         self.paths_only = paths_only
+        self.task_commands = task_commands.shown(task) if commands else []
+        self.executed: list[str] = []  # command text the model sent (coverage)
         self.env, self.workdir, self.control_dir, self.measure = env, workdir, control_dir, measure
         self.remaining, self.trace = remaining, trace
         self.versions = f"{control_dir}/versions"
@@ -78,14 +90,10 @@ class Record:
     def completed(self, args: dict[str, Any], out: str) -> tuple[str, int, float, str] | None:
         """(command, exit, seconds, cwd) when this terminal call's result reports a command finishing."""
         name = str(args.get("name") or "main")
-        text = str(args.get("input", ""))
-        mode = str(args.get("mode") or "command")
         # Ctrl-C delivery does not prove the old command completed. Preserve
         # its pending identity until a real exit marker or an actually sent
         # replacement command provides new process evidence.
-        sent = text if (mode == "command" and not args.get("interrupt")
-                        and text.strip("\x03 \n") and "[input not sent" not in out
-                        and "supplied input was not submitted" not in out) else ""
+        sent = _sent(args, out)
         if sent:
             self.pending.pop(name, None)
         done = _DONE.search(out)
@@ -101,6 +109,8 @@ class Record:
     async def after_terminal(self, args: dict[str, Any], out: str, t: float) -> str:
         """Record a finished check; return a regression fact for the model ('' when there is none)."""
         try:
+            if self.task_commands and (sent := _sent(args, out)):
+                self.executed.append(sent)
             if self.measure and self.to_create is None:
                 self.to_create = []
                 self.to_create = await self._missing(self.named)
@@ -326,12 +336,17 @@ class Record:
         row: dict[str, Any] = {"examined": True, "checks": len(self.checks)}
         if self.paths_only:
             absent = await self._absent()
-            row.update(absent=absent, hold=bool(absent))
+            not_run = task_commands.not_run(self.task_commands, self.executed)
+            row.update(absent=absent, not_run=not_run, shown=self.task_commands, hold=bool(absent or not_run))
             self.trace("record_finish", **row)
-            if not absent:
+            if not (absent or not_run):
                 return False, "", row
-            return True, (f"[finish not yet accepted] Paths the task names that do not exist: {_display_paths(absent)}. "
-                          f"You have {self.remaining():.0f}s. Create them, or call finish again to finish as is."), row
+            facts = [f"Paths the task names that do not exist: {_display_paths(absent)}."] if absent else []
+            if not_run:
+                facts.append("Commands the task shows that no command in this run contained (the harness compares "
+                             f"command text only): {'; '.join(f'`{c}`' for c in not_run)}.")
+            return True, (f"[finish not yet accepted] {' '.join(facts)} You have {self.remaining():.0f}s. "
+                          "Act on this, or call finish again to finish as is."), row
         try:
             delivered = await self.snapshot(save=True)
         except Exception as exc:

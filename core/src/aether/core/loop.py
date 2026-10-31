@@ -89,6 +89,7 @@ class CoreConfig:
     record: bool = False  # the harness's record of the model's own command results, its facts and finish re-run (record)
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
+    record_commands: bool = False  # ...and at the first finish the task-shown commands no command contained (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
     # Reasoning effort for the request that first sees a newly attached image ("" = the run's own). 28 Oct: an
@@ -220,7 +221,7 @@ class _Session:
         self.state = runstate.RunState(task, workdir) if config.state and config.role != VERIFIER_ROLE else None
         self.record = (
             Record(self.env, workdir, config.control_dir, self.remaining, trace, measure=config.record_measure, task=task,
-                   paths_only=config.record_paths)
+                   paths_only=config.record_paths, commands=config.record_commands)
             if config.record and config.role != VERIFIER_ROLE else None
         )
         self.held = False  # the neutral finish hold was used
@@ -574,9 +575,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     mirror = None
     mirror_error = ""
     if s.clm:
-        upto = (
-            len(s.clm.editable) - 1
-        )  # the mirror holds history before this turn's assistant message
+        upto = len(s.clm.editable) - 1  # the mirror holds history before this turn's assistant message
         text = s.clm.render(upto)
         try:
             await put_bytes(s.env, text.encode(), s.clm.settings.mirror_path)
