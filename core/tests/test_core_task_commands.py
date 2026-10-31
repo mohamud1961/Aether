@@ -52,12 +52,13 @@ def test_first_finish_is_held_once_naming_only_the_commands_never_sent(tmp_path)
         record = _record(tmp_path, True, rows)
         (tmp_path / "app" / "config.yaml").write_text("x: 1\n")  # task-named path exists: only commands can hold
         for args in ({"input": "python3 check.py --all"}, {"input": "cd build && make install"},
-                     {"input": CLONE, "mode": "keys"}, {"input": CLONE, "interrupt": True}):
+                     {"input": CLONE, "interrupt": True}):
             await record.after_terminal(args, DONE, 1.0)
-        await record.after_terminal({"input": "curl http://server:8080/hello.html"}, "[input not sent: busy]", 2.0)
+        refused = "[input not sent: terminal t2 is still running its previous command. ...]\nearlier output\n"
+        await record.after_terminal({"input": "curl http://server:8080/hello.html", "name": "t2"}, refused, 2.0)
         hold, text, row = await record.at_finish()
         assert hold and row["not_run"] == [CLONE, "curl http://server:8080/hello.html"] and row["absent"] == []
-        assert f"`{CLONE}`" in text and "check.py" not in text and "compares command text only" in text
+        assert f"`{CLONE}`" in text and "check.py" not in text and "no input sent to a terminal" in text
         assert "do not exist" not in text and "300s" in text
         assert rows[-1][0] == "record_finish" and rows[-1][1]["hold"]
         assert (await record.at_finish())[0] is False  # only the first finish is examined
@@ -65,13 +66,16 @@ def test_first_finish_is_held_once_naming_only_the_commands_never_sent(tmp_path)
     asyncio.run(go())
 
 
-def test_no_hold_once_every_shown_command_was_sent_or_when_coverage_is_off(tmp_path):
+def test_no_hold_once_every_shown_command_was_typed_into_a_terminal_or_when_coverage_is_off(tmp_path):
     async def go():
         record = _record(tmp_path, True, [])
         (tmp_path / "app" / "config.yaml").write_text("x: 1\n")
-        for text in (f"cd /tmp && {CLONE} r", "python3 check.py --all -v", "curl -s http://127.0.0.1:8080/hello.html",
-                     "cd build && make install"):
-            await record.after_terminal({"input": text}, DONE, 1.0)
+        await record.after_terminal({"input": f"{CLONE} r\n", "mode": "keys"}, "", 1.0)  # typed into a shell: counts
+        await record.after_terminal({"input": "python3 check.py --all -v"}, DONE, 1.0)
+        # a program that prints the refusal's words is not a refusal: the command was sent
+        await record.after_terminal({"input": "curl -s http://127.0.0.1:8080/hello.html"},
+                                    "[input not sent: this is the page's own text]" + DONE, 1.0)
+        await record.after_terminal({"input": "cd build && make install"}, DONE, 1.0)
         assert (await record.at_finish())[0] is False
         paths_only = _record(tmp_path, False, [])  # paths mode: the same run never mentions commands
         assert paths_only.task_commands == [] and (await paths_only.at_finish())[0] is False
