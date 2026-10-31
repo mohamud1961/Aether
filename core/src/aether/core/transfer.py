@@ -272,3 +272,21 @@ async def get_bytes(env: Environment, remote: str) -> bytes:
         local = Path(tmp) / "payload"
         await env.download_file(remote, local)
         return local.read_bytes()
+
+
+async def get_regular_file(env: Environment, remote: str, limit: int) -> tuple[bytes | None, str]:
+    """(bytes, octal mode) of a regular, non-symlink file of at most limit bytes, else (None, why: missing /
+    too_large / unstable). Shell builtins plus a host-side copy only: the environment may have no python3."""
+    q = shlex.quote(remote)
+    probe = f"test -f {q} && ! test -L {q} && {{ stat -c '%s %a' {q} 2>/dev/null || stat -f '%z %Lp' {q}; }}"
+    st = await run(env, probe, timeout_s=30)
+    fields = st.stdout.split() if st.code == 0 else []
+    if len(fields) != 2 or not all(f.isdigit() for f in fields):
+        return None, "missing"
+    if int(fields[0]) > limit:
+        return None, "too_large"
+    try:
+        data = await get_bytes(env, remote)
+    except Exception:  # removed or replaced between the stat and the copy
+        return None, "missing"
+    return (data, fields[1]) if len(data) == int(fields[0]) else (None, "unstable")

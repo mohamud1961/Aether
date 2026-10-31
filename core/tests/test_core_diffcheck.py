@@ -594,3 +594,101 @@ def test_isolated_box_without_python3_skips_once_and_stays_quiet(tmp_path):
         assert not any(e == "diffcheck_error" for e in rig.events())
 
     asyncio.run(go())
+
+
+class BareBox(Box):
+    """A box whose image has no python3 until the harness's own CPython is installed (installation is simulated)."""
+
+    uploads: list = []
+
+    async def exec(self, command, cwd=None, env=None, timeout_sec=None):
+        if command == "command -v python3":
+            self.commands.append(command)
+            return SimpleNamespace(return_code=1, stdout="", stderr="")
+        if "tar -xzf" in command:
+            self.commands.append(command)
+            return SimpleNamespace(return_code=0, stdout="3.12.7\n", stderr="")
+        return await super().exec(command, cwd, env, timeout_sec)
+
+    async def upload_file(self, source_path, target_path):
+        self.uploads = [*self.uploads, (str(source_path), target_path)]
+
+
+def test_a_box_without_python3_gets_the_harness_python_and_the_check_runs(tmp_path):
+    tarball = tmp_path / "cpython.tar.gz"
+    tarball.write_bytes(b"stand-in")
+
+    async def go():
+        rig = Rig(tmp_path)
+        rig.dc.box_python = str(tarball)
+        box = BareBox(tmp_path)
+        async def factory(timeout_s):
+            return box
+        rig.dc._box_factory = factory
+        await rig.dc.start()
+        await asyncio.gather(rig.dc.job, return_exceptions=True)
+        assert box.uploads == [(str(tarball), "/tmp/.aether-python.tar.gz")]
+        started = [d for e, d in rig.rows if e == "diffcheck_author_started"]
+        assert started and started[0]["python"] == "harness python 3.12.7"
+        assert "disagrees" in await rig.step("def double(x):\n    return x * x\n")
+        await rig.dc.close()
+
+    asyncio.run(go())
+
+
+def test_a_missing_host_python_is_named_in_the_skip(tmp_path):
+    async def go():
+        rig = Rig(tmp_path)
+        rig.dc.box_python = str(tmp_path / "absent.tar.gz")
+        box = BareBox(tmp_path)
+        async def factory(timeout_s):
+            return box
+        rig.dc._box_factory = factory
+        await rig.dc.start()
+        reasons = [d["reason"] for e, d in rig.rows if e == "diffcheck_skipped"]
+        assert rig.dc.state == "failed" and "relocatable python missing" in reasons[0] and box.uploads == []
+
+    asyncio.run(go())
+
+
+class NoPythonSolver(LocalEnv):
+    """The solver's task container without python3: any harness command that needs it fails as sh would."""
+
+    async def exec(self, command, cwd=None, env=None, timeout_sec=None):
+        if "python3" in command:
+            self.commands.append(command)
+            return SimpleNamespace(return_code=127, stdout="", stderr="sh: 1: python3: not found\n")
+        return await super().exec(command, cwd, env, timeout_sec)
+
+
+def test_the_candidate_is_read_without_python3_in_the_solvers_container(tmp_path):
+    async def go(rig, box):
+        rig.dc.env = NoPythonSolver(tmp_path)
+        note = await rig.step("def double(x):\n    return x * x\n")
+        assert "disagrees" in note and "input: 1" in note
+        assert not [c for c in rig.dc.env.commands if "python3" in c and str(rig.target) in c]
+
+    isolated(tmp_path, go)
+
+
+def test_a_symlinked_target_is_not_followed(tmp_path):
+    async def go(rig, box):
+        outside = tmp_path / "outside.py"
+        outside.write_text("def double(x):\n    return x * x\n")
+        rig.target.symlink_to(outside)
+        assert "candidate file is missing" in await rig.step()
+        assert not [c for c in _checks(box) if ".candidate-" in c]
+
+    isolated(tmp_path, go)
+
+
+SCRATCH_CHECK = CHECK.replace("bad = 0\n", "bad = 0\nopen('scratch.log', 'a').write('ran\\n')\n")
+
+
+def test_a_check_that_writes_its_own_scratch_file_is_accepted(tmp_path):
+    async def go(rig, box):
+        assert rig.dc.state != "rejected", [d for e, d in rig.rows if e == "diffcheck_rejected"]
+        assert "disagrees" in await rig.step("def double(x):\n    return x * x\n")
+
+    assert SCRATCH_CHECK != CHECK
+    isolated(tmp_path, go, check=SCRATCH_CHECK)

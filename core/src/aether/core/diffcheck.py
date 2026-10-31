@@ -9,10 +9,8 @@ first finish, the check runs once more on the final file (waiting for the author
 disagreement holds that finish once. A second finish always takes effect. The check is the same model's reading of
 the task and can be wrong; the solver decides.
 
-Without a factory the author would run in the solver's unrestricted environment and can read/change the candidate or race the
-solver. That path therefore fails closed in the solver's unrestricted environment and can read/change the candidate or race the
-solver. The public start path therefore fails closed until the runtime provides actual isolation. A separate
-directory and a prompt do not establish independence. Separating one supplied good/broken pair proves only that
+Without a factory the author would run in the solver's unrestricted environment and could read/change the candidate or
+race the solver, so that path fails closed until the runtime provides actual isolation. A separate directory and a prompt do not establish independence. Separating one supplied good/broken pair proves only that
 those two samples are distinguished; it does not establish oracle correctness.
 """
 
@@ -30,7 +28,8 @@ import uuid
 from typing import Any, Awaitable, Callable
 
 from .env import Environment, ExecResult, run
-from .transfer import get_bytes, put_bytes
+from . import box_python as box_python_mod
+from .transfer import get_regular_file, put_bytes
 from .oversight import ReviewPlan
 from .diffcheck_text import AGREES, AGREES_ISOLATED, FINISH_HOLD, FOUND, FOUND_ISOLATED, INCONCLUSIVE, ISOLATED_BRIEF
 
@@ -73,8 +72,10 @@ class DiffCheck:
 
     def __init__(self, env: Environment, task: str, check_dir: str, remaining: Callable[[], float],
                  trace: Callable[..., None], author: Callable[..., Awaitable[Any]],
-                 clock: Callable[[], float], box: Callable[[float], Awaitable[Any]] | None = None) -> None:
+                 clock: Callable[[], float], box: Callable[[float], Awaitable[Any]] | None = None,
+                 box_python: str | None = None) -> None:  # None: the agent process's AETHER_CORE_BOX_PYTHON
         self.env, self.task, self.dir = env, task, check_dir
+        self.box_python = os.environ.get(box_python_mod.BOX_PYTHON_ENV, "") if box_python is None else box_python
         self._box_factory, self.box, self.held = box, None, False  # isolated mode: the author's own container
         self.remaining, self.trace, self._author, self.clock = remaining, trace, author, clock
         self.check, self.target = f"{check_dir}/check.py", ""
@@ -115,20 +116,21 @@ class DiffCheck:
         t0 = self.clock()
         try:
             self.box = await self._box_factory(min(300.0, timeout))
-            probe = await run(self.box, f"mkdir -p {shlex.quote(self.dir)} && command -v python3", timeout_s=30)
+            await run(self.box, f"mkdir -p {shlex.quote(self.dir)}", timeout_s=30)
+            ok, how = await box_python_mod.ensure(self.box, self.box_python)  # the check and its manifest run on python3
         except Exception as exc:  # an instrument: no box, no check; the run goes on
             self.state = "failed"
             self.trace("diffcheck_box_failed", error=f"{type(exc).__name__}: {exc}"[:500])
             return
-        if probe.code != 0:  # the check and its harness-side manifest run on python3
+        if not ok:
             self.state = "failed"
-            self.trace("diffcheck_skipped", reason="no python3 in the task container")
+            self.trace("diffcheck_skipped", reason=how)
             return
         timeout = author_timeout(self.remaining()) or AUTHOR_MIN_S
         brief = ISOLATED_BRIEF.format(dir=self.dir, task=self.task, check_s=CHECK_S)
         self.state, self.job = "authoring", asyncio.ensure_future(self._author(brief, timeout, self.box))
         self.trace("diffcheck_author_started", timeout_s=round(timeout), box_s=round(self.clock() - t0, 1),
-                   provenance="isolated_clone")
+                   provenance="isolated_clone", python=how)
 
     async def at_finish(self) -> str:
         """The first finish: run the check on the final file (waiting for the author while time allows). A
@@ -227,7 +229,7 @@ class DiffCheck:
             self.trace("diffcheck_rejected", reason="does not separate its two supplied samples", exits=codes,
                        validation="two_sample_discrimination_only", oracle_correctness="unverified")
             return
-        if await self._manifest() != self._accepted_manifest:
+        if self._changed(await self._manifest()):
             self.state = "rejected"
             self.trace("diffcheck_rejected", reason="checker or support inputs changed during sample validation",
                        validation="two_sample_discrimination_only", oracle_correctness="unverified")
@@ -371,8 +373,7 @@ print(json.dumps(out,sort_keys=True))
         if not self._accepted_manifest:
             return self._inconclusive("missing_input_manifest", self.dir, "checker inputs were not sealed")
         current = await self._manifest()
-        changed = sorted(name for name in set(current) | set(self._accepted_manifest)
-                         if current.get(name) != self._accepted_manifest.get(name))
+        changed = self._changed(current)
         if "check.py" in changed:
             await put_bytes(self.cenv, self.source, self.check)
             self.trace("diffcheck_check_restored", check=self.check, reason="checker source changed or deleted")
@@ -380,14 +381,20 @@ print(json.dumps(out,sort_keys=True))
                 return self._inconclusive("checker_changed_during_check", self.check,
                                           "checker source changed during check")
             current = await self._manifest()
-            changed = sorted(name for name in set(current) | set(self._accepted_manifest)
-                             if current.get(name) != self._accepted_manifest.get(name))
+            changed = self._changed(current)
         if changed:
             fingerprint = hashlib.sha256(json.dumps(current, sort_keys=True).encode()).hexdigest()
             return self._inconclusive("checker_inputs_changed", ", ".join(changed),
                                       "checker/support files changed or were deleted", fingerprint)
         self._last_input_issue = ""
         return None
+
+    def _changed(self, current: dict[str, str]) -> list[str]:
+        """Checker/support files that changed, disappeared or (shared directory only) appeared. In the box a new file
+        can only be the check's own scratch output (a live check was rejected for writing one); without isolation
+        the solver could add a module the check would import, so additions count there."""
+        names = set(self._accepted_manifest) | (set() if self.box is not None else set(current))
+        return sorted(n for n in names if current.get(n) != self._accepted_manifest.get(n))
 
     def _inconclusive(self, kind: str, target: str, reason: str, fingerprint: str = "") -> str:
         identity = f"{kind}:{fingerprint or target}"
@@ -449,28 +456,20 @@ print(json.dumps({"status":"ok","sha256":h}))
 
     async def _snapshot_into_box(self) -> tuple[str, str, str]:
         """Copy the solver's target file into the box (isolated mode)."""
-        q = shlex.quote
-        probe = ("import os,stat,sys; s=os.lstat(sys.argv[1]); "
-                 "print(s.st_size, oct(stat.S_IMODE(s.st_mode))[2:]) if stat.S_ISREG(s.st_mode) else sys.exit(3)")
-        st = await run(self.env, f"python3 -c {q(probe)} {q(self.target)} 2>/dev/null", timeout_s=30)
-        if st.code != 0 or not st.stdout.strip():
-            return "", "", "missing"
-        size, mode = st.stdout.split()[:2]
-        if int(size) > MAX_CANDIDATE_BYTES:
-            return "", "", "too_large"
-        data = await get_bytes(self.env, self.target)
-        if len(data) != int(size):
-            return "", "", "unstable"
+        data, mode = await self._target_bytes()
+        if data is None:
+            return "", "", mode
         suffix = os.path.splitext(self.target)[1] or ".candidate"
         snapshot = f"{self.dir}/.candidate-{uuid.uuid4().hex[:8]}{suffix}"
         await put_bytes(self.box, data, snapshot, mode=mode)
         return hashlib.sha256(data).hexdigest(), snapshot, ""
 
+    async def _target_bytes(self) -> tuple[bytes | None, str]:
+        return await get_regular_file(self.env, self.target, MAX_CANDIDATE_BYTES)
+
     async def _target_hash(self) -> str | None:
-        script = "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())"
-        result = await run(self.env, f"python3 -c {shlex.quote(script)} {shlex.quote(self.target)} 2>/dev/null",
-                           timeout_s=30)
-        return result.stdout.strip() if result.code == 0 else None
+        data = (await self._target_bytes())[0]
+        return hashlib.sha256(data).hexdigest() if data is not None else None
 
     async def _remove_snapshot(self, snapshot: str) -> None:
         if not snapshot:
