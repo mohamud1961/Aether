@@ -31,13 +31,13 @@ from .env import Environment, ExecResult, run
 from . import box_python as box_python_mod
 from .transfer import get_regular_file, put_bytes
 from .oversight import ReviewPlan
-from .diffcheck_text import AGREES, AGREES_ISOLATED, FINISH_HOLD, FOUND, FOUND_ISOLATED, INCONCLUSIVE, ISOLATED_BRIEF
+from .diffcheck_text import AGREES, AGREES_ISOLATED, BOX_NETWORK, FINISH_HOLD, FOUND, FOUND_ISOLATED, INCONCLUSIVE, ISOLATED_BRIEF
 
 DIFFCHECK_ENV = "AETHER_CORE_DIFFCHECK"
 DIFFCHECK_MODES = ("off", "on")
 AUTHOR_ROLE = "diffcheck"
 AUTHOR_SHARE, AUTHOR_MAX_S, AUTHOR_MIN_S = 0.6, 900.0, 120.0  # 0.35 timed out authors (y2, 28 Oct)
-CHECK_S, MIN_GAP_S, RESERVE_S, FINISH_WAIT_S = 300, 60.0, 90.0, 120.0  # an unbounded finish wait idled 410 s (y2)
+CHECK_S, MIN_GAP_S, RESERVE_S, FINISH_WAIT_S = 300, 60.0, 90.0, 300.0  # wait: unbounded idled 410 s, 120 s missed 2/6
 SHOWN_CHARS = 2_500
 MAX_CANDIDATE_BYTES = 16 * 1024 * 1024
 TRACE_FILE = "diffcheck_trace.jsonl"
@@ -127,10 +127,11 @@ class DiffCheck:
             self.trace("diffcheck_skipped", reason=how)
             return
         timeout = author_timeout(self.remaining()) or AUTHOR_MIN_S
-        brief = ISOLATED_BRIEF.format(dir=self.dir, task=self.task, check_s=CHECK_S)
+        egress = bool(getattr(self.box, "egress", False))
+        brief = ISOLATED_BRIEF.format(dir=self.dir, task=self.task, check_s=CHECK_S, network=BOX_NETWORK[egress])
         self.state, self.job = "authoring", asyncio.ensure_future(self._author(brief, timeout, self.box))
         self.trace("diffcheck_author_started", timeout_s=round(timeout), box_s=round(self.clock() - t0, 1),
-                   provenance="isolated_clone", python=how)
+                   provenance="isolated_clone", python=how, egress=egress)
 
     async def at_finish(self) -> str:
         """The first finish: run the check on the final file (waiting for the author while time allows). A

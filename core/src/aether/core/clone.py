@@ -1,4 +1,5 @@
-"""Disposable clones of the task container: a commit of its filesystem, started without network.
+"""Disposable clones of the task container: a commit of its filesystem, started without network unless the caller
+asks to mirror the task container's own egress (``egress``), which is then proven from the host.
 
 Used to run acceptance checks on a copy of a state, so nothing a check writes reaches the graded container.
 A commit copies files, not processes: servers running in the task container are absent from a clone, and
@@ -53,11 +54,12 @@ async def compose_clone(
     *,
     timeout_s: float | None = None,
     read_only: bool = False,
+    egress: bool = False,
 ) -> "Clone":
     """Clone a compose service's main container. With ``timeout_s`` the lookup and the clone share that time."""
     if timeout_s is None:
         return await Clone.create(
-            env, known=await compose_container(project), read_only=read_only
+            env, known=await compose_container(project), read_only=read_only, egress=egress
         )
     end = time.monotonic() + timeout_s
 
@@ -70,11 +72,31 @@ async def compose_clone(
         known=known,
         timeout_s=max(0.1, end - time.monotonic()),
         read_only=read_only,
+        egress=egress,
     )
 
 
 class CloneError(RuntimeError):
     pass
+
+
+async def _has_egress(host: HostRun, cid: str) -> bool:
+    """Whether the task container can reach outside the host, read from docker: attached to at least one network
+    that is neither ``none`` nor internal (``host`` counts). Any doubt answers no."""
+    code, out, _ = await host(
+        ["docker", "inspect", "-f", "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}", cid], 30
+    )
+    if code != 0:
+        return False
+    for net in out.split():
+        if net == "host":
+            return True
+        if net == "none":
+            continue
+        code, internal, _ = await host(["docker", "network", "inspect", "-f", "{{.Internal}}", net], 30)
+        if code == 0 and internal.strip() == "false":
+            return True
+    return False
 
 
 # docker commit copies the container's labels into the image, so a clone of a compose service carries the same
@@ -179,6 +201,7 @@ class Clone:
         host: HostRun,
         owns_image: bool = True,
         read_only: bool = False,
+        egress: bool = False,
     ) -> None:
         self.name, self.image, self._host, self._owns_image = (
             name,
@@ -186,11 +209,11 @@ class Clone:
             host,
             owns_image,
         )
-        self.read_only = read_only
+        self.read_only, self.egress = read_only, egress
 
     @staticmethod
-    def _run_args(name: str, image: str, read_only: bool = False) -> list[str]:
-        # No network: the clone must not escape the task's egress policy.
+    def _run_args(name: str, image: str, read_only: bool = False, egress: bool = False) -> list[str]:
+        # No network unless the task container itself has egress (_has_egress): never beyond the task's policy.
         return [
             "docker",
             "run",
@@ -200,7 +223,7 @@ class Clone:
             name,
             *(_READ_ONLY if read_only else []),
             "--network",
-            "none",
+            "bridge" if egress else "none",
             "--security-opt",
             "no-new-privileges",
             "--pids-limit",
@@ -225,8 +248,9 @@ class Clone:
         *,
         timeout_s: float | None = None,
         read_only: bool = False,
+        egress: bool = False,
     ) -> "Clone":
-        """Commit and start a clone (``read_only``: see SCRATCH). Cancelled midway, it lets the docker commands it started finish and removes
+        """Commit and start a clone (``read_only``: see SCRATCH; ``egress``: network only if the task has it). Cancelled midway, it lets the docker commands it started finish and removes
         what they made before re-raising: a docker CLI killed mid-commit can still leave the image behind."""
         clock = getattr(env, "remaining_s", None)
         budget = (
@@ -245,7 +269,7 @@ class Clone:
             return await host(argv, min(seconds, left))
 
         making = asyncio.ensure_future(
-            cls._create(env, bounded, known, cleanup_host=host, read_only=read_only)
+            cls._create(env, bounded, known, cleanup_host=host, read_only=read_only, egress=egress)
         )
         try:
             return await asyncio.shield(making)
@@ -269,18 +293,20 @@ class Clone:
         *,
         cleanup_host: HostRun,
         read_only: bool = False,
+        egress: bool = False,
     ) -> "Clone":
         cid = await identify(env, host, known)
+        egress = egress and await _has_egress(host, cid)
         tag = f"aether-clone:{uuid.uuid4().hex[:12]}"
         name = tag.replace(":", "-")
         try:
             code, _, err = await host(["docker", "commit", *_UNLABEL, cid, tag], 900)
             if code != 0:
                 raise CloneError(f"docker commit failed: {err.strip()[:300]}")
-            code, _, err = await host(cls._run_args(name, tag, read_only), 180)
+            code, _, err = await host(cls._run_args(name, tag, read_only, egress), 180)
             if code != 0:
                 raise CloneError(f"docker run of the clone failed: {err.strip()[:300]}")
-            return cls(name, tag, cleanup_host, read_only=read_only)
+            return cls(name, tag, cleanup_host, read_only=read_only, egress=egress)
         except BaseException as exc:
             for argv in (
                 ["docker", "rm", "-f", "-v", name],
@@ -333,14 +359,14 @@ class Clone:
         """Another throwaway container from the same commit (the image stays owned by this clone)."""
         name = f"{self.name}-{uuid.uuid4().hex[:6]}"
         code, _, err = await self._host(
-            self._run_args(name, self.image, self.read_only), 180
+            self._run_args(name, self.image, self.read_only, self.egress), 180
         )
         if code != 0:
             raise CloneError(
                 f"docker run of a sibling clone failed: {err.strip()[:300]}"
             )
         return Clone(
-            name, self.image, self._host, owns_image=False, read_only=self.read_only
+            name, self.image, self._host, owns_image=False, read_only=self.read_only, egress=self.egress
         )
 
     async def close(self) -> None:

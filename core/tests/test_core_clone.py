@@ -201,3 +201,35 @@ def test_the_compose_lookup_needs_exactly_one_container():
 
     with pytest.raises(V.CloneError, match="expected one container, found 2"):
         asyncio.run(V.compose_container("proj", host=host))
+
+
+class _NetHost(_Host):
+    """The fake host, with the task container attached to ``nets`` ({name: internal})."""
+
+    def __init__(self, nets: dict[str, bool] | None) -> None:
+        super().__init__({})
+        self.nets = nets
+
+    async def __call__(self, argv, timeout):
+        if argv[:2] == ["docker", "inspect"] and "-f" in argv and "Networks" in argv[argv.index("-f") + 1]:
+            self.calls.append(argv)
+            return (0, " ".join(self.nets) + " \n", "") if self.nets is not None else (1, "", "boom")
+        if argv[:3] == ["docker", "network", "inspect"]:
+            self.calls.append(argv)
+            return 0, ("true" if self.nets[argv[-1]] else "false") + "\n", ""
+        return await super().__call__(argv, timeout)
+
+
+def _network(nets, egress):
+    host = _NetHost(nets)
+    clone = asyncio.run(V.Clone.create(_TaskEnv(host, host.real), host, egress=egress))
+    start = next(c for c in host.calls if c[:2] == ["docker", "run"])
+    return start[start.index("--network") + 1], clone.egress
+
+
+def test_a_clone_mirrors_the_task_containers_egress_only_when_asked():
+    assert _network({"proj_default": False}, egress=True) == ("bridge", True)
+    assert _network({"proj_default": False}, egress=False) == ("none", False)  # verify clones stay offline
+    assert _network({"proj_internal": True}, egress=True) == ("none", False)
+    assert _network({"none": False}, egress=True) == ("none", False)
+    assert _network(None, egress=True) == ("none", False)  # cannot tell: no network

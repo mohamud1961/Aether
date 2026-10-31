@@ -692,3 +692,25 @@ def test_a_check_that_writes_its_own_scratch_file_is_accepted(tmp_path):
 
     assert SCRATCH_CHECK != CHECK
     isolated(tmp_path, go, check=SCRATCH_CHECK)
+
+
+def test_the_brief_states_the_boxs_real_network_and_forbids_a_source_reading_check(tmp_path):
+    seen = {}
+    for egress in (False, True):
+        async def go():
+            rig = Rig(tmp_path / str(egress))
+            box = Box(tmp_path / str(egress))
+            box.egress = egress
+            async def factory(timeout_s):
+                return box
+            rig.dc._box_factory = factory
+            await rig.dc.start()
+            await asyncio.gather(rig.dc.job, return_exceptions=True)
+            started = [d for e, d in rig.rows if e == "diffcheck_author_started"]
+            seen[egress] = (rig.briefs[0], started[0]["egress"])
+            await rig.dc.close()
+        (tmp_path / str(egress)).mkdir()
+        asyncio.run(go())
+    assert "There is no network." in seen[False][0] and seen[False][1] is False
+    assert "network access the task's environment has" in seen[True][0] and seen[True][1] is True
+    assert all("Never substitute reading the candidate's source for running it." in b for b, _ in seen.values())

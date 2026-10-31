@@ -226,17 +226,17 @@ class _Session:
         self.held = False  # the neutral finish hold was used
         self.diffcheck = (
             diffcheck.DiffCheck(self.env, task, f"{config.control_dir}/diffcheck", self.remaining, trace, _diffcheck_author(self),
-                        self.elapsed, box=(lambda t: self.clone(self.env, timeout_s=t)) if config.make_clone else None)
+                        self.elapsed, box=(lambda t: self.clone(self.env, timeout_s=t, egress=True)) if config.make_clone else None)
             if config.diffcheck and config.role == "worker" else None
         )
 
     def clone(
-        self, env: Environment, timeout_s: float | None = None, read_only: bool = False
+        self, env: Environment, timeout_s: float | None = None, read_only: bool = False, **egress: bool
     ) -> Awaitable[Any]:
-        """A clone factory takes the time it may use (None: the run's remaining time) and whether the clone's
-        filesystem must be read-only outside its scratch directories (clone.SCRATCH)."""
+        """A clone factory takes the time it may use (None: the run's remaining time), whether its filesystem is
+        read-only outside clone.SCRATCH and, only for the diffcheck box, egress=True (the task's own network reach)."""
         return (self.config.make_clone or Clone.create)(
-            env, timeout_s=timeout_s, read_only=read_only
+            env, timeout_s=timeout_s, read_only=read_only, **egress
         )
 
     def remaining(self) -> float:

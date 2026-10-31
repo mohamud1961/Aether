@@ -1,5 +1,8 @@
 """What the differential check says: the author's briefs and the notes the solver sees (see diffcheck)."""
 
+# The box's network line: (no egress, the task container's own egress mirrored; see clone._has_egress).
+BOX_NETWORK = ("There is no network.", "This container has the network access the task's environment has: install \
+what running a candidate needs.")
 ISOLATED_BRIEF = """Someone else is working on the task below in another container; you will never see their work and \
 they will not see yours. This container is a copy of the task's environment as it was before they started. Your job: \
 write an executable check that compares a candidate solution's actual behaviour against the best source of truth \
@@ -18,7 +21,9 @@ behaviour only if it is wrong under all of them.
 5. Write {dir}/check.py: `python3 {dir}/check.py --candidate PATH` runs the candidate at PATH (a copy of the file \
 the task asks for, possibly at a different path) and the reference on the same inputs, through the interface the \
 task specifies, prints each disagreement as input / expected / actual, and exits 1 on any disagreement, 2 if the \
-check itself could not run, 0 if none. Under {check_s} seconds.
+check itself could not run, 0 if none. Under {check_s} seconds. The check must execute the candidate: if something \
+running it needs is missing and cannot be installed, the check exits 2 for every candidate. Never substitute \
+reading the candidate's source for running it.
 6. Write the absolute path of the file the task asks for (the candidate to check) as the only line of \
 {dir}/target.
 7. Validate: write {dir}/good_candidate.<ext> that follows the task (check exits 0) and \
@@ -26,7 +31,7 @@ check itself could not run, 0 if none. Under {check_s} seconds.
 your check only if they behave so.
 
 Rules: keep everything you make under {dir}; do not create the task's deliverable at its real path. Call finish when \
-the check is validated. There is no network.
+the check is validated. {network}
 
 The task:
 {task}"""
