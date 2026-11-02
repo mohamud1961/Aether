@@ -224,12 +224,12 @@ def test_a_long_result_is_saved_exactly_and_its_trimmed_view_points_there(tmp_pa
     assert f"saved in full at {saved}" in first_result["content"]
 
 
-def test_hygiene_off_is_the_unchanged_prompt_and_on_or_placebo_add_one_line_before_finish():
+def test_hygiene_off_is_the_unchanged_prompt_and_each_mode_adds_one_line_before_finish():
     from aether.core.tools import HYGIENE_DOC, system_prompt
 
     base = system_prompt(python_version="3.12", clm=True)
     assert base == system_prompt(python_version="3.12", clm=True, hygiene="off")
-    for mode in ("on", "placebo"):
+    for mode in ("on", "placebo", "contract"):
         text = system_prompt(python_version="3.12", clm=True, hygiene=mode)
         assert text.replace(HYGIENE_DOC[mode], "") == base
         assert text.index(HYGIENE_DOC[mode]) < text.index("- Call finish only when")
