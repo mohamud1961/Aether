@@ -31,6 +31,11 @@ provider-free runtime diagnostic, not a Luna accuracy board or promotion.
 - Cleanup: stop and remove only the profile and containers created for this
   gate after saving evidence; check that they are no longer active. Do not
   start, stop, change, or delete the user's existing Colima profile.
+- The local supervisor is `qa/local_state_linux_gate.py`, SHA-256
+  `cd270f3bc0c490251b459e5156d08d55a346073421a1646e822eef93c3ca655e`.
+  Before launch, its process-ownership controls passed with fake executables:
+  it refused a pre-existing profile, and a failed new-profile startup cleaned
+  only the newly named profile (2 passed). Those fakes do not qualify Linux.
 
 Exit evidence must identify the actual source archive, image digest, runtime,
 test command, outcomes, fixture controls, and owned process/VM cleanup. A
