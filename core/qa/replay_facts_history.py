@@ -14,7 +14,7 @@ import statistics
 from typing import Any
 
 from aether.core import facts as facts_module
-from aether.core import facts_probe, facts_workspace
+from aether.core import facts_evidence, facts_probe, facts_sessions, facts_workspace
 from aether.core.facts import Facts
 from qa import replay_corpus
 
@@ -104,11 +104,13 @@ async def replay_one(events: list[dict[str, Any]]) -> dict[str, int]:
             raise ValueError("tool event has unsupported shape")
         checked += 1
         names[name] += 1
-        await service.after_action(checked, name, args, result)
+        call_id = f"trace_{checked}"
+        await service.after_action(checked, name, args, result, call_id=call_id)
         receipt = service.events[-1]
         expected = hashlib.sha256(result.encode("utf-8", errors="surrogatepass")).hexdigest() if len(result) <= 256_000 else None
         if (receipt["step"] != checked or receipt["tool"] != name or receipt["tool_output_sha256"] != expected
-                or receipt["workspace_status"] != "unknown"):
+                or receipt["workspace_status"] != "unknown" or receipt["call_id"] != call_id
+                or service.observation_state(call_id)["status"] != "unknown"):
             raise ValueError("facts receipt mismatch or invented workspace state")
     if service.record()["initial_workspace"]["status"] != "unknown" or service.shared_known:
         raise ValueError("historical state asserted as observed")
@@ -181,8 +183,10 @@ def main() -> None:
                                   "p90": percentile(ratios, .9)}
     report = {"manifest_sha256": MANIFEST_SHA, "selected": len(selected),
               "valid": sum(row["status"] == "valid" for row in results), "runs": results,
+              "replay_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               "service_source_sha256": {Path(module.__file__).name: hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
-                                        for module in (facts_module, facts_probe, facts_workspace)},
+                                        for module in (facts_module, facts_evidence, facts_probe,
+                                                       facts_sessions, facts_workspace)},
               "historical_request_count": len(all_lengths),
               "median_request_chars": statistics.median(all_lengths) if all_lengths else None,
               "hypothetical_fixed_note_char_ratios": sensitivity,

@@ -19,7 +19,10 @@ For each ordered historical tool event, call the actual Core facts service
 with the captured action and result, but make all fresh environment and
 process observations unknown: the original machines are not available.
 Check that action receipts retain their correct step and output digest and
-that unknown state is not reported as observed. Separately measure the
+that unknown state is not reported as observed. A synthetic call ID is also
+attached to each replayed action, and its state comparison must remain
+unknown because no historical workspace was restored. The script hashes the
+facts service and its helper sources with its own source. Separately measure the
 captured successful worker request-input character lengths and illustrate the
 effect of fixed-size hypothetical notes. Those hypothetical ratios are a
 context-size sensitivity analysis, not measured state-enabled overhead,
