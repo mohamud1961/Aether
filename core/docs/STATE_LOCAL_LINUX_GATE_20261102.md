@@ -59,3 +59,20 @@ image digest, task pack, budget and resource/cleanup limits, with separate
 evidence at `qa/evidence/state_linux_2b4cdad7_retry1/`. The corrected
 supervisor SHA-256 is
 `94f9f5bd8b8ddb6b04832775be0af28014437aea1797b9b7b88b5b3abd4642bd`.
+
+## Result
+
+The corrected retry ran Linux `6.8.0-117-generic aarch64` in the declared
+container with `network=none` and zero mounts. The facts and REPL checks
+passed (48 passed); the synthetic pack's five artifact controls and five
+sensor controls passed. The deliberately unavailable observer retained the
+correct artifact controls but failed four of five sensor controls and exited
+nonzero, as required. Source and fixture hashes were independently compared
+with commit `2b4cdad7` with no mismatches. The owned profile was stopped and
+deleted; the user's existing profile stayed stopped and Docker's active
+context stayed `default`.
+
+Evidence is under `qa/evidence/state_linux_2b4cdad7_retry1/`. This qualifies
+only the stated local Linux/container controls for this source. It is not a
+full benchmark-native task-success, latency, provider-cost, or promotion
+result; the archived real machines were not reconstructed.
