@@ -204,3 +204,39 @@ def test_tool_receipts_bind_only_to_the_post_action_observation(tmp_path, monkey
         assert "sample output" not in json.dumps(events)
 
     asyncio.run(exercise())
+
+
+def test_prior_tool_observation_can_be_compared_with_the_current_bounded_state(tmp_path, monkeypatch):
+    state, env, work, _bindir, _rows = _setup(tmp_path, monkeypatch)
+    source = work / "source.txt"
+    source.write_text("first\n")
+
+    async def exercise():
+        await state.start()
+        await state.after_action(1, "read_file", {"path": "source.txt"}, "first\n", call_id="c1")
+        initial = state.observation_state("c1")
+        assert initial["status"] == "sample_matches" and initial["observation_step"] == 1
+        assert "not proof" in initial["scope"]
+
+        # Hidden files are outside the sample: a matching sample must not be
+        # presented as evidence that the entire environment is unchanged.
+        (work / ".hidden").write_text("outside the observed sample\n")
+        await state.after_action(2, "terminal", {"input": "true"}, "ok", call_id="c2")
+        partial = state.observation_state("c1")
+        assert partial["status"] == "sample_matches" and partial["latest_complete"] is False
+
+        source.write_text("second version\n")
+        await state.after_action(3, "terminal", {"input": "true"}, "ok", call_id="c3")
+        assert state.observation_state("c1")["status"] == "sample_differs"
+        env.fail_probe = True
+        await state.after_action(4, "terminal", {"input": "true"}, "ok", call_id="c4")
+        assert state.observation_state("c1")["status"] == "unknown"
+        env.fail_probe = False
+        await state.after_action(5, "terminal", {"input": "true"}, "ok", call_id="c1")
+        assert state.observation_state("c1")["reason"] == "missing_or_ambiguous_call_id"
+        assert state.observation_state("missing")["status"] == "unknown"
+        for index in range(129):
+            state._record_event(6 + index, "read_file", f"extra_{index}", "")
+        assert state.observation_state("extra_128")["reason"] == "history_truncated"
+
+    asyncio.run(exercise())

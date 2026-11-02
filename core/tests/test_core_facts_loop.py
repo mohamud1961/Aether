@@ -433,6 +433,10 @@ def test_real_loop_reports_a_later_metadata_change_to_an_initial_file(tmp_path, 
                   if item.get("type") == "function_call_output" and item.get("call_id") == "c2")
     assert "solver.py" in update and "metadata" in update and "step 2" in update
     assert "content is not established by metadata" in update
+    comparisons = {row["call_id"]: row for row in result.extras["core_facts"]["recent_observation_states"]}
+    assert comparisons["c1"]["status"] == "sample_differs"
+    assert comparisons["c2"]["status"] == "sample_matches"
+    assert "not proof" in comparisons["c1"]["scope"]
 
 
 def test_state_remains_available_after_context_checkpoint(tmp_path, monkeypatch):

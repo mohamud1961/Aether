@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from . import facts_probe
 from .env import Environment
+from .facts_evidence import observation_state, workspace_digest
 from .facts_sessions import python_cwd_note, terminal_cwd_note
 from .facts_workspace import InitialWorkspace, ManagedFactsText, continuation_state, install_project_note  # noqa: F401
 
@@ -293,8 +294,6 @@ class Facts:
 
     def _record_event(self, step: int, tool: str, call_id: str | None, result: str) -> None:
         workspace = self.snapshot.get("workspace") if self.snapshot and self.shared_known else None
-        metadata = (json.dumps({"root": workspace["root"], "files": workspace["files"]},
-                               sort_keys=True, separators=(",", ":")).encode() if workspace is not None else None)
         output_digest = (hashlib.sha256(result.encode("utf-8", errors="surrogatepass")).hexdigest()
                          if len(result) <= 256_000 else None)
         row = {
@@ -302,7 +301,7 @@ class Facts:
             "call_id": call_id if isinstance(call_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", call_id) else None,
             "tool_output_sha256": output_digest,
             "tool_output_scope": "raw tool result before facts and clock; UTF-8 with surrogatepass",
-            "workspace_metadata_sha256": hashlib.sha256(metadata).hexdigest() if metadata is not None else None,
+            "workspace_metadata_sha256": workspace_digest(workspace),
             "workspace_status": "observed" if workspace is not None else "unknown",
             "workspace_complete": workspace["complete"] if workspace is not None else None,
             "state_scope": "bounded scan after action; not necessarily the state read by the tool",
@@ -311,6 +310,10 @@ class Facts:
             self.events.pop(0)
             self.omitted_events += 1
         self.events.append(row)
+
+    def observation_state(self, call_id: str) -> dict[str, Any]:
+        workspace = self.snapshot.get("workspace") if self.snapshot and self.shared_known else None
+        return observation_state(self.events, self.omitted_events, call_id, workspace, self.last_shared_step)
 
     @staticmethod
     def _mentioned(tool: str, command: str) -> list[str]:
@@ -480,6 +483,8 @@ class Facts:
                 "bindings": deepcopy(self.bindings), "omitted_bindings": self.omitted_bindings,
                 "recent_differences": deepcopy(self.recent_differences),
                 "events": deepcopy(self.events), "omitted_events": self.omitted_events,
+                "recent_observation_states": [self.observation_state(row["call_id"]) for row in self.events[-8:]
+                                              if row["call_id"] is not None],
                 "internal_failures": self.internal_failures,
                 "scope": "bounded observations; package contents, hidden entries and external state unobserved"}
 

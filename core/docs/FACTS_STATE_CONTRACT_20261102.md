@@ -66,6 +66,16 @@ unobserved changes or establish the model's use of them. Each raw tool result
 has a bounded post-action observation receipt; it is not a snapshot of the
 state that the tool necessarily read.
 
+Core can compare a retained tool call's post-action workspace metadata sample
+with its latest sample. The service returns `sample_matches`, `sample_differs`,
+or `unknown` with observation steps and coverage; it also records the most
+recent eight comparisons in the run's Core facts record. An unavailable
+observation, missing or duplicate call ID, or truncated receipt history is
+unknown. Matching samples do not establish that contents or the wider
+environment were unchanged, and differing samples do not establish whether a
+test is valid or a task is wrong. These comparisons are available to Core and
+the run record; they are not automatically presented to Luna as warnings.
+
 When Core continues a copied CLM context produced with this prototype, it
 refreshes the pinned observation identified by that context's private index
 instead of appending a second, conflicting state note. The index is not
