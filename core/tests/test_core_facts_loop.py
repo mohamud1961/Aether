@@ -108,6 +108,22 @@ def test_resolved_command_paths_are_grouped_without_losing_names(tmp_path, monke
         assert "step 0" in note
 
 
+def test_project_context_refreshes_the_pinned_state_after_environment_change(tmp_path, monkeypatch):
+    work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
+    result, client = _run(tmp_path, work, SharedPathEnv(work, bindir), [
+        ("terminal", {"input": "printf '#!/bin/sh\\nexit 0\\n' > bin/afprobe; chmod +x bin/afprobe"}),
+        ("finish", {"summary": "done"}),
+    ])
+    assert result.status == "finished"
+
+    def initial_note(request):
+        return next(item["content"] for item in request["input"] if item.get("role") == "user"
+                    and isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n"))
+
+    assert "Names not resolved on that PATH: afprobe." in initial_note(client.requests[0])
+    assert "Names not resolved on that PATH: none." in initial_note(client.requests[1])
+
+
 def test_terminal_path_observation_belongs_to_the_named_session(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
     (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")

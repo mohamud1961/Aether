@@ -13,7 +13,8 @@ import stat
 import statistics
 from typing import Any
 
-from aether.core import facts_probe
+from aether.core import facts as facts_module
+from aether.core import facts_probe, facts_workspace
 from aether.core.facts import Facts
 from qa import replay_corpus
 
@@ -111,6 +112,8 @@ async def replay_one(events: list[dict[str, Any]]) -> dict[str, int]:
             raise ValueError("facts receipt mismatch or invented workspace state")
     if service.record()["initial_workspace"]["status"] != "unknown" or service.shared_known:
         raise ValueError("historical state asserted as observed")
+    if names["python"] and (service.python_session or {}).get("foreground") != "unknown":
+        raise ValueError("historical Python state asserted as observed")
     return {"events": checked, "terminal": names["terminal"], "python": names["python"],
             "service_faults": service.internal_failures}
 
@@ -128,17 +131,23 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--mirror", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--all", action="store_true", help="use all previously admitted runs")
     args = parser.parse_args()
     raw = args.manifest.read_bytes()
     if hashlib.sha256(raw).hexdigest() != MANIFEST_SHA:
         raise ValueError("frozen manifest changed")
     manifest = json.loads(raw)
-    selected = []
-    for study in STUDIES:
-        bucket = sorted((r for r in manifest["runs"] if r.get("study") == study), key=lambda r: r["run_id"])
-        if len(bucket) < 4:
-            raise ValueError("predeclared study sample unavailable")
-        selected.extend(bucket[:4])
+    if args.all:
+        selected = sorted(manifest["runs"], key=lambda r: (r["study"], r["run_id"]))
+        if len(selected) != 128 or len({r["run_id"] for r in selected}) != 128:
+            raise ValueError("frozen complete selection unavailable")
+    else:
+        selected = []
+        for study in STUDIES:
+            bucket = sorted((r for r in manifest["runs"] if r.get("study") == study), key=lambda r: r["run_id"])
+            if len(bucket) < 4:
+                raise ValueError("predeclared study sample unavailable")
+            selected.extend(bucket[:4])
     root, mirror = args.root.resolve(strict=True), args.mirror.resolve(strict=True)
     original_probe = facts_probe.probe
     facts_probe.probe = unknown_probe
@@ -172,6 +181,8 @@ def main() -> None:
                                   "p90": percentile(ratios, .9)}
     report = {"manifest_sha256": MANIFEST_SHA, "selected": len(selected),
               "valid": sum(row["status"] == "valid" for row in results), "runs": results,
+              "service_source_sha256": {Path(module.__file__).name: hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
+                                        for module in (facts_module, facts_probe, facts_workspace)},
               "historical_request_count": len(all_lengths),
               "median_request_chars": statistics.median(all_lengths) if all_lengths else None,
               "hypothetical_fixed_note_char_ratios": sensitivity,

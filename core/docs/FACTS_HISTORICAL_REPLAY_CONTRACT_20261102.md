@@ -24,3 +24,9 @@ captured successful worker request-input character lengths and illustrate the
 effect of fixed-size hypothetical notes. Those hypothetical ratios are a
 context-size sensitivity analysis, not measured state-enabled overhead,
 provider tokens, model behavior or task-success evidence.
+
+After the initial 24-run sample contained no Python calls, the coverage
+expansion was declared as every run in the same frozen 128-run manifest,
+without selecting on outcome. The existing analysis reports Python activity
+in ten of those runs. The same source checks and unknown-state limitations
+apply; historical Python variables and interpreter state are not recreated.
