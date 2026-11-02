@@ -7,6 +7,8 @@ import shlex
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from aether.core import facts_probe
 from aether.core.facts import Facts
 from tests.core_fakes import LocalEnv
@@ -207,6 +209,31 @@ def test_workspace_observer_rejects_a_symlink_in_any_root_ancestor(tmp_path, mon
     assert observation["ok"]
     assert observation["facts"]["workspace"] is None
     assert observation["facts"]["files"] == [] and not observation["facts"]["files_complete"]
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "directory"])
+def test_workspace_observer_does_not_publish_a_replaced_root(tmp_path, monkeypatch, replacement):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "task-file.txt").write_text("synthetic task data")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "outside-file.txt").write_text("synthetic outside data")
+    marker = "        walk(fd, '', 1, st.st_dev)"
+    assert facts_probe._WORKSPACE_SCRIPT.count(marker) == 1
+    replacement_code = (f"os.symlink({str(outside)!r}, root)"
+                        if replacement == "symlink" else "os.mkdir(root)")
+    swap = "        os.rename(root, root + '.saved')\n" + f"        {replacement_code}\n"
+    monkeypatch.setattr(facts_probe, "_WORKSPACE_SCRIPT",
+                        facts_probe._WORKSPACE_SCRIPT.replace(marker, swap + marker))
+    monkeypatch.setattr(facts_probe, "COMMANDS", ("sh",))
+    monkeypatch.setattr(facts_probe, "LANGUAGES", ())
+    monkeypatch.setattr(facts_probe, "SYSTEM_PYTHON_PATHS", (os.path.realpath(sys.executable),))
+    observed = asyncio.run(facts_probe.probe(LocalEnv(work), str(work), full=False,
+                                             remaining_s=30, hosts=()))
+    assert work.is_symlink() == (replacement == "symlink")
+    assert observed["ok"] and observed["facts"]["workspace"] is None
+    assert "outside-file.txt" not in json.dumps(observed)
 
 
 def test_workspace_observer_does_not_execute_interpreter_through_linked_parent(tmp_path, monkeypatch):

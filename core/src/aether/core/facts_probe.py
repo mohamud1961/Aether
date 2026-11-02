@@ -150,6 +150,16 @@ try:
         st = os.fstat(fd)
         walk(fd, '', 1, st.st_dev)
         fingerprints = {name: fingerprint(fd, name, st.st_dev) for name in watched}
+        # A task can move or replace the root while the descriptor remains
+        # open.  Reopen without following links and publish only if the path
+        # still names the directory that was scanned.
+        check = open_root(root)
+        try:
+            latest = os.fstat(check)
+            if (latest.st_dev, latest.st_ino) != (st.st_dev, st.st_ino):
+                raise ValueError('workspace root changed during observation')
+        finally:
+            os.close(check)
     finally:
         os.close(fd)
     print('W\t' + json.dumps({'root': [st.st_dev, st.st_ino], 'files': files,
