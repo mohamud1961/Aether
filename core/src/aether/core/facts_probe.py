@@ -21,6 +21,8 @@ MANAGERS = ("pip3", "pip", "apt-get", "apk", "dnf", "yum", "conda", "npm", "carg
 HOSTS = (("pypi.org", 443), ("deb.debian.org", 80))
 SYSTEM_TIMEOUT_PATHS = ("/usr/bin/timeout", "/bin/timeout")
 MAX_FILES = 20
+_COMMAND_NAME = re.compile(r"^[A-Za-z0-9_+.-]{1,64}$")
+_RESOLUTION_MARKER = "AETHER_TERMINAL_RESOLUTION_V1"
 _SENSITIVE = re.compile(
     r"secret|password|passwd|token|credential|key|private|"
     r"(?:^|[._-])(?:tests?|solutions?|verifiers?|graders?|grades?|id_rsa|id_ed25519)(?:$|[._-])|"
@@ -30,6 +32,61 @@ _NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.+-]{0,127}$")
 _PATH = re.compile(r"^/[A-Za-z0-9_./+@ -]{1,240}$")
 _VERSION = re.compile(r"^[A-Za-z0-9_ .+:/()\-]{1,120}$")
 _VERSION_NUMBER = re.compile(r"(?<![A-Za-z0-9])(?:v|go)?[0-9]+(?:\.[0-9]+){1,3}(?:[-+._a-zA-Z0-9]{0,20})?")
+
+
+def terminal_scope(names: tuple[str, ...]) -> None:
+    if len(names) > 100 or len(set(names)) != len(names) or not all(_COMMAND_NAME.fullmatch(n) for n in names):
+        raise ValueError("invalid terminal command-resolution scope")
+
+
+def terminal_receipt(names: tuple[str, ...]) -> tuple[str, str]:
+    """An isolated shell observes PATH without invoking task-defined functions."""
+    if not names:
+        return "", ""
+    words = " ".join(shlex.quote(name) for name in names)
+    script = (
+        f"printf '%s\\n' {_RESOLUTION_MARKER}; for __aether_name in {words}; do "
+        'if command -v "$__aether_name" >/dev/null 2>&1; then '
+        'printf "1 %s\\n" "$__aether_name"; else '
+        'printf "0 %s\\n" "$__aether_name"; fi; done'
+    )
+    return "%s\\n", f' "$(PATH="${{PATH-}}" /bin/sh -p -c {shlex.quote(script)} 2>/dev/null || :)"'
+
+
+def terminal_resolution(names: tuple[str, ...], suffix: str) -> dict[str, bool] | None:
+    lines = suffix.splitlines()
+    if not names or len(lines) != len(names) + 2 or lines[0] != _RESOLUTION_MARKER:
+        return None
+    if lines[-1] not in ("__ALIVE__", "__DEAD__"):
+        return None
+    parsed = {}
+    for line in lines[1:-1]:
+        flag, separator, name = line.partition(" ")
+        if not separator or flag not in ("0", "1") or name not in names or name in parsed:
+            return None
+        parsed[name] = flag == "1"
+    return parsed if set(parsed) == set(names) else None
+
+
+def terminal_observation(session: Any, generation: int | None) -> dict | None:
+    if session is None:
+        return None
+    known = not session.pending and session.command_resolution is not None
+    return {
+        "generation": generation,
+        "foreground": "completion_not_observed" if session.pending else "idle_at_last_observation",
+        "last_observed_cwd": session.last_observed_cwd,
+        "cwd_receipt_seq": session.cwd_receipt_seq,
+        "last_command_seq": session.seq,
+        "command_resolution": {
+            "status": "observed" if known else "unknown",
+            "resolved": dict(session.command_resolution) if known else None,
+            "source": "terminal receipt",
+            "receipt_seq": session.resolution_receipt_seq,
+            "freshness": "last_observation" if known else "unknown",
+        },
+        "background_processes": "unknown",
+    }
 
 
 def _case_insensitive(word: str) -> str:

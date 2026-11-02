@@ -10,14 +10,16 @@ large) and can grep the full log itself.
 from __future__ import annotations
 
 import asyncio
-import base64
 import re
 import shlex
 import time
 
 from .env import CONTROL_DIR, Environment, alive_test, run
+from . import facts_probe
 from .terminal_procs import describe_processes
-from .terminal_session import MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle  # noqa: F401 (re-exported)
+from .terminal_session import (  # noqa: F401 (some names re-exported)
+    MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle, _ASKS, _text, clean,
+)
 from .transfer import INLINE_BYTES, atomic_write, put_bytes
 
 VIEW_HEAD = 3_000
@@ -27,15 +29,7 @@ VIEW_TAIL = 8_000
 MAX_WAIT_S = 300.0
 KEYS_SILENT_S = 10.0  # keys with no output at all return after this; empty input still waits the full wait_s
 PROMPT_QUIET_S = 5.0  # a running command quiet this long with a prompt as its last line returns early
-# Last lines that ask a person for input (x0 compcert: opam/apt [Y/n] prompts held two calls ~590 s)
-_ASKS = re.compile(
-    r"(\[[Yy]/[Nn]\]|\[[yY]/[nN]\]|\([Yy]/[Nn]\)|\(yes/no(/\[fingerprint\])?\)|[Pp]assword( for [^:]*)?:|"
-    r"[Pp]assphrase[^:]*:|[Cc]ontinue\?|[Pp]roceed\?|\[[Yy]es/[Nn]o\]|Press (any key|ENTER|RETURN)[^\n]*)\??\s*$"
-)
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-_ANSI = re.compile(
-    r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?"
-)
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 # seq, exit, optional per-stage exits of the command's last pipeline (bash only, joined by "."), cwd
 _MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
@@ -58,21 +52,14 @@ _TRACE_BACK = '{ [ -z "$__aether_x" ] || set -x; } 2>/dev/null; '
 _CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the command may have run set -x or set +x
 
 
-def clean(text: str) -> str:
-    text = _ANSI.sub("", text).replace("\r\n", "\n").replace("\r", "")
-    return text
-
-
-def _text(b64: str) -> str:
-    """Log bytes sent as base64, as text; bytes that are not UTF-8 become U+FFFD."""
-    return base64.b64decode("".join(b64.split())).decode("utf-8", "replace")
-
-
 class Terminals(TerminalLifecycle):
     def __init__(
-        self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR
+        self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR,
+        command_names: tuple[str, ...] = (),
     ) -> None:
+        facts_probe.terminal_scope(command_names)
         self._env = env
+        self._command_names = command_names
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
@@ -90,6 +77,10 @@ class Terminals(TerminalLifecycle):
     @property
     def names(self) -> list[str]:
         return sorted(self._sessions)
+
+    def observed_session(self, name: str) -> dict | None:
+        """Return only session facts established by its last terminal observation."""
+        return facts_probe.terminal_observation(self._sessions.get(name), self._generations.get(name))
 
     async def _write(
         self,
@@ -163,7 +154,13 @@ class Terminals(TerminalLifecycle):
                 f"the log of terminal {session.name} ({session.log}) is missing"
             )
         size = int(size_text.strip())
-        mark = None if seq is None else _MARK.search(clean(rest))
+        cleaned = clean(rest)
+        mark = None if seq is None else _MARK.search(cleaned)
+        if mark is not None:
+            suffix = mark.string[mark.end():]
+            session.pending_resolution = facts_probe.terminal_resolution(self._command_names, suffix)
+            bare = suffix in ("__ALIVE__\n", "__DEAD__\n")
+            session.cwd_receipt_ambiguous = cleaned != rest or not (bare or session.pending_resolution is not None)
         return size, mark, "__ALIVE__" in rest
 
     async def _poll(
@@ -213,7 +210,7 @@ class Terminals(TerminalLifecycle):
         wait_s: float = 30.0,
         interrupt: bool = False,
     ) -> str:
-        if not _NAME.match(name):
+        if not _NAME.fullmatch(name):
             raise ValueError(
                 "terminal name must be 1-32 chars of letters, digits, _ or -"
             )
@@ -390,10 +387,12 @@ class Terminals(TerminalLifecycle):
                 inline = None
             marker = f"{session.root}/done_{session.seq}"
             temporary_marker = f"{marker}.tmp"
+            resolution_format, resolution_arg = facts_probe.terminal_receipt(self._command_names)
+            session.pending_resolution = None
             return await self._write(
                 session,
-                f"{_QUIET}{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n' "
-                f'{session.seq} "$__aether_s" {stages} "$PWD" > {shlex.quote(temporary_marker)} '
+                f"{_QUIET}{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n{resolution_format}' "
+                f'{session.seq} "$__aether_s" {stages} "$PWD"{resolution_arg} > {shlex.quote(temporary_marker)} '
                 f"&& command mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}; {_TRACE_BACK.strip().rstrip(';')}\n",
                 cmd=inline,
                 wait=(session.seq, wait_s),
@@ -456,6 +455,10 @@ class Terminals(TerminalLifecycle):
             delay = min(1.0, delay * 1.5)
         if mark is not None:
             session.pending = 0
+            session.last_observed_cwd = None if session.cwd_receipt_ambiguous else mark.group(4)
+            session.cwd_receipt_seq = None if session.cwd_receipt_ambiguous else int(mark.group(1))
+            session.command_resolution = session.pending_resolution
+            session.resolution_receipt_seq = int(mark.group(1)) if session.command_resolution is not None else None
         text = clean(await self._read(session, session.cursor, size))
         session.cursor = size
         # Runtime completion receipts are out-of-band. Keep user/program
@@ -472,7 +475,9 @@ class Terminals(TerminalLifecycle):
                 if set(stages) - {"0"} and len(stages) > 1
                 else ""
             )
-            status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {mark.group(4).strip()}]"
+            cwd = (session.last_observed_cwd if session.last_observed_cwd is not None
+                   else "unknown (ambiguous receipt)") if self._command_names else mark.group(4).strip()
+            status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {cwd}]"
         elif seq is not None:
             quiet = time.monotonic() - session.grew_at
             status = (
