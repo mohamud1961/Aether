@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
 from typing import Any
@@ -20,7 +21,15 @@ LANGUAGES = ("python3", "gcc", "g++", "node", "java", "rustc", "go")
 MANAGERS = ("pip3", "pip", "apt-get", "apk", "dnf", "yum", "conda", "npm", "cargo")
 HOSTS = (("pypi.org", 443), ("deb.debian.org", 80))
 SYSTEM_TIMEOUT_PATHS = ("/usr/bin/timeout", "/bin/timeout")
+SYSTEM_BASH_PATHS = ("/usr/bin/bash", "/bin/bash")
+SYSTEM_PYTHON_PATHS = (
+    "/usr/bin/python3.13", "/usr/bin/python3.12", "/usr/bin/python3.11",
+    "/usr/bin/python3.10", "/usr/bin/python3.9", "/usr/bin/python3",
+    "/usr/local/bin/python3.13", "/usr/local/bin/python3.12",
+    "/usr/local/bin/python3.11", "/usr/local/bin/python3.10",
+)
 MAX_FILES = 20
+MAX_WATCHED = 16
 _COMMAND_NAME = re.compile(r"^[A-Za-z0-9_+.-]{1,64}$")
 _RESOLUTION_MARKER = "AETHER_TERMINAL_RESOLUTION_V1"
 _SENSITIVE = re.compile(
@@ -32,6 +41,110 @@ _NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.+-]{0,127}$")
 _PATH = re.compile(r"^/[A-Za-z0-9_./+@ -]{1,240}$")
 _VERSION = re.compile(r"^[A-Za-z0-9_ .+:/()\-]{1,120}$")
 _VERSION_NUMBER = re.compile(r"(?<![A-Za-z0-9])(?:v|go)?[0-9]+(?:\.[0-9]+){1,3}(?:[-+._a-zA-Z0-9]{0,20})?")
+
+
+def safe_relative(path: str) -> bool:
+    parts = path.split("/")
+    return (len(path) <= 256 and len(parts) <= 8 and all(
+        _NAME.fullmatch(part) and not _SENSITIVE.search(part) for part in parts
+    ))
+
+
+# This runs only in the task environment and only with a fixed system
+# interpreter. Directory operations use no-follow descriptors; regular
+# contents are opened solely for explicitly watched safe paths.
+_WORKSPACE_SCRIPT = r"""
+import hashlib, json, os, re, stat, sys
+root, watched = sys.argv[1], json.loads(sys.argv[2])
+safe = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.+-]{0,127}$')
+protect = re.compile(r'secret|password|passwd|token|credential|key|private|(?:^|[._-])(?:tests?|solutions?|verifiers?|graders?|grades?|id_rsa|id_ed25519)(?:$|[._-])|\.(?:pem|p12|pfx)$', re.I)
+files = {}; omitted = 0; scanned = 0
+def allowed(name):
+    return bool(safe.fullmatch(name)) and not protect.search(name)
+def walk(fd, prefix, depth, device):
+    global omitted, scanned
+    try:
+        with os.scandir(fd) as iterator:
+            for item in iterator:
+                scanned += 1
+                if scanned > 512:
+                    omitted += 1
+                    return
+                name = item.name
+                if not allowed(name) or len(prefix + name) > 256:
+                    omitted += 1
+                    continue
+                try:
+                    meta = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                    if meta.st_dev != device:
+                        omitted += 1
+                    elif stat.S_ISDIR(meta.st_mode):
+                        if depth >= 4:
+                            omitted += 1
+                        else:
+                            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+                            try:
+                                if os.fstat(child).st_dev != device: omitted += 1
+                                else: walk(child, prefix + name + '/', depth + 1, device)
+                            finally: os.close(child)
+                    elif stat.S_ISREG(meta.st_mode) and meta.st_nlink == 1 and len(files) < 200:
+                        files[prefix + name] = [meta.st_dev, meta.st_ino, meta.st_size, meta.st_mtime_ns, meta.st_ctime_ns, meta.st_mode]
+                    else:
+                        omitted += 1
+                except OSError:
+                    omitted += 1
+    except OSError:
+        omitted += 1
+def fingerprint(rootfd, path, device):
+    parts = path.split('/')
+    if not parts or len(parts) > 8 or any(not allowed(part) for part in parts):
+        return {'status': 'unknown'}
+    parent = os.dup(rootfd)
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            os.close(parent); parent = child
+            if os.fstat(parent).st_dev != device:
+                return {'status': 'unknown'}
+        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        try:
+            before = os.fstat(fd)
+            if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_dev != device
+                    or before.st_size > 1048576):
+                return {'status': 'unknown'}
+            digest = hashlib.sha256()
+            remaining = before.st_size
+            while remaining:
+                block = os.read(fd, min(65536, remaining))
+                if not block: return {'status': 'unknown'}
+                digest.update(block)
+                remaining -= len(block)
+            after = os.fstat(fd)
+            identity = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns, s.st_mode)
+            return ({'status': 'observed', 'sha256': digest.hexdigest()}
+                    if identity(before) == identity(after) else {'status': 'unknown'})
+        finally:
+            os.close(fd)
+    except FileNotFoundError:
+        return {'status': 'absent'}
+    except (OSError, ValueError):
+        return {'status': 'unknown'}
+    finally:
+        os.close(parent)
+try:
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        st = os.fstat(fd)
+        walk(fd, '', 1, st.st_dev)
+        fingerprints = {name: fingerprint(fd, name, st.st_dev) for name in watched}
+    finally:
+        os.close(fd)
+    print('W\t' + json.dumps({'root': [st.st_dev, st.st_ino], 'files': files,
+                              'complete': omitted == 0, 'fingerprints': fingerprints},
+                             ensure_ascii=True, separators=(',', ':')))
+except Exception:
+    print('W\t-')
+"""
 
 
 def terminal_scope(names: tuple[str, ...]) -> None:
@@ -93,7 +206,31 @@ def _case_insensitive(word: str) -> str:
     return "".join(f"[{c.lower()}{c.upper()}]" if c.isalpha() else c for c in word)
 
 
-def _script(workdir: str, *, full: bool, hosts: tuple[tuple[str, int], ...]) -> str:
+def _system_binary(variable: str, paths: tuple[str, ...]) -> list[str]:
+    if not re.fullmatch(r"__af_[a-z]+", variable) or any(
+        not path.startswith("/") or ".." in path.split("/") or not path.strip("/")
+        for path in paths
+    ):
+        raise ValueError("invalid system binary scope")
+    return [
+        f"{variable}=",
+        "for __af_tool in " + " ".join(shlex.quote(x) for x in paths) + "; do",
+        '  case "$__af_root" in /) continue;; esac',
+        '  __af_root_prefix=${__af_root%/}',
+        '  case "$__af_tool" in "$__af_root_prefix"/*) continue;; esac',
+        '  __af_parent=$__af_tool; __af_links=0',
+        '  while [ -n "$__af_parent" ] && [ "$__af_parent" != / ]; do',
+        '    if [ -L "$__af_parent" ]; then __af_links=1; break; fi',
+        '    __af_parent=${__af_parent%/*}',
+        '  done',
+        '  if [ "$__af_links" -ne 0 ]; then continue; fi',
+        f'  if [ -x "$__af_tool" ] && [ -f "$__af_tool" ]; then {variable}=$__af_tool; break; fi',
+        "done",
+    ]
+
+
+def _script(workdir: str, *, full: bool, hosts: tuple[tuple[str, int], ...],
+            watched: tuple[str, ...]) -> str:
     """Generate a fixed shell program; only a quoted workdir is variable input."""
     bad = "|".join("*" + _case_insensitive(x) + "*" for x in
                    ("secret", "password", "passwd", "token", "credential", "key", "private",
@@ -141,26 +278,34 @@ def _script(workdir: str, *, full: bool, hosts: tuple[tuple[str, int], ...]) -> 
             '  done < /proc/meminfo',
             "fi",
             'printf "M\\t%s\\n" "${__af_mem:--}"',
-            "__af_timeout=",
-            "for __af_tool in " + " ".join(shlex.quote(x) for x in SYSTEM_TIMEOUT_PATHS) + "; do",
-            '  if [ -x "$__af_tool" ]; then __af_timeout=$__af_tool; break; fi',
-            "done",
         ]
+        lines += _system_binary("__af_timeout", SYSTEM_TIMEOUT_PATHS)
+        lines += _system_binary("__af_bash", SYSTEM_BASH_PATHS)
         for host, port in hosts:
             if not re.fullmatch(r"[a-z0-9.-]+", host) or not 1 <= port <= 65535:
                 raise ValueError("invalid fixed host")
             lines += [
-                'if [ -n "$__af_timeout" ] && [ -x /bin/bash ]; then',
-                f"  if \"$__af_timeout\" 1 /bin/bash --noprofile --norc -p -c 'echo > /dev/tcp/{host}/{port}' 2>/dev/null; "
+                'if [ -n "$__af_timeout" ] && [ -n "$__af_bash" ]; then',
+                f"  if \"$__af_timeout\" 1 \"$__af_bash\" --noprofile --norc -p -c 'echo > /dev/tcp/{host}/{port}' 2>/dev/null; "
                 f"then printf 'N\\t{host}:{port}\\tconnected\\n'; "
                 f"else printf 'N\\t{host}:{port}\\tunsuccessful\\n'; fi",
                 f"else printf 'N\\t{host}:{port}\\tunknown\\n'; fi",
             ]
-    lines.append("printf 'AETHER_FACTS_END\\n'")
+    if len(watched) > MAX_WATCHED or len(set(watched)) != len(watched) or not all(safe_relative(p) for p in watched):
+        raise ValueError("invalid watched workspace paths")
+    lines += _system_binary("__af_python", SYSTEM_PYTHON_PATHS)
+    lines += [
+        'if [ -n "$__af_python" ]; then',
+        f'  "$__af_python" -I -S -B -c {shlex.quote(_WORKSPACE_SCRIPT)} "$__af_root" '
+        f'{shlex.quote(json.dumps(watched))} 2>/dev/null || printf "W\\t-\\n"',
+        'else printf "W\\t-\\n"; fi',
+        "printf 'AETHER_FACTS_END\\n'",
+    ]
     return "\n".join(lines)
 
 
-def _parse(text: str, *, full: bool, hosts: tuple[tuple[str, int], ...]) -> dict[str, Any]:
+def _parse(text: str, *, full: bool, hosts: tuple[tuple[str, int], ...],
+           watched: tuple[str, ...]) -> dict[str, Any]:
     lines = text.splitlines()
     if not lines or lines[0] != "AETHER_FACTS_V1" or lines[-1] != "AETHER_FACTS_END":
         raise ValueError("incomplete probe")
@@ -171,6 +316,8 @@ def _parse(text: str, *, full: bool, hosts: tuple[tuple[str, int], ...]) -> dict
     complete: bool | None = None
     memory: int | None = None
     memory_seen = False
+    workspace: dict | None = None
+    workspace_seen = False
     for line in lines[1:-1]:
         parts = line.split("\t")
         if len(parts) == 3 and parts[0] == "C" and parts[1] in COMMANDS and parts[1] not in commands:
@@ -199,27 +346,48 @@ def _parse(text: str, *, full: bool, hosts: tuple[tuple[str, int], ...]) -> dict
             if parts[1] in network:
                 raise ValueError("duplicate host")
             network[parts[1]] = parts[2]
+        elif len(parts) == 2 and parts[0] == "W" and not workspace_seen:
+            workspace_seen = True
+            if parts[1] != "-":
+                value = json.loads(parts[1])
+                if not isinstance(value, dict) or type(value.get("complete")) is not bool:
+                    raise ValueError("malformed workspace observation")
+                root, entries, fingerprints = value.get("root"), value.get("files"), value.get("fingerprints")
+                if (not isinstance(root, list) or len(root) != 2 or any(type(n) is not int for n in root) or
+                        not isinstance(entries, dict) or len(entries) > 200 or
+                        any(not safe_relative(k) or not isinstance(v, list) or len(v) != 6 or
+                            any(type(n) is not int for n in v) for k, v in entries.items()) or
+                        not isinstance(fingerprints, dict) or set(fingerprints) != set(watched)):
+                    raise ValueError("malformed workspace entries")
+                for item in fingerprints.values():
+                    if not isinstance(item, dict) or item.get("status") not in ("observed", "unknown", "absent"):
+                        raise ValueError("malformed fingerprint")
+                    if item["status"] == "observed" and not re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256", ""))):
+                        raise ValueError("malformed fingerprint digest")
+                workspace = value
         else:
             raise ValueError("unrecognized probe record")
-    if set(commands) != set(COMMANDS) or complete is None or len(files) > MAX_FILES or len(set(files)) != len(files):
+    if (set(commands) != set(COMMANDS) or complete is None or not workspace_seen or
+            len(files) > MAX_FILES or len(set(files)) != len(files)):
         raise ValueError("incomplete or duplicate probe fields")
     if full and (set(versions) != set(LANGUAGES) or not memory_seen or
                  set(network) != {f"{host}:{port}" for host, port in hosts}):
         raise ValueError("incomplete full probe")
     return {"commands": commands, "files": sorted(files), "files_complete": complete,
             "versions": versions if full else None, "network": network if full else None,
-            "host_available_memory_kib": memory if full else None}
+            "host_available_memory_kib": memory if full else None, "workspace": workspace}
 
 
 async def probe(env: Environment, workdir: str, *, full: bool, remaining_s: float,
-                hosts: tuple[tuple[str, int], ...] = HOSTS) -> dict[str, Any]:
+                hosts: tuple[tuple[str, int], ...] = HOSTS,
+                watched: tuple[str, ...] = ()) -> dict[str, Any]:
     if remaining_s < 2:
         return {"ok": False, "reason": "insufficient time"}
     try:
-        result = await run(env, _script(workdir, full=full, hosts=hosts),
+        result = await run(env, _script(workdir, full=full, hosts=hosts, watched=watched),
                            timeout_s=max(1, int(min(15, remaining_s - 1))))
         if result.code != 0:
             return {"ok": False, "reason": "probe command failed"}
-        return {"ok": True, "facts": _parse(result.stdout, full=full, hosts=hosts)}
+        return {"ok": True, "facts": _parse(result.stdout, full=full, hosts=hosts, watched=watched)}
     except Exception as exc:  # timeouts and malformed output do not establish an environment fact
         return {"ok": False, "reason": type(exc).__name__}

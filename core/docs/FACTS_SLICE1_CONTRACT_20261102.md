@@ -19,7 +19,10 @@ remain unknown.
 Automatic version execution is disabled in this slice: a task-provided
 executable may do arbitrary work even when called with --version. Version
 values remain unmeasured until an appropriately isolated measurement or an
-actual task command provides evidence. The network probe uses fixed system
+actual task command provides evidence. If the existing Python REPL is
+enabled, its already-executed Python 3 preflight can provide a version,
+labelled as that preflight rather than proof of the later server binary.
+The network probe uses fixed system
 helper paths; if they are absent, the result is unknown.
 
 After task actions, re-observe the inexpensive command-resolution and listing

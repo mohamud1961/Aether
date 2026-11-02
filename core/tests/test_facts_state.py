@@ -1,6 +1,7 @@
 """Provider-free state transitions using the real probe and synthetic task files."""
 
 import asyncio
+import hashlib
 import json
 import shlex
 
@@ -145,5 +146,22 @@ def test_finish_only_records_late_change_without_extra_instruction(tmp_path, mon
         (work / "output.txt").write_text("later")
         assert await state.after_action(1, "finish", {}, "done") == ""
         assert "output.txt" in json.dumps(state.record()["finish_observations_not_shown"])
+
+    asyncio.run(exercise())
+
+
+def test_tool_receipts_bind_only_to_the_post_action_observation(tmp_path, monkeypatch):
+    state, _env, _work, _bindir, _rows = _setup(tmp_path, monkeypatch)
+
+    async def exercise():
+        await state.start()
+        await state.after_action(1, "read_file", {"path": "sample.txt"}, "sample output", call_id="c1")
+        await state.after_action(2, "finish", {}, "done", call_id="c2")
+        events = state.record()["events"]
+        assert [row["step"] for row in events] == [1, 2]
+        assert events[0]["call_id"] == "c1"
+        assert events[0]["tool_output_sha256"] == hashlib.sha256(b"sample output").hexdigest()
+        assert "after action" in events[0]["state_scope"]
+        assert "sample output" not in json.dumps(events)
 
     asyncio.run(exercise())

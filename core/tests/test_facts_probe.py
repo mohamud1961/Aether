@@ -138,3 +138,24 @@ def test_probe_does_not_execute_a_workspace_supplied_version_program(tmp_path, m
     assert observation["facts"]["commands"]["afprobe"] is not None
     assert observation["facts"]["versions"]["afprobe"] is None
     assert not marker.exists()
+
+
+def test_network_probe_does_not_execute_a_helper_through_a_linked_parent(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    bindir = work / "bin"
+    bindir.mkdir()
+    marker = work / "fake-timeout-ran"
+    _tool(bindir / "timeout", f"printf touched > {shlex.quote(str(marker))}; exit 0")
+    link = tmp_path / "linked-bin"
+    link.symlink_to(bindir, target_is_directory=True)
+    monkeypatch.setattr(facts_probe, "SYSTEM_TIMEOUT_PATHS", (str(link / "timeout"),))
+    monkeypatch.setattr(facts_probe, "COMMANDS", ("sh",))
+    monkeypatch.setattr(facts_probe, "LANGUAGES", ())
+    observation = asyncio.run(facts_probe.probe(
+        ScopedEnv(work, bindir), str(work), full=True, remaining_s=30,
+        hosts=(("127.0.0.1", 43131),),
+    ))
+    assert observation["ok"], observation
+    assert observation["facts"]["network"]["127.0.0.1:43131"] == "unknown"
+    assert not marker.exists()

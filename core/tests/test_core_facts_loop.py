@@ -1,8 +1,11 @@
 """Real Core loop, real local shell, scripted provider: no model or cloud calls."""
 
 import asyncio
+import dataclasses
 import json
+import os
 import shlex
+import sys
 from types import SimpleNamespace
 
 from aether.core import facts_probe
@@ -32,6 +35,7 @@ def _setup(tmp_path, monkeypatch, commands):
     monkeypatch.setattr(facts_probe, "COMMANDS", commands)
     monkeypatch.setattr(facts_probe, "LANGUAGES", ())
     monkeypatch.setattr(facts_probe, "HOSTS", ())
+    monkeypatch.setattr(facts_probe, "SYSTEM_PYTHON_PATHS", (os.path.realpath(sys.executable),))
     return work, bindir
 
 
@@ -48,6 +52,15 @@ def _run(tmp_path, work, env, calls):
                           managed_facts=True),
     ))
     return result, client
+
+
+def _private_clm_config(tmp_path, **kwargs):
+    from tests.test_core_v2 import _clm_config
+
+    config = _clm_config(tmp_path, **kwargs)
+    return dataclasses.replace(
+        config, clm=dataclasses.replace(config.clm, history_path=str(tmp_path / "ctx" / "HISTORY.txt")),
+    )
 
 
 def test_facts_are_separate_from_the_task_and_changes_reach_next_request(tmp_path, monkeypatch):
@@ -92,6 +105,9 @@ def test_terminal_path_observation_belongs_to_the_named_session(tmp_path, monkey
     terminal_paths = result.extras["core_facts"]["terminal_paths"]
     assert terminal_paths["alpha"]["afprobe"] is False
     assert terminal_paths["beta"]["afprobe"] is True
+    sessions = result.extras["core_facts"]["terminal_sessions"]
+    assert sessions["alpha"]["foreground"] == "idle_at_last_observation"
+    assert sessions["alpha"]["last_observed_cwd"] == str(work)
 
 
 def test_unavailable_observer_is_unknown_and_does_not_stop_the_task(tmp_path, monkeypatch):
@@ -107,3 +123,190 @@ def test_unavailable_observer_is_unknown_and_does_not_stop_the_task(tmp_path, mo
                   if item.get("type") == "function_call_output" and item.get("call_id") == "c1")
     assert "ran" in output
     assert result.extras["core_facts"]["shared_known"] is False
+
+
+def test_unexpected_facts_failure_does_not_prevent_the_task_from_finishing(tmp_path, monkeypatch):
+    from aether.core.facts import Facts
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
+
+    def fail_record(*_args, **_kwargs):
+        raise RuntimeError("synthetic internal failure")
+
+    monkeypatch.setattr(Facts, "_record_event", fail_record)
+    result, client = _run(tmp_path, work, SharedPathEnv(work, bindir), [
+        ("terminal", {"input": "printf 'delivered\\n' > result.txt"}),
+        ("finish", {"summary": "done"}),
+    ])
+    assert result.status == "finished"
+    assert (work / "result.txt").read_text() == "delivered\n"
+    output = next(item["output"] for item in client.requests[1]["input"]
+                  if item.get("type") == "function_call_output" and item.get("call_id") == "c1")
+    assert "unmeasured" in output and "synthetic internal failure" not in output
+    assert result.extras["core_facts"]["internal_failures"] >= 1
+
+
+def test_facts_record_failure_does_not_destroy_a_completed_result(tmp_path, monkeypatch):
+    from aether.core.facts import Facts
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
+
+    def fail_record(_self):
+        raise RuntimeError("synthetic record failure")
+
+    monkeypatch.setattr(Facts, "record", fail_record)
+    result, _client = _run(tmp_path, work, SharedPathEnv(work, bindir), [
+        ("terminal", {"input": "printf 'delivered\\n' > result.txt"}),
+        ("finish", {"summary": "done"}),
+    ])
+    assert result.status == "finished"
+    assert (work / "result.txt").read_text() == "delivered\n"
+    assert result.extras["core_facts"]["status"] == "unknown"
+
+
+def test_python_session_state_tracks_completed_cells_without_reading_variables(tmp_path, monkeypatch):
+    work, _bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    client = ResponsesClient([
+        turn_events(1, call=("python", {"code": "x = 41"}, "c1")),
+        turn_events(2, call=("python", {"code": "print(x + 1)"}, "c2")),
+        turn_events(3, call=("finish", {"summary": "done"}, "c3")),
+    ])
+    result = asyncio.run(run_agent(
+        env=LocalEnv(work), task="Use Python.", workdir=str(work),
+        provider=provider(client, tmp_path / "calls"), timeout_s=600,
+        trace=Trace(tmp_path / "trace.jsonl"),
+        config=CoreConfig(control_dir=str(tmp_path / "ctl"), end_processes="stop",
+                          managed_facts=True, repl=True),
+    ))
+    assert result.status == "finished"
+    session = result.extras["core_facts"]["python_session"]
+    assert session["last_cell"] == 2 and session["foreground"] == "idle_at_last_observation"
+    assert session["variables"] == "not inspected"
+    assert session["preflight_python_version"].startswith("3.")
+    assert session["version_scope"] == "python3 preflight before REPL launch"
+    output = next(item["output"] for item in client.requests[2]["input"]
+                  if item.get("type") == "function_call_output" and item.get("call_id") == "c2")
+    assert "42" in output
+
+
+def test_real_loop_reports_a_later_change_to_a_mentioned_file(tmp_path, monkeypatch):
+    work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    (work / "solver.py").write_text("original\n")
+    result, client = _run(tmp_path, work, SharedPathEnv(work, bindir), [
+        ("terminal", {"input": "cat solver.py"}),
+        ("terminal", {"input": "printf 'changed\\n' > solver.py"}),
+        ("finish", {"summary": "done"}),
+    ])
+    assert result.status == "finished"
+    update = next(item["output"] for item in client.requests[2]["input"]
+                  if item.get("type") == "function_call_output" and item.get("call_id") == "c2")
+    assert "solver.py" in update and "fingerprint differs" in update and "step 1" in update
+
+
+def test_state_remains_available_after_context_checkpoint(tmp_path, monkeypatch):
+    from aether.core.provider import ChatProvider
+    from tests.core_fakes import ScriptedClient, call
+    from tests.test_core_v2 import _text
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
+    script = [call("terminal", {
+        "input": "printf '#!/bin/sh\\nexit 0\\n' > bin/afprobe; chmod +x bin/afprobe",
+    }, "first")]
+    script += [call("terminal", {"input": f"echo {i}" + "y" * 3000}, f"c{i}") for i in range(6)]
+    script += [call("finish", {"summary": "done"}, "finish")]
+    client = ScriptedClient(script, [_text(f"SUMMARY-MARKER-{i}") for i in range(4)])
+    core_provider = ChatProvider(client, model="synthetic", params={"tool_choice": "required",
+                                                                    "parallel_tool_calls": False})
+    config = dataclasses.replace(
+        _private_clm_config(tmp_path, budget_tokens=9000, reserve_tokens=500, keep_recent_tokens=2500),
+        managed_facts=True, end_processes="stop",
+    )
+    result = asyncio.run(run_agent(
+        env=SharedPathEnv(work, bindir), task="Observe the working environment.", workdir=str(work),
+        provider=core_provider, timeout_s=600, trace=Trace(tmp_path / "trace.jsonl"), config=config,
+    ))
+    assert result.status == "finished"
+    requests = [r for r in client.requests if "tools" in r and "SUMMARY-MARKER" in json.dumps(r["messages"])]
+    assert requests, "the test must actually exercise a context checkpoint"
+    assert "afprobe" in json.dumps(requests[-1]["messages"])
+    assert "[core facts]" in json.dumps(requests[-1]["messages"])
+
+
+def test_pinned_facts_update_when_a_terminal_changes_directory(tmp_path, monkeypatch):
+    from aether.core.provider import ChatProvider
+    from tests.core_fakes import ScriptedClient, call
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    (work / "sub").mkdir()
+    client = ScriptedClient([
+        call("terminal", {"name": "alpha", "input": "cd sub"}, "first"),
+        call("finish", {"summary": "done"}, "finish"),
+    ])
+    core_provider = ChatProvider(client, model="synthetic", params={"tool_choice": "required"})
+    config = dataclasses.replace(_private_clm_config(tmp_path), managed_facts=True, end_processes="stop")
+    result = asyncio.run(run_agent(
+        env=SharedPathEnv(work, bindir), task="Observe the working environment.", workdir=str(work),
+        provider=core_provider, timeout_s=600, trace=Trace(tmp_path / "trace.jsonl"), config=config,
+    ))
+    assert result.status == "finished"
+    notes = [m["content"] for m in client.requests[1]["messages"] if m.get("role") == "user"
+             and isinstance(m.get("content"), str) and m["content"].startswith("[core facts]")]
+    assert len(notes) == 1 and 'Terminal "alpha" cwd' in notes[0] and str(work / "sub") in notes[0]
+
+
+def test_updating_pinned_facts_does_not_rewrite_a_previous_request(tmp_path, monkeypatch):
+    from aether.core.provider import ChatProvider
+    from tests.core_fakes import ScriptedClient, call
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
+    client = ScriptedClient([
+        call("terminal", {"input": "printf '#!/bin/sh\\nexit 0\\n' > bin/afprobe; chmod +x bin/afprobe"}, "first"),
+        call("finish", {"summary": "done"}, "finish"),
+    ])
+    config = dataclasses.replace(_private_clm_config(tmp_path), managed_facts=True, end_processes="stop")
+    result = asyncio.run(run_agent(
+        env=SharedPathEnv(work, bindir), task="Observe the working environment.", workdir=str(work),
+        provider=ChatProvider(client, model="synthetic", params={"tool_choice": "required"}),
+        timeout_s=600, trace=Trace(tmp_path / "trace.jsonl"), config=config,
+    ))
+    assert result.status == "finished"
+    def note(request):
+        return next(m["content"] for m in request["messages"] if m.get("role") == "user"
+                    and isinstance(m.get("content"), str) and m["content"].startswith("[core facts]"))
+    assert "Names not resolved on that PATH: afprobe." in note(client.requests[0])
+    assert "Names not resolved on that PATH: none." in note(client.requests[1])
+
+
+def test_resumed_context_refreshes_its_own_facts_without_replacing_task_text(tmp_path, monkeypatch):
+    from copy import deepcopy
+
+    from aether.core.clm import ClmContext
+    from aether.core.provider import ChatProvider
+    from tests.core_fakes import ScriptedClient, call
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
+    config = dataclasses.replace(_private_clm_config(tmp_path), managed_facts=True, end_processes="stop")
+    task_text = "[core facts] is literal task text and must be retained."
+    context = ClmContext(pinned=[{"role": "system", "content": "Work carefully."},
+                                 {"role": "user", "content": task_text}], settings=config.clm)
+
+    def run(context, suffix):
+        client = ScriptedClient([call("finish", {"summary": "done"}, "finish")])
+        result = asyncio.run(run_agent(
+            env=SharedPathEnv(work, bindir), task=task_text, workdir=str(work),
+            provider=ChatProvider(client, model="synthetic", params={"tool_choice": "required"}),
+            timeout_s=600, trace=Trace(tmp_path / f"trace-{suffix}.jsonl"), config=config, resume=context,
+        ))
+        assert result.status == "finished"
+        return client.requests[0]["messages"]
+
+    first = run(context, "first")
+    assert any("Names not resolved on that PATH: afprobe." in m.get("content", "") for m in first)
+    (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")
+    (bindir / "afprobe").chmod(0o755)
+    resumed = run(deepcopy(context), "resume")
+    assert any(m.get("content") == task_text for m in resumed)
+    notes = [m["content"] for m in resumed if m.get("role") == "user"
+             and isinstance(m.get("content"), str) and m["content"].startswith("[core facts]\n")]
+    assert len(notes) == 1
+    assert "Names not resolved on that PATH: none." in notes[0]

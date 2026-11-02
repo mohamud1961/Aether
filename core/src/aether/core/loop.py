@@ -164,8 +164,10 @@ class _Session:
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (),
         )
         self.facts = (facts.Facts(self.env, workdir, self.remaining, trace,
-                                  terminal_state=self.terminals.observed_session)
+                                  terminal_state=self.terminals.observed_session,
+                                  python_state=lambda: self.repl.observed_state())
                       if config.managed_facts and config.role == "worker" else None)
+        self.facts_pinned_index = None
         self.files = Files(self.env, workdir)
         self.repl = Repl(
             self.env,
@@ -344,7 +346,11 @@ async def run_agent(
             else:
                 s.messages = list(resume) if resume is not None else list(pinned)
             if s.facts:
-                _append(s, {"role": "user", "content": await s.facts.start()})
+                note = {"role": "user", "content": await s.facts.start()}
+                if s.clm:
+                    s.facts_pinned_index = facts.install_clm_note(s.clm, note)
+                else:
+                    _append(s, note)
             trace(
                 "start",
                 workdir=workdir,
@@ -374,7 +380,7 @@ async def run_agent(
     finally:
         cleanup_errors = []
         if s.facts:
-            s.result.extras["core_facts"] = s.facts.record()
+            s.result.extras["core_facts"] = s.facts.safe_record()
         if s.diffcheck:
             await s.diffcheck.close()
         s.env.cleanup_until(time.monotonic() + max(1.0, STOP_MARGIN_S))
@@ -597,9 +603,11 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             mirror_error = ""
         s.result.steps += 1
         if s.facts:
-            update = await s.facts.after_action(s.result.steps, name, args, out)
+            update = await s.facts.after_action(s.result.steps, name, args, out, call_id=call["id"])
             if update:
                 out = f"{out}\n{update}"
+            if (update or s.facts.context_changed) and s.clm and s.facts_pinned_index is not None:
+                s.clm.pinned[s.facts_pinned_index] = {"role": "user", "content": s.facts.context_summary()}
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )
