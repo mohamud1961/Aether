@@ -342,6 +342,52 @@ def test_python_session_state_tracks_completed_cells_without_reading_variables(t
     assert "42" in output
 
 
+def test_python_cwd_uses_cell_receipts_and_marks_pending_state_unknown(tmp_path, monkeypatch):
+    work, _bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    (work / "before").mkdir()
+    (work / "after").mkdir()
+    calls = [
+        ("python", {"code": "import os; os.chdir('before')"}),
+        ("python", {"code": "import time; os.chdir('../after'); time.sleep(3)", "wait_s": 0.2}),
+        ("python", {"code": "", "wait_s": 10}),
+        ("python", {"code": "os._exit(0)", "wait_s": 5}),
+        ("python", {"code": "print('restarted')"}),
+        ("finish", {"summary": "done"}),
+    ]
+    client = ResponsesClient([
+        turn_events(i, call=(name, args, f"c{i}"))
+        for i, (name, args) in enumerate(calls, 1)
+    ])
+    result = asyncio.run(run_agent(
+        env=LocalEnv(work), task="Use Python.", workdir=str(work),
+        provider=provider(client, tmp_path / "calls"), timeout_s=600,
+        trace=Trace(tmp_path / "trace.jsonl"),
+        config=CoreConfig(control_dir=str(tmp_path / "ctl"), end_processes="stop",
+                          managed_facts=True, repl=True),
+    ))
+    assert result.status == "finished"
+
+    def note(request):
+        return next(item["content"] for item in request["input"] if item.get("role") == "user"
+                    and isinstance(item.get("content"), str)
+                    and item["content"].startswith("[core facts]\n"))
+
+    pending = note(client.requests[2])
+    assert "Python session" in pending and "completion_not_observed" in pending
+    assert str(work / "before") in pending
+    assert "Python last observed cwd" in pending and "current cwd is unknown" in pending
+    completed = note(client.requests[3])
+    assert "idle_at_last_observation" in completed and str(work / "after") in completed
+    exited = note(client.requests[4])
+    assert "exited_at_last_observation" in exited and "current cwd is unknown" in exited
+    restarted = note(client.requests[5])
+    assert "idle_at_last_observation" in restarted and str(work) in restarted
+    assert str(work / "after") not in restarted
+    session = result.extras["core_facts"]["python_session"]
+    assert session["generation"] == 2 and session["last_observed_cwd"] == str(work)
+    assert session["cwd_receipt_cell"] == 1
+
+
 def test_real_loop_reports_a_later_metadata_change_to_an_initial_file(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
     (work / "solver.py").write_text("original\n")

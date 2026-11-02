@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from . import facts_probe
 from .env import Environment
+from .facts_sessions import python_cwd_note, terminal_cwd_note
 from .facts_workspace import InitialWorkspace, ManagedFactsText, continuation_state, install_project_note  # noqa: F401
 
 _MUTATING_TOOLS = frozenset({"terminal", "python", "write_file", "edit_file"})
@@ -394,16 +395,7 @@ class Facts:
             session = self.terminal_sessions.get(name, {})
             note += (f"\nTerminal {json.dumps(name)} foreground at step {step}: "
                      f"{session.get('foreground', 'unmeasured')}.")
-            cwd = session.get("last_observed_cwd")
-            if isinstance(cwd, str) and len(cwd) <= 256:
-                receipt = session.get("cwd_receipt_seq")
-                source = (f"terminal completion receipt {receipt}" if type(receipt) is int
-                          else "an earlier terminal completion")
-                note += (f"\nTerminal {json.dumps(name)} last observed cwd ({source}, "
-                         f"reported at Core step {step}): {json.dumps(cwd)}")
-                if session.get("foreground") == "completion_not_observed":
-                    note += "; current cwd is unknown until a later observation"
-                note += "."
+            note += terminal_cwd_note(name, step, session)
             if values is None:
                 note += f"\nTerminal {json.dumps(name)} PATH at step {step}: unmeasured."
                 continue
@@ -424,6 +416,7 @@ class Facts:
         if self.python_session:
             note += (f"\nPython session at step {self.python_session['last_observed_step']}: "
                      f"{self.python_session.get('foreground', 'unmeasured')}; variables not inspected.")
+            note += python_cwd_note(self.python_session)
             version = self.python_session.get("preflight_python_version")
             if version:
                 note += f"\nPython3 preflight before REPL launch reported version {version}."

@@ -66,6 +66,8 @@ class Repl:
         self.llm_errors = 0
         self.generation = 0
         self.last_observed_foreground = "not_observed"
+        self.last_observed_cwd: str | None = None
+        self.cwd_receipt_cell: int | None = None
 
     async def start(self) -> str:
         """Launch the server. Returns the Python version, or "" when the container has no usable Python."""
@@ -96,6 +98,7 @@ class Repl:
         self.identity = await process_identities(self._env, [self.pid])
         self.generation += 1
         self.last_observed_foreground = "started_unconfirmed"
+        self.last_observed_cwd, self.cwd_receipt_cell = None, None
         return version
 
     def observed_state(self) -> dict:
@@ -106,6 +109,8 @@ class Repl:
             "generation": self.generation,
             "last_cell": self.seq,
             "foreground": self.last_observed_foreground,
+            "last_observed_cwd": self.last_observed_cwd,
+            "cwd_receipt_cell": self.cwd_receipt_cell,
             "variables": "not inspected",
             "background_processes": "unknown",
             "preflight_python_version": version,
@@ -213,6 +218,9 @@ class Repl:
         if done is not None:
             self.pending = 0
             self.last_observed_foreground = "idle_at_last_observation"
+            cwd = done.get("cwd")
+            self.last_observed_cwd = cwd if isinstance(cwd, str) and cwd.startswith("/") and len(cwd) <= 256 else None
+            self.cwd_receipt_cell = seq if self.last_observed_cwd is not None else None
             status = (
                 f"[python cell {seq}: {done.get('status')} · {done.get('seconds')}s]"
             )

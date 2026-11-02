@@ -51,6 +51,10 @@ this slice records it but does not block or rewrite that finish.
 A terminal working directory is labeled as the last completion receipt,
 not as a live measurement. If another command is still running, Core marks
 the current working directory unknown until a later observation.
+The Python REPL likewise reports the directory already recorded in its last
+cell completion receipt, without inspecting variables. A running or exited
+cell leaves the current directory unknown; a restarted REPL begins without
+the previous process's directory observation.
 
 For model-managed context, the latest scoped facts are pinned separately from
 the task and refreshed on an observed change. This prevents a checkpoint from
