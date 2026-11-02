@@ -36,9 +36,17 @@ from .facts_workspace import InitialWorkspace
 PREFIX = "[core facts]\n"
 REFRESH_EVERY, VERIFY_EVERY, MAX_FILES = 10, 10, 20_000
 
+# Listening TCP ports with the owning command; sockets of Core's own processes (cmdline naming .aether or aether) are
+# left out: the P5 smoke showed a port opened by the run's own machinery, which is not a fact about the task.
 _PORTS = r"""
-for f in /proc/net/tcp /proc/net/tcp6; do [ -r "$f" ] && awk 'NR>1 && $4=="0A" {n=split($2,a,":"); print a[n]}' "$f"; done 2>/dev/null |
-  sort -u | while read -r h; do printf '%d\n' "0x$h"; done | sort -n | tr '\n' ' '
+for f in /proc/net/tcp /proc/net/tcp6; do [ -r "$f" ] && awk 'NR>1 && $4=="0A" {n=split($2,a,":"); print a[n], $10}' "$f"; done 2>/dev/null |
+  sort -u | while read -r h ino; do
+    pid=$(for d in /proc/[0-9]*; do ls -l "$d/fd" 2>/dev/null | grep -q "socket:\[$ino\]" && { echo "${d#/proc/}"; break; }; done)
+    cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
+    case "$cmd" in *aether*) continue ;; esac
+    name=$(cat "/proc/$pid/comm" 2>/dev/null)
+    printf '%d%s\n' "0x$h" "${name:+ ($name)}"
+  done | sort -n -u | tr '\n' ',' | sed 's/,$//; s/,/, /g'
 """
 
 # One step of the file and git account. Writes only under $S. Paths are relative to the workdir, one per line.
@@ -179,8 +187,10 @@ class StateService:
         return head + f"\nlistening TCP ports: {ports or 'none'}"
 
     def _render(self, step: int) -> str:
+        # The start file list stays in the trace only: it was most of the block (P5 smoke: ~3.5K of ~4K characters)
+        # and the per-action line plus the state view already account for files.
         return (f"{PREFIX}Environment, measured by Core (last measured at step {step}; measured again after commands "
-                f"that can change it):\n{self.env_text}" + (f"\n{self.files_at_start}" if self.files_at_start else ""))
+                f"that can change it):\n{self.env_text}")
 
     async def _step(self, mode: str) -> tuple[list[str], float]:
         script = _STEP.format(wd=shlex.quote(self.workdir.rstrip("/") or "/"), copy=shlex.quote(self.copy),
@@ -197,7 +207,8 @@ class StateService:
         self.env_text = await self._env()
         self.block = self._render(0)
         lines, seconds = await self._step("start")
-        self.trace("core_state_v2", step=0, mode="start", out=lines, seconds=round(seconds, 3))
+        self.trace("core_state_v2", step=0, mode="start", out=lines, seconds=round(seconds, 3),
+                   files_at_start=self.files_at_start, block_chars=len(self.block))
         return self.block
 
     def context_summary(self) -> str:

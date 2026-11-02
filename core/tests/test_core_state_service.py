@@ -48,6 +48,7 @@ def _app(tmp_path, git=False):
 def test_an_untouched_workspace_shows_zero_and_the_block_is_pinned_text(tmp_path):
     svc, block, _, act = _service(tmp_path, _app(tmp_path))
     assert block.startswith(state_service.PREFIX) and "listening TCP ports" in block
+    assert "data.txt" not in block and len(block) < 1500  # the file list is traced, not shown
     assert act() == "[state] files vs start: 0 added, 0 removed, 0 changed"
     assert svc.context_summary() == block and not svc.context_changed
 
