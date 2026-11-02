@@ -35,7 +35,10 @@ The shell's root-entry listing runs from an opened current directory after
 checking its physical name, rather than expanding the original path after a
 separate symlink check. If the configured root is replaced by a symlink in
 between, or moved while it is being listed, the buffered listing is discarded
-and the observation is incomplete. This is a bounded sandbox observation,
+and the observation is incomplete. The probe compares directory identities
+as well as physical path strings, because some shells cache a moved path.
+If the identity comparison is unsupported, the observation is incomplete.
+This is a bounded sandbox observation,
 not a defense against every possible privileged filesystem or mount change.
 
 Name filtering cannot establish that an innocently named file contains no

@@ -124,9 +124,14 @@ def test_workspace_moved_after_open_does_not_publish_stale_listing(tmp_path, mon
     class SwapAfterOpen(ScopedEnv):
         async def exec(self, command, **kwargs):
             marker = '  for __af_path in ./*; do'
+            final_pwd = '__af_final=$(command pwd -P 2>/dev/null) || exit 1'
             assert command.count(marker) == 1
+            assert command.count(final_pwd) == 1
             swap = ('mv "$__af_root" "$__af_root.saved" && '
                     f'ln -s {shlex.quote(str(outside))} "$__af_root"\n')
+            # Linux shells can return a cached path after the move; force that
+            # behavior so the identity check is exercised on every platform.
+            command = command.replace(final_pwd, '__af_final="$__af_expected"')
             return await super().exec(command.replace(marker, swap + marker), **kwargs)
 
     observed = asyncio.run(facts_probe.probe(SwapAfterOpen(work, bindir), str(work),
