@@ -22,9 +22,9 @@ NOTE = ("(A copy of {workdir} as it was before your first action is at {copy}. T
         "not use it.)")
 
 
-async def take(env: Environment, workdir: str, control_dir: str) -> tuple[str, dict]:
+async def take(env: Environment, workdir: str, control_dir: str, view: bool = False) -> tuple[str, dict]:
     """Copy ``workdir`` under ``control_dir``; returns the note for the task message ('' when not copied) and a
-    trace row."""
+    trace row. ``view`` also installs the read-only changes command (state_view) and names it in the note."""
     copy = posixpath.join(control_dir, "start", posixpath.basename(workdir.rstrip("/")) or "root")
     q = shlex.quote
     script = (f"k=$(du -sk {q(workdir)} 2>/dev/null | cut -f1); [ -n \"$k\" ] || {{ echo unmeasured; exit 3; }}; "
@@ -37,4 +37,18 @@ async def take(env: Environment, workdir: str, control_dir: str) -> tuple[str, d
     words = result.stdout.split()
     if result.code != 0 or not words or words[0] != "ok":
         return "", {"copied": False, "reason": (result.stdout or result.stderr).strip()[:300], "exit": result.code}
-    return NOTE.format(workdir=workdir, copy=copy), {"copied": True, "path": copy, "kib": int(words[1])}
+    row = {"copied": True, "path": copy, "kib": int(words[1])}
+    if not view:
+        return NOTE.format(workdir=workdir, copy=copy), row
+    from . import state_view
+
+    install, cmd = state_view.install_command(workdir, copy, control_dir)
+    head = f"git -C {q(copy)} rev-parse HEAD 2>/dev/null || true"
+    try:
+        result = await run(env, f"{install}{head}", timeout_s=30)
+    except Exception as exc:  # an instrument: the copy stands, no command is named
+        result, row["view_error"] = None, f"{type(exc).__name__}: {exc}"[:300]
+    if result is None or result.code != 0:
+        return NOTE.format(workdir=workdir, copy=copy), {**row, "view": False, "exit": result and result.code}
+    row.update(view=cmd, start_head=result.stdout.strip()[:40] or None)
+    return NOTE.format(workdir=workdir, copy=copy)[:-1] + state_view.NOTE.format(cmd=cmd) + ")", row

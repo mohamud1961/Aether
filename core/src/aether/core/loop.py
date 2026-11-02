@@ -51,9 +51,7 @@ AFTER_CUT = {"reasoning_effort": "low"}
 AFTER_CUT_MAX_TOKENS = 8_192
 STOP_MARGIN_S = 15.0
 CONTEXT_MODES = ("project", "clm")
-VERIFIER_ROLE = (
-    "verifier"  # the call-log role of the one independent finish check (see verify)
-)
+VERIFIER_ROLE = "verifier"  # the call-log role of the one independent finish check (see verify)
 
 
 @dataclass(frozen=True)
@@ -97,6 +95,7 @@ class CoreConfig:
     image_effort: str = ""
     env_brief: bool = False  # what the container provides (tools, packages, files), measured once, in the task (env_brief)
     start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
+    state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
     # an unused ceiling costs rate-limit headroom (mission 2026-10-28: 2910 Luna turns, p99.9 11k, max 17k).
@@ -307,7 +306,7 @@ async def run_agent(
             if config.start_copy and config.role == "worker":
                 from . import start_copy
 
-                start_note, row = await start_copy.take(s.env, workdir, config.control_dir)
+                start_note, row = await start_copy.take(s.env, workdir, config.control_dir, view=config.state_view)
                 trace("start_copy", **row)
             if config.env_brief and config.role == "worker":
                 from . import env_brief
