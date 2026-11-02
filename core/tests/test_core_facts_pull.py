@@ -14,13 +14,13 @@ from tests.core_fakes import LocalEnv
 from tests.test_core_responses import ResponsesClient, provider, turn_events
 
 
-def test_pull_mode_is_explicit_and_default_is_off():
+def test_pull_mode_is_explicit_and_default_is_v2():
     from aether.core.harbor_agent import build_config
     from tests.test_core_start_copy import BASE
 
     baseline = build_config(environ=BASE)
     pull = build_config(environ={**BASE, "AETHER_CORE_MANAGED_FACTS": "pull"})
-    assert not baseline.managed_facts and not baseline.facts_pull
+    assert baseline.managed_facts and baseline.facts_v2 and not baseline.facts_pull
     assert pull.managed_facts and pull.facts_pull
 
 

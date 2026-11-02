@@ -166,7 +166,13 @@ def test_an_install_command_measures_the_environment_again(tmp_path, monkeypatch
     assert "tesseract9" in svc.context_summary() and svc.context_summary() != block
 
 
-def test_the_mode_is_selected_by_the_managed_facts_flag():
-    assert build_config(environ=BASE).facts_v2 is False
+def test_state_v2_is_the_default_and_each_flag_still_selects_its_mode():
+    assert build_config(environ=BASE).facts_v2 is True  # default since 2 Nov (user decision)
+    off = build_config(environ={**BASE, "AETHER_CORE_MANAGED_FACTS": "off"})
+    assert not off.managed_facts and not off.facts_v2
+    no_copy = build_config(environ={**BASE, "AETHER_CORE_START_COPY": "off"})
+    assert not no_copy.facts_v2 and not no_copy.state_view  # both compare against the start copy
+    brief = build_config(environ={**BASE, "AETHER_CORE_ENV_BRIEF": "on"})
+    assert brief.env_brief and not brief.managed_facts  # the old one-shot brief replaces the service
     cfg = build_config(environ={**BASE, "AETHER_CORE_MANAGED_FACTS": "v2"})
     assert cfg.facts_v2 and cfg.managed_facts and not cfg.facts_pull

@@ -33,7 +33,7 @@ from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
 from .open_issues import OPEN_ISSUES_ENV
 from .rival import RIVAL_ENV, RIVAL_MODES
 from .start_copy import START_COPY_ENV
-from .env_brief import ENV_BRIEF_ENV
+from . import state_service
 from .image_region import IMAGE_REGION_ENV
 from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
@@ -239,9 +239,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         card=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") in ("card", "probe"),
         card_probe=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "probe",
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
-        state_view=_choice(environ, "AETHER_CORE_STATE_VIEW", REPL_MODES, "off") == "on",  # state_view.STATE_VIEW_ENV
-        env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
-        managed_facts=_choice(environ, "AETHER_CORE_MANAGED_FACTS", FACTS_MODES, "off") != "off", facts_pull=_choice(environ, "AETHER_CORE_MANAGED_FACTS", FACTS_MODES, "off") == "pull", facts_v2=_choice(environ, "AETHER_CORE_MANAGED_FACTS", FACTS_MODES, "off") == "v2",
+        **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))
 

@@ -125,9 +125,9 @@ def test_without_the_view_the_note_and_row_are_unchanged(tmp_path):
     assert set(row) == {"copied", "path", "kib"} and not (tmp_path / "ctl" / "bin").exists()
 
 
-def test_the_flag_is_off_by_default_and_on_when_asked():
-    assert build_config(environ=BASE).state_view is False
-    assert build_config(environ={**BASE, state_view.STATE_VIEW_ENV: "on"}).state_view is True
+def test_the_view_is_on_by_default_and_off_when_asked():
+    assert build_config(environ=BASE).state_view is True
+    assert build_config(environ={**BASE, state_view.STATE_VIEW_ENV: "off"}).state_view is False
 
 
 def test_a_long_changed_line_is_cut_and_marked(tmp_path):

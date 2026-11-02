@@ -34,6 +34,16 @@ from .facts import _FULL_REFRESH
 from .facts_workspace import InitialWorkspace
 
 PREFIX = "[core facts]\n"
+
+def settings(choice: Callable[[str, tuple, str], str], on_off: tuple, facts_modes: tuple) -> dict:
+    """CoreConfig fields for env + state. Default on since 2 Nov (user decision after P5 and the reach count):
+    state v2 plus the `changes` view, both needing the start copy. AETHER_CORE_ENV_BRIEF=on selects the old one-shot
+    brief instead; AETHER_CORE_MANAGED_FACTS=off turns the service off."""
+    copy = choice("AETHER_CORE_START_COPY", on_off, "on") == "on"
+    brief = choice(env_brief.ENV_BRIEF_ENV, on_off, "off") == "on"
+    facts = choice("AETHER_CORE_MANAGED_FACTS", facts_modes, "v2" if copy and not brief else "off")
+    return {"state_view": choice("AETHER_CORE_STATE_VIEW", on_off, "on" if copy else "off") == "on",
+            "env_brief": brief, "managed_facts": facts != "off", "facts_pull": facts == "pull", "facts_v2": facts == "v2"}
 REFRESH_EVERY, VERIFY_EVERY, MAX_FILES = 10, 10, 20_000
 
 # Listening TCP ports with the owning command; sockets of Core's own processes (cmdline naming .aether or aether) are
