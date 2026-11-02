@@ -405,7 +405,7 @@ def test_pinned_facts_update_when_a_terminal_changes_directory(tmp_path, monkeyp
     assert result.status == "finished"
     notes = [m["content"] for m in client.requests[1]["messages"] if m.get("role") == "user"
              and isinstance(m.get("content"), str) and m["content"].startswith("[core facts]")]
-    assert len(notes) == 1 and 'Terminal "alpha" cwd' in notes[0] and str(work / "sub") in notes[0]
+    assert len(notes) == 1 and 'Terminal "alpha" last observed cwd' in notes[0] and str(work / "sub") in notes[0]
 
 
 def test_updating_pinned_facts_does_not_rewrite_a_previous_request(tmp_path, monkeypatch):
