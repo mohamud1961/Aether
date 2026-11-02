@@ -28,6 +28,10 @@ unknown; a later observation cannot recreate it. An incomplete later scan
 cannot establish that an initially observed path disappeared. Root identity
 changes are never compared as if they were the same workspace.
 
+Workspace probes reject filesystem-root aliases such as `//`, as well as
+symlinked root ancestors. A rejected root yields an incomplete observation,
+not a listing of the host root or a claim that its contents are absent.
+
 Name filtering cannot establish that an innocently named file contains no
 secret material. For that reason, the normal Core service does not read file
 contents to make fingerprints; it reports only bounded metadata changes. A

@@ -70,6 +70,19 @@ def test_listing_cap_and_symlink_root_are_explicit(tmp_path, monkeypatch):
     linked = asyncio.run(facts_probe.probe(env, str(link), full=False, remaining_s=30, hosts=()))
     assert linked["ok"] and linked["facts"]["files"] == []
     assert not linked["facts"]["files_complete"]
+    class NoRootEnumeration(ScopedEnv):
+        async def exec(self, command, **kwargs):
+            glob = 'for __af_path in "$__af_root"/*; do'
+            assert command.count(glob) == 1
+            # If the guard regresses, test one guaranteed-absent canary instead
+            # of listing the host's root directory.
+            command = command.replace(glob, 'for __af_path in "$__af_root"/.codex-absent-root-canary; do')
+            return await super().exec(command, **kwargs)
+
+    root = asyncio.run(facts_probe.probe(NoRootEnumeration(work, bindir), "//", full=False,
+                                         remaining_s=30, hosts=()))
+    assert root["ok"] and root["facts"]["files"] == []
+    assert not root["facts"]["files_complete"] and root["facts"]["workspace"] is None
 
 
 def test_named_local_host_is_measured_without_public_network(tmp_path, monkeypatch):
