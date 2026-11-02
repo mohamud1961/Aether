@@ -13,6 +13,12 @@ Never open hidden task tests, solutions, verifier or grader paths, key files,
 linked files, or paths outside the task workspace. Output names must be safe
 for display and capped.
 
+The workspace root is opened one path component at a time with no-follow
+directory descriptors, so an ancestor symlink does not redirect the bounded
+metadata scan. A root that cannot be verified this way is unmeasured. The
+separate shell listing also checks ancestor links, but its checks and listing
+are not atomic against a concurrent adversarial filesystem change.
+
 The same Core facts service keeps the bounded metadata observed at step 0.
 When a file from that observation later has different metadata, it records
 and may display the first step where that difference was observed. This is

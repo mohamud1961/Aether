@@ -61,6 +61,19 @@ protect = re.compile(r'secret|password|passwd|token|credential|key|private|(?:^|
 files = {}; omitted = 0; scanned = 0
 def allowed(name):
     return bool(safe.fullmatch(name)) and not protect.search(name)
+def open_root(path):
+    parts = [part for part in path.split('/') if part]
+    if not path.startswith('/') or not parts or any(part in ('.', '..') for part in parts):
+        raise ValueError('workspace root is not a safe absolute directory')
+    parent = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in parts:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            os.close(parent); parent = child
+        return parent
+    except Exception:
+        os.close(parent)
+        raise
 def walk(fd, prefix, depth, device):
     global omitted, scanned
     try:
@@ -132,7 +145,7 @@ def fingerprint(rootfd, path, device):
     finally:
         os.close(parent)
 try:
-    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    fd = open_root(root)
     try:
         st = os.fstat(fd)
         walk(fd, '', 1, st.st_dev)
@@ -247,7 +260,13 @@ def _script(workdir: str, *, full: bool, hosts: tuple[tuple[str, int], ...],
         "done",
         f"__af_root={shlex.quote(workdir)}",
         "__af_count=0; __af_seen=0; __af_incomplete=0",
-        'if [ ! -d "$__af_root" ] || [ -L "$__af_root" ]; then __af_incomplete=1; else',
+        'case "$__af_root" in /*) :;; *) __af_incomplete=1;; esac',
+        'case "/$__af_root/" in */../*|*/./*) __af_incomplete=1;; esac',
+        '[ "$__af_root" = / ] && __af_incomplete=1',
+        '__af_check=$__af_root; while [ "$__af_incomplete" -eq 0 ] && [ -n "$__af_check" ] && [ "$__af_check" != / ]; do',
+        '  if [ -L "$__af_check" ]; then __af_incomplete=1; break; fi; __af_check=${__af_check%/*}',
+        'done',
+        'if [ "$__af_incomplete" -ne 0 ] || [ ! -d "$__af_root" ]; then __af_incomplete=1; else',
         '  for __af_path in "$__af_root"/*; do',
         '    if [ ! -e "$__af_path" ] && [ ! -L "$__af_path" ]; then continue; fi',
         '    __af_seen=$((__af_seen+1)); [ "$__af_seen" -gt 1000 ] && { __af_incomplete=1; break; }',

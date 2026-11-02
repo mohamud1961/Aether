@@ -191,6 +191,24 @@ def test_incomplete_scan_does_not_claim_initial_file_was_removed(tmp_path, monke
     asyncio.run(run())
 
 
+def test_workspace_observer_rejects_a_symlink_in_any_root_ancestor(tmp_path, monkeypatch):
+    outside = tmp_path / "outside"
+    actual = outside / "nested"
+    actual.mkdir(parents=True)
+    (actual / "visible.txt").write_text("synthetic external data")
+    link = tmp_path / "alias"
+    link.symlink_to(outside, target_is_directory=True)
+    alias_root = link / "nested"
+    monkeypatch.setattr(facts_probe, "COMMANDS", ("sh",))
+    monkeypatch.setattr(facts_probe, "LANGUAGES", ())
+    monkeypatch.setattr(facts_probe, "SYSTEM_PYTHON_PATHS", (os.path.realpath(sys.executable),))
+    observation = asyncio.run(facts_probe.probe(LocalEnv(tmp_path), str(alias_root),
+                                                full=False, remaining_s=30, hosts=()))
+    assert observation["ok"]
+    assert observation["facts"]["workspace"] is None
+    assert observation["facts"]["files"] == [] and not observation["facts"]["files_complete"]
+
+
 def test_workspace_observer_does_not_execute_interpreter_through_linked_parent(tmp_path, monkeypatch):
     state, work = _state(tmp_path, monkeypatch)
     bindir = work / "bin"
