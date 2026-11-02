@@ -37,11 +37,13 @@ PREFIX = "[core facts]\n"
 REFRESH_EVERY, VERIFY_EVERY, MAX_FILES = 10, 10, 20_000
 
 # Listening TCP ports with the owning command; sockets of Core's own processes (cmdline naming .aether or aether) are
-# left out: the P5 smoke showed a port opened by the run's own machinery, which is not a fact about the task.
+# left out, and so are sockets with no owning process in the container (Docker's embedded DNS on 127.0.0.11 is owned
+# by dockerd outside it): the P5 smokes showed such a port, which is not a fact about the task.
 _PORTS = r"""
 for f in /proc/net/tcp /proc/net/tcp6; do [ -r "$f" ] && awk 'NR>1 && $4=="0A" {n=split($2,a,":"); print a[n], $10}' "$f"; done 2>/dev/null |
   sort -u | while read -r h ino; do
     pid=$(for d in /proc/[0-9]*; do ls -l "$d/fd" 2>/dev/null | grep -q "socket:\[$ino\]" && { echo "${d#/proc/}"; break; }; done)
+    [ -n "$pid" ] || continue
     cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
     case "$cmd" in *aether*) continue ;; esac
     name=$(cat "/proc/$pid/comm" 2>/dev/null)
