@@ -54,7 +54,7 @@ REVIEW_ENV = "AETHER_CORE_REVIEW"
 REVIEW_MODES = ("off", "jev", "jev_progress")
 CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
-REPL_MODES = ("on", "off")
+REPL_MODES = ("on", "off"); FACTS_MODES = ("off", "on", "pull", "v2")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # optional; unset means "one" (one tool call per model turn, the baseline). "many" was removed (R2/N1/N2 arm e failed).
@@ -241,7 +241,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
         state_view=_choice(environ, "AETHER_CORE_STATE_VIEW", REPL_MODES, "off") == "on",  # state_view.STATE_VIEW_ENV
         env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
-        managed_facts=_choice(environ, "AETHER_CORE_MANAGED_FACTS", ("off", "on", "pull"), "off") != "off", facts_pull=_choice(environ, "AETHER_CORE_MANAGED_FACTS", ("off", "on", "pull"), "off") == "pull",
+        managed_facts=_choice(environ, "AETHER_CORE_MANAGED_FACTS", FACTS_MODES, "off") != "off", facts_pull=_choice(environ, "AETHER_CORE_MANAGED_FACTS", FACTS_MODES, "off") == "pull", facts_v2=_choice(environ, "AETHER_CORE_MANAGED_FACTS", FACTS_MODES, "off") == "v2",
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))
 

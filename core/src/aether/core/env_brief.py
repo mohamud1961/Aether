@@ -22,7 +22,8 @@ ENV_BRIEF_ENV = "AETHER_CORE_ENV_BRIEF"
 TOOLS = ("python3", "python", "pip3", "pip", "node", "npm", "gcc", "g++", "cc", "make", "cmake", "git", "curl",
          "wget", "file", "xxd", "od", "strings", "nm", "objdump", "readelf", "gdb", "sqlite3", "jq", "rg", "ps",
          "ss", "netstat", "perl", "ruby", "go", "rustc", "cargo", "java", "R", "tesseract", "convert", "pdftotext",
-         "chromium", "chromium-browser", "google-chrome", "firefox", "chromedriver")
+         "chromium", "chromium-browser", "google-chrome", "firefox", "chromedriver",
+         "sshd", "nginx", "apache2", "systemctl", "service")  # services: state v2 sizing (a missing daemon decided runs)
 MANAGERS = ("apt-get", "apk", "dnf", "yum", "pip3", "pip", "npm")
 # One host per ecosystem, probed with a 3 s TCP connect; reachability is reported, never assumed.
 INDEXES = (("deb.debian.org", 80), ("archive.ubuntu.com", 80), ("dl-cdn.alpinelinux.org", 80), ("pypi.org", 443))

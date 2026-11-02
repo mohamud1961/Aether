@@ -81,6 +81,7 @@ class CoreConfig:
     state: bool = False  # run state: harness-run requirement checks, notes, finish re-check (see runstate)
     managed_facts: bool = False  # isolated state/environment treatment; not yet qualified as a default
     facts_pull: bool = False  # expose managed observations as files instead of pushed notes
+    facts_v2: bool = False  # the verified state service instead: env block + one line per action (state_service)
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
     record: bool = False  # the harness's record of the model's own command results, its facts and finish re-run (record)
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
@@ -162,7 +163,7 @@ class _Session:
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (), capture_state=config.facts_pull,
         )
         self.facts = (facts_pull.make(self.env, workdir, self.remaining, trace, terminal_state=self.terminals.observed_session,
-                                     python_state=lambda: self.repl.observed_state(), pull=config.facts_pull,
+                                     python_state=lambda: self.repl.observed_state(), pull=config.facts_pull, v2=config.facts_v2,
                                      control_dir=config.control_dir) if config.managed_facts and config.role == "worker" else None)
         self.facts_pinned_index = None
         self.files = Files(self.env, workdir)
