@@ -114,15 +114,20 @@ def main() -> None:
     facts_probe.SYSTEM_PYTHON_PATHS = (os.path.realpath(sys.executable),)
     rows = []
     with tempfile.TemporaryDirectory(prefix="codex-provided-state-eval-") as temp:
+        # This is our own private fixture directory. On macOS tempfile may
+        # spell it through /var, a symlink; the observer deliberately rejects
+        # symlinked workspace ancestors. Use its physical name for this fixture.
+        physical_temp = Path(os.path.realpath(temp))
         for case in pack["cases"]:
             if not re.fullmatch(r"[a-z_]+", case["id"]):
                 raise ValueError("unsafe case identity")
-            rows.append(asyncio.run(episode(case, Path(temp) / case["id"] / "work", args.evidence / case["id"])))
+            rows.append(asyncio.run(episode(case, physical_temp / case["id"] / "work", args.evidence / case["id"])))
     report = {
-        "scope": "scripted local provider, transparent synthetic tasks, no model or VM",
+        "scope": "scripted provider and transparent synthetic tasks; no live model calls",
         "pack_sha256": sha(pack_path), "runner_sha256": sha(Path(__file__)),
         "source_sha256": {name: sha(ROOT.parents[2] / "src/aether/core" / name)
-                          for name in ("facts.py", "facts_probe.py", "loop.py")},
+                          for name in ("facts.py", "facts_evidence.py", "facts_probe.py", "facts_sessions.py",
+                                       "facts_workspace.py", "loop.py", "repl.py", "repl_server.py")},
         "artifact_controls_pass": all(r["artifact_score"] == r["artifact_expected"] for r in rows),
         "sensor_pass_count": sum(r["sensor"] == "pass" for r in rows),
         "sensor_unimplemented_count": sum(r["sensor"] == "not_implemented" for r in rows),
@@ -132,6 +137,8 @@ def main() -> None:
     print(json.dumps(report, indent=2))
     if not report["artifact_controls_pass"]:
         raise SystemExit("artifact grader controls failed; sensor result is not usable")
+    if report["sensor_pass_count"] != len(rows):
+        raise SystemExit("state sensor controls failed; diagnostic is not green")
 
 
 if __name__ == "__main__":

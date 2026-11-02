@@ -40,3 +40,9 @@ Run only with a new owned evidence path:
 ```
 uv run --offline python -m qa.evals.provided_state.run --evidence qa/evidence/provided_state_<source>
 ```
+
+The runner exits nonzero if either the artifact controls or any of the five
+sensor controls fail. Its own temporary fixture is resolved to its physical
+path on macOS because `/var` is a symlink and the observer intentionally
+rejects workspace roots with symlinked ancestors. Real symlinked workspaces
+remain unmeasured; resolving the owned fixture does not change that boundary.
