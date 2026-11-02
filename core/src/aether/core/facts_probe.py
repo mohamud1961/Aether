@@ -213,6 +213,10 @@ def terminal_observation(session: Any, generation: int | None) -> dict | None:
         "foreground": "completion_not_observed" if session.pending else "idle_at_last_observation",
         "last_observed_cwd": session.last_observed_cwd,
         "cwd_receipt_seq": session.cwd_receipt_seq,
+        "pre_action_cwd": getattr(session, "pre_action_cwd", None),
+        "cwd_uncertain": getattr(session, "cwd_uncertain", False),
+        "pre_action_env_names": getattr(session, "pre_action_env_names", None),
+        "env_names": getattr(session, "env_names", None),
         "last_command_seq": session.seq,
         "command_resolution": {
             "status": "observed" if known else "unknown",

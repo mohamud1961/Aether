@@ -15,7 +15,7 @@ import shlex
 import time
 
 from .env import CONTROL_DIR, Environment, alive_test, run
-from . import facts_probe
+from . import facts_probe, facts_replay
 from .terminal_procs import describe_processes
 from .terminal_session import (  # noqa: F401 (some names re-exported)
     MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle, _ASKS, _text, clean,
@@ -55,11 +55,12 @@ _CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the comma
 class Terminals(TerminalLifecycle):
     def __init__(
         self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR,
-        command_names: tuple[str, ...] = (),
+        command_names: tuple[str, ...] = (), capture_state: bool = False,
     ) -> None:
         facts_probe.terminal_scope(command_names)
         self._env = env
         self._command_names = command_names
+        self._capture_state = capture_state
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
@@ -158,7 +159,7 @@ class Terminals(TerminalLifecycle):
         mark = None if seq is None else _MARK.search(cleaned)
         if mark is not None:
             suffix = mark.string[mark.end():]
-            session.pending_resolution = facts_probe.terminal_resolution(self._command_names, suffix)
+            session.pending_resolution, session.pending_env_names = facts_replay.parse_terminal_receipt(self._command_names, suffix, self._capture_state)
             bare = suffix in ("__ALIVE__\n", "__DEAD__\n")
             session.cwd_receipt_ambiguous = cleaned != rest or not (bare or session.pending_resolution is not None)
         return size, mark, "__ALIVE__" in rest
@@ -232,6 +233,7 @@ class Terminals(TerminalLifecycle):
             note = (
                 f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
             )
+        facts_replay.reset_terminal_pre(session, self._capture_state)
         if input and mode == "command" and not input.strip("\x03 \n"):
             # Ctrl-C as a command is an interrupt (P2 10-22: "\x03" refused as "input not sent" again and again)
             input, interrupt = "", True
@@ -319,6 +321,7 @@ class Terminals(TerminalLifecycle):
     async def _send(
         self, session: Session, input: str, mode: str, interrupt: bool, wait_s: float = 0.0
     ) -> tuple[int, re.Match | None, bool] | None:
+        facts_replay.before_terminal(session, mode, interrupt, self._capture_state)
         if interrupt:
             if session.pty:
                 await self._write(session, "\x03")
@@ -387,7 +390,7 @@ class Terminals(TerminalLifecycle):
                 inline = None
             marker = f"{session.root}/done_{session.seq}"
             temporary_marker = f"{marker}.tmp"
-            resolution_format, resolution_arg = facts_probe.terminal_receipt(self._command_names)
+            resolution_format, resolution_arg = facts_replay.terminal_receipt(self._command_names, self._capture_state)
             session.pending_resolution = None
             return await self._write(
                 session,
@@ -455,8 +458,7 @@ class Terminals(TerminalLifecycle):
             delay = min(1.0, delay * 1.5)
         if mark is not None:
             session.pending = 0
-            session.last_observed_cwd = None if session.cwd_receipt_ambiguous else mark.group(4)
-            session.cwd_receipt_seq = None if session.cwd_receipt_ambiguous else int(mark.group(1))
+            facts_replay.record_terminal_receipt(session, mark, self._capture_state)
             session.command_resolution = session.pending_resolution
             session.resolution_receipt_seq = int(mark.group(1)) if session.command_resolution is not None else None
         text = clean(await self._read(session, session.cursor, size))

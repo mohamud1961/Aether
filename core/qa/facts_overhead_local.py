@@ -24,7 +24,7 @@ from tests.core_fakes import LocalEnv
 from tests.test_core_responses import ResponsesClient, provider, turn_events
 
 
-async def episode(root: Path, enabled: bool) -> dict:
+async def episode(root: Path, enabled: bool, pull: bool = False) -> dict:
     work = root / "work"
     work.mkdir(parents=True)
     calls = [
@@ -42,7 +42,7 @@ async def episode(root: Path, enabled: bool) -> dict:
     config = CoreConfig(
         context="clm", clm=ClmSettings(mirror_path=str(root / "ctx" / "LIVE_CTX.txt"),
                                        history_path=str(root / "ctx" / "HISTORY.txt")),
-        control_dir=str(root / "ctl"), end_processes="stop", managed_facts=enabled,
+        control_dir=str(root / "ctl"), end_processes="stop", managed_facts=enabled, facts_pull=enabled and pull,
     )
     started = time.monotonic()
     result = await run_agent(
@@ -73,6 +73,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--blocks", type=int, default=3, choices=range(1, 7))
+    parser.add_argument("--pull", action="store_true", help="measure the shell-readable presentation")
     args = parser.parse_args()
     facts_probe.HOSTS = ()
     facts_probe.SYSTEM_PYTHON_PATHS = (os.path.realpath(sys.executable),)
@@ -83,7 +84,7 @@ def main() -> None:
         root = Path(os.path.realpath(temp))
         for index in range(args.blocks):
             off = asyncio.run(episode(root / str(index) / "off", False))
-            on = asyncio.run(episode(root / str(index) / "onx", True))
+            on = asyncio.run(episode(root / str(index) / "onx", True, args.pull))
             if (off["status"], on["status"]) != ("finished", "finished") or not (
                 off["artifact_matches"] and on["artifact_matches"]
             ):
@@ -98,11 +99,12 @@ def main() -> None:
     request_ratios = sorted(
         on / off for p in pairs for off, on in zip(p["off"]["request_chars"], p["on"]["request_chars"])
     )
-    files = ("facts.py", "facts_evidence.py", "facts_probe.py", "facts_sessions.py", "facts_workspace.py",
+    files = ("facts.py", "facts_evidence.py", "facts_probe.py", "facts_pull.py", "facts_sessions.py", "facts_workspace.py",
              "loop.py", "loop_records.py", "terminal.py", "repl.py", "repl_server.py")
     source = Path(__file__).resolve().parents[1] / "src/aether/core"
     report = {
         "pairs": pairs,
+        "presentation": "pull" if args.pull else "push",
         "median_total_request_char_ratio": statistics.median(block_ratios),
         "p90_per_request_char_ratio": request_ratios[math.ceil(len(request_ratios) * .9) - 1],
         "median_wall_off_s": statistics.median(p["off"]["wall_s"] for p in pairs),

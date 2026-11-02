@@ -87,6 +87,11 @@ class Session:
     last_observed_cwd: str | None = None
     cwd_receipt_seq: int | None = None
     cwd_receipt_ambiguous: bool = False
+    pre_action_cwd: str | None = None
+    cwd_uncertain: bool = False
+    env_names: list[str] | None = None
+    pre_action_env_names: list[str] | None = None
+    pending_env_names: list[str] | None = None
     command_resolution: dict[str, bool] | None = None
     resolution_receipt_seq: int | None = None
     pending_resolution: dict[str, bool] | None = None
@@ -217,6 +222,8 @@ class TerminalLifecycle:
             size, mark, _alive = await self._poll(session, 0)
             if mark:
                 session.cursor = size
+                if self._capture_state and not session.cwd_receipt_ambiguous:
+                    session.last_observed_cwd, session.cwd_receipt_seq = mark.group(4).strip(), 0
                 break
             await asyncio.sleep(0.2)
         else:

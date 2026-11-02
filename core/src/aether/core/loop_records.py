@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
@@ -35,3 +36,10 @@ class Trace:
         row = {"t": round(time.monotonic() - self._t0, 3), "event": event, **data}
         with self._path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+    def durable(self, event: str, **data: Any) -> None:
+        row = {"t": round(time.monotonic() - self._t0, 3), "event": event, **data}
+        with self._path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
