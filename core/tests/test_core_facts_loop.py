@@ -388,6 +388,38 @@ def test_python_cwd_uses_cell_receipts_and_marks_pending_state_unknown(tmp_path,
     assert session["cwd_receipt_cell"] == 1
 
 
+def test_python_can_recover_when_its_current_directory_disappears(tmp_path, monkeypatch):
+    work, _bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    (work / "gone").mkdir()
+    calls = [
+        ("python", {"code": "import os; os.chdir('gone'); os.rmdir('../gone'); print('cell-finished')"}),
+        ("python", {"code": f"os.chdir({str(work)!r}); print('recovered')"}),
+        ("finish", {"summary": "done"}),
+    ]
+    client = ResponsesClient([
+        turn_events(i, call=(name, args, f"c{i}"))
+        for i, (name, args) in enumerate(calls, 1)
+    ])
+    result = asyncio.run(run_agent(
+        env=LocalEnv(work), task="Use Python.", workdir=str(work),
+        provider=provider(client, tmp_path / "calls"), timeout_s=600,
+        trace=Trace(tmp_path / "trace.jsonl"),
+        config=CoreConfig(control_dir=str(tmp_path / "ctl"), end_processes="stop",
+                          managed_facts=True, repl=True),
+    ))
+    assert result.status == "finished"
+    first = next(item["output"] for item in client.requests[1]["input"]
+                 if item.get("type") == "function_call_output" and item.get("call_id") == "c1")
+    assert "cell-finished" in first and "[python cell 1: ok" in first
+    note = next(item["content"] for item in client.requests[1]["input"] if item.get("role") == "user"
+                and isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n"))
+    assert "Python cwd: unmeasured" in note
+    second = next(item["output"] for item in client.requests[2]["input"]
+                  if item.get("type") == "function_call_output" and item.get("call_id") == "c2")
+    assert "recovered" in second and "[python cell 2: ok" in second
+    assert result.extras["core_facts"]["python_session"]["last_observed_cwd"] == str(work)
+
+
 def test_real_loop_reports_a_later_metadata_change_to_an_initial_file(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
     (work / "solver.py").write_text("original\n")

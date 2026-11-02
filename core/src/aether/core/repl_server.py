@@ -217,12 +217,18 @@ def main():
             sys.stdout = os.fdopen(os.dup(1), "w", buffering=1)
             sys.stderr = sys.stdout
         done = os.path.join(BASE, "out", "%d.done" % seq)
+        try:
+            cwd = os.getcwd()
+        except OSError:
+            # The cell may have removed or lost access to its own directory.
+            # Its work still completed; leave the cwd unknown so it can recover.
+            cwd = None
         with open(done + ".tmp", "w") as fh:
             json.dump(
                 {
                     "status": status,
                     "seconds": round(time.time() - started, 2),
-                    "cwd": os.getcwd(),
+                    "cwd": cwd,
                 },
                 fh,
             )

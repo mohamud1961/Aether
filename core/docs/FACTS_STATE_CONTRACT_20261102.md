@@ -55,6 +55,9 @@ The Python REPL likewise reports the directory already recorded in its last
 cell completion receipt, without inspecting variables. A running or exited
 cell leaves the current directory unknown; a restarted REPL begins without
 the previous process's directory observation.
+If a cell removes or loses access to its current directory, an unavailable
+`getcwd` is recorded as unknown without discarding the completed cell or
+terminating the REPL; a later cell can restore an accessible directory.
 
 For model-managed context, the latest scoped facts are pinned separately from
 the task and refreshed on an observed change. This prevents a checkpoint from
