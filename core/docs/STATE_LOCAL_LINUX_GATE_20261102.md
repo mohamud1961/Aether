@@ -76,3 +76,21 @@ Evidence is under `qa/evidence/state_linux_2b4cdad7_retry1/`. This qualifies
 only the stated local Linux/container controls for this source. It is not a
 full benchmark-native task-success, latency, provider-cost, or promotion
 result; the archived real machines were not reconstructed.
+
+## Requalification after the long-run receipt fix
+
+The receipt-window fix changed Core after the Linux run above. A fresh local
+Linux check is sealed for source `77c0ddeb71ec1e58a4020906b8ae6da7a2ec9b95`
+(state runtime `c5074015`) with the same image, locked requirements, profile,
+isolation, cleanup, no-model and £0 limits. The new source archive SHA-256 is
+`787ef2507eb9fc2f9345e5a876a07edc94d35dbd69b0f231abbd08442578ce3b`.
+
+It repeats the 48 state/REPL controls and the five-case good and unavailable
+observer controls. It also measures the existing three-block scripted Core
+overhead screen inside the isolated Linux container; the overhead numbers are
+reported separately and are not automatically interpreted as task success.
+The derived supervisor is `qa/evidence/state_linux_77c0ddeb_supervisor.py`,
+SHA-256 `142f7c5f9e5fb1deed1ff66bd20e517cc413bb71fed89d8ff0cbb50a6dc5bd4b`.
+Its diff from the already tested supervisor is limited to the owned paths,
+source archive hash, local image/container names, and overhead measurement.
+Results go to the separate `qa/evidence/state_linux_77c0ddeb/` directory.
