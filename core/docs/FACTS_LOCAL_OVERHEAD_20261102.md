@@ -65,3 +65,19 @@ latency, provider spend, or task outcomes. It does not supersede the 1.410
 ratio observed on the short synthetic workload. The recorded-request result
 is `qa/evidence/facts_history_note_size_b0f59066.json`; its source and
 limitations are frozen in `FACTS_HISTORICAL_REPLAY_CONTRACT_20261102.md`.
+
+## Current source, physically named fixture
+
+At state source `c5074015`, the same three-block local screen used the
+physical path of its own private fixture and required the workspace to be
+observed. It produced a median total request-character ratio of 1.392 and a
+p90 per-request ratio of 1.462, with 49 versus 42 median environment
+executions. Median local wall times were 2.296 seconds on and 2.440 off;
+three short blocks do not establish a latency advantage. The 39% request-text
+increase remains a material local overhead and does not qualify a default
+promotion. The result is `qa/evidence/facts_overhead_c5074015.json`.
+
+This synthetic workload does not measure provider tokens, prompt-cache
+charges, historical-task behavior, or Luna outcomes. The previously reported
+2.3% historical-request calculation used a static initial note and does not
+supersede this dynamic local screen.
