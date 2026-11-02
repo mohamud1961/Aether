@@ -58,8 +58,19 @@ inferred from the contents of task text. Older or externally modified
 contexts without that provenance have not been qualified for this behavior.
 For an in-process project-context fork, a private string type identifies the
 Core-owned note across the copy; ordinary user text is not eligible for
-replacement. A JSON-deserialized or externally constructed history loses
-that in-process provenance and has not been qualified for automatic refresh.
+replacement. The Core-owned note carries the bounded initial metadata in
+private in-process state and in the existing trusted pickle checkpoint, not
+in the model-facing text. On continuation Core re-observes the workspace:
+only an observed matching root identity permits comparison with the earlier
+baseline. A different root gets a new continuation baseline; an unmeasured
+root leaves the relationship unknown. New differences are labeled with the
+continuation number and observation step. Root identity and metadata are not
+proof of file content or semantic correctness.
+
+A JSON-deserialized or externally constructed history loses that private
+provenance and has not been qualified for automatic refresh. The service does
+not restore live Python variables, shell processes or external services from
+the checkpoint. Do not deserialize untrusted pickle files.
 
 Required falsifiers: actual workspace replacement, unchanged-content touch,
 unrelated file, two versions of a mentioned file, unsafe symlink and

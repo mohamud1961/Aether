@@ -265,6 +265,9 @@ async def run_agent(
         review_transport,
         review_call,
     )
+    if resume is not None and s.facts:
+        s.facts.initial_workspace = facts.continuation_state(resume) or s.facts.initial_workspace
+        s.facts.initial_workspace.prepare_resume()
     try:
         async with asyncio.timeout(max(0, s.remaining())):
             setup_result = await s.env.exec(
@@ -346,7 +349,8 @@ async def run_agent(
             else:
                 s.messages = list(resume) if resume is not None else list(pinned)
             if s.facts:
-                note = {"role": "user", "content": await s.facts.start()}
+                text = await s.facts.start()
+                note = {"role": "user", "content": facts.ManagedFactsText(text, s.facts.initial_workspace)}
                 if s.clm:
                     s.facts_pinned_index = facts.install_clm_note(s.clm, note)
                 else:
@@ -608,8 +612,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                 out = f"{out}\n{update}"
             if (update or s.facts.context_changed) and s.facts_pinned_index is not None:
                 pinned = s.clm.pinned if s.clm else s.messages
-                text = s.facts.context_summary()
-                pinned[s.facts_pinned_index] = {"role": "user", "content": text if s.clm else facts.ManagedFactsText(text)}
+                text = facts.ManagedFactsText(s.facts.context_summary(), s.facts.initial_workspace)
+                pinned[s.facts_pinned_index] = {"role": "user", "content": text}
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )

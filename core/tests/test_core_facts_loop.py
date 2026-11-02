@@ -151,11 +151,15 @@ def test_project_context_refreshes_the_pinned_state_after_environment_change(tmp
 
 
 def test_project_fork_resume_refreshes_its_own_note_and_keeps_task(tmp_path, monkeypatch):
+    import pickle
+
     from aether.core import fork
 
     work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
     task = "[core facts]\nThis text is part of the task."
     checkpoint = {}
+    source = work / "source.txt"
+    source.write_text("original\n")
 
     async def capture(session):
         checkpoint["history"] = fork.continued(session, "Continue working.")
@@ -163,27 +167,51 @@ def test_project_fork_resume_refreshes_its_own_note_and_keeps_task(tmp_path, mon
 
     monkeypatch.setattr(fork, "at_finish", capture)
 
-    def run(resume, name, *, make_fork):
+    def run(resume, name, *, make_fork, current_work=work, current_bin=bindir):
         client = ResponsesClient([turn_events(1, call=("finish", {"summary": "done"}, "c1"))])
         config = CoreConfig(control_dir=str(tmp_path / f"ctl-{name}"), end_processes="stop",
                             managed_facts=True, fork=make_fork)
         result = asyncio.run(run_agent(
-            env=SharedPathEnv(work, bindir), task=task, workdir=str(work),
+            env=SharedPathEnv(current_work, current_bin), task=task, workdir=str(current_work),
             provider=provider(client, tmp_path / f"calls-{name}"), timeout_s=600,
             trace=Trace(tmp_path / f"trace-{name}.jsonl"), config=config, resume=resume,
         ))
         assert result.status == "finished"
-        return client.requests[0]["input"]
+        return result, client.requests[0]["input"]
 
-    run(None, "first", make_fork=True)
+    original_result, _ = run(None, "first", make_fork=True)
+    assert original_result.extras["core_facts"]["initial_workspace"]["scope"] == "run_start"
     (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")
     (bindir / "afprobe").chmod(0o755)
-    resumed = run(checkpoint["history"], "resumed", make_fork=False)
+    source.write_text("changed before continuation\n")
+    resumed_result, resumed = run(checkpoint["history"], "resumed", make_fork=False)
+    state = resumed_result.extras["core_facts"]
+    assert state["initial_workspace"]["scope"] == "run_start"
+    assert any(x["path"] == "source.txt" and x["first_observed_step"] == 0
+               for x in state["initial_workspace_changes"])
     assert any(item.get("content", "").startswith(task) for item in resumed if item.get("role") == "user")
     notes = [item["content"] for item in resumed if item.get("role") == "user"
              and isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n")
              and "Shared probe PATH" in item["content"]]
     assert len(notes) == 1 and "Names not resolved on that PATH: none." in notes[0]
+    assert "source.txt" in notes[0] and "continuation 1 step 0" in notes[0]
+
+    restored_history = pickle.loads(pickle.dumps(checkpoint["history"]))
+    restored_result, _ = run(restored_history, "restored", make_fork=False)
+    assert restored_result.extras["core_facts"]["initial_workspace"]["scope"] == "run_start"
+
+    import shutil
+
+    cloned_work = tmp_path / "clone"
+    shutil.copytree(work, cloned_work)
+    cloned_result, cloned = run(checkpoint["history"], "clone", make_fork=False,
+                                current_work=cloned_work, current_bin=cloned_work / "bin")
+    cloned_state = cloned_result.extras["core_facts"]
+    assert cloned_state["initial_workspace"]["scope"] == "continuation_start"
+    assert cloned_state["initial_workspace_changes"] == []
+    cloned_note = next(item["content"] for item in cloned if item.get("role") == "user"
+                       and isinstance(item.get("content"), str) and "Shared probe PATH" in item["content"])
+    assert "original starting state was not retained" in cloned_note
 
 
 def test_terminal_path_observation_belongs_to_the_named_session(tmp_path, monkeypatch):
@@ -379,35 +407,51 @@ def test_updating_pinned_facts_does_not_rewrite_a_previous_request(tmp_path, mon
 
 
 def test_resumed_context_refreshes_its_own_facts_without_replacing_task_text(tmp_path, monkeypatch):
+    import pickle
     from copy import deepcopy
 
-    from aether.core.clm import ClmContext
+    from aether.core import fork
     from aether.core.provider import ChatProvider
     from tests.core_fakes import ScriptedClient, call
 
     work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
     config = dataclasses.replace(_private_clm_config(tmp_path), managed_facts=True, end_processes="stop")
     task_text = "[core facts] is literal task text and must be retained."
-    context = ClmContext(pinned=[{"role": "system", "content": "Work carefully."},
-                                 {"role": "user", "content": task_text}], settings=config.clm)
+    source = work / "source.txt"
+    source.write_text("original\n")
+    checkpoint = {}
 
-    def run(context, suffix):
+    async def capture(session):
+        checkpoint["history"] = fork.continued(session, "Continue working.")
+        return "finished", True
+
+    monkeypatch.setattr(fork, "at_finish", capture)
+
+    def run(context, suffix, *, make_fork=False):
         client = ScriptedClient([call("finish", {"summary": "done"}, "finish")])
         result = asyncio.run(run_agent(
             env=SharedPathEnv(work, bindir), task=task_text, workdir=str(work),
             provider=ChatProvider(client, model="synthetic", params={"tool_choice": "required"}),
-            timeout_s=600, trace=Trace(tmp_path / f"trace-{suffix}.jsonl"), config=config, resume=context,
+            timeout_s=600, trace=Trace(tmp_path / f"trace-{suffix}.jsonl"),
+            config=dataclasses.replace(config, fork=make_fork), resume=context,
         ))
         assert result.status == "finished"
-        return client.requests[0]["messages"]
+        return result, client.requests[0]["messages"]
 
-    first = run(context, "first")
+    _, first = run(None, "first", make_fork=True)
     assert any("Names not resolved on that PATH: afprobe." in m.get("content", "") for m in first)
     (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")
     (bindir / "afprobe").chmod(0o755)
-    resumed = run(deepcopy(context), "resume")
-    assert any(m.get("content") == task_text for m in resumed)
+    source.write_text("changed before continuation\n")
+    resumed_result, resumed = run(deepcopy(checkpoint["history"]), "resume")
+    assert any(isinstance(m.get("content"), str) and m["content"].startswith(task_text) for m in resumed)
     notes = [m["content"] for m in resumed if m.get("role") == "user"
              and isinstance(m.get("content"), str) and m["content"].startswith("[core facts]\n")]
     assert len(notes) == 1
     assert "Names not resolved on that PATH: none." in notes[0]
+    assert "source.txt" in notes[0] and "continuation 1 step 0" in notes[0]
+    assert resumed_result.extras["core_facts"]["initial_workspace"]["scope"] == "run_start"
+
+    restored = pickle.loads(pickle.dumps(checkpoint["history"]))
+    restored_result, _ = run(restored, "restored")
+    assert restored_result.extras["core_facts"]["initial_workspace"]["scope"] == "run_start"

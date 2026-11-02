@@ -87,6 +87,20 @@ def test_first_failed_probe_then_recovery_presents_actual_fields(tmp_path, monke
     asyncio.run(exercise())
 
 
+def test_failed_observation_on_unrestored_continuation_does_not_invent_baseline(tmp_path, monkeypatch):
+    state, env, _work, _bindir, _rows = _setup(tmp_path, monkeypatch)
+    state.initial_workspace.prepare_resume()
+    env.fail_probe = True
+
+    async def exercise():
+        note = await state.start()
+        assert "continuation baseline is unmeasured" in note
+        assert state.record()["initial_workspace"]["status"] == "unknown"
+        assert state.record()["initial_workspace"]["scope"] == "continuation_start"
+
+    asyncio.run(exercise())
+
+
 def test_full_environment_refresh_replaces_memory_observation_and_handles_unknown(tmp_path, monkeypatch):
     state, _env, _work, _bindir, _rows = _setup(tmp_path, monkeypatch)
     actual_probe = facts_probe.probe

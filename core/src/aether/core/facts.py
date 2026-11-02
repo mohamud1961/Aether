@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from . import facts_probe
 from .env import Environment
-from .facts_workspace import InitialWorkspace, ManagedFactsText, install_project_note  # noqa: F401
+from .facts_workspace import InitialWorkspace, ManagedFactsText, continuation_state, install_project_note  # noqa: F401
 
 _MUTATING_TOOLS = frozenset({"terminal", "python", "write_file", "edit_file"})
 _FULL_REFRESH = re.compile(
@@ -102,7 +102,7 @@ class Facts:
             self.trace("core_facts_error", stage=stage, step=step, error_type=type(error).__name__)
         except Exception:
             pass
-        return f"[core facts]\nObservation at step {step}: unmeasured."
+        return f"[core facts]\nObservation at step {step}: unmeasured." + self.initial_workspace.scope_note()
 
     async def start(self) -> str:
         try:
@@ -114,7 +114,7 @@ class Facts:
         result = await self._observe(0, full=True)
         if not result["ok"]:
             self.shared_known = False
-            return "[core facts]\nShared probe at step 0: unmeasured."
+            return self._context_summary()
         self.snapshot = result["facts"]
         self.initial_workspace.capture(self.snapshot.get("workspace"))
         self.shared_known = True
@@ -381,8 +381,10 @@ class Facts:
 
     def _context_summary(self) -> str:
         if self.snapshot is None:
-            return f"[core facts]\nShared probe at step {self.last_attempted_step}: unmeasured."
+            return (f"[core facts]\nShared probe at step {self.last_attempted_step}: unmeasured."
+                    + self.initial_workspace.scope_note())
         note = self._initial(self.snapshot, self.last_shared_step or 0, self.last_full_step)
+        note += self.initial_workspace.scope_note()
         if not self.shared_known:
             note += f"\nShared probe at step {self.last_attempted_step}: unmeasured; prior readings are historical."
         shared = self.snapshot["commands"]
