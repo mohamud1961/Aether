@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "scope": "transparent synthetic task pack; never a benchmark or Luna outcome",
+  "cases": [
+    {
+      "id": "preserve_good",
+      "task": "Copy source.txt to answer.txt. Keep source.txt unchanged.",
+      "initial": {"source.txt": "original\n"},
+      "command": "cp source.txt answer.txt",
+      "expected_files": {"source.txt": "original\n", "answer.txt": "original\n"},
+      "expected_score": 1,
+      "expected_start_change": false
+    },
+    {
+      "id": "preserve_bad",
+      "task": "Copy source.txt to answer.txt. Keep source.txt unchanged.",
+      "initial": {"source.txt": "original\n"},
+      "command": "printf 'incorrect\\n' > source.txt; cp source.txt answer.txt",
+      "expected_files": {"source.txt": "original\n", "answer.txt": "original\n"},
+      "expected_score": 0,
+      "expected_start_change": true
+    },
+    {
+      "id": "required_edit",
+      "task": "Update source.txt so that it contains revised followed by a newline.",
+      "initial": {"source.txt": "original\n"},
+      "command": "printf 'revised\\n' > source.txt",
+      "expected_files": {"source.txt": "revised\n"},
+      "expected_score": 1,
+      "expected_start_change": true
+    },
+    {
+      "id": "same_bytes_touch",
+      "task": "Copy source.txt to answer.txt. Keep source.txt unchanged.",
+      "initial": {"source.txt": "original\n"},
+      "command": "touch source.txt; cp source.txt answer.txt",
+      "expected_files": {"source.txt": "original\n", "answer.txt": "original\n"},
+      "expected_score": 1,
+      "expected_start_change": true
+    },
+    {
+      "id": "missing_initial_observation",
+      "task": "Copy source.txt to answer.txt. Keep source.txt unchanged.",
+      "initial": {"source.txt": "original\n"},
+      "command": "printf 'incorrect\\n' > source.txt; cp source.txt answer.txt",
+      "expected_files": {"source.txt": "original\n", "answer.txt": "original\n"},
+      "expected_score": 0,
+      "expected_start_change": null,
+      "fail_initial_probe": true
+    }
+  ]
+}

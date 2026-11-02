@@ -34,3 +34,16 @@ name, observation age or unknown state is lost, the candidate fails regardless
 of size. A model may misunderstand directory grouping, so a lossless textual
 mapping does not establish behavior or task success; real matched task
 outcomes and regressions remain necessary.
+
+## Local result
+
+At source `011a3cf7`, the repeated three-block synthetic screen produced a
+median total request-character ratio of 1.410 and p90 per-request ratio of
+1.465 (`qa/evidence/facts_overhead_compact_20261102.json`), reductions of
+approximately 8.4% and 9.0% relative to the previous ratios. The predicted
+presentation reduction was observed on this one synthetic workload. Median
+local wall time was 2.499 seconds on versus 2.014 off, and environment
+execution counts remained 49 versus 42. The fact channel still adds about
+41% to the request characters in this screen; the default-overhead gate is
+not met. The second run is neither a token-cost estimate nor a task-success
+test, and the repeated screens are too small to establish latency effects.
