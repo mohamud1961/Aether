@@ -94,3 +94,17 @@ SHA-256 `142f7c5f9e5fb1deed1ff66bd20e517cc413bb71fed89d8ff0cbb50a6dc5bd4b`.
 Its diff from the already tested supervisor is limited to the owned paths,
 source archive hash, local image/container names, and overhead measurement.
 Results go to the separate `qa/evidence/state_linux_77c0ddeb/` directory.
+
+The recheck passed: 48 state/REPL tests, all five artifact controls and all
+five state sensor controls. The unavailable-observer control correctly
+failed four sensors and exited nonzero. Source, pack and runner hashes were
+independently matched to `77c0ddeb`; the container had no network or host
+mounts. The owned profile was removed; the pre-existing profile stayed
+stopped and Docker's active context stayed `default`.
+
+On the separate three-block synthetic overhead screen, median state-on
+request text was 1.354 times state-off, with 50 versus 43 environment
+executions. Median local wall time was 1.326 seconds on versus 1.190 seconds
+off. This is a small synthetic measurement, not provider tokens, billed
+cost, live Luna performance or a task-success estimate. It remains an
+efficiency concern, not evidence to promote the service by itself.
