@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from . import facts_probe
 from .env import Environment
-from .facts_workspace import InitialWorkspace
+from .facts_workspace import InitialWorkspace, ManagedFactsText, install_project_note  # noqa: F401
 
 _MUTATING_TOOLS = frozenset({"terminal", "python", "write_file", "edit_file"})
 _FULL_REFRESH = re.compile(

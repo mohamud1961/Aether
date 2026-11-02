@@ -56,6 +56,10 @@ refreshes the pinned observation identified by that context's private index
 instead of appending a second, conflicting state note. The index is not
 inferred from the contents of task text. Older or externally modified
 contexts without that provenance have not been qualified for this behavior.
+For an in-process project-context fork, a private string type identifies the
+Core-owned note across the copy; ordinary user text is not eligible for
+replacement. A JSON-deserialized or externally constructed history loses
+that in-process provenance and has not been qualified for automatic refresh.
 
 Required falsifiers: actual workspace replacement, unchanged-content touch,
 unrelated file, two versions of a mentioned file, unsafe symlink and

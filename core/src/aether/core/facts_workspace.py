@@ -7,6 +7,23 @@ import json
 from typing import Any
 
 
+class ManagedFactsText(str):
+    """In-process provenance that cannot be supplied by a serialized user message."""
+
+
+def install_project_note(messages: list[dict[str, Any]], content: str) -> int:
+    indexes = [i for i, msg in enumerate(messages) if msg.get("role") == "user"
+               and isinstance(msg.get("content"), ManagedFactsText)]
+    if len(indexes) > 1:
+        raise ValueError("multiple Core-owned state notes in project context")
+    note = {"role": "user", "content": ManagedFactsText(content)}
+    if indexes:
+        messages[indexes[0]] = note
+        return indexes[0]
+    messages.append(note)
+    return len(messages) - 1
+
+
 class InitialWorkspace:
     """Remember only the initial observation; do not reconstruct a missing one."""
 

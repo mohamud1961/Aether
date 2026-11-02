@@ -350,8 +350,7 @@ async def run_agent(
                 if s.clm:
                     s.facts_pinned_index = facts.install_clm_note(s.clm, note)
                 else:
-                    s.facts_pinned_index = len(s.messages)
-                    _append(s, note)
+                    s.facts_pinned_index = facts.install_project_note(s.messages, note["content"])
             trace(
                 "start",
                 workdir=workdir,
@@ -609,7 +608,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                 out = f"{out}\n{update}"
             if (update or s.facts.context_changed) and s.facts_pinned_index is not None:
                 pinned = s.clm.pinned if s.clm else s.messages
-                pinned[s.facts_pinned_index] = {"role": "user", "content": s.facts.context_summary()}
+                text = s.facts.context_summary()
+                pinned[s.facts_pinned_index] = {"role": "user", "content": text if s.clm else facts.ManagedFactsText(text)}
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )

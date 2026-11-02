@@ -150,6 +150,42 @@ def test_project_context_refreshes_the_pinned_state_after_environment_change(tmp
     assert "Names not resolved on that PATH: none." in initial_note(client.requests[1])
 
 
+def test_project_fork_resume_refreshes_its_own_note_and_keeps_task(tmp_path, monkeypatch):
+    from aether.core import fork
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
+    task = "[core facts]\nThis text is part of the task."
+    checkpoint = {}
+
+    async def capture(session):
+        checkpoint["history"] = fork.continued(session, "Continue working.")
+        return "finished", True
+
+    monkeypatch.setattr(fork, "at_finish", capture)
+
+    def run(resume, name, *, make_fork):
+        client = ResponsesClient([turn_events(1, call=("finish", {"summary": "done"}, "c1"))])
+        config = CoreConfig(control_dir=str(tmp_path / f"ctl-{name}"), end_processes="stop",
+                            managed_facts=True, fork=make_fork)
+        result = asyncio.run(run_agent(
+            env=SharedPathEnv(work, bindir), task=task, workdir=str(work),
+            provider=provider(client, tmp_path / f"calls-{name}"), timeout_s=600,
+            trace=Trace(tmp_path / f"trace-{name}.jsonl"), config=config, resume=resume,
+        ))
+        assert result.status == "finished"
+        return client.requests[0]["input"]
+
+    run(None, "first", make_fork=True)
+    (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")
+    (bindir / "afprobe").chmod(0o755)
+    resumed = run(checkpoint["history"], "resumed", make_fork=False)
+    assert any(item.get("content", "").startswith(task) for item in resumed if item.get("role") == "user")
+    notes = [item["content"] for item in resumed if item.get("role") == "user"
+             and isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n")
+             and "Shared probe PATH" in item["content"]]
+    assert len(notes) == 1 and "Names not resolved on that PATH: none." in notes[0]
+
+
 def test_terminal_path_observation_belongs_to_the_named_session(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
     (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")
