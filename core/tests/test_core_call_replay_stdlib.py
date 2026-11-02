@@ -57,7 +57,7 @@ def fake_session(*,parallel=False):
         clm=None,config=NS(parallel_reads=parallel),
         result=out,actions=[],report_steps=[],workdir="/workspace",
         trace=lambda event,**fields:EVENTS.append(("trace",fields.get("name","?"))),
-        record=None,diffcheck=None,state=None,pending_images=[],
+        record=None,diffcheck=None,state=None,facts=None,pending_images=[],
         messages=[],clock=lambda:"[time remaining test]",env=None,
     )
     return s

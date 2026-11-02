@@ -10,6 +10,27 @@ from aether.core.repl import Repl
 from tests.core_fakes import LocalEnv
 
 
+def test_repl_preserves_variables_when_its_working_directory_is_removed(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "gone").mkdir()
+
+    async def go():
+        repl = Repl(LocalEnv(work), str(work), lambda: 600.0, None, base=str(tmp_path / "repl"))
+        assert await repl.start()
+        original_pid = repl.pid
+        try:
+            first = await repl.run("import os; os.chdir('gone'); os.rmdir('../gone'); marker = 41")
+            assert "[python cell 1: ok" in first
+            second = await repl.run(f"os.chdir({str(work)!r}); print(marker + 1)")
+            assert "42" in second and "[python cell 2: ok" in second
+            assert repl.pid == original_pid
+        finally:
+            await repl.close()
+
+    asyncio.run(go())
+
+
 def _alive(pid):
     try:
         os.kill(pid, 0)

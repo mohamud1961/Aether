@@ -7,6 +7,8 @@ Split from terminal.py (module-size cap, 2026-10-26) with the code unchanged; ``
 from __future__ import annotations
 
 import asyncio
+import base64
+import re
 import shlex
 import time
 from dataclasses import dataclass, field
@@ -21,6 +23,24 @@ from .env import (
 from .transfer import put_bytes
 
 MAX_TERMINALS = 8
+_ASKS = re.compile(
+    r"(\[[Yy]/[Nn]\]|\[[yY]/[nN]\]|\([Yy]/[Nn]\)|\(yes/no(/\[fingerprint\])?\)|[Pp]assword( for [^:]*)?:|"
+    r"[Pp]assphrase[^:]*:|[Cc]ontinue\?|[Pp]roceed\?|\[[Yy]es/[Nn]o\]|Press (any key|ENTER|RETURN)[^\n]*)\??\s*$"
+)
+_ANSI = re.compile(
+    r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>()][0-9A-Za-z]?"
+)
+
+
+def clean(text: str) -> str:
+    return _ANSI.sub("", text).replace("\r\n", "\n").replace("\r", "")
+
+
+def _text(b64: str) -> str:
+    """Log bytes sent as base64, as text; bytes that are not UTF-8 become U+FFFD."""
+    return base64.b64decode("".join(b64.split())).decode("utf-8", "replace")
+
+
 # util-linux / busybox ``script`` gives the shell a pseudo-terminal; anything else falls back to a plain pipe.
 _PTY_TEST = "command -v bash >/dev/null 2>&1 && script -qfc true /dev/null >/dev/null 2>&1 </dev/null"
 
@@ -64,6 +84,17 @@ class Session:
     ready: bool = False
     identity: dict[str, str] = field(default_factory=dict)
     cleanup_warning: str = ""
+    last_observed_cwd: str | None = None
+    cwd_receipt_seq: int | None = None
+    cwd_receipt_ambiguous: bool = False
+    pre_action_cwd: str | None = None
+    cwd_uncertain: bool = False
+    env_names: list[str] | None = None
+    pre_action_env_names: list[str] | None = None
+    pending_env_names: list[str] | None = None
+    command_resolution: dict[str, bool] | None = None
+    resolution_receipt_seq: int | None = None
+    pending_resolution: dict[str, bool] | None = None
 
     @property
     def log(self) -> str:
@@ -191,6 +222,8 @@ class TerminalLifecycle:
             size, mark, _alive = await self._poll(session, 0)
             if mark:
                 session.cursor = size
+                if self._capture_state and not session.cwd_receipt_ambiguous:
+                    session.last_observed_cwd, session.cwd_receipt_seq = mark.group(4).strip(), 0
                 break
             await asyncio.sleep(0.2)
         else:

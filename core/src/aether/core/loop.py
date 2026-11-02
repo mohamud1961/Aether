@@ -15,10 +15,9 @@ import math
 import shlex
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from . import compaction, diffcheck, finish_report, image_region, images, intent, runstate
+from . import compaction, diffcheck, facts, facts_probe, facts_pull, finish_report, image_region, images, intent, runstate
 from . import receipt as finish_receipt
 from .clm import ClmContext, ClmSettings
 from .clone import Clone
@@ -32,6 +31,7 @@ from .env import (
     run,
 )
 from .files import Files
+from .loop_records import RunResult, Trace  # re-exported for existing callers
 from .oversight import Oversight, ReviewPlan, final_feedback, progress_feedback
 from .provider import ChatProvider, ProviderError, parse_arguments
 from .record import NEUTRAL_HOLD, Record
@@ -61,12 +61,8 @@ class CoreConfig:
     images: bool = False
     reviews: ReviewPlan = ReviewPlan()
     clm: ClmSettings = field(default_factory=ClmSettings)
-    control_dir: str = (
-        CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
-    )
-    make_clone: Callable[[Environment], Awaitable[Any]] | None = (
-        None  # tests inject a clone; default docker
-    )
+    control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
+    make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
@@ -83,6 +79,8 @@ class CoreConfig:
     end_processes: str = "keep"
     hygiene: str = "off"  # tools.HYGIENE_MODES: one delivery-hygiene line (on) or its placebo in the solver prompt
     state: bool = False  # run state: harness-run requirement checks, notes, finish re-check (see runstate)
+    managed_facts: bool = False  # isolated state/environment treatment; not yet qualified as a default
+    facts_pull: bool = False  # expose managed observations as files instead of pushed notes
     role: str = "worker"  # call-log role of this run's own turns; VERIFIER_ROLE for the verifier's run
     record: bool = False  # the harness's record of the model's own command results, its facts and finish re-run (record)
     record_measure: bool = False  # the record also compares each check's printed results across file versions (record)
@@ -108,6 +106,10 @@ class CoreConfig:
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
     def __post_init__(self) -> None:
+        if self.facts_pull and not self.managed_facts:
+            raise ValueError("facts_pull requires managed_facts")
+        if self.managed_facts and self.env_brief:
+            raise ValueError("managed_facts and env_brief are alternative information channels")
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
         from .evidence_context import CONTEXT_EVIDENCE_MODES
@@ -119,37 +121,6 @@ class CoreConfig:
         if self.evidence_presentation == "history_index" and not self.clm.attest_original_history:
             raise ValueError("history_index requires append-time original-history attestation")
         self.clm.check_request_limit(self.max_output_tokens)
-
-
-@dataclass
-class RunResult:
-    status: str  # finished | timeout | provider_error | context_error | no_tool_loop
-    steps: int = 0
-    usage: dict[str, int | None] = field(default_factory=dict)
-    sub_usage: dict[str, int] = field(
-        default_factory=dict
-    )  # llm() and checkpoint calls
-    calls: int = 0
-    failed_attempts: int = 0
-    request_chars: list[int] = field(default_factory=list)
-    reviews: list[dict[str, Any]] = field(default_factory=list)
-    extras: dict[str, Any] = field(default_factory=dict)
-    error: str = ""
-    # What the run delivers as its account: the finish report (harness facts, unbacked-claim flags, then the model's
-    # summary under its own heading). The model's summary is never delivered on its own. Never shown to the model.
-    final_account: str = ""
-
-
-class Trace:
-    def __init__(self, path: Path) -> None:
-        self._path = self.path = path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._t0 = time.monotonic()
-
-    def __call__(self, event: str, **data: Any) -> None:
-        row = {"t": round(time.monotonic() - self._t0, 3), "event": event, **data}
-        with self._path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
 
 
 def _action_view(name: str, args: dict[str, Any], result: str) -> str:
@@ -187,8 +158,13 @@ class _Session:
         self.result = RunResult("timeout")
         self.env = DeadlineEnvironment(env, self.remaining)
         self.terminals = Terminals(
-            self.env, workdir, self.remaining, control_dir=config.control_dir
+            self.env, workdir, self.remaining, control_dir=config.control_dir,
+            command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (), capture_state=config.facts_pull,
         )
+        self.facts = (facts_pull.make(self.env, workdir, self.remaining, trace, terminal_state=self.terminals.observed_session,
+                                     python_state=lambda: self.repl.observed_state(), pull=config.facts_pull,
+                                     control_dir=config.control_dir) if config.managed_facts and config.role == "worker" else None)
+        self.facts_pinned_index = None
         self.files = Files(self.env, workdir)
         self.repl = Repl(
             self.env,
@@ -286,6 +262,9 @@ async def run_agent(
         review_transport,
         review_call,
     )
+    if resume is not None and s.facts:
+        s.facts.initial_workspace = facts.continuation_state(resume) or s.facts.initial_workspace
+        s.facts.initial_workspace.prepare_resume()
     try:
         async with asyncio.timeout(max(0, s.remaining())):
             setup_result = await s.env.exec(
@@ -307,7 +286,7 @@ async def run_agent(
                 from . import start_copy
 
                 start_note, row = await start_copy.take(s.env, workdir, config.control_dir, view=config.state_view)
-                trace("start_copy", **row)
+                facts_pull.trace_start_copy(s.facts, row, workdir, trace)
             if config.env_brief and config.role == "worker":
                 from . import env_brief
 
@@ -340,6 +319,8 @@ async def run_agent(
                 s.tools = open_issues.with_field(s.tools)
             if s.state:
                 s.tools = runstate.with_state(s.tools)
+            if s.facts and config.facts_pull:
+                start_note = "\n".join(filter(None, (start_note, await s.facts.start())))
             pinned = [
                 {
                     "role": "system",
@@ -366,6 +347,15 @@ async def run_agent(
                 s.clm = resume or ClmContext(pinned=pinned, settings=config.clm)
             else:
                 s.messages = list(resume) if resume is not None else list(pinned)
+            if s.facts and config.facts_pull:
+                s.facts_pinned_index = facts_pull.attach(s.clm, s.messages, resume is not None, s.facts)
+            elif s.facts:
+                text = await s.facts.start()
+                note = {"role": "user", "content": facts.ManagedFactsText(text, s.facts.initial_workspace)}
+                if s.clm:
+                    s.facts_pinned_index = facts.install_clm_note(s.clm, note)
+                else:
+                    s.facts_pinned_index = facts.install_project_note(s.messages, note["content"])
             trace(
                 "start",
                 workdir=workdir,
@@ -394,6 +384,8 @@ async def run_agent(
         )
     finally:
         cleanup_errors = []
+        if s.facts:
+            s.result.extras["core_facts"] = s.facts.safe_record()
         if s.diffcheck:
             await s.diffcheck.close()
         s.env.cleanup_until(time.monotonic() + max(1.0, STOP_MARGIN_S))
@@ -615,6 +607,14 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             out += "\n" + mirror_error
             mirror_error = ""
         s.result.steps += 1
+        if s.facts:
+            update = await s.facts.after_action(s.result.steps, name, args, out, call_id=call["id"])
+            if update:
+                out = f"{out}\n{update}"
+            if (update or s.facts.context_changed) and s.facts_pinned_index is not None:
+                pinned = s.clm.pinned if s.clm else s.messages
+                text = facts.ManagedFactsText(str(pinned[s.facts_pinned_index]["content"]) if s.config.facts_pull else s.facts.context_summary(), s.facts.initial_workspace)
+                pinned[s.facts_pinned_index] = {"role": "user", "content": text}
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )

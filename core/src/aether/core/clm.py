@@ -91,6 +91,8 @@ class ClmContext:
     _recent_outputs: list[int] = field(default_factory=list)
     _turn: int = 0
     _last_urgent: int = -URGENT_EVERY_TURNS
+    # Retained across a copied/resumed context; never inferred from user text.
+    _managed_facts_pin_index: int | None = field(default=None, init=False, repr=False)
     # id(message) -> (message, provider reasoning tokens); None means provider usage was not reported
     _reasoning: dict[int, tuple[dict[str, Any], int | None]] = field(
         default_factory=dict
