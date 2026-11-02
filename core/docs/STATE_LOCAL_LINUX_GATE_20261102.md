@@ -139,3 +139,12 @@ SHA-256 `7af331843de40cf118becf00e47725c90dae5c5d54173ac0b417e9f86e776e0d`.
 Only owned paths, source hash and local image/container names differ from
 the prior supervisor. Evidence goes under
 `qa/evidence/state_linux_af548e05/`.
+
+This final recheck did not reach the tests: the temporary Linux guest was
+running but did not answer an eight-second read-only guest probe after more
+than three minutes of startup. The owned supervisor was stopped early; its
+profile was stopped and deleted, and the user's other profile stayed stopped.
+The aborted attempt is recorded in
+`qa/evidence/state_linux_af548e05/host-summary.json`. Resume this same
+source-bound check only after an isolated Linux runtime is responsive; do not
+count it as a pass or erase the prior portability failure.
