@@ -1,4 +1,4 @@
-"""Bounded environment measurements. No task file contents are opened."""
+"""Bounded measurements; file contents are read only for explicit watched paths."""
 
 from __future__ import annotations
 

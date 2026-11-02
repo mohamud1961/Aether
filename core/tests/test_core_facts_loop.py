@@ -318,7 +318,7 @@ def test_python_session_state_tracks_completed_cells_without_reading_variables(t
     assert "42" in output
 
 
-def test_real_loop_reports_a_later_change_to_a_mentioned_file(tmp_path, monkeypatch):
+def test_real_loop_reports_a_later_metadata_change_to_an_initial_file(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
     (work / "solver.py").write_text("original\n")
     result, client = _run(tmp_path, work, SharedPathEnv(work, bindir), [
@@ -329,7 +329,8 @@ def test_real_loop_reports_a_later_change_to_a_mentioned_file(tmp_path, monkeypa
     assert result.status == "finished"
     update = next(item["output"] for item in client.requests[2]["input"]
                   if item.get("type") == "function_call_output" and item.get("call_id") == "c2")
-    assert "solver.py" in update and "fingerprint differs" in update and "step 1" in update
+    assert "solver.py" in update and "metadata" in update and "step 2" in update
+    assert "content is not established by metadata" in update
 
 
 def test_state_remains_available_after_context_checkpoint(tmp_path, monkeypatch):

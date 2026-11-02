@@ -23,18 +23,12 @@ cannot establish that an initially observed path disappeared. Root identity
 changes are never compared as if they were the same workspace.
 
 Name filtering cannot establish that an innocently named file contains no
-secret material. Fingerprinting reads eligible file bytes inside the task
-environment, although only a digest is returned. This prototype has exercised
-only synthetic files; before any live use the selected task pack and this
-access policy require independent qualification against the no-keys rule.
-
-For a safe workspace path literally mentioned in a terminal command or Python
-cell, Core may fingerprint that file after the action. If its bytes later
-change, Core can state that the command text mentioned that path and that the
-post-action fingerprints differ. This is not proof that the command read the
-file, that it ran a test, that the fingerprint describes what was read, or
-that the task is correct. Unreadable, too large, changing-during-read or
-excluded files are unknown. Keep the number and size of watched files bounded.
+secret material. For that reason, the normal Core service does not read file
+contents to make fingerprints; it reports only bounded metadata changes. A
+lower-level fingerprint prototype remains directly selectable only in
+synthetic, explicitly key-free tests and is not exposed through the Harbor
+configuration. A content change therefore remains unestablished by normal
+state observations, even if metadata differs.
 
 Only fixed system interpreter paths are candidates for the observer; never
 execute an interpreter or utility selected from the task's PATH. The task

@@ -45,8 +45,31 @@ def test_external_change_before_a_read_only_action_is_visible(tmp_path, monkeypa
     asyncio.run(run())
 
 
+def test_default_observation_does_not_read_unclassified_file_contents(tmp_path, monkeypatch):
+    import pytest
+
+    state, work = _state(tmp_path, monkeypatch)
+    candidate = work / "ordinary.txt"
+    candidate.write_text("synthetic private data")
+    mtime = candidate.stat().st_mtime_ns
+    os.utime(candidate, ns=(1, mtime))
+    candidate.read_bytes()
+    if candidate.stat().st_atime_ns == 1:
+        pytest.skip("filesystem does not provide a usable read-access-time signal")
+    os.utime(candidate, ns=(1, mtime))
+
+    async def run():
+        await state.start()
+        await state.after_action(1, "terminal", {"input": "cat ordinary.txt"}, "synthetic output")
+        assert candidate.stat().st_atime_ns == 1
+        assert state.record()["bindings"] == {}
+
+    asyncio.run(run())
+
+
 def test_mentioned_file_fingerprint_changes_once_but_touch_and_unrelated_files_do_not(tmp_path, monkeypatch):
     state, work = _state(tmp_path, monkeypatch)
+    state.allow_fingerprints = True  # synthetic key-free fixture only
     program = work / "solver.py"
     program.write_text("original\n")
 
@@ -70,6 +93,7 @@ def test_mentioned_file_fingerprint_changes_once_but_touch_and_unrelated_files_d
 
 def test_linked_or_protected_files_are_not_read_or_claimed_as_tracked(tmp_path, monkeypatch):
     state, work = _state(tmp_path, monkeypatch)
+    state.allow_fingerprints = True  # synthetic key-free fixture only
     (work / "tests").mkdir()
     (work / "private-key.pem").write_text("synthetic canary, not a real key")
     outside = tmp_path / "outside.py"
@@ -104,6 +128,7 @@ def test_unavailable_workspace_observer_does_not_assert_unchanged(tmp_path, monk
 
 def test_later_probe_outage_invalidates_current_state_without_fabricating_recovery(tmp_path, monkeypatch):
     state, work = _state(tmp_path, monkeypatch)
+    state.allow_fingerprints = True  # synthetic key-free fixture only
     state.env = OutageEnv(work)
     program = work / "solver.py"
     program.write_text("original\n")
@@ -130,6 +155,7 @@ def test_later_probe_outage_invalidates_current_state_without_fabricating_recove
 
 def test_replaced_workspace_is_not_confused_with_the_old_one(tmp_path, monkeypatch):
     state, work = _state(tmp_path, monkeypatch)
+    state.allow_fingerprints = True  # synthetic key-free fixture only
     (work / "solver.py").write_text("original\n")
 
     async def run():
@@ -183,6 +209,7 @@ def test_workspace_observer_does_not_execute_interpreter_through_linked_parent(t
 
 def test_hardlinked_external_file_never_becomes_a_fingerprinted_binding(tmp_path, monkeypatch):
     state, work = _state(tmp_path, monkeypatch)
+    state.allow_fingerprints = True  # synthetic key-free fixture only
     external = tmp_path / "external.py"
     external.write_text("synthetic external contents")
     os.link(external, work / "shared.py")

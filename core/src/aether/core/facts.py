@@ -51,11 +51,12 @@ class Facts:
     def __init__(self, env: Environment, workdir: str, remaining: Callable[[], float],
                  trace: Callable[..., None], *, terminal_state: Callable[[str], dict | None] | None = None,
                  python_state: Callable[[], dict] | None = None,
-                 hosts: tuple[tuple[str, int], ...] | None = None):
+                 hosts: tuple[tuple[str, int], ...] | None = None, allow_fingerprints: bool = False):
         self.env, self.workdir, self.remaining, self.trace = env, workdir, remaining, trace
         self.terminal_state = terminal_state
         self.python_state = python_state
         self.hosts = facts_probe.HOSTS if hosts is None else hosts
+        self.allow_fingerprints = allow_fingerprints
         self.snapshot: dict[str, Any] | None = None
         self.shared_known = False
         self.last_shared_step: int | None = None
@@ -240,7 +241,7 @@ class Facts:
             self.python_session["last_observed_step"] = step
             self.context_changed = True
         command = str(args.get("input") or args.get("code") or "")
-        mentioned = self._mentioned(tool, command)
+        mentioned = self._mentioned(tool, command) if self.allow_fingerprints else []
         watched = tuple(dict.fromkeys((*self.bindings, *mentioned)))[:facts_probe.MAX_WATCHED]
         self.omitted_bindings += len(set(mentioned) - set(watched))
         full = tool != "finish" and (self.snapshot is None or step % 10 == 0 or bool(_FULL_REFRESH.search(command)))
