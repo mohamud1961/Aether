@@ -1,5 +1,4 @@
 """Harbor ``BaseAgent`` for Aether Core.
-
 Configuration comes from the launcher's environment only:
 - provider: the GLM research profile's endpoint / key / deployment variables;
 - ``AETHER_CORE_REVIEW``: ``off``, ``jev`` (finish review), ``jev_progress`` (finish review plus
@@ -241,6 +240,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         card_probe=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "probe",
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
         env_brief=_choice(environ, ENV_BRIEF_ENV, REPL_MODES, "off") == "on",
+        managed_facts=_choice(environ, "AETHER_CORE_MANAGED_FACTS", REPL_MODES, "off") == "on",
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""),
     )

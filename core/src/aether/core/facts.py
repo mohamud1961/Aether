@@ -273,7 +273,10 @@ class Facts:
                 if not full:
                     for key in ("versions", "network"):
                         current[key] = old[key]
-                current["host_available_memory_kib"] = old["host_available_memory_kib"]
+                    current["host_available_memory_kib"] = old["host_available_memory_kib"]
+                else:
+                    self.memory_step = step
+                    self.context_changed = True
             self.snapshot = current
             self.shared_known = True
             self.last_shared_step = step
@@ -446,6 +449,10 @@ class Facts:
                 updates.append(f"Permitted non-hidden task workspace root entry sample changed at step {step}; "
                                "coverage incomplete or changed.")
         if full:
+            if old["host_available_memory_kib"] != current["host_available_memory_kib"]:
+                memory = current["host_available_memory_kib"]
+                updates.append(f"Kernel-reported host available memory at step {step}: " +
+                               (f"{memory} KiB." if memory is not None else "unmeasured."))
             for name, value in current["versions"].items():
                 if (old["versions"] or {}).get(name) != value:
                     updates.append(f"Version output at step {step}: {name}={value or 'unmeasured'}.")

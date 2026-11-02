@@ -87,6 +87,31 @@ def test_first_failed_probe_then_recovery_presents_actual_fields(tmp_path, monke
     asyncio.run(exercise())
 
 
+def test_full_environment_refresh_replaces_memory_observation_and_handles_unknown(tmp_path, monkeypatch):
+    state, _env, _work, _bindir, _rows = _setup(tmp_path, monkeypatch)
+    actual_probe = facts_probe.probe
+    measurements = iter((100, 50, None))
+
+    async def measured(*args, **kwargs):
+        result = await actual_probe(*args, **kwargs)
+        if result["ok"] and kwargs["full"]:
+            result["facts"]["host_available_memory_kib"] = next(measurements)
+        return result
+
+    monkeypatch.setattr(facts_probe, "probe", measured)
+
+    async def exercise():
+        assert "100 KiB" in await state.start()
+        changed = await state.after_action(1, "terminal", {"input": "pip --version"}, "output")
+        assert "50 KiB" in changed and "step 1" in changed
+        assert "50 KiB" in state.context_summary()
+        unavailable = await state.after_action(2, "terminal", {"input": "pip --version"}, "output")
+        assert "unmeasured" in unavailable and "step 2" in unavailable
+        assert "100 KiB" not in state.context_summary() and "50 KiB" not in state.context_summary()
+
+    asyncio.run(exercise())
+
+
 def test_direct_file_write_is_not_repeated_as_independent_change(tmp_path, monkeypatch):
     state, _env, work, _bindir, _rows = _setup(tmp_path, monkeypatch)
 

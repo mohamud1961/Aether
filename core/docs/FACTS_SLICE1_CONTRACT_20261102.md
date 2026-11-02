@@ -35,6 +35,12 @@ identify its session. Asynchronous changes after the final observation remain
 unobserved; there is no completion hold. This bounded slice does not promise to
 detect every external or transient change.
 
+Full refreshes replace the host-memory reading with the new observation,
+including an explicit unmeasured value if unavailable. This reports host
+available memory only, not the container's resource limit. The Harbor
+configuration can select this experimental service with
+`AETHER_CORE_MANAGED_FACTS=on`; it remains off by default until qualified.
+
 High-signal controls before integration:
 
 1. Real local shell with a synthetic executable added/removed during a run:

@@ -85,6 +85,32 @@ def test_facts_are_separate_from_the_task_and_changes_reach_next_request(tmp_pat
     assert result.extras["core_facts"]["last_shared_step"] >= 1
 
 
+def test_harbor_configuration_enables_the_state_service_in_a_real_loop(tmp_path, monkeypatch):
+    import pytest
+
+    from aether.core.harbor_agent import ConfigError, build_config
+    from tests.test_core_start_copy import BASE
+
+    work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    settings = {**BASE, "AETHER_CORE_CONTEXT": "project", "AETHER_CORE_START_COPY": "off",
+                "AETHER_CORE_MANAGED_FACTS": "on"}
+    config = dataclasses.replace(build_config(environ=settings), control_dir=str(tmp_path / "ctl"),
+                                 end_processes="stop")
+    client = ResponsesClient([turn_events(1, call=("finish", {"summary": "done"}, "c1"))])
+    result = asyncio.run(run_agent(
+        env=SharedPathEnv(work, bindir), task="Observe the environment.", workdir=str(work),
+        provider=provider(client, tmp_path / "calls"), timeout_s=600,
+        trace=Trace(tmp_path / "trace.jsonl"), config=config,
+    ))
+    assert result.status == "finished"
+    assert any(isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n")
+               for item in client.requests[0]["input"])
+    with pytest.raises(ConfigError):
+        build_config(environ={**settings, "AETHER_CORE_MANAGED_FACTS": "invalid"})
+    with pytest.raises(ValueError):
+        build_config(environ={**settings, "AETHER_CORE_ENV_BRIEF": "on"})
+
+
 def test_resolved_command_paths_are_grouped_without_losing_names(tmp_path, monkeypatch):
     import tempfile
     from pathlib import Path
