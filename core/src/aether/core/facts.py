@@ -126,16 +126,30 @@ class Facts:
     def _initial(self, facts: dict[str, Any], step: int, full_step: int | None = None) -> str:
         full_step = step if full_step is None else full_step
         commands = facts["commands"]
-        available = [f"{name}={_shown(path)}" for name, path in commands.items() if path is not None]
+        directories: dict[str, list[str]] = {}
+        individual = []
+        for name, path in commands.items():
+            if path is not None:
+                directory, basename = posixpath.split(path)
+                if path.startswith("/") and basename == name and directory:
+                    directories.setdefault(directory, []).append(name)
+                else:
+                    individual.append(f"{name}={_shown(path)}")
+        available = [f"{_shown(directory)}: {', '.join(names)}" for directory, names in directories.items()]
+        available.extend(individual)
         missing = [name for name, path in commands.items() if path is None]
-        versions = [f"{name}={version or 'unmeasured'}" for name, version in (facts["versions"] or {}).items()]
+        versions = [f"{name}={version}" for name, version in (facts["versions"] or {}).items() if version]
+        unmeasured = [name for name, version in (facts["versions"] or {}).items() if not version]
+        if unmeasured:
+            versions.append("unmeasured: " + ", ".join(unmeasured))
         managers = [name for name in facts_probe.MANAGERS if commands.get(name) is not None]
         network = [f"{host}={state}" for host, state in (facts["network"] or {}).items()]
         memory = facts["host_available_memory_kib"]
         workspace = facts["workspace"]
         lines = [
             "[core facts]",
-            f"Shared probe PATH at step {step}: " + (", ".join(available) or "no listed commands resolved") + ".",
+            f"Shared probe PATH at step {step} (directory: command names): " +
+            ("; ".join(available) or "no listed commands resolved") + ".",
             "Names not resolved on that PATH: " + (", ".join(missing) or "none") + ".",
             "Package-manager names resolved: " + (", ".join(managers) or "none") + ".",
             f"Version output at step {full_step}: " + (", ".join(versions) or "unmeasured") + ".",

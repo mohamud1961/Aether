@@ -85,6 +85,29 @@ def test_facts_are_separate_from_the_task_and_changes_reach_next_request(tmp_pat
     assert result.extras["core_facts"]["last_shared_step"] >= 1
 
 
+def test_resolved_command_paths_are_grouped_without_losing_names(tmp_path, monkeypatch):
+    import tempfile
+    from pathlib import Path
+
+    work, _ = _setup(tmp_path, monkeypatch, ("afprobe", "bfprobe", "missingprobe"))
+    # macOS resolves pytest's temporary path through /private; that name is
+    # deliberately withheld by the path privacy filter. Use an owned /tmp
+    # path to exercise the observable-path contract separately.
+    with tempfile.TemporaryDirectory(prefix="codex-facts-path-", dir="/tmp") as safe_bin:
+        bindir = Path(safe_bin)
+        for name in ("afprobe", "bfprobe"):
+            path = bindir / name
+            path.write_text("#!/bin/sh\nexit 0\n")
+            path.chmod(0o755)
+        result, client = _run(tmp_path, work, SharedPathEnv(work, bindir), [("finish", {"summary": "done"})])
+        assert result.status == "finished"
+        note = next(item["content"] for item in client.requests[0]["input"] if item.get("role") == "user"
+                    and isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n"))
+        assert f"{json.dumps(str(bindir))}: afprobe, bfprobe" in note
+        assert "Names not resolved on that PATH: missingprobe." in note
+        assert "step 0" in note
+
+
 def test_terminal_path_observation_belongs_to_the_named_session(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
     (bindir / "afprobe").write_text("#!/bin/sh\nexit 0\n")

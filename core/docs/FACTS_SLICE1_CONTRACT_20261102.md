@@ -41,8 +41,10 @@ High-signal controls before integration:
    the next observation reports the change, and unchanged probes stay silent.
 2. A named terminal with a changed PATH is not confused with the shared probe
    or another terminal. Failed/pending observations do not become facts.
-3. Initial files are capped and untrusted names are filtered; protected paths,
-   file contents and keys are not read. Symlinks and omissions are explicit.
+3. Initial listings are capped and untrusted names are filtered. The later
+   workspace prototype can fingerprint selected eligible files; its content
+   access and the unresolved no-keys qualification are documented in
+   `FACTS_STATE_CONTRACT_20261102.md`. Symlinks and omissions are explicit.
 4. Version/host/memory outputs have actual sources and unknown cases; local
    tests replace public host probes with an empty list or a localhost stub.
 5. A real Core loop shows facts in a separate message or tool-result suffix,

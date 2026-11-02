@@ -1,0 +1,36 @@
+# Local facts overhead and lossless presentation candidate
+
+The saved screen at `qa/evidence/facts_overhead_local_20261102.json` used
+source commit `3559390d76ba8ee735dcbe901512149bd932427d`, three matched
+scripted Core episodes, and a six-action synthetic task. It found a median
+1.539 ratio for total request characters, 1.609 for p90 per-request characters,
+and median local wall time of 2.635 seconds on versus 2.023 off. Median
+environment executions were 49 versus 42. These are not provider tokens,
+cloud cost, historical-task measurements, or Luna outcomes. The local screen
+fails the previously identified overhead threshold and does not qualify a
+default change.
+
+The initial facts message alone was 1,702 characters in a separate local
+inspection, including an 878-character list of command paths. Grouping
+resolved commands by their identical containing directory would encode that
+same synthetic list in 343 characters, before labels. Another repeated
+section lists seven separate unmeasured versions.
+
+## Bounded candidate and prediction
+
+Present each group explicitly as `directory: command, command`, with any
+nonstandard or withheld resolution printed individually. Preserve every
+resolved command name and its exact path, every unresolved name, the
+observation step, and all existing unknown/scope disclosures. Combine the
+version line only when all its entries have the same unmeasured state. This
+changes presentation, not the underlying collection policy. Do not suppress
+observations merely to win a cost test.
+
+Prediction: relative to commit `3559390`, the same local screen reduces median
+total request characters by at least 8% and p90 request characters by at
+least 8%. The new screen also reports wall time and execution counts without
+claiming significance from three blocks. If any command/path, unresolved
+name, observation age or unknown state is lost, the candidate fails regardless
+of size. A model may misunderstand directory grouping, so a lossless textual
+mapping does not establish behavior or task success; real matched task
+outcomes and regressions remain necessary.
