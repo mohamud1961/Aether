@@ -12,8 +12,8 @@ import sys
 import time
 
 PROFILE = "codex-core-state-qual-20261102"
-WORK = Path("/private/tmp/codex-core-state-gate-tYjl4amB")
-OUT = Path(__file__).resolve().parent / "evidence" / "state_linux_2b4cdad7"
+WORK = Path("/private/tmp/codex-core-state-retry-v0gNsFjH")
+OUT = Path(__file__).resolve().parent / "evidence" / "state_linux_2b4cdad7_retry1"
 ARCHIVE_SHA = "f8a86d2b48c51a85e599ccd8d12b90801dee3737ed02a368c0a71e866c8b357d"
 REQ_SHA = "1fec19e0250fcc5e54cdde0700cc29a34004e1eb267d36b29d9e294177bad427"
 IMAGE = "python@sha256:b224e2fe306f9d303251ada22961635e5b52a69c0414a0050611be31c59f5f5b"
@@ -139,8 +139,9 @@ def main() -> int:
                  "python -m pip freeze > /work/python-versions.txt && dpkg-query -W procps > /work/os-versions.txt")
         command("install", ["docker", "exec", BUILDER, "sh", "-c", setup], timeout=left(), docker=True)
         command("commit-image", ["docker", "commit", BUILDER, BUILT_IMAGE], timeout=left(), docker=True)
-        command("create-test", ["docker", "create", "--name", TESTER, "--network", "none", BUILT_IMAGE,
-                                "sh", "-c", TEST_SCRIPT], timeout=left(), docker=True)
+        command("create-test", ["docker", "create", "--name", TESTER, "--network", "none",
+                                "--entrypoint", "sh", BUILT_IMAGE, "-c", TEST_SCRIPT],
+                timeout=left(), docker=True)
         tester_created = True
         isolation = command("inspect-isolation", ["docker", "inspect", "--format",
                             "{{.HostConfig.NetworkMode}} {{len .Mounts}}", TESTER], timeout=left(), docker=True).strip()
@@ -153,16 +154,16 @@ def main() -> int:
         records.append({"error_type": type(exc).__name__, "message": str(exc)[:200]})
     finally:
         if tester_created:
-            try:
-                command("copy-evidence", ["docker", "cp", f"{TESTER}:/evidence", str(OUT / "container")],
-                        timeout=45, docker=True)
-                command("copy-versions", ["docker", "cp", f"{TESTER}:/work/python-versions.txt", str(OUT)],
-                        timeout=20, docker=True)
-                command("copy-os-versions", ["docker", "cp", f"{TESTER}:/work/os-versions.txt", str(OUT)],
-                        timeout=20, docker=True)
-            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
-                outcome = "incomplete_or_failed"
-                records.append({"cleanup_error": type(exc).__name__})
+            for label, source, target, timeout in (
+                ("copy-evidence", f"{TESTER}:/evidence", str(OUT / "container"), 45),
+                ("copy-versions", f"{TESTER}:/work/python-versions.txt", str(OUT), 20),
+                ("copy-os-versions", f"{TESTER}:/work/os-versions.txt", str(OUT), 20),
+            ):
+                try:
+                    command(label, ["docker", "cp", source, target], timeout=timeout, docker=True)
+                except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                    outcome = "incomplete_or_failed"
+                    records.append({"copy_error": label, "error_type": type(exc).__name__})
         if started_here:
             try:
                 command("stop-owned-profile", ["colima", "stop", "--profile", PROFILE, "--force"],

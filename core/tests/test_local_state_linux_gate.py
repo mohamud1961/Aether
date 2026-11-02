@@ -47,3 +47,32 @@ def test_failed_owned_start_attempt_cleans_only_its_named_profile(tmp_path, monk
     monkeypatch.setattr(gate.subprocess, "run", fake_run)
     assert gate.main() == 1
     assert [argv[1] for argv in calls] == ["list", "start", "stop", "delete", "list"]
+
+
+def test_test_container_sets_shell_entrypoint_and_keeps_network_disabled(tmp_path, monkeypatch):
+    _prepare(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_run(argv, **_kwargs):
+        calls.append(argv)
+        if argv[:2] == ["colima", "list"]:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        output, rc = "", 0
+        if argv[:3] == ["docker", "image", "inspect"]:
+            output = "linux/arm64 sha256:synthetic\n"
+        elif argv[:3] == ["docker", "exec", gate.BUILDER] and argv[-2:] == ["uname", "-srm"]:
+            output = "Linux 6.0 aarch64\n"
+        elif argv[:2] == ["docker", "create"]:
+            assert argv[argv.index("--entrypoint") + 1] == "sh"
+            assert argv[argv.index("--network") + 1] == "none"
+            assert argv[argv.index(gate.BUILT_IMAGE) + 1] == "-c"
+        elif argv[:2] == ["docker", "inspect"]:
+            output = "none 0\n"
+        elif argv[:2] == ["docker", "start"]:
+            rc = 2
+        return SimpleNamespace(returncode=rc, stdout=output, stderr="")
+
+    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    assert gate.main() == 1
+    assert any(argv[:2] == ["docker", "create"] for argv in calls)
+    assert any(argv[:2] == ["colima", "delete"] for argv in calls)

@@ -41,3 +41,21 @@ Exit evidence must identify the actual source archive, image digest, runtime,
 test command, outcomes, fixture controls, and owned process/VM cleanup. A
 pass cannot establish Luna's behavior, token cost, or task success. Failed or
 incomplete setup does not qualify the service for default promotion.
+
+## Targeted retry after an invalid launch
+
+The first attempt reached the Linux container, but its test command exited
+before running tests: the image retained the builder's `sh` entrypoint and
+the supervisor supplied a second `sh` as a script name. The original host
+summary and launch log are preserved under `qa/evidence/state_linux_2b4cdad7/`.
+The owned profile was removed, the user's other profile stayed stopped and
+the active Docker context remained `default`.
+
+The sole runner correction explicitly selects `sh` as the test container's
+entrypoint and passes `-c` once. A third fake-process control checks that
+entrypoint and the network-disabled container setting; all three supervisor
+controls pass. One retry uses the exact same source archive, requirements,
+image digest, task pack, budget and resource/cleanup limits, with separate
+evidence at `qa/evidence/state_linux_2b4cdad7_retry1/`. The corrected
+supervisor SHA-256 is
+`94f9f5bd8b8ddb6b04832775be0af28014437aea1797b9b7b88b5b3abd4642bd`.
