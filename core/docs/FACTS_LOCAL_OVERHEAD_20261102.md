@@ -47,3 +47,21 @@ execution counts remained 49 versus 42. The fact channel still adds about
 41% to the request characters in this screen; the default-overhead gate is
 not met. The second run is neither a token-cost estimate nor a task-success
 test, and the repeated screens are too small to establish latency effects.
+
+## Recorded-request size sensitivity
+
+At source `b0f59066`, 128 admitted historical runs and 3,319 captured worker
+requests were examined read-only. Each run's initial command-name
+availability was reconstructed from its own captured initial environment
+brief and rendered as a new, separate state note; paths and all other missing
+state were explicitly unmeasured. Keeping the original brief in place and
+adding this one static note gave a median per-run total request-character
+ratio of 1.0228 and a p90 per-request ratio of 1.1025. All 128 runs had a
+usable initial brief for this calculation.
+
+This is a counterfactual size sensitivity, not a replay of actual treatment
+updates. It does not estimate state changes, model tokens, cache misses,
+latency, provider spend, or task outcomes. It does not supersede the 1.410
+ratio observed on the short synthetic workload. The recorded-request result
+is `qa/evidence/facts_history_note_size_b0f59066.json`; its source and
+limitations are frozen in `FACTS_HISTORICAL_REPLAY_CONTRACT_20261102.md`.
