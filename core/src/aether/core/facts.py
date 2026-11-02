@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from . import facts_probe
 from .env import Environment
-from .facts_evidence import observation_state, workspace_digest
+from .facts_evidence import ObservationSequence, observation_state, workspace_digest
 from .facts_sessions import python_cwd_note, terminal_cwd_note
 from .facts_workspace import InitialWorkspace, ManagedFactsText, continuation_state, install_project_note  # noqa: F401
 
@@ -77,6 +77,7 @@ class Facts:
         self.recent_differences: list[dict[str, Any]] = []
         self.events: list[dict[str, Any]] = []
         self.omitted_events = 0
+        self.event_sequence = ObservationSequence()
         self.context_changed = False
         self.internal_failures = 0
         self.initial_workspace = InitialWorkspace()
@@ -293,6 +294,7 @@ class Facts:
         return "[core facts]\n" + "\n".join(updates) if updates else ""
 
     def _record_event(self, step: int, tool: str, call_id: str | None, result: str) -> None:
+        self.event_sequence.observe(step)
         workspace = self.snapshot.get("workspace") if self.snapshot and self.shared_known else None
         output_digest = (hashlib.sha256(result.encode("utf-8", errors="surrogatepass")).hexdigest()
                          if len(result) <= 256_000 else None)
@@ -311,9 +313,10 @@ class Facts:
             self.omitted_events += 1
         self.events.append(row)
 
-    def observation_state(self, call_id: str) -> dict[str, Any]:
+    def observation_state(self, call_id: str, *, step: int | None = None) -> dict[str, Any]:
         workspace = self.snapshot.get("workspace") if self.snapshot and self.shared_known else None
-        return observation_state(self.events, self.omitted_events, call_id, workspace, self.last_shared_step)
+        return observation_state(self.events, self.omitted_events, call_id, workspace, self.last_shared_step,
+                                 step=step, steps_ordered=self.event_sequence.ordered)
 
     @staticmethod
     def _mentioned(tool: str, command: str) -> list[str]:
@@ -483,7 +486,7 @@ class Facts:
                 "bindings": deepcopy(self.bindings), "omitted_bindings": self.omitted_bindings,
                 "recent_differences": deepcopy(self.recent_differences),
                 "events": deepcopy(self.events), "omitted_events": self.omitted_events,
-                "recent_observation_states": [self.observation_state(row["call_id"]) for row in self.events[-8:]
+                "recent_observation_states": [self.observation_state(row["call_id"], step=row["step"]) for row in self.events[-8:]
                                               if row["call_id"] is not None],
                 "internal_failures": self.internal_failures,
                 "scope": "bounded observations; package contents, hidden entries and external state unobserved"}

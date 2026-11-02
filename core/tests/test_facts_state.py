@@ -234,9 +234,16 @@ def test_prior_tool_observation_can_be_compared_with_the_current_bounded_state(t
         env.fail_probe = False
         await state.after_action(5, "terminal", {"input": "true"}, "ok", call_id="c1")
         assert state.observation_state("c1")["reason"] == "missing_or_ambiguous_call_id"
+        assert state.observation_state("c1", step=1)["status"] == "sample_differs"
         assert state.observation_state("missing")["status"] == "unknown"
         for index in range(129):
             state._record_event(6 + index, "read_file", f"extra_{index}", "")
+        state.last_shared_step = 134  # The synthetic receipts use this same observed snapshot.
         assert state.observation_state("extra_128")["reason"] == "history_truncated"
+        assert state.observation_state("extra_128", step=134)["status"] == "sample_matches"
+        assert state.record()["recent_observation_states"][-1]["status"] == "sample_matches"
+        assert state.observation_state("extra_0", step=6)["status"] == "unknown"
+        state._record_event(1, "read_file", "out_of_order", "")
+        assert state.observation_state("extra_128", step=134)["reason"] == "non_monotonic_steps"
 
     asyncio.run(exercise())

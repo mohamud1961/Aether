@@ -71,8 +71,11 @@ with its latest sample. The service returns `sample_matches`, `sample_differs`,
 or `unknown` with observation steps and coverage; it also records the most
 recent eight comparisons in the run's Core facts record. An unavailable
 observation, missing or duplicate call ID, or truncated receipt history is
-unknown. Matching samples do not establish that contents or the wider
-environment were unchanged, and differing samples do not establish whether a
+unknown when queried by call ID alone. After older receipts are evicted,
+retained recent calls can still be addressed by both call ID and Core's
+strictly increasing observation step; an out-of-order step invalidates that
+disambiguation. Evicted calls stay unknown. Matching samples do not establish
+that contents or the wider environment were unchanged, and differing samples do not establish whether a
 test is valid or a task is wrong. These comparisons are available to Core and
 the run record; they are not automatically presented to Luna as warnings.
 
