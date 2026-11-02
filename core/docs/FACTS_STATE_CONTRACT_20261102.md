@@ -31,6 +31,12 @@ changes are never compared as if they were the same workspace.
 Workspace probes reject filesystem-root aliases such as `//`, as well as
 symlinked root ancestors. A rejected root yields an incomplete observation,
 not a listing of the host root or a claim that its contents are absent.
+The shell's root-entry listing runs from an opened current directory after
+checking its physical name, rather than expanding the original path after a
+separate symlink check. If the configured root is replaced by a symlink in
+between, or moved while it is being listed, the buffered listing is discarded
+and the observation is incomplete. This is a bounded sandbox observation,
+not a defense against every possible privileged filesystem or mount change.
 
 Name filtering cannot establish that an innocently named file contains no
 secret material. For that reason, the normal Core service does not read file

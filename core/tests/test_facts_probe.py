@@ -72,17 +72,68 @@ def test_listing_cap_and_symlink_root_are_explicit(tmp_path, monkeypatch):
     assert not linked["facts"]["files_complete"]
     class NoRootEnumeration(ScopedEnv):
         async def exec(self, command, **kwargs):
-            glob = 'for __af_path in "$__af_root"/*; do'
+            glob = 'for __af_path in ./*; do'
             assert command.count(glob) == 1
             # If the guard regresses, test one guaranteed-absent canary instead
             # of listing the host's root directory.
-            command = command.replace(glob, 'for __af_path in "$__af_root"/.codex-absent-root-canary; do')
+            command = command.replace(glob, 'for __af_path in ./.codex-absent-root-canary; do')
             return await super().exec(command, **kwargs)
 
     root = asyncio.run(facts_probe.probe(NoRootEnumeration(work, bindir), "//", full=False,
                                          remaining_s=30, hosts=()))
     assert root["ok"] and root["facts"]["files"] == []
     assert not root["facts"]["files_complete"] and root["facts"]["workspace"] is None
+
+
+def test_workspace_replaced_with_symlink_during_probe_is_not_listed(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "outside-canary.txt").write_text("synthetic content")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    monkeypatch.setattr(facts_probe, "COMMANDS", ("sh",))
+
+    class SwapAfterValidation(ScopedEnv):
+        async def exec(self, command, **kwargs):
+            marker = 'if [ "$__af_incomplete" -ne 0 ] || [ ! -d "$__af_root" ]; then __af_incomplete=1; else'
+            assert command.count(marker) == 1
+            swap = ('mv "$__af_root" "$__af_root.saved" && '
+                    f'ln -s {shlex.quote(str(outside))} "$__af_root"\n')
+            return await super().exec(command.replace(marker, swap + marker), **kwargs)
+
+    observed = asyncio.run(facts_probe.probe(SwapAfterValidation(work, bindir), str(work),
+                                             full=False, remaining_s=30, hosts=()))
+    assert observed["ok"]
+    assert observed["facts"]["files"] == [] and not observed["facts"]["files_complete"]
+    assert observed["facts"]["workspace"] is None
+
+
+def test_workspace_moved_after_open_does_not_publish_stale_listing(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "inside-canary.txt").write_text("synthetic content")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "outside-canary.txt").write_text("synthetic content")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    monkeypatch.setattr(facts_probe, "COMMANDS", ("sh",))
+
+    class SwapAfterOpen(ScopedEnv):
+        async def exec(self, command, **kwargs):
+            marker = '  for __af_path in ./*; do'
+            assert command.count(marker) == 1
+            swap = ('mv "$__af_root" "$__af_root.saved" && '
+                    f'ln -s {shlex.quote(str(outside))} "$__af_root"\n')
+            return await super().exec(command.replace(marker, swap + marker), **kwargs)
+
+    observed = asyncio.run(facts_probe.probe(SwapAfterOpen(work, bindir), str(work),
+                                             full=False, remaining_s=30, hosts=()))
+    assert observed["ok"]
+    assert observed["facts"]["files"] == [] and not observed["facts"]["files_complete"]
+    assert observed["facts"]["workspace"] is None
 
 
 def test_named_local_host_is_measured_without_public_network(tmp_path, monkeypatch):
