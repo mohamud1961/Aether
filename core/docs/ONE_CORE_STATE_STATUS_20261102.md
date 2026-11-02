@@ -3,7 +3,7 @@
 The implementation is the single `Facts` service in Core's run session,
 with helper modules for observation, workspace state, session rendering and
 receipt comparison. The helpers are not separate models or agents. The
-current runtime source is commit `af548e05`; it remains isolated and is
+current runtime source is commit `f00307d5`; it remains isolated and is
 selected with `AETHER_CORE_MANAGED_FACTS=on`, not enabled by default.
 
 ## What the service does
@@ -35,9 +35,16 @@ decision without another model decision; this service does not veto finish.
 
 ## Qualification
 
-The exact `af548e05` runtime passed 50 provider-free host checks and Core
-source/test Ruff. A further direct REPL control verified that variables
-survive a removed working directory even with the state service disabled.
+The `f00307d5` runtime passed 52 provider-free host checks; the following
+test-only parametrization independently passed both a symlink and a regular
+directory replacement. A synthetic end-to-end pack passed all five artifact
+and five state-sensor controls. A deliberately staged workspace-root swap
+showed that the prior scanner incorrectly returned an observation for both
+replacement types, while this version returns unknown for both. This check
+reopens the path without following symlinks and verifies directory identity;
+it does not make the observation atomic or monitor later changes. A further
+direct REPL control verified that variables survive a removed working
+directory even with the state service disabled.
 The permitted 128-run trace replay completed, but the original machines and
 file states were not restored. The prior Linux source passed 48 checks, but
 the next Linux run exposed a directory-rename portability defect; that
@@ -54,7 +61,9 @@ the separately recorded £5 all-in admission/accounting gate is not yet
 qualified for paid runs. No external-state visibility should be inferred
 from a local synthetic pass.
 
-Exact Linux resumption point: use the sealed `af548e05` source, fixture and
-identity-race controls in `STATE_LOCAL_LINUX_GATE_20261102.md` when an owned,
-isolated Linux runtime can start reliably. Preserve the failed and aborted
-attempts; do not treat the macOS pass or earlier Linux source as that result.
+Exact Linux resumption point: after an owned, isolated Linux runtime can start
+reliably, reseal the current `f00307d5` source and include both the previous
+shell directory-identity controls and the new Python root-replacement
+controls in the local Linux gate. The old `af548e05` archive is not the
+current source. Preserve the failed and aborted attempts; do not treat the
+macOS pass or an earlier Linux source as that result.
