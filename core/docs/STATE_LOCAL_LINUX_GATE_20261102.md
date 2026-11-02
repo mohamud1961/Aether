@@ -108,3 +108,17 @@ executions. Median local wall time was 1.326 seconds on versus 1.190 seconds
 off. This is a small synthetic measurement, not provider tokens, billed
 cost, live Luna performance or a task-success estimate. It remains an
 efficiency concern, not evidence to promote the service by itself.
+
+## Recheck after workspace-boundary repair
+
+The symlink-swap repair changed the workspace probe after the preceding gate.
+The next local Linux check uses source
+`1d8074eb675d1b4d4e3a3bfbe765d1d195f73be0` (runtime `88cec0d3`) and source
+archive SHA-256 `1d009f5701d6df9e2d636b4ea0467ec28ef4c8d5aeab67b7133c1f45228fe1af`.
+The image, locked dependencies, test and fixture commands, overhead screen,
+profile, isolation, cleanup and £0 paid/model budget are unchanged. The
+derived supervisor `qa/evidence/state_linux_1d8074eb_supervisor.py` has
+SHA-256 `9100041d67e785b0bf8a5778f0d2d222c7e6bc38dc860f4f0c76c748935875d4`;
+its diff from the previously qualified supervisor changes only the owned
+paths, source hash and local container/image names. Results will be preserved
+separately under `qa/evidence/state_linux_1d8074eb/`.
