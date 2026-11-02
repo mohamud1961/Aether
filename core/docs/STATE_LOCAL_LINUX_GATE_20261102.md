@@ -122,3 +122,20 @@ SHA-256 `9100041d67e785b0bf8a5778f0d2d222c7e6bc38dc860f4f0c76c748935875d4`;
 its diff from the previously qualified supervisor changes only the owned
 paths, source hash and local container/image names. Results will be preserved
 separately under `qa/evidence/state_linux_1d8074eb/`.
+
+That recheck produced 49 passes and one failure: on Linux, the shell could
+retain its prior physical path after the directory was moved. The failed
+source and results are preserved, not reported as a pass. The focused repair
+also compares directory identities and fails closed if that comparison is
+unavailable.
+
+One new recheck is sealed for exact source
+`af548e05ee4563936d3539f1a828b216fedc9919`, archive SHA-256
+`1b8dbaf7c0d175d4c8d1840dff7516cbeed641bdd9b9d4cc740706695977e9c5`.
+The image, requirements, test commands, synthetic controls, overhead screen,
+owned profile, isolation, cleanup, and £0 paid/model budget are unchanged.
+The new supervisor is `qa/evidence/state_linux_af548e05_supervisor.py`,
+SHA-256 `7af331843de40cf118becf00e47725c90dae5c5d54173ac0b417e9f86e776e0d`.
+Only owned paths, source hash and local image/container names differ from
+the prior supervisor. Evidence goes under
+`qa/evidence/state_linux_af548e05/`.
