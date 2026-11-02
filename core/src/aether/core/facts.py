@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from . import facts_probe
 from .env import Environment
+from .facts_workspace import InitialWorkspace
 
 _MUTATING_TOOLS = frozenset({"terminal", "python", "write_file", "edit_file"})
 _FULL_REFRESH = re.compile(
@@ -75,6 +76,7 @@ class Facts:
         self.omitted_events = 0
         self.context_changed = False
         self.internal_failures = 0
+        self.initial_workspace = InitialWorkspace()
 
     async def _observe(self, step: int, *, full: bool, watched: tuple[str, ...] = ()) -> dict[str, Any]:
         started = time.monotonic()
@@ -114,6 +116,7 @@ class Facts:
             self.shared_known = False
             return "[core facts]\nShared probe at step 0: unmeasured."
         self.snapshot = result["facts"]
+        self.initial_workspace.capture(self.snapshot.get("workspace"))
         self.shared_known = True
         self.last_shared_step = self.last_full_step = self.memory_step = 0
         if self.python_state is not None:
@@ -249,6 +252,9 @@ class Facts:
             updates.extend(self._update_bindings(None, [], step))
         else:
             current = observation["facts"]
+            initial_updates = self.initial_workspace.observe(current.get("workspace"), step)
+            updates.extend(initial_updates)
+            self.context_changed |= bool(initial_updates)
             old = self.snapshot
             if old is None:
                 self.memory_step = step
@@ -396,6 +402,8 @@ class Facts:
         for item in self.recent_differences:
             note += (f"\nCommand text at step {item['mention_step']} mentioned {json.dumps(item['path'])}; "
                      f"its post-action fingerprint differed at step {item['step']}.")
+        for notice in self.initial_workspace.context():
+            note += "\n" + notice
         for path, binding in list(self.bindings.items())[-8:]:
             note += (f"\nLatest command-text mention of {json.dumps(path)}: step {binding['mention_step']}; "
                      f"fingerprint status {binding['status']} at attempted step "
@@ -448,6 +456,7 @@ class Facts:
 
     def record(self) -> dict[str, Any]:
         workspace = self.snapshot.get("workspace") if self.snapshot and self.shared_known else None
+        initial_workspace, initial_changes = self.initial_workspace.record()
         return {"shared_known": self.shared_known, "last_shared_step": self.last_shared_step,
                 "last_full_step": self.last_full_step, "snapshot": deepcopy(self.snapshot),
                 "terminal_paths": deepcopy(self.terminal_paths), "probe_count": self.probes,
@@ -457,6 +466,7 @@ class Facts:
                 "workspace": ({"status": "observed", "complete": workspace["complete"]}
                               if workspace is not None else {"status": "unknown",
                                                               "last_observed_step": self.last_shared_step}),
+                "initial_workspace": initial_workspace, "initial_workspace_changes": initial_changes,
                 "bindings": deepcopy(self.bindings), "omitted_bindings": self.omitted_bindings,
                 "recent_differences": deepcopy(self.recent_differences),
                 "events": deepcopy(self.events), "omitted_events": self.omitted_events,

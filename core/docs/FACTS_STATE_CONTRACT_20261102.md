@@ -13,6 +13,15 @@ Never open hidden task tests, solutions, verifier or grader paths, key files,
 linked files, or paths outside the task workspace. Output names must be safe
 for display and capped.
 
+The same Core facts service keeps the bounded metadata observed at step 0.
+When a file from that observation later has different metadata, it records
+and may display the first step where that difference was observed. This is
+not a claim that file contents changed, that an edit was wrong, or that the
+file was supplied by the task. If the initial scan was unavailable, it stays
+unknown; a later observation cannot recreate it. An incomplete later scan
+cannot establish that an initially observed path disappeared. Root identity
+changes are never compared as if they were the same workspace.
+
 Name filtering cannot establish that an innocently named file contains no
 secret material. Fingerprinting reads eligible file bytes inside the task
 environment, although only a digest is returned. This prototype has exercised

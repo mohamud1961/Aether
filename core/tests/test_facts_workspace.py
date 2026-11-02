@@ -122,6 +122,8 @@ def test_later_probe_outage_invalidates_current_state_without_fabricating_recove
         recovered = await state.after_action(3, "read_file", {}, "output")
         assert "observed again" in recovered
         assert "fingerprint differs" not in recovered
+        initial_change = state.record()["initial_workspace_changes"]
+        assert initial_change == [{"path": "solver.py", "first_observed_step": 3, "kind": "metadata_changed"}]
 
     asyncio.run(run())
 
@@ -139,6 +141,26 @@ def test_replaced_workspace_is_not_confused_with_the_old_one(tmp_path, monkeypat
         update = await state.after_action(2, "read_file", {}, "output")
         assert "workspace root identity changed" in update.lower()
         assert "fingerprint differs" not in update
+        assert state.record()["initial_workspace_changes"] == []
+
+    asyncio.run(run())
+
+
+def test_incomplete_scan_does_not_claim_initial_file_was_removed(tmp_path, monkeypatch):
+    state, work = _state(tmp_path, monkeypatch)
+    initial = work / "source.txt"
+    initial.write_text("ordinary data")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("external data")
+
+    async def run():
+        await state.start()
+        initial.unlink()
+        initial.symlink_to(outside)
+        update = await state.after_action(1, "read_file", {}, "output")
+        assert state.record()["workspace"]["complete"] is False
+        assert state.record()["initial_workspace_changes"] == []
+        assert "external data" not in update
 
     asyncio.run(run())
 
