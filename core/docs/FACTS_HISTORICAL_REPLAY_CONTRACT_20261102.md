@@ -30,3 +30,13 @@ expansion was declared as every run in the same frozen 128-run manifest,
 without selecting on outcome. The existing analysis reports Python activity
 in ten of those runs. The same source checks and unknown-state limitations
 apply; historical Python variables and interpreter state are not recreated.
+
+For a narrower size estimate, use each run's captured initial environment
+brief to reconstruct only its explicitly observed command-name availability.
+Render those known names through the current facts formatter, label paths,
+files, network and later changes unmeasured, and insert the resulting note
+into each recorded request for a character comparison. This is an additive
+counterfactual that retains the old brief and assumes one unchanged note; it
+does not reproduce live state updates or cache behavior and is not a token,
+billing, accuracy or full-treatment measurement. Missing/ambiguous briefs or
+unresolved requests are invalid for this calculation.
