@@ -239,6 +239,30 @@ def test_terminal_path_observation_belongs_to_the_named_session(tmp_path, monkey
     assert sessions["alpha"]["last_observed_cwd"] == str(work)
 
 
+def test_running_terminal_does_not_present_previous_cwd_as_current(tmp_path, monkeypatch):
+    work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
+    result, client = _run(tmp_path, work, SharedPathEnv(work, bindir), [
+        ("terminal", {"input": "mkdir -p before after; cd before"}),
+        ("terminal", {"input": "cd ../after; sleep 3", "wait_s": 0.2}),
+        ("terminal", {"input": "", "wait_s": 10}),
+        ("finish", {"summary": "done"}),
+    ])
+    assert result.status == "finished"
+
+    def note(request):
+        return next(item["content"] for item in request["input"] if item.get("role") == "user"
+                    and isinstance(item.get("content"), str)
+                    and item["content"].startswith("[core facts]\n"))
+
+    pending = note(client.requests[2])
+    assert "completion_not_observed" in pending
+    assert str(work / "before") in pending
+    assert "last observed cwd" in pending and "current cwd is unknown" in pending
+    completed = note(client.requests[3])
+    assert "idle_at_last_observation" in completed
+    assert str(work / "after") in completed
+
+
 def test_unavailable_observer_is_unknown_and_does_not_stop_the_task(tmp_path, monkeypatch):
     work, bindir = _setup(tmp_path, monkeypatch, ("afprobe",))
     result, client = _run(tmp_path, work, SharedPathEnv(work, bindir, fail_probe=True), [

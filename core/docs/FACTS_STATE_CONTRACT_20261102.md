@@ -48,6 +48,10 @@ are not atomic with arbitrary background activity. A change after Luna has
 already decided to finish cannot be presented without another model decision;
 this slice records it but does not block or rewrite that finish.
 
+A terminal working directory is labeled as the last completion receipt,
+not as a live measurement. If another command is still running, Core marks
+the current working directory unknown until a later observation.
+
 For model-managed context, the latest scoped facts are pinned separately from
 the task and refreshed on an observed change. This prevents a checkpoint from
 silently dropping the last fact, but does not make observations current after

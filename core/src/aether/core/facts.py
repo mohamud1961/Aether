@@ -396,7 +396,14 @@ class Facts:
                      f"{session.get('foreground', 'unmeasured')}.")
             cwd = session.get("last_observed_cwd")
             if isinstance(cwd, str) and len(cwd) <= 256:
-                note += f"\nTerminal {json.dumps(name)} cwd at step {step}: {json.dumps(cwd)}."
+                receipt = session.get("cwd_receipt_seq")
+                source = (f"terminal completion receipt {receipt}" if type(receipt) is int
+                          else "an earlier terminal completion")
+                note += (f"\nTerminal {json.dumps(name)} last observed cwd ({source}, "
+                         f"reported at Core step {step}): {json.dumps(cwd)}")
+                if session.get("foreground") == "completion_not_observed":
+                    note += "; current cwd is unknown until a later observation"
+                note += "."
             if values is None:
                 note += f"\nTerminal {json.dumps(name)} PATH at step {step}: unmeasured."
                 continue
