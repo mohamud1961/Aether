@@ -51,11 +51,18 @@ async def episode(root: Path, enabled: bool) -> dict:
         trace=Trace(root / "trace.jsonl"), config=config,
     )
     elapsed = time.monotonic() - started
-    lengths = [len(json.dumps(request.get("input", []), ensure_ascii=False, separators=(",", ":")))
+    encoded = [json.dumps(request.get("input", []), ensure_ascii=False, separators=(",", ":"))
                for request in client.requests]
+    lengths = [len(value) for value in encoded]
+    prefix_fractions = []
+    for earlier, later in zip(encoded, encoded[1:]):
+        shared = next((i for i, (a, b) in enumerate(zip(earlier, later)) if a != b),
+                      min(len(earlier), len(later)))
+        prefix_fractions.append(shared / len(earlier))
     return {
         "status": result.status, "artifact_matches": (work / "answer.txt").read_bytes() == b"beta\n",
         "request_chars": lengths, "wall_s": round(elapsed, 4), "environment_execs": len(env.commands),
+        "previous_input_prefix_retained": prefix_fractions,
         "facts_probe_count": (result.extras.get("core_facts") or {}).get("probe_count", 0),
         "facts_probe_seconds": (result.extras.get("core_facts") or {}).get("probe_seconds", 0),
     }
@@ -96,9 +103,12 @@ def main() -> None:
         "median_wall_on_s": statistics.median(p["on"]["wall_s"] for p in pairs),
         "median_environment_execs_off": statistics.median(p["off"]["environment_execs"] for p in pairs),
         "median_environment_execs_on": statistics.median(p["on"]["environment_execs"] for p in pairs),
+        "median_prefix_fraction_off": statistics.median(v for p in pairs for v in p["off"]["previous_input_prefix_retained"]),
+        "median_prefix_fraction_on": statistics.median(v for p in pairs for v in p["on"]["previous_input_prefix_retained"]),
         "source_sha256": {name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in files},
         "scope": ["scripted local provider", "synthetic task and filesystem", "no public network",
-                  "known local interpreter", "no historical machine restore", "no model or VM calls"],
+                  "known local interpreter", "no historical machine restore", "no model or VM calls",
+                  "JSON prefix is an illustrative cache-risk indicator, not provider cache telemetry"],
     }
     with args.output.open("x", encoding="utf-8") as out:
         json.dump(report, out, indent=2)
