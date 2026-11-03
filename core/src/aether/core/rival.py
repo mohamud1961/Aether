@@ -23,7 +23,7 @@ from typing import Any, Awaitable, Callable
 from .env import Environment, run
 
 RIVAL_ENV = "AETHER_CORE_RIVAL"  # off | on (fresh rival call) | exec (ablation: no rival, run-it handback) | card
-RIVAL_MODES = ("off", "on", "exec", "card", "probe")  # card: a fresh reading of the request alone; probe: + its observations (card.py)
+RIVAL_MODES = ("off", "on", "exec", "card", "probe", "challenge")  # card: a fresh reading of the request alone; probe: + its observations (card.py)
 MARKER = "rival_start"
 MIN_LEFT_S, MIN_LEFT_SHARE = 120.0, 0.15
 FILE_CAP, TOTAL_CAP, MAX_FILES = 40_000, 120_000, 40  # y12/y13: 12K cut 8 of 37 candidates mid-file, unmarked

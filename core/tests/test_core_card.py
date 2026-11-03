@@ -110,3 +110,39 @@ def test_a_probe_without_a_script_falls_back_to_the_reading(tmp_path):
     assert row["handed_back"] and row["script"] is False
     handback = json.dumps(client.requests[-1]["messages"])
     assert "<reading>" in handback and "<observed" not in handback
+
+
+def test_challenge_mode_sets_its_own_flag():
+    c = build_config(environ={**BASE, "AETHER_CORE_RIVAL": "challenge"})
+    assert c.card is True and c.card_challenge is True and c.card_probe is False and c.rival is False
+    assert build_config(environ={**BASE, "AETHER_CORE_RIVAL": "probe"}).card_challenge is False
+
+
+def test_challenge_hands_back_only_commands_and_raw_output_never_the_readers_reasoning(tmp_path):
+    out = tmp_path / "work" / "out.txt"
+    script = [
+        call("write_file", {"path": str(out), "content": "41\n"}, "c0"),
+        call("finish", {"summary": "answer written"}, "c1"),
+        call("terminal", {"input": "echo checked"}, "c2"),
+        call("finish", {"summary": "checked"}, "c3"),
+    ]
+    reader = f"The likeliest error is an off-by-one CONCERN_TEXT.\n```sh\nwc -c < {out}\ncat {out}\n```\n"
+    config = dataclasses.replace(_clm_config(tmp_path), card=True, card_challenge=True)
+    result, rows, client = _run(tmp_path, script, config=config, text_script=[_text(reader)])
+    assert result.status == "finished"
+    row = next(r for r in rows if r["event"] == "rival")
+    assert row["mode"] == "challenge" and row["script"] is True and row["exit"] == 0 and row["echo_lines"] == 0
+    reader_request = json.dumps(next(r for r in client.requests if "tools" not in r)["messages"])
+    assert "Do not do the task" in reader_request and "answer written" not in reader_request
+    handback = json.dumps(client.requests[-1]["messages"])
+    assert "<observed exit=" in handback and "+ cat" in handback and "41" in handback  # sh -x commands + raw output
+    assert "CONCERN_TEXT" not in handback and "<reading>" not in handback and "<script>" not in handback
+    assert len([r for r in rows if r["event"] == "rival"]) == 1
+
+
+def test_challenge_without_a_script_lets_the_first_finish_end_the_run(tmp_path):
+    script = [call("finish", {"summary": "done"}, "c0")]
+    config = dataclasses.replace(_clm_config(tmp_path), card=True, card_challenge=True)
+    result, rows, client = _run(tmp_path, script, config=config, text_script=[_text("only prose, no checks")])
+    row = next(r for r in rows if r["event"] == "rival")
+    assert result.status == "finished" and row["handed_back"] is False and row["script"] is False
