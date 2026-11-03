@@ -108,6 +108,11 @@ async def mark_start(s: Any) -> None:
     await _mark(s.env, s.config.control_dir)
     if s.config.card_challenge in ("attack", "observe"):
         s.attack_reader = asyncio.ensure_future(_read(s))
+    elif s.config.card_challenge == "forks":  # observations before any work; nothing at the finish
+        from . import forks
+
+        s.forks_note, row = await forks.start_note(s)
+        s.trace("forks", shown=bool(s.forks_note), **row)
 
 
 async def _read(s: Any) -> dict[str, Any]:
@@ -143,6 +148,8 @@ async def _run(s: Any, script: str) -> tuple[int, str]:
 async def at_finish(s: Any) -> tuple[str | None, dict[str, Any]]:
     """The hand-back text (None: the finish takes effect) and the trace row; called at each finish while
     row["again"] is set."""
+    if s.config.card_challenge == "forks":
+        return None, {"mode": "forks"}
     row = dict(s.result.extras.get("rival") or {"mode": "attack", "rounds": 0})
     row["rounds"] += 1
     row["again"] = False

@@ -103,7 +103,7 @@ class CoreConfig:
     exec_check: bool = False  # ablation of rival: the first finish is handed back once asking to run the deliverable
     card: bool = False  # at the first finish, a fresh reading of the request alone is handed back once (card)
     card_probe: bool = False  # the card's reader also writes a script observing each item; Core runs it once (card)
-    card_challenge: str = ""  # "challenge": read-only checks, raw output (card, CH1); "attack": clone checks (attack, CH2); "observe": recorded only
+    card_challenge: str = ""  # "challenge": read-only checks, raw output (card, CH1); "attack": clone checks (attack, CH2); "observe": recorded only; "forks": start observations (forks)
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
@@ -342,7 +342,7 @@ async def run_agent(
                 {
                     "role": "user",
                     "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
-                    + (f"\n{start_note}" if start_note else ""),
+                    + "".join(f"\n{x}" for x in (start_note, getattr(s, "forks_note", "")) if x),
                 },
             ]
             if config.context == "clm":
@@ -958,7 +958,7 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
     if s.config.card and ("rival" not in s.result.extras or s.result.extras["rival"].get("again")):
         from . import attack, card
 
-        text, row = await (attack.at_finish(s) if s.config.card_challenge in ("attack", "observe") else card.at_finish(
+        text, row = await (attack.at_finish(s) if s.config.card_challenge in ("attack", "observe", "forks") else card.at_finish(
             s.env, s.provider.complete, task=s.task, workdir=s.workdir, control_dir=s.config.control_dir,
             remaining_s=s.remaining, timeout_s=s.timeout_s, probe=s.config.card_probe, challenge=bool(s.config.card_challenge)))
         s.result.extras["rival"] = row
