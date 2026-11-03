@@ -134,3 +134,13 @@ def test_without_a_host_clone_factory_no_check_runs_and_the_finish_takes_effect(
     row = [r for r in rows if r["event"] == "rival"][-1]
     assert result.status == "finished" and "no host clone factory" in row["error"]
     assert not (tmp_path / "work" / "out.txt.attack").exists()
+
+
+def test_observed_blocks_are_counted_but_only_a_fail_hands_back(tmp_path):
+    out = tmp_path / "work" / "out.txt"
+    script = [call("write_file", {"path": str(out), "content": "41\n"}, "c0"), call("finish", {"summary": "done"}, "c1")]
+    reader = "```sh\n" + _check("similarity", f"cat {out}", "0.99 under my formula", "OBSERVED") + "\n```"
+    config, _ = _config(tmp_path)
+    result, rows, _ = _run(tmp_path, script, config=config, text_script=[_text(reader)])
+    row = [r for r in rows if r["event"] == "rival"][-1]
+    assert result.status == "finished" and row["OBSERVED"] == 1 and row["FAIL"] == 0 and "OBSERVED" in attack.PROMPT

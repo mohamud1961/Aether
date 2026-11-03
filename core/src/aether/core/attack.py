@@ -10,7 +10,9 @@ Here, at the start, one fresh call sees only the request, the provided file name
 and writes attack checks as one script (fk4's prompt plus its lessons: try before UNTESTED; install test tools only,
 never what the request says the solution provides). At each of the first two finishes Core runs the script once on a
 writable clone of the container (network as the task's own), so nothing touches the work. A script whose checks did
-not run gets one repair by the same reader from its own output; the worker never sees that. When any check FAILs,
+not run gets one repair by the same reader from its own output; the worker never sees that. A check may FAIL only
+where the request itself fixes what passes; a check resting on the reader's own assumption (a formula, a scope, a
+threshold) prints OBSERVED (xc1: such FAILs flagged 6/6 passing sanitize runs). When any check FAILs,
 the worker gets the result blocks only (what ran, what was expected, what happened, PASS/FAIL/UNTESTED), never the
 reader's reasoning or ranking, and decides. No FAIL, no script, or too little time: the finish takes effect.
 """
@@ -51,9 +53,13 @@ PROMPT = (
     "working directory {workdir}, with network access as the task has it, no input, and {limit} seconds in all. It may "
     "install test tools, fetch data, build, and run edge or hostile inputs; it must not install or configure anything "
     "the request says the solution itself provides. Before printing UNTESTED, a check must try (fetch, install, "
-    "launch) and say why the attempt failed. For each check it prints one result block:\n"
+    "launch) and say why the attempt failed. A check may print FAIL only when the request itself fixes what passes - a "
+    "command, path, file, format, limit or value the request states - applied exactly as stated, with no assumption "
+    "of yours (no formula, scope, convention or threshold that you chose). When a check rests on any such "
+    "assumption, it prints OBSERVED instead, with the measured value and the assumption in got:. For each check it "
+    "prints one result block:\n"
     "CHECK <name>\nran: <command>\nexpected: <what a correct solution gives>\ngot: <what happened>\n"
-    "result: PASS | FAIL | UNTESTED\n"
+    "result: PASS | FAIL | OBSERVED | UNTESTED\n"
     "Do not ask anyone and do not consult any evaluation material."
 )
 REPAIR = (
@@ -70,7 +76,7 @@ HANDBACK = (
     "anything, they show about your work; make no change the request does not call for. Then call finish again; "
     "{after} {left:.0f}s remain.]\n<check_results>\n{blocks}\n</check_results>"
 )
-_BLOCK = re.compile(r"^CHECK[ \t]+(.*?)\n(.*?)^result:[ \t]*(PASS|FAIL|UNTESTED)\b[^\n]*", re.S | re.M)
+_BLOCK = re.compile(r"^CHECK[ \t]+(.*?)\n(.*?)^result:[ \t]*(PASS|FAIL|OBSERVED|UNTESTED)\b[^\n]*", re.S | re.M)
 
 
 def blocks(out: str) -> list[dict[str, str]]:
@@ -167,7 +173,7 @@ async def at_finish(s: Any) -> tuple[str | None, dict[str, Any]]:
                     script, code, out, found = fixed, code2, out2, found2
     except Exception as exc:  # an instrument: nothing observed, the finish takes effect
         return None, {**row, "error": f"run: {type(exc).__name__}: {exc}"[:300]}
-    counts = {k: sum(b["result"] == k for b in found) for k in ("PASS", "FAIL", "UNTESTED")}
+    counts = {k: sum(b["result"] == k for b in found) for k in ("PASS", "FAIL", "OBSERVED", "UNTESTED")}
     row.update(script=True, script_text=script[:8000], exit=code, out_chars=len(out), blocks=len(found), **counts,
                failed=[b["name"] for b in found if b["result"] == "FAIL"][:20])
     if not counts["FAIL"]:
