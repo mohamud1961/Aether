@@ -301,7 +301,11 @@ Do not repeat checks that already passed; then finish."""
 # instruction never named (research/core_mission_20261028/p3x/CONTRACT.md).
 # "contract_literal" (P5): the contract plus the given-values convention. P4's remaining sanitize fails quoted or
 # reformatted a value the instruction gave verbatim, a separate decision the contract did not reach.
-HYGIENE_MODES = ("off", "on", "placebo", "contract", "contract_literal")
+# "reference" (bank, 3 Nov): failing runs checked against their own stand-in for what the instruction named:
+# configure-git cloned a local path or another user instead of the user's own command; torch asserted gradients
+# derived from its own collective semantics (x world_size) instead of the plain unsharded layer
+# (research/core_mission_20261028/bank/CONTRAST.md).
+HYGIENE_MODES = ("off", "on", "placebo", "contract", "contract_literal", "reference")
 HYGIENE_DOC = {
     "on": """
 - The delivered state is everything you leave behind. Before finishing, remove any file you created in the task's \
@@ -319,6 +323,13 @@ existing state the instruction does not name. Recommend anything further in your
 }
 HYGIENE_DOC["contract_literal"] = HYGIENE_DOC["contract"] + """
 - When the instruction gives an exact value (a replacement string, placeholder, name, path or output format), write it exactly as given, character for character, without adding quotes, escaping or other changes, even where another form looks safer or more conventional. Raise any concern about it in your final message."""
+
+HYGIENE_DOC["reference"] = """
+- Check your work against what the instruction itself names as the measure of success: run the exact command, \
+interface, user, host, path or original program it names, and compare with that. For a parallel, optimised or \
+restructured version of a computation, the measure is the plain computation it replaces: the same inputs must give \
+the same outputs (and the same gradients, where there are any). A check against a substitute, or against expected \
+values you derived from your own implementation, does not count. If a tool the check needs is missing, install it."""
 
 
 def system_prompt(
