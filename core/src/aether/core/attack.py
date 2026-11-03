@@ -34,6 +34,7 @@ from .transfer import put_bytes
 MAX_TOKENS = 64_000  # fk4: at 16K, 5/16 answers ran out (3 empty: all reasoning); at 64K 16/16 closed
 SCRIPT_S, OUT_CHARS, GOT_CHARS = 600, 9_000, 700
 READER_WAIT_S = 900.0  # longest the first finish waits for a reader still writing
+OBSERVE_CHARS = 30_000  # the check output kept in the trace row, so checks can be scored against the run's reward
 ROUNDS = 2  # the script is re-run at the second finish; the third finish ends the run
 PROMPT = (
     "Here is a task someone has asked for, the files that come with it, and facts measured on the machine where it "
@@ -105,7 +106,7 @@ def needs_repair(found: list[dict[str, str]], code: int) -> str | None:
 async def mark_start(s: Any) -> None:
     """The start marker (as for card and rival) and, in attack mode, the reader call, launched alongside the run."""
     await _mark(s.env, s.config.control_dir)
-    if s.config.card_challenge == "attack":
+    if s.config.card_challenge in ("attack", "observe"):
         s.attack_reader = asyncio.ensure_future(_read(s))
 
 
@@ -175,8 +176,8 @@ async def at_finish(s: Any) -> tuple[str | None, dict[str, Any]]:
         return None, {**row, "error": f"run: {type(exc).__name__}: {exc}"[:300]}
     counts = {k: sum(b["result"] == k for b in found) for k in ("PASS", "FAIL", "OBSERVED", "UNTESTED")}
     row.update(script=True, script_text=script[:8000], exit=code, out_chars=len(out), blocks=len(found), **counts,
-               failed=[b["name"] for b in found if b["result"] == "FAIL"][:20])
-    if not counts["FAIL"]:
+               failed=[b["name"] for b in found if b["result"] == "FAIL"][:20], out_text=out[-OBSERVE_CHARS:])
+    if not counts["FAIL"] or s.config.card_challenge == "observe":
         return None, row
     row["again"] = row["rounds"] < ROUNDS
     after = ("Core will run the same checks once more at that finish." if row["again"]

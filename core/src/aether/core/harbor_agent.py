@@ -20,7 +20,7 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
-from . import continuation, fork
+from . import continuation, fork, keep_final
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .reasoning_wire import WIRES
@@ -236,9 +236,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         open_issues=_choice(environ, OPEN_ISSUES_ENV, REPL_MODES, "off") == "on",
         rival=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "on",
         exec_check=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "exec",
-        card=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") in ("card", "probe", "challenge", "attack"),
+        card=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") in ("card", "probe", "challenge", "attack", "observe"),
         card_probe=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "probe",
-        card_challenge={"challenge": "challenge", "attack": "attack"}.get(_choice(environ, RIVAL_ENV, RIVAL_MODES, "off"), ""),
+        card_challenge={"challenge": "challenge", "attack": "attack", "observe": "observe"}.get(_choice(environ, RIVAL_ENV, RIVAL_MODES, "off"), ""),
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
@@ -337,7 +337,7 @@ def harbor_clone(environment: Any):
 
 def with_clones(config: CoreConfig, environment: Any) -> CoreConfig:
     """Contract checks and the finish check work on clones of the task container: give them Harbor's."""
-    needed = config.verify or config.diffcheck or config.card_challenge == "attack"
+    needed = config.verify or config.diffcheck or config.card_challenge in ("attack", "observe")
     return replace(config, make_clone=harbor_clone(environment)) if needed else config
 
 
@@ -442,12 +442,7 @@ class AetherCoreAgent(BaseAgent):
             )
             if result.status == "timeout":
                 raise TimeoutError(result.error or "Core work deadline exceeded")
-            if result.status in (
-                "provider_error",
-                "environment_error",
-                "context_error",
-                "cancelled",
-            ):
+            if result.status in ("provider_error", "environment_error", "context_error", "cancelled"):
                 raise RuntimeError(
                     f"Aether runtime failed ({result.status}): {result.error}"
                 )
@@ -458,6 +453,7 @@ class AetherCoreAgent(BaseAgent):
                 if result is not None:
                     writers = (getattr(result, "extras", None) or {}).get("left_running")
                 await continuation.finish(environment, logs, pending, active_writers=writers)
+                await keep_final.keep(environment, environ, logs)
             finally:
                 try:
                     if provider is not None and config is not None:

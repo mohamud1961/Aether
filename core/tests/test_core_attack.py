@@ -144,3 +144,18 @@ def test_observed_blocks_are_counted_but_only_a_fail_hands_back(tmp_path):
     result, rows, _ = _run(tmp_path, script, config=config, text_script=[_text(reader)])
     row = [r for r in rows if r["event"] == "rival"][-1]
     assert result.status == "finished" and row["OBSERVED"] == 1 and row["FAIL"] == 0 and "OBSERVED" in attack.PROMPT
+
+
+def test_observe_mode_records_a_fail_and_its_output_but_never_hands_back(tmp_path):
+    c = build_config(environ={**BASE, "AETHER_CORE_RIVAL": "observe"})
+    assert c.card is True and c.card_challenge == "observe"
+    out = tmp_path / "work" / "out.txt"
+    script = [call("write_file", {"path": str(out), "content": "41\n"}, "c0"), call("finish", {"summary": "done"}, "c1")]
+    reader = f"```sh\n{_check('value', f'cat {out}', '42', 'FAIL')}\n```"
+    config, made = _config(tmp_path)
+    config = dataclasses.replace(config, card_challenge="observe")
+    result, rows, client = _run(tmp_path, script, config=config, text_script=[_text(reader)])
+    assert result.status == "finished" and made
+    row = [r for r in rows if r["event"] == "rival"][-1]
+    assert row["FAIL"] == 1 and row["rounds"] == 1 and "result: FAIL" in row["out_text"]
+    assert not any("<check_results>" in json.dumps(r.get("messages", "")) for r in client.requests)
