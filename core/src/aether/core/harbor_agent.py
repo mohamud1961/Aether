@@ -236,9 +236,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         open_issues=_choice(environ, OPEN_ISSUES_ENV, REPL_MODES, "off") == "on",
         rival=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "on",
         exec_check=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "exec",
-        card=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") in ("card", "probe", "challenge"),
+        card=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") in ("card", "probe", "challenge", "attack"),
         card_probe=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "probe",
-        card_challenge=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "challenge",
+        card_challenge={"challenge": "challenge", "attack": "attack"}.get(_choice(environ, RIVAL_ENV, RIVAL_MODES, "off"), ""),
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",

@@ -103,7 +103,7 @@ class CoreConfig:
     exec_check: bool = False  # ablation of rival: the first finish is handed back once asking to run the deliverable
     card: bool = False  # at the first finish, a fresh reading of the request alone is handed back once (card)
     card_probe: bool = False  # the card's reader also writes a script observing each item; Core runs it once (card)
-    card_challenge: bool = False  # instead: checks aimed at likely errors; only commands + raw output return (card)
+    card_challenge: str = ""  # "challenge": read-only checks, raw output (card, CH1); "attack": clone checks (attack, CH2)
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
 
@@ -281,9 +281,9 @@ async def run_agent(
                 raise OSError("control directory setup did not report success")
             start_note = ""
             if (config.rival or config.card) and config.role == "worker":
-                from . import rival
+                from . import attack
 
-                await rival.mark_start(s.env, config.control_dir)
+                await attack.mark_start(s)  # the start marker; in attack mode also the reader call
             if config.start_copy and config.role == "worker":
                 from . import start_copy
 
@@ -955,12 +955,12 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         s.trace("rival", handed_back=text is not None, **row)
         if text:
             return text, False
-    if s.config.card and "rival" not in s.result.extras:
-        from . import card
+    if s.config.card and ("rival" not in s.result.extras or s.result.extras["rival"].get("again")):
+        from . import attack, card
 
-        text, row = await card.at_finish(
+        text, row = await (attack.at_finish(s) if s.config.card_challenge == "attack" else card.at_finish(
             s.env, s.provider.complete, task=s.task, workdir=s.workdir, control_dir=s.config.control_dir,
-            remaining_s=s.remaining, timeout_s=s.timeout_s, probe=s.config.card_probe, challenge=s.config.card_challenge)
+            remaining_s=s.remaining, timeout_s=s.timeout_s, probe=s.config.card_probe, challenge=bool(s.config.card_challenge)))
         s.result.extras["rival"] = row
         s.trace("rival", handed_back=text is not None, **row)
         if text:
