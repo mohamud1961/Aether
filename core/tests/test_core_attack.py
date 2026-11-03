@@ -69,7 +69,7 @@ def test_result_blocks_parse_and_never_carry_other_output():
 def test_a_failing_check_returns_only_result_blocks_and_runs_on_a_clone(tmp_path):
     out = tmp_path / "work" / "out.txt"
     script = [
-        call("write_file", {"path": str(out), "content": "41\n"}, "c0"),
+        call("write_file", {"path": str(out), "content": "WRONG_ANSWER_41\n"}, "c0"),
         call("finish", {"summary": "answer written"}, "c1"),
         call("terminal", {"input": "echo fixed"}, "c2"),
         call("finish", {"summary": "checked"}, "c3"),
@@ -83,7 +83,7 @@ def test_a_failing_check_returns_only_result_blocks_and_runs_on_a_clone(tmp_path
     row = [r for r in rows if r["event"] == "rival"][-1]
     assert row["mode"] == "attack" and row["FAIL"] == 1 and row["rounds"] == 2 and made[0] == {"egress": True}
     reader_request = json.dumps(next(r for r in client.requests if "tools" not in r)["messages"])
-    assert "MACHINE FACTS" in reader_request and "answer written" not in reader_request and "41" not in reader_request
+    assert "MACHINE FACTS" in reader_request and "answer written" not in reader_request and "WRONG_ANSWER" not in reader_request
     handback = json.dumps(client.requests[-2]["messages"][-1])
     assert "<check_results>" in handback and "result: FAIL" in handback and "expected: 42" in handback
     assert "CONCERN_TEXT" not in handback and "Part 1" not in handback
