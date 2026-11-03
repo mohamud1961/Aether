@@ -45,11 +45,13 @@ def settings(choice: Callable[[str, tuple, str], str], on_off: tuple, facts_mode
     return {"state_view": choice("AETHER_CORE_STATE_VIEW", on_off, "on" if copy else "off") == "on",
             "env_brief": brief, "managed_facts": facts != "off", "facts_pull": facts == "pull", "facts_v2": facts == "v2"}
 REFRESH_EVERY, VERIFY_EVERY, MAX_FILES = 10, 10, 20_000
+PORTS_LABEL = "listening TCP ports"
 
 # Listening TCP ports with the owning command; sockets of Core's own processes (cmdline naming .aether or aether) are
 # left out, and so are sockets with no owning process in the container (Docker's embedded DNS on 127.0.0.11 is owned
 # by dockerd outside it): the P5 smokes showed such a port, which is not a fact about the task.
 _PORTS = r"""
+[ -r /proc/net/tcp ] || [ -r /proc/net/tcp6 ] || { echo "/proc/net/tcp unreadable" >&2; exit 3; }
 for f in /proc/net/tcp /proc/net/tcp6; do [ -r "$f" ] && awk 'NR>1 && $4=="0A" {n=split($2,a,":"); print a[n], $10}' "$f"; done 2>/dev/null |
   sort -u | while read -r h ino; do
     pid=$(for d in /proc/[0-9]*; do ls -l "$d/fd" 2>/dev/null | grep -q "socket:\[$ino\]" && { echo "${d#/proc/}"; break; }; done)
@@ -160,7 +162,10 @@ def env_change(old: str, new: str) -> str:
     have = lambda d: set(d.get("available", "").split(":", 1)[-1].split())  # noqa: E731
     gained, lost = sorted(have(after) - have(before)), sorted(have(before) - have(after))
     parts = ([f"now on PATH: {' '.join(gained)}"] if gained else []) + ([f"gone: {' '.join(lost)}"] if lost else [])
-    other = sorted(k for k in set(before) | set(after) if k != "available" and before.get(k) != after.get(k))
+    if before.get(PORTS_LABEL) != after.get(PORTS_LABEL):
+        parts.append(f"{PORTS_LABEL} now: {after.get(PORTS_LABEL, ': unmeasured').split(':', 1)[1].strip()}")
+    other = sorted(k for k in set(before) | set(after)
+                   if k not in ("available", PORTS_LABEL) and before.get(k) != after.get(k))
     if other:
         parts.append("updated: " + ", ".join(other))
     return " · env changed (" + "; ".join(parts) + ")"
@@ -182,21 +187,34 @@ class StateService:
         self.misses: list[dict[str, Any]] = []
         self.last_refresh = 0
 
-    async def _env(self) -> str:
-        text, row = await env_brief.take(self.env, self.workdir)
-        ports = ""
+    async def _ports(self) -> str:
+        """The ports line. 'none' only after a probe that ran and found nothing; a failed probe is not an absence
+        (Codex review, 3 Nov: a timed-out probe was shown as 'none')."""
         try:
             result = await run(self.env, _PORTS, timeout_s=5)
-            ports = result.stdout.strip() if result.code == 0 else ""
-        except Exception:
-            ports = ""
+        except Exception as exc:
+            return f"{PORTS_LABEL}: unknown (probe failed: {type(exc).__name__})"
+        if result.code != 0:
+            return f"{PORTS_LABEL}: unknown (probe failed: exit {result.code})"
+        return f"{PORTS_LABEL}: {result.stdout.strip() or 'none'}"
+
+    async def _env(self) -> str:
+        text, row = await env_brief.take(self.env, self.workdir)
         body = text.removeprefix("(Environment, measured by the harness before your first action:\n").removesuffix(")")
         head, sep, files = body.partition("\nfiles under ")
         if not self.files_at_start and sep:
             self.files_at_start = "files at start under " + files
         if not head:
             return "environment: unmeasured"
-        return head + f"\nlistening TCP ports: {ports or 'none'}"
+        return head + "\n" + await self._ports()
+
+    async def _ports_only(self) -> str:
+        """The current block with only the ports line measured again: a server started by a command the full-refresh
+        pattern does not match (`python3 -m http.server 8080 &`) left the block stale until the next full refresh."""
+        if PORTS_LABEL + ":" not in self.env_text:
+            return self.env_text
+        line = await self._ports()
+        return "\n".join(line if x.startswith(PORTS_LABEL + ":") else x for x in self.env_text.splitlines())
 
     def _render(self, step: int) -> str:
         # The start file list stays in the trace only: it was most of the block (P5 smoke: ~3.5K of ~4K characters)
@@ -229,14 +247,20 @@ class StateService:
     async def after_action(self, step: int, tool: str, args: dict, result: str, *, call_id: str | None = None) -> str:
         self.context_changed = False
         if tool == "finish":
+            # Recorded, not shown: showing it would mean holding finish (a completion veto), and post-finish facts were
+            # inert (LC-2: 87/87 continuations re-finished in one step). Background changes before finish already
+            # reach Luna in the next action's line; only changes after the last action go unseen, with no decision left.
             lines, seconds = await self._step("verify")
             self._note(step, tool, "verify", lines, seconds, "")
             return ""
         command = str(args.get("input") or args.get("code") or "")
-        changed = ""
+        changed, new = "", None
         if (tool in ("terminal", "python") and _FULL_REFRESH.search(command)) or step - self.last_refresh >= REFRESH_EVERY:
             self.last_refresh = step
             new = await self._env()
+        elif tool in ("terminal", "python"):
+            new = await self._ports_only()
+        if new is not None:
             changed = env_change(self.env_text, new)
             if changed:
                 self.env_text = new

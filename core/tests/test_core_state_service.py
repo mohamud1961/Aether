@@ -176,3 +176,33 @@ def test_state_v2_is_the_default_and_each_flag_still_selects_its_mode():
     assert brief.env_brief and not brief.managed_facts  # the old one-shot brief replaces the service
     cfg = build_config(environ={**BASE, "AETHER_CORE_MANAGED_FACTS": "v2"})
     assert cfg.facts_v2 and cfg.managed_facts and not cfg.facts_pull
+
+
+def test_known_bad_a_failed_port_probe_is_unknown_not_none(tmp_path, monkeypatch):
+    svc, _, _, _ = _service(tmp_path, _app(tmp_path))
+
+    async def timed_out(*a, **k):
+        raise TimeoutError
+    monkeypatch.setattr(state_service, "run", timed_out)
+    assert asyncio.run(svc._ports()) == "listening TCP ports: unknown (probe failed: TimeoutError)"
+    # A host with no /proc/net (this mac) runs the real probe and must not read as an absence either.
+    monkeypatch.undo()
+    if not os.path.exists("/proc/net/tcp"):
+        assert asyncio.run(svc._ports()).startswith("listening TCP ports: unknown (probe failed: exit 3)")
+
+
+def test_a_server_started_without_an_install_word_updates_the_ports_line_at_once(tmp_path, monkeypatch):
+    svc, block, _, _ = _service(tmp_path, _app(tmp_path))
+    old = next(x for x in svc.env_text.splitlines() if x.startswith("listening TCP ports:"))
+    monkeypatch.setattr(svc, "_ports", lambda: asyncio.sleep(0, "listening TCP ports: 8080 (python3)"))
+    line = asyncio.run(svc.after_action(1, "terminal", {"input": "python3 -m http.server 8080 &"}, ""))
+    assert line.endswith(" · env changed (listening TCP ports now: 8080 (python3))") and svc.context_changed
+    assert "listening TCP ports: 8080 (python3)" in svc.context_summary() and old not in svc.context_summary()
+    # Unchanged ports on the next action: no line, no re-render.
+    line = asyncio.run(svc.after_action(2, "terminal", {"input": "ls"}, ""))
+    assert "env changed" not in line and not svc.context_changed
+    # Non-shell tools do not probe.
+    calls = []
+    monkeypatch.setattr(svc, "_ports", lambda: calls.append(1) or asyncio.sleep(0, "x"))
+    asyncio.run(svc.after_action(3, "edit", {"path": "a"}, ""))
+    assert calls == []
