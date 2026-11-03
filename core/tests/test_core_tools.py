@@ -229,7 +229,7 @@ def test_hygiene_off_is_the_unchanged_prompt_and_each_mode_adds_one_line_before_
 
     base = system_prompt(python_version="3.12", clm=True)
     assert base == system_prompt(python_version="3.12", clm=True, hygiene="off")
-    for mode in ("on", "placebo", "contract", "contract_literal", "reference"):
+    for mode in ("on", "placebo", "contract", "contract_literal", "reference", "install"):
         text = system_prompt(python_version="3.12", clm=True, hygiene=mode)
         assert text.replace(HYGIENE_DOC[mode], "") == base
         assert text.index(HYGIENE_DOC[mode]) < text.index("- Call finish only when")
