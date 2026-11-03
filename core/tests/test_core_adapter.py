@@ -255,6 +255,8 @@ def test_a_verifying_run_gets_the_harbor_clone_of_the_task_container(monkeypatch
     )
     for config, expected in (
         (CoreConfig(verify=True), ("harbor", "env")),
+        (CoreConfig(card=True, card_challenge="attack"), ("harbor", "env")),
+        (CoreConfig(card=True, card_challenge="challenge"), None),
         (CoreConfig(), None),
     ):
         assert adapter.with_clones(config, "env").make_clone == expected

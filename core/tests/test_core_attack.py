@@ -124,3 +124,13 @@ def test_no_script_means_the_finish_takes_effect(tmp_path):
                            text_script=[_text("only prose")])
     row = [r for r in rows if r["event"] == "rival"][-1]
     assert result.status == "finished" and row["script"] is False
+
+
+def test_without_a_host_clone_factory_no_check_runs_and_the_finish_takes_effect(tmp_path):
+    config = dataclasses.replace(_clm_config(tmp_path), card=True, card_challenge="attack")
+    reader = "```sh\necho touched > out.txt.attack\n```"
+    result, rows, _ = _run(tmp_path, [call("finish", {"summary": "done"}, "c0")], config=config,
+                           text_script=[_text(reader)])
+    row = [r for r in rows if r["event"] == "rival"][-1]
+    assert result.status == "finished" and "no host clone factory" in row["error"]
+    assert not (tmp_path / "work" / "out.txt.attack").exists()

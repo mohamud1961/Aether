@@ -116,6 +116,8 @@ async def _read(s: Any) -> dict[str, Any]:
 
 async def _run(s: Any, script: str) -> tuple[int, str]:
     """Run the script once on a fresh writable clone with the task's own network; the clone is then discarded."""
+    if s.config.make_clone is None:  # only Harbor's host-side clone factory (with_clones); never a container's own lookup
+        raise RuntimeError("no host clone factory")
     clone = await s.clone(s.env, timeout_s=SCRIPT_S + 300, read_only=False, egress=True)
     try:
         path = posixpath.join(s.config.control_dir, "attack.sh")
