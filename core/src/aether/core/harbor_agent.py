@@ -336,11 +336,8 @@ def harbor_clone(environment: Any):
 
 
 def with_clones(config: CoreConfig, environment: Any, environ: Mapping[str, str] = {}) -> CoreConfig:
-    """Contract checks and the finish check work on clones of the task container: give them Harbor's. A browser
-    (AETHER_CORE_BROWSER=on) runs beside the same container (browser.compose_factory)."""
-    if _choice(environ, browser.BROWSER_ENV, REPL_MODES, "off") == "on":
-        from harbor.environments.docker.docker import _sanitize_docker_compose_project_name as name
-        config = replace(config, browser=browser.compose_factory(name(environment.session_id)))
+    """Contract checks and the finish check work on clones of the task container: give them Harbor's."""
+    config = browser.configure(config, environment, environ)  # AETHER_CORE_BROWSER=on: a browser beside it
     needed = config.verify or config.diffcheck or config.card_challenge in ("attack", "observe", "forks")
     return replace(config, make_clone=harbor_clone(environment)) if needed else config
 

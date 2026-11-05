@@ -109,6 +109,19 @@ Factory = Callable[[Environment], Awaitable[str]]  # the task container's proven
 _SIDECARS: "weakref.WeakKeyDictionary[Any, Sidecar]" = weakref.WeakKeyDictionary()
 
 
+def configure(config: Any, environment: Any, environ: Any) -> Any:
+    """``config`` with a browser for a Harbor docker environment when AETHER_CORE_BROWSER=on ('off'/unset: unchanged)."""
+    mode = (environ.get(BROWSER_ENV) or "off").strip()
+    if mode not in ("on", "off"):
+        raise ValueError(f"{BROWSER_ENV} must be on or off, got {mode!r}")
+    if mode == "off":
+        return config
+    from dataclasses import replace
+
+    from harbor.environments.docker.docker import _sanitize_docker_compose_project_name as name
+    return replace(config, browser=compose_factory(name(environment.session_id)))
+
+
 def compose_factory(project: str) -> Factory:
     """Harbor docker: the compose project's ``main`` container, proven through the environment (clone.identify)."""
     async def find(env: Environment) -> str:
