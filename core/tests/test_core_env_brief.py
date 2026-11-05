@@ -21,6 +21,10 @@ def test_the_brief_lists_present_and_missing_tools_and_the_working_tree(tmp_path
     assert "available: sh" in brief and "not found on PATH: no-such-tool-aether" in brief
     assert "package managers:" in brief and "package servers:" in brief  # whether software can be installed
     assert "./data.bin (5 B)" in brief
+    # machine size, what lies outside the working directory, what already runs (values depend on the host)
+    assert "\nmachine: cpus " in brief and "disk free:" in brief
+    assert f"\noutside {tmp_path / 'app'} (non-standard or non-empty):" in brief
+    assert "\nrunning processes: " in brief
 
 
 def test_a_failed_probe_gives_no_brief():

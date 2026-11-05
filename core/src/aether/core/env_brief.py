@@ -10,6 +10,11 @@ Revised after y5 (28 Oct): the first brief listed ~30 tools as "not installed" a
 be installed. On a document task one run concluded it had only od/ps/perl and hand-parsed PDFs in perl; control runs
 installed PDF/OCR tools by step 12-20 (y5 financial: 1/3 vs 3/3). The brief now reports the package managers and
 whether their servers are reachable, and lists missing tools as not found rather than as a limit.
+
+Extended 5 Nov: the machine as the container sees it (cpus, cgroup CPU quota, memory and its cgroup limit, free disk
+at the working directory and /tmp), what lies outside the working directory (non-standard top-level directories and
+the first entries of non-empty /opt, /srv, /mnt, homes, /root, /tmp) and the processes already running (by name).
+Measured facts only, like the rest; nothing says what they mean for the task.
 """
 
 from __future__ import annotations
@@ -47,6 +52,18 @@ if [ -n "$py" ]; then
   pk=$($py -c "import importlib.metadata as m; print(' '.join(sorted({{(d.metadata['Name'] or '').lower() for d in m.distributions()}} - {{''}})))" 2>/dev/null)
   n=$(echo "$pk" | wc -w | tr -d " "); echo "python packages ($n): $(echo $pk | tr ' ' '\n' | head -{maxp} | tr '\n' ' ')$( [ "$n" -gt {maxp} ] && echo '...')"
 fi
+cpu=$(nproc 2>/dev/null); q=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null)
+case "$q" in [0-9]*) cpu="$cpu (cgroup quota $(echo "$q" | awk '{{printf "%.1f", $1/$2}}'))";; esac
+mt=$(awk '/MemTotal/{{print int($2/1024)}}' /proc/meminfo 2>/dev/null); ma=$(awk '/MemAvailable/{{print int($2/1024)}}' /proc/meminfo 2>/dev/null)
+ml=$(cat /sys/fs/cgroup/memory.max 2>/dev/null); case "$ml" in [0-9]*) ml=", cgroup limit $((ml/1048576)) MiB";; *) ml="";; esac
+echo "machine: cpus ${{cpu:-unknown}}; memory ${{mt:-?}} MiB total, ${{ma:-?}} MiB available$ml; disk free: $(df -Pm {wd} 2>/dev/null | awk 'NR==2{{print $4" MiB at "$6}}'), $(df -Pm /tmp 2>/dev/null | awk 'NR==2{{print $4" MiB at "$6}}')"
+od=""; for d in /*; do case "${{d#/}}" in bin|boot|dev|etc|home|lib|lib32|lib64|libx32|media|mnt|opt|proc|root|run|sbin|srv|sys|tmp|usr|var) ;; *) [ "$d" = {wd} ] || od="$od $d";; esac; done
+sk='\.(bashrc|profile|bash_logout|cache|config|local|npm|wget-hsts|bash_history)'
+for d in /opt /srv /mnt /home/* /root /tmp; do [ -d "$d" ] && [ "$d" != {wd} ] || continue
+  e=$(ls -A "$d" 2>/dev/null | grep -vxE "$sk" | head -8 | tr '\n' ' ' | sed 's/ $//'); [ -n "$e" ] && od="$od $d($e)"; done
+echo "outside {wd} (non-standard or non-empty):${{od:- nothing}}"
+pr=$(for p in /proc/[0-9]*; do [ "${{p#/proc/}}" = "$$" ] || cat "$p/comm" 2>/dev/null; done | grep -vxE 'bash|sh|dash|timeout|sort|cat|uniq|head|tr|find|awk|sed|ls|grep|wc|xargs' | sort | uniq | head -20 | tr '\n' ' ')
+echo "running processes: ${{pr:-none besides this probe}}"
 echo "files under {wd} (depth 2):"
 cd {wd} 2>/dev/null && find . -mindepth 1 -maxdepth 2 -not -path '*/.git/*' 2>/dev/null | sort | head -{maxe} | while read -r p; do
   if [ -d "$p" ]; then echo "  $p/"; else echo "  $p ($(wc -c < "$p" 2>/dev/null | tr -d ' ') B)"; fi; done
