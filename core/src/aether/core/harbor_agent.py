@@ -20,7 +20,7 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
-from . import continuation, fork, keep_final
+from . import browser, continuation, fork, keep_final
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .reasoning_wire import WIRES
@@ -335,8 +335,12 @@ def harbor_clone(environment: Any):
     return make
 
 
-def with_clones(config: CoreConfig, environment: Any) -> CoreConfig:
-    """Contract checks and the finish check work on clones of the task container: give them Harbor's."""
+def with_clones(config: CoreConfig, environment: Any, environ: Mapping[str, str] = {}) -> CoreConfig:
+    """Contract checks and the finish check work on clones of the task container: give them Harbor's. A browser
+    (AETHER_CORE_BROWSER=on) runs beside the same container (browser.compose_factory)."""
+    if _choice(environ, browser.BROWSER_ENV, REPL_MODES, "off") == "on":
+        from harbor.environments.docker.docker import _sanitize_docker_compose_project_name as name
+        config = replace(config, browser=browser.compose_factory(name(environment.session_id)))
     needed = config.verify or config.diffcheck or config.card_challenge in ("attack", "observe", "forks")
     return replace(config, make_clone=harbor_clone(environment)) if needed else config
 
@@ -427,7 +431,7 @@ class AetherCoreAgent(BaseAgent):
             provider = build_provider(logs, environ=environ)
             transport = build_review(logs, environ=environ)
             workdir = await discover_workdir(environment)
-            config = with_clones(config, environment)
+            config = with_clones(config, environment, environ)
             instruction, pending = await continuation.begin(environment, environ, logs, instruction, workdir)
             result = await run_agent(
                 env=environment,

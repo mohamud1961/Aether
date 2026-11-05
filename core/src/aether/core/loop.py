@@ -38,7 +38,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import open_issues
+from . import browser, open_issues
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -88,6 +88,7 @@ class CoreConfig:
     record_paths: bool = False  # the record states only task-named paths that do not exist yet (record)
     record_commands: bool = False  # ...and at the first finish the task-shown commands no command contained (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
+    browser: Any = None  # browser.Factory: a real browser in a sidecar on the task's network (browser); None = off
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
     # Reasoning effort for the request that first sees a newly attached image ("" = the run's own). 28 Oct: an
     # image-reading task went 0/3 at high and 2/3 valid at xhigh run-wide; this spends the extra effort only there.
@@ -319,6 +320,7 @@ async def run_agent(
                 s.tools = intent.with_intent(s.tools)
             if config.open_issues:
                 s.tools = open_issues.with_field(s.tools)
+            s.tools = browser.with_tool(s.tools) if config.browser else s.tools
             if s.state:
                 s.tools = runstate.with_state(s.tools)
             if s.facts and config.facts_pull:
@@ -737,11 +739,9 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
             interrupt=bool(args.get("interrupt")),
         ), False
     if name == "python":
-        return await s.repl.run(
-            str(args.get("code", "")),
-            wait_s=float(args.get("wait_s", 60)),
-            interrupt=bool(args.get("interrupt")),
-        ), False
+        return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s", 60)), interrupt=bool(args.get("interrupt"))), False
+    if name == "browser" and s.config.browser:
+        return await browser.use(s.config.browser, s.env, args, s.remaining()), False
     if name == "view_image":
         path = s.files.resolve(args["path"])
         desc, url = await images.load(s.env, path, region=args.get("region"))
@@ -758,12 +758,7 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
     if name == "write_file":
         return await s.files.write(args["path"], str(args["content"])), False
     if name == "edit_file":
-        return await s.files.edit(
-            args["path"],
-            str(args["old_str"]),
-            str(args["new_str"]),
-            bool(args.get("replace_all")),
-        ), False
+        return await s.files.edit(args["path"], str(args["old_str"]), str(args["new_str"]), bool(args.get("replace_all"))), False
     return f"error: unknown tool {name!r}", False
 
 
