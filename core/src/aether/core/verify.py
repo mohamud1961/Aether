@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import os
 import posixpath
 import shlex
 import time
@@ -365,6 +366,7 @@ async def at_finish(s: Any) -> tuple[str, bool]:
     # model opinion becomes advisory, not an independent literal contract
     # failure. Even a fully bound hypothesis is not an authoritative grader.
     if finding == "defect_found" and status == "defect_found":
+        _handback(s)
         return DEFECT.format(evidence=evidence_text), False
     if status == "void_candidate_modified":
         changed = row["clone_changes"]
@@ -377,3 +379,22 @@ async def at_finish(s: Any) -> tuple[str, bool]:
             files="\n".join(files[:MAX_LISTED]), evidence=evidence_text
         ), False
     return f"finished\n[independent check: {status}]", True
+
+
+HANDBACK_ENV = "AETHER_CORE_VERIFY_HANDBACK"  # "keep" (default): the solver keeps its reasoning; "fresh": see _handback
+
+
+def _handback(s: Any) -> None:
+    """V1 arm D (prereg V1_VERIFIER_PREREG.md): with "fresh", every replayed reasoning item is removed from the
+    solver's history once, when a bound defect finding comes back, so the solver re-derives from the record of
+    what it did and what the check found instead of continuing its earlier chain (ev6: a one-time drop at a wrong
+    belief, 0/16 -> 11/16). Messages, tool calls and results are untouched. Recorded either way."""
+    mode = (os.environ.get(HANDBACK_ENV) or "keep").strip()
+    if mode not in ("keep", "fresh"):
+        raise ValueError(f"{HANDBACK_ENV} must be keep or fresh, got {mode!r}")
+    dropped = 0
+    if mode == "fresh":
+        for msg in s.history:
+            if msg.get("role") == "assistant" and msg.pop("reasoning_content", None) is not None:
+                dropped += 1
+    s.trace("verify_handback", mode=mode, reasoning_dropped=dropped)
