@@ -20,7 +20,7 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
-from . import browser, continuation, fork, keep_final
+from . import browser, continuation, fork, keep_final, start_archive
 from .calls import CallLog
 from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .reasoning_wire import WIRES
@@ -430,6 +430,8 @@ class AetherCoreAgent(BaseAgent):
             workdir = await discover_workdir(environment)
             config = with_clones(config, environment, environ)
             instruction, pending = await continuation.begin(environment, environ, logs, instruction, workdir)
+            instruction, archive_status = await start_archive.add(environment, environ, workdir, instruction)
+            (logs / "start_archive.txt").write_text(archive_status)
             result = await run_agent(
                 env=environment,
                 task=instruction,
