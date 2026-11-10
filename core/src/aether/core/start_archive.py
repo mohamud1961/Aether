@@ -2,7 +2,8 @@
 
 Substrate only. The archive is written outside the workdir, so deliverables are untouched,
 and the solver is told one plain fact: where the start state is. Nothing is interpreted.
-Enabled with AETHER_CORE_START_ARCHIVE=on (study arm; baseline path unchanged).
+On by default since 10 Nov 2026 (A1: db-wal causal gain, 0 archive-attributable regressions
+across Luna + GLM boards, g3/MISSION_LOG.md). AETHER_CORE_START_ARCHIVE=off disables it.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ ENV_FLAG = "AETHER_CORE_START_ARCHIVE"
 
 async def add(environment: Any, environ: Mapping[str, str], workdir: str, task: str) -> tuple[str, str]:
     """Return (task, status). The task gains one sentence only when the archive was written."""
-    if environ.get(ENV_FLAG) != "on" or not workdir:
+    if environ.get(ENV_FLAG, "on") == "off" or not workdir:
         return task, "off"
     parent, name = workdir.rstrip("/").rsplit("/", 1) if workdir.rstrip("/").count("/") else ("", workdir)
     cmd = (
