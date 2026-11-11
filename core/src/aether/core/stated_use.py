@@ -10,8 +10,9 @@ Mechanics, all lexical or measured:
   that are not plain words (a file name, a quoted string, an option). Nothing is inferred; text that is not a command is dropped at run time because its first word does
   not resolve to a program or file.
 - It fires once, after a tool call that names a path the task mentions which did not exist when first checked and
-  exists now. Commands run in a scratch directory, each with a time limit; raw output is appended to that tool
-  result. Never blocks, never judges.
+  exists now. Commands run in a scratch directory that links to the files beside that path, each with a time
+  limit; raw output is appended to that tool result. New files land in the scratch directory; a command that
+  overwrites an existing file by name writes through the link. Never blocks, never judges.
 """
 
 from __future__ import annotations
@@ -95,7 +96,10 @@ async def after(s: Any, name: str, args: dict[str, Any]) -> str:
     if not runnable:
         return ""
     state["fired"] = True
-    lines = [f"rm -rf {SCRATCH} && mkdir -p {SCRATCH} && cd {SCRATCH} || exit 0"]
+    # Relative file names in a command must resolve (C2 wave 2: "gpt2-124M.ckpt: No such file" was the scratch
+    # directory speaking, not the program), so the scratch directory holds links to the work's own directory.
+    home = q(now[0].rsplit("/", 1)[0] or "/")
+    lines = [f"rm -rf {SCRATCH} && mkdir -p {SCRATCH} && cd {SCRATCH} || exit 0", f"ln -s {home}/* . 2>/dev/null"]
     for text in runnable:
         lines.append(
             f"echo {q('$ ' + text)}; timeout {EACH_TIMEOUT_S} bash -c {q(text + ' </dev/null')} 2>&1 | tail -c 400; "
