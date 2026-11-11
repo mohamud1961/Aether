@@ -5,10 +5,29 @@
 By [Mohamud Mohamud](https://github.com/mohamud1961)
 
 Aether is not a coding-agent product. It is a year-long empirical investigation into the layer between a model and
-the world: the loop, tools, context, verification and evaluation that turn a language model into an agent. Over five
-harness generations and 151 evaluations, every claimed gain was put against pre-registered predictions, sealed
-held-out tasks and row-level audits of the traces. Most claimed gains did not survive that, and the ways they failed
-are the main findings.
+the world: the loop, tools, context, verification and evaluation that turn a language model into an agent. Across
+five harness generations, the project catalogues 151 evaluation records. The research includes exploratory and
+invalid outcomes as well as pre-registered comparisons, held-out tasks and row-level trace audits; many proposed
+mechanisms did not survive selection, and the reasons are documented.
+
+## Empirical work at a glance
+
+- **Evaluation programme:** 151 evaluation records across five generations; the current public suite has 28 tasks
+  across nine target areas. Start with the [evaluation catalogue](evals/catalogue.md) and
+  [current task suite](evals/README.md).
+- **External-agent analysis:** a Deep Synthesis across five source systems and 12+ failure families, including a
+  trace study of **312 parseable runs from one external system**, called Harness B. Read the
+  [synthesis guide](research/synthesis/README.md) and its
+  [18 trace-question families](research/synthesis/harness_b_answered_questions.md).
+- **Evaluation method:** pre-registered predictions and sentinels, known-bad and careless-agent controls, held-out
+  comparisons, and row-level audits. The methods and their limits are documented in
+  [evaluation methods](evals/README.md).
+
+The public repository contains analysis summaries, not the raw 312-run trace bundles or all source captures.
+Citations marked `[private-source: ...]` refer to evidence that readers cannot open from this repository. The
+published synthesis is behavioral analysis of that corpus, not source-level proof of Harness B's internal design.
+No clean, frozen, official benchmark win is claimed in the public record; see the
+[generation status](research/generations/README.md).
 
 ## The thesis
 
@@ -71,7 +90,7 @@ the request prefix cache-stable instead halved cost per run at equal passes. Opt
 - A pre-registered falsifier fired on our own harness on sealed held-out tasks.
 - 32 mechanisms were retired on evidence, and the [cemetery](research/cemetery.md) records why each one died.
 
-**Aether holds its own against production agents, at a fraction of the cost.**
+**Retrospective reference-agent comparisons are mixed.**
 
 | Aether against | Model (Aether / other) | Tasks × runs | Aether | Other | Cost per run (Aether / other) |
 |---|---|---|---|---|---|
@@ -81,8 +100,10 @@ the request prefix cache-stable instead halved cost per run at equal passes. Opt
 | Codex | GLM-5.3-Flash / GPT-5.6-Luna | 25 tasks, mean pass rate | 0.64 | 0.77 | **$0.031** / $0.316 |
 | Codex | GLM-5.3-Flash / GPT-6-Astra | 25 tasks, mean pass rate | 0.64 | 0.82 | **$0.031** / $1.302 |
 
-Comparisons chosen after the runs; every loss, run count and caveat is in
-[research/head-to-head.md](research/head-to-head.md).
+These comparisons were chosen after the runs. The table shows lower Aether costs in the listed Claude/Codex
+comparisons, but higher costs against Meta CLM and Terminus; pass results also vary by comparison. Model versions,
+task versions and cost accounting differ. The [comparison record](research/head-to-head.md) lists losses, run counts
+and caveats; these rows do not establish a general performance or cost advantage.
 
 Evidence and limits for each finding: [research/findings.md](research/findings.md) and
 [research/core/](research/core/).
@@ -92,23 +113,27 @@ Evidence and limits for each finding: [research/findings.md](research/findings.m
 - **Aether Core** ([aether/core/](aether/core/)): a lean agent runtime in which every turn, tool call, result and
   timing is recorded. It has persistent named terminals, model-managed context, deadline visibility and disposable
   container clones for running checks without touching the graded state.
-- **A validated evaluation suite** ([evals/](evals/), [harness_evals/](harness_evals/)): 28 tasks whose graders are
-  themselves tested against known-bad states and careless agents. `python -m harness_evals validate-graders evals`
-  re-runs those checks.
-- **A synthesis of 312 external agent runs** ([research/synthesis/](research/synthesis/)): a mechanism map, a failure
-  taxonomy and dossiers across other harnesses.
+- **A public evaluation suite** ([evals/](evals/), [harness_evals/](harness_evals/)): 28 task definitions with
+  graders, references, known-bad states and careless-agent controls. The validation methods and their current
+  evidence boundary are documented in [the measurement-validity record](evals/methods/measurement-validity.md).
+  `python -m harness_evals validate-graders <task-directory>` runs the grader check for one task. Pointing it at
+  `evals/` also discovers archived task manifests, so that command is not a check of just the current 28 tasks.
+- **Cross-system synthesis** ([research/synthesis/](research/synthesis/)): 312 parseable runs from Harness B plus
+  mechanism and failure-family analysis across other harnesses.
 - **An open research record:** every Gen 5 pre-registration with its results ([research/core/](research/core/)), the
   retired mechanisms ([research/cemetery.md](research/cemetery.md)), and how each finding sits against published work
   ([research/related-work.md](research/related-work.md)).
 
 ## Method
 
-- **Pre-registration.** Every experiment states its question, predictions and falsifier before it runs. Results are
-  appended without editing the predictions, and failed predictions are recorded as failed.
-- **Row-level audits.** Every result is checked against its traces. An audit overturned a published-looking win more
-  than once ([case studies](workflows/case-studies/)).
-- **Graders are tested too.** Each of the 28 evaluation tasks is validated against known-bad states and careless
-  agents before it scores anything ([evals/](evals/)).
+- **Pre-registration.** Selected comparison studies state their question, predictions and falsifier before they run.
+  Results are appended without editing those predictions, and failed predictions are recorded as failed.
+- **Row-level audits.** Audits of scored boards have overturned published-looking wins and exposed invalid rows
+  ([case studies](workflows/case-studies/)). The historical catalogue includes evidence at different levels.
+- **Graders are testable too.** The current task packages include known-bad and careless-agent controls. The
+  available `validate-graders` command checks reference pass, untouched-state rejection, known-bad rejection,
+  determinism and Python-level grader file access; the repository records that a fresh suite-wide run was not
+  evidenced in its measurement-validity snapshot ([evals/](evals/)).
 - **No Fake Work.** A check that a known-bad case cannot fail is not a check, and a green produced by stubs, mocks or
   shims does not count ([docs/no-fake-work.md](docs/no-fake-work.md)).
 - **Clean context.** No benchmark, grader or hidden-test framing ever reaches the model, and tests enforce it.
@@ -134,7 +159,7 @@ The full arc: [research/generations/](research/generations/).
 |---|---|
 | [aether/](aether/) | The harness: Aether Core ([aether/core/](aether/core/)), the current lean loop, and the Gen 4 runtime it replaced |
 | [research/](research/) | Findings, generation pages, postmortems, the cemetery, a synthesis of 312 external agent runs, and every Gen 5 pre-registration ([research/core/](research/core/)) |
-| [evals/](evals/) | 28 validated evaluation tasks across nine targets, eight evaluation methods, and a catalogue of all 151 evaluations |
+| [evals/](evals/) | 28 current task definitions across nine targets, eight documented evaluation methods, and a catalogue of 151 historical evaluation records |
 | [harness_evals/](harness_evals/) | The evaluation runner: task format, sandboxed runs, grader validity, trial rows, statistics |
 | [docs/](docs/) | The vision, architecture layers, engineering standards and the No Fake Work rule |
 | [workflows/](workflows/) | How one person ran the programme with a fleet of coding agents: roles, review gates, handoffs, incidents |

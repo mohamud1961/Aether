@@ -1,64 +1,77 @@
-# Evidence map
+# Evidence map: research, synthesis and evaluation
 
-Where to look in this repository for evidence of each skill below. Every entry points to code, an evaluation or a
-write-up that can be read and checked; none is a summary of itself.
+Use this map to inspect four parts of the work: how sources and evidence limits are handled, how findings are
+synthesized, how competing explanations are tested, and how benchmark tasks are built. Each link points to a public
+artifact in this repository. The notes distinguish what a reader can verify here from evidence that remains private.
 
-## Working with Claude and Claude Code
+## Source checking and provenance
 
-- **Claude orchestrating a fleet of agents (8 October onward):** Claude in Claude Code planned, delegated to Sonnet and
-  Haiku subagents, reviewed and audited. See [workflows/orchestration.md](../workflows/orchestration.md) (Phase 3)
-  and the rules that came from incidents in [workflows/governance.md](../workflows/governance.md).
-- **Gen 5 was built this way.** Most commits under `aether/core/` carry a `Co-Authored-By: Claude` trailer
-  (`git log -- aether/core`).
-- **Reusable skills and templates for agent work:** [workflows/skills/](../workflows/skills/) and
-  [workflows/templates/](../workflows/templates/), for example
-  [the pre-registration template](../workflows/templates/pre-registration.md) and
-  [the review gate checklist](../workflows/templates/review-gate-checklist.md).
+- [Mechanism map accepted claims](../research/synthesis/mechanism_map_accepted_claims.md) records six exploratory
+  mechanism families with their evidence types, source families, confidence and unresolved questions.
+- [Contradiction register](../research/synthesis/mechanism_map_contradiction_register.md) keeps source conflicts and
+  access gaps visible, including the absence of a mirrored Harness B source and uncertainty between documented
+  design and observed behavior.
+- [Related-work comparison](../research/related-work.md) explains how the findings relate to published evaluation
+  and agent research. It is a thematic comparison, not a complete bibliography with direct citations for every claim.
+- [Publication and provenance rules](../workflows/governance.md) describe the checks applied before public release;
+  [engineering standards](engineering-standards.md) cover third-party source and private-material boundaries.
 
-## Prompt design and optimisation
+**Public evidence boundary:** the repository lets readers inspect the source-aware summaries and their stated
+limitations, but raw Harness B trajectories and some source captures are private. References beginning
+`[private-source: ...]` are not public links. The 312-run study supports behavioral reconstruction from recorded
+traces; it does not establish the hidden implementation of that system, and the raw records cannot be independently
+replayed from this repository.
 
-- **The solver prompt and tool descriptions** of the current loop: `system_prompt` in
-  [aether/core/tools.py](../aether/core/tools.py).
-- **Prompt and turn-format experiments, each pre-registered with a falsifier:** request shape (S1), turn format (S2),
-  reasoning effort (S3), an analysis turn (S4), JSON turns (S5, S6), naming rules in the prompt (P1 role experiment) and
-  an independent-check prompt (P1). See [research/core/](../research/core/). Most failed, and are recorded as failed.
-- **A prompt change that did help:** cache-stable context halved cost per run at equal passes
-  ([N1](../research/core/CORE_N1_EFFICIENCY_AND_VERIFICATION_PREREG_20261014.md)).
+## Research synthesis
 
-## Testing and evaluating model output
+- [Deep Synthesis guide](../research/synthesis/README.md) explains the scope, questions, method, findings,
+  contradictions and limitations.
+- [Harness B answered questions](../research/synthesis/harness_b_answered_questions.md) contains 18 question
+  families over 312 parseable runs, with evidence-strength labels, counts, counterevidence and unknowns.
+- [Harness B reconstruction](../research/synthesis/harness_b_reconstruction.md) separates stable observable patterns
+  from variable behavior and hidden mechanisms.
+- [Mechanism map](../research/synthesis/mechanism-map.md) and [failure taxonomy](../research/synthesis/failure-taxonomy.md)
+  organize recurring mechanisms and failure families across the wider source set. Their published status is
+  exploratory or accepted with warnings, not decision-ready.
 
-- **An evaluation framework:** [harness_evals/](../harness_evals/), with grader validity checks, trial rows and
-  statistics.
-- **Tasks validated against known-bad states and careless agents before use:** [evals/](../evals/), and the
-  catalogue of all 151 evaluations in [evals/catalogue.md](../evals/catalogue.md).
-- **Auditing results row by row,** including results that overturned earlier wins:
-  [workflows/case-studies/](../workflows/case-studies/) and [research/postmortems/](../research/postmortems/).
+## Analytical reasoning
 
-## Guardrails and hallucination management
+- [Five findings](../research/findings.md) states each claim with its supporting numbers and limitations.
+- [Failure study across boards](../research/core/CORE_FAILURE_STUDY_ALL_BOARDS_20261015.md) analyzes 221 runs across
+  nine development tasks, separates model-specific from shared failure patterns, records corrections and errata,
+  and notes that repeated runs are not independent.
+- [Research-question self-audit](../research/core/CORE_SELF_AUDIT_RESEARCH_QUESTIONS_20261017.md) identifies gaps in
+  the evidence and proposes how to separate model, harness, task and measurement explanations.
+- [Audit that overturned a headline win](../workflows/case-studies/audit-overturned-a-win.md) traces a reported
+  78.5% result to provider errors and grader rescues, then reclassifies it.
+- [Held-out falsifier case study](../workflows/case-studies/falsifier-fired.md) records a pre-stated prediction that
+  failed its own bar, with sample-size and timeout caveats.
 
-- **False completion (the agent says it is done when it is not)** is the main subject of Gen 5's experiments: acceptance
-  checks, same-model review, state verification, a requirement ledger and a reading judge. See the table in
-  [research/generations/gen5.md](../research/generations/gen5.md).
-- **Review without the agent's own claims** caught 15 of 18 wrong finishes, against 10 of 18 when the reviewer saw
-  the claims. See [research/findings.md](../research/findings.md).
-- **The No Fake Work rule** and the vision's test for harness code: [docs/no-fake-work.md](no-fake-work.md) and
-  [docs/VISION.md](VISION.md).
-- **Keeping benchmark and grader framing out of what the model sees,** enforced by tests:
-  `tests/harness/test_model_visible_hygiene.py`.
+## Benchmark creation and evaluation
 
-## Understanding model behaviour
+- [Current evaluation suite](../evals/README.md) describes 28 task definitions across nine target areas, the task
+  contract and grader structure, and the documented validation methods. [The catalogue](../evals/catalogue.md)
+  lists 151 historical evaluation records; these are not 151 equivalent benchmark tasks or wins.
+- [Known-bad and careless-agent method](../evals/methods/known-bads-and-careless-agents.md) explains the negative
+  controls and solvability checks used to challenge graders.
+- [Pre-registration and sentinels](../evals/methods/preregistration-and-sentinels.md),
+  [held-out evaluation](../evals/methods/held-out-evaluation.md),
+  [measurement validity](../evals/methods/measurement-validity.md) and
+  [row-level audit](../evals/methods/row-level-audit.md) document the comparison and scoring rules, including where
+  they have failed or remain incomplete.
+- [Example task contract](../evals/orchestration/tasks/subagent_handoff_contract/task.yaml),
+  [grader](../evals/orchestration/tasks/subagent_handoff_contract/grader/grade.py),
+  [known-bad controls](../evals/orchestration/tasks/subagent_handoff_contract/known_bad/) and
+  [careless-agent controls](../evals/orchestration/tasks/subagent_handoff_contract/careless/) show one concrete
+  task package and its failure controls.
 
-- **Outcomes are close to deterministic per model and task;** the same harness gives opposite results on two tasks
-  for two models: [research/core/CORE_FAILURE_STUDY_ALL_BOARDS_20261015.md](../research/core/CORE_FAILURE_STUDY_ALL_BOARDS_20261015.md).
-- **Where the error is:** reading versus constructing, traced to individual turns:
-  [research/core/CORE_FIRST_DIVERGENCE_20261013.md](../research/core/CORE_FIRST_DIVERGENCE_20261013.md) and the P1
-  decision-probe results in [research/core/](../research/core/).
-- **A self-audit of our own questions:** [research/core/CORE_SELF_AUDIT_RESEARCH_QUESTIONS_20261017.md](../research/core/CORE_SELF_AUDIT_RESEARCH_QUESTIONS_20261017.md).
-
-## Turning requirements into specifications
-
-- **Every experiment states its question, prediction and falsifier before it runs,** then appends results without
-  changing the predictions: the pre-registrations in [research/core/](../research/core/).
-- **How a principal's goals became work packets, review gates and handoffs** for agents:
-  [workflows/README.md](../workflows/README.md) and [workflows/governance.md](../workflows/governance.md).
-- **Decisions and why they were made:** [notebook/DECISIONS.md](../notebook/DECISIONS.md).
+**Validation caveat:** the repository documents grader controls and includes a `validate-graders` command, but
+[the measurement-validity record](../evals/methods/measurement-validity.md) says a fresh suite-wide run was not
+recorded in that snapshot. The command checks the reference, untouched workspace, known-bad states, determinism and
+Python-level grader file access; it does not execute the careless-agent scripts. It recursively discovers each
+`task.yaml` under the selected root ([discovery code](../harness_evals/task.py)), so pointing it at `evals/` also
+includes archived tasks. Treat the existence of the command and fixtures as method/tooling evidence; it is not by itself evidence
+that every current task passed a fresh suite-wide validation. A fresh Python 3.11 check on 11 November 2026 of the
+example task linked above passed 1/1 task and rejected all eight known-bad controls; the reproducible command is
+`python3.11 -m harness_evals validate-graders evals/orchestration/tasks/subagent_handoff_contract`. That result
+covers only the example package.
