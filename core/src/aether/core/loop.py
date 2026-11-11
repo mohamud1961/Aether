@@ -98,6 +98,7 @@ class CoreConfig:
     task_at_first_observation: bool = False  # the task text once more, beside the first tool result (FD2, 10 Nov)
     stated_use: bool = False  # the task's own literal commands, run once when the work first exists (stated_use)
     working: str = "on"  # "lean": solver prompt without the three thoroughness lines (study arm)
+    start_note: str = "start"  # "late": start-copy note and state line wait for a changed start file (study arm)
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
@@ -294,6 +295,8 @@ async def run_agent(
 
                 start_note, row = await start_copy.take(s.env, workdir, config.control_dir, view=config.state_view)
                 facts_pull.trace_start_copy(s.facts, row, workdir, trace)
+                if getattr(config, "start_note", "start") == "late":  # study arm: shown at the first changed start file
+                    s.late_note, start_note = start_note, ""
             if config.env_brief and config.role == "worker":
                 from . import env_brief
 
@@ -618,6 +621,12 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         s.result.steps += 1
         if s.facts:
             update = await s.facts.after_action(s.result.steps, name, args, out, call_id=call["id"])
+            if update and getattr(s, "late_note", ""):
+                from . import start_copy
+
+                update, s.late_note = start_copy.late(update, s.late_note)
+                if not s.late_note:
+                    s.trace("start_note_shown", step=s.result.steps)
             if update:
                 out = f"{out}\n{update}"
             if (update or s.facts.context_changed) and s.facts_pinned_index is not None:

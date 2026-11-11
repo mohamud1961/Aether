@@ -12,11 +12,17 @@ task message says nothing. The copy is taken before the start marker, so it is n
 from __future__ import annotations
 
 import posixpath
+import re
 import shlex
 
 from .env import Environment, run
 
 START_COPY_ENV = "AETHER_CORE_START_COPY"
+# Study arm AETHER_CORE_START_NOTE=late (11 Nov, g3/MISSION_LOG.md BX/XT): the copy is taken as always, but the note
+# and the per-action state line stay out of view until a start file has been changed or removed. Runs told about
+# the copy at the start went into repository history first (sanitize); runs that lost an input need it (db-wal).
+NOTE_ENV = "AETHER_CORE_START_NOTE"
+_CHANGED = re.compile(r"files vs start: \d+ added, (\d+) removed, (\d+) changed")
 LIMIT_BYTES = 512 * 1024 * 1024
 NOTE = ("(A copy of {workdir} as it was before your first action is at {copy}. The harness made it and does "
         "not use it.)")
@@ -52,3 +58,14 @@ async def take(env: Environment, workdir: str, control_dir: str, view: bool = Fa
         return NOTE.format(workdir=workdir, copy=copy), {**row, "view": False, "exit": result and result.code}
     row.update(view=cmd, start_head=result.stdout.strip()[:40] or None)
     return NOTE.format(workdir=workdir, copy=copy)[:-1] + state_view.NOTE.format(cmd=cmd) + ")", row
+
+
+def late(update: str, note: str) -> tuple[str, str]:
+    """Late mode, per tool result: (text to show, note still held). Nothing is shown until the state line reports a
+    removed or changed start file; that result carries the state line and the note, and later ones are unchanged."""
+    if not note:
+        return update, ""
+    match = _CHANGED.search(update)
+    if match and (int(match.group(1)) or int(match.group(2))):
+        return f"{update}\n{note}", ""
+    return "", note
