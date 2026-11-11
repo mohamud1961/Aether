@@ -87,16 +87,21 @@ async def after(s: Any, name: str, args: dict[str, Any]) -> str:
     now = [p for p in state["missing"] if p in mentioned and (await run(s.env, f"test -e {q(p)}", timeout_s=20)).code == 0]
     if not now:
         return ""
+    runnable = []
+    for text in state["cmds"]:  # a command whose program does not exist yet cannot be run; wait for it
+        first = text.split()[0]
+        if (await run(s.env, f"command -v {q(first)} >/dev/null 2>&1 || [ -x {q(first)} ]", timeout_s=20)).code == 0:
+            runnable.append(text)
+    if not runnable:
+        return ""
     state["fired"] = True
     lines = [f"rm -rf {SCRATCH} && mkdir -p {SCRATCH} && cd {SCRATCH} || exit 0"]
-    for text in state["cmds"]:
-        first = text.split()[0]
+    for text in runnable:
         lines.append(
-            f"if command -v {q(first)} >/dev/null 2>&1 || [ -x {q(first)} ]; then echo {q('$ ' + text)}; "
-            f"timeout {EACH_TIMEOUT_S} bash -c {q(text + ' </dev/null')} 2>&1 | tail -c 400; "
-            'echo "[exit ${PIPESTATUS[0]}]"; fi'
+            f"echo {q('$ ' + text)}; timeout {EACH_TIMEOUT_S} bash -c {q(text + ' </dev/null')} 2>&1 | tail -c 400; "
+            'echo "[exit ${PIPESTATUS[0]}]"'
         )
-    result = await run(s.env, "\n".join(lines), timeout_s=EACH_TIMEOUT_S * len(state["cmds"]) + 30, cwd="/")
+    result = await run(s.env, "\n".join(lines), timeout_s=EACH_TIMEOUT_S * len(runnable) + 30, cwd="/")
     output = ((result.stdout or "") + (result.stderr or "")).strip()[-OUTPUT_LIMIT:]
     s.trace("stated_use_run", became_present=now, output=output)
     if not output:
