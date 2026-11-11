@@ -240,7 +240,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         card_probe=_choice(environ, RIVAL_ENV, RIVAL_MODES, "off") == "probe",
         card_challenge={"challenge": "challenge", "attack": "attack", "observe": "observe", "forks": "forks"}.get(_choice(environ, RIVAL_ENV, RIVAL_MODES, "off"), ""),
         start_copy=_choice(environ, START_COPY_ENV, REPL_MODES, "on") == "on",  # default on since y8/y9 (LOG 28 Oct)
-        task_at_first_observation=environ.get("AETHER_CORE_TASK_AT_FIRST_OBS") == "on", stated_use=environ.get("AETHER_CORE_STATED_USE") == "on", working=environ.get("AETHER_CORE_WORKING", "on"), start_note=environ.get("AETHER_CORE_START_NOTE", "start"),  # study arms
+        task_at_first_observation=environ.get("AETHER_CORE_TASK_AT_FIRST_OBS") == "on", stated_use=environ.get("AETHER_CORE_STATED_USE") == "on", working=environ.get("AETHER_CORE_WORKING", "on"), start_note=environ.get("AETHER_CORE_START_NOTE", "start"), task_appendix_file=environ.get("AETHER_CORE_TASK_APPENDIX_FILE", ""),  # study arms
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))

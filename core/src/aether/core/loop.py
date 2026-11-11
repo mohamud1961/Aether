@@ -98,6 +98,7 @@ class CoreConfig:
     task_at_first_observation: bool = False  # the task text once more, beside the first tool result (FD2, 10 Nov)
     stated_use: bool = False  # the task's own literal commands, run once when the work first exists (stated_use)
     working: str = "on"  # "lean": solver prompt without the three thoroughness lines (study arm)
+    task_appendix_file: str = ""  # study arm: a file whose text follows the task in the first message (XL step-0 list)
     start_note: str = "start"  # "late": start-copy note and state line wait for a changed start file (study arm)
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
@@ -351,7 +352,7 @@ async def run_agent(
                 },
                 {
                     "role": "user",
-                    "content": f"{task}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
+                    "content": f"{task}{_appendix(config)}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
                     + "".join(f"\n{x}" for x in (start_note, getattr(s, "forks_note", "")) if x),
                 },
             ]
@@ -914,6 +915,16 @@ async def _scheduled_review(s: _Session, kind: str) -> None:
         else progress_feedback(verdict, s.elapsed(), s.timeout_s)
     )
     _attach(s.history, text)
+
+
+def _appendix(config: CoreConfig) -> str:
+    """Study arm (XL, 11 Nov): text placed after the task, read from a file named by the launcher. Used to carry the
+    solver's own step-0 list of the points the task leaves open, written from the task text before the run starts."""
+    path = getattr(config, "task_appendix_file", "")
+    if not path:
+        return ""
+    with open(path, encoding="utf-8") as handle:
+        return "\n\n" + handle.read().strip()
 
 
 def _with_state(s: _Session, out: str) -> str:
