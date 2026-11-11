@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 import math
 
+from .conventions import CONVENTIONS
 from .clm import HISTORY_PATH, MIRROR_PATH
 from .terminal import MAX_WAIT_S
 
@@ -363,6 +364,8 @@ def system_prompt(
     if hygiene not in HYGIENE_MODES:
         raise ValueError(f"hygiene must be one of {HYGIENE_MODES}")
     base = BASE_PROMPT if working != "lean" else SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING_LEAN
+    if working == "conv":  # study arm: conventions appended (see conventions.py)
+        base += CONVENTIONS
     if hygiene != "off" and not verifier:  # inserted before the closing "Call finish only when..." line
         head, sep, tail = base.rpartition("\n- Call finish only when")
         base = head + HYGIENE_DOC[hygiene] + sep + tail
