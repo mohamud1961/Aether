@@ -45,6 +45,12 @@ it, when you expected it to finish or exit, is hung or looping; find out why rat
 improve it.
 - Call finish only when every requirement is met and checked, or when no time is left."""
 BASE_PROMPT = SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING
+# Study arm AETHER_CORE_WORKING=lean (11 Nov): the same block without the three thoroughness lines. Luna rewrote git
+# history in 86/117 Core sanitize runs (5 passed) against about a third of thin-harness runs, which carry none of them.
+_LEAN_DROPPED = ("- Check your work the way", "- Unexplained output", "- Call finish only when")
+SOLVER_WORKING_LEAN = "\n".join(
+    line for line in SOLVER_WORKING.split("\n") if not line.startswith(_LEAN_DROPPED)
+) + "\n- Call finish only when the task is done."
 # Shared by the self-check paragraph and the verifier: the L1/L2 and N1-smoke wrong finishes all noticed a mismatch
 # between the task's example and the input, and explained it away.
 CONTRADICTION_RULE = """A contradiction is never explained away. If something you observe disagrees with the task \
@@ -349,13 +355,14 @@ def system_prompt(
     verifier: bool = False,
     hygiene: str = "off",
     notes: str = "legacy",
+    working: str = "on",
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
     ) + (CLM_NOTES_DOC if notes == "own" else "")
     if hygiene not in HYGIENE_MODES:
         raise ValueError(f"hygiene must be one of {HYGIENE_MODES}")
-    base = BASE_PROMPT
+    base = BASE_PROMPT if working != "lean" else SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING_LEAN
     if hygiene != "off" and not verifier:  # inserted before the closing "Call finish only when..." line
         head, sep, tail = base.rpartition("\n- Call finish only when")
         base = head + HYGIENE_DOC[hygiene] + sep + tail

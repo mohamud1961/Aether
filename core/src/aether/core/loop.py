@@ -97,6 +97,7 @@ class CoreConfig:
     start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
     task_at_first_observation: bool = False  # the task text once more, beside the first tool result (FD2, 10 Nov)
     stated_use: bool = False  # the task's own literal commands, run once when the work first exists (stated_use)
+    working: str = "on"  # "lean": solver prompt without the three thoroughness lines (study arm)
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
@@ -340,6 +341,7 @@ async def run_agent(
                         self_check=config.self_check,
                         verifier=config.role == VERIFIER_ROLE,
                         hygiene=config.hygiene,
+                        working=getattr(config, "working", "on"),
                         notes=config.clm.notes_voice,
                     )
                     + (runstate.STATE_DOC if s.state else ""),
