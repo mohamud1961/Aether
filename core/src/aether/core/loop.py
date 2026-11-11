@@ -38,7 +38,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import browser, open_issues
+from . import browser, open_issues, stated_use
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -96,6 +96,7 @@ class CoreConfig:
     env_brief: bool = False  # what the container provides (tools, packages, files), measured once, in the task (env_brief)
     start_copy: bool = False  # a copy of the working directory before the first action, named in the task (start_copy)
     task_at_first_observation: bool = False  # the task text once more, beside the first tool result (FD2, 10 Nov)
+    stated_use: bool = False  # the task's own literal commands, run once when the work first exists (stated_use)
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
     # Per-turn output ceiling. Azure admits a request against the token rate limit by prompt + this ceiling, so
@@ -643,6 +644,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         reshow = ""  # task_at_first_observation: the task text once, beside the first tool result (method choice)
         if getattr(s.config, "task_at_first_observation", False) and not getattr(s, "task_reshown", True) and name != "finish":
             s.task_reshown, reshow = True, f"\n\n[The task, as given]\n{s.task}"
+        if getattr(s.config, "stated_use", False) and name != "finish":
+            reshow += await stated_use.after(s, name, args)
         _append(
             s,
             {
