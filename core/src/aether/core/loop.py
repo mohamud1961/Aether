@@ -38,7 +38,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import browser, open_issues, stated_use
+from . import browser, open_issues, stated_use, step0
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -99,6 +99,7 @@ class CoreConfig:
     stated_use: bool = False  # the task's own literal commands, run once when the work first exists (stated_use)
     working: str = "on"  # "lean": solver prompt without the three thoroughness lines (study arm)
     task_appendix_file: str = ""  # study arm: a file whose text follows the task in the first message (XL step-0 list)
+    step0_file: str = ""  # study arm: JSON {question, answer}; the step-0 list as the model's own first turn (step0.py)
     start_note: str = "start"  # "late": start-copy note and state line wait for a changed start file (study arm)
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
@@ -350,11 +351,13 @@ async def run_agent(
                     )
                     + (runstate.STATE_DOC if s.state else ""),
                 },
-                {
-                    "role": "user",
-                    "content": f"{task}{_appendix(config)}\n\n(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
+                *step0.task_messages(
+                    getattr(config, "step0_file", ""),
+                    task,
+                    _appendix(config),
+                    f"(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
                     + "".join(f"\n{x}" for x in (start_note, getattr(s, "forks_note", "")) if x),
-                },
+                ),
             ]
             if config.context == "clm":
                 s.clm = resume or ClmContext(pinned=pinned, settings=config.clm)
