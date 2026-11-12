@@ -38,7 +38,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import browser, open_issues, stated_use, step0
+from . import agenda, browser, open_issues, stated_use, step0
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -100,6 +100,7 @@ class CoreConfig:
     working: str = "on"  # "lean": solver prompt without the three thoroughness lines (study arm)
     task_appendix_file: str = ""  # study arm: a file whose text follows the task in the first message (XL step-0 list)
     step0_file: str = ""  # study arm: JSON {question, answer}; the step-0 list as the model's own first turn (step0.py)
+    agenda: str = "off"  # study arm: "on" = one no-tools call first; the model's own list of open points follows the task (agenda.py)
     start_note: str = "start"  # "late": start-copy note and state line wait for a changed start file (study arm)
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)
@@ -334,6 +335,9 @@ async def run_agent(
                 s.tools = runstate.with_state(s.tools)
             if s.facts and config.facts_pull:
                 start_note = "\n".join(filter(None, (start_note, await s.facts.start())))
+            agenda_text = ""
+            if getattr(config, "agenda", "off") == "on" and config.role == "worker" and resume is None:
+                agenda_text = await agenda.ask(s.provider, task, s.remaining, trace)
             pinned = [
                 {
                     "role": "system",
@@ -354,7 +358,7 @@ async def run_agent(
                 *step0.task_messages(
                     getattr(config, "step0_file", ""),
                     task,
-                    _appendix(config),
+                    _appendix(config) + agenda_text,
                     f"(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
                     + "".join(f"\n{x}" for x in (start_note, getattr(s, "forks_note", "")) if x),
                 ),
