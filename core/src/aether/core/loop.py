@@ -336,8 +336,8 @@ async def run_agent(
             if s.facts and config.facts_pull:
                 start_note = "\n".join(filter(None, (start_note, await s.facts.start())))
             agenda_text = ""
-            if getattr(config, "agenda", "off") == "on" and config.role == "worker" and resume is None:
-                agenda_text = await agenda.ask(s.provider, task, s.remaining, trace)
+            if getattr(config, "agenda", "off") in ("on", "consensus") and config.role == "worker" and resume is None:
+                agenda_text = await agenda.ask(s.provider, task, s.remaining, trace, config.agenda)
             pinned = [
                 {
                     "role": "system",

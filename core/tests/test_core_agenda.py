@@ -94,3 +94,42 @@ def test_flag_on_asks_first_without_tools_then_carries_the_list_after_the_task(t
     assert message.startswith(f"{TASK}\n\n{agenda.HEADER}\n{LIST}\n\n(Working directory:")
     assert [r["text"] for r in rows if r["event"] == "agenda"] == [LIST]
     assert result.sub_usage.get("input") == 400  # the extra call is counted, apart from the solver's own usage
+
+
+# --- consensus mode: five lists, one merge; a missing list means no agenda
+
+
+class _Seq:
+    def __init__(self, contents):
+        self.contents, self.calls = list(contents), []
+
+    async def complete(self, messages, tools, **kwargs):
+        self.calls.append(messages[0]["content"])
+        return SimpleNamespace(content=self.contents[len(self.calls) - 1], usage={"input": 10, "output": 5})
+
+
+def _consensus(contents):
+    provider, events = _Seq(contents), []
+    text = asyncio.run(agenda.ask(provider, "T", lambda: 100.0, lambda name, **row: events.append((name, row)), "consensus"))
+    return text, events, provider
+
+
+def test_consensus_asks_five_times_then_merges_the_models_own_lists():
+    text, events, provider = _consensus(["L1", "L2", "L3", "L4", "L5", "kept -> TEXT: x"])
+    assert len(provider.calls) == agenda.LISTS + 1 and provider.calls[:5] == [agenda.QUESTION + "T"] * 5
+    assert provider.calls[5].startswith(agenda.MERGE) and "List 1:\nL1" in provider.calls[5] and "List 5:\nL5" in provider.calls[5]
+    assert "T" not in provider.calls[5].replace(agenda.MERGE, "").replace("List", "").replace("L", "").replace("TEXT", "")  # no task text
+    assert text == f"\n\n{agenda.HEADER}\nkept -> TEXT: x"
+    row = events[0][1]
+    assert row["mode"] == "consensus" and row["lists"] == ["L1", "L2", "L3", "L4", "L5"] and row["usage"] == {"input": 60, "output": 30}
+
+
+def test_consensus_with_a_missing_list_adds_nothing_and_does_not_merge():
+    text, events, provider = _consensus(["L1", "", "L3", "L4", "L5"])
+    assert text == "" and len(provider.calls) == agenda.LISTS and events[0][1]["empty"] is True
+
+
+def test_the_merge_rule_is_four_of_five_on_substance_and_adds_nothing():
+    m = agenda.MERGE
+    assert "at least four of the five lists agree in substance" in m and "Do not add points" in m
+    assert "keep the check alone" in m and m.endswith("\n\n")
