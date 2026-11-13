@@ -814,7 +814,15 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
     if name == "python":
         return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s", 60)), interrupt=bool(args.get("interrupt"))), False
     if name == "browser" and s.browser:
-        return await s.browser.use(args, s.remaining()), False
+        if args.get("screenshot") and not s.config.images:
+            return "error: browser screenshot requires image support", False
+        output = await s.browser.use(args, s.remaining())
+        if s.browser.image:
+            desc, url = s.browser.image
+            s.pending_images.append(images.message(desc, url))
+            s.images_viewed += 1
+            output += f"\n[{desc}; shown below]"
+        return output, False
     if name == "view_image":
         path = s.files.resolve(args["path"])
         desc, url = await images.load(s.env, path, region=args.get("region"))

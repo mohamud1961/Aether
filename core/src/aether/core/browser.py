@@ -17,12 +17,17 @@ Core owns the sidecar until run cleanup. Its finite lifetime bounds leftovers if
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import posixpath
+import re
 import signal
+import tempfile
 import uuid
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from . import images
 from .clone import HostRun, compose_container, host_run, identify
 from .env import Environment
 
@@ -30,6 +35,8 @@ BROWSER_ENV = "AETHER_CORE_BROWSER"
 BROWSER_IMAGE = "aether-browser:1"
 MAX_OUT = 12_000
 GRACE_S = 120
+SCREENSHOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\.png")
+SCREENSHOT_MAX = 8_000_000
 
 _PUBLISH_INPUT = """import ctypes, errno, os, shutil, sys
 stage, target = sys.argv[1:]
@@ -58,7 +65,8 @@ TOOL = {
             "(`from playwright.sync_api import sync_playwright`) and browser-use (`from browser_use import Browser`) "
             "installed. Files listed in `files` are copied from this container to the same paths there first (a "
             "snapshot; changes there are not copied back). Each call is a fresh Python process; print what you need. "
-            "Returns a bounded stdout/stderr preview and the command status; screenshots are not returned as images."
+            "Returns a bounded stdout/stderr preview and the command status. To see a screenshot, save it under "
+            "/tmp and pass its PNG basename as screenshot."
         ),
         "parameters": {
             "type": "object",
@@ -70,6 +78,7 @@ TOOL = {
                     "description": "Absolute paths (files or directories) in this container to copy over first.",
                 },
                 "wait_s": {"type": "number", "description": "Time limit in seconds (default 120, max 600)."},
+                "screenshot": {"type": "string", "description": "Optional PNG basename written in /tmp by this call."},
             },
             "required": ["code"],
         },
@@ -166,6 +175,26 @@ class Sidecar:
         status = "" if proc.returncode == 0 else f"\n[browser command exit status {proc.returncode}]"
         return _clip(text) + status
 
+    async def screenshot(self, name: str) -> tuple[str, str]:
+        target = f"/tmp/{name}"
+        code, info, _ = await self.host(
+            ["docker", "exec", self.name, "sh", "-c",
+             'test -f "$1" && test ! -L "$1" && stat -c %s -- "$1" && sha256sum < "$1"',
+             "core-browser-image", target], 5,
+        )
+        fields = info.split()
+        if code or len(fields) < 2 or not fields[0].isdigit() or not 0 < int(fields[0]) <= SCREENSHOT_MAX:
+            raise ValueError("browser screenshot missing, nonregular or too large")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "capture.png"
+            status, _, _ = await self.host(["docker", "cp", f"{self.name}:{target}", str(path)], 10)
+            if status or path.is_symlink() or path.stat().st_size != int(fields[0]):
+                raise ValueError("browser screenshot transfer could not be confirmed")
+            data = path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != fields[1]:
+            raise ValueError("browser screenshot changed while being copied")
+        return images.encode(data, f"browser screenshot {name}")
+
 
 Factory = Callable[[Environment], Awaitable[str]]  # the task container's proven id
 
@@ -194,9 +223,14 @@ class BrowserSession:
     def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run) -> None:
         self.factory, self.env, self.host = factory, env, host
         self.sidecar: Sidecar | None = None
+        self.image: tuple[str, str] | None = None
 
     async def use(self, args: dict[str, Any], remaining_s: float) -> str:
+        self.image = None
         try:
+            screenshot = args.get("screenshot")
+            if screenshot is not None and (not SCREENSHOT_NAME.fullmatch(screenshot) or not images.available()):
+                raise ValueError("screenshot requires a PNG basename and image support")
             if self.sidecar is None:
                 self.sidecar = Sidecar(await self.factory(self.env), self.host)
                 await self.sidecar.start(remaining_s)
@@ -205,8 +239,17 @@ class BrowserSession:
                 raise RuntimeError("sidecar startup was unconfirmed")
             for path in args.get("files") or []:
                 await car.copy(path)
+            if screenshot:
+                status, _, _ = await self.host(["docker", "exec", car.name, "rm", "-f", "--", f"/tmp/{screenshot}"], 5)
+                if status:
+                    raise ValueError("prior browser screenshot could not be cleared")
             wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
             out = await car.run(str(args.get("code", "")), wait)
+            if screenshot:
+                try:
+                    self.image = await car.screenshot(screenshot)
+                except (OSError, RuntimeError, ValueError) as error:
+                    return f"{out}\n[browser screenshot unavailable: {error}]"
         except Exception as exc:
             return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
         return out

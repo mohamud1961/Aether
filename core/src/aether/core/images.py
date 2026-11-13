@@ -60,8 +60,6 @@ def available() -> bool:
 async def load(env: Environment, path: str, region: list[int] | None = None) -> tuple[str, str]:
     """Return (description, data URL). Raises with a plain reason the model can act on. ``region``: crop to
     [left, top, right, bottom] of the source pixels before any downscale (image_region)."""
-    from PIL import Image
-
     # Size is checked inside the sandbox, before anything is copied to the host.
     res = await run(
         env,
@@ -84,6 +82,12 @@ async def load(env: Environment, path: str, region: list[int] | None = None) -> 
         raise ValueError(
             f"{path} transfer differs from observed source bytes; image was not shown"
         )
+    return encode(data, path, region)
+
+
+def encode(data: bytes, path: str, region: list[int] | None = None) -> tuple[str, str]:
+    from PIL import Image
+
     try:
         img = Image.open(io.BytesIO(data))  # lazy: reads the header only
         width, height = img.size
