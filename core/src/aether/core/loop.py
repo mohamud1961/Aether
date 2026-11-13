@@ -31,6 +31,7 @@ from .env import (
     run,
 )
 from .files import Files
+from .facts_workspace import WorkspaceBriefText
 from .loop_records import RunResult, Trace  # re-exported for existing callers
 from .oversight import Oversight, ReviewPlan, final_feedback, progress_feedback
 from .provider import ChatProvider, ProviderError, parse_arguments
@@ -38,7 +39,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import agenda, browser, open_issues, stated_use, step0
+from . import agenda, browser, open_issues, stated_use, step0, workspace_brief
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -116,6 +117,7 @@ class CoreConfig:
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
     stable_facts: bool = False
     terminal_events: bool = False
+    workspace_brief: bool = False
 
     def __post_init__(self) -> None:
         if self.facts_pull and not self.managed_facts:
@@ -376,6 +378,10 @@ async def run_agent(
                 s.clm = resume or ClmContext(pinned=pinned, settings=config.clm)
             else:
                 s.messages = list(resume) if resume is not None else list(pinned)
+            if config.workspace_brief and config.role == "worker" and resume is None:
+                brief = await workspace_brief.observe(s.env, workdir, trace)
+                if brief:
+                    _append(s, {"role": "assistant", "content": WorkspaceBriefText(brief)})
             if s.facts and config.facts_pull:
                 s.facts_pinned_index = facts_pull.attach(s.clm, s.messages, resume is not None, s.facts)
             elif s.facts_timeline:
@@ -910,7 +916,7 @@ async def _fit_context(s: _Session) -> bool:
         trimmed = 0
         while clm.over_limit():
             starts = [i for i, m in enumerate(clm.editable) if i > 0 and m.get("role") == "assistant"
-                      and not isinstance(m.get("content"), facts.ManagedFactsText)]
+                      and not isinstance(m.get("content"), (facts.ManagedFactsText, WorkspaceBriefText))]
             if len(starts) < 2:
                 break
             del clm.editable[1 : starts[1]]

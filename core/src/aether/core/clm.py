@@ -38,7 +38,7 @@ from typing import Any
 
 from . import images
 from .clm_settings import HISTORY_PATH, MIRROR_PATH, NOTES_VOICES, REPLAY_MODES, ClmSettings  # noqa: F401
-from .facts_workspace import ManagedFactsText
+from .facts_workspace import ManagedFactsText, WorkspaceBriefText
 
 NOTES_HEADER = (
     "[your notes] You wrote this when you condensed your context. It is your own record, not the task: the task "
@@ -151,7 +151,7 @@ class ClmContext:
                 message
                 for message in reversed(self.editable)
                 if message.get("role") == "assistant"
-                and not isinstance(message.get("content"), ManagedFactsText)
+                and not isinstance(message.get("content"), (ManagedFactsText, WorkspaceBriefText))
             ),
             None,
         )
@@ -482,7 +482,8 @@ class ClmContext:
         starting at an assistant turn (so tool results stay with their calls). At least one turn is
         always summarised; 0 means there is nothing older to summarise."""
         starts = [
-            i for i, m in enumerate(self.editable) if m.get("role") == "assistant"
+            i for i, m in enumerate(self.editable)
+            if m.get("role") == "assistant" and not isinstance(m.get("content"), (ManagedFactsText, WorkspaceBriefText))
         ]
         keep = len(self.editable)
         for i in reversed(starts):

@@ -16,6 +16,10 @@ class ManagedFactsText(str):
         return obj
 
 
+class WorkspaceBriefText(str):
+    """A Core-owned initial observation carried outside the task instruction."""
+
+
 def continuation_state(resume: Any) -> Any:
     """Read private state only from a Core-owned in-process context note."""
     pinned = getattr(resume, "pinned", None)
