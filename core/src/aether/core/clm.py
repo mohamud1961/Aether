@@ -490,6 +490,13 @@ class ClmContext:
             if self.window_tokens(self.editable[i:]) > self.settings.keep_recent_tokens:
                 break
             keep = i
+        if starts and keep == len(self.editable):
+            # The recent-window target is soft. Keep the newest decision and
+            # its results whole when older turns can make room for them.
+            newest = starts[-1]
+            retained = self.window_tokens(self.pinned + self.editable[newest:]) + TOOLS_OVERHEAD_TOKENS
+            if newest > 0 and retained + self.settings.reserve_tokens <= self.settings.limit:
+                return newest
         if keep <= 0:
             later = [i for i in starts if i > 0]
             keep = later[0] if later else len(self.editable)
