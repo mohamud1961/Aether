@@ -67,6 +67,7 @@ class Terminals(TerminalLifecycle):
         self.cleanup_uncertainties: list[str] = []
         self.cleanup_receipt: dict = {}
         self._sessions: dict[str, Session] = {}
+        self._name_locks: dict[str, asyncio.Lock] = {}
         self._generations: dict[str, int] = {}
         self._launching: set[str] = (
             set()
@@ -78,6 +79,15 @@ class Terminals(TerminalLifecycle):
     @property
     def names(self) -> list[str]:
         return sorted(self._sessions)
+
+    def pending_names(self) -> list[str]:
+        return sorted(name for name, session in self._sessions.items() if session.pending)
+
+    async def wait_events(self, names: list[str], *, mode: str, wait_s: float) -> dict:
+        """Observe an explicitly selected set of existing commands."""
+        from .terminal_wait import wait
+
+        return await wait(self, names, mode=mode, wait_s=wait_s)
 
     def observed_session(self, name: str) -> dict | None:
         """Return only session facts established by its last terminal observation."""
@@ -157,6 +167,8 @@ class Terminals(TerminalLifecycle):
         size = int(size_text.strip())
         cleaned = clean(rest)
         mark = None if seq is None else _MARK.search(cleaned)
+        if mark is not None and int(mark.group(1)) != seq:
+            mark = None
         if mark is not None:
             suffix = mark.string[mark.end():]
             session.pending_resolution, session.pending_env_names = facts_replay.parse_terminal_receipt(self._command_names, suffix, self._capture_state)
@@ -203,6 +215,15 @@ class Terminals(TerminalLifecycle):
 
 
     async def use(
+        self, *, name: str = "main", input: str = "", mode: str = "command",
+        wait_s: float = 30.0, interrupt: bool = False,
+    ) -> str:
+        if not _NAME.fullmatch(name):
+            raise ValueError("terminal name must be 1-32 chars of letters, digits, _ or -")
+        async with self._name_locks.setdefault(name, asyncio.Lock()):
+            return await self._use(name=name, input=input, mode=mode, wait_s=wait_s, interrupt=interrupt)
+
+    async def _use(
         self,
         *,
         name: str = "main",
@@ -211,10 +232,6 @@ class Terminals(TerminalLifecycle):
         wait_s: float = 30.0,
         interrupt: bool = False,
     ) -> str:
-        if not _NAME.fullmatch(name):
-            raise ValueError(
-                "terminal name must be 1-32 chars of letters, digits, _ or -"
-            )
         if mode not in ("command", "keys"):
             raise ValueError("mode must be 'command' or 'keys'")
         session = self._sessions.get(name)
@@ -458,6 +475,7 @@ class Terminals(TerminalLifecycle):
             delay = min(1.0, delay * 1.5)
         if mark is not None:
             session.pending = 0
+            session.exit_receipt = (int(mark.group(1)), int(mark.group(2)))
             facts_replay.record_terminal_receipt(session, mark, self._capture_state)
             session.command_resolution = session.pending_resolution
             session.resolution_receipt_seq = int(mark.group(1)) if session.command_resolution is not None else None

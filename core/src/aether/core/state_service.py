@@ -22,6 +22,7 @@ never shown that was not measured: an unmeasured scan says so.
 
 from __future__ import annotations
 
+import asyncio
 import posixpath
 import re
 import shlex
@@ -254,19 +255,24 @@ class StateService:
             self._note(step, tool, "verify", lines, seconds, "")
             return ""
         command = str(args.get("input") or args.get("code") or "")
-        changed, new = "", None
+        mode = "verify" if step % VERIFY_EVERY == 0 else "step"
+        new = None
         if (tool in ("terminal", "python") and _FULL_REFRESH.search(command)) or step - self.last_refresh >= REFRESH_EVERY:
             self.last_refresh = step
             new = await self._env()
-        elif tool in ("terminal", "python"):
-            new = await self._ports_only()
+            lines, seconds = await self._step(mode)
+        elif tool in ("terminal", "terminal_wait", "python"):
+            # Neither probe depends on the other's result. Await both before
+            # publishing the state for the next model decision.
+            new, (lines, seconds) = await asyncio.gather(self._ports_only(), self._step(mode))
+        else:
+            lines, seconds = await self._step(mode)
+        changed = ""
         if new is not None:
             changed = env_change(self.env_text, new)
             if changed:
                 self.env_text = new
                 self.block, self.context_changed = self._render(step), True
-        mode = "verify" if step % VERIFY_EVERY == 0 else "step"
-        lines, seconds = await self._step(mode)
         self._note(step, tool, mode, lines, seconds, changed)
         return render_line(lines) + changed
 

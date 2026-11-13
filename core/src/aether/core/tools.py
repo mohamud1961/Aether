@@ -154,6 +154,27 @@ TERMINAL = {
         },
     },
 }
+TERMINAL_WAIT = {
+    "type": "function",
+    "function": {
+        "name": "terminal_wait",
+        "description": (
+            "Wait for completion of outstanding commands in named terminals. "
+            "Use when the next action needs an exit or output. Core waits without model polling. "
+            "mode=any returns the first available result; mode=all waits for all selected names. "
+            "Other terminals keep running. A timeout lists pending commands."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "names": {"type": "array", "items": {"type": "string"}, "description": "1–8 terminal names."},
+                "mode": {"type": "string", "enum": ["any", "all"]},
+                "wait_s": {"type": "number", "description": "0–300 seconds. Default 300."},
+            },
+            "required": ["names"],
+        },
+    },
+}
 PYTHON = {
     "type": "function",
     "function": {
@@ -407,9 +428,11 @@ def tools(
     images: bool = False,
     history: bool = False,
     verdict: bool = False,
+    terminal_events: bool = False,
 ) -> list[dict[str, Any]]:
     return [
         TERMINAL,
+        *([TERMINAL_WAIT] if terminal_events else []),
         *([PYTHON] if python else []),
         READ_FILE,
         WRITE_FILE,

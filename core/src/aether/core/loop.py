@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
-from . import compaction, diffcheck, facts, facts_probe, facts_pull, finish_report, image_region, images, intent, runstate
+from . import compaction, diffcheck, facts, facts_probe, facts_projection, facts_pull, finish_report, image_region, images, intent, runstate
 from . import receipt as finish_receipt
 from .clm import ClmContext, ClmSettings
 from .clone import Clone
@@ -114,6 +114,8 @@ class CoreConfig:
     card_challenge: str = ""  # "challenge": read-only checks, raw output (card, CH1); "attack": clone checks (attack, CH2); "observe": recorded only; "forks": start observations (forks)
     open_issues: bool = False  # finish takes the model's open issues; listing any with time left returns it once
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
+    stable_facts: bool = False
+    terminal_events: bool = False
 
     def __post_init__(self) -> None:
         if self.facts_pull and not self.managed_facts:
@@ -175,6 +177,9 @@ class _Session:
                                      python_state=lambda: self.repl.observed_state(), pull=config.facts_pull, v2=config.facts_v2,
                                      control_dir=config.control_dir) if config.managed_facts and config.role == "worker" else None)
         self.facts_pinned_index = None
+        source = "state-v2" if config.facts_v2 else "managed-facts"
+        self.facts_timeline = (facts_projection.FactsTimeline(source)
+                               if self.facts and config.stable_facts and not config.facts_pull else None)
         self.files = Files(self.env, workdir)
         self.repl = Repl(
             self.env,
@@ -188,6 +193,7 @@ class _Session:
         )
         self.actions: list[str] = []
         self.output_cut = False
+        self.finish_wait_returned = False
         self.task_reshown = False  # task_at_first_observation fires once
         self.clm: ClmContext | None = None
         # Optional and ephemeral: index the first decision after a new CLM
@@ -323,6 +329,7 @@ async def run_agent(
                 images=see,
                 history=config.context == "clm",
                 verdict=config.role == VERIFIER_ROLE,
+                terminal_events=config.terminal_events and config.role == "worker",
             )
             if config.image_region and see:
                 s.tools = image_region.with_region(s.tools)
@@ -353,7 +360,8 @@ async def run_agent(
                         working=getattr(config, "working", "on"),
                         notes=config.clm.notes_voice,
                     )
-                    + (runstate.STATE_DOC if s.state else ""),
+                    + (runstate.STATE_DOC if s.state else "")
+                    + (facts_projection.POLICY if s.facts_timeline else ""),
                 },
                 *step0.task_messages(
                     getattr(config, "step0_file", ""),
@@ -369,6 +377,8 @@ async def run_agent(
                 s.messages = list(resume) if resume is not None else list(pinned)
             if s.facts and config.facts_pull:
                 s.facts_pinned_index = facts_pull.attach(s.clm, s.messages, resume is not None, s.facts)
+            elif s.facts_timeline:
+                _publish_facts(s, await s.facts.start(), 0)
             elif s.facts:
                 text = await s.facts.start()
                 note = {"role": "user", "content": facts.ManagedFactsText(text, s.facts.initial_workspace)}
@@ -581,6 +591,22 @@ def _append(s: _Session, *messages: dict[str, Any]) -> None:
         s.messages.extend(messages)
 
 
+def _publish_facts(s: _Session, body: str, step: int) -> None:
+    timeline = s.facts_timeline
+    note = timeline.observe(body, step, s.facts.initial_workspace)
+    if note is not None:
+        _append(s, note)
+        s.trace("facts_projection", generation=timeline.generation, revision=timeline.revision,
+                source=timeline.source, step=step)
+
+
+def _restore_facts(s: _Session) -> None:
+    if s.facts_timeline and s.clm:
+        latest = s.facts_timeline.latest
+        if latest is not None and latest not in s.clm.editable:
+            _append(s, latest)
+
+
 async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     """Execute one turn's tool calls. Returns True when the run finished."""
     mirror = None
@@ -596,6 +622,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             s.trace("context_mirror_error", error=mirror_error)
     failed = bool(mirror_error)
     finished = False
+    fact_update = False
     buffered: dict[int, tuple[dict, str, bool, float]] = {}
     for index, call in enumerate(calls):
         name = call["function"]["name"]
@@ -637,6 +664,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                     s.trace("start_note_shown", step=s.result.steps)
             if update:
                 out = f"{out}\n{update}"
+            fact_update |= bool(s.facts.context_changed)
             if (update or s.facts.context_changed) and s.facts_pinned_index is not None:
                 pinned = s.clm.pinned if s.clm else s.messages
                 text = facts.ManagedFactsText(str(pinned[s.facts_pinned_index]["content"]) if s.config.facts_pull else s.facts.context_summary(), s.facts.initial_workspace)
@@ -677,6 +705,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             return True
     if failed:
         await _require_environment(s)
+    if fact_update and s.facts_timeline:
+        _publish_facts(s, s.facts.context_summary(), s.result.steps)
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
         _append(s, *s.pending_images)
         s.pending_images = []
@@ -765,6 +795,12 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
             wait_s=float(args.get("wait_s", 30)),
             interrupt=bool(args.get("interrupt")),
         ), False
+    if name == "terminal_wait":
+        outcome = await s.terminals.wait_events(
+            args["names"], mode=args.get("mode", "any"), wait_s=args.get("wait_s", 300),
+        )
+        s.trace("terminal_completion_frontier", **outcome)
+        return json.dumps(outcome, ensure_ascii=False), False
     if name == "python":
         return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s", 60)), interrupt=bool(args.get("interrupt"))), False
     if name == "browser" and s.config.browser:
@@ -808,6 +844,7 @@ async def _read_back(s: _Session, upto: int, digest: str) -> None:
     kept = await _keep_history(s)
     accepted, receipt = s.clm.apply_edit(text, upto)
     _attach(s.clm.editable, receipt + (kept if accepted else ""))
+    _restore_facts(s)
     s.trace(
         "context_edit",
         accepted=accepted,
@@ -837,6 +874,7 @@ async def _fit_context(s: _Session) -> bool:
         if clm.can_roll_back():
             note = clm.roll_back(await _keep_history(s))
             s.trace("context_rollback", tokens=clm.tokens(), note=note)
+            _restore_facts(s)
             continue
         keep = clm.checkpoint_split()
         try:
@@ -867,7 +905,8 @@ async def _fit_context(s: _Session) -> bool:
         # Still over: drop the oldest kept turn (with its tool results) until it fits or only the newest turn is left.
         trimmed = 0
         while clm.over_limit():
-            starts = [i for i, m in enumerate(clm.editable) if i > 0 and m.get("role") == "assistant"]
+            starts = [i for i, m in enumerate(clm.editable) if i > 0 and m.get("role") == "assistant"
+                      and not isinstance(m.get("content"), facts.ManagedFactsText)]
             if len(starts) < 2:
                 break
             del clm.editable[1 : starts[1]]
@@ -890,6 +929,7 @@ async def _fit_context(s: _Session) -> bool:
             note = await s.record.after_checkpoint()
             if note:
                 _attach(clm.editable, note)
+        _restore_facts(s)
         if clm.over_limit():
             s.result.status, s.result.error = (
                 "context_error",
@@ -944,6 +984,14 @@ def _with_state(s: _Session, out: str) -> str:
 
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    if s.config.terminal_events and s.config.role == "worker":
+        pending = s.terminals.pending_names()
+        s.result.extras["finish_terminal_frontier"] = pending
+        if pending and s.remaining() > 15 and not s.finish_wait_returned:
+            s.finish_wait_returned = True
+            observed = await s.terminals.wait_events(pending[:8], mode="all", wait_s=min(300, s.remaining() - 10))
+            s.trace("finish_pending_terminal_observation", **observed)
+            return "Foreground terminal state at finish. Assess these results before finishing.\n" + json.dumps(observed), False
     s.result.extras["finish_args"] = args
     if s.config.open_issues and not s.result.extras.get("open_issues_held"):
         text = open_issues.hold(args, s.remaining(), s.timeout_s)

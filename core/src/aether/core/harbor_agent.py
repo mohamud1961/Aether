@@ -221,6 +221,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
             ),
         ),
         parallel_reads=_parallel_reads(environ),
+        terminal_events=_choice(environ, "AETHER_CORE_TERMINAL_EVENTS", REPL_MODES, "off") == "on",
+        stable_facts=_choice(environ, "AETHER_CORE_STABLE_FACTS", REPL_MODES, "off") == "on",
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
         intent=_choice(environ, INTENT_ENV, REPL_MODES, "off") == "on",

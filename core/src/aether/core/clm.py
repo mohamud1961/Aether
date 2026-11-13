@@ -38,6 +38,7 @@ from typing import Any
 
 from . import images
 from .clm_settings import HISTORY_PATH, MIRROR_PATH, NOTES_VOICES, REPLAY_MODES, ClmSettings  # noqa: F401
+from .facts_workspace import ManagedFactsText
 
 NOTES_HEADER = (
     "[your notes] You wrote this when you condensed your context. It is your own record, not the task: the task "
@@ -143,12 +144,24 @@ class ClmContext:
             out.append(msg)
         return images.limit(out)
 
+    def _last_model_turn(self) -> dict[str, Any] | None:
+        # Core publishes versioned facts in an assistant carrier after tool results.
+        return next(
+            (
+                message
+                for message in reversed(self.editable)
+                if message.get("role") == "assistant"
+                and not isinstance(message.get("content"), ManagedFactsText)
+            ),
+            None,
+        )
+
     def _replayed(self) -> list[dict[str, Any]]:
         """The assistant messages whose reasoning the next request sends back."""
         turns = [m for m in self.editable if m.get("role") == "assistant" and m.get("reasoning_content")]
         if self.settings.replay_reasoning in ("all", "segment"):
             return turns
-        last = next((m for m in reversed(self.editable) if m.get("role") == "assistant"), None)
+        last = self._last_model_turn()
         return [last] if last is not None and last.get("reasoning_content") else []
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
@@ -183,7 +196,7 @@ class ClmContext:
 
     def _newest_reasoning_tokens(self) -> int:
         """Tokens of the newest assistant turn's replayed reasoning (``segment`` leaves only this out of the budget)."""
-        last = next((m for m in reversed(self.editable) if m.get("role") == "assistant"), None)
+        last = self._last_model_turn()
         if last is None or not last.get("reasoning_content"):
             return 0
         t = self._counted(last)
