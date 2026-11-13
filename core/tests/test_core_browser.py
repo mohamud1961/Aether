@@ -36,7 +36,7 @@ def test_the_sidecar_joins_the_proven_container_network_and_expires(monkeypatch)
     start = calls[0]
     assert start[:3] == ["docker", "run", "-d"] and f"container:{'c' * 64}" in start
     assert start[-1] == str(500 + browser.GRACE_S) and "aether.browser=1" in start
-    assert "not an absolute path" in out and "ran 'print(1)' within 120" in out
+    assert "expected an absolute path" in out and "ran 'print(1)'" not in out
 
 
 def test_a_sidecar_that_cannot_start_is_a_plain_tool_error():
