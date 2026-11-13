@@ -55,12 +55,13 @@ _CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the comma
 class Terminals(TerminalLifecycle):
     def __init__(
         self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR,
-        command_names: tuple[str, ...] = (), capture_state: bool = False,
+        command_names: tuple[str, ...] = (), capture_state: bool = False, preserve_existing: bool = False,
     ) -> None:
         facts_probe.terminal_scope(command_names)
         self._env = env
         self._command_names = command_names
         self._capture_state = capture_state
+        self._preserve_existing = preserve_existing
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds

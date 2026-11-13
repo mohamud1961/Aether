@@ -113,7 +113,8 @@ class TerminalLifecycle:
                 f"at most {MAX_TERMINALS} terminals; reuse one of {self.names}"
             )
         generation = self._generations.get(name, 0)
-        self._generations[name] = generation + 1
+        if not self._preserve_existing:
+            self._generations[name] = generation + 1
         # A dot is outside the accepted name alphabet, so generations cannot
         # collide with another model-chosen name (main-1 versus restarted main).
         suffix = name if generation == 0 else f"{name}.{generation}"
@@ -143,14 +144,30 @@ class TerminalLifecycle:
                 "",
             ]
         )
+        # A controller can die while its shell is still running. Claim a new
+        # directory atomically; an existing one can hold undelivered effects.
+        prepare = (
+            f"mkdir -p {q(self._control_dir + '/term')} || exit 2; "
+            f"mkdir {q(root)} 2>/dev/null || {{ "
+            f"if [ -e {q(root)} ] || [ -L {q(root)} ]; then exit 9; fi; exit 2; }}"
+            if self._preserve_existing else f"rm -rf {q(root)} && mkdir -p {q(root)}"
+        )
         res = await run(
             self._env,
-            f"rm -rf {q(root)} && mkdir -p {q(root)} && mkfifo {q(root + '/in')} && : > {q(root + '/out.log')}",
+            f"{prepare} && "
+            f"mkfifo {q(root + '/in')} && : > {q(root + '/out.log')}",
         )
+        if res.code == 9:
+            raise RuntimeError(
+                f"terminal {name} has an existing control directory and its ownership is unverified. "
+                f"Inspect its retained log at {root}/out.log before deciding whether to retry."
+            )
         if res.code != 0:
             raise RuntimeError(
                 f"terminal setup failed: {(res.stderr or res.stdout).strip()[:300]}"
             )
+        if self._preserve_existing:
+            self._generations[name] = generation + 1
         await put_bytes(self._env, wrapper.encode(), f"{root}/run.sh")
         # `setsid -f` forks without the shell's `&`: a background job of a non-interactive shell starts with
         # SIGINT ignored, that disposition is inherited by every command in the terminal, and Ctrl-C did

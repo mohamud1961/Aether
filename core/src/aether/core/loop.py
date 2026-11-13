@@ -175,7 +175,8 @@ class _Session:
         self.browser = browser.BrowserSession(config.browser, self.env) if config.browser else None
         self.terminals = Terminals(
             self.env, workdir, self.remaining, control_dir=config.control_dir,
-            command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (), capture_state=config.facts_pull,
+            command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (),
+            capture_state=config.facts_pull, preserve_existing=config.terminal_events,
         )
         self.facts = (facts_pull.make(self.env, workdir, self.remaining, trace, terminal_state=self.terminals.observed_session,
                                      python_state=lambda: self.repl.observed_state(), pull=config.facts_pull, v2=config.facts_v2,
