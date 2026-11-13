@@ -8,7 +8,7 @@ from aether.core import browser
 from aether.core.loop import CoreConfig
 
 
-class Env:  # a stand-in environment object (weak-referenceable key)
+class Env:
     pass
 
 
@@ -31,7 +31,8 @@ def test_the_sidecar_joins_the_proven_container_network_and_expires(monkeypatch)
         return f"ran {code!r} within {wait_s:.0f}"
 
     monkeypatch.setattr(browser.Sidecar, "run", run)
-    out = asyncio.run(browser.use(factory, Env(), {"code": "print(1)", "files": ["rel/path"]}, 500.0, host=host))
+    session = browser.BrowserSession(factory, Env(), host=host)
+    out = asyncio.run(session.use({"code": "print(1)", "files": ["rel/path"]}, 500.0))
     start = calls[0]
     assert start[:3] == ["docker", "run", "-d"] and f"container:{'c' * 64}" in start
     assert start[-1] == str(500 + browser.GRACE_S) and "aether.browser=1" in start
@@ -45,7 +46,8 @@ def test_a_sidecar_that_cannot_start_is_a_plain_tool_error():
     async def factory(env):
         return "d" * 64
 
-    out = asyncio.run(browser.use(factory, Env(), {"code": "x"}, 300.0, host=host))
+    session = browser.BrowserSession(factory, Env(), host=host)
+    out = asyncio.run(session.use({"code": "x"}, 300.0))
     assert out.startswith("error: browser unavailable") and "Unable to find image" in out
 
 

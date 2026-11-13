@@ -10,17 +10,17 @@ namespace, so ``http://localhost:<port>`` reaches the task's own servers. Files 
 task container into the sidecar at the same paths before the code runs (a snapshot; nothing is copied back, nothing
 is installed into or written to the task container). Output is returned raw, head and tail kept when long.
 
-The task container is proven from the host (clone.identify with the compose service's id) before anything runs. The
-sidecar is started on first use, labelled, and sleeps only until the run's deadline, so it ends by itself even if
-the run is killed. A failure to start is reported to the model as a tool error, never retried silently.
+The task container is proven from the host (clone.identify with the compose service's id) before anything runs.
+Core owns the sidecar until run cleanup. Its finite lifetime bounds leftovers if Core itself is killed.
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import posixpath
+import signal
 import uuid
-import weakref
 from typing import Any, Awaitable, Callable
 
 from .clone import HostRun, compose_container, host_run, identify
@@ -30,6 +30,23 @@ BROWSER_ENV = "AETHER_CORE_BROWSER"
 BROWSER_IMAGE = "aether-browser:1"
 MAX_OUT = 12_000
 GRACE_S = 120
+
+_PUBLISH_INPUT = """import ctypes, errno, os, shutil, sys
+stage, target = sys.argv[1:]
+staged = os.path.join(stage, 'incoming', os.path.basename(target))
+try:
+    os.replace(staged, target)
+except OSError as error:
+    if error.errno not in (errno.ENOTEMPTY, errno.EEXIST, errno.EISDIR, errno.ENOTDIR):
+        raise
+    # The sidecar is Linux. Exchange a complete staged entry with the old entry.
+    at_fdcwd, rename_exchange = -100, 2
+    exchange = ctypes.CDLL(None, use_errno=True).renameat2
+    if exchange(at_fdcwd, os.fsencode(staged), at_fdcwd, os.fsencode(target), rename_exchange) != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), target)
+shutil.rmtree(stage)
+"""
 
 TOOL = {
     "type": "function",
@@ -41,7 +58,7 @@ TOOL = {
             "(`from playwright.sync_api import sync_playwright`) and browser-use (`from browser_use import Browser`) "
             "installed. Files listed in `files` are copied from this container to the same paths there first (a "
             "snapshot; changes there are not copied back). Each call is a fresh Python process; print what you need. "
-            "Returns stdout and stderr."
+            "Returns a bounded stdout/stderr preview and the command status; screenshots are not returned as images."
         ),
         "parameters": {
             "type": "object",
@@ -79,17 +96,58 @@ class Sidecar:
             raise RuntimeError(f"browser could not start: {err.strip()[:300]}")
         self.started = True
 
-    async def copy(self, path: str) -> str:
-        """Copy one path from the task container to the same path in the sidecar ('' or an error line)."""
+    async def close(self) -> None:
+        _, _, removal_error = await self.host(["docker", "rm", "-f", self.name], 6)
+        code, _, inspect_error = await self.host(
+            ["docker", "container", "inspect", self.name], 4
+        )
+        if code != 1 or "no such container" not in inspect_error.lower():
+            raise RuntimeError(f"browser sidecar removal unverified: {removal_error or inspect_error}")
+
+    async def copy(self, path: str) -> None:
+        """Stage an exact snapshot and publish it before running dependent code."""
         if not posixpath.isabs(path):
-            return f"[files] {path}: not an absolute path, skipped"
-        parent = posixpath.dirname(path.rstrip("/")) or "/"
-        await self.host(["docker", "exec", self.name, "mkdir", "-p", parent], 60)
-        proc = await asyncio.create_subprocess_shell(
-            f"docker cp {self.cid}:{_q(path)} - | docker cp - {self.name}:{_q(parent)}",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        _, err = await asyncio.wait_for(proc.communicate(), 300)
-        return "" if proc.returncode == 0 else f"[files] {path}: {err.decode(errors='replace').strip()[:200]}"
+            raise ValueError(f"[files] {path}: expected an absolute path")
+        path = posixpath.normpath(path)
+        if not posixpath.basename(path):
+            raise ValueError("[files] copy a file or directory below the filesystem root")
+        parent = posixpath.dirname(path)
+        stage = posixpath.join(parent, f".aether-browser-{uuid.uuid4().hex}")
+        code, _, err = await self.host(
+            ["docker", "exec", self.name, "sh", "-c",
+             'mkdir -p -- "$1" && mkdir -m 700 -- "$2" && mkdir -- "$2/incoming"',
+             "core-browser-copy", parent, stage], 60,
+        )
+        if code != 0:
+            raise OSError(f"[files] {path}: sidecar destination failed: {err.strip()[:200]}")
+        published = False
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "/bin/bash", "-o", "pipefail", "-c", 'docker cp "$1" - | docker cp - "$2"',
+                "core-browser-copy", f"{self.cid}:{path}", f"{self.name}:{stage}/incoming",
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
+            )
+            try:
+                _, detail = await asyncio.wait_for(proc.communicate(), 300)
+            except (TimeoutError, asyncio.CancelledError):
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                await proc.wait()
+                raise
+            if proc.returncode != 0:
+                raise OSError(f"[files] {path}: {detail.decode(errors='replace').strip()[:200]}")
+            code, _, err = await self.host(
+                ["docker", "exec", self.name, "python3", "-c", _PUBLISH_INPUT, stage, path], 60,
+            )
+            if code != 0:
+                raise OSError(f"[files] {path}: snapshot publication failed: {err.strip()[-250:]}")
+            published = True
+        finally:
+            if not published:
+                await self.host(["docker", "exec", self.name, "rm", "-rf", "--", stage], 10)
 
     async def run(self, code: str, wait_s: float) -> str:
         proc = await asyncio.create_subprocess_exec(
@@ -97,16 +155,19 @@ class Sidecar:
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         try:
             out, _ = await asyncio.wait_for(proc.communicate(code.encode()), wait_s + 30)
-        except asyncio.TimeoutError:
-            proc.kill()
-            return f"[browser] no result within {int(wait_s)} s"
+        except (TimeoutError, asyncio.CancelledError) as exc:
+            if proc.returncode is None:
+                proc.kill()
+            await proc.wait()
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            return "[browser] host wait expired before a result arrived. Remote command completion unconfirmed."
         text = out.decode(errors="replace")
-        status = "" if proc.returncode == 0 else f"\n[exit {proc.returncode}{' (time limit)' if proc.returncode == 124 else ''}]"
+        status = "" if proc.returncode == 0 else f"\n[browser command exit status {proc.returncode}]"
         return _clip(text) + status
 
 
 Factory = Callable[[Environment], Awaitable[str]]  # the task container's proven id
-_SIDECARS: "weakref.WeakKeyDictionary[Any, Sidecar]" = weakref.WeakKeyDictionary()
 
 
 def configure(config: Any, environment: Any, environ: Any) -> Any:
@@ -129,24 +190,30 @@ def compose_factory(project: str) -> Factory:
     return find
 
 
-async def use(factory: Factory, env: Environment, args: dict[str, Any], remaining_s: float,
-              host: HostRun = host_run) -> str:
-    try:
-        car = _SIDECARS.get(env)
-        if car is None:
-            car = Sidecar(await factory(env), host)
-            await car.start(remaining_s)
-            _SIDECARS[env] = car
-        notes = [n for n in [await car.copy(str(p)) for p in (args.get("files") or [])] if n]
-        wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
-        out = await car.run(str(args.get("code", "")), wait)
-    except Exception as exc:  # the substrate failed: say so plainly
-        return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
-    return "\n".join([*notes, out]) if notes else out
+class BrowserSession:
+    def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run) -> None:
+        self.factory, self.env, self.host = factory, env, host
+        self.sidecar: Sidecar | None = None
 
+    async def use(self, args: dict[str, Any], remaining_s: float) -> str:
+        try:
+            if self.sidecar is None:
+                self.sidecar = Sidecar(await self.factory(self.env), self.host)
+                await self.sidecar.start(remaining_s)
+            car = self.sidecar
+            if not car.started:
+                raise RuntimeError("sidecar startup was unconfirmed")
+            for path in args.get("files") or []:
+                await car.copy(path)
+            wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
+            out = await car.run(str(args.get("code", "")), wait)
+        except Exception as exc:
+            return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
+        return out
 
-def _q(path: str) -> str:
-    return "'" + path.replace("'", "'\\''") + "'"
+    async def close(self) -> None:
+        if self.sidecar is not None:
+            await self.sidecar.close()
 
 
 def _clip(text: str) -> str:

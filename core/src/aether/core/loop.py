@@ -169,6 +169,7 @@ class _Session:
         self.deadline = self.started + timeout_s - STOP_MARGIN_S
         self.result = RunResult("timeout")
         self.env = DeadlineEnvironment(env, self.remaining)
+        self.browser = browser.BrowserSession(config.browser, self.env) if config.browser else None
         self.terminals = Terminals(
             self.env, workdir, self.remaining, control_dir=config.control_dir,
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (), capture_state=config.facts_pull,
@@ -430,7 +431,10 @@ async def run_agent(
             except TimeoutError:
                 cleanup_errors.append(f"{name}: still running when the run ended")
         keep = s.config.end_processes == "keep"
-        for name, closer in (("terminals", lambda: s.terminals.close(keep=keep)), ("repl", lambda: s.repl.close(keep=keep))):
+        closers = [("terminals", lambda: s.terminals.close(keep=keep)), ("repl", lambda: s.repl.close(keep=keep))]
+        if s.browser:
+            closers.append(("browser", s.browser.close))
+        for name, closer in closers:
             try:
                 await closer()
             except Exception as exc:
@@ -803,8 +807,8 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         return json.dumps(outcome, ensure_ascii=False), False
     if name == "python":
         return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s", 60)), interrupt=bool(args.get("interrupt"))), False
-    if name == "browser" and s.config.browser:
-        return await browser.use(s.config.browser, s.env, args, s.remaining()), False
+    if name == "browser" and s.browser:
+        return await s.browser.use(args, s.remaining()), False
     if name == "view_image":
         path = s.files.resolve(args["path"])
         desc, url = await images.load(s.env, path, region=args.get("region"))
