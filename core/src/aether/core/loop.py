@@ -91,6 +91,7 @@ class CoreConfig:
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     browser: Any = None  # browser.Factory: a real browser in a sidecar on the task's network (browser); None = off
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
+    image_compare: bool = False  # view two independently selected images in the same observation
     # Reasoning effort for the request that first sees a newly attached image ("" = the run's own). 28 Oct: an
     # image-reading task went 0/3 at high and 2/3 valid at xhigh run-wide; this spends the extra effort only there.
     image_effort: str = ""
@@ -336,6 +337,8 @@ async def run_agent(
             )
             if config.image_region and see:
                 s.tools = image_region.with_region(s.tools)
+            if config.image_compare and see:
+                s.tools = image_region.with_compare(s.tools)
             if config.intent:
                 s.tools = intent.with_intent(s.tools)
             if config.open_issues:
@@ -825,6 +828,15 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         return output, False
     if name == "view_image":
         path = s.files.resolve(args["path"])
+        other = args.get("compare")
+        if other is not None:
+            other_path = s.files.resolve(other["path"])
+            desc, url, other_desc, other_url = await images.compare(
+                s.env, path, args.get("region"), other_path, other.get("region")
+            )
+            s.pending_images.append(images.comparison_message(desc, url, other_desc, other_url))
+            s.images_viewed += 2
+            return f"[images {desc} and {other_desc}; shown below]", False
         desc, url = await images.load(s.env, path, region=args.get("region"))
         s.pending_images.append(images.message(desc, url))
         s.images_viewed += 1

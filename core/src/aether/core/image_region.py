@@ -12,6 +12,7 @@ from copy import deepcopy
 from typing import Any
 
 IMAGE_REGION_ENV = "AETHER_CORE_IMAGE_REGION"
+IMAGE_COMPARE_ENV = "AETHER_CORE_IMAGE_COMPARE"
 REGION = {
     "type": "array",
     "items": {"type": "integer"},
@@ -25,6 +26,24 @@ def with_region(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for tool in out:
         if tool["function"]["name"] == "view_image":
             tool["function"]["parameters"]["properties"]["region"] = REGION
+    return out
+
+
+def with_compare(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = deepcopy(tools)
+    for tool in out:
+        if tool["function"]["name"] != "view_image":
+            continue
+        fields = tool["function"]["parameters"]["properties"]
+        comparison = {"path": fields["path"]}
+        if "region" in fields:
+            comparison["region"] = REGION
+        fields["compare"] = {
+            "type": "object",
+            "description": "View a second known image alongside the first in the same observation.",
+            "properties": comparison,
+            "required": ["path"],
+        }
     return out
 
 

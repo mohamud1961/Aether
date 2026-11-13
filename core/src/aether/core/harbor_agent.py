@@ -34,7 +34,7 @@ from .open_issues import OPEN_ISSUES_ENV
 from .rival import RIVAL_ENV, RIVAL_MODES
 from .start_copy import START_COPY_ENV
 from . import state_service
-from .image_region import IMAGE_REGION_ENV
+from .image_region import IMAGE_COMPARE_ENV, IMAGE_REGION_ENV
 from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .strict import StrictChatProvider, extra_sampling, proxy_headers
 from .tools import HYGIENE_MODES
@@ -246,6 +246,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         task_at_first_observation=environ.get("AETHER_CORE_TASK_AT_FIRST_OBS") == "on", stated_use=environ.get("AETHER_CORE_STATED_USE") == "on", working=environ.get("AETHER_CORE_WORKING", "on"), start_note=environ.get("AETHER_CORE_START_NOTE", "start"), task_appendix_file=environ.get("AETHER_CORE_TASK_APPENDIX_FILE", ""), step0_file=environ.get("AETHER_CORE_STEP0_FILE", ""), agenda=environ.get("AETHER_CORE_AGENDA", "off"),  # study arms
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
+        image_compare=_choice(environ, IMAGE_COMPARE_ENV, REPL_MODES, "off") == "on",
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))
 
 

@@ -12,6 +12,7 @@ mirror never contains image data.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -135,6 +136,21 @@ def message(desc: str, url: str) -> dict[str, Any]:
     }
 
 
+async def compare(env: Environment, path: str, region: list[int] | None,
+                  other_path: str, other_region: list[int] | None) -> tuple[str, str, str, str]:
+    """Finish both reads before attaching either image."""
+    first, second = await asyncio.gather(load(env, path, region), load(env, other_path, other_region),
+                                         return_exceptions=True)
+    for result in (first, second):
+        if isinstance(result, BaseException):
+            raise result
+    return (*first, *second)
+
+
+def comparison_message(desc: str, url: str, other_desc: str, other_url: str) -> dict[str, Any]:
+    return {"role": "user", "content": message(desc, url)["content"] + message(other_desc, other_url)["content"]}
+
+
 def _is_image_part(part: Any) -> bool:
     return isinstance(part, dict) and part.get("type") == "image_url"
 
@@ -156,18 +172,21 @@ def text_of(content: Any) -> str:
 def limit(
     messages: list[dict[str, Any]], keep: int = KEEP_IMAGES
 ) -> list[dict[str, Any]]:
-    """Copy of ``messages`` in which only the newest ``keep`` images remain."""
+    """Retain a recent suffix of image observations within the image budget."""
     seen, out = 0, []
     for msg in reversed(messages):
         content = msg.get("content")
-        if isinstance(content, list) and any(_is_image_part(p) for p in content):
-            seen += 1
-            if seen > keep:
+        if isinstance(content, list):
+            n_images = sum(_is_image_part(part) for part in content)
+            if n_images and seen + n_images > keep:
+                seen = keep
                 msg = deepcopy(msg)
                 msg["content"] = text_of(content).replace(
                     "[image]",
                     "[image no longer shown; call view_image again to see it]",
                 )
+            elif n_images:
+                seen += n_images
         out.append(msg)
     return list(reversed(out))
 
