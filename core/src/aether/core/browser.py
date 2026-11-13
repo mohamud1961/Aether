@@ -188,11 +188,13 @@ class Sidecar:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "capture.png"
             status, _, _ = await self.host(["docker", "cp", f"{self.name}:{target}", str(path)], 10)
-            if status or path.is_symlink() or path.stat().st_size != int(fields[0]):
+            if status or path.is_symlink() or not path.is_file() or path.stat().st_size != int(fields[0]):
                 raise ValueError("browser screenshot transfer could not be confirmed")
             data = path.read_bytes()
         if hashlib.sha256(data).hexdigest() != fields[1]:
             raise ValueError("browser screenshot changed while being copied")
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("browser screenshot is not PNG data")
         return images.encode(data, f"browser screenshot {name}")
 
 
