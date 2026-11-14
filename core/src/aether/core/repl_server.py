@@ -9,6 +9,9 @@ file-based so it needs nothing but a shell on the host side:
   <base>/out/<seq>.done   JSON status, written last
   <base>/llm/<id>.req     JSON request from llm() inside a cell; the host answers with
   <base>/llm/<id>.resp    JSON {"text": ...} or {"error": ...}
+  <base>/ops/start_<seq>  with operation tracking (argv[3] == "ops"): the start token, a symlink. The server creates
+                          it as "run" before running a cell and runs the cell only if that succeeded; a host that lost
+                          a submission reply creates it as "revoked", and the server then skips that cell number.
 
 SIGINT interrupts the running cell (KeyboardInterrupt), never the server.
 This file is shipped to the container as data; it is not imported on the host.
@@ -26,8 +29,32 @@ import traceback
 
 BASE = sys.argv[1]
 WORKDIR = sys.argv[2] if len(sys.argv) > 2 else "/"
-for sub in ("in", "out", "llm"):
+OPS = os.path.join(BASE, "ops") if len(sys.argv) > 3 and sys.argv[3] == "ops" else None
+for sub in ("in", "out", "llm") + (("ops",) if OPS else ()):
     os.makedirs(os.path.join(BASE, sub), exist_ok=True)
+
+
+def _token(seq):
+    """The start token of cell ``seq``: "run", "revoked" or None (not taken yet, or no tracking)."""
+    if OPS is None:
+        return None
+    try:
+        return os.readlink(os.path.join(OPS, "start_%d" % seq))
+    except OSError:
+        return None
+
+
+def _take(seq):
+    """True when this server may run cell ``seq``: it created the token as "run" (or tracking is off)."""
+    if OPS is None:
+        return True
+    try:
+        os.symlink("run", os.path.join(OPS, "start_%d" % seq))
+        return True
+    except FileExistsError:
+        return False  # revoked by the host before the server reached it
+    except OSError:
+        return not os.path.isdir(OPS)  # a missing directory cannot be revoked either
 
 
 class ShResult(object):
@@ -184,7 +211,13 @@ def main():
         cell = os.path.join(BASE, "in", "%d.py" % seq)
         try:
             if not os.path.exists(cell):
+                if _token(seq) == "revoked":  # the host cancelled a submission that never arrived
+                    seq += 1
+                    continue
                 time.sleep(0.05)
+                continue
+            if not _take(seq):  # cancelled before the server took it: never run, even if it arrives late
+                seq += 1
                 continue
         except KeyboardInterrupt:  # an interrupt with nothing running is ignored
             continue

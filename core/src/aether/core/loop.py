@@ -200,6 +200,7 @@ class _Session:
             self.remaining,
             sub_llm(provider, self.remaining, self.result.sub_usage),
             base=f"{config.control_dir}/repl",
+            track_operations=config.terminal_events,
         )
         self.oversight = Oversight(
             config.reviews, transport, call, timeout_s, control_dir=config.control_dir

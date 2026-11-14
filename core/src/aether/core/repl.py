@@ -27,6 +27,7 @@ from .env import (
     run,
     stop_process_tree,
 )
+from . import operations
 from .terminal import MAX_WAIT_S
 
 SERVER_SOURCE = (Path(__file__).with_name("repl_server.py")).read_bytes()
@@ -47,6 +48,7 @@ class Repl:
         remaining: Callable[[], float],
         llm_answer: LlmAnswer | None,
         base: str = f"{CONTROL_DIR}/repl",
+        track_operations: bool = False,
     ) -> None:
         self._env, self._workdir, self._remaining, self._llm = (
             env,
@@ -55,6 +57,11 @@ class Repl:
             llm_answer,
         )
         self.base = base
+        # Operation tracking (operations.py): the server takes a start token per cell, so a submission whose reply
+        # was lost is decided (ran, or cancelled for certain) instead of staying "still running" for good.
+        self.track_operations = track_operations
+        self.unconfirmed = False  # a cell submission's reply was lost; whether the server took it is unresolved
+        self.unseen = False  # the pending cell's state has not been shown to the model
         self.pid = 0
         self.identity: dict[str, str] = {}
         self.cleanup_receipt: dict = {}
@@ -83,9 +90,10 @@ class Repl:
             return ""
         await put_bytes(self._env, SERVER_SOURCE, f"{self.base}/server.py")
         launch = (
-            f"cd {q(self.base)} && rm -rf in out llm && mkdir -p in out llm && "
+            f"cd {q(self.base)} && rm -rf in out llm ops && mkdir -p in out llm && "
             f"if command -v setsid >/dev/null 2>&1; then S=setsid; else S=; fi; "
-            f"nohup $S python3 -u server.py {q(self.base)} {q(self._workdir)} > server.log 2>&1 < /dev/null & "
+            f"nohup $S python3 -u server.py {q(self.base)} {q(self._workdir)}{' ops' if self.track_operations else ''} "
+            "> server.log 2>&1 < /dev/null & "
             f"echo $!"
         )
         res = await run(self._env, launch)
@@ -95,6 +103,7 @@ class Repl:
                 f"python REPL launch failed: {(res.stderr or res.stdout).strip()[:300]}"
             )
         self.pid, self.python = int(pid[0]), version
+        self.unconfirmed = self.unseen = False
         self.identity = await process_identities(self._env, [self.pid])
         self.generation += 1
         self.last_observed_foreground = "started_unconfirmed"
@@ -156,6 +165,17 @@ class Repl:
         if not self.pid:
             raise RuntimeError("the python tool is not available in this environment")
         q = shlex.quote
+        if self.unconfirmed:
+            cancelled = await self._resolve()
+            if cancelled:
+                return cancelled
+        if self.unseen and self.pending:
+            # Shown before any new code: the model may be re-sending a cell it does not know ran.
+            observed = await self._wait(self.pending, 0.0 if code or interrupt else wait_s, time.monotonic())
+            self.unseen = False
+            held = ("\n[code not run: this cell's outcome had not been shown to you yet; use it before sending "
+                    "new code.]") if code or interrupt else ""
+            return observed + held
         started = time.monotonic()
         if interrupt and self.pending:
             await run(self._env, f"kill -INT {self.pid} 2>/dev/null; true")
@@ -182,14 +202,33 @@ class Repl:
                 q(f"{self.base}/in/{self.seq}.py"),
             )
             data = code.encode()
+            failed = " || exit 7" if self.track_operations else ""
             if len(data) <= INLINE_BYTES:  # submit, wait and read in one container call
-                submit = f"printf %s {base64.b64encode(data).decode()} | base64 -d > {tmp} && mv {tmp} {cell}; "
+                submit = f"printf %s {base64.b64encode(data).decode()} | base64 -d > {tmp} && mv {tmp} {cell}{failed}; "
             else:
                 await put_bytes(self._env, data, f"{self.base}/in/{self.seq}.tmp")
-                submit = f"mv {tmp} {cell}; "
+                submit = f"mv {tmp} {cell}{failed}; "
+            self.unconfirmed = self.track_operations
         if not self.pending:
             return "[python] nothing is running"
         return earlier + await self._wait(self.pending, wait_s, started, submit)
+
+    async def _resolve(self) -> str:
+        """Decide a cell whose submission reply was lost: the server took it (it is then shown as unseen), or it is
+        cancelled now and can never run. Returns the model-facing note when it was cancelled."""
+        q, seq = shlex.quote, self.pending
+        res = await run(self._env, f"cd {q(self.base)} || exit 4; ln -s {operations.REVOKED} ops/start_{seq} 2>/dev/null; "
+                                   f"readlink ops/start_{seq}; true")
+        token = res.stdout.strip()
+        if res.code != 0 or token not in (operations.RUN, operations.REVOKED):
+            return ""  # unreadable: stays unconfirmed, and new code stays held behind the pending cell
+        self.unconfirmed = False
+        if token == operations.REVOKED:
+            self.pending = 0
+            return (f"[python cell {seq} never started: its submission failed before the REPL took it, and it is now "
+                    "cancelled, so it cannot run later. Nothing from it ran; send it again if it is still needed.]")
+        self.unseen = True
+        return ""
 
     async def _wait(
         self, seq: int, wait_s: float, started: float, submit: str = ""
@@ -202,6 +241,8 @@ class Repl:
             done, requests, alive, size, text = await self._poll(
                 seq, min(POLL_SLICE_S, max(0.2, left)), submit
             )
+            if submit:
+                self.unconfirmed = False
             submit = ""
             for rid in requests:
                 await self._answer(rid)
@@ -257,6 +298,8 @@ class Repl:
             f"tail -c +{self.cursor + 1} {q(log)} 2>/dev/null | head -c {VIEW_HEAD + VIEW_TAIL}"
         )
         res = await run(self._env, cmd, timeout_s=int(slice_s) + 30)
+        if submit and self.track_operations and res.code == 7:
+            raise RuntimeError(f"python cell {seq} could not be submitted")
         out = res.stdout
 
         def part(name: str, nxt: str | None) -> str:
