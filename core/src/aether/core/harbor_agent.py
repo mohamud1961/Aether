@@ -439,6 +439,10 @@ class AetherCoreAgent(BaseAgent):
             config = with_clones(config, environment, environ)
             if _choice(environ, "AETHER_CORE_SKILLS", REPL_MODES, "off") == "on" and getattr(self, "skills_dir", None):
                 config = replace(config, skills_dir=str(self.skills_dir))  # Harbor's declared task skills
+            if _choice(environ, "AETHER_CORE_MCP", REPL_MODES, "off") == "on" and getattr(self, "mcp_servers", None):
+                from . import mcp
+
+                config = replace(config, mcp_servers=tuple(mcp.normalize(self.mcp_servers)))  # declared MCP servers
             instruction, pending = await continuation.begin(environment, environ, logs, instruction, workdir)
             instruction, archive_status = await start_archive.add(environment, environ, workdir, instruction)
             (logs / "start_archive.txt").write_text(archive_status)

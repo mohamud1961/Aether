@@ -119,6 +119,7 @@ class CoreConfig:
     stable_facts: bool = False
     terminal_events: bool = False
     finish_settle: bool = False  # hold the first finish once if delivered files are still changing (finish_settle)
+    mcp_servers: tuple = ()  # opt-in (AETHER_CORE_MCP): task-declared MCP servers exposed through the mcp tool
     skills_dir: str | None = None  # opt-in (AETHER_CORE_SKILLS): the task-declared skills directory to list at start
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
@@ -352,6 +353,11 @@ async def run_agent(
                 verdict=config.role == VERIFIER_ROLE,
                 terminal_events=config.terminal_events and config.role == "worker",
             )
+            if getattr(config, "mcp_servers", ()) and config.role == "worker":
+                from . import mcp
+
+                s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers))
+                s.tools = [*s.tools, mcp.tool(list(config.mcp_servers))]
             if config.image_region and see:
                 s.tools = image_region.with_region(s.tools)
             if config.image_compare and see:
@@ -460,6 +466,9 @@ async def run_agent(
         closers = [("terminals", lambda: s.terminals.close(keep=keep)), ("repl", lambda: s.repl.close(keep=keep))]
         if s.browser:
             closers.append(("browser", s.browser.close))
+        if getattr(s, "mcp", None):
+            s.result.extras["mcp_calls"] = s.mcp.calls
+            closers.append(("mcp", s.mcp.close))
         for name, closer in closers:
             try:
                 await closer()
@@ -857,6 +866,8 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
             s.images_viewed += 1
             output += f"\n[{desc}; shown below]"
         return output, False
+    if name == "mcp" and getattr(s, "mcp", None):
+        return await s.mcp.use(args, s.remaining()), False
     if name == "view_image":
         path = s.files.resolve(args["path"])
         other = args.get("compare")
