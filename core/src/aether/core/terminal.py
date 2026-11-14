@@ -256,6 +256,12 @@ class Terminals(TerminalLifecycle):
         note = await terminal_adopt.ensure(self, name)
         session = self._sessions.get(name)
         if session is not None and not session.ready:
+            if session.pending and not session.dispatch_unconfirmed:
+                first = await self._poll(session, session.pending)
+                if first[1] is not None and not first[2]:
+                    observed = await self._collect(session, time.monotonic(), 0, first)
+                    held = "\n[New input was not submitted; use the recorded result before sending new input.]" if input or interrupt else ""
+                    return note + observed + held
             if session.dispatch_unconfirmed and (input or interrupt):
                 return note + f"[input not sent: terminal {name} has an earlier command with unknown effect. Observe it before reusing the terminal.]"
             session = await self._restart(session)
@@ -515,8 +521,7 @@ class Terminals(TerminalLifecycle):
         elapsed = time.monotonic() - started
         if not alive:
             self._sessions.pop(name, None)
-            status = f"[terminal {name} exited; it restarts on next use]"
-        elif mark is not None:
+        if mark is not None:
             stages = (mark.group(3) or "").split(".")
             piped = (
                 f" · last pipeline's stage exits {' | '.join(stages)}"
@@ -526,6 +531,10 @@ class Terminals(TerminalLifecycle):
             cwd = (session.last_observed_cwd if session.last_observed_cwd is not None
                    else "unknown (ambiguous receipt)") if self._command_names else mark.group(4).strip()
             status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {cwd}]"
+            if not alive:
+                status += f"\n[terminal {name} exited; it restarts on next use]"
+        elif not alive:
+            status = f"[terminal {name} exited; it restarts on next use]"
         elif session.dispatch_unconfirmed:
             status = (f"[terminal {name}: dispatch of command #{seq} is unconfirmed and no exit has been observed. "
                       "Wait, explicitly interrupt, or do unrelated work in another terminal.]")

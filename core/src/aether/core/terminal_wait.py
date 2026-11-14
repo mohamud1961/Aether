@@ -50,7 +50,7 @@ async def wait(terminal, names, *, mode, wait_s):
             unknown.append({"name": name, "reason": str(error)[:300]})
             continue
         session = terminal._sessions.get(name)
-        if session and session.ready and session.pending:
+        if session and session.pending:
             pending[name] = (session, session.pending)
         else:
             unknown.append({"name": name, "reason": "no outstanding terminal command"})

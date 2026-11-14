@@ -83,6 +83,39 @@ def test_completion_during_the_gap_is_delivered_once_with_its_output(tmp_path):
     asyncio.run(go())
 
 
+@pytest.mark.parametrize("via_wait", [False, True])
+def test_completed_receipt_can_be_recovered_after_its_shell_exits(tmp_path, via_wait):
+    async def go():
+        first = controller(tmp_path)
+        second = controller(tmp_path)
+        try:
+            assert "still running" in await first.use(
+                name="job", input="sleep 0.5; printf 'completed-result\\n'; (exit 6)", wait_s=0,
+            )
+            root = tmp_path / "ctl" / "term" / "job"
+            await until(root / "done_1")
+            # End the interpreter without publishing another command identity.
+            with (root / "in").open("w") as fifo:
+                fifo.write("exit 0\n")
+            await until(root / "exit")
+            first._sessions.clear()  # the first controller is gone; its shell already exited
+            if via_wait:
+                recovered = await second.wait_events(["job"], mode="all", wait_s=2)
+                (completed,) = recovered["completed"]
+                assert (completed["sequence"], completed["exit"]) == (1, 6)
+                observation = completed["observation"]
+                assert not recovered["unknown"]
+            else:
+                observation = await second.use(name="job", input="printf second > new-file", wait_s=2)
+                assert "New input was not submitted" in observation
+                assert not (tmp_path / "new-file").exists()
+            assert "completed-result" in observation and "[exit 6" in observation
+        finally:
+            await second.close()
+
+    asyncio.run(go())
+
+
 def test_an_earlier_receipt_never_completes_the_next_command(tmp_path):
     async def go():
         first = controller(tmp_path)
