@@ -11,8 +11,8 @@ keeps writing ordinary Playwright; nothing here interprets the page.
 
 Element references are Playwright's own (``page.aria_snapshot(mode="ai")`` lists elements as ``[ref=e5]``,
 ``page.locator("aria-ref=e5")`` targets one). Refs are bound per connection, so ``page()`` takes a fresh snapshot to
-rebind them. ``ref()`` checks the element still has the role and name it had in the last snapshot shown for that page;
-when it differs, it refuses instead of acting on a different element (stale capture).
+rebind them. ``ref()`` checks the tab's main document and the element's role and name against the last snapshot shown
+for that page. A full navigation can change the document while keeping the same URL.
 
 Records, in ``HOME`` (``/tmp/.aether-browser``): ``profile/`` (Chromium's), ``chrome.pid``, ``snap_<n>.txt`` every
 snapshot shown, with its page and URL, ``last_<page>.txt`` the latest one per page. When the call ends, one line of page
@@ -82,10 +82,12 @@ def _port():
     raise RuntimeError("the task browser did not start (no DevTools port after 15 s)")
 
 
-def _page_id(page):
+def _document(page):
     cdp = page.context.new_cdp_session(page)
     try:
-        return cdp.send("Target.getTargetInfo")["targetInfo"]["targetId"][:12]
+        target = cdp.send("Target.getTargetInfo")["targetInfo"]["targetId"]
+        loader = cdp.send("Page.getFrameTree")["frameTree"]["frame"]["loaderId"]
+        return target, loader
     finally:
         cdp.detach()
 
@@ -149,12 +151,15 @@ def snapshot(target=None, depth=None):
     returned. Act on an element with ref("e5")."""
     pg = target if target is not None and hasattr(target, "goto") else page()
     root = target if target is not None and not hasattr(target, "goto") else pg
+    target_id, loader = _document(pg)
     text = root.aria_snapshot(mode="ai", depth=depth)
+    if _document(pg) != (target_id, loader):
+        raise LookupError("the document changed during the snapshot; take a new snapshot()")
     n = len(glob.glob(os.path.join(HOME, "snap_*.txt"))) + 1
-    head = f"[snapshot #{n}; page {_page_id(pg)}; {pg.url}]"
-    for name in (f"snap_{n}.txt", f"last_{_page_id(pg)}.txt"):
+    head = f"[snapshot #{n}; page {target_id[:12]}; {pg.url}]"
+    for name, record in ((f"snap_{n}.txt", head), (f"last_{target_id}.txt", loader)):
         with open(os.path.join(HOME, name + ".tmp"), "w") as f:
-            f.write(head + "\n" + text)
+            f.write(record + "\n" + text)
         os.replace(os.path.join(HOME, name + ".tmp"), os.path.join(HOME, name))
     print(head + "\n" + text, flush=True)
     return text
@@ -170,16 +175,23 @@ def _described(text, ref):
 
 def ref(name, pg=None):
     """Locator for element ``name`` (e.g. "e5" or "f1e2") from the last snapshot shown for this page. Refuses when
-    the page no longer has that element with the same role and name."""
+    the main document changed or the snapshot's ref no longer has the same role and name."""
     pg = pg or page()
+    target_id, loader = _document(pg)
     try:
-        shown = open(os.path.join(HOME, f"last_{_page_id(pg)}.txt")).read()
+        with open(os.path.join(HOME, f"last_{target_id}.txt")) as f:
+            shown_loader = f.readline().rstrip("\n")
+            shown = f.read()
     except OSError:
         raise LookupError("no snapshot of this page has been shown yet; call snapshot() first") from None
+    if loader != shown_loader:
+        raise LookupError(f"stale ref {name}: the page document changed; take a new snapshot()")
     was = _described(shown, name)
     if was is None:
         raise LookupError(f"ref {name} is not in the last snapshot of this page")
     now = _described(pg.aria_snapshot(mode="ai"), name)
+    if _document(pg) != (target_id, loader):
+        raise LookupError(f"stale ref {name}: the page document changed; take a new snapshot()")
     if now != was:
         raise LookupError(f"stale ref {name}: it was {was!r} in the last snapshot shown, now "
                           f"{repr(now) if now else 'absent'}; take a new snapshot()")

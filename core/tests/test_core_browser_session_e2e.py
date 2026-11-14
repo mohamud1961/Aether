@@ -33,6 +33,7 @@ LOGIN = b"""<html><head><title>Sign in</title></head><body>
 APP = b"""<html><head><title>Items</title></head><body><h1>Items</h1><ul id=items></ul>
 <button onclick="setTimeout(()=>{const li=document.createElement('li');li.textContent='item one';
 document.getElementById('items').appendChild(li)},800)">Add item</button>
+<button onclick="document.title='top pressed'">Top button</button>
 <iframe srcdoc="<button onclick=&quot;parent.document.title='frame pressed'&quot;>Frame button</button>"></iframe>
 <script>console.error('fixture-console-error')</script></body></html>"""
 
@@ -110,9 +111,20 @@ def job(tmp_path, app, persistent):
             frame = refs(fourth)['button "Frame button"']
             fifth = await call(f"from aether_browser import page, ref\nref({frame!r}).click()\nprint('title', page().title())")
             shot = await call(f"from aether_browser import shot\nshot('items', {frame!r})")
+            top = refs(fourth)['button "Top button"']
+            await call("from aether_browser import page\npage().reload()")
+            reload = await call(
+                "from aether_browser import page, ref, snapshot\n"
+                "pg = page()\n"
+                f"try:\n    ref({top!r}).click()\nexcept LookupError as exc:\n    print(exc)\n"
+                "print('title after old ref:', pg.title())\nsnapshot()")
+            fresh_top = refs(reload)['button "Top button"']
+            fresh = await call(
+                "from aether_browser import page, ref\n"
+                f"ref({fresh_top!r}).click()\nprint('title after new ref:', page().title())")
             add = refs(fourth)['button "Add item"']
             stale = await call(f"from aether_browser import page, ref\npage().goto({app + '/login'!r})\nref({add!r})")
-            return calls, first, second, third, fourth, fifth, stale, shot
+            return calls, first, second, third, fourth, fifth, stale, shot, reload, fresh
         finally:
             pid = tmp_path / "home" / "chrome.pid"
             if pid.exists():
@@ -122,7 +134,7 @@ def job(tmp_path, app, persistent):
 
 
 def test_one_browser_is_kept_across_calls_and_refs_act_on_what_was_shown(tmp_path, app):
-    calls, first, second, third, fourth, fifth, stale, shot = job(tmp_path, app, persistent=True)
+    calls, first, second, third, fourth, fifth, stale, shot, reload, fresh = job(tmp_path, app, persistent=True)
     assert 'textbox "Username"' in first and "[ref=" in first and "[snapshot #1;" in first
     assert "signed-in" in second and "/app" in second.splitlines()[-1]  # the state line names the page now open
     assert f"url {app}/app" in third  # a new process finds the page and the login of the last call
@@ -131,7 +143,11 @@ def test_one_browser_is_kept_across_calls_and_refs_act_on_what_was_shown(tmp_pat
     assert "fixture-console-error" in second  # the app page loaded (and logged its error) during the sign-in call
     assert "stale ref" in stale or "is not in the last snapshot" in stale  # a ref from a page since replaced
     assert "[screenshot saved: /tmp/items.png]" in shot
-    assert len(calls) == 7
+    # The same tab, URL, role and name now belong to a different document.
+    assert "title after old ref: Items" in reload, reload
+    assert "stale ref" in reload
+    assert "title after new ref: top pressed" in fresh, fresh
+    assert len(calls) == 10
 
 
 def test_without_the_kept_browser_each_call_starts_blank(tmp_path, app):
