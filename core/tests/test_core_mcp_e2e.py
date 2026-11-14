@@ -13,7 +13,6 @@ import pytest
 
 from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.mcp import Mcp
-from aether.core.mcp import Mcp
 from aether.core.provider import ChatProvider
 from tests.core_fakes import LocalEnv, ScriptedClient, call
 
@@ -96,6 +95,21 @@ def test_unreachable_server_is_a_reported_error_not_a_hang(tmp_path):
     result, _, (listed, *_rest) = run(tmp_path, [spec], STEPS[:1])
     assert result.status == "finished" and time.monotonic() - started < 30
     assert listed.startswith("error:") and "fx" in listed
+
+
+def test_declared_tool_receives_its_arguments_through_the_core_loop(tmp_path):
+    artifact = tmp_path / "effect"
+    spec = {"name": "fx", "transport": "stdio", "command": sys.executable, "args": [FIXTURE, "stdio"]}
+    args = {"server": "fx", "action": "call", "tool": "effect"}
+    result, _, (bad, good) = run(tmp_path, [spec], [
+        call("mcp", {**args, "arguments": [], "timeout_s": 5}, "bad-object"),
+        call("mcp", {**args, "arguments": {"path": str(artifact), "delay": 0}, "timeout_s": 5}, "effect"),
+    ])
+    assert result.status == "finished"
+    assert "expected object" in bad
+    assert good.startswith("effect-done")
+    assert artifact.read_bytes() == b"x"
+    assert [record["tool"] for record in result.extras["mcp_calls"]] == ["effect"]
 
 
 def test_no_declared_servers_no_tool(tmp_path):

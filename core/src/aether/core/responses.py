@@ -27,6 +27,8 @@ def tool_spec(spec: dict[str, Any]) -> dict[str, Any]:
     out = {"type": "function", "name": fn["name"], "parameters": fn["parameters"]}
     if fn.get("description"):
         out["description"] = fn["description"]
+    if "strict" in fn:
+        out["strict"] = fn["strict"]
     return out
 
 

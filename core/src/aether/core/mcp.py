@@ -42,6 +42,7 @@ def tool(servers: list[dict[str, Any]]) -> dict:
     listed = "; ".join(f"{s['name']} ({s['transport']})" for s in servers)
     return {"type": "function", "function": {
         "name": "mcp",
+        "strict": False,  # The selected server tool supplies the argument schema at runtime.
         "description": (f"Use an MCP server declared by this task's environment: {listed}. action=list returns the "
                         "server's tools with their input schemas; action=call runs one tool with arguments. The "
                         "server session persists for the whole run."),
@@ -49,7 +50,8 @@ def tool(servers: list[dict[str, Any]]) -> dict:
             "server": {"type": "string", "enum": names},
             "action": {"type": "string", "enum": ["list", "call"]},
             "tool": {"type": "string", "description": "Tool name (action=call)."},
-            "arguments": {"type": "object", "description": "Tool arguments (action=call)."},
+            "arguments": {"type": "object", "additionalProperties": True,
+                          "description": "Tool arguments from its listed input schema (action=call)."},
             "timeout_s": {"type": "number", "description": "Seconds to wait for the result (default 120, max 600)."},
         }, "required": ["server", "action"]},
     }}

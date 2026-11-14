@@ -1,7 +1,7 @@
 """Settings for self-hosted OpenAI-compatible servers: strict tool schemas (``AETHER_CORE_STRICT_TOOLS=on``, off by
 default) and ``top_k`` (``AETHER_CORE_TOP_K``, unset by default).
 
-Every tool goes out with ``"strict": true`` and closed object schemas, so a server that constrains decoding to the
+Tools with fixed parameters go out with ``"strict": true`` and closed object schemas, so a server that constrains decoding to the
 schema (Flint on SGLang: XGrammar) only produces calls whose argument names and types match it. Without it Flint's
 server keeps the call format but not the schema (smoke 10-22: ``terminal`` called with ``command`` for ``input``).
 """
@@ -18,8 +18,9 @@ from .provider import ChatProvider
 def strict(tools: list[dict]) -> list[dict]:
     out = deepcopy(tools)
     for tool in out:
-        tool["function"]["strict"] = True
-        _close(tool["function"].setdefault("parameters", {"type": "object"}))
+        fn = tool["function"]
+        if fn.setdefault("strict", True):
+            _close(fn.setdefault("parameters", {"type": "object"}))
     return out
 
 

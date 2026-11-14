@@ -471,6 +471,8 @@ def _check_object(where: str, value: dict[str, Any], schema: dict[str, Any]) -> 
     properties = schema.get("properties", {})
     for key, item in value.items():
         if key not in properties:
+            if schema.get("additionalProperties") is True:
+                continue  # The downstream tool owns these keys and validates their values.
             raise ValueError(
                 f"{where}: unknown argument {key!r}; allowed: {', '.join(properties)}"
             )
