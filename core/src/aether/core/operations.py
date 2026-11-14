@@ -11,11 +11,9 @@ answer may ever be given. Every record lives in the operation owner's directory,
   the operation was handed over creates it as ``revoked``. ``symlink(2)`` is atomic and fails when the name exists,
   so exactly one of them wins: an operation either ran or never will.
 - ``done_N``     the executor's completion receipt, written after the operation returned.
-- ``delivered_N`` a controller consumed the receipt to show the result, and wrote the id of the tool call whose result
-  carried it. A later controller that resumes a conversation counts the result as delivered only if that call is in the
-  conversation it resumes (``seen``). A controller that died after reading but before the model saw the result left a
-  mark whose call is in no surviving conversation, so the result is shown again, once. Without a conversation to check
-  against, the mark is trusted.
+- ``delivered_N`` stores a Core-generated token for the tool result carrying the receipt. A resumed controller counts
+  it only when the exact result's token is in the continued conversation. Provider tool call IDs can repeat across
+  turns and do not acknowledge delivery. A caller with no conversation may explicitly use local collection semantics.
 
 States (``classify``)::
 
@@ -37,13 +35,12 @@ RUN = "run"
 REVOKED = "revoked"
 DONE = re.compile(r"__AETHER_DONE_(\d+)_(\d+)")
 _SEP = "__AETHER_OP__"
+DELIVERY_FIELD = "aether_delivery"
 
 
 def start_gate(root: str, seq: int) -> str:
-    """Shell condition true for the executor only when it took the token. A missing directory cannot be revoked
-    either, so the operation runs (its receipt then cannot be written, as before tracking existed)."""
-    q = shlex.quote
-    return f"{{ command ln -s {RUN} {q(f'{root}/start_{seq}')} 2>/dev/null || [ ! -d {q(root)} ]; }}"
+    """Shell condition true only when the executor took its own start token."""
+    return f"command ln -s {RUN} {shlex.quote(f'{root}/start_{seq}')} 2>/dev/null"
 
 
 def resolve_script(root: str, seq: int, *, revoke: bool) -> str:
@@ -61,7 +58,7 @@ def resolve_script(root: str, seq: int, *, revoke: bool) -> str:
 
 def parse(stdout: str) -> tuple[str | None, str | None, str | None] | None:
     """(token, receipt, delivery tag) from ``resolve_script`` output; None when the directory is missing. The tag is
-    None when no delivery was recorded, else the recorded tool call id ("" when none was given)."""
+    None when no delivery was recorded, else the recorded delivery token ("" when none was given)."""
     parts = stdout.split(_SEP + "\n")
     if len(parts) != 3:
         return None
@@ -71,15 +68,14 @@ def parse(stdout: str) -> tuple[str | None, str | None, str | None] | None:
 
 
 def seen(tag: str | None, conversation: set[str] | None) -> bool:
-    """Whether a recorded delivery reached the model this controller serves: the call that carried it is in the
-    conversation being continued. ``conversation`` None means no record to check against: trust the mark."""
+    """Whether the continued conversation contains this delivery. None means local collection semantics."""
     if tag is None:
         return False
     return conversation is None or tag in conversation
 
 
 def mark_delivered(root: str, seq: int, tag: str = "") -> str:
-    """Shell words recording that ``seq``'s result is being shown in the result of tool call ``tag``."""
+    """Shell words associating a collected receipt with a local result token."""
     return f"printf %s {shlex.quote(tag)} > {shlex.quote(f'{root}/delivered_{seq}')}"
 
 

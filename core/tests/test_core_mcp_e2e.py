@@ -129,8 +129,8 @@ def test_two_controller_sessions_do_not_share_reply_or_cleanup_ownership(tmp_pat
     args = {"server": "fx", "action": "call", "tool": "count"}
 
     async def scenario():
-        prior = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [first])
-        later = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [second])
+        prior = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [first], adopt=False)
+        later = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [second], adopt=False)
         try:
             assert (await prior.use(args, 60)).startswith("count=1")
             with pytest.raises(RuntimeError, match="client initialization failed"):
@@ -139,5 +139,33 @@ def test_two_controller_sessions_do_not_share_reply_or_cleanup_ownership(tmp_pat
             assert (await prior.use(args, 60)).startswith("count=2")
         finally:
             await prior.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_lost_image_materialization_reuses_the_mcp_response(tmp_path):
+    class LostImage(LocalEnv):
+        dropped = False
+
+        async def exec(self, command, **kwargs):
+            result = await super().exec(command, **kwargs)
+            if not self.dropped and "image_1_1.png" in command:
+                self.dropped = True
+                raise ConnectionError("image staging reply lost")
+            return result
+
+    async def scenario():
+        spec = {"name": "fx", "transport": "stdio", "command": sys.executable, "args": [FIXTURE, "stdio"]}
+        client = Mcp(LostImage(tmp_path), str(tmp_path / "control"), [spec], adopt=True)
+        shot = {"server": "fx", "action": "call", "tool": "shot"}
+        try:
+            with pytest.raises(ConnectionError, match="image staging reply lost"):
+                await client.use(shot, 60)
+            recovered = await client.use(shot, 60)
+            assert "matches MCP request #1" in recovered
+            assert "image_1_1.png" in recovered
+            assert sorted(p.name for p in Path(client.started["fx"]).glob("req_*.json")) == ["req_1.json"]
+        finally:
+            await client.close()
 
     asyncio.run(scenario())

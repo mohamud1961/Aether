@@ -6,12 +6,13 @@ receipt settings. Each method is one container exec, so every fault point is a w
 
 from __future__ import annotations
 
+import base64
 import re
 import shlex
 
 from . import facts_replay, operations, terminal_adopt
 from .env import alive_test, run
-from .terminal_session import Session, TerminalGone, _text, clean
+from .terminal_session import Session, TerminalGone, clean
 from .transfer import atomic_write
 
 VIEW_HEAD = 3_000
@@ -61,7 +62,8 @@ class TerminalIO:
             claim = q(f"{session.root}/claim_{wait[0]}")
             # The in-memory lock does not coordinate resumed controllers. Take
             # the sequence before clearing its receipt or touching the FIFO.
-            steps.insert(0, f"mkdir {claim} 2>/dev/null || {{ if [ -d {claim} ]; then exit 10; fi; exit 11; }}")
+            steps[:0] = [f"[ -p {q(session.fifo)} ] || exit 12",
+                         f"mkdir {claim} 2>/dev/null || {{ if [ -d {claim} ]; then exit 10; fi; exit 11; }}"]
         if input_name == "input":
             steps.append(f"rm -f {source}")
         if wait is not None:
@@ -78,7 +80,7 @@ class TerminalIO:
         res = await run(self._env, "; ".join(steps), timeout_s=20)
         if tracks_dispatch and res.code == 10:
             raise _TerminalSequenceClaimed(session.name)
-        if res.code == 3 and "dead" in res.stdout:
+        if (tracks_dispatch and res.code == 12) or (res.code == 3 and "dead" in res.stdout):
             if tracks_dispatch:
                 session.dispatch_unconfirmed = False  # failure preceded the FIFO write
             raise TerminalGone(f"terminal {session.name} is not running")
@@ -158,26 +160,38 @@ class TerminalIO:
         # not move every later call reread it and failed too (path-tracing baseline: 21 calls).
         q = shlex.quote
         n = end - start
-        # A consumed completion receipt is recorded in the same exec, so a later controller never shows it again.
+        # The continued conversation will acknowledge the collection token.
         record = ""
         if delivered and self._preserve_existing:
             tag = self.delivery_tag()
-            record = f"; {operations.mark_delivered(session.root, delivered, tag)}"
-            if self.conversation is not None:
-                self.conversation.add(tag)
+            record = f" && {operations.mark_delivered(session.root, delivered, tag)}"
+        if n < 0:
+            raise TerminalGone(f"the log of terminal {session.name} was truncated")
+        log = q(session.log)
+        exists = f"[ -f {log} ] && [ ! -L {log} ] || exit 13; "
+        def decode(encoded: str, expected: int) -> str:
+            raw = base64.b64decode("".join(encoded.split()), validate=True)
+            if len(raw) != expected:
+                raise RuntimeError(f"terminal {session.name} output was incomplete")
+            return raw.decode("utf-8", "replace")
+
         if n <= VIEW_HEAD + VIEW_TAIL:
             res = await run(
-                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n} | base64{record}"
+                self._env, f"{exists}tail -c +{start + 1} {log} | head -c {n} | base64{record}"
             )
-            return _text(res.stdout)
+            if res.code != 0:
+                raise RuntimeError(f"terminal {session.name} output or delivery record could not be read")
+            return decode(res.stdout, n)
         res = await run(
             self._env,
-            f"tail -c +{start + 1} {q(session.log)} | head -c {VIEW_HEAD} | base64; "
-            f"echo '#SPLIT#'; tail -c +{start + 1} {q(session.log)} "
+            f"{exists}tail -c +{start + 1} {log} | head -c {VIEW_HEAD} | base64; "
+            f"echo '#SPLIT#'; tail -c +{start + 1} {log} "
             f"| head -c {n} | tail -c {VIEW_TAIL} | base64{record}",
         )
-        head, _, tail = res.stdout.partition("#SPLIT#")
-        head, tail = _text(head), _text(tail)
+        head, separator, tail = res.stdout.partition("#SPLIT#")
+        if res.code != 0 or not separator:
+            raise RuntimeError(f"terminal {session.name} output or delivery record could not be read")
+        head, tail = decode(head, VIEW_HEAD), decode(tail, VIEW_TAIL)
         return (
             f"{head}\n…[{n - VIEW_HEAD - VIEW_TAIL} bytes omitted; full output is in {session.log} "
             f"at byte offsets {start}-{end}; use grep/sed/tail on it]…\n{tail}"

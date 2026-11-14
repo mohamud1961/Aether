@@ -6,13 +6,16 @@ command keep running in the sandbox. A second controller then works from the sam
 
 import asyncio
 import os
+import pickle
 import signal
 from pathlib import Path
 
 import pytest
 
 from aether.core.terminal import Terminals
-from tests.core_fakes import LocalEnv
+from aether.core.loop import CoreConfig, Trace, run_agent
+from aether.core.provider import ChatProvider
+from tests.core_fakes import LocalEnv, ScriptedClient, call
 
 pytestmark = pytest.mark.skipif(
     not os.path.exists("/proc/self/stat"), reason="native Linux shell qualification"
@@ -377,5 +380,50 @@ def test_without_a_conversation_record_a_delivery_mark_is_trusted(tmp_path):
             assert seen["adopted"][0]["state"] == "delivered" and not seen["completed"]
         finally:
             await second.close()
+
+    asyncio.run(go())
+
+
+@pytest.mark.parametrize("reached_model", [False, True])
+def test_a_reused_provider_call_id_cannot_acknowledge_a_different_terminal_result(tmp_path, reached_model):
+    class Capture(ChatProvider):
+        def __init__(self, client):
+            super().__init__(client, model="offline", params={})
+            self.history = []
+
+        async def complete(self, messages, *args, **kwargs):
+            self.history.append(pickle.dumps(messages))
+            return await super().complete(messages, *args, **kwargs)
+
+    async def go():
+        script = ScriptedClient([
+            call("terminal", {"name": "job", "input": "echo previous-result"}, "call_0"),
+            call("terminal", {"name": "job", "input": "printf x >> effect; echo current-result; (exit 5)"}, "call_0"),
+            call("finish", {"summary": "Done"}, "finish"),
+        ])
+        first = Capture(script)
+        config = {"terminal_events": True, "control_dir": str(tmp_path / "ctl")}
+        arguments = {"env": LocalEnv(tmp_path), "workdir": str(tmp_path), "task": "Record the export once.",
+                     "timeout_s": 60}
+        original = await run_agent(**arguments, provider=first, trace=Trace(tmp_path / "first.jsonl"),
+                                   config=CoreConfig(**config, end_processes="keep"))
+        assert original.status == "finished"
+        assert all("aether_delivery" not in message for req in script.requests for message in req["messages"])
+        # Resume from the exact local checkpoint carrier on either side of
+        # the second result. Both histories contain the same provider call ID.
+        history = pickle.loads(first.history[-1 if reached_model else -2])
+        client = ScriptedClient([
+            call("terminal_wait", {"names": ["job"], "mode": "all", "wait_s": 0}, "observe"),
+            call("finish", {"summary": "Done"}, "final"),
+        ])
+        resumed = await run_agent(**arguments, provider=ChatProvider(client, model="offline", params={}),
+                                  trace=Trace(tmp_path / "resumed.jsonl"), resume=history,
+                                  config=CoreConfig(**config, end_processes="stop"))
+        assert resumed.status == "finished"
+        output = next(m["content"] for m in client.requests[-1]["messages"] if m.get("tool_call_id") == "observe")
+        assert ("current-result" in output) is not reached_model
+        if not reached_model:
+            assert "[exit 5" in output
+        assert (tmp_path / "effect").read_bytes() == b"x"
 
     asyncio.run(go())

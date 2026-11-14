@@ -207,10 +207,12 @@ def terminal_resolution(names: tuple[str, ...], suffix: str) -> dict[str, bool] 
 def terminal_observation(session: Any, generation: int | None) -> dict | None:
     if session is None:
         return None
-    known = not session.pending and session.command_resolution is not None
+    ready = getattr(session, "ready", True)
+    known = ready and not session.pending and session.command_resolution is not None
     return {
         "generation": generation,
-        "foreground": "completion_not_observed" if session.pending else "idle_at_last_observation",
+        "foreground": ("exited_at_last_observation" if not ready else
+                       "completion_not_observed" if session.pending else "idle_at_last_observation"),
         "last_observed_cwd": session.last_observed_cwd,
         "cwd_receipt_seq": session.cwd_receipt_seq,
         "pre_action_cwd": getattr(session, "pre_action_cwd", None),

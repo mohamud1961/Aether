@@ -269,15 +269,14 @@ class Repl:
                 break
         if size - self.cursor > VIEW_HEAD + VIEW_TAIL:
             text = await self._read(seq, self.cursor, size)
-        self.cursor = size
         elapsed = time.monotonic() - started
         if done is not None:
-            self.pending = 0
-            if self.track_operations:  # whose result carried it: the conversation decides delivery (operations.seen)
+            if self.track_operations:  # the continued conversation acknowledges the token
                 tag = self.delivery_tag()
-                await run(self._env, operations.mark_delivered(f"{self.base}/ops", seq, tag) + " 2>/dev/null; true")
-                if self.conversation is not None:
-                    self.conversation.add(tag)
+                recorded = await run(self._env, operations.mark_delivered(f"{self.base}/ops", seq, tag))
+                if recorded.code != 0:
+                    raise RuntimeError(f"python cell {seq}: result delivery could not be recorded")
+            self.pending = 0
             self.last_observed_foreground = "idle_at_last_observation"
             cwd = done.get("cwd")
             self.last_observed_cwd = cwd if isinstance(cwd, str) and cwd.startswith("/") and len(cwd) <= 256 else None
@@ -295,6 +294,7 @@ class Repl:
                 f"[python cell {seq} still running after {elapsed:.0f}s; call python with empty code to keep "
                 "waiting, or interrupt=true to stop it]"
             )
+        self.cursor = size
         return (text.rstrip("\n") + "\n" if text.strip() else "(no output)\n") + status
 
     async def _poll(

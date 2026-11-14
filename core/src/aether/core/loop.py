@@ -14,6 +14,7 @@ import json
 import math
 import shlex
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
@@ -39,7 +40,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import agenda, browser, completion_notice, finish_facts, finish_settle, open_issues, stated_use, step0, workspace_brief
+from . import agenda, browser, completion_notice, finish_facts, finish_settle, open_issues, operations, stated_use, step0, workspace_brief
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -223,6 +224,7 @@ class _Session:
         self.images_viewed = 0
         self.new_image = False  # the next request is the first to carry a newly attached image (image_effort)
         self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
+        self.operation_delivery = ""
         self.report_steps: list[finish_report.StepRecord] = []  # the finish report's step log
         # clone operations that outlived their check, owned by run-end cleanup (see verify)
         self.pending_cleanup: list[tuple[str, Any]] = []
@@ -256,6 +258,11 @@ class _Session:
 
     def clock(self) -> str:
         return f"[t={self.elapsed():.0f}s of {self.timeout_s:.0f}s]"
+
+    def delivery_tag(self) -> str:
+        if not self.operation_delivery:
+            self.operation_delivery = uuid.uuid4().hex
+        return self.operation_delivery
 
     @property
     def history(self) -> list[dict[str, Any]]:
@@ -351,11 +358,12 @@ async def run_agent(
             if s.diffcheck:
                 await s.diffcheck.start()
             if config.terminal_events:
-                # A result counts as delivered only if the call that carried it is in the conversation continued here.
+                # Only Core result tokens in the resumed history acknowledge a receipt.
                 history = resume.raw if isinstance(resume, ClmContext) else (resume or [])
-                ids = {m["tool_call_id"] for m in history if m.get("role") == "tool"}
-                s.terminals.conversation, s.terminals.delivery_tag = ids, lambda: s.call_id
-                s.repl.conversation, s.repl.delivery_tag = set(ids), s.terminals.delivery_tag
+                deliveries = {m[operations.DELIVERY_FIELD] for m in history
+                              if m.get("role") == "tool" and m.get(operations.DELIVERY_FIELD)}
+                s.terminals.conversation, s.terminals.delivery_tag = deliveries, s.delivery_tag
+                s.repl.conversation, s.repl.delivery_tag = deliveries, s.delivery_tag
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
             s.tools = tools(
@@ -370,7 +378,7 @@ async def run_agent(
 
                 s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers), adopt=config.terminal_events)
                 if config.terminal_events:
-                    s.mcp.conversation, s.mcp.delivery_tag = set(s.terminals.conversation), s.terminals.delivery_tag
+                    s.mcp.conversation, s.mcp.delivery_tag = s.terminals.conversation, s.delivery_tag
                 s.tools = [*s.tools, mcp.tool(list(config.mcp_servers))]
             if config.workspace_search and config.role == "worker":
                 from . import workspace_search
@@ -707,6 +715,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                 *(read_one(item) for item in calls[index:end])
             )
             buffered.update(zip(range(index, end), results))
+        s.operation_delivery = ""
         args, out, finished, duration, held_finish = (
             buffered.pop(index) if index in buffered else await _invoke(s, call)
         )
@@ -757,14 +766,12 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             s.task_reshown, reshow = True, f"\n\n[The task, as given]\n{s.task}"
         if getattr(s.config, "stated_use", False) and name != "finish":
             reshow += await stated_use.after(s, name, args)
-        _append(
-            s,
-            {
-                "role": "tool",
-                "tool_call_id": call["id"],
-                "content": f"{out}\n{s.clock()}{reshow}",
-            },
-        )
+        message = {"role": "tool", "tool_call_id": call["id"], "content": f"{out}\n{s.clock()}{reshow}"}
+        if s.operation_delivery:
+            message[operations.DELIVERY_FIELD] = s.operation_delivery
+        _append(s, message)
+        if s.operation_delivery and s.terminals.conversation is not None:
+            s.terminals.conversation.add(s.operation_delivery)
         if finished:
             return True
         if held_finish:
@@ -832,6 +839,7 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float, bool
         out, finished = await _dispatch(s, name, args)
         held_finish = name == "finish" and not finished
     except Exception as exc:
+        s.operation_delivery = ""
         out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
         if isinstance(exc, json.JSONDecodeError) and s.output_cut:  # y13/y14: 4 of 4 bad-JSON calls were cut off here
             out += (" (your turn reached the output limit while writing this call, so its arguments were cut off and "

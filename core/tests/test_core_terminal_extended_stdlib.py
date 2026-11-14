@@ -57,10 +57,11 @@ class TerminalExtended(unittest.TestCase):
 
     def test_shell_exit_not_misreported_as_success(self):
         outs=self.run_session([{"input":"exit 7","wait_s":2},
+                               {"input":"","wait_s":0},
                                {"input":"echo new-shell","wait_s":2}])
         self.assertNotIn("[exit 0",outs[0])
         self.assertIn("terminal main exited",outs[0])
-        self.assertIn("new-shell",outs[1])
+        self.assertIn("new-shell",outs[2])
 
     def test_no_output_command_eventually_completes(self):
         outs=self.run_session([{"input":"sleep 1","wait_s":0.1},

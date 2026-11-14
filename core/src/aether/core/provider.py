@@ -19,6 +19,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from . import reasoning_wire as reasoning_wire_mod
+from .operations import DELIVERY_FIELD
 
 from .calls import CallLog
 from .provider_errors import (IncompleteStream, ProviderError, _in_band_rate_limit, _in_band_transient, _is_transport,
@@ -197,9 +198,12 @@ class ChatProvider:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        wire_messages = deepcopy(messages)
+        for message in wire_messages:
+            message.pop(DELIVERY_FIELD, None)  # local continuation metadata, never provider input
         request: dict[str, Any] = {
             "model": self.model,
-            "messages": reasoning_wire_mod.outgoing(self.reasoning_wire, deepcopy(messages)),
+            "messages": reasoning_wire_mod.outgoing(self.reasoning_wire, wire_messages),
             self.limit_field: max_tokens,
         }
         if params.get("reasoning_effort", "") is None:  # a model without effort levels (Flint): never sent

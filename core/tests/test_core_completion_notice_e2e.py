@@ -73,6 +73,7 @@ def test_completion_is_owned_by_terminal_generation_and_batched_at_packet_bounda
         call("terminal", {"name": "main", "input": "sleep 0.9", "wait_s": 5}, "overlap1"),
         call("terminal", {"name": "export", "input": "", "wait_s": 1}, "collect1"),
         call("terminal", {"name": "export", "input": "exit", "wait_s": 1}, "close1"),
+        call("terminal", {"name": "export", "input": "", "wait_s": 0}, "recover"),
         call("terminal", {"name": "export", "input": "sleep 0.4; echo two > two; (exit 7)", "wait_s": 0}, "start2"),
         parallel_packet,
         call("terminal", {"name": "export", "input": "", "wait_s": 1}, "collect2"),
@@ -84,7 +85,7 @@ def test_completion_is_owned_by_terminal_generation_and_batched_at_packet_bounda
         timeout_s=30, config=CoreConfig(completion_notices=True, control_dir=str(tmp_path / "control"), end_processes="stop"),
     ))
     assert result.status == "finished"
-    assert len(client.requests) == 8
+    assert len(client.requests) == 9
     assert [(row["sequence"], row["exit"]) for row in result.extras["completion_notices_seen"]] == [(1, 4), (1, 7)]
     messages = {m["tool_call_id"]: m["content"] for m in client.requests[-1]["messages"] if m["role"] == "tool"}
     assert "finished with exit" not in messages["overlap2"]

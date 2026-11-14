@@ -105,7 +105,7 @@ def snapshot():
             try:
                 with open('/proc/'+name+'/stat') as f: fields = f.read().rsplit(')',1)[1].split()
                 table[int(name)] = (int(fields[1]),int(fields[2]),fields[0],fields[19])
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
                 continue  # a process that exited during enumeration
             except (OSError, ValueError, IndexError) as exc:
                 raise RuntimeError('process enumeration incomplete: '+type(exc).__name__)
@@ -184,7 +184,7 @@ try:
                 try:
                     with open('/proc/'+str(pid)+'/stat') as f: fields=f.read().rsplit(')',1)[1].split()
                     row=(int(fields[1]),int(fields[2]),fields[0],fields[19])
-                except FileNotFoundError:row=None
+                except (FileNotFoundError, ProcessLookupError):row=None
             else:
                 one=subprocess.run(['ps','-p',str(pid),'-o','pid=,ppid=,pgid=,stat=,lstart='],stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,timeout=3)
                 fields=one.stdout.split(None,4)

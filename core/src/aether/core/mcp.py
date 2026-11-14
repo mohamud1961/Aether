@@ -196,17 +196,19 @@ class Mcp:
                 "sent again.]")
 
     async def _finish(self, d: str, ident: int, reply: dict, seconds: float) -> str:
-        op = self.ops.pop(ident)
-        if self.adopt:  # whose result carried it: the conversation decides delivery (operations.seen)
-            tag = self.delivery_tag()
-            await run(self.env, operations.mark_delivered(d, ident, tag) + " 2>/dev/null; true", timeout_s=10)
-            if self.conversation is not None:
-                self.conversation.add(tag)
+        op = self.ops[ident]
         if reply.get("id") != ident:
             return f"error: MCP server {op['server']}: response identity does not match the request"
+        rendered = await self._render(d, ident, op["action"], reply)
+        if self.adopt:  # the continued conversation acknowledges the token
+            tag = self.delivery_tag()
+            recorded = await run(self.env, operations.mark_delivered(d, ident, tag), timeout_s=10)
+            if recorded.code != 0:
+                raise RuntimeError(f"MCP request #{ident}: result delivery could not be recorded")
+        del self.ops[ident]
         self.calls.append({"server": op["server"], "action": op["action"], "tool": op["tool"],
                            "error": "error" in reply, "s": round(seconds, 2)})
-        return await self._render(d, ident, op["action"], reply)
+        return rendered
 
     async def _render(self, d: str, ident: int, action: str, reply: dict) -> str:
         if "error" in reply:

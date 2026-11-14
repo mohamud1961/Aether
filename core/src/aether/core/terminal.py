@@ -72,8 +72,7 @@ class Terminals(TerminalIO, TerminalLifecycle):
         self._name_locks: dict[str, asyncio.Lock] = {}
         self._generations: dict[str, int] = {}
         self.adoptions: list[dict] = []  # terminals rebuilt from an earlier controller's records (terminal_adopt)
-        # Delivery authority (operations.seen): the id of the tool call being answered, recorded with each delivery,
-        # and the tool call ids of the conversation this controller continues (None: trust delivery records).
+        # Local result tokens acknowledged by the continued conversation.
         self.delivery_tag = lambda: ""
         self.conversation: set[str] | None = None
         self._launching: set[str] = (
@@ -140,7 +139,8 @@ class Terminals(TerminalIO, TerminalLifecycle):
             return note + observed + held
         if session is not None and not session.ready:
             if session.dispatch_unconfirmed and (input or interrupt):
-                return note + f"[input not sent: terminal {name} has an earlier command with unknown effect. Observe it before reusing the terminal.]"
+                return note + (f"[input not sent: terminal {name} is not running and its earlier command's effect is unknown. "
+                               "An empty observation starts a fresh shell. Check the earlier effect before resending.]")
             session = await self._restart(session)
             note += f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
             if mode == "keys":
@@ -416,7 +416,13 @@ class Terminals(TerminalIO, TerminalLifecycle):
         text = text.strip("\n")
         elapsed = time.monotonic() - started
         if not alive:
-            self._sessions.pop(name, None)
+            if self._preserve_existing and mark is None and not revoked and seq is not None:
+                # Keep the lost generation until the model has a chance to
+                # reconcile the effect and explicitly observes the terminal.
+                session.ready, session.pending, session.dispatch_unconfirmed = False, 0, True
+                session.last_observed_cwd, session.cwd_receipt_seq = None, None
+            else:
+                self._sessions.pop(name, None)
         if mark is not None:
             stages = (mark.group(3) or "").split(".")
             piped = (
@@ -434,6 +440,9 @@ class Terminals(TerminalIO, TerminalLifecycle):
                       "the shell took it. Nothing from it ran; send it again if it is still needed.]")
         elif not alive:
             status = f"[terminal {name} exited; it restarts on next use]"
+            if self._preserve_existing and seq is not None:
+                status = (f"[terminal {name} exited. Command #{seq} left no completion receipt; its effect is unknown. "
+                          "Use an empty observation to start a fresh shell after checking the effect.]")
         elif session.dispatch_unconfirmed:
             status = (f"[terminal {name}: dispatch of command #{seq} is unconfirmed and no exit has been observed. "
                       "Wait, explicitly interrupt, or do unrelated work in another terminal.]")
