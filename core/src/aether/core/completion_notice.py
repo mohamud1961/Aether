@@ -6,16 +6,19 @@ terminal finishes while the model works elsewhere; without a notice the model le
 
 At the end of a model tool packet, Core checks the shell's own completion receipt (``done_<seq>``) for every terminal with an
 outstanding command and appends one line per newly finished command: its terminal, sequence and exit. The output is
-not consumed here; it is delivered once, as before, by the next use of that terminal or a ``terminal_wait``. Each
-command is noticed at most once. A failed check adds nothing and is recorded in the trace.
+normally remains available through the terminal or ``terminal_wait``. With result delivery enabled,
+Core attaches the bounded output to the current tool packet instead. Each command is noticed at most once. A failed check adds nothing and is recorded in the trace.
 """
 
 from __future__ import annotations
 
 import shlex
+import time
 
 from .env import run
 from .terminal_adopt import _DONE
+
+MAX_DELIVERED_PER_BOUNDARY = 2
 
 LINE = ("[terminal {name}: command #{seq} finished with exit {exit} (the shell's own receipt). Its output is "
         "delivered when you next use or wait on {name}.]")
@@ -54,7 +57,30 @@ async def before_model(s) -> str:
     except Exception as exc:  # substrate failure: no notice, recorded honestly
         s.trace("completion_notice_error", error=f"{type(exc).__name__}: {exc}")
         return ""
+    deliver = s.config.terminal_result_delivery
+    if deliver:
+        found = found[:MAX_DELIVERED_PER_BOUNDARY]
+    lines = []
     for row in found:
+        name, seq = row["name"], row["sequence"]
+        if deliver:
+            try:
+                async with s.terminals._name_locks[name]:
+                    session = s.terminals._sessions.get(name)
+                    if session is None or session.root != row["owner"] or session.pending != seq:
+                        continue
+                    first = await s.terminals._poll(session, seq)
+                    mark = first[1]
+                    if mark is None or int(mark.group(2)) != row["exit"]:
+                        continue
+                    output = await s.terminals._collect(session, time.monotonic(), 0, first)
+            except (OSError, RuntimeError, TimeoutError) as exc:
+                s.trace("completion_notice_error", name=name, sequence=seq, error=type(exc).__name__)
+                continue
+            row["delivered"] = True
+            lines.append(f"[terminal {name}: command #{seq} finished with exit {row['exit']}; collected output]\n{output}")
+        else:
+            lines.append(LINE.format(name=name, seq=seq, exit=row["exit"]))
         seen.append({**row, "step": s.result.steps})
         s.trace("completion_notice", **row, step=s.result.steps)
-    return "".join("\n" + LINE.format(name=r["name"], seq=r["sequence"], exit=r["exit"]) for r in found)
+    return "".join("\n" + line for line in lines)

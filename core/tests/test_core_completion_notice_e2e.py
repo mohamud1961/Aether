@@ -90,3 +90,52 @@ def test_completion_is_owned_by_terminal_generation_and_batched_at_packet_bounda
     assert "finished with exit" not in messages["overlap2"]
     assert "[terminal export: command #1 finished with exit 7" in messages["boundary"]
     assert (work / "one").read_text() == "one\n" and (work / "two").read_text() == "two\n"
+
+
+
+@pytest.mark.parametrize("delivery", [False, True])
+def test_delivered_output_advances_the_task_without_a_collection_turn(tmp_path, delivery):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "input").write_text("value=417")
+    (work / "schema").write_text("code")
+
+    class DecisionClient(ScriptedClient):
+        async def _create(self, **kwargs):
+            if len(self.requests) in (2, 3) and not (work / "delivery").exists():
+                last = next(m for m in reversed(kwargs["messages"]) if m["role"] == "tool")
+                value = next((line.removeprefix("READY-") for line in last["content"].splitlines()
+                              if line.startswith("READY-")), None)
+                if value is None:
+                    self.script.insert(0, call("terminal", {"name": "export", "input": "", "wait_s": 1}, "collect"))
+                else:
+                    self.script.insert(0, call("write_file", {"path": "delivery", "content": value}, "deliver"))
+            return await super()._create(**kwargs)
+
+    client = DecisionClient([
+        call("terminal", {"name": "export", "input":
+                         "while [ ! -f allow ]; do sleep 0.05; done; sed 's/^value=/READY-/' input; (exit 5)",
+                         "wait_s": 0}, "start"),
+        call("terminal", {"name": "schema", "input": "touch allow; sleep 0.6; cat schema", "wait_s": 3}, "schema"),
+        call("terminal", {"name": "export", "input": "", "wait_s": 0}, "confirm-consumed"),
+        call("finish", {"summary": "Delivered."}, "done"),
+    ])
+    result = asyncio.run(run_agent(
+        env=LocalEnv(work), task="Write the result of the export to delivery.", workdir=str(work),
+        provider=ChatProvider(client, model="offline", params={}), trace=Trace(tmp_path / "trace.jsonl"),
+        timeout_s=30, config=CoreConfig(terminal_result_delivery=delivery, control_dir=str(tmp_path / "control"),
+                                       end_processes="stop"),
+    ))
+    assert result.status == "finished"
+    packets = {m["tool_call_id"]: m["content"] for m in client.requests[-1]["messages"] if m["role"] == "tool"}
+    assert ("Core will deliver" in packets["start"]) is delivery
+    assert ("READY-417" in packets["schema"]) is delivery
+    assert "READY-417" not in packets["confirm-consumed"] and "finished with exit" not in packets["deliver"]
+    assert (work / "delivery").read_text() == "417"
+    if delivery:
+        assert "finished with exit 5" in packets["schema"]
+        assert result.extras["completion_notices_seen"][0]["delivered"] is True
+        assert len(client.requests) == 5 and "collect" not in packets
+    else:
+        assert "READY-417" in packets["collect"] and "[exit 5" in packets["collect"]
+        assert len(client.requests) == 6

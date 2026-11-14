@@ -123,6 +123,7 @@ class CoreConfig:
     skills_dir: str | None = None  # opt-in (AETHER_CORE_SKILLS): the task-declared skills directory to list at start
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
+    terminal_result_delivery: bool = False  # opt-in: collect completed terminal output at a tool boundary
     workspace_brief: bool = False
     workspace_search: bool = False
 
@@ -183,6 +184,7 @@ class _Session:
             self.env, workdir, self.remaining, control_dir=config.control_dir,
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (),
             capture_state=config.facts_pull, preserve_existing=config.terminal_events,
+            deliver_results=config.terminal_result_delivery,
         )
         self.facts = (facts_pull.make(self.env, workdir, self.remaining, trace, terminal_state=self.terminals.observed_session,
                                      python_state=lambda: self.repl.observed_state(), pull=config.facts_pull, v2=config.facts_v2,
@@ -729,8 +731,9 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             found = await s.diffcheck.after_action()
             if found:
                 out = f"{out}\n{found}"
-        if getattr(s.config, "completion_notices", False) and not finished and (held_finish or index + 1 == len(calls)):
-            out += await completion_notice.before_model(s)
+        if not finished and (held_finish or index + 1 == len(calls)):
+            if getattr(s.config, "completion_notices", False) or getattr(s.config, "terminal_result_delivery", False):
+                out += await completion_notice.before_model(s)
         out = await _save(s, out)
         if s.state and not finished:
             if name in ("write_file", "edit_file") and not out.startswith("error"):
@@ -1215,7 +1218,7 @@ def _close(s: _Session) -> None:
             [x for x in roles if x.startswith(diffcheck.AUTHOR_ROLE)])} if s.diffcheck else None,
         "finish_hold": s.config.finish_hold,
         "switches": {"finish_settle": s.config.finish_settle, "completion_notices": s.config.completion_notices,
-                     "env_map": s.config.env_map},
+                     "env_map": s.config.env_map, "terminal_result_delivery": s.config.terminal_result_delivery},
     }
     s.trace(
         "end",

@@ -56,12 +56,14 @@ class Terminals(TerminalLifecycle):
     def __init__(
         self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR,
         command_names: tuple[str, ...] = (), capture_state: bool = False, preserve_existing: bool = False,
+        deliver_results: bool = False,
     ) -> None:
         facts_probe.terminal_scope(command_names)
         self._env = env
         self._command_names = command_names
         self._capture_state = capture_state
         self._preserve_existing = preserve_existing
+        self._deliver_results = deliver_results
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
@@ -491,6 +493,7 @@ class Terminals(TerminalLifecycle):
                 break
             await asyncio.sleep(delay)
             delay = min(1.0, delay * 1.5)
+        text = clean(await self._read(session, session.cursor, size))
         if mark is not None:
             session.pending = 0
             session.dispatch_unconfirmed = False
@@ -498,7 +501,6 @@ class Terminals(TerminalLifecycle):
             facts_replay.record_terminal_receipt(session, mark, self._capture_state)
             session.command_resolution = session.pending_resolution
             session.resolution_receipt_seq = int(mark.group(1)) if session.command_resolution is not None else None
-        text = clean(await self._read(session, session.cursor, size))
         session.cursor = size
         # Runtime completion receipts are out-of-band. Keep user/program
         # stdout verbatim even if it resembles our completion protocol.
@@ -522,14 +524,21 @@ class Terminals(TerminalLifecycle):
                       "Wait, explicitly interrupt, or do unrelated work in another terminal.]")
         elif seq is not None:
             quiet = time.monotonic() - session.grew_at
+            guidance = "call again with empty input to keep waiting, use interrupt=true to stop it, or work in another terminal"
+            if self._deliver_results:
+                guidance = "Core will deliver the result after exit with a subsequent tool result"
+                if session.delivery_announced != seq:
+                    session.delivery_announced = seq
+                    guidance += "; work elsewhere if you can, or wait here if you need the result now"
+                else:
+                    guidance = "Core is tracking this command"
             status = (
                 "[its last line looks like a prompt waiting for input; answer it with mode=\"keys\" (end with \\n) "
                 "or interrupt it]\n" if asking else ""
             ) + (
                 f"[still running after {elapsed:.0f}s · "
                 + (f"no new output for {quiet:.0f}s · " if quiet >= 10 else "")
-                + f"terminal {name}; call again with empty input to keep waiting, use interrupt=true to "
-                f"stop it, or work in another terminal]"
+                + f"terminal {name}; {guidance}]"
             )
             procs = await describe_processes(self._env, session.pid)
             if procs:

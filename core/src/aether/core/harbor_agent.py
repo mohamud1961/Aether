@@ -227,6 +227,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         workspace_search=_choice(environ, "AETHER_CORE_WORKSPACE_SEARCH", REPL_MODES, "off") == "on",
         completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         stable_facts=_choice(environ, "AETHER_CORE_STABLE_FACTS", REPL_MODES, "off") == "on",
+        terminal_result_delivery=_choice(environ, "AETHER_CORE_TERMINAL_RESULT_DELIVERY", REPL_MODES, "off") == "on",
         workspace_brief=_choice(environ, "AETHER_CORE_WORKSPACE_BRIEF", REPL_MODES, "off") == "on",
         verify=_choice(environ, VERIFY_ENV, VERIFY_MODES, "off") == "once",
         self_check=_choice(environ, SELF_CHECK_ENV, REPL_MODES, "off") == "on",
