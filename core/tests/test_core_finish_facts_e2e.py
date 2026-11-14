@@ -14,14 +14,19 @@ from aether.core.provider import ChatProvider
 from tests.core_fakes import LocalEnv, ScriptedClient, call
 
 
-def run(tmp_path, facts, terminal_events=True):
+def run(tmp_path, facts, terminal_events=True, *, command="sleep 30", synchronize=False):
     work = tmp_path / "work"
     work.mkdir()
     (work / "kept.txt").write_text("untouched\n")
-    client = ScriptedClient([
+    script = [
         call("write_file", {"path": "answer.txt", "content": "42\n"}, "write"),
         call("terminal", {"input": "printf 'abc' > notes.txt", "wait_s": 5}, "shell"),
-        call("terminal", {"name": "server", "input": "sleep 30", "wait_s": 0.3}, "serve"),
+        call("terminal", {"name": "server", "input": command, "wait_s": 0.3}, "serve"),
+    ]
+    if synchronize:
+        done = str(tmp_path / "control" / "term" / "server" / "done_1")
+        script.append(call("terminal", {"input": f"touch release; while [ ! -s '{done}' ]; do sleep .05; done"}, "release"))
+    client = ScriptedClient([*script,
         call("finish", {"summary": "answer.txt holds 42."}, "first"),
         call("finish", {"summary": "Done."}, "second"),
     ])
@@ -41,7 +46,7 @@ def test_first_finish_returns_delivered_state_facts_once(tmp_path):
     assert result.status == "finished" and len(client.requests) == 5
     shown = [m for m in client.requests[4]["messages"] if m["role"] == "tool"][-1]["content"]
     assert shown.startswith("Delivered state at your finish request, as observed by Core:")
-    assert "Changed files since the task started (2):" in shown
+    assert "Changed files since the task started (2 current files measured):" in shown
     assert "answer.txt: 3 bytes" in shown and "notes.txt: 3 bytes" in shown and "kept.txt" not in shown
     assert "sleep 30" in shown  # the process still running
     assert "terminal server: command #1 still running" in shown
@@ -57,3 +62,12 @@ def test_switch_off_keeps_the_previous_finish_path(tmp_path):
     assert not [r for r in rows if r["event"] == "finish_facts"]
     held = [m for m in client.requests[-1]["messages"] if m["role"] == "tool"][-1]["content"]
     assert "Delivered state" not in held
+
+
+def test_finish_observes_a_completion_that_arrived_without_a_terminal_poll(tmp_path):
+    result, client, rows = run(tmp_path, facts=True, synchronize=True,
+                                 command="while [ ! -f release ]; do sleep .05; done; (exit 7)")
+    assert result.status == "finished"
+    (observation,) = [row for row in rows if row["event"] == "finish_facts"]
+    assert observation["operations"] == ["terminal server: command #1 completed with exit 7; result not shown"]
+    assert "still running" not in observation["operations"][0]

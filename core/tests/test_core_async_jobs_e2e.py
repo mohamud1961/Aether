@@ -97,6 +97,6 @@ def test_wait_tool_is_absent_in_stock(tmp_path):
     asyncio.run(run_agent(
         env=LocalEnv(work), task="Nothing.", workdir=str(work),
         provider=ChatProvider(client, model="offline", params={}), trace=Trace(tmp_path / "t"), timeout_s=30,
-        config=CoreConfig(control_dir=str(tmp_path / "control")),
+        config=CoreConfig(control_dir=str(tmp_path / "control"), terminal_events=False),
     ))
     assert "terminal_wait" not in [t["function"]["name"] for t in client.requests[0]["tools"]]

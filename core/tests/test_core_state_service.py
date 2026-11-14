@@ -126,7 +126,7 @@ def test_known_bad_the_full_check_catches_an_incremental_miss_and_corrects_it(tm
     (state / "t_prev").write_text("9999999999\n")
     # the next step is a full check: its incremental pass misses the edit, the byte comparison does not
     line = asyncio.run(svc.after_action(state_service.VERIFY_EVERY, "terminal", {}, ""))
-    assert line.endswith("1 changed") and svc.misses and "data.txt" in svc.misses[0]["paths"]
+    assert line.split(" · ", 1)[0].endswith("1 changed") and svc.misses and "data.txt" in svc.misses[0]["paths"]
     assert svc.safe_record()["misses"] == svc.misses
 
 

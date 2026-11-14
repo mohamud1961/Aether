@@ -21,9 +21,9 @@ TASK = "Create out.txt containing hello."
 
 
 # ----- REPL ------------------------------------------------------------------------------------------------
-async def _repl(tmp_path, llm=None):
+async def _repl(tmp_path, llm=None, **options):
     env = LocalEnv(tmp_path)
-    repl = Repl(env, str(tmp_path), lambda: 600.0, llm, base=str(tmp_path / "repl"))
+    repl = Repl(env, str(tmp_path), lambda: 600.0, llm, base=str(tmp_path / "repl"), **options)
     assert await repl.start()
     return env, repl
 
@@ -38,7 +38,7 @@ def _stop(repl):
 
 def test_repl_state_persists_and_fast_cells_take_one_exec(tmp_path):
     async def go():
-        env, repl = await _repl(tmp_path)
+        env, repl = await _repl(tmp_path, track_operations=False)
         try:
             await repl.run("data = list(range(10))\nfrom pathlib import Path")
             n = len(env.commands)

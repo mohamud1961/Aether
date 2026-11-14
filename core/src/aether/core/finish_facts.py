@@ -15,30 +15,59 @@ a decisive history fact at finish was read as confirmation 0/12 (P2). The start 
 
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
-from .env import list_process_tree
+from .env import alive_test, list_process_tree, run
 from .finish_report import _files
+from .operations import DONE
 
 MAX_LISTED = 12
 
 
-def operations(s) -> list[str]:
-    """One line per operation whose result the model has not been shown, or whose effect is unknown."""
+async def terminal_operations(terminals) -> list[str]:
+    """Sample outstanding terminal receipts without waiting for work or consuming output."""
+    pending = [(name, session) for name, session in sorted(terminals._sessions.items())
+               if session.pending or session.dispatch_unconfirmed]
+    if not pending:
+        return []
+    q = shlex.quote
+    commands = []
+    for index, (_, session) in enumerate(pending):
+        path = q(f"{session.root}/done_{session.pending or session.seq}")
+        # A matching receipt takes precedence over process liveness.
+        commands.append(f"printf '%s ' {index}; if [ -s {path} ]; then head -c 160 {path} | tr '\\n' ' '; "
+                        f"elif {alive_test(session.pid)}; then printf alive; "
+                        "else printf absent; fi; printf '\\n'")
+    try:
+        response = await run(terminals._env, "; ".join(commands), timeout_s=2)
+        statuses = dict((i, state.strip()) for i, _, state in
+                        (line.partition(" ") for line in response.stdout.splitlines())) if response.code == 0 else {}
+    except (OSError, RuntimeError, TimeoutError):
+        statuses = {}
     lines = []
-    for name, session in sorted(s.terminals._sessions.items()):
-        if session.dispatch_unconfirmed:
-            lines.append(f"terminal {name}: command #{session.pending or session.seq} dispatch unconfirmed; "
-                         "effect unknown")
-        elif session.pending:
-            lines.append(f"terminal {name}: command #{session.pending} still running" +
-                         ("; its result has not been shown" if session.unseen else ""))
+    for index, (name, session) in enumerate(pending):
+        seq = session.pending or session.seq
+        state = statuses.get(str(index), "")
+        marker = DONE.match(state)
+        if marker and int(marker[1]) == seq:
+            status = f"completed with exit {marker[2]}; result not shown"
+        elif state == "alive" and not session.dispatch_unconfirmed:
+            status = "still running" + ("; result not shown" if session.unseen else "")
+        else:
+            status = "no verified completion; effect unknown"
+        lines.append(f"terminal {name}: command #{seq} {status}")
+    return lines
+
+
+async def operations(s) -> list[str]:
+    lines = await terminal_operations(s.terminals)
     repl = getattr(s, "repl", None)
     if repl is not None:
         if getattr(repl, "unconfirmed", False):
             lines.append(f"python: cell #{repl.pending or repl.seq} submission unconfirmed; effect unknown")
         elif getattr(repl, "pending", 0):
-            lines.append(f"python: cell #{repl.pending} still running")
+            lines.append(f"python: no completion collected for cell #{repl.pending}")
     mcp = getattr(s, "mcp", None)
     for ident, op in sorted(getattr(mcp, "ops", {}).items()):
         state = "no answer yet" if op.get("published") else "sending unconfirmed"
@@ -54,11 +83,12 @@ def operations(s) -> list[str]:
 async def observe(s) -> dict[str, Any]:
     written = {step.wrote for step in s.report_steps if step.wrote and not step.failed}
     files, total = await _files(s.env, s.workdir, s.config.control_dir, written, check_absence=True)
+    identities = {pid: token for t in s.terminals._sessions.values() for pid, token in t.identity.items()}
     try:
-        processes = await list_process_tree(s.env, [t.pid for t in s.terminals._sessions.values()])
+        processes = await list_process_tree(s.env, [t.pid for t in s.terminals._sessions.values()], identities=identities)
     except OSError as exc:
         processes = [f"(process listing unavailable: {exc})"]
-    return {"files": files, "files_total": total, "processes": processes, "operations": operations(s)}
+    return {"files": files, "files_total": total, "processes": processes, "operations": await operations(s)}
 
 
 def render(row: dict[str, Any]) -> str:
@@ -66,14 +96,14 @@ def render(row: dict[str, Any]) -> str:
     if isinstance(files, str):
         changed = f"Changed files: unmeasured ({files})."
     elif not files:
-        changed = "Changed files since the task started: none observed."
+        changed = "Current changed regular files since the task started: none observed."
     else:
         listed = "\n".join(f"- {f['path']}: " + ("deleted" if f.get("sha256") in (None, "-") else
                                                  f"{f['bytes']} bytes, sha256 {str(f['sha256'])[:12]}")
                            for f in files[:MAX_LISTED])
         more = row["files_total"] - min(len(files), MAX_LISTED)
-        changed = (f"Changed files since the task started ({row['files_total']}):\n{listed}"
-                   + (f"\n- and {more} more" if more > 0 else ""))
+        changed = (f"Changed files since the task started ({len(files)} current files measured):\n{listed}"
+                   + (f"\n- {more} additional candidates omitted or unavailable" if more > 0 else ""))
     procs = row["processes"]
     running = ("Processes still running under your terminals:\n" + "\n".join(f"- {p}" for p in procs[:MAX_LISTED])
                if procs else "Processes still running under your terminals: none observed.")
