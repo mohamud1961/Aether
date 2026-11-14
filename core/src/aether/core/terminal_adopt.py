@@ -18,7 +18,7 @@ Everything here comes from the sandbox, never from controller memory:
 
 The adopted state of the latest dispatched command is one of: ``completed`` (receipt present, with its exit),
 ``running`` (delivered, no receipt, shell alive), ``dispatch_unconfirmed`` (written but never confirmed delivered),
-or ``lost`` (delivered, shell gone, no receipt). Adoption never resends, retries or stops anything.
+or ``lost`` (shell gone, no valid receipt). Adoption never resends, retries or stops anything.
 """
 
 from __future__ import annotations
@@ -74,9 +74,9 @@ def state_of(seq: int | None, sent: str | None, done: str | None, alive: bool) -
         if mark is None or int(mark.group(1)) != seq:
             return "lost", None
         return "completed", int(mark.group(2))
-    if sent is None:
-        return "dispatch_unconfirmed", None
-    return ("running", None) if alive else ("lost", None)
+    if not alive:
+        return "lost", None
+    return ("dispatch_unconfirmed", None) if sent is None else ("running", None)
 
 
 async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
@@ -121,7 +121,7 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
         # The normal observation path reads the receipt (now or later) and delivers the output from the recorded
         # offset exactly once, as it would have for the original controller.
         session.pending = seq
-    session.dispatch_unconfirmed = state == "dispatch_unconfirmed" and alive
+    session.dispatch_unconfirmed = state == "dispatch_unconfirmed" or state == "lost"
     session.ready = alive
     if alive:
         session.identity = await process_identities(terminals._env, [pid])

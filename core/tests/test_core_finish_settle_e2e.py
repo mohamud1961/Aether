@@ -37,7 +37,7 @@ def test_changing_delivered_file_holds_the_first_finish_once(tmp_path):
     assert len(client.requests) == 3  # the first finish came back to the model, the second ended the work
     tools = [m for m in client.requests[2]["messages"] if m["role"] == "tool"]
     held = tools[-1]["content"]
-    assert "still changing" in held and "result.txt" in held
+    assert "changed over a 2 s interval" in held and "result.txt" in held
     assert "sleep" in held or "sh -c" in held  # the writer is named among running processes
     (settle,) = [r for r in rows if r["event"] == "finish_settle"]
     assert settle["status"] == "changing" and settle["changed"][0]["path"].endswith("/result.txt")

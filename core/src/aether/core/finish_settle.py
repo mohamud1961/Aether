@@ -6,8 +6,7 @@ the post-run report, which the model never reads. Continuation capture already t
 hashes differ as unstable; this applies the same rule at the moment of finishing.
 
 At the first finish request: hash the files the run changed (the finish report's scan: newer than the start marker,
-plus file-tool writes), wait ``SETTLE_S``, and hash again. If any file appeared, disappeared or changed while no
-foreground command ran, the finish is returned once with the facts: the files, their before/after sizes, and the
+plus file-tool writes), wait ``SETTLE_S``, and hash again. If any file appeared, disappeared or changed, the finish is returned once with the facts: the files, their before/after sizes, and the
 processes still running under the terminals. The model decides whether to wait, stop the writer or finish anyway.
 A second finish always proceeds. Measurement failures are reported as unmeasured and never hold the finish.
 """
@@ -24,8 +23,8 @@ SETTLE_S = 2.0
 MAX_LISTED = 12
 
 NOTE = (
-    "Finish not yet taken: files this run changed were still changing {wait:g} s after your finish request, while no "
-    "foreground command of yours was running. The delivered state is what gets used, so it may differ from what you "
+    "Finish not yet taken: the sampled files changed over a {wait:g} s interval after your finish request. "
+    "The delivered state can differ from what you "
     "last checked.\n{files}\n{processes}\nDecide whether to wait for the writer, stop it, or finish as it is. "
     "Calling finish again ends the work."
 )

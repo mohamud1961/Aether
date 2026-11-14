@@ -241,6 +241,8 @@ class Terminals(TerminalLifecycle):
         note = await terminal_adopt.ensure(self, name)
         session = self._sessions.get(name)
         if session is not None and not session.ready:
+            if session.dispatch_unconfirmed and (input or interrupt):
+                return note + f"[input not sent: terminal {name} has an earlier command with unknown effect. Observe it before reusing the terminal.]"
             session = await self._restart(session)
             note += f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
             if mode == "keys":
@@ -268,6 +270,8 @@ class Terminals(TerminalLifecycle):
             try:
                 earlier = await self._collect(session, time.monotonic(), 0.0)
             except TerminalGone as gone:
+                if session.dispatch_unconfirmed:
+                    return note + f"[input not sent: terminal {name} disappeared with an unconfirmed dispatch. Check its effect and use a new terminal.]"
                 session = await self._restart(session)
                 earlier = f"[{gone}; its previous command's output is lost. A fresh terminal {name} was started]"
             if session.pending and name in self._sessions:

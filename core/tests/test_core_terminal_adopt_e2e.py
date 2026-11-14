@@ -153,7 +153,7 @@ def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
     asyncio.run(go())
 
 
-def test_dead_shell_with_no_receipt_is_lost_and_replaced(tmp_path):
+def test_dead_shell_with_no_receipt_is_observed_before_replacement(tmp_path):
     async def go():
         first = controller(tmp_path)
         assert "still running" in await first.use(name="d", input=GATED, wait_s=0.3)
@@ -165,9 +165,13 @@ def test_dead_shell_with_no_receipt_is_lost_and_replaced(tmp_path):
         second = controller(tmp_path)
         try:
             out = await second.use(name="d", input="printf hi > hi", wait_s=5)
-            assert "effect is unknown" in out and (tmp_path / "hi").read_text() == "hi"
+            assert "effect is unknown" in out and "input not sent" in out
+            assert not (tmp_path / "hi").exists()
             assert second.adoptions[0]["state"] == "lost"
+            await second.use(name="d", input="", wait_s=0)
+            await second.use(name="d", input="printf hi > hi", wait_s=5)
             assert second._sessions["d"].root.endswith("/d.1")
+            assert (tmp_path / "hi").read_text() == "hi"
         finally:
             (tmp_path / "release").touch()  # the orphaned command of the killed shell
             await second.close()
